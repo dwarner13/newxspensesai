@@ -172,7 +172,7 @@ export function TransactionList({
               <div
                 className="sticky top-0 z-[2] px-1 py-2.5 mt-2 first:mt-0 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-sm"
               >
-                <div className="text-[14px] font-medium uppercase tracking-wider text-slate-500">
+                <div className="text-[13px] font-medium uppercase tracking-wide text-slate-500">
                   {section.label}
                 </div>
                 {sectionIndex === 0 && groupInsight ? (
@@ -233,7 +233,7 @@ export function TransactionList({
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             className="rounded-full border border-slate-600 bg-slate-800/80 px-6 py-2.5 text-sm font-medium text-slate-200 hover:bg-slate-700 hover:border-slate-500 transition-colors"
           >
-            Load more
+            Load more transactions
           </button>
         </div>
       )}

@@ -75,7 +75,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/business': { title: 'Business', subtitle: 'Business and tax AI workspace for professional financial management.' },
   '/dashboard/entertainment': { title: 'Entertainment', subtitle: 'Wellness, entertainment, and financial "fun" tools to make money management enjoyable.' },
   '/dashboard/reports': { title: 'Reports', subtitle: 'Preview shell for financial reports. Coming soon: Custom report generation and export functionality.' },
-  '/dashboard/transactions': { title: 'Transactions', subtitle: 'View and manage your financial transactions.' },
+  '/dashboard/transactions': { title: 'Transactions', subtitle: '' },
   '/dashboard/ai-financial-assistant': { title: 'AI Financial Assistant', subtitle: 'Get personalized financial advice from AI.' },
   '/dashboard/smart-import-ai': { title: 'Import Operations', subtitle: 'Monitor import status, history, and processing health.' },
   '/dashboard/bulk-upload': { title: 'Bulk Upload', subtitle: 'Process high-volume statements in guided batches.' },
@@ -295,20 +295,34 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
         {/* Row 1: Title + subtitle + utilities */}
         {/* Locked grid: Mobile [Title(minmax(280px,1fr)) Icons(auto)], Desktop [Title(minmax(280px,1fr)) Search(minmax(360px,560px)) Icons(auto)] */}
         {/* CRITICAL: Title has guaranteed 280px minimum, search is right-aligned and capped, icons pinned far right */}
-        <div className="grid grid-cols-[minmax(280px,1fr)_auto] md:grid-cols-[minmax(280px,1fr)_minmax(360px,560px)_auto] items-center gap-4">
+        <div
+          className={cn(
+            'grid items-center gap-4',
+            location.pathname.startsWith('/dashboard/transactions')
+              ? 'grid-cols-[minmax(280px,1fr)_auto]'
+              : 'grid-cols-[minmax(280px,1fr)_auto] md:grid-cols-[minmax(280px,1fr)_minmax(360px,560px)_auto]'
+          )}
+        >
           {/* Column 1: Title + subtitle - ALWAYS VISIBLE, NEVER HIDDEN */}
           {/* min-w-0 (NOT w-0) allows truncation but prevents collapse to zero */}
           <div data-header-left="true" className="min-w-0 flex flex-col gap-0.5">
             <h1 className="text-2xl font-semibold text-slate-50 truncate" title={pageInfo.title}>
               {pageInfo.title}
             </h1>
-            <p className="text-sm text-slate-400 truncate" title={pageInfo.subtitle || ''}>
-              {pageInfo.subtitle || 'Your financial command center.'}
-            </p>
+            {pageInfo.subtitle ? (
+              <p className="text-sm text-slate-400 truncate" title={pageInfo.subtitle}>
+                {pageInfo.subtitle}
+              </p>
+            ) : null}
           </div>
 
-          {/* Column 2: Search Bar - Right-aligned, capped width, does not expand left */}
-          <div className="hidden md:flex justify-self-end w-full max-w-[560px]">
+          {/* Column 2: Search Bar - Right-aligned, capped width, does not expand left (hidden on Transactions — page has its own search) */}
+          <div
+            className={cn(
+              'hidden justify-self-end w-full max-w-[560px]',
+              location.pathname.startsWith('/dashboard/transactions') ? 'md:hidden' : 'md:flex'
+            )}
+          >
             <div className="relative w-full">
               <input
                 type="text"

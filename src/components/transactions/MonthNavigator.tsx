@@ -5,7 +5,7 @@
  * First chip is "All Statements" (importId = null); subsequent chips are one per import.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { ImportListItem } from '../../hooks/useImportList';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
 
@@ -15,9 +15,27 @@ interface MonthNavigatorProps {
   onSelect: (id: string | null) => void;
 }
 
+function dedupeImportsByDisplay(imports: ImportListItem[]): ImportListItem[] {
+  const seen = new Set<string>();
+  const out: ImportListItem[] = [];
+  for (const imp of imports) {
+    const key = [
+      sanitizeIssuerPillLabel(imp.statementLabel),
+      sanitizeIssuerPillLabel(imp.label),
+      imp.docName.trim().toLowerCase(),
+    ].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(imp);
+  }
+  return out;
+}
+
 export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavigatorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
+
+  const uniqueImports = useMemo(() => dedupeImportsByDisplay(imports), [imports]);
 
   const formatLongDate = (raw: string) => {
     const d = new Date(raw);
@@ -65,7 +83,7 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
         All Statements
       </button>
 
-      {imports.map((imp) => {
+      {uniqueImports.map((imp) => {
         const isActive = currentImportId === imp.id;
         return (
           <button

@@ -901,23 +901,17 @@ export default function TransactionsPage() {
     return result;
   }, [displayPending, categoryFilter, focusFilter, focusListTokens, statusFilter]);
 
-  const calendarMonthSummary = useMemo(() => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  /** Spending / income totals for whatever is currently visible (search, statement scope, category filters, etc.). */
+  const filteredViewSummary = useMemo(() => {
     let spent = 0;
     let income = 0;
     for (const tx of urlFilteredCommitted) {
-      const t = new Date(tx.posted_at);
-      if (t < start || t > end) continue;
       const a = Number(tx.amount || 0);
       if (a > 0) spent += a;
       else if (a < 0) income += Math.abs(a);
     }
     for (const p of urlFilteredPending) {
       const dj = p.data_json as Record<string, unknown>;
-      const raw = dj.date ? new Date(String(dj.date)) : new Date(p.parsed_at);
-      if (Number.isNaN(raw.getTime()) || raw < start || raw > end) continue;
       const a = Number(dj.amount || 0);
       if (a > 0) spent += a;
       else if (a < 0) income += Math.abs(a);
@@ -1362,43 +1356,19 @@ export default function TransactionsPage() {
   const viewingScopePrefix = isStatementView ? 'Viewing' : 'Queue focus';
   const viewingScopeDisplayName = viewingScopeName || (isStatementView ? 'Statement' : 'All statements');
   const viewingScopeChipLabel = `${viewingScopePrefix}: ${viewingScopeDisplayName} (${scopeChipCount} transaction${scopeChipCount === 1 ? '' : 's'})`;
-  const wowTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(wowVisibleRows.length / wowPageSize)),
-    [wowVisibleRows.length]
+  /** Cumulative rows for wow preview (load-more style). */
+  const wowPagedRows = useMemo(
+    () => wowVisibleRows.slice(0, wowPage * wowPageSize),
+    [wowPage, wowVisibleRows, wowPageSize]
   );
-  const wowPagedRows = useMemo(() => {
-    const start = (wowPage - 1) * wowPageSize;
-    return wowVisibleRows.slice(start, start + wowPageSize);
-  }, [wowPage, wowVisibleRows]);
-  const wowPageButtons = useMemo<Array<number | '…'>>(() => {
-    if (wowTotalPages <= 7) {
-      return Array.from({ length: wowTotalPages }, (_, idx) => idx + 1);
-    }
-    const pages = new Set<number>([1, wowTotalPages, wowPage - 1, wowPage, wowPage + 1]);
-    const normalized = Array.from(pages)
-      .filter((p) => p >= 1 && p <= wowTotalPages)
-      .sort((a, b) => a - b);
-    const output: Array<number | '…'> = [];
-    for (let i = 0; i < normalized.length; i += 1) {
-      const current = normalized[i];
-      const prev = normalized[i - 1];
-      if (i > 0 && prev !== undefined && current - prev > 1) {
-        output.push('…');
-      }
-      output.push(current);
-    }
-    return output;
-  }, [wowPage, wowTotalPages]);
+  const wowHasMoreWow = wowPagedRows.length < wowVisibleRows.length;
   useEffect(() => {
     setWowPage(1);
   }, [wowGroupMode, importIdFilter]);
   useEffect(() => {
-    if (wowPage <= wowTotalPages) return;
-    setWowPage(wowTotalPages);
-  }, [wowPage, wowTotalPages]);
-  useEffect(() => {
-    wowRowsScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [wowPage]);
+    const maxPage = Math.max(1, Math.ceil(wowVisibleRows.length / wowPageSize));
+    if (wowPage > maxPage) setWowPage(maxPage);
+  }, [wowPage, wowVisibleRows.length, wowPageSize]);
   const statementReviewRows = useMemo<StatementReviewRow[]>(() => {
     const committedRows: StatementReviewRow[] = scopedTransactions.map((tx) => ({
       id: tx.id,
@@ -1827,15 +1797,19 @@ export default function TransactionsPage() {
                   </div>
                 </div>
                 <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
-                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Spent this month</div>
+                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {isStatementView ? 'Spent (statement)' : 'Total spent'}
+                  </div>
                   <div className="mt-1 text-[20px] font-semibold tabular-nums text-red-500">
-                    {formatMoney(calendarMonthSummary.spent)}
+                    {formatMoney(filteredViewSummary.spent)}
                   </div>
                 </div>
                 <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
-                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Income this month</div>
+                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {isStatementView ? 'Income (statement)' : 'Total income'}
+                  </div>
                   <div className="mt-1 text-[20px] font-semibold tabular-nums text-emerald-500">
-                    {formatMoney(calendarMonthSummary.income)}
+                    {formatMoney(filteredViewSummary.income)}
                   </div>
                 </div>
               </div>
@@ -2079,8 +2053,7 @@ export default function TransactionsPage() {
               {!showWowPreview && (
                 <>
               <div className="border-b border-slate-800/80 px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-sm text-slate-500">Newest first — use the assistant button for Tag &amp; Prime.</div>
+                <div className="flex flex-wrap items-center justify-end gap-3">
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -2397,28 +2370,8 @@ export default function TransactionsPage() {
                             <div className="mt-1 text-[10px] text-slate-500">{syncLabel}</div>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
-                          <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Pages</span>
-                          {wowPageButtons.map((entry, idx) =>
-                            entry === '…' ? (
-                              <span key={`page-gap-${idx}`} className="px-1.5 text-[11px] text-slate-500">
-                                …
-                              </span>
-                            ) : (
-                              <button
-                                key={`page-btn-${entry}`}
-                                type="button"
-                                onClick={() => setWowPage(entry)}
-                                className={`min-w-[28px] rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                                  wowPage === entry
-                                    ? 'border-cyan-400/50 bg-cyan-500/20 text-cyan-100'
-                                    : 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
-                                }`}
-                              >
-                                {entry}
-                              </button>
-                            )
-                          )}
+                        <div className="text-[10px] text-slate-500">
+                          {wowVisibleRows.length} in scope
                         </div>
                       </div>
                       <div className="min-w-0">
@@ -2472,32 +2425,19 @@ export default function TransactionsPage() {
                                 </button>
                               ))}
                             </div>
-                            <div className="flex items-center justify-between border-t border-slate-800 px-3 py-2 text-[10px] text-slate-400">
+                            <div className="flex flex-col items-center gap-2 border-t border-slate-800 px-3 py-3 text-[10px] text-slate-400">
                               <div>
-                                Showing {Math.min((wowPage - 1) * wowPageSize + 1, wowVisibleRows.length)}-
-                                {Math.min(wowPage * wowPageSize, wowVisibleRows.length)} of {wowVisibleRows.length}
+                                Showing {wowPagedRows.length} of {wowVisibleRows.length}
                               </div>
-                              <div className="flex items-center gap-2">
+                              {wowHasMoreWow ? (
                                 <button
                                   type="button"
-                                  onClick={() => setWowPage((p) => Math.max(1, p - 1))}
-                                  disabled={wowPage <= 1}
-                                  className="rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-200 disabled:opacity-40"
+                                  onClick={() => setWowPage((p) => p + 1)}
+                                  className="rounded-full border border-slate-600 bg-slate-800/80 px-5 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700"
                                 >
-                                  Prev
+                                  Load more transactions
                                 </button>
-                                <span className="text-[10px] text-slate-300">
-                                  Page {wowPage} / {wowTotalPages}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setWowPage((p) => Math.min(wowTotalPages, p + 1))}
-                                  disabled={wowPage >= wowTotalPages}
-                                  className="rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-200 disabled:opacity-40"
-                                >
-                                  Next
-                                </button>
-                              </div>
+                              ) : null}
                             </div>
                           </>
                         )}
@@ -2876,6 +2816,9 @@ export default function TransactionsPage() {
         categories={categoryList.length > 0 ? categoryList : undefined}
         onCommittedCategorySaved={() => {
           void refetchTransactions();
+        }}
+        onPendingCategorySaved={() => {
+          void refetchPendingTransactions();
         }}
         onAskTag={handleDrawerAskTag}
         onFlagReview={handleDrawerFlagReview}

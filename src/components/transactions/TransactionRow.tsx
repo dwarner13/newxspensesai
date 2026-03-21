@@ -6,7 +6,6 @@ import React from 'react';
 import { HelpCircle } from 'lucide-react';
 import { resolveMerchantAlias } from '../../lib/merchantAliases';
 import { categoryDotClass } from '../../lib/transactionUi';
-import { ConfidenceBar } from './ConfidenceBar';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
 
 interface TransactionRowProps {
@@ -198,7 +197,9 @@ export function TransactionRow({
         : NaN;
   const showLowConfidenceHint = Number.isFinite(tagConf) && tagConf < 0.75;
 
-  const dotClass = categoryDotClass(displayCategory);
+  const isUncategorized =
+    !displayCategory || String(displayCategory).trim() === '' || String(displayCategory).trim() === 'Uncategorized';
+  const dotClass = categoryDotClass(isUncategorized ? 'Uncategorized' : displayCategory);
 
   if (layout === 'table') {
     return (
@@ -232,16 +233,24 @@ export function TransactionRow({
       }`}
     >
       <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${dotClass} text-lg shadow-inner`}
+        className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${dotClass} text-lg shadow-inner`}
         aria-hidden
       >
-        {icon || ' '}
+        {isUncategorized ? (
+          <span
+            className="pointer-events-none absolute bottom-0 right-0 flex h-4 min-w-[1rem] items-center justify-center rounded-full border border-slate-500/80 bg-slate-900/95 px-0.5 text-[10px] font-bold leading-none text-slate-200"
+            title="Uncategorized"
+          >
+            ?
+          </span>
+        ) : null}
+        <span className="relative z-[1]">{icon || '\u00A0'}</span>
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="text-base font-semibold text-slate-100 truncate leading-tight">{renderMerchantDisplay()}</div>
+        <div className="text-base font-semibold leading-tight text-slate-100 truncate">{renderMerchantDisplay()}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-sm text-slate-500 truncate max-w-full">{displayCategory}</span>
+          <span className="text-[14px] text-slate-500 truncate max-w-full">{displayCategory}</span>
           {showLowConfidenceHint ? (
             <span title="Tag assigned this category with lower confidence" className="inline-flex text-amber-400">
               <HelpCircle className="h-3.5 w-3.5" strokeWidth={2} />
@@ -251,7 +260,9 @@ export function TransactionRow({
         {merchantSubtext ? (
           <div className="mt-0.5 text-xs text-slate-600 truncate">{merchantSubtext}</div>
         ) : null}
-        {isPending && <ConfidenceBar score={pendingTransaction.confidence.overall} showPercentage={false} />}
+        {isPending && isUncategorized ? (
+          <div className="mt-1.5 text-[13px] font-medium text-amber-400/95">Needs category</div>
+        ) : null}
         {isPending && showActions && (onApprove || onReject) && (
           <div className="mt-2 flex flex-wrap gap-1">
             {onApprove && (
@@ -283,7 +294,7 @@ export function TransactionRow({
       </div>
 
       <div className="flex shrink-0 flex-col items-end gap-1 pl-2">
-        <div className={`text-base font-semibold tabular-nums ${amountClass}`}>
+        <div className={`text-base font-semibold tabular-nums leading-none ${amountClass}`}>
           {amountPrefix}${amountStr}
         </div>
         {onAskTag && (

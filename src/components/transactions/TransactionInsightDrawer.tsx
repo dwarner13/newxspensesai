@@ -16,6 +16,7 @@ const DEFAULT_CATEGORIES = [
   'Transportation',
   'Shopping',
   'Subscriptions',
+  'Personal Care',
   'Healthcare',
   'Bank Fees',
   'Transfers',
@@ -33,6 +34,7 @@ interface TransactionInsightDrawerProps {
   onEditCommitted?: (transaction: CommittedTransaction) => void;
   categories?: string[];
   onCommittedCategorySaved?: (txId: string, category: string) => void;
+  onPendingCategorySaved?: (pendingId: string, category: string) => void;
   onAskTag?: (row: DrawerTransaction) => void;
   onFlagReview?: (row: DrawerTransaction) => void;
 }
@@ -197,6 +199,32 @@ export function TransactionInsightDrawer({
     }
   };
 
+  const savePendingCategory = async () => {
+    if (row.kind !== 'pending') return;
+    const p = row.transaction;
+    setIsSavingCat(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) throw new Error('Not available');
+      const prevJson = (p.data_json as Record<string, unknown>) || {};
+      const data_json = { ...prevJson, category: localCategory };
+      const { error } = await supabase
+        .from('transactions_staging')
+        .update({
+          tag_category: localCategory,
+          data_json,
+        })
+        .eq('id', p.id);
+      if (error) throw error;
+      onPendingCategorySaved?.(p.id, localCategory);
+      toast.success('Category updated');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not save category');
+    } finally {
+      setIsSavingCat(false);
+    }
+  };
+
   return (
     <>
       <button
@@ -233,32 +261,28 @@ export function TransactionInsightDrawer({
               <label htmlFor="tx-drawer-cat" className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 Category
               </label>
-              {row.kind === 'committed' ? (
-                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <select
-                    id="tx-drawer-cat"
-                    value={localCategory}
-                    onChange={(e) => setLocalCategory(e.target.value)}
-                    className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-base text-slate-100"
-                  >
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => void saveCategory()}
-                    disabled={isSavingCat}
-                    className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-50"
-                  >
-                    {isSavingCat ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-2 text-base text-slate-300">{localCategory}</div>
-              )}
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select
+                  id="tx-drawer-cat"
+                  value={localCategory}
+                  onChange={(e) => setLocalCategory(e.target.value)}
+                  className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-base text-slate-100"
+                >
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void (row.kind === 'committed' ? saveCategory() : savePendingCategory())}
+                  disabled={isSavingCat}
+                  className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-50"
+                >
+                  {isSavingCat ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             </div>
 
             {statementLabel ? (
