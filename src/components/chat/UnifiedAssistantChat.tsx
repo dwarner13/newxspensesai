@@ -1707,7 +1707,7 @@ export default function UnifiedAssistantChat({
     return null;
   }, []);
 
-  const NEAR_BOTTOM_PX = 220;
+  const NEAR_BOTTOM_PX = 150;
 
   // Scroll-to-bottom helper (ChatGPT-style, uses scroll container + marker)
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto', force = false) => {
@@ -2099,7 +2099,7 @@ export default function UnifiedAssistantChat({
     return () => {
       container.removeEventListener('scroll', handleScroll);
     };
-  }, [getActiveScrollEl, isOpen, messages.length, isStreaming, isUploadingAttachments, isPrimeSummaryPending, isAssistantReplyPending]);
+  }, [getActiveScrollEl, isOpen, scrollDebugEnabled]);
 
   // Keep the chat anchored only when user just sent OR streaming while near-bottom.
   useEffect(() => {
@@ -2146,11 +2146,12 @@ export default function UnifiedAssistantChat({
 
     const observer = new ResizeObserver(() => {
       const forcePin = Date.now() < forceAutoPinUntilRef.current;
+      // Only follow growing layout (typing, markdown) when the user is already at the bottom,
+      // unless an explicit short force-pin window is active (e.g. user just sent).
       const shouldStick =
         userJustSentRef.current ||
         (isStreaming && userIsNearBottomRef.current) ||
-        isPrimeSummaryPending ||
-        isUploadingAttachments ||
+        ((isPrimeSummaryPending || isUploadingAttachments) && userIsNearBottomRef.current) ||
         forcePin;
 
       if (!shouldStick || (userScrolledUpRef.current && !forcePin)) return;
@@ -2190,6 +2191,8 @@ export default function UnifiedAssistantChat({
   const scrollThrottleRef = useRef<number | null>(null);
   const userScrolledUpRef = useRef(false);
   const didInitialScrollRef = useRef(false);
+  /** True after we've done the one-time bottom anchor for this open session (must not re-run on every new message). */
+  const openChatAnchorDoneRef = useRef(false);
   
   useEffect(() => {
     if (!isOpen) {
@@ -2207,9 +2210,8 @@ export default function UnifiedAssistantChat({
     let mutationObserver: MutationObserver | null = null;
     if (typeof MutationObserver !== 'undefined' && messageListContentRef.current) {
       mutationObserver = new MutationObserver(() => {
-        // Magnetic mode: while streaming, keep pinning to the absolute bottom
-        // unless the user explicitly scrolled up.
-        if (isStreaming && !userScrolledUpRef.current) {
+        // Magnetic mode: while streaming, follow only if the user is still near the bottom.
+        if (isStreaming && userIsNearBottomRef.current && !userScrolledUpRef.current) {
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               scrollToBottom('auto', true);
@@ -2248,7 +2250,8 @@ export default function UnifiedAssistantChat({
     // Auto-scroll only if user is near bottom (ChatGPT-like).
     const shouldAutoScroll =
       userJustSentRef.current ||
-      (isStreaming && userIsNearBottomRef.current === true);
+      (isStreaming && userIsNearBottomRef.current === true) ||
+      (isAssistantReplyPending && userIsNearBottomRef.current === true);
     
     if (shouldAutoScroll && (contentChanged || streamingStarted || streamingStopped || messagesLengthChanged)) {
       // Throttle streaming scroll updates to every ~200ms to avoid jank
@@ -2280,16 +2283,22 @@ export default function UnifiedAssistantChat({
         mutationObserver.disconnect();
       }
     };
-  }, [messages, loadedHistoryMessages, injectedMessages.length, isStreaming, scrollToBottom, getActiveScrollEl, isOpen, isLoadingHistory, userScrolledUpRef, userIsNearBottomRef]);
+  }, [messages, loadedHistoryMessages, injectedMessages.length, isStreaming, isAssistantReplyPending, scrollToBottom, getActiveScrollEl, isOpen, isLoadingHistory, userScrolledUpRef, userIsNearBottomRef]);
 
   // No separate scrollIntoView effect — scroll is centralized in scrollToBottom()
 
-  // On open, land in a readable bottom-anchored position.
+  // On open (once per session), land in a readable position. Do NOT re-anchor when
+  // messages.length grows — that was forcing scroll-to-bottom on every new reply.
   useEffect(() => {
     if (!isOpen) {
       didInitialScrollRef.current = false;
+      openChatAnchorDoneRef.current = false;
       return;
     }
+
+    const historyReady = historyLoadCompleteRef.current || !isLoadingHistory;
+    if (!historyReady) return;
+    if (openChatAnchorDoneRef.current) return;
 
     const doScroll = (container: HTMLElement | null) => {
       if (!container) return;
@@ -2306,8 +2315,6 @@ export default function UnifiedAssistantChat({
         container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
         return;
       }
-      // While history is hydrating, avoid snapping to top.
-      if (isLoadingHistory) return;
       // Empty thread fallback
       container.scrollTop = 0;
       userIsNearBottomRef.current = true;
@@ -2319,6 +2326,7 @@ export default function UnifiedAssistantChat({
       const container = getActiveScrollEl();
       if (container) {
         doScroll(container);
+        openChatAnchorDoneRef.current = true;
         window.setTimeout(() => {
           // Second attempt: DOM may have grown after TypingMessage reveals content.
           // ONLY scroll to bottom when there are real messages — otherwise the
@@ -2340,11 +2348,14 @@ export default function UnifiedAssistantChat({
         // Container not yet in DOM — retry after a short delay
         window.setTimeout(() => {
           const c2 = getActiveScrollEl();
-          if (c2) doScroll(c2);
+          if (c2) {
+            doScroll(c2);
+            openChatAnchorDoneRef.current = true;
+          }
         }, 300);
       }
     });
-  }, [getActiveScrollEl, isOpen, messages.length, loadedHistoryMessages.length, injectedMessages.length, scrollToBottom, isLoadingHistory]);
+  }, [getActiveScrollEl, isOpen, isLoadingHistory, scrollToBottom]);
   
   // Employee switch should not force scroll.
   useEffect(() => {
@@ -3314,33 +3325,11 @@ export default function UnifiedAssistantChat({
         needsReviewCount: params.needsReviewCount,
         focusMerchants: (params.breakdown?.topMerchants || []).slice(0, 4).map((row) => row.merchant),
       });
-      const scrollEndTimeMulti = Date.now() + 10000;
-      forceAutoPinUntilRef.current = scrollEndTimeMulti;
-      autoPinToBottomRef.current = true;
-      userIsNearBottomRef.current = true;
-      const hardScrollMulti = () => {
-        if (userScrolledUpRef.current || Date.now() < userScrollLockUntilRef.current) return;
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
-        } else {
-          const container = getActiveScrollEl?.() || scrollElementRef.current;
-          if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
-        }
-      };
-      requestAnimationFrame(hardScrollMulti);
-      requestAnimationFrame(() => requestAnimationFrame(hardScrollMulti));
-      const scrollIntervalMulti = window.setInterval(() => {
-        if (
-          Date.now() > scrollEndTimeMulti ||
-          forceAutoPinUntilRef.current === 0 ||
-          userScrolledUpRef.current ||
-          Date.now() < userScrollLockUntilRef.current
-        ) {
-          window.clearInterval(scrollIntervalMulti);
-          return;
-        }
-        hardScrollMulti();
-      }, 80);
+      // Nudge scroll only if the user is already following the thread — no 10s pin loop.
+      if (!userScrolledUpRef.current && userIsNearBottomRef.current) {
+        autoPinToBottomRef.current = true;
+        requestAnimationFrame(() => scrollToBottom('smooth', false));
+      }
       return;
     }
     const summaryLines = polishedSummary
@@ -3496,41 +3485,12 @@ export default function UnifiedAssistantChat({
     clearLegacyImportRecap();
     // Do not call streamPrimeFinalMessage, we want the real AI to type out the response
 
-    // Hard-pin scroll for the typing animation (~8-10 s).
-    // Direct interval bypasses every conditional guard in scrollToBottom —
-    // the only way to reliably follow TypingMessage as it grows.
-    const scrollEndTime = Date.now() + 10000;
-    forceAutoPinUntilRef.current = scrollEndTime;
-    autoPinToBottomRef.current = true;
-    userIsNearBottomRef.current = true;
-    const hardScroll = () => {
-      if (userScrolledUpRef.current || Date.now() < userScrollLockUntilRef.current) return;
-      // scrollIntoView lets the browser find the scrollable ancestor — more
-      // reliable than scrollTo on a specific container ref.
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
-      } else {
-        const container = getActiveScrollEl?.() || scrollElementRef.current;
-        if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
-      }
-    };
-    // Fire immediately (before and after React commit)
-    requestAnimationFrame(hardScroll);
-    requestAnimationFrame(() => requestAnimationFrame(hardScroll));
-    // Keep scrolling every 80 ms while the typing animation runs
-    const scrollInterval = window.setInterval(() => {
-      if (
-        Date.now() > scrollEndTime ||
-        forceAutoPinUntilRef.current === 0 ||
-        userScrolledUpRef.current ||
-        Date.now() < userScrollLockUntilRef.current
-      ) {
-        window.clearInterval(scrollInterval);
-        return;
-      }
-      hardScroll();
-    }, 80);
-  }, [isPrimeNarrationEnabled, firstName, buildPrimeUploadCtas, streamPrimeFinalMessage, setImportSummariesForPrime, getActiveScrollEl]);
+    // Optional single nudge if already at bottom; ResizeObserver + near-bottom logic follows typing.
+    if (!userScrolledUpRef.current && userIsNearBottomRef.current) {
+      autoPinToBottomRef.current = true;
+      requestAnimationFrame(() => scrollToBottom('smooth', false));
+    }
+  }, [isPrimeNarrationEnabled, firstName, buildPrimeUploadCtas, streamPrimeFinalMessage, setImportSummariesForPrime, getActiveScrollEl, scrollToBottom]);
 
   const processByteUploads = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return false;
@@ -4106,15 +4066,11 @@ export default function UnifiedAssistantChat({
           importIds: batchImportIds,
         });
       }
-      // After replacing/removing progress bubbles, force scroll to bottom.
-      // Reset userScrolledUpRef so a prior manual scroll-up doesn't block the pin.
-      // Hold the pin for the full TypingMessage animation duration (8 s).
-      userScrolledUpRef.current = false;
-      autoPinToBottomRef.current = true;
-      forceAutoPinUntilRef.current = Date.now() + 9000;
-      requestAnimationFrame(() => scrollToBottom('auto', true));
-      window.setTimeout(() => scrollToBottom('auto', true), 300);
-      window.setTimeout(() => scrollToBottom('auto', true), 1000);
+      // Nudge scroll only when the user is already at the bottom — never override manual scroll-up.
+      if (!userScrolledUpRef.current && userIsNearBottomRef.current) {
+        autoPinToBottomRef.current = true;
+        requestAnimationFrame(() => scrollToBottom('auto', true));
+      }
     })().finally(() => {
       primeFinalInjectionInFlightImportIdsRef.current.delete(primeSummaryReady);
     });
@@ -4137,6 +4093,7 @@ export default function UnifiedAssistantChat({
     getImportIdsForBatch,
     upsertPrimeApprovalCard,
     hasVisiblePrimeFinalForImport,
+    scrollToBottom,
   ]);
 
   const fetchPrimeSummaryDedupe = useCallback(async (importId: string): Promise<string> => {
@@ -4592,6 +4549,8 @@ export default function UnifiedAssistantChat({
       // Mark that user just sent a message and scroll immediately so their bubble is fully visible
       userJustSentRef.current = true;
       autoPinToBottomRef.current = true;
+      userIsNearBottomRef.current = true;
+      setIsNearBottomState(true);
       // Scroll will happen automatically via the auto-scroll effect when message is added
       
       let finalMessage = trimmedMessage;
@@ -4759,6 +4718,8 @@ export default function UnifiedAssistantChat({
     // Auto-send the prompt immediately for better UX
     setInputMessage('');
     userJustSentRef.current = true;
+    userIsNearBottomRef.current = true;
+    setIsNearBottomState(true);
     scrollToBottom('auto');
     try {
       inFlightTurnRef.current = true;
@@ -5667,11 +5628,16 @@ export default function UnifiedAssistantChat({
   // Post-dedupe guard: prevent brief double-render of identical assistant responses.
   const renderMessages = displayMessages.filter((msg) => Boolean(msg));
 
-  // During upload/summary lifecycle, always follow newest message updates.
+  // During upload/summary lifecycle, follow updates only while the user is at the bottom
+  // (or an explicit short force-pin / just-sent window is active).
   useEffect(() => {
     if (!isOpen) return;
     if (userScrolledUpRef.current) return;
     if (!(Date.now() < forceAutoPinUntilRef.current || autoPinToBottomRef.current || isStreaming || isUploadingAttachments || isPrimeSummaryPending || isAssistantReplyPending)) return;
+    const inForcePin = Date.now() < forceAutoPinUntilRef.current;
+    if (!inForcePin && !userJustSentRef.current && !userIsNearBottomRef.current) {
+      return;
+    }
     requestAnimationFrame(() => {
       scrollToBottom('auto');
     });
