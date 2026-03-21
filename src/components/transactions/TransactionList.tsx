@@ -155,8 +155,8 @@ export function TransactionList({
   const hasMore = visibleCount < allItems.length;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto min-h-0">
+    <div className="flex flex-col">
+      <div className="flex flex-col">
         {visibleItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
             <p className="text-base text-slate-400 mb-1">No transactions found</p>

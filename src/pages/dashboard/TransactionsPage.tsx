@@ -576,8 +576,9 @@ export default function TransactionsPage() {
   const uncategorizedCount = useMemo(() => {
     const uncategorizedCommitted = scopedTransactions.filter(tx => !tx.category || tx.category === 'Uncategorized').length;
     const uncategorizedPending = scopedPendingTransactions.filter((ptx) => {
-      const pendingCategory = (ptx.data_json as { category?: string }).category;
-      return !pendingCategory || pendingCategory === 'Uncategorized';
+      const dj = ptx.data_json as { category?: string };
+      const cat = String(ptx.tag_category || dj.category || '').trim();
+      return !cat || cat === 'Uncategorized';
     }).length;
     return uncategorizedCommitted + uncategorizedPending;
   }, [scopedTransactions, scopedPendingTransactions]);
@@ -905,16 +906,29 @@ export default function TransactionsPage() {
   const filteredViewSummary = useMemo(() => {
     let spent = 0;
     let income = 0;
+    const isIncomeCat = (c: string) => c.trim().toLowerCase() === 'income';
     for (const tx of urlFilteredCommitted) {
       const a = Number(tx.amount || 0);
-      if (a > 0) spent += a;
-      else if (a < 0) income += Math.abs(a);
+      const cat = String(tx.category || '').trim();
+      if (isIncomeCat(cat)) {
+        income += Math.abs(a);
+      } else if (a < 0) {
+        income += Math.abs(a);
+      } else if (a > 0) {
+        spent += a;
+      }
     }
     for (const p of urlFilteredPending) {
       const dj = p.data_json as Record<string, unknown>;
       const a = Number(dj.amount || 0);
-      if (a > 0) spent += a;
-      else if (a < 0) income += Math.abs(a);
+      const cat = String(p.tag_category || (dj.category as string | undefined) || '').trim();
+      if (isIncomeCat(cat)) {
+        income += Math.abs(a);
+      } else if (a < 0) {
+        income += Math.abs(a);
+      } else if (a > 0) {
+        spent += a;
+      }
     }
     return { spent, income };
   }, [urlFilteredCommitted, urlFilteredPending]);
@@ -1486,25 +1500,20 @@ export default function TransactionsPage() {
   }, [scopedPendingTransactions, scopedTransactions]);
 
   const clearImportFilter = useCallback(() => {
-    const params = new URLSearchParams(location.search);
-    params.delete('importId');
-    const nextSearch = params.toString();
-    navigate({
-      pathname: location.pathname,
-      search: nextSearch ? `?${nextSearch}` : '',
-    });
-  }, [location.pathname, location.search, navigate]);
+    navigate('/dashboard/transactions', { replace: false });
+  }, [navigate]);
+
   const focusUncategorizedTransactions = useCallback(() => {
-    const params = new URLSearchParams(location.search);
+    const params = new URLSearchParams();
+    if (importIdFilter) params.set('importId', importIdFilter);
     params.set('category', 'Uncategorized');
-    params.delete('focus');
-    params.delete('focusList');
-    params.delete('highImpact');
-    navigate({
-      pathname: location.pathname,
-      search: params.toString() ? `?${params.toString()}` : '',
-    });
-  }, [location.pathname, location.search, navigate]);
+    const qs = params.toString();
+    navigate(`/dashboard/transactions${qs ? `?${qs}` : ''}`, { replace: false });
+    setSearchResults(null);
+    window.setTimeout(() => {
+      document.getElementById('transactions-feed-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }, [importIdFilter, navigate]);
   const openPrimeBriefingFromPanel = useCallback(() => {
     setIsDiagnosticsPanelOpen(false);
     openChat({
@@ -1786,10 +1795,28 @@ export default function TransactionsPage() {
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
       <DashboardPageShell
         center={
-          <div className="grid min-h-[560px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-4 text-base">
+          <div className="flex flex-col gap-4 text-base">
+            {isStatementView ? (
+              <div className="mx-auto w-full max-w-[800px]">
+                <button
+                  type="button"
+                  onClick={clearImportFilter}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-500/45 bg-cyan-500/15 px-4 py-3 text-sm font-semibold text-cyan-50 shadow-sm hover:bg-cyan-500/25 transition-colors"
+                >
+                  ← Back to all transactions
+                </button>
+                <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
+                  <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200">
+                    Statement view
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {sanitizeIssuerPillLabel(selectedStatementInstitution)}
+                  </span>
+                </div>
+              </div>
+            ) : null}
             <div className="mx-auto w-full max-w-[800px] rounded-xl border border-slate-800/70 bg-slate-900/50 px-4 py-4 sm:px-5">
-              <h1 className="text-[28px] font-semibold tracking-tight text-slate-50">Transactions</h1>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
                   <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Total transactions</div>
                   <div className="mt-1 text-[20px] font-semibold tabular-nums text-slate-100">
@@ -1829,26 +1856,7 @@ export default function TransactionsPage() {
               ) : null}
 
               {isStatementView && (
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-cyan-200">
-                      Statement View
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      {sanitizeIssuerPillLabel(selectedStatementInstitution)}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearImportFilter}
-                    className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800 transition-colors"
-                  >
-                    Back to All Transactions
-                  </button>
-                </div>
-              )}
-              {isStatementView && (
-                <div className="mb-3">
+                <div className="mb-3 mt-4">
                   <StatementSummaryHeader
                     statementTransactions={statementHeaderSummary.statementTransactions}
                     income={statementHeaderSummary.income}
@@ -2048,8 +2056,11 @@ export default function TransactionsPage() {
               </div>
             </div>
 
-            <div className="grid min-h-0 grid-cols-1 gap-4 mx-auto w-full max-w-[800px]">
-              <div className="flex min-h-0 flex-col rounded-xl border border-slate-800/70 bg-slate-900/40 overflow-hidden">
+            <div
+              id="transactions-feed-anchor"
+              className="mx-auto grid w-full max-w-[800px] grid-cols-1 gap-4 scroll-mt-24"
+            >
+              <div className="flex flex-col rounded-xl border border-slate-800/70 bg-slate-900/40">
               {!showWowPreview && (
                 <>
               <div className="border-b border-slate-800/80 px-4 py-3">
@@ -2317,7 +2328,7 @@ export default function TransactionsPage() {
                 </>
               )}
 
-              <div ref={spendingBreakdownRef} className="flex-1 min-h-0 overflow-hidden">
+              <div ref={spendingBreakdownRef} className="w-full min-h-0">
                 {hasLoadError ? (
                   <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
                     <p className="text-sm text-amber-300">Could not load transactions right now.</p>
