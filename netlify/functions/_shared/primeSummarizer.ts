@@ -212,8 +212,8 @@ Write 4-5 bullet points with the key numbers:
 YOUR TRANSACTIONS (WITH DATES)
 
 Group transactions into a logical timeline. If there is a payment, split into "Before Payment" and "After Payment" sections.
-Each transaction line MUST include: date, merchant name, amount. Use ? as separator.
-Format each line as: [Date] ? [Merchant] ? $XX.XX
+Each transaction line MUST include: date, merchant name, amount. Use a dash (-) as separator between date, merchant, and amount.
+Format each line as: [Date] - [Merchant] - $XX.XX
 After each group, add a count line: "[N] transactions in this period"
 If a merchant appears multiple times, list each occurrence separately with its own date and amount - never aggregate.
 
@@ -356,4 +356,3 @@ export async function runLLMAdvisorSummary(params: {
     return deterministicNarrative;
   }
 }
-

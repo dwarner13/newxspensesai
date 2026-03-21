@@ -459,10 +459,28 @@ async function buildStatementBreakdown(args: {
         credit_limit: toN(storedSummary.credit_limit),
         available_credit: toN(storedSummary.available_credit),
       };
-      // Backfill issuer/institution from statement_summary if the first metadata read missed it
-      if (storedSummary?.institution && !docMeta?.institution) {
-        docMeta.institution = String(storedSummary.institution).trim();
-      }
+      // Backfill issuer from statement_summary, then validate against known patterns
+      const candidateInst = String(storedSummary?.institution || docMeta?.institution || '').trim();
+      const ocrText = String(docMetaRow?.metadata?.ocr_text || '').slice(0, 2000);
+      // Get filename from document row or import row
+      let fileName = '';
+      try {
+        const { data: impRow } = await sb.from('imports').select('file_url').eq('id', importId).maybeSingle();
+        fileName = String(impRow?.file_url || '').toLowerCase();
+        if (!fileName) {
+          const { data: docNameRow } = await sb.from('user_documents').select('original_name').eq('id', documentId).maybeSingle();
+          fileName = String(docNameRow?.original_name || '').toLowerCase();
+        }
+      } catch {} 
+      let resolvedIssuer: string | null = null;
+      // First try: detect from OCR text (most reliable)
+      for (const pat of ISSUER_PATTERNS) { if (ocrText && pat.match.test(ocrText)) { resolvedIssuer = pat.name; break; } }
+      // Second try: detect from filename
+      if (!resolvedIssuer && fileName) { for (const pat of ISSUER_PATTERNS) { if (pat.match.test(fileName)) { resolvedIssuer = pat.name; break; } } }
+      // Third try: validate candidateInst against known patterns
+      if (!resolvedIssuer && candidateInst) { for (const pat of ISSUER_PATTERNS) { if (pat.match.test(candidateInst)) { resolvedIssuer = pat.name; break; } } }
+      if (resolvedIssuer) { docMeta.institution = resolvedIssuer; docMeta.issuer = resolvedIssuer; }
+      console.log('[CommitImport] Issuer resolution', { resolvedIssuer, candidateInst: candidateInst.slice(0, 40), ocrTextLen: ocrText.length });
       console.log('[CommitImport] Loaded account_summary from user_documents.metadata', {
         importId,
         documentId,
@@ -1648,5 +1666,3 @@ export const handler: Handler = async (event, context) => {
     };
   }
 };
-
-
