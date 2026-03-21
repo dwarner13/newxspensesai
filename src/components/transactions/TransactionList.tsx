@@ -1,12 +1,12 @@
 /**
- * TransactionList Component
- * 
- * Main transaction table component
+ * TransactionList — bank-style grouped feed with load-more pagination.
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { TransactionRow } from './TransactionRow';
 import type { CommittedTransaction, PendingTransaction, TransactionFilters } from '../../types/transactions';
+
+const PAGE_SIZE = 40;
 
 interface TransactionListProps {
   transactions: CommittedTransaction[];
@@ -21,6 +21,30 @@ interface TransactionListProps {
   sortOrder?: 'newest' | 'oldest';
   showRowActions?: boolean;
   highlightTransactionIds?: Set<string>;
+  /** Optional Crystal-style insight shown once under the first date group. */
+  groupInsight?: string | null;
+  onAskTag?: (transaction: CommittedTransaction | PendingTransaction, isPending: boolean) => void;
+}
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function formatGroupLabel(isoDateKey: string): string {
+  if (isoDateKey === 'unknown-date') return 'Unknown date';
+  const d = new Date(`${isoDateKey}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return 'Unknown date';
+  const today = startOfLocalDay(new Date());
+  const yest = startOfLocalDay(new Date(today.getTime() - 86400000));
+  const day = startOfLocalDay(d);
+  if (day.getTime() === today.getTime()) return 'Today';
+  if (day.getTime() === yest.getTime()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 export function TransactionList({
@@ -36,12 +60,11 @@ export function TransactionList({
   sortOrder = 'newest',
   showRowActions = true,
   highlightTransactionIds,
+  groupInsight = null,
+  onAskTag,
 }: TransactionListProps) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 25;
-  const useDateGroupedView = true;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Combine and sort all transactions
   const allItems = useMemo(() => {
     const combined: Array<{
       type: 'committed' | 'pending';
@@ -50,7 +73,6 @@ export function TransactionList({
       sortDate: string;
     }> = [];
 
-    // Add committed transactions
     transactions.forEach((tx) => {
       combined.push({
         type: 'committed',
@@ -59,7 +81,6 @@ export function TransactionList({
       });
     });
 
-    // Add pending transactions
     pendingTransactions.forEach((ptx) => {
       combined.push({
         type: 'pending',
@@ -68,7 +89,6 @@ export function TransactionList({
       });
     });
 
-    // Sort by date
     combined.sort((a, b) => {
       const diff = new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime();
       return sortOrder === 'oldest' ? -diff : diff;
@@ -77,25 +97,17 @@ export function TransactionList({
     return combined;
   }, [transactions, pendingTransactions, sortOrder]);
 
-  // Pagination
-  const totalPages = Math.ceil(allItems.length / itemsPerPage);
-  const safeTotalPages = Math.max(1, totalPages);
-  const safeCurrentPage = Math.min(currentPage, safeTotalPages);
-  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
-  const paginatedItems = allItems.slice(startIndex, startIndex + itemsPerPage);
-
   useEffect(() => {
-    setCurrentPage(1);
+    setVisibleCount(PAGE_SIZE);
   }, [transactions, pendingTransactions, sortOrder]);
 
-  useEffect(() => {
-    if (currentPage > safeTotalPages) {
-      setCurrentPage(safeTotalPages);
-    }
-  }, [currentPage, safeTotalPages]);
+  const visibleItems = useMemo(
+    () => allItems.slice(0, visibleCount),
+    [allItems, visibleCount]
+  );
 
   const groupedByDay = useMemo(() => {
-    const sections: Array<{ key: string; label: string; items: typeof paginatedItems }> = [];
+    const sections: Array<{ key: string; label: string; items: typeof visibleItems }> = [];
 
     const toDayKey = (rawDate: string): string => {
       const d = new Date(rawDate);
@@ -103,35 +115,24 @@ export function TransactionList({
       return d.toISOString().slice(0, 10);
     };
 
-    const toDayLabel = (key: string): string => {
-      if (key === 'unknown-date') return 'Unknown date';
-      const d = new Date(`${key}T00:00:00`);
-      if (Number.isNaN(d.getTime())) return 'Unknown date';
-      return d.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-      });
-    };
-
-    for (const item of paginatedItems) {
+    for (const item of visibleItems) {
       const key = toDayKey(item.sortDate);
       const current = sections[sections.length - 1];
       if (!current || current.key !== key) {
-        sections.push({ key, label: toDayLabel(key), items: [item] });
+        sections.push({ key, label: formatGroupLabel(key), items: [item] });
       } else {
         current.items.push(item);
       }
     }
 
     return sections;
-  }, [paginatedItems]);
+  }, [visibleItems]);
 
-  const handleRowClick = (item: typeof allItems[0]) => {
+  const handleRowClick = (item: (typeof allItems)[0]) => {
     if (item.type === 'committed' && item.transaction) {
       onTransactionClick(item.transaction, false);
     } else if (item.type === 'pending' && item.pendingTransaction) {
-      onTransactionClick(item.pendingTransaction as any, true);
+      onTransactionClick(item.pendingTransaction, true);
     }
   };
 
@@ -143,149 +144,99 @@ export function TransactionList({
     onReject?.(pendingId);
   };
 
-  const handleEdit = (item: typeof allItems[0]) => {
+  const handleEdit = (item: (typeof allItems)[0]) => {
     if (item.type === 'committed' && item.transaction) {
       onEdit?.(item.transaction, false);
     } else if (item.type === 'pending' && item.pendingTransaction) {
-      onEdit?.(item.pendingTransaction as any, true);
+      onEdit?.(item.pendingTransaction as CommittedTransaction, true);
     }
   };
 
+  const hasMore = visibleCount < allItems.length;
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div
-        className={`grid ${
-          useDateGroupedView
-            ? (showRowActions
-              ? 'grid-cols-[minmax(220px,1.6fr)_120px_minmax(150px,1fr)_130px_auto]'
-              : 'grid-cols-[minmax(220px,1.8fr)_120px_minmax(150px,1fr)_130px]')
-            : (showRowActions
-              ? 'grid-cols-[88px_minmax(180px,1.4fr)_120px_minmax(150px,1fr)_130px_auto]'
-              : 'grid-cols-[88px_minmax(200px,1.6fr)_120px_minmax(150px,1fr)_130px]')
-        } gap-2 items-center px-4 py-2 bg-slate-900 border-b border-slate-800`}
-      >
-        {!useDateGroupedView ? (
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Date</div>
-        ) : null}
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Merchant</div>
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide text-right">Amount</div>
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Category</div>
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</div>
-        {showRowActions ? <div></div> : null}
-      </div>
-
-      {/* List */}
-      <div className="flex-1 overflow-y-auto">
-        {paginatedItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-12 px-4">
-            <p className="text-sm text-slate-400 mb-2">No transactions found</p>
-            <p className="text-xs text-slate-500">
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {visibleItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+            <p className="text-base text-slate-400 mb-1">No transactions found</p>
+            <p className="text-sm text-slate-500">
               {filters.status === 'needs-review'
-                ? 'No transactions need review'
-                : 'Try adjusting your filters'}
+                ? 'Nothing needs review right now'
+                : 'Try adjusting filters or search'}
             </p>
           </div>
-        ) : useDateGroupedView ? (
-          groupedByDay.map((section) => (
-            <div key={section.key}>
-              <div className="px-4 py-2 text-xs font-semibold text-slate-300 bg-slate-950/80 border-b border-slate-800/70 sticky top-0 z-[1]">
-                {section.label}
-              </div>
-              {section.items.map((item) => (
-                <TransactionRow
-                  key={item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id}
-                  transaction={item.transaction}
-                  pendingTransaction={item.pendingTransaction}
-                  onClick={() => handleRowClick(item)}
-                  onApprove={
-                    item.type === 'pending' && item.pendingTransaction
-                      ? () => handleApprove(item.pendingTransaction!.id)
-                      : undefined
-                  }
-                  onReject={
-                    item.type === 'pending' && item.pendingTransaction
-                      ? () => handleReject(item.pendingTransaction!.id)
-                      : undefined
-                  }
-                  onEdit={() => handleEdit(item)}
-                  categories={categories}
-                  onCategoryChange={onCategoryChange}
-                  showDate={false}
-                  showActions={showRowActions}
-                  isHighlighted={highlightTransactionIds?.has(
-                    item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id
-                  ) || false}
-                />
-              ))}
-            </div>
-          ))
         ) : (
-          paginatedItems.map((item) => (
-            <TransactionRow
-              key={item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id}
-              transaction={item.transaction}
-              pendingTransaction={item.pendingTransaction}
-              onClick={() => handleRowClick(item)}
-              onApprove={
-                item.type === 'pending' && item.pendingTransaction
-                  ? () => handleApprove(item.pendingTransaction!.id)
-                  : undefined
-              }
-              onReject={
-                item.type === 'pending' && item.pendingTransaction
-                  ? () => handleReject(item.pendingTransaction!.id)
-                  : undefined
-              }
-              onEdit={() => handleEdit(item)}
-              categories={categories}
-              onCategoryChange={onCategoryChange}
-              showDate
-              showActions={showRowActions}
-              isHighlighted={highlightTransactionIds?.has(
-                item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id
-              ) || false}
-            />
+          groupedByDay.map((section, sectionIndex) => (
+            <div key={section.key} className="mb-1">
+              <div
+                className="sticky top-0 z-[2] px-1 py-2.5 mt-2 first:mt-0 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-sm"
+              >
+                <div className="text-[14px] font-medium uppercase tracking-wider text-slate-500">
+                  {section.label}
+                </div>
+                {sectionIndex === 0 && groupInsight ? (
+                  <p className="mt-1.5 text-sm text-violet-300/90 leading-snug pr-2">{groupInsight}</p>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-1.5 pt-2">
+                {section.items.map((item) => (
+                  <TransactionRow
+                    key={item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id}
+                    transaction={item.transaction}
+                    pendingTransaction={item.pendingTransaction}
+                    onClick={() => handleRowClick(item)}
+                    onApprove={
+                      item.type === 'pending' && item.pendingTransaction
+                        ? () => handleApprove(item.pendingTransaction!.id)
+                        : undefined
+                    }
+                    onReject={
+                      item.type === 'pending' && item.pendingTransaction
+                        ? () => handleReject(item.pendingTransaction!.id)
+                        : undefined
+                    }
+                    onEdit={() => handleEdit(item)}
+                    categories={categories}
+                    onCategoryChange={onCategoryChange}
+                    showDate={false}
+                    showActions={showRowActions}
+                    isHighlighted={
+                      highlightTransactionIds?.has(
+                        item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id
+                      ) || false
+                    }
+                    layout="feed"
+                    onAskTag={
+                      onAskTag
+                        ? () => {
+                            if (item.type === 'committed' && item.transaction) {
+                              onAskTag(item.transaction, false);
+                            } else if (item.type === 'pending' && item.pendingTransaction) {
+                              onAskTag(item.pendingTransaction, true);
+                            }
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </div>
           ))
         )}
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800 bg-slate-900">
-          <div className="text-xs text-slate-400">
-            Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, allItems.length)} of {allItems.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safeCurrentPage === 1}
-              className="px-3 py-1 text-xs bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Previous
-            </button>
-            <span className="text-xs text-slate-400">
-              Page {safeCurrentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safeCurrentPage === totalPages}
-              className="px-3 py-1 text-xs bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Next
-            </button>
-          </div>
+      {hasMore && (
+        <div className="flex justify-center py-4 border-t border-slate-800/80 bg-slate-950/50">
+          <button
+            type="button"
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            className="rounded-full border border-slate-600 bg-slate-800/80 px-6 py-2.5 text-sm font-medium text-slate-200 hover:bg-slate-700 hover:border-slate-500 transition-colors"
+          >
+            Load more
+          </button>
         </div>
       )}
     </div>
   );
 }
-
-
-
-
-
-
-
-
-

@@ -4,9 +4,8 @@
  * Complete workspace layout for Transactions
  * 
  * Layout:
- * - Left column (33%): Transactions Workspace Panel + PendingReviewCard + ProgressIndicator
- * - Center column (42%): SemanticSearch + BulkActionsBar + TransactionList
- * - Right column (25%): Activity Feed (handled by DashboardLayout)
+ * - Centered main column (max-width ~800px): summary, statement chips, search, transaction feed, FAB for Tag/Prime.
+ * - Detail drawer opens on row click (no permanent right rail).
  * 
  * NOTE: This page reads from the normalized transactions table used by Smart Import.
  * The useTransactions hook calls tx-list-latest endpoint, which queries the transactions
@@ -27,11 +26,9 @@ import { TransactionList } from '../../components/transactions/TransactionList';
 import { useTransactionFilters } from '../../hooks/useTransactionFilters';
 import { TransactionInsightDrawer } from '../../components/transactions/TransactionInsightDrawer';
 import { StatementSummaryHeader } from '../../components/transactions/StatementSummaryHeader';
-import { BulkActionsBar } from '../../components/transactions/BulkActionsBar';
 import { SemanticSearch } from '../../components/transactions/SemanticSearch';
 import { SplitTransactionModal } from '../../components/transactions/SplitTransactionModal';
 import { TransactionsQuickView } from '../../components/transactions/TransactionsQuickView';
-import { clearSelection, performBulkAction, type BulkActionType } from '../../lib/bulkOperations';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
 import { getSupabase } from '../../lib/supabase';
 import { fetchCategoriesTree } from '../../lib/categories';
@@ -41,6 +38,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import UnifiedAssistantChat from '../../components/chat/UnifiedAssistantChat';
 import toast from 'react-hot-toast';
+import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
+import { Sparkles, MessageCircle, ChevronUp } from 'lucide-react';
 
 type Transaction = CommittedTransaction | PendingTransaction;
 type WowPreviewRow = {
@@ -421,7 +420,7 @@ export default function TransactionsPage() {
   ]);
   const { filters } = useTransactionFilters(scopedTransactions, scopedPendingTransactions);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
-  const showWowPreview = true;
+  const showWowPreview = false;
   const [showClassicDiagnostics] = useState(false);
   const [wowSelectedIds, setWowSelectedIds] = useState<Set<string>>(new Set());
   const [wowGroupMode, setWowGroupMode] = useState<'none' | 'selected' | 'merchant' | 'category'>('none');
@@ -431,7 +430,6 @@ export default function TransactionsPage() {
   const [dismissedGroupKeys, setDismissedGroupKeys] = useState<Record<string, true>>({});
 
   // State for selection and search
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchResults, setSearchResults] = useState<Transaction[] | null>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<CommittedTransaction | null>(null);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
@@ -902,6 +900,59 @@ export default function TransactionsPage() {
     if (statusFilter === 'uncategorized') return result;
     return result;
   }, [displayPending, categoryFilter, focusFilter, focusListTokens, statusFilter]);
+
+  const calendarMonthSummary = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    let spent = 0;
+    let income = 0;
+    for (const tx of urlFilteredCommitted) {
+      const t = new Date(tx.posted_at);
+      if (t < start || t > end) continue;
+      const a = Number(tx.amount || 0);
+      if (a > 0) spent += a;
+      else if (a < 0) income += Math.abs(a);
+    }
+    for (const p of urlFilteredPending) {
+      const dj = p.data_json as Record<string, unknown>;
+      const raw = dj.date ? new Date(String(dj.date)) : new Date(p.parsed_at);
+      if (Number.isNaN(raw.getTime()) || raw < start || raw > end) continue;
+      const a = Number(dj.amount || 0);
+      if (a > 0) spent += a;
+      else if (a < 0) income += Math.abs(a);
+    }
+    return { spent, income };
+  }, [urlFilteredCommitted, urlFilteredPending]);
+
+  const crystalGroupInsight = useMemo(() => {
+    const committed = urlFilteredCommitted;
+    if (committed.length < 8) return null;
+    const now = Date.now();
+    const week = 7 * 86400000;
+    const recentStart = now - week;
+    const prevStart = now - 2 * week;
+    const prevEnd = recentStart;
+    const sumCatWindow = (cat: string, startMs: number, endMs: number) =>
+      committed.reduce((sum, tx) => {
+        if (String(tx.category) !== cat) return sum;
+        const t = new Date(tx.posted_at).getTime();
+        if (t < startMs || t >= endMs) return sum;
+        const a = Number(tx.amount || 0);
+        return sum + (a > 0 ? a : Math.abs(a));
+      }, 0);
+    const recentSub = sumCatWindow('Subscriptions', recentStart, now);
+    const prevSub = sumCatWindow('Subscriptions', prevStart, prevEnd);
+    if (prevSub > 5 && recentSub > prevSub * 1.35) {
+      return `You spent about ${Math.round((recentSub / prevSub - 1) * 100)}% more on Subscriptions this week than the week before.`;
+    }
+    const recentDine = sumCatWindow('Food & Dining', recentStart, now);
+    const prevDine = sumCatWindow('Food & Dining', prevStart, prevEnd);
+    if (prevDine > 10 && recentDine > prevDine * 1.4) {
+      return 'Dining out is up sharply this week compared to last week — worth a quick glance.';
+    }
+    return null;
+  }, [urlFilteredCommitted]);
 
   const highImpactHighlightIds = useMemo(() => {
     if (!highImpactMode) return new Set<string>();
@@ -1681,18 +1732,6 @@ export default function TransactionsPage() {
     toast.success('Transaction rejected');
   }, [userId]);
 
-  // Handlers
-  const handleBulkAction = useCallback((action: BulkActionType) => {
-    const result = performBulkAction(action, allTransactions, selectedIds);
-    toast.success(`${action} action: ${result.succeeded} succeeded, ${result.failed} failed`);
-    // TODO: Wire to actual API mutations
-    setSelectedIds(clearSelection());
-  }, [allTransactions, selectedIds]);
-
-  const handleClearSelection = useCallback(() => {
-    setSelectedIds(clearSelection());
-  }, []);
-
   const handleTransactionClick = useCallback((tx: CommittedTransaction | PendingTransaction, isPending: boolean) => {
     if (isPending && 'data_json' in tx) {
       setSelectedDrawerRow({ kind: 'pending', transaction: tx });
@@ -1704,6 +1743,49 @@ export default function TransactionsPage() {
       setDetailDrawerOpen(true);
     }
   }, []);
+
+  const [txFabOpen, setTxFabOpen] = useState(false);
+
+  const handleDrawerAskTag = useCallback(
+    (dr: { kind: 'committed' | 'pending'; transaction: CommittedTransaction | PendingTransaction }) => {
+      const merchant =
+        dr.kind === 'committed'
+          ? dr.transaction.merchant_name || ''
+          : String((dr.transaction as PendingTransaction).data_json?.merchant || '');
+      openChat({
+        initialEmployeeSlug: 'tag-ai',
+        context: {
+          page: 'transactions',
+          merchant,
+          intent: 'recategorize',
+        },
+      });
+      setDetailDrawerOpen(false);
+    },
+    [openChat]
+  );
+
+  const handleDrawerFlagReview = useCallback(
+    (_row: { kind: 'committed' | 'pending'; transaction: CommittedTransaction | PendingTransaction }) => {
+      void _row;
+      toast.success("Thanks — we've noted this for review.");
+      setDetailDrawerOpen(false);
+    },
+    []
+  );
+
+  const handleAskTagFromRow = useCallback(
+    (tx: CommittedTransaction | PendingTransaction, isPending: boolean) => {
+      if (isPending && 'data_json' in tx) {
+        handleDrawerAskTag({ kind: 'pending', transaction: tx });
+        return;
+      }
+      if (!isPending && 'merchant_name' in tx) {
+        handleDrawerAskTag({ kind: 'committed', transaction: tx });
+      }
+    },
+    [handleDrawerAskTag]
+  );
 
   const handleSplitSave = useCallback((parts: Array<{ id: string; amount: number; category?: string; note?: string }>) => {
     toast.success(`Split into ${parts.length} transactions`);
@@ -1734,14 +1816,43 @@ export default function TransactionsPage() {
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
       <DashboardPageShell
         center={
-          <div className="grid min-h-[560px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-100">
-                  Transactions Workspace · Tag
+          <div className="grid min-h-[560px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-4 text-base">
+            <div className="mx-auto w-full max-w-[800px] rounded-xl border border-slate-800/70 bg-slate-900/50 px-4 py-4 sm:px-5">
+              <h1 className="text-[28px] font-semibold tracking-tight text-slate-50">Transactions</h1>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Total transactions</div>
+                  <div className="mt-1 text-[20px] font-semibold tabular-nums text-slate-100">
+                    {urlFilteredCommitted.length + urlFilteredPending.length}
+                  </div>
                 </div>
-                <div />
+                <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Spent this month</div>
+                  <div className="mt-1 text-[20px] font-semibold tabular-nums text-red-500">
+                    {formatMoney(calendarMonthSummary.spent)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Income this month</div>
+                  <div className="mt-1 text-[20px] font-semibold tabular-nums text-emerald-500">
+                    {formatMoney(calendarMonthSummary.income)}
+                  </div>
+                </div>
               </div>
+              {uncategorizedCount > 0 ? (
+                <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-amber-100">
+                    Tag found {uncategorizedCount} transaction{uncategorizedCount !== 1 ? 's' : ''} that need review.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={focusUncategorizedTransactions}
+                    className="shrink-0 rounded-lg border border-amber-400/50 bg-amber-500/15 px-4 py-2 text-sm font-medium text-amber-50 hover:bg-amber-500/25"
+                  >
+                    Review categories
+                  </button>
+                </div>
+              ) : null}
 
               {isStatementView && (
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -1750,7 +1861,7 @@ export default function TransactionsPage() {
                       Statement View
                     </span>
                     <span className="text-[11px] text-slate-400">
-                      {selectedStatementInstitution}
+                      {sanitizeIssuerPillLabel(selectedStatementInstitution)}
                     </span>
                   </div>
                   <button
@@ -1963,45 +2074,21 @@ export default function TransactionsPage() {
               </div>
             </div>
 
-            <div className={`grid min-h-0 grid-cols-1 gap-4 ${showWowPreview ? '' : 'xl:grid-cols-[290px_minmax(0,1fr)]'}`}>
-              <div className="flex min-h-0 flex-col rounded-xl border border-slate-800 bg-slate-900 overflow-hidden xl:order-2">
+            <div className="grid min-h-0 grid-cols-1 gap-4 mx-auto w-full max-w-[800px]">
+              <div className="flex min-h-0 flex-col rounded-xl border border-slate-800/70 bg-slate-900/40 overflow-hidden">
               {!showWowPreview && (
                 <>
-              <div className="border-b border-slate-800 px-4 py-3">
+              <div className="border-b border-slate-800/80 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-slate-100">Transactions</div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    {pendingCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => { void handleCategorizeWithTagAI(); }}
-                        disabled={isTagRunning}
-                        className="flex items-center gap-1.5 rounded-md border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[11px] font-medium text-violet-300 hover:bg-violet-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {isTagRunning ? (
-                          <>
-                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                            </svg>
-                            Categorizing…
-                          </>
-                        ) : (
-                          <>✦ Tag AI ({pendingCount})</>
-                        )}
-                      </button>
-                    )}
-                    <span className="rounded-md border border-slate-700 px-2 py-1">
-                      {urlFilteredCommitted.length} transaction{urlFilteredCommitted.length !== 1 ? 's' : ''}
-                    </span>
+                  <div className="text-sm text-slate-500">Newest first — use the assistant button for Tag &amp; Prime.</div>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setSortOrder((s) => (s === 'newest' ? 'oldest' : 'newest'))}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:border-violet-500/40 hover:text-violet-300 transition-colors"
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:border-violet-500/40 hover:text-violet-200 transition-colors"
                     >
-                      Sort {sortOrder === 'newest' ? '↓ newest' : '↑ oldest'}
+                      {sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
                     </button>
-                    <span className="rounded-md border border-slate-700 px-2 py-1 opacity-40 cursor-default select-none">Filters</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -2011,9 +2098,9 @@ export default function TransactionsPage() {
                         const qs = params.toString();
                         navigate(`/dashboard/smart-categories${qs ? `?${qs}` : ''}`);
                       }}
-                      className="flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-400 hover:border-violet-500/50 hover:text-violet-300 transition-colors"
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:border-violet-500/50 hover:text-violet-200 transition-colors"
                     >
-                      Smart Categories ↗
+                      Smart Categories
                     </button>
                   </div>
                 </div>
@@ -2104,29 +2191,6 @@ export default function TransactionsPage() {
                   </details>
                 </div>
               )}
-              <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
-                <div className="min-w-0">
-                  <div className="truncate">
-                    AI scope lock: <span className="font-semibold">{aiScopeLockLabel}</span> ({aiScopeLockCount} rows)
-                  </div>
-                  <div className="text-[11px] text-cyan-200/85">
-                    Tag and Prime transaction commands use this scope.
-                  </div>
-                </div>
-                {isStatementView ? (
-                  <button
-                    type="button"
-                    onClick={clearImportFilter}
-                    className="shrink-0 rounded-md border border-cyan-300/40 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-400/20 transition-colors"
-                  >
-                    Switch to all
-                  </button>
-                ) : (
-                  <span className="shrink-0 rounded-md border border-cyan-300/30 px-2 py-1 text-[11px] text-cyan-200/80">
-                    Lock by selecting a statement
-                  </span>
-                )}
-              </div>
               {showWowPreview && (
                 <div className="mx-4 mt-3 rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2">
                   <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Statements</div>
@@ -2139,9 +2203,10 @@ export default function TransactionsPage() {
               )}
 
               {importIdFilter && (
-                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
                   <div className="min-w-0 truncate">
-                    Showing <span className="font-semibold">{selectedStatementInstitution}</span> ({importScopedCount} records)
+                    <span className="font-semibold">{sanitizeIssuerPillLabel(selectedStatementInstitution)}</span>
+                    <span className="text-cyan-200/80"> · {importScopedCount} transactions</span>
                   </div>
                   <button
                     type="button"
@@ -2276,15 +2341,10 @@ export default function TransactionsPage() {
                 </div>
               )}
 
-              <BulkActionsBar
-                selectedCount={selectedIds.size}
-                onAction={handleBulkAction}
-                onClearSelection={handleClearSelection}
-              />
                 </>
               )}
 
-              <div className="flex-1 min-h-0 overflow-hidden">
+              <div ref={spendingBreakdownRef} className="flex-1 min-h-0 overflow-hidden">
                 {hasLoadError ? (
                   <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
                     <p className="text-sm text-amber-300">Could not load transactions right now.</p>
@@ -2573,78 +2633,70 @@ export default function TransactionsPage() {
                     sortOrder={sortOrder}
                     showRowActions={false}
                     highlightTransactionIds={activeHighlightIds}
+                    groupInsight={crystalGroupInsight}
+                    onAskTag={handleAskTagFromRow}
                   />
                 )}
               </div>
               </div>
-
-              {!showWowPreview && (
-              <div className="hidden xl:flex min-h-0 flex-col rounded-xl border border-slate-800 bg-slate-900 overflow-hidden xl:order-1">
-              <div className="border-b border-slate-800 px-4 py-3">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Spending Breakdown</div>
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                <div ref={spendingBreakdownRef} className="space-y-2 p-4 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Income</span>
-                    <span className="font-semibold text-emerald-400">{formatMoney(statementHeaderSummary.income)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Spending</span>
-                    <span className="font-semibold text-red-400">{formatMoney(statementHeaderSummary.spending)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Net</span>
-                    <span className={`font-semibold ${statementHeaderSummary.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {statementHeaderSummary.net >= 0 ? '+' : ''}{formatMoney(statementHeaderSummary.net)}
-                    </span>
-                  </div>
-
-                  <div className="h-px bg-slate-800 my-1" />
-
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Categories</div>
-
-                  {categoryBreakdown.length === 0 ? (
-                    <div className="text-[11px] text-slate-500 py-1">
-                      {isStatementView ? 'No expense data' : 'Select a statement to see breakdown'}
-                    </div>
-                  ) : (
-                    categoryBreakdown.map(([cat, amount]) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => {
-                          setSelectedCategoryDrilldown(cat);
-                          setCategoryDrawerOpen(true);
-                        }}
-                        className={`w-full rounded-md px-1.5 py-1 text-left transition-colors ${
-                          focusFilter && cat.toLowerCase() === focusFilter.toLowerCase()
-                            ? 'bg-cyan-500/15 ring-1 ring-cyan-400/40'
-                            : 'hover:bg-slate-800/70'
-                        }`}
-                        title={`View ${cat} transactions`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="min-w-0 flex-1 truncate text-slate-300">{cat}</span>
-                          <span className="flex-shrink-0 font-medium text-slate-100">{formatMoney(amount)}</span>
-                        </div>
-                        <div className="mt-1 h-1 rounded-full bg-slate-800 overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-cyan-500/60"
-                            style={{ width: `${categoryBreakdown.length > 0 ? Math.max(4, Math.round((amount / categoryBreakdown[0][1]) * 100)) : 0}%` }}
-                          />
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-              </div>
-              )}
             </div>
           </div>
         }
       />
+
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+        {txFabOpen ? (
+          <div className="mb-1 flex min-w-[200px] flex-col gap-2 rounded-xl border border-slate-700 bg-slate-900/95 p-3 shadow-2xl backdrop-blur">
+            {pendingCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTxFabOpen(false);
+                  void handleCategorizeWithTagAI();
+                }}
+                disabled={isTagRunning}
+                className="flex items-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-2 text-left text-sm text-violet-100 hover:bg-violet-500/25 disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4 shrink-0" />
+                {isTagRunning ? 'Tag is working…' : `Run Tag AI (${pendingCount})`}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setTxFabOpen(false);
+                openPrimeFromTransactions();
+              }}
+              className="flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-left text-sm text-cyan-100 hover:bg-cyan-500/20"
+            >
+              <MessageCircle className="h-4 w-4 shrink-0" />
+              Ask Prime
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTxFabOpen(false);
+                const params = new URLSearchParams();
+                if (importIdFilter) params.set('importId', importIdFilter);
+                params.set('handoff', 'transactions_to_tag');
+                const qs = params.toString();
+                navigate(`/dashboard/smart-categories${qs ? `?${qs}` : ''}`);
+              }}
+              className="rounded-lg border border-slate-600 px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-800"
+            >
+              Open Smart Categories
+            </button>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setTxFabOpen((o) => !o)}
+          className="flex h-14 w-14 items-center justify-center rounded-full border border-violet-500/50 bg-violet-600/90 text-white shadow-lg hover:bg-violet-500 transition-colors"
+          aria-label={txFabOpen ? 'Close assistant actions' : 'Open assistant actions'}
+        >
+          {txFabOpen ? <ChevronUp className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
+        </button>
+      </div>
 
       {categoryDrawerOpen && selectedCategoryDrilldown && (
         <div className="fixed inset-0 z-40">
@@ -2821,6 +2873,12 @@ export default function TransactionsPage() {
         row={selectedDrawerRow}
         allCommittedTransactions={urlFilteredCommitted}
         onClose={() => setDetailDrawerOpen(false)}
+        categories={categoryList.length > 0 ? categoryList : undefined}
+        onCommittedCategorySaved={() => {
+          void refetchTransactions();
+        }}
+        onAskTag={handleDrawerAskTag}
+        onFlagReview={handleDrawerFlagReview}
         onApprovePending={async (pendingId) => {
           await handleApprove(pendingId);
           setDetailDrawerOpen(false);

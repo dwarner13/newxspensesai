@@ -7,6 +7,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { ImportListItem } from '../../hooks/useImportList';
+import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
 
 interface MonthNavigatorProps {
   imports: ImportListItem[];
@@ -72,7 +73,7 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
             type="button"
             ref={isActive ? activeRef : undefined}
             onClick={() => onSelect(imp.id)}
-            title={`${imp.statementLabel} • ${imp.docName} • Uploaded ${formatLongDate(imp.created_at)}`}
+            title={`${sanitizeIssuerPillLabel(imp.statementLabel)} • ${imp.docName} • Uploaded ${formatLongDate(imp.created_at)}`}
             className={[
               'flex-shrink-0 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors',
               isActive
@@ -81,7 +82,7 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
             ].join(' ')}
           >
             <span className="truncate max-w-[260px] inline-block align-middle">
-              {imp.statementLabel} · {imp.label}
+              {sanitizeIssuerPillLabel(imp.statementLabel)} · {sanitizeIssuerPillLabel(imp.label)}
             </span>
           </button>
         );
