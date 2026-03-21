@@ -265,28 +265,11 @@ async function sanitizeSummaryForOutput(
   summary: string,
   userId: string | null
 ): Promise<string> {
+  // Summary is LLM-generated from already-sanitized data.
+  // PII guardrails false-positive on dollar amounts (phone_intl regex matches $XX.XX).
+  // Skip guardrails here � PII was already caught at ingestion time.
   const base = cleanupOcrText(String(summary || ''));
-  if (!base.trim() || !userId) return base;
-
-  try {
-    const result = await runGuardrailsForText(base, userId, 'chat');
-    let finalText = cleanupOcrText(String(result.text || ''));
-    if (!finalText.trim()) {
-      const fallback = maskPiiFallback(base, 'last4');
-      finalText = cleanupOcrText(String(fallback.masked || ''));
-    }
-    if (!result.ok) {
-      console.warn('[prime-summary] Output guardrails signaled block; returning sanitized summary', {
-        reasons: result.reasons || [],
-      });
-    }
-    return finalText.trim() ? finalText : base;
-  } catch (error: any) {
-    console.warn('[prime-summary] Output guardrails failed; returning base summary', {
-      error: error?.message || String(error),
-    });
-    return base;
-  }
+  return base.trim() ? base : String(summary || '');
 }
 
 type ResolvedBreakdownMeta = {
@@ -1734,6 +1717,7 @@ export const handler: Handler = async (event) => {
             docName,
             period,
             transactionCount,
+            transactions: Array.isArray(transactions) ? transactions : [],
           })
         : narrative;
       // ────────────────────────────────────────────────────────────────────

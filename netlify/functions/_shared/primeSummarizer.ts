@@ -212,8 +212,8 @@ Write 4-5 bullet points with the key numbers:
 YOUR TRANSACTIONS (WITH DATES)
 
 Group transactions into a logical timeline. If there is a payment, split into "Before Payment" and "After Payment" sections.
-Each transaction line MUST include: date, merchant name, amount.
-Format each line as: [Date] - [Merchant] - $XX.XX
+Each transaction line MUST include: date, merchant name, amount. Use ? as separator.
+Format each line as: [Date] ? [Merchant] ? $XX.XX
 After each group, add a count line: "[N] transactions in this period"
 If a merchant appears multiple times, list each occurrence separately with its own date and amount - never aggregate.
 
@@ -303,6 +303,18 @@ export async function runLLMAdvisorSummary(params: {
       total: m?.total,
       count: m?.count,
     })),
+    transactions: (Array.isArray(params.transactions) ? params.transactions : [])
+      .slice(0, 60)
+      .map((t: any) => {
+        const d = t?.data_json || t || {};
+        return {
+          date: d?.date || d?.transaction_date || d?.posting_date || null,
+          merchant: d?.merchant || d?.merchant_name || d?.description || null,
+          amount: Number(d?.amount ?? 0),
+          category: t?.tag_category || d?.category || null,
+        };
+      })
+      .filter((r: any) => r.merchant || r.amount),
     needs_review_count: flags?.needs_review_count ?? 0,
     account_summary: analytics?.account_summary || null,
     tag_stats: {
@@ -322,7 +334,7 @@ export async function runLLMAdvisorSummary(params: {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1200,
+        max_tokens: 1500,
         system: PRIME_ADVISOR_SYSTEM_PROMPT,
         messages: [
           {

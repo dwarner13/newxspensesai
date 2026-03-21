@@ -50,6 +50,18 @@ const RULES: Array<{ contains: string[]; category: string }> = [
   { contains: ['primevideo', 'prime video'], category: 'Subscriptions' },
   { contains: ['payment'], category: 'Income' },
 
+  // Debt & loan payments
+  { contains: ['ind all saving', 'b/m payt', 'b/m pay', 'td loan', 'celtic group', 'easyfinancial', 'national money', 'lenddirect', 'lend direct', 'fairstone', 'money mart', 'cash money', 'cash store'], category: 'Transfers' },
+  // Software & dev tools
+  { contains: ['openai', 'chatgpt', 'anthropic', 'claude', 'replit', 'heroku', 'netlify', 'supabase', 'digitalocean', 'aws ', 'cloudflare'], category: 'Subscriptions' },
+  // Fitness (specific brands)
+  { contains: ['la fitness', 'planet fitness', 'fit4less', 'world gym', 'movati'], category: 'Personal Care' },
+  // Meal/diet apps
+  { contains: ['unimeal', 'noom', 'myfitnesspal', 'weight watchers', 'ww '], category: 'Subscriptions' },
+  // Email & productivity
+  { contains: ['fastmail', 'paddle.net', 'protonmail', 'mailchimp', 'sendgrid'], category: 'Subscriptions' },
+  // Personal services
+  { contains: ['hair cut', 'haircut', 'beauty', 'aesthet', 'lash', 'brow', 'massage', 'chiropr', 'physio', 'osteo'], category: 'Personal Care' },
 ];
 const CANONICAL_CATEGORIES = [
   'Income',

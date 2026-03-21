@@ -459,6 +459,10 @@ async function buildStatementBreakdown(args: {
         credit_limit: toN(storedSummary.credit_limit),
         available_credit: toN(storedSummary.available_credit),
       };
+      // Backfill issuer/institution from statement_summary if the first metadata read missed it
+      if (storedSummary?.institution && !docMeta?.institution) {
+        docMeta.institution = String(storedSummary.institution).trim();
+      }
       console.log('[CommitImport] Loaded account_summary from user_documents.metadata', {
         importId,
         documentId,
