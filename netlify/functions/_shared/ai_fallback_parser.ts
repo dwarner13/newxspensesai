@@ -36,9 +36,9 @@ export async function aiFallbackParseTransactions(params: {
   statementType?: 'credit_card' | 'bank' | 'unknown';
   openaiClient: OpenAI;
   anthropicApiKey?: string;
+  pdfBase64?: string | null;
 }): Promise<ParsedTransaction[]> {
-  const { ocrText, statementType = 'unknown', openaiClient } = params;
-  const anthropicApiKey = params.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+  const { ocrText, statementType = 'unknown', openaiClient, pdfBase64 } = params;
 
   // Safety: Truncate OCR text to avoid token explosions
   const MAX_OCR_LENGTH = 15000; // ~3-4k tokens
@@ -115,23 +115,32 @@ Return a JSON object with a "transactions" array containing all extracted transa
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     let content: string | null = null;
-
-    // Try Claude first (much better at distinguishing Amount vs Balance columns)
+    // Try Claude first — use Vision (PDF direct) when available, text fallback otherwise
     if (anthropicKey) {
-      console.log(`[Byte OCR] Calling Claude AI fallback parser for ${statementType} statement (${truncatedText.length} chars)`);
+      const useVision = Boolean(pdfBase64);
+      const visionModel = useVision ? "claude-sonnet-4-20250514" : "claude-haiku-4-5-20251001";
+      console.log(`[Byte OCR] Calling Claude ${useVision ? "Vision (PDF)" : "text"} parser for ${statementType} statement, model: ${visionModel}`);
       try {
+        const userContent = useVision
+          ? [
+              { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
+              { type: "text", text: userPrompt + "\n\nReturn ONLY the JSON object. No markdown, no backticks, no commentary." },
+            ]
+          : userPrompt + "\n\nReturn ONLY the JSON object. No markdown, no backticks, no commentary.";
+        const claudeHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        };
+        if (useVision) claudeHeaders["anthropic-beta"] = "pdfs-2024-09-25";
         const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": anthropicKey,
-            "anthropic-version": "2023-06-01",
-          },
+          headers: claudeHeaders,
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
+            model: visionModel,
             max_tokens: 8000,
             system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt + "\n\nReturn ONLY the JSON object. No markdown, no backticks, no commentary." }],
+            messages: [{ role: "user", content: userContent }],
           }),
         });
         if (claudeRes.ok) {

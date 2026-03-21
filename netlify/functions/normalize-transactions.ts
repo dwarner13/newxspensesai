@@ -818,6 +818,25 @@ async function processNormalizationInBackground(
     }
 
     // Try OCR text parsing first (if OCR text exists)
+
+    // Download PDF for Claude Vision (significantly better column parsing)
+    let pdfBase64ForVision: string | null = null;
+    if (doc.storage_path && (doc.mime_type === "application/pdf" || doc.original_name?.toLowerCase().endsWith(".pdf"))) {
+      try {
+        const sb = admin();
+        const { data: pdfBlob, error: dlErr } = await sb.storage.from("docs").download(doc.storage_path);
+        if (!dlErr && pdfBlob) {
+          const arrBuf = await pdfBlob.arrayBuffer();
+          pdfBase64ForVision = Buffer.from(arrBuf).toString("base64");
+          console.log("[normalize-transactions] Downloaded PDF for Vision mode", { documentId, bytes: arrBuf.byteLength });
+        } else {
+          console.warn("[normalize-transactions] PDF download failed, Vision mode disabled", { documentId, error: dlErr?.message });
+        }
+      } catch (pdfErr: any) {
+        console.warn("[normalize-transactions] PDF download error", { documentId, error: pdfErr?.message });
+      }
+    }
+
     if (hasOcrText) {
       const sourceTextPath = transientTextPathActive
         ? 'transient_ocrText'
@@ -827,6 +846,7 @@ async function processNormalizationInBackground(
         includeAllAccounts: options?.includeAllAccounts,
         sourceTextPath,
         sourceValueType: typeof options?.transientOcrText,
+        pdfBase64: pdfBase64ForVision,
       });
     }
 

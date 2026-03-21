@@ -56,19 +56,19 @@ export async function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string }
+  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string; pdfBase64?: string | null }
 ): Promise<NormalizedTransaction[]>;
 export function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string }
+  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string; pdfBase64?: string | null }
 ): Promise<NormalizedTransaction[]> | NormalizedTransaction[];
 export function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string }
+  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string; pdfBase64?: string | null }
 ): Promise<NormalizedTransaction[]> | NormalizedTransaction[] {
   const sourceTextPath = String(context?.sourceTextPath || 'unknown');
   const sourceValueType = String(context?.sourceValueType || typeof text);
@@ -278,6 +278,7 @@ export function normalizeOcrResult(
         ocrText: normalizedText,
         statementType,
         openaiClient,
+        pdfBase64: context?.pdfBase64 || null,
       });
 
       if (aiTransactions.length > 0) {
