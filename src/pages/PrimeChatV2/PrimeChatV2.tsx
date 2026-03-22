@@ -57,7 +57,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [typed, typeDone] = useTypewriter(summaryText, 18, 600, !data.loading);
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
   // Filter to only messages created during this panel session (skip history greeting etc.)
   // Show messages that are user-initiated or responses to them

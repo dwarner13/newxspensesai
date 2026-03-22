@@ -274,10 +274,8 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
 
   // Get user's first name for splash greeting
   const splashName = (() => {
-    if (profile?.display_name) return profile.display_name.split(" ")[0];
-    if (profile?.first_name) return profile.first_name;
-    if (user?.email) return user.email.split("@")[0];
-    return "there";
+    const raw = profile?.display_name?.split(" ")[0] || profile?.first_name || user?.email?.split("@")[0] || "there";
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
   })();
 
   return (
@@ -285,7 +283,7 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
       {children}
       {/* V2 Post-Login Splash — replaces WelcomeBackOverlay */}
       {onboardingCompleted && showSplash && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9999 }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <PostLoginSplash
             userName={splashName}
             onContinue={dismissSplash}

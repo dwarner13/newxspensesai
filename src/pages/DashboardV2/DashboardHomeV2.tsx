@@ -25,7 +25,7 @@ export default function DashboardHomeV2() {
   useEffect(() => setLoaded(true), []);
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
   const recapText = data.loading ? "" : buildRecapText(data);
   const [recapTyped, recapDone] = useTypewriter(recapText, 16, 800, !data.loading);

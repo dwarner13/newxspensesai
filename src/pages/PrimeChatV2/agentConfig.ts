@@ -5,7 +5,7 @@
   border: "#1e2d4a",
   borderLight: "#2a3f66",
   text: "#e8ecf4",
-  textMuted: "#9ba8c4",
+  textMuted: "#a0aec4",
   textDim: "#6b7a99",
   accent: "#c8a64e",
   accentGlow: "rgba(200,166,78,0.12)",

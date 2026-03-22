@@ -57,19 +57,7 @@ export default function DashboardLayout() {
   // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
   // All routes are now full-width — activity feed rail removed
-  
-  // If on onboarding route, render minimal layout (no sidebar, header, chat, rails)
-  if (isOnboardingRoute) {
-    return (
-      <PrimeOverlayProvider>
-        <div className="min-h-screen bg-slate-950">
-          <main className="flex-1">
-            <Outlet />
-          </main>
-        </div>
-      </PrimeOverlayProvider>
-    );
-  }
+  // NOTE: onboarding early-return moved to end of component (after all hooks) to avoid hooks violation
   
   // Dev mode: Setup click debug helper to identify blocking overlays
   useEffect(() => {
@@ -948,6 +936,47 @@ export default function DashboardLayout() {
     }
   }, [location.pathname]);
 
+  // Body scroll lock — must be before any early returns
+  const useBodyScroll = isDashboardRoute;
+  useEffect(() => {
+    if (useBodyScroll) {
+      const origBodyOY = document.body.style.overflowY;
+      const origBodyOX = document.body.style.overflowX;
+      const origHtmlO = document.documentElement.style.overflow;
+      const origHtmlOX = document.documentElement.style.overflowX;
+      document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.overflowX = 'clip';
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+      document.body.style.maxHeight = '100vh';
+      document.body.style.minHeight = '100vh';
+      document.body.style.overflowX = 'clip';
+      return () => {
+        document.body.style.overflow = '';
+        document.body.style.height = '';
+        document.body.style.maxHeight = '';
+        document.body.style.minHeight = '';
+        document.body.style.overflowY = origBodyOY;
+        document.body.style.overflowX = origBodyOX;
+        document.documentElement.style.overflow = origHtmlO;
+        document.documentElement.style.overflowX = origHtmlOX;
+      };
+    }
+  }, [useBodyScroll, location.pathname]);
+
+  // Onboarding minimal layout (after all hooks)
+  if (isOnboardingRoute) {
+    return (
+      <PrimeOverlayProvider>
+        <div className="min-h-screen bg-slate-950">
+          <main className="flex-1">
+            <Outlet />
+          </main>
+        </div>
+      </PrimeOverlayProvider>
+    );
+  }
+
   if (isMobile) {
     return (
       <div className="flex flex-col h-screen bg-[#0b1220]">
@@ -1046,70 +1075,8 @@ export default function DashboardLayout() {
   // - UnifiedAssistantChat: Slide-out panel from right, overlays ActivityPanel correctly
   //
   // SCROLL BEHAVIOR:
-  // - For ALL /dashboard/* routes: Main element is scroll container (internal scrolling only, body locked)
-  // - For other routes: Internal scrolling via main element (h-screen overflow-hidden)
-  // - Header is sticky, content scrolls beneath it
-  // CRITICAL: Body should never scroll - only internal components scroll within their containers
-  const useBodyScroll = isDashboardRoute;
-  
-  // Prevent body scrolling for ALL /dashboard/* routes - lock page height
-  // CRITICAL: This prevents page-level scrolling - only internal components scroll within their containers
-  useEffect(() => {
-    if (useBodyScroll) {
-      // Save original values
-      const originalBodyOverflowY = document.body.style.overflowY;
-      const originalBodyOverflowX = document.body.style.overflowX;
-      const originalHtmlOverflow = document.documentElement.style.overflow;
-      const originalHtmlOverflowX = document.documentElement.style.overflowX;
-      
-      // Lock BODY - prevent page-level scrolling, only allow internal component scrolling
-      // CRITICAL: HTML must NEVER scroll - set overflow: hidden to prevent any scrolling
-      // BODY should not scroll - internal components handle their own scrolling
-      document.documentElement.style.overflow = 'hidden';
-      // Use 'clip' instead of 'hidden' to prevent phantom horizontal scrollbar
-      document.documentElement.style.overflowX = 'clip';
-      // Lock body dimensions strictly - prevent content from forcing expansion
-      document.body.style.overflow = 'hidden';
-      document.body.style.height = '100vh';
-      document.body.style.maxHeight = '100vh';
-      document.body.style.minHeight = '100vh';
-      // Use 'clip' instead of 'hidden' to prevent phantom horizontal scrollbar
-      document.body.style.overflowX = 'clip';
-      
-      // CRITICAL: hide-scrollbar is ONLY for mobile overlays, NOT for desktop body scrolling
-      // Desktop body scrollbar must remain visible for proper scroll behavior
-      // Mobile overlays (modals, slideouts) can hide scrollbar via their own scoped CSS
-      // Do NOT apply hide-scrollbar to body on desktop - it breaks scroll diagnosis
-      
-      // Dev-only: Verify scroll ownership
-      if (import.meta.env.DEV) {
-        const mainElement = document.querySelector('main[data-dashboard-content]');
-        const mainClassName = mainElement?.className || 'not found';
-        const mainOverflow = mainClassName.split(' ').filter(c => c.includes('overflow')).join(' ') || 'none';
-        log('[DashboardLayout] 🔒 BODY scroll locked:', {
-          pathname: location.pathname,
-          useBodyScroll,
-          bodyOverflowY: document.body.style.overflowY,
-          htmlOverflow: document.documentElement.style.overflow,
-          mainOverflow,
-        });
-      }
-      
-      // Cleanup: Restore original values
-      return () => {
-        document.body.style.overflow = '';
-        document.body.style.height = '';
-        document.body.style.maxHeight = '';
-        document.body.style.minHeight = '';
-        document.body.style.overflowY = originalBodyOverflowY;
-        document.body.style.overflowX = originalBodyOverflowX;
-        // CRITICAL: Restore html overflow to original value (should be 'hidden' from CSS)
-        document.documentElement.style.overflow = originalHtmlOverflow;
-        document.documentElement.style.overflowX = originalHtmlOverflowX;
-      };
-    }
-  }, [useBodyScroll, location.pathname]);
-  
+  // Body scroll lock moved to before early returns (line ~941)
+
   return (
     <PrimeOverlayProvider>
       <div className="flex h-screen overflow-hidden overflow-x-hidden bg-slate-950">
@@ -1211,11 +1178,11 @@ export default function DashboardLayout() {
         </button>
       )}
 
-      {/* Control Center Drawer - Profile/Preferences/Security */}
-      <ControlCenterDrawer />
+      {/* Control Center Drawer DISABLED — replaced by Settings V2 page */}
+      {/* <ControlCenterDrawer /> */}
       
-      {/* Account Center Panel - Account/Billing/Custodian Support/Data & Privacy */}
-      <AccountCenterPanel />
+      {/* Account Center Panel DISABLED — replaced by Settings V2 page */}
+      {/* <AccountCenterPanel /> */}
 
       {/* Prime Tools Panel - Opens from floating rail Prime Tools button */}
       <PrimeToolsPanel />

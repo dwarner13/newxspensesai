@@ -56,7 +56,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
   const primaryItems = NAV_ITEMS.filter(i => i.group === 'PRIMARY');
   const moreItems = NAV_ITEMS.filter(i => i.group === 'MORE');
 
-  const triggerUpload = () => setUploadOpen(true);
+  const triggerUpload = () => navigate('/dashboard/upload');
 
   const renderItem = (item: NavItem, dimmed = false) => {
     const active = item.to === '/dashboard'
@@ -89,7 +89,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
 
     const activeStyle = active
       ? { borderLeftColor: '#c8a64e', background: 'rgba(200,166,78,0.08)', color: '#c8a64e', boxShadow: 'inset 3px 0 12px rgba(200,166,78,0.15)' }
-      : { color: dimmed ? '#4a5a75' : '#7b8ba5' };
+      : { color: dimmed ? '#6b7a99' : '#a0aec4' };
 
     const navLink = (
       <NavLink
@@ -99,7 +99,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
         style={activeStyle}
         end={item.to === '/dashboard'}
         onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#e8ecf4'; } }}
-        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = dimmed ? '#4a5a75' : '#7b8ba5'; } }}
+        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = dimmed ? '#6b7a99' : '#a0aec4'; } }}
       >
         {inner}
       </NavLink>
@@ -143,7 +143,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
             <PrimeLogoBadge size={28} showGlow />
             <div>
               <div className="text-[17px] font-extrabold tracking-wide" style={{ color: '#e8ecf4' }}>XspensesAI</div>
-              <div className="text-[11px]" style={{ color: '#4a5a75' }}>AI Finance</div>
+              <div className="text-[11px]" style={{ color: '#6b7a99' }}>AI Finance</div>
             </div>
           </div>
         )}
@@ -161,9 +161,9 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
           type="button"
           onClick={() => setMoreOpen(v => !v)}
           className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer transition-all rounded-lg mx-1.5 mt-2 w-[calc(100%-12px)]"
-          style={{ color: '#4a5a75', borderLeft: '2px solid transparent' }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#7b8ba5'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#4a5a75'; e.currentTarget.style.background = 'transparent'; }}
+          style={{ color: '#6b7a99', borderLeft: '2px solid transparent' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#a0aec4'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#6b7a99'; e.currentTarget.style.background = 'transparent'; }}
         >
           <MoreHorizontal className="w-5 h-5 shrink-0" />
           {!isCollapsed && (
@@ -202,7 +202,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
                 <Upload className="w-4 h-4" />
                 Upload Statement
               </div>
-              <div className="mt-1 text-[11px]" style={{ color: '#4a5a75' }}>Byte processes instantly</div>
+              <div className="mt-1 text-[11px]" style={{ color: '#6b7a99' }}>Byte processes instantly</div>
             </button>
           </div>
         )}
@@ -242,13 +242,13 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
               <CompactScoreRing score={scoreData.overallScore} size={32} />
               <div>
                 <div className="text-[11px] font-bold" style={{ color: '#e8ecf4' }}>Xspense Score</div>
-                <div className="text-[9px]" style={{ color: '#4a5a75' }}>+{scoreData.overallScore - scoreData.previousScore} this month</div>
+                <div className="text-[9px]" style={{ color: '#6b7a99' }}>+{scoreData.overallScore - scoreData.previousScore} this month</div>
               </div>
             </button>
           )}
           <div className="flex items-center gap-2">
             <div className="w-[5px] h-[5px] rounded-full" style={{ background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)' }} />
-            <span className="text-[12px] font-semibold" style={{ color: '#4a5a75' }}>4 AI Agents Active</span>
+            <span className="text-[12px] font-semibold" style={{ color: '#6b7a99' }}>4 AI Agents Active</span>
             <div className="flex ml-auto -space-x-1.5">
               {AGENT_DOTS.map(a => (
                 <div key={a.letter} className={`w-6 h-6 rounded-full text-[9px] font-bold border flex items-center justify-center ${a.bg} ${a.border} ${a.text}`} style={{ zIndex: 1 }}>
@@ -261,15 +261,12 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
       )}
 
       {/* USER PROFILE */}
-      <div className="px-3 py-3" style={{ borderTop: '1px solid #1e2d4a' }}>
+      <div className="px-3 py-3 relative" style={{ borderTop: '1px solid #1e2d4a' }}>
         {isCollapsed ? (
           <TooltipProvider>
             <Tooltip delayDuration={120}>
               <TooltipTrigger asChild>
-                <button
-                  onClick={() => openPanel('account')}
-                  className="flex justify-center w-full"
-                >
+                <button onClick={() => navigate('/dashboard/settings')} className="flex justify-center w-full">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: 'rgba(200,166,78,0.2)', border: '1px solid rgba(200,166,78,0.35)', color: '#c8a64e' }}>
                     {profile.avatarInitials}
                   </div>
@@ -280,27 +277,37 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
           </TooltipProvider>
         ) : (
           <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => openPanel('account')}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-              style={{ background: 'linear-gradient(135deg, rgba(200,166,78,0.3), rgba(160,128,48,0.2))', border: '1px solid rgba(200,166,78,0.4)', color: '#c8a64e' }}
-            >
+            <button onClick={() => navigate('/dashboard/settings')} className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: 'linear-gradient(135deg, rgba(200,166,78,0.3), rgba(160,128,48,0.2))', border: '1px solid rgba(200,166,78,0.4)', color: '#c8a64e' }}>
               {profile.avatarInitials}
             </button>
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-semibold truncate" style={{ color: '#e8ecf4' }}>{profile.fullName}</div>
-              <div className="text-[11px] truncate" style={{ color: '#4a5a75' }}>{profile.plan}</div>
+              <div className="text-[11px] truncate" style={{ color: '#6b7a99' }}>{profile.plan}</div>
             </div>
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard/settings')}
-              className="shrink-0"
-              style={{ color: '#4a5a75' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#7b8ba5'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = '#4a5a75'; }}
+            <button type="button" onClick={() => setUserMenuOpen(v => !v)} className="shrink-0" style={{ color: '#6b7a99' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#9ba8c4'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#6b7a99'; }}
             >
               <MoreHorizontal className="w-4 h-4" />
             </button>
+          </div>
+        )}
+        {/* User dropdown menu */}
+        {userMenuOpen && !isCollapsed && (
+          <div style={{ position: 'absolute', bottom: '100%', left: 12, right: 12, marginBottom: 8, background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', padding: 6, zIndex: 200, fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+            <button onClick={() => { setUserMenuOpen(false); navigate('/dashboard/settings'); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', borderRadius: 8, fontSize: 13, color: '#e8ecf4', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#162035'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >{"\u2699\uFE0F"} Settings</button>
+            <button onClick={() => { setUserMenuOpen(false); navigate('/dashboard/settings'); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', borderRadius: 8, fontSize: 13, color: '#e8ecf4', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#162035'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >{"\uD83D\uDC64"} Profile</button>
+            <div style={{ height: 1, background: '#1e2d4a', margin: '4px 8px' }} />
+            <button onClick={() => { setUserMenuOpen(false); void signOut(); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', borderRadius: 8, fontSize: 13, color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >{"\uD83D\uDEAA"} Sign Out</button>
           </div>
         )}
       </div>
@@ -310,9 +317,9 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
         <button
           onClick={() => setCollapsed(!isCollapsed)}
           className="w-full flex items-center justify-center rounded-lg py-1.5 transition-colors"
-          style={{ color: '#4a5a75' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#7b8ba5'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4a5a75'; }}
+          style={{ color: '#6b7a99' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#a0aec4'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7a99'; }}
         >
           {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>

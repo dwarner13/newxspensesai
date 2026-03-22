@@ -1,6 +1,8 @@
 ﻿import { useState } from "react";
+import toast from "react-hot-toast";
 import { THEME } from "../PrimeChatV2/agentConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NAV_ITEMS = [
   { id: "account", label: "Account", icon: "\uD83D\uDC64" },
@@ -21,6 +23,7 @@ const AGENTS_CONFIG = [
 ];
 
 export default function SettingsPageV2() {
+  const { userId, signOut } = useAuth();
   const [activeSection, setActiveSection] = useState("account");
 
   const InputRow = ({ label, value }: { label: string; value: string }) => (
@@ -152,8 +155,50 @@ export default function SettingsPageV2() {
               <InputRow label="Data Stored" value="14 statements, 184 transactions" />
               <InputRow label="Storage Used" value="12.4 MB" />
               <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}>Export All Data</button>
-                <button style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.22)", color: "#f87171", cursor: "pointer" }}>Delete Account</button>
+                <button onClick={() => toast("Data export coming soon")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}>Export All Data</button>
+                <button onClick={() => toast("Contact support to delete account")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.22)", color: "#f87171", cursor: "pointer" }}>Delete Account</button>
+              </div>
+
+              {/* Nuke Data */}
+              <div style={{ marginTop: 24, padding: "20px", borderRadius: 14, background: "rgba(248,113,113,0.04)", border: "1px solid rgba(248,113,113,0.15)" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#f87171", marginBottom: 6 }}>{"\u26A0\uFE0F"} Reset All Financial Data</div>
+                <div style={{ fontSize: 12, color: THEME.textMuted, lineHeight: 1.5, marginBottom: 14 }}>
+                  This will permanently delete ALL your transactions, statements, import summaries, chat history, goals, debts, and score history. Your account and profile will be preserved. This cannot be undone.
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm("Are you SURE? This deletes ALL your financial data. This cannot be undone.")) return;
+                    if (!window.confirm("LAST CHANCE. All transactions, statements, imports, chats, goals, and scores will be permanently deleted.")) return;
+                    try {
+                      const { getSupabase } = await import("@/lib/supabase");
+                      const supabase = getSupabase();
+                      if (!supabase || !userId) { toast.error("Not authenticated"); return; }
+                      const uid = userId;
+                      // Delete in dependency order — children before parents
+                      const tables = [
+                        "chat_messages", "chat_sessions", "chat_threads",
+                        "score_history", "goals", "debts",
+                        "transactions_staging", "transactions",
+                        "import_summaries", "user_documents", "imports",
+                      ];
+                      for (const table of tables) {
+                        try { await supabase.from(table).delete().eq("user_id", uid); } catch { /* table may not exist */ }
+                      }
+                      toast.success("All financial data deleted. Refreshing...");
+                      setTimeout(() => window.location.reload(), 1500);
+                    } catch (err) {
+                      console.error("Nuke failed:", err);
+                      toast.error("Failed to delete some data. Check console.");
+                    }
+                  }}
+                  style={{
+                    padding: "10px 24px", borderRadius: 10, fontSize: 13, fontWeight: 700,
+                    background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)",
+                    color: "#f87171", cursor: "pointer", transition: "all 0.15s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(248,113,113,0.2)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; }}
+                >{"\u2622\uFE0F"} Nuke All Financial Data</button>
               </div>
             </div></Reveal>
           )}

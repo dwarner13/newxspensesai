@@ -8,7 +8,7 @@ import { useSmartImport } from "@/hooks/useSmartImport";
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp";
 const T = {
   bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
-  text: "#e8ecf4", muted: "#7b8ba5", dim: "#4a5a75",
+  text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99",
   accent: "#c8a64e", green: "#34d399",
 };
 

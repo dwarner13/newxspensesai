@@ -90,6 +90,7 @@ const MonthlyRecapPageV2 = lazy(() => import('./pages/MonthlyRecapV2/MonthlyReca
 const TaxBusinessPageV2 = lazy(() => import('./pages/TaxBusinessV2/TaxBusinessPageV2'));
 const SettingsPageV2 = lazy(() => import('./pages/SettingsV2/SettingsPageV2'));
 const XspenseScorePage = lazy(() => import('./pages/XspenseScore/XspenseScorePage'));
+const UploadPageV2 = lazy(() => import('./pages/UploadV2/UploadPageV2'));
 const LoginPageV2 = lazy(() => import('./pages/AuthV2/LoginPageV2'));
 const SignupPageV2 = lazy(() => import('./pages/AuthV2/SignupPageV2'));
 const MarketingHomePage = lazy(() => import('./pages/MarketingSite/MarketingHomePage'));
@@ -305,7 +306,7 @@ function App() {
 
                       {/* V2 Marketing pages (standalone, have their own nav+footer) */}
                       <Route path="/" element={<MarketingHomePage />} />
-                      <Route path="/pricing" element={<PricingPage />} />
+                      <Route path="/pricing" element={<Suspense fallback={<LoadingSpinner />}><PricingPage /></Suspense>} />
 
                       {/* Legacy marketing routes */}
                       <Route element={<MarketingLayout />}>
@@ -481,6 +482,7 @@ function App() {
                       <Route path="entertainment" element={<EntertainmentPage />} />
                       <Route path="reports" element={<ReportsPageV2 />} />
                       <Route path="xspense-score" element={<XspenseScorePage />} />
+                      <Route path="upload" element={<UploadPageV2 />} />
                       <Route path="settings" element={<SettingsPageV2 />} />
                       <Route path="settings/profile" element={<Suspense fallback={<LoadingSpinner />}><ProfilePage /></Suspense>} />
                       <Route path="settings/preferences" element={<Suspense fallback={<LoadingSpinner />}><PreferencesPage /></Suspense>} />

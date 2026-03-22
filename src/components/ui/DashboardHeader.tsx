@@ -18,7 +18,7 @@ interface DashboardHeaderProps {
 
 export default function DashboardHeader(_props: DashboardHeaderProps) {
   const navigate = useNavigate();
-  const { openDrawer } = useControlCenterDrawer();
+  // ControlCenterDrawer removed — Settings V2 page handles profile
   const { user, signOut } = useAuth();
   const { profile, avatarUrl } = useProfileContext();
 
@@ -90,7 +90,7 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
       onMouseEnter={(e) => { e.currentTarget.style.background = danger ? 'rgba(248,113,113,0.08)' : '#162035'; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
     >
-      <span style={{ color: danger ? '#f87171' : '#4a5a75', display: 'flex' }}>{icon}</span>
+      <span style={{ color: danger ? '#f87171' : '#6b7a99', display: 'flex' }}>{icon}</span>
       {label}
     </button>
   );
@@ -116,7 +116,7 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
               e.currentTarget.blur();
             }}
           />
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" fill="none" stroke="#4a5a75" viewBox="0 0 24 24" strokeWidth={2}>
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" fill="none" stroke="#6b7a99" viewBox="0 0 24 24" strokeWidth={2}>
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </div>
@@ -128,9 +128,9 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
             <button
               onClick={() => { setIsNotificationsOpen(!isNotificationsOpen); setIsProfileOpen(false); }}
               className="relative flex items-center justify-center w-[34px] h-[34px] rounded-[10px] transition-colors"
-              style={{ background: 'transparent', color: '#7b8ba5' }}
+              style={{ background: 'transparent', color: '#a0aec4' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = '#162035'; e.currentTarget.style.color = '#e8ecf4'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#7b8ba5'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#a0aec4'; }}
               aria-label="Notifications"
             >
               <Bell className="w-[18px] h-[18px]" />
@@ -143,9 +143,9 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-[13px] font-bold" style={{ color: '#e8ecf4' }}>Notifications</h3>
-                    <span className="text-[11px]" style={{ color: '#4a5a75' }}>{unreadCount} unread</span>
+                    <span className="text-[11px]" style={{ color: '#6b7a99' }}>{unreadCount} unread</span>
                   </div>
-                  <div className="text-[12px]" style={{ color: '#7b8ba5' }}>Your AI team activity appears on the Dashboard home.</div>
+                  <div className="text-[12px]" style={{ color: '#a0aec4' }}>Your AI team activity appears on the Dashboard home.</div>
                 </div>
               </div>
             )}
@@ -179,7 +179,7 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-[14px] font-bold truncate" style={{ color: '#e8ecf4' }}>{computedDisplayName}</div>
-                      <div className="text-[11px] truncate" style={{ color: '#4a5a75' }}>{userEmail}</div>
+                      <div className="text-[11px] truncate" style={{ color: '#6b7a99' }}>{userEmail}</div>
                     </div>
                   </div>
                   <div className="mt-2">
@@ -188,7 +188,7 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
                 </div>
 
                 {/* Menu items */}
-                {menuItem(<User className="w-4 h-4" />, 'My Profile', () => { setIsProfileOpen(false); openDrawer('profile'); })}
+                {menuItem(<User className="w-4 h-4" />, 'My Profile', () => { setIsProfileOpen(false); navigate('/dashboard/settings'); })}
                 {menuItem(<Settings className="w-4 h-4" />, 'Settings', () => { setIsProfileOpen(false); navigate('/dashboard/settings'); })}
                 {menuItem(<HelpCircle className="w-4 h-4" />, 'Help & Support', () => { setIsProfileOpen(false); })}
 
