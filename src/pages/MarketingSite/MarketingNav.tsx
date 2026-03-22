@@ -6,8 +6,8 @@ const NAV_LINKS = [
   { label: "How It Works", id: "how-it-works" },
   { label: "The Team", id: "the-team" },
   { label: "Score", id: "xspense-score" },
-  { label: "Pricing", id: "pricing" },
 ];
+const PRICING_LINK = { label: "Pricing", href: "/pricing" };
 
 export function MarketingNav() {
   const navigate = useNavigate();
@@ -67,6 +67,10 @@ export function MarketingNav() {
               onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; }}
               >{item.label}</button>
             ))}
+            <button onClick={() => navigate(PRICING_LINK.href)} style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, background: "none", border: "none", cursor: "pointer", transition: "color 0.15s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = C.text; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; }}
+            >{PRICING_LINK.label}</button>
             <button onClick={() => navigate("/login")} style={{ fontSize: 13, fontWeight: 600, color: C.text, background: "none", border: "none", cursor: "pointer" }}>Sign In</button>
             <button onClick={() => navigate("/login")} style={{
               padding: "10px 24px", borderRadius: 10, fontSize: 13, fontWeight: 700,
@@ -111,6 +115,11 @@ export function MarketingNav() {
               padding: "16px 0", width: "80%", textAlign: "center",
             }}>{item.label}</button>
           ))}
+          <button onClick={() => { setMenuOpen(false); navigate(PRICING_LINK.href); }} style={{
+            fontSize: 20, fontWeight: 600, color: C.text,
+            background: "none", border: "none", cursor: "pointer",
+            padding: "16px 0", width: "80%", textAlign: "center",
+          }}>{PRICING_LINK.label}</button>
           <button onClick={() => { setMenuOpen(false); navigate("/login"); }} style={{
             fontSize: 18, fontWeight: 600, color: C.textMuted,
             background: "none", border: "none", cursor: "pointer", padding: "16px 0",
