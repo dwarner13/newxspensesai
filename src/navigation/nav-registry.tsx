@@ -1,8 +1,8 @@
 // src/navigation/nav-registry.tsx
 import type { ReactNode } from "react";
 import {
-  Crown, Receipt, Landmark, Tags, BarChart3, FileText, Brain,
-  Target, Bell, Mic, Briefcase, Settings, Upload
+  Home, Receipt, Tags, Brain, FileText, Star,
+  Target, Mic, Briefcase, Settings
 } from "lucide-react";
 
 export type NavItem = {
@@ -15,119 +15,87 @@ export type NavItem = {
 };
 
 // ─── Single source of truth for navigation ───────────────────────────────────
-// 11 destinations. No shells without badges. No duplicates. No feature-tool names.
-//
-// Groups:
-//   PRIME   — standalone crown item, no group label rendered
-//   MY MONEY — core data destinations
-//   INSIGHTS — read-only analysis
-//   PLAN     — forward-looking tools (mostly soon)
-//   LEARN    — podcast / education
-//   TOOLS    — tax, settings
+// PRIMARY: always visible in sidebar
+// MORE: collapsed by default behind "More" toggle
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS: NavItem[] = [
-  // ── Prime ── (rendered without a group label, special violet styling)
+  // ── Primary ──
   {
-    label: "Prime",
-    to: "/dashboard/prime-chat",
-    icon: <Crown className="w-5 h-5" />,
-    group: "PRIME",
-    description: "Your AI financial advisor — ask anything",
+    label: "Dashboard",
+    to: "/dashboard",
+    icon: <Home className="w-5 h-5" />,
+    group: "PRIMARY",
+    description: "AI briefing and financial overview",
   },
-
-  // ── My Money ──
   {
     label: "Transactions",
     to: "/dashboard/transactions",
     icon: <Receipt className="w-5 h-5" />,
-    group: "MY MONEY",
+    group: "PRIMARY",
     description: "Every transaction, searchable and sortable",
   },
   {
-    label: "Accounts",
-    to: "/dashboard/bank-accounts",
-    icon: <Landmark className="w-5 h-5" />,
-    group: "MY MONEY",
-    description: "Connected bank accounts",
-  },
-  {
     label: "Categories",
-    to: "/dashboard/smart-categories",
+    to: "/dashboard/categories",
     icon: <Tags className="w-5 h-5" />,
-    group: "MY MONEY",
+    group: "PRIMARY",
     description: "AI-powered spending categories with Tag",
   },
-
-  // ── Insights ──
   {
-    label: "Analytics",
-    to: "/dashboard/analytics-ai",
-    icon: <BarChart3 className="w-5 h-5" />,
-    group: "INSIGHTS",
-    description: "Spending trends and patterns",
-  },
-  {
-    label: "AI results",
-    to: "/dashboard/ai-results",
+    label: "My Story",
+    to: "/dashboard/my-story",
     icon: <Brain className="w-5 h-5" />,
-    group: "INSIGHTS",
-    description: "Unified AI timeline, summaries, and publish center",
+    group: "PRIMARY",
+    description: "Your financial narrative by Crystal",
     badge: 'new',
   },
   {
     label: "Reports",
     to: "/dashboard/reports",
     icon: <FileText className="w-5 h-5" />,
-    group: "INSIGHTS",
+    group: "PRIMARY",
     description: "Export and share financial reports",
   },
+  {
+    label: "Xspense Score",
+    to: "/dashboard/xspense-score",
+    icon: <Star className="w-5 h-5" />,
+    group: "PRIMARY",
+    description: "Your financial health score",
+  },
 
-  // ── Plan ──
+  // ── More ──
   {
     label: "Goals & Debt",
     to: "/dashboard/goal-concierge",
     icon: <Target className="w-5 h-5" />,
-    group: "PLAN",
+    group: "MORE",
     description: "Goals, debt payoff, and savings targets",
     badge: 'soon',
   },
   {
-    label: "Bills",
-    to: "/dashboard/bill-reminders",
-    icon: <Bell className="w-5 h-5" />,
-    group: "PLAN",
-    description: "Upcoming bills and payment reminders",
-    badge: 'soon',
-  },
-
-  // ── Learn ──
-  {
     label: "Monthly Recap",
-    to: "/dashboard/personal-podcast",
+    to: "/dashboard/monthly-recap",
     icon: <Mic className="w-5 h-5" />,
-    group: "LEARN",
-    description: "Your AI-generated financial podcast — real numbers, real insights",
-    badge: 'new',
+    group: "MORE",
+    description: "AI-generated financial recaps",
   },
-
-  // ── Tools ──
   {
     label: "Tax & Business",
-    to: "/dashboard/tax-assistant",
+    to: "/dashboard/tax-business",
     icon: <Briefcase className="w-5 h-5" />,
-    group: "TOOLS",
-    description: "Tax prep and business intelligence",
+    group: "MORE",
+    description: "Tax optimization powered by Ledger",
     badge: 'soon',
   },
   {
     label: "Settings",
     to: "/dashboard/settings",
     icon: <Settings className="w-5 h-5" />,
-    group: "TOOLS",
+    group: "MORE",
     description: "Account, security, and preferences",
   },
 ];
 
-export { Upload }; // re-export for Import quick-action in sidebar
 export default NAV_ITEMS;

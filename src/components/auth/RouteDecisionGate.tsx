@@ -57,7 +57,10 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouteTransition } from '../../contexts/RouteTransitionContext';
-import { WelcomeBackOverlay } from '../onboarding/WelcomeBackOverlay';
+// WelcomeBackOverlay replaced by PostLoginSplash (V2)
+import PostLoginSplash from '../../pages/AuthV2/PostLoginSplash';
+import { useSetAtom } from 'jotai';
+import { isPrimeBriefingOpenAtom } from '../../lib/uiStore';
 import { useAppBootStatus } from '../../hooks/useAppBootStatus';
 
 /**
@@ -97,6 +100,13 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
   // Hook 1: Permanent boot tracking - NEVER resets during navigation
   const hasBootedRef = useRef(false);
   const [isBootComplete, setIsBootComplete] = useState(false);
+
+  // V2 Post-login splash
+  const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
+  const [showSplash, setShowSplash] = useState(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return sessionStorage.getItem("xai_seen_splash") !== today;
+  });
   
   // Hook 2: Context hooks - ALL called unconditionally
   const { user, userId, loading, ready, profile, isProfileLoading } = useAuth();
@@ -257,11 +267,32 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
     return <PreparingWorkspaceScreen />;
   }
   
+  const dismissSplash = () => {
+    sessionStorage.setItem("xai_seen_splash", new Date().toISOString().slice(0, 10));
+    setShowSplash(false);
+  };
+
+  // Get user's first name for splash greeting
+  const splashName = (() => {
+    if (profile?.display_name) return profile.display_name.split(" ")[0];
+    if (profile?.first_name) return profile.first_name;
+    if (user?.email) return user.email.split("@")[0];
+    return "there";
+  })();
+
   return (
     <>
       {children}
-      {/* Show Welcome Back overlay once per session after onboarding is complete */}
-      {onboardingCompleted && <WelcomeBackOverlay />}
+      {/* V2 Post-Login Splash — replaces WelcomeBackOverlay */}
+      {onboardingCompleted && showSplash && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999 }}>
+          <PostLoginSplash
+            userName={splashName}
+            onContinue={dismissSplash}
+            onOpenPrime={() => { dismissSplash(); setIsPrimeBriefingOpen(true); }}
+          />
+        </div>
+      )}
     </>
   );
 }

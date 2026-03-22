@@ -14,6 +14,7 @@ import { AuthProvider } from './contexts/AuthContext';
 // import PrimeChatV2Mount from './components/prime/PrimeChatV2Mount';
 import { PRIME_CHAT_V2 } from './lib/flags';
 import './styles.css';
+import './styles/glows.css';
 import './styles/mobile-menu-static.css';
 import './utils/assertSingleMobileNav';
 console.info("[ChatContract]", CHAT_CONTRACT_VERSION);

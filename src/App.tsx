@@ -77,9 +77,23 @@ const UploadSpeedTest = lazy(() => import('./pages/dev/UploadSpeedTest'));
 const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 const TransactionsPage = lazy(() => import('./pages/dashboard/TransactionsPage'));
 const TransactionsPageV2 = lazy(() => import('./pages/dashboard/TransactionsPageV2'));
+
 const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const SmartCategoriesPage = lazy(() => import('./pages/dashboard/SmartCategoriesPage'));
+const CategoriesPageV2 = lazy(() => import('./pages/CategoriesV2/CategoriesPageV2'));
+const DashboardHomeV2 = lazy(() => import('./pages/DashboardV2/DashboardHomeV2'));
+const MyFinancialStoryV2 = lazy(() => import('./pages/MyStoryV2/MyFinancialStoryV2'));
+const ReportsPageV2 = lazy(() => import('./pages/ReportsV2/ReportsPageV2'));
+const GoalsDebtPageV2 = lazy(() => import('./pages/GoalsDebtV2/GoalsDebtPageV2'));
+const MonthlyRecapPageV2 = lazy(() => import('./pages/MonthlyRecapV2/MonthlyRecapPageV2'));
+const TaxBusinessPageV2 = lazy(() => import('./pages/TaxBusinessV2/TaxBusinessPageV2'));
+const SettingsPageV2 = lazy(() => import('./pages/SettingsV2/SettingsPageV2'));
+const XspenseScorePage = lazy(() => import('./pages/XspenseScore/XspenseScorePage'));
+const LoginPageV2 = lazy(() => import('./pages/AuthV2/LoginPageV2'));
+const SignupPageV2 = lazy(() => import('./pages/AuthV2/SignupPageV2'));
+const MarketingHomePage = lazy(() => import('./pages/MarketingSite/MarketingHomePage'));
+const PricingPage = lazy(() => import('./pages/MarketingSite/PricingPage'));
 const AIResultsPage = lazy(() => import('./pages/dashboard/AIResultsPage'));
 const EmployeeChatPage = lazy(() => import('./pages/dashboard/EmployeeChatPage'));
 const AnalyticsAI = lazy(() => import('./pages/dashboard/AnalyticsAI'));
@@ -157,7 +171,7 @@ const NotFoundPage = lazy(() => import('./pages/dashboard/NotFoundPage'));
 const AIEmployees = lazy(() => import('./pages/AIEmployees'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
-const PricingPage = lazy(() => import('./pages/PricingPage'));
+const PricingPageLegacy = lazy(() => import('./pages/PricingPage'));
 
 // Spotify integration components
 const SpotifyCallbackPage = lazy(() => import('./pages/SpotifyCallbackPage'));
@@ -283,19 +297,20 @@ function App() {
                         <Routes>
                       {/* Auth routes - dedicated layout without marketing nav */}
                       <Route element={<AuthLayout />}>
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/signup" element={<SignupPage />} />
+                        <Route path="/login" element={<LoginPageV2 />} />
+                        <Route path="/signup" element={<SignupPageV2 />} />
                         <Route path="/auth/callback" element={<AuthCallbackPage />} />
                         <Route path="/reset-password" element={<Suspense fallback={<LoadingSpinner />}><ResetPasswordPage /></Suspense>} />
                       </Route>
 
-                      {/* Marketing routes with BossBubble */}
+                      {/* V2 Marketing pages (standalone, have their own nav+footer) */}
+                      <Route path="/" element={<MarketingHomePage />} />
+                      <Route path="/pricing" element={<PricingPage />} />
+
+                      {/* Legacy marketing routes */}
                       <Route element={<MarketingLayout />}>
-                        <Route path="/" element={<HomePage />} />
-                        {/* <Route path="/ai-assistant" element={<AIAssistantPage />} /> */}
                         <Route path="/contact" element={<ContactPage />} />
                         <Route path="/reviews" element={<ReviewsPage />} />
-                        <Route path="/pricing" element={<PricingPage />} />
                         
                         {/* Onboarding routes - redirect to dashboard (overlay handles onboarding now) */}
                         <Route path="/onboarding/welcome" element={<OnboardingWelcomePage />} />
@@ -443,7 +458,7 @@ function App() {
                         </RouteDecisionGate>
                       </PrimeProvider>
                     }>
-                      <Route index element={<XspensesProDashboard />} />
+                      <Route index element={<DashboardHomeV2 />} />
                       
                       {/* Test Route */}
                       <Route path="test" element={<TestPage />} />
@@ -461,21 +476,18 @@ function App() {
                       <Route path="overview" element={<OverviewPage />} />
                       <Route path="workspace" element={<WorkspacePage />} />
                       <Route path="planning" element={<PlanningPage />} />
-                      <Route path="analytics" element={<Suspense fallback={<LoadingSpinner />}><AnalyticsPage /></Suspense>} />
+                      <Route path="analytics" element={<Navigate to="/dashboard/reports" replace />} />
                       <Route path="business" element={<BusinessPage />} />
                       <Route path="entertainment" element={<EntertainmentPage />} />
-                      <Route path="reports" element={<Suspense fallback={<LoadingSpinner />}><ReportsPage /></Suspense>} />
-                      <Route path="settings" element={<Suspense fallback={<LoadingSpinner />}><SettingsPage /></Suspense>} />
+                      <Route path="reports" element={<ReportsPageV2 />} />
+                      <Route path="xspense-score" element={<XspenseScorePage />} />
+                      <Route path="settings" element={<SettingsPageV2 />} />
                       <Route path="settings/profile" element={<Suspense fallback={<LoadingSpinner />}><ProfilePage /></Suspense>} />
                       <Route path="settings/preferences" element={<Suspense fallback={<LoadingSpinner />}><PreferencesPage /></Suspense>} />
                       <Route path="settings/security" element={<Suspense fallback={<LoadingSpinner />}><SecurityPage /></Suspense>} />
                       
                       {/* AI Workspace Pages */}
-                      <Route path="prime-chat" element={
-                        <ErrorBoundary>
-                          <PrimeChatPage />
-                        </ErrorBoundary>
-                      } />
+                      <Route path="prime-chat" element={<Navigate to="/dashboard" replace />} />
                       <Route path="chat-history" element={
                         <Suspense fallback={<LoadingSpinner />}>
                           <ChatHistoryPage />
@@ -486,30 +498,34 @@ function App() {
                       <Route path="ai-chat-assistant" element={<AIChatAssistantPage />} />
                       <Route path="ai-financial-assistant" element={<AIChatAssistantPage />} />
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-chat-assistant" replace />} />
+                      <Route path="categories" element={<CategoriesPageV2 />} />
                       <Route path="smart-categories" element={<Suspense fallback={<LoadingSpinner />}><SmartCategoriesPage /></Suspense>} />
-                      <Route path="ai-results" element={<Suspense fallback={<LoadingSpinner />}><AIResultsPage /></Suspense>} />
+                      <Route path="my-story" element={<MyFinancialStoryV2 />} />
+                      <Route path="ai-results" element={<MyFinancialStoryV2 />} />
                       <Route path="ai-categorization" element={<Suspense fallback={<LoadingSpinner />}><SmartCategoriesPage /></Suspense>} />
-                      <Route path="analytics-ai" element={<Suspense fallback={<LoadingSpinner />}><AnalyticsAI /></Suspense>} />
+                      <Route path="analytics-ai" element={<Navigate to="/dashboard/reports" replace />} />
                       <Route path="ai-financial-freedom" element={<Suspense fallback={<LoadingSpinner />}><AIFinancialFreedomPage /></Suspense>} />
                       
                       {/* Planning & Analysis */}
                       <Route path="transactions" element={<TransactionsPageV2 />} />
                       <Route path="bank-accounts" element={<Suspense fallback={<LoadingSpinner />}><BankAccountsPage /></Suspense>} />
-                      <Route path="goal-concierge" element={<GoalConciergePage />} />
+                      <Route path="goal-concierge" element={<GoalsDebtPageV2 />} />
                       <Route path="smart-automation" element={<Suspense fallback={<LoadingSpinner />}><SmartAutomation /></Suspense>} />
                       <Route path="spending-predictions" element={<Suspense fallback={<LoadingSpinner />}><SpendingPredictionsPage /></Suspense>} />
                       <Route path="debt-payoff-planner" element={<Suspense fallback={<LoadingSpinner />}><DebtPayoffPlannerPage /></Suspense>} />
                       <Route path="bill-reminders" element={<Suspense fallback={<LoadingSpinner />}><BillRemindersPage /></Suspense>} />
                       
                       {/* Entertainment & Wellness */}
-                      <Route path="personal-podcast" element={<PersonalPodcastPage />} />
+                      <Route path="monthly-recap" element={<MonthlyRecapPageV2 />} />
+                      <Route path="personal-podcast" element={<MonthlyRecapPageV2 />} />
                       <Route path="financial-story" element={<FinancialStoryPage />} />
                       <Route path="financial-therapist" element={<AIFinancialTherapistPage />} />
                       <Route path="wellness-studio" element={<WellnessStudioPage />} />
                       <Route path="spotify" element={<SpotifyIntegrationPage />} />
                       
                       {/* Business & Tax */}
-                      <Route path="tax-assistant" element={<Suspense fallback={<LoadingSpinner />}><TaxAssistantPage /></Suspense>} />
+                      <Route path="tax-business" element={<TaxBusinessPageV2 />} />
+                      <Route path="tax-assistant" element={<Navigate to="/dashboard/tax-business" replace />} />
                       <Route path="business-intelligence" element={<Suspense fallback={<LoadingSpinner />}><BusinessIntelligencePage /></Suspense>} />
                       
                       {/* Tools & Settings */}
@@ -518,7 +534,7 @@ function App() {
                       {/* Missing routes: redirects for sidebar compatibility */}
                       <Route path="podcast" element={<Navigate to="/dashboard/personal-podcast" replace />} />
                       <Route path="spotify-integration" element={<Navigate to="/dashboard/spotify" replace />} />
-                      <Route path="team-room" element={<Navigate to="/dashboard/prime-chat" replace />} />
+                      <Route path="team-room" element={<Navigate to="/dashboard" replace />} />
                       
                       {/* Employee Chat Routes */}
                       <Route path="chat/:employeeId" element={<EmployeeChatPage />} />

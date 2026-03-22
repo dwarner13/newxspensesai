@@ -3,55 +3,41 @@ import { useLocation, NavLink, useNavigate } from 'react-router-dom';
 import NAV_ITEMS from '../../navigation/nav-registry';
 import type { NavItem } from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
-import { ScrollArea } from '../ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { ChevronLeft, ChevronRight, Settings, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Upload } from 'lucide-react';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
-import clsx from 'clsx';
-import { useAccountCenterPanel } from '../settings/AccountCenterPanel';
+// AccountCenterPanel removed — using Settings V2 page instead
 import { useProfile } from '../../hooks/useProfile';
-import { usePrimeState } from '../../contexts/usePrimeState';
-import { getFeatureKeyForRoute } from '../../navigation/feature-keys';
+import { useAuth } from '../../contexts/AuthContext';
 import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
-import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { useSetAtom } from 'jotai';
+import { isUploadModalOpenAtom } from '../../lib/uiStore';
+import { CompactScoreRing } from '../../pages/XspenseScore/ScoreRing';
+import { useXspenseScore } from '../../pages/XspenseScore/useXspenseScore';
 
 interface DesktopSidebarProps {
   collapsed?: boolean;
   onToggleCollapse?: (collapsed: boolean) => void;
 }
 
-export default function DesktopSidebar({
-  collapsed = false,
-  onToggleCollapse,
-}: DesktopSidebarProps) {
+const AGENT_DOTS = [
+  { letter: 'P', bg: 'bg-amber-500/25', border: 'border-amber-500/40', text: 'text-amber-400' },
+  { letter: 'T', bg: 'bg-cyan-500/25', border: 'border-cyan-500/40', text: 'text-cyan-400' },
+  { letter: 'C', bg: 'bg-purple-500/25', border: 'border-purple-500/40', text: 'text-purple-400' },
+  { letter: 'B', bg: 'bg-emerald-500/25', border: 'border-emerald-500/40', text: 'text-emerald-400' },
+];
+
+export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: DesktopSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [internalCollapsed, setInternalCollapsed] = useState(collapsed);
   const [moreOpen, setMoreOpen] = useState(false);
-  const { openPanel } = useAccountCenterPanel();
+  const { signOut } = useAuth();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const profile = useProfile();
-  const primeState = usePrimeState();
   const tagStats = useSmartCategoriesStats();
-  const { openChat } = useUnifiedChatLauncher();
-  const warnedKeysRef = useRef<Set<string>>(new Set());
-
-  const triggerPrimeUpload = (source: string) => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    window.dispatchEvent(
-      new CustomEvent('prime:open-upload', {
-        detail: { source },
-      })
-    );
-    window.setTimeout(() => {
-      const statementInputs = Array.from(
-        document.querySelectorAll(
-          'input[type="file"][accept*=".pdf"][accept*=".csv"][accept*=".xlsx"][accept*=".xls"]'
-        )
-      ) as HTMLInputElement[];
-      const statementInput = statementInputs.find((input) => !input.disabled);
-      statementInput?.click();
-    }, 120);
-  };
+  const setUploadOpen = useSetAtom(isUploadModalOpenAtom);
+  const scoreData = useXspenseScore();
 
   const isCollapsed = onToggleCollapse ? collapsed : internalCollapsed;
   const setCollapsed = onToggleCollapse ? onToggleCollapse : setInternalCollapsed;
@@ -67,281 +53,271 @@ export default function DesktopSidebar({
 
   if (!location.pathname.startsWith('/dashboard')) return null;
 
-  // Feature-visibility filter (fail-open)
-  const visibleItems = NAV_ITEMS.filter((item) => {
-    const featureKey = getFeatureKeyForRoute(item.to);
-    if (!featureKey) {
-      if (import.meta.env.DEV && !warnedKeysRef.current.has(item.to)) {
-        console.warn(`[DesktopSidebar] "${item.label}" (${item.to}) has no FeatureKey mapping.`);
-        warnedKeysRef.current.add(item.to);
-      }
-      return true;
-    }
-    if (!primeState) return true;
-    return primeState.featureVisibilityMap[featureKey]?.visible ?? true;
-  });
+  const primaryItems = NAV_ITEMS.filter(i => i.group === 'PRIMARY');
+  const moreItems = NAV_ITEMS.filter(i => i.group === 'MORE');
 
-  const visibleByRoute = useMemo(() => {
-    const map = new Map<string, NavItem>();
-    for (const item of visibleItems) map.set(item.to, item);
-    return map;
-  }, [visibleItems]);
-  const primaryItems = [
-    { to: '/dashboard/prime-chat', label: 'Prime' },
-    { to: '/dashboard/transactions', label: 'Transactions' },
-    { to: '/dashboard/smart-categories', label: 'Categories' },
-    { to: '/dashboard/ai-results', label: 'My Story' },
-  ]
-    .map((entry) => {
-      const base = visibleByRoute.get(entry.to);
-      if (!base) return null;
-      return { ...base, label: entry.label };
-    })
-    .filter(Boolean) as NavItem[];
-  const moreItems = [
-    '/dashboard/analytics-ai',
-    '/dashboard/reports',
-    '/dashboard/bank-accounts',
-    '/dashboard/goal-concierge',
-    '/dashboard/spending-predictions',
-    '/dashboard/financial-therapist',
-    '/dashboard/personal-podcast',
-    '/dashboard/tax-assistant',
-    '/dashboard/settings',
-  ]
-    .map((route) => visibleByRoute.get(route))
-    .filter(Boolean) as NavItem[];
+  const triggerUpload = () => setUploadOpen(true);
 
-  const handleToggleCollapse = () => setCollapsed(!isCollapsed);
-  const renderNavItem = (item: NavItem, dimmed = false) => {
-    const active = isActivePath(location.pathname, item.to);
-    const otherBadge = item.to === '/dashboard/smart-categories' ? (tagStats.uncategorizedCount || 0) : 0;
-    return (
+  const renderItem = (item: NavItem, dimmed = false) => {
+    const active = item.to === '/dashboard'
+      ? location.pathname === '/dashboard' || location.pathname === '/dashboard/'
+      : isActivePath(location.pathname, item.to);
+    const uncatBadge = item.to === '/dashboard/categories' ? (tagStats.uncategorizedCount || 0) : 0;
+
+    const inner = (
+      <>
+        <span className="w-5 h-5 shrink-0 flex items-center justify-center">{item.icon}</span>
+        {!isCollapsed && <span className={`truncate ${active ? 'text-[14px] font-bold' : dimmed ? 'text-[13px] font-semibold' : 'text-[14px] font-semibold'}`}>{item.label}</span>}
+        {!isCollapsed && item.badge === 'new' && (
+          <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(200,166,78,0.15)', color: '#c8a64e', border: '1px solid rgba(200,166,78,0.3)' }}>New</span>
+        )}
+        {!isCollapsed && item.badge === 'soon' && (
+          <span className="ml-auto rounded-full border border-slate-700 bg-slate-800/60 px-2 py-0.5 text-[10px] font-bold text-slate-500">Soon</span>
+        )}
+        {!isCollapsed && !!uncatBadge && item.to === '/dashboard/categories' && (
+          <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)' }}>{uncatBadge}</span>
+        )}
+      </>
+    );
+
+    const cls = [
+      'flex items-center gap-3 px-3.5 py-2.5 cursor-pointer transition-all rounded-lg mx-1.5 w-[calc(100%-12px)]',
+      active
+        ? 'border-l-[3px] rounded-l-none'
+        : 'border-l-[3px] border-transparent',
+    ].join(' ');
+
+    const activeStyle = active
+      ? { borderLeftColor: '#c8a64e', background: 'rgba(200,166,78,0.08)', color: '#c8a64e', boxShadow: 'inset 3px 0 12px rgba(200,166,78,0.15)' }
+      : { color: dimmed ? '#4a5a75' : '#7b8ba5' };
+
+    const navLink = (
       <NavLink
         key={item.to}
         to={item.to}
-        className={clsx(
-          'flex items-center gap-2.5 px-3.5 py-2 text-[12px] cursor-pointer transition-all border-l-2 border-transparent rounded-r-lg mr-1.5',
-          active
-            ? 'text-violet-300 border-l-violet-500 bg-violet-500/10'
-            : dimmed
-            ? 'text-slate-600 hover:text-slate-400 hover:bg-white/[0.03]'
-            : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]'
-        )}
+        className={cls}
+        style={activeStyle}
+        end={item.to === '/dashboard'}
+        onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#e8ecf4'; } }}
+        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = dimmed ? '#4a5a75' : '#7b8ba5'; } }}
       >
-        <span className="w-4 h-4 shrink-0">{item.icon}</span>
-        {!isCollapsed && <span className="truncate">{item.label}</span>}
-        {!isCollapsed && item.to === '/dashboard/ai-results' && (
-          <span className="ml-auto rounded-full border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[8px] font-bold text-violet-300">
-            New
-          </span>
-        )}
-        {!isCollapsed && !!otherBadge && item.to === '/dashboard/smart-categories' && (
-          <span className="ml-auto rounded-full border border-amber-500/30 bg-amber-500/12 px-1.5 py-0.5 text-[8px] font-bold text-amber-300">
-            Other
-          </span>
-        )}
-        {!isCollapsed && item.badge === 'soon' && (
-          <span className="ml-auto rounded-full border border-slate-700 bg-slate-800/60 px-1.5 py-0.5 text-[8px] font-bold text-slate-500">
-            Soon
-          </span>
-        )}
+        {inner}
       </NavLink>
     );
+
+    if (isCollapsed) {
+      return (
+        <TooltipProvider key={item.to}>
+          <Tooltip delayDuration={120}>
+            <TooltipTrigger asChild>{navLink}</TooltipTrigger>
+            <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    return navLink;
   };
 
   return (
+    <>
+    <style>{`@keyframes glowPulse { 0%,100% { box-shadow: 0 0 8px rgba(200,166,78,0.1); } 50% { box-shadow: 0 0 16px rgba(200,166,78,0.25); } }`}</style>
     <aside
       data-testid="desktop-sidebar"
-      className={clsx(
-        'hidden md:flex flex-col border-r border-zinc-800/80 bg-zinc-950/55 backdrop-blur-md transition-all duration-300 h-screen relative z-[100]',
-        isCollapsed ? 'w-[68px]' : 'w-56'
-      )}
+      className="hidden md:flex flex-col h-screen relative z-[100] transition-all duration-300"
+      style={{
+        width: isCollapsed ? 72 : 240,
+        background: '#0b1220',
+        borderRight: '1px solid #1e2d4a',
+        fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+      }}
     >
-      <div className="h-14 flex items-center justify-between px-3 border-b border-zinc-800/80">
+      {/* LOGO */}
+      <div className="flex items-center justify-between px-3 h-16" style={{ borderBottom: '1px solid #1e2d4a' }}>
         {isCollapsed ? (
           <div className="flex items-center justify-center flex-1">
-            <PrimeLogoBadge size={32} showGlow />
+            <PrimeLogoBadge size={28} showGlow />
           </div>
         ) : (
-          <div className="flex items-center gap-2 px-3 pt-3 pb-3 flex-1">
-            <PrimeLogoBadge size={32} showGlow />
-            <span className="font-bold tracking-wide text-sm text-slate-50">XspensesAI</span>
+          <div className="flex items-center gap-2.5 px-2 flex-1">
+            <PrimeLogoBadge size={28} showGlow />
+            <div>
+              <div className="text-[17px] font-extrabold tracking-wide" style={{ color: '#e8ecf4' }}>XspensesAI</div>
+              <div className="text-[11px]" style={{ color: '#4a5a75' }}>AI Finance</div>
+            </div>
           </div>
         )}
-        <button
-          onClick={handleToggleCollapse}
-          className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-all duration-200"
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
       </div>
 
-      <ScrollArea className="flex-1 overflow-y-auto">
-        <div className="py-2">
-          <div className="mt-3 px-2 space-y-1">
-            {primaryItems.map((item) =>
-              isCollapsed ? (
-                <TooltipProvider key={item.to}>
-                  <Tooltip delayDuration={150}>
-                    <TooltipTrigger asChild>{renderNavItem(item)}</TooltipTrigger>
-                    <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : (
-                renderNavItem(item)
-              )
-            )}
-            <button
-              type="button"
-              onClick={() => setMoreOpen((v) => !v)}
-              className={clsx(
-                'w-full flex items-center gap-2.5 px-3.5 py-2 text-[12px] cursor-pointer transition-all border-l-2 border-transparent rounded-r-lg mr-1.5',
-                'text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]'
-              )}
-            >
-              <span className="w-4 h-4 shrink-0">…</span>
-              {!isCollapsed && <span className="truncate">More</span>}
-            </button>
-            {!isCollapsed && (
-              <div
-                className={clsx(
-                  'overflow-hidden transition-all duration-300',
-                  moreOpen ? 'max-h-[320px] opacity-100' : 'max-h-0 opacity-0'
-                )}
-              >
-                <div className="pt-1 space-y-1">
-                  {moreItems.map((item) => renderNavItem(item, true))}
-                </div>
-              </div>
-            )}
-          </div>
+      {/* NAV */}
+      <div className="flex-1 overflow-y-auto py-3" style={{ scrollbarWidth: 'none' }}>
+        {/* Primary */}
+        <div className="space-y-0.5">
+          {primaryItems.map(item => renderItem(item))}
+        </div>
 
-          {isCollapsed ? (
-            <div className="px-2 mt-3 space-y-1">
-              {[
-                { id: 'prime-boss', name: 'Prime', role: 'Advisor', initials: 'P', style: 'bg-amber-500/20 border-amber-500/30 text-amber-400', online: true },
-                { id: 'tag-ai', name: 'Tag', role: 'Categorizer', initials: 'T', style: 'bg-violet-500/20 border-violet-500/30 text-violet-300', online: true },
-                { id: 'crystal-ai', name: 'Crystal', role: 'Insights', initials: 'C', style: 'bg-sky-500/15 border-sky-500/20 text-sky-400', online: false },
-                { id: 'byte-docs', name: 'Byte', role: 'Documents', initials: 'B', style: 'bg-orange-500/15 border-orange-500/20 text-orange-400', online: false },
-              ].map((agent) => (
-                <TooltipProvider key={`collapsed-team-${agent.id}`}>
-                  <Tooltip delayDuration={120}>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => openChat({ initialEmployeeSlug: agent.id, force: true })}
-                        className="w-full flex items-center justify-center rounded-lg py-1.5 hover:bg-white/[0.03]"
-                        aria-label={`Open ${agent.name}`}
-                      >
-                        <span className={clsx('relative w-6 h-6 rounded-full text-[9px] font-bold border flex items-center justify-center', agent.style)}>
-                          {agent.initials}
-                          <span
-                            className={clsx(
-                              'absolute -right-0.5 -bottom-0.5 w-1.5 h-1.5 rounded-full border border-zinc-950',
-                              agent.online ? 'bg-emerald-400' : 'bg-slate-700'
-                            )}
-                          />
-                        </span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="text-xs">
-                      {agent.name} - {agent.role}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
-            </div>
-          ) : (
+        {/* More toggle */}
+        <button
+          type="button"
+          onClick={() => setMoreOpen(v => !v)}
+          className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer transition-all rounded-lg mx-1.5 mt-2 w-[calc(100%-12px)]"
+          style={{ color: '#4a5a75', borderLeft: '2px solid transparent' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#7b8ba5'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#4a5a75'; e.currentTarget.style.background = 'transparent'; }}
+        >
+          <MoreHorizontal className="w-5 h-5 shrink-0" />
+          {!isCollapsed && (
             <>
-              <div className="px-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    openChat({
-                      initialEmployeeSlug: 'prime-boss',
-                      force: true,
-                      context: {
-                        data: { source: 'sidebar-upload', intent: 'upload' },
-                      },
-                      routeHint: '/dashboard/prime-chat',
-                    });
-                    triggerPrimeUpload('sidebar');
-                  }}
-                  className="w-full rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-500/20 to-indigo-500/15 p-3 text-left"
-                >
-                  <div className="flex items-center gap-2 text-violet-300 text-[11px] font-semibold">
-                    <Upload className="w-3.5 h-3.5" />
-                    Upload statement
-                  </div>
-                  <div className="mt-1 text-[9px] text-slate-600">Byte processes in seconds</div>
-                </button>
-              </div>
-
-              <div className="px-3 mt-3 mb-1 text-[9px] uppercase text-slate-700 tracking-wide">AI Team</div>
-              <div className="px-2 space-y-1">
-                {[
-                  { id: 'prime-boss', name: 'Prime', role: 'Advisor', initials: 'P', style: 'bg-amber-500/20 border-amber-500/30 text-amber-400', online: true },
-                  { id: 'tag-ai', name: 'Tag', role: 'Categorizer', initials: 'T', style: 'bg-violet-500/20 border-violet-500/30 text-violet-300', online: true },
-                  { id: 'crystal-ai', name: 'Crystal', role: 'Insights', initials: 'C', style: 'bg-sky-500/15 border-sky-500/20 text-sky-400', online: false },
-                  { id: 'byte-docs', name: 'Byte', role: 'Documents', initials: 'B', style: 'bg-orange-500/15 border-orange-500/20 text-orange-400', online: false },
-                ].map((agent) => (
-                  <button
-                    key={`team-${agent.id}`}
-                    type="button"
-                    onClick={() => openChat({ initialEmployeeSlug: agent.id, force: true })}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] text-left"
-                  >
-                    <span className={clsx('w-6 h-6 rounded-full text-[9px] font-bold border flex items-center justify-center', agent.style)}>{agent.initials}</span>
-                    <div className="min-w-0">
-                      <div className="text-[11px] text-slate-500">{agent.name}</div>
-                      <div className="text-[9px] text-slate-700">{agent.role}</div>
-                    </div>
-                    <span className={clsx('ml-auto w-1.5 h-1.5 rounded-full', agent.online ? 'bg-emerald-400' : 'bg-slate-700')} />
-                  </button>
-                ))}
-              </div>
+              <span className="text-[13px] font-semibold">More</span>
+              <ChevronDown className={`w-3 h-3 ml-auto transition-transform duration-200 ${moreOpen ? 'rotate-180' : ''}`} />
             </>
           )}
-        </div>
-      </ScrollArea>
+        </button>
 
-      <div className="border-t border-zinc-800 p-3">
-        {isCollapsed ? (
-          <button
-            onClick={() => openPanel('account')}
-            className="flex justify-center w-full p-2 rounded-lg hover:bg-zinc-800/50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-            aria-label="Open Account Center"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center ring-2 ring-white/10">
-              <span className="text-white text-xs font-bold">{profile.avatarInitials}</span>
+        {/* More items */}
+        {!isCollapsed && (
+          <div className={`overflow-hidden transition-all duration-300 ${moreOpen ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className="space-y-0.5 pt-1">
+              {moreItems.map(item => renderItem(item, true))}
             </div>
-          </button>
+          </div>
+        )}
+
+        {/* Upload CTA */}
+        {!isCollapsed && (
+          <div className="px-3 mt-4">
+            <button
+              type="button"
+              onClick={triggerUpload}
+              className="w-full rounded-xl p-3 text-left transition-all"
+              style={{
+                border: '1.5px dashed rgba(200,166,78,0.35)',
+                background: 'rgba(200,166,78,0.04)',
+                animation: 'glowPulse 3s ease-in-out infinite',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.6)'; e.currentTarget.style.background = 'rgba(200,166,78,0.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.35)'; e.currentTarget.style.background = 'rgba(200,166,78,0.04)'; }}
+            >
+              <div className="flex items-center gap-2 text-[13px] font-bold" style={{ color: '#c8a64e' }}>
+                <Upload className="w-4 h-4" />
+                Upload Statement
+              </div>
+              <div className="mt-1 text-[11px]" style={{ color: '#4a5a75' }}>Byte processes instantly</div>
+            </button>
+          </div>
+        )}
+        {isCollapsed && (
+          <div className="px-2 mt-3">
+            <TooltipProvider>
+              <Tooltip delayDuration={120}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={triggerUpload}
+                    className="w-full flex items-center justify-center rounded-lg py-2"
+                    style={{ color: '#c8a64e' }}
+                  >
+                    <Upload className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs">Upload Statement</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
+      </div>
+
+      {/* SCORE + AI STATUS */}
+      {!isCollapsed && (
+        <div className="px-3 py-2" style={{ borderTop: '1px solid #1e2d4a' }}>
+          {/* Score badge */}
+          {!scoreData.loading && (
+            <button
+              onClick={() => navigate('/dashboard/xspense-score')}
+              className="w-full flex items-center gap-2.5 rounded-lg px-1 py-1.5 mb-2 transition-colors"
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#162035'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <CompactScoreRing score={scoreData.overallScore} size={32} />
+              <div>
+                <div className="text-[11px] font-bold" style={{ color: '#e8ecf4' }}>Xspense Score</div>
+                <div className="text-[9px]" style={{ color: '#4a5a75' }}>+{scoreData.overallScore - scoreData.previousScore} this month</div>
+              </div>
+            </button>
+          )}
+          <div className="flex items-center gap-2">
+            <div className="w-[5px] h-[5px] rounded-full" style={{ background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)' }} />
+            <span className="text-[12px] font-semibold" style={{ color: '#4a5a75' }}>4 AI Agents Active</span>
+            <div className="flex ml-auto -space-x-1.5">
+              {AGENT_DOTS.map(a => (
+                <div key={a.letter} className={`w-6 h-6 rounded-full text-[9px] font-bold border flex items-center justify-center ${a.bg} ${a.border} ${a.text}`} style={{ zIndex: 1 }}>
+                  {a.letter}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* USER PROFILE */}
+      <div className="px-3 py-3" style={{ borderTop: '1px solid #1e2d4a' }}>
+        {isCollapsed ? (
+          <TooltipProvider>
+            <Tooltip delayDuration={120}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => openPanel('account')}
+                  className="flex justify-center w-full"
+                >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: 'rgba(200,166,78,0.2)', border: '1px solid rgba(200,166,78,0.35)', color: '#c8a64e' }}>
+                    {profile.avatarInitials}
+                  </div>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">{profile.fullName}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
-          <div className="flex items-center gap-2.5 px-1">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => openPanel('account')}
-              className="w-7 h-7 rounded-full bg-violet-500/25 border border-violet-500/40 text-[10px] font-bold text-violet-300 flex items-center justify-center"
-              aria-label="Open Account Center"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+              style={{ background: 'linear-gradient(135deg, rgba(200,166,78,0.3), rgba(160,128,48,0.2))', border: '1px solid rgba(200,166,78,0.4)', color: '#c8a64e' }}
             >
               {profile.avatarInitials}
             </button>
-            <div className="min-w-0">
-              <div className="text-[11px] text-slate-500 truncate">{profile.fullName}</div>
-              <div className="text-[9px] text-slate-700 truncate">{profile.plan}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-semibold truncate" style={{ color: '#e8ecf4' }}>{profile.fullName}</div>
+              <div className="text-[11px] truncate" style={{ color: '#4a5a75' }}>{profile.plan}</div>
             </div>
             <button
               type="button"
               onClick={() => navigate('/dashboard/settings')}
-              className="ml-auto text-slate-700 hover:text-slate-400"
-              aria-label="Open settings"
+              className="shrink-0"
+              style={{ color: '#4a5a75' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#7b8ba5'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#4a5a75'; }}
             >
-              <Settings className="w-4 h-4" />
+              <MoreHorizontal className="w-4 h-4" />
             </button>
           </div>
         )}
       </div>
+
+      {/* COLLAPSE TOGGLE */}
+      <div className="px-3 pb-3">
+        <button
+          onClick={() => setCollapsed(!isCollapsed)}
+          className="w-full flex items-center justify-center rounded-lg py-1.5 transition-colors"
+          style={{ color: '#4a5a75' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#7b8ba5'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4a5a75'; }}
+        >
+          {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+      </div>
     </aside>
+    </>
   );
 }

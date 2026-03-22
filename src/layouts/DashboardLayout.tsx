@@ -16,13 +16,17 @@ import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
 import UnifiedAssistantChat from "../components/chat/UnifiedAssistantChat";
 import { useUnifiedChatLauncher } from "../hooks/useUnifiedChatLauncher";
 import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
-import { ActivityFeedSidebar } from "../components/dashboard/ActivityFeedSidebar";
-import DesktopChatSideBar from "../components/chat/DesktopChatSideBar";
+// ActivityFeedSidebar removed — activity timeline lives in DashboardHomeV2
+// DesktopChatSideBar removed — agents accessed via Prime briefing panel
 import { ChatHistorySidebar } from "../components/chat/ChatHistorySidebar";
 import { ControlCenterDrawer } from "../components/settings/ControlCenterDrawer";
 import { AccountCenterPanel } from "../components/settings/AccountCenterPanel";
 import { UnifiedOnboardingFlow } from "../components/onboarding/UnifiedOnboardingFlow";
 import { PrimeToolsPanel } from "../components/prime/PrimeToolsPanel";
+import { PrimeBriefingPanel } from "../pages/PrimeChatV2/PrimeBriefingPanel";
+import { UploadModal } from "../components/upload/UploadModal";
+import { useAtom } from "jotai";
+import { isPrimeBriefingOpenAtom } from "../lib/uiStore";
 import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
 // Legacy onboarding removed - UnifiedOnboardingFlow is the ONLY authority
 import { useAuth } from "../contexts/AuthContext";
@@ -40,92 +44,9 @@ function DashboardHeaderWithBadges() {
   return <DashboardHeader />;
 }
 
-// DashboardContentGrid - shows Activity Feed sidebar on the right for non-workspace pages
-// Workspace pages (using DashboardThreeColumnLayout) handle their own Activity Feed
+// DashboardContentGrid - simple passthrough wrapper (Activity Feed removed — lives in Dashboard V2)
 function DashboardContentGrid({ children }: { children: React.ReactNode }) {
-  const location = useLocation();
-  
-  // Workspace pages that manage their own Activity Feed (3-column layout via DashboardPageShell)
-  // Use strict prefix matching to avoid conflicts (do NOT include '/dashboard' as it matches everything)
-  // ALL pages using DashboardPageShell must be listed here to bypass DashboardContentGrid wrapper
-  const workspacePrefixes = [
-    // AI Workspace pages
-    '/dashboard/prime-chat',
-    '/dashboard/smart-import-ai',
-    '/dashboard/ai-chat-assistant',
-    '/dashboard/smart-categories',
-    '/dashboard/ai-results',
-    '/dashboard/analytics-ai',
-    '/dashboard/wellness-studio',
-    '/dashboard/financial-therapist',
-    '/dashboard/spending-predictions',
-    '/dashboard/goal-concierge',
-    '/dashboard/smart-automation',
-    '/dashboard/business-intelligence',
-    '/dashboard/tax-assistant',
-    '/dashboard/debt-payoff-planner',
-    '/dashboard/bank-accounts',
-    '/dashboard/bill-reminders',
-    '/dashboard/financial-freedom',
-    '/dashboard/ai-financial-freedom',
-    '/dashboard/personal-podcast',
-    '/dashboard/spotify', // Spotify Integration page (matches route path)
-    '/dashboard/spotify-integration', // Legacy redirect path
-    '/dashboard/financial-story', // Financial Story page (The Roundtable)
-    '/dashboard/transactions',
-    '/dashboard/settings',
-    // Main dashboard pages that now use DashboardPageShell with Activity Feed in right slot
-    '/dashboard/overview',
-    '/dashboard/planning',
-    '/dashboard/business',
-    '/dashboard/entertainment',
-    '/dashboard/reports',
-    '/dashboard/analytics',
-    '/dashboard/chat-history',
-  ];
-  
-  const isWorkspacePage = workspacePrefixes.some((p) =>
-    location.pathname.startsWith(p)
-  );
-  
-  // Main dashboard page also handles its own Activity Feed via DashboardHeroRow
-  const isMainDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
-
-  // For workspace pages, return ONLY children - they handle their own Activity Feed and rail space
-  if (isWorkspacePage) {
-    return <>{children}</>;
-  }
-
-  // For main dashboard, return children directly (no extra rail padding wrapper)
-  // Rail space is already handled at layout level via main element padding
-  if (isMainDashboard) {
-    return <>{children}</>;
-  }
-  
-  // Determine activity scope based on route (for non-workspace pages)
-  const getActivityScope = (): string | undefined => {
-    if (location.pathname.includes('/settings')) return 'settings';
-    if (location.pathname === '/dashboard' || location.pathname === '/dashboard/') return 'dashboard';
-    return undefined; // Show all activity
-  };
-  
-  const activityScope = getActivityScope();
-  
-  // Standard 2-column layout for non-workspace pages with Activity Feed sidebar
-  // Compact Activity Feed: 280px on xl+ screens
-  return (
-    <div className="grid gap-6 lg:gap-8 xl:grid-cols-[minmax(0,1fr)_280px] max-xl:grid-cols-1 items-stretch min-h-[520px]">
-      {/* LEFT/MIDDLE COLUMN - Main Dashboard Content */}
-      <div className="min-w-0 max-xl:order-1 h-full">
-        {children}
-      </div>
-
-      {/* RIGHT COLUMN - Activity Feed Sidebar - Compact */}
-      <div className="hidden xl:flex max-xl:order-2 h-full">
-        <ActivityFeedSidebar scope={activityScope} />
-      </div>
-    </div>
-  );
+  return <>{children}</>;
 }
 
 
@@ -135,7 +56,7 @@ export default function DashboardLayout() {
   
   // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
-  const isTransactionsRoute = location.pathname.startsWith('/dashboard/transactions');
+  // All routes are now full-width — activity feed rail removed
   
   // If on onboarding route, render minimal layout (no sidebar, header, chat, rails)
   if (isOnboardingRoute) {
@@ -484,6 +405,7 @@ export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isPrimeBriefingOpen, setIsPrimeBriefingOpen] = useAtom(isPrimeBriefingOpenAtom);
   const { isOpen: isChatOpen, options: chatOptions, activeEmployeeSlug, closeChat, openChat } = useUnifiedChatLauncher();
   const didAutoOpenChatRef = useRef(false);
   
@@ -624,22 +546,18 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, isChatOpen, openChat]);
   */
-  useEffect(() => {
-    if (!ready || !userId || !profile) return;
-    if (isChatOpen) return;
-    if (didAutoOpenChatRef.current) return;
-    // Only auto-open on the main dashboard scene to avoid blocking
-    // navigation on feature pages (Transactions/Categories/etc).
-    const isMainDashboardRoute =
-      location.pathname === '/dashboard' || location.pathname === '/dashboard/';
-    if (!isMainDashboardRoute) return;
-    // Never auto-open on smaller viewports where slideout overlays
-    // can effectively block navigation taps.
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) return;
-
-    didAutoOpenChatRef.current = true;
-    openChat({ initialEmployeeSlug: 'prime-boss' });
-  }, [ready, userId, profile, isChatOpen, openChat, location.pathname]);
+  // Auto-open disabled — PrimeChatV2 panel replaces the old UnifiedAssistantChat slideout.
+  // Users open Prime via the floating bubble or Dashboard briefing card.
+  // useEffect(() => {
+  //   if (!ready || !userId || !profile) return;
+  //   if (isChatOpen) return;
+  //   if (didAutoOpenChatRef.current) return;
+  //   const isMainDashboardRoute = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
+  //   if (!isMainDashboardRoute) return;
+  //   if (typeof window !== 'undefined' && window.innerWidth < 1024) return;
+  //   didAutoOpenChatRef.current = true;
+  //   openChat({ initialEmployeeSlug: 'prime-boss' });
+  // }, [ready, userId, profile, isChatOpen, openChat, location.pathname]);
 
   // Open chat history
   const handleOpenChatHistory = () => {
@@ -1060,7 +978,7 @@ export default function DashboardLayout() {
             {/* Logo and Brand */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center">
-                <Crown size={20} className="text-white font-bold" />
+                <span style={{ fontSize: 16 }}>{"\uD83D\uDC51"}</span>
               </div>
               <span className="font-black text-lg text-white">XspensesAI</span>
             </div>
@@ -1210,7 +1128,7 @@ export default function DashboardLayout() {
       {/* CRITICAL: min-h-0 is MANDATORY for flex children to prevent overflow forcing body height */}
       {/* CRITICAL: For body scroll routes (ALL /dashboard/*), allow normal flow */}
       {/* For internal scroll routes, overflow-hidden prevents wrapper from creating page scrollbar */}
-      <div className={`flex-1 flex flex-col min-h-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-56'} pr-4 ${useBodyScroll ? '' : 'overflow-hidden'}`}>
+      <div className={`flex-1 flex flex-col min-h-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-[72px]' : 'ml-[240px]'} ${useBodyScroll ? '' : 'overflow-hidden'}`}>
         <DashboardHeaderWithBadges />
         
         {/* Main content */}
@@ -1221,7 +1139,7 @@ export default function DashboardLayout() {
             - For ALL /dashboard/* routes: Main element is scroll container (internal scrolling only)
             - For other routes: Main element is scroll container (overflow-y-auto with scrollbar-hide) */}
         <main 
-          className={`flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto scrollbar-hide overflow-x-hidden pl-8 pb-6 md:pb-8 ${isTransactionsRoute ? 'pr-8' : 'pr-[calc(2rem+104px)]'}`}
+          className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto scrollbar-hide overflow-x-hidden pl-8 pr-8 pb-6 md:pb-8"
           data-dashboard-content
         >
           <DashboardContentGrid>
@@ -1240,13 +1158,10 @@ export default function DashboardLayout() {
         return <PostOnboardingChooser custodianReady={custodianReady} />;
       })()}
 
-      {/* Unified Assistant Chat - Slide-out panel (z-999, overlays ActivityFeed) */}
-      {/* CRITICAL: Do NOT render on /dashboard/custodian route - CustodianPage renders its own slideout */}
-      {/* Always render to prevent unmount/remount (preserves greeting state) */}
-      {/* Wrapped in ChatErrorBoundary to prevent chat crashes from affecting dashboard */}
-      {/* CRITICAL: Guard prevents double mount - only ONE UnifiedAssistantChat instance allowed */}
-      {/* Use startsWith to catch any sub-routes (e.g., /dashboard/custodian/...) */}
-      {!location.pathname.startsWith('/dashboard/custodian') && (
+      {/* Old UnifiedAssistantChat slideout DISABLED — PrimeChatV2 panel is the primary chat UI.
+         PrimeChatV2 uses useUnifiedChatEngine directly for in-panel conversations.
+         Keeping the component available but not auto-rendered to avoid the old modal appearing. */}
+      {/* {!location.pathname.startsWith('/dashboard/custodian') && (
         <ChatErrorBoundary>
           <UnifiedAssistantChat
             isOpen={isChatOpen}
@@ -1258,36 +1173,43 @@ export default function DashboardLayout() {
             handoff={chatOptions.handoff}
             forceOpen={chatOptions.force === true}
             renderMode="slideout"
-            viewportInsetLeftPx={isSidebarCollapsed ? 64 : 224}
-            viewportInsetRightPx={isTransactionsRoute ? 0 : 104}
+            viewportInsetLeftPx={isSidebarCollapsed ? 72 : 240}
+            viewportInsetRightPx={0}
             panelPlacement="center"
           />
         </ChatErrorBoundary>
-      )}
-      
+      )} */}
+
       {/* Chat History Sidebar */}
       <ChatHistorySidebar
         isOpen={isChatHistoryOpen}
         onClose={handleCloseChatHistory}
       />
 
-      {/* Desktop Side Chat Tab - Right-edge vertical tab (z-[999]) */}
-      {/* All buttons (Prime, Byte, Tag, Crystal) open UnifiedAssistantChat */}
-      {/* Rail always mounts on desktop (md+) but visually dims when chat is open */}
-      {/* CRITICAL: Always render rail on all dashboard routes (including /dashboard/prime-chat) */}
-      {!isTransactionsRoute && (
-        <DesktopChatSideBar 
-          onHistoryClick={handleOpenChatHistory}
-        />
-      )}
+      {/* Desktop Side Chat Tab removed — agents accessed via Prime briefing panel and Dashboard V2 */}
 
-      {/* Prime Floating Action Button - Bottom-right (z-30, below header z-40) */}
-      {/* Opens unified chat slideout with Prime when clicked */}
-      {/* Hide on Prime Chat page - PrimeChatPage has its own Prime Tools button */}
-      {/* DISABLED: Legacy Prime bubble removed - use unified chat system only */}
-      {/* <PrimeFloatingButton 
-        hidden={location.pathname.includes('/prime-chat')} 
-      /> */}
+      {/* Prime Floating Bubble — opens PrimeChatV2 briefing panel */}
+      {/* Hidden on pages with specialist copilot bubbles */}
+      {!isPrimeBriefingOpen && !(/\/(transactions|categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
+        <button
+          onClick={() => setIsPrimeBriefingOpen(true)}
+          aria-label="Open Prime Briefing"
+          className="fixed z-40 transition-all hover:scale-105 active:scale-95"
+          style={{
+            bottom: 24, right: 24, width: 56, height: 56, borderRadius: 18,
+            background: 'linear-gradient(135deg, #c8a64e, #a08030)',
+            boxShadow: '0 4px 20px rgba(200,166,78,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', cursor: 'pointer',
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+          <span style={{
+            position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: '50%',
+            background: '#34d399', border: '2px solid #0b1220', boxShadow: '0 0 8px rgba(52,211,153,0.5)',
+          }} />
+        </button>
+      )}
 
       {/* Control Center Drawer - Profile/Preferences/Security */}
       <ControlCenterDrawer />
@@ -1297,6 +1219,12 @@ export default function DashboardLayout() {
 
       {/* Prime Tools Panel - Opens from floating rail Prime Tools button */}
       <PrimeToolsPanel />
+
+      {/* Prime Briefing Panel - Right-side slide-out */}
+      <PrimeBriefingPanel />
+
+      {/* Upload Modal */}
+      <UploadModal />
 
       {/* Unified Onboarding Flow - Prime → Custodian Modal (Guest + Auth) */}
       {/* UnifiedOnboardingFlow disabled when CinematicOnboardingOverlay is active */}
@@ -1317,11 +1245,10 @@ export default function DashboardLayout() {
         />
       )}
 
-      {/* Welcome Back Overlay - Premium cinematic overlay for returning users */}
-      {/* GUARD: Only show on /dashboard routes, never on /onboarding routes */}
-      {showWelcomeBack && !showFirstTimeSetup && !location.pathname.startsWith('/onboarding') && (
+      {/* Welcome Back Overlay DISABLED — replaced by Dashboard V2 briefing */}
+      {/* {showWelcomeBack && !showFirstTimeSetup && !location.pathname.startsWith('/onboarding') && (
         <PrimeWelcomeOverlayCinematic />
-      )}
+      )} */}
       
       {/* Post-Onboarding Chooser - Show only immediately after onboarding completion */}
       {showPostOnboardingChooser && (
@@ -1345,7 +1272,7 @@ export default function DashboardLayout() {
                 onClick={() => handleChooserOption('prime')}
                 className="w-full flex items-center gap-3 px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-white font-medium transition-all hover:-translate-y-[1px] active:translate-y-0"
               >
-                <Crown className="w-5 h-5" />
+                <span style={{ fontSize: 16 }}>{"\u2655"}</span>
                 <span>Prime</span>
               </button>
               

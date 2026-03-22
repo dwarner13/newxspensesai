@@ -1,11 +1,14 @@
 import { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useSetAtom } from 'jotai';
 import { Search, ChevronRight, ArrowDownLeft, ArrowUpRight, TrendingDown, Hash, Upload, Download, Star } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
 import { useUnifiedChatLauncher } from '@/hooks/useUnifiedChatLauncher';
+import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
 import { TransactionInsightDrawer } from '@/components/transactions/TransactionInsightDrawer';
+import { ByteCopilotPanel } from '@/pages/CategoriesV2/ByteCopilotPanel';
 import type { CommittedTransaction } from '@/types/transactions';
 
 const CAT_COLORS: Record<string, string> = {
@@ -44,6 +47,7 @@ export default function TransactionsPageV2() {
   const [statementFilter, setStatementFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
 
   const handleUpload = useCallback(() => {
@@ -62,9 +66,10 @@ export default function TransactionsPageV2() {
     }, 120);
   }, [openChat]);
 
+  const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
   const handleOpenPrime = useCallback(() => {
-    openChat({ initialEmployeeSlug: 'prime-boss', force: true });
-  }, [openChat]);
+    setIsPrimeBriefingOpen(true);
+  }, [setIsPrimeBriefingOpen]);
 
   // Filtering
   const filtered = useMemo(() => {
@@ -186,7 +191,7 @@ export default function TransactionsPageV2() {
             { label: 'Net Flow', value: `${netFlow >= 0 ? '+' : '-'}$${fmt(Math.abs(netFlow))}`, color: netFlow >= 0 ? 'text-emerald-400' : 'text-amber-400', icon: <TrendingDown className="h-3.5 w-3.5 text-amber-400" /> },
             { label: 'Transactions', value: String(transactions.length), color: 'text-white', icon: <Hash className="h-3.5 w-3.5 text-white" /> },
           ].map(c => (
-            <div key={c.label} className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5 hover:border-slate-600/50 transition-all">
+            <div key={c.label} className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5 hover:border-slate-600/50 hover:shadow-lg transition-all" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] uppercase tracking-[0.14em] text-slate-400 font-bold">{c.label}</span>
                 <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-slate-800/60">{c.icon}</div>
@@ -331,13 +336,11 @@ export default function TransactionsPageV2() {
         </div>
       </div>
 
-      {/* Floating Prime bubble */}
-      <div className="fixed bottom-6 right-6 z-40">
-        <button onClick={handleOpenPrime} className="relative flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg hover:shadow-xl transition-shadow">
-          <svg className="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-          <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3"><span className="absolute inset-0 rounded-full bg-emerald-400" /><span className="absolute inset-[2px] rounded-full bg-emerald-400 ring-2 ring-[#0b1220]" /></span>
-        </button>
-      </div>
+      {/* Byte copilot bubble */}
+      {!copilotOpen && (
+        <button onClick={() => setCopilotOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #34d399, #34d399cc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(52,211,153,0.44)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">B</button>
+      )}
+      {copilotOpen && <ByteCopilotPanel onClose={() => setCopilotOpen(false)} />}
 
       {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
