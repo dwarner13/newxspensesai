@@ -1,189 +1,142 @@
-﻿import { useState, useEffect, useRef } from "react";
-import { AUTH_THEME as C } from "./authConfig";
+import { useState, useEffect } from "react";
 
-// TODO: import { useNavigate } from "react-router-dom";
-
-interface SplashLine {
-  agent: string;
-  color: string;
-  letter: string;
-  text: string;
-}
+const C = {
+  bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
+  text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99",
+  accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", purple: "#a78bfa", yellow: "#fbbf24",
+};
 
 interface PostLoginSplashProps {
   userName?: string;
-  agentLines?: SplashLine[];
-  onContinue?: () => void;
+  onContinue: () => void;
   onOpenPrime?: () => void;
 }
 
-const DEFAULT_LINES: SplashLine[] = [
-  { agent: "Byte", color: "#34d399", letter: "B", text: "2 new statements imported \u2014 24 transactions extracted and staged." },
-  { agent: "Tag", color: "#22d3ee", letter: "T", text: "All 24 categorized with 96% confidence. 3 flagged for your review." },
-  { agent: "Prime", color: "#c8a64e", letter: "\u2655", text: "$420 in new tax deductions identified. Your Xspense Score is 62." },
-];
-
-export default function PostLoginSplash({
-  userName = "Darrell",
-  agentLines = DEFAULT_LINES,
-  onContinue,
-  onOpenPrime,
-}: PostLoginSplashProps) {
-  const [phase, setPhase] = useState(0);
-  const [typedLines, setTypedLines] = useState<string[]>(agentLines.map(() => ""));
+export default function PostLoginSplash({ userName = "there", onContinue, onOpenPrime }: PostLoginSplashProps) {
+  const [visibleLines, setVisibleLines] = useState(0);
   const [showButtons, setShowButtons] = useState(false);
-  const lineIdxRef = useRef(0);
-  const charIdxRef = useRef(0);
+
+  const agents = [
+    { name: "Byte", color: C.green, letter: "B", line: "2 new statements imported \u2014 24 transactions extracted and staged." },
+    { name: "Tag", color: C.cyan, letter: "T", line: "All 24 categorized with 96% confidence. 3 flagged for your review." },
+    { name: "Prime", color: C.accent, letter: "\u2655", line: "$420 in new tax deductions identified. Your Xspense Score is 62." },
+  ];
 
   useEffect(() => {
-    const t = setTimeout(() => setPhase(1), 800);
-    return () => clearTimeout(t);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    agents.forEach((_, i) => {
+      timers.push(setTimeout(() => setVisibleLines(i + 1), 800 + i * 1200));
+    });
+    timers.push(setTimeout(() => setShowButtons(true), 800 + agents.length * 1200 + 600));
+    return () => timers.forEach(clearTimeout);
   }, []);
 
-  useEffect(() => {
-    if (phase !== 1) return;
-
-    const iv = setInterval(() => {
-      const li = lineIdxRef.current;
-      const ci = charIdxRef.current;
-
-      if (li >= agentLines.length) {
-        clearInterval(iv);
-        setPhase(2);
-        setTimeout(() => setShowButtons(true), 400);
-        return;
-      }
-
-      const currentText = agentLines[li].text;
-      if (ci <= currentText.length) {
-        setTypedLines(prev => {
-          const next = [...prev];
-          next[li] = currentText.slice(0, ci);
-          return next;
-        });
-        charIdxRef.current = ci + 1;
-      } else {
-        lineIdxRef.current = li + 1;
-        charIdxRef.current = 0;
-      }
-    }, 22);
-
-    return () => clearInterval(iv);
-  }, [phase, agentLines]);
+  const skipToEnd = () => {
+    if (!showButtons) {
+      setVisibleLines(agents.length);
+      setShowButtons(true);
+    }
+  };
 
   return (
-    <div style={{
-      fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
-      background: C.bg, color: C.text, minHeight: "100vh",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      position: "relative", overflow: "hidden",
+    <div onClick={skipToEnd} style={{
+      minHeight: "100vh", width: "100vw",
+      background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+      padding: "40px 24px",
+      cursor: showButtons ? "default" : "pointer",
     }}>
+      {/* Crown with glow */}
       <div style={{
-        position: "absolute", top: "50%", left: "50%", width: 600, height: 600,
-        borderRadius: "50%", background: `radial-gradient(circle, ${C.accent}06 0%, transparent 70%)`,
-        transform: "translate(-50%, -50%)", filter: "blur(60px)",
-      }} />
+        width: 80, height: 80, borderRadius: "50%",
+        background: `linear-gradient(135deg, ${C.accent}25, ${C.accent}08)`,
+        border: `2px solid ${C.accent}33`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 36, marginBottom: 32,
+        boxShadow: `0 0 40px ${C.accent}15, 0 0 80px ${C.accent}08`,
+        animation: "crownFloat 3s ease-in-out infinite",
+      }}>{"\uD83D\uDC51"}</div>
 
       <div style={{
-        maxWidth: 560, width: "100%", textAlign: "center", position: "relative", zIndex: 1,
-        opacity: phase >= 0 ? 1 : 0, transition: "opacity 1s",
-      }}>
-        {/* Logo */}
-        <div style={{
-          width: 64, height: 64, borderRadius: 18, margin: "0 auto 24px",
-          background: `linear-gradient(135deg, ${C.accent}, #a08030)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 32, boxShadow: `0 0 40px ${C.accent}33`,
-          opacity: phase >= 0 ? 1 : 0, transform: phase >= 0 ? "scale(1)" : "scale(0.8)",
-          transition: "all 0.8s cubic-bezier(0.16,1,0.3,1)",
-        }}>{"\uD83D\uDC51"}</div>
+        fontSize: 10, textTransform: "uppercase", letterSpacing: 3,
+        color: C.accent, fontWeight: 700, marginBottom: 16,
+      }}>Previously On XspensesAI</div>
 
-        <div style={{
-          fontSize: 10, textTransform: "uppercase", letterSpacing: 2.5, color: C.accent,
-          fontWeight: 700, marginBottom: 16,
-          opacity: phase >= 0 ? 1 : 0, transition: "opacity 0.6s 0.3s",
-        }}>Previously on XspensesAI</div>
+      <h1 style={{
+        fontSize: 36, fontWeight: 800, letterSpacing: -1,
+        color: C.text, marginBottom: 8, textAlign: "center",
+      }}>Welcome back, {userName}</h1>
 
-        <h1 style={{
-          fontSize: 32, fontWeight: 800, marginBottom: 8,
-          opacity: phase >= 0 ? 1 : 0, transition: "opacity 0.6s 0.4s",
-        }}>Welcome back, {userName}</h1>
-        <p style={{
-          fontSize: 14, color: C.textMuted, marginBottom: 40,
-          opacity: phase >= 0 ? 1 : 0, transition: "opacity 0.6s 0.5s",
-        }}>Here's what your AI team did while you were away.</p>
+      <p style={{ fontSize: 14, color: C.dim, marginBottom: 40, textAlign: "center" }}>
+        Here&apos;s what your AI team did while you were away.
+      </p>
 
-        {/* Agent lines */}
-        <div style={{ textAlign: "left", maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
-          {agentLines.map((line, i) => (
-            <div key={i} style={{
-              display: "flex", gap: 12, alignItems: "flex-start",
-              opacity: phase >= 1 && (i === 0 || typedLines[i - 1].length > 0) ? 1 : 0,
-              transform: phase >= 1 && (i === 0 || typedLines[i - 1].length > 0) ? "translateY(0)" : "translateY(10px)",
-              transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                background: `linear-gradient(135deg, ${line.color}30, ${line.color}10)`,
-                border: `1.5px solid ${line.color}44`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: line.agent === "Prime" ? 16 : 13, fontWeight: 700, color: line.color,
-                boxShadow: `0 0 16px ${line.color}22`,
-              }}>{line.letter}</div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: line.color, marginBottom: 4 }}>{line.agent}</div>
-                <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.5, minHeight: 20 }}>
-                  {typedLines[i]}
-                  {phase === 1 && typedLines[i].length > 0 && typedLines[i].length < line.text.length && (
-                    <span style={{ color: line.color }}>{"\u2588"}</span>
-                  )}
-                </div>
-              </div>
+      {/* Agent lines */}
+      <div style={{ maxWidth: 520, width: "100%", marginBottom: 40 }}>
+        {agents.map((agent, i) => (
+          <div key={agent.name} style={{
+            display: "flex", alignItems: "flex-start", gap: 14,
+            padding: "16px 20px", marginBottom: 12,
+            background: visibleLines > i ? `${agent.color}06` : "transparent",
+            border: `1px solid ${visibleLines > i ? agent.color + "18" : "transparent"}`,
+            borderRadius: 16,
+            opacity: visibleLines > i ? 1 : 0,
+            transform: visibleLines > i ? "translateY(0)" : "translateY(12px)",
+            transition: "all 0.6s cubic-bezier(0.16,1,0.3,1)",
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+              background: `linear-gradient(135deg, ${agent.color}25, ${agent.color}10)`,
+              border: `1.5px solid ${agent.color}33`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 14, fontWeight: 700, color: agent.color,
+              boxShadow: `0 0 16px ${agent.color}15`,
+            }}>{agent.letter}</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: agent.color, marginBottom: 3 }}>{agent.name}</div>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{agent.line}</div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
 
-        {/* Buttons */}
-        <div style={{
-          marginTop: 48, display: "flex", flexDirection: "column", gap: 10, alignItems: "center",
-          opacity: showButtons ? 1 : 0, transform: showButtons ? "translateY(0)" : "translateY(10px)",
-          transition: "all 0.5s cubic-bezier(0.16,1,0.3,1)",
+      {/* Buttons */}
+      <div style={{
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+        opacity: showButtons ? 1 : 0,
+        transform: showButtons ? "translateY(0)" : "translateY(16px)",
+        transition: "all 0.6s cubic-bezier(0.16,1,0.3,1)",
+      }}>
+        <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{
+          padding: "16px 48px", borderRadius: 14, fontSize: 16, fontWeight: 700,
+          background: `linear-gradient(135deg, ${C.accent}, #a08030)`,
+          border: "none", color: "#0b1220", cursor: "pointer",
+          boxShadow: `0 4px 24px ${C.accent}44`,
+          transition: "all 0.2s", minWidth: 280,
+        }}>Continue to Dashboard {"\u2192"}</button>
+
+        <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); }} style={{
+          padding: "12px 36px", borderRadius: 12, fontSize: 14, fontWeight: 600,
+          background: "transparent", border: `1px solid ${C.border}`,
+          color: C.muted, cursor: "pointer", transition: "all 0.2s",
+          display: "flex", alignItems: "center", gap: 8,
         }}>
-          <button onClick={onContinue} style={{
-            padding: "16px 48px", borderRadius: 14,
-            background: `linear-gradient(135deg, ${C.accent}, #a08030)`,
-            border: "none", color: "#0b1220", fontSize: 15, fontWeight: 700,
-            cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-            boxShadow: `0 4px 24px ${C.accent}44`, transition: "all 0.15s",
-          }}
-          onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.boxShadow = `0 6px 32px ${C.accent}66`; e.currentTarget.style.transform = "translateY(-2px)"; }}
-          onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.boxShadow = `0 4px 24px ${C.accent}44`; e.currentTarget.style.transform = "translateY(0)"; }}
-          >
-            Continue to Dashboard <span style={{ fontSize: 18 }}>{"\u2192"}</span>
-          </button>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.accent, boxShadow: `0 0 8px ${C.accent}44` }} />
+          Open Prime Chat
+        </button>
 
-          <button onClick={onOpenPrime} style={{
-            padding: "12px 32px", borderRadius: 12,
-            background: "transparent", border: `1px solid ${C.border}`,
-            color: C.textMuted, fontSize: 13, fontWeight: 600,
-            cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-            transition: "all 0.15s",
-          }}
-          onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.text; }}
-          onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMuted; }}
-          >
-            {"\uD83D\uDCAC"} Open Prime Chat
-          </button>
-        </div>
-
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 32,
-          opacity: showButtons ? 1 : 0, transition: "opacity 0.5s 0.3s",
-        }}>
-          <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.green, boxShadow: `0 0 6px ${C.green}66` }} />
-          <span style={{ fontSize: 10, color: C.textDim }}>Secure session restored {"\u2022"} Guardrails active</span>
+        <div style={{ fontSize: 11, color: C.dim, marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.green, boxShadow: `0 0 6px ${C.green}44` }} />
+          Secure session restored {"\u2022"} Guardrails active
         </div>
       </div>
+
+      {!showButtons && (
+        <div style={{ position: "fixed", bottom: 32, fontSize: 11, color: C.dim, opacity: 0.5 }}>Tap anywhere to skip</div>
+      )}
+
+      <style>{`@keyframes crownFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
     </div>
   );
 }

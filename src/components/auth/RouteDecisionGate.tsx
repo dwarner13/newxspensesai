@@ -57,10 +57,7 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouteTransition } from '../../contexts/RouteTransitionContext';
-// WelcomeBackOverlay replaced by PostLoginSplash (V2)
-import PostLoginSplash from '../../pages/AuthV2/PostLoginSplash';
-import { useSetAtom } from 'jotai';
-import { isPrimeBriefingOpenAtom } from '../../lib/uiStore';
+// PostLoginSplash moved to DashboardLayout as early return
 import { useAppBootStatus } from '../../hooks/useAppBootStatus';
 
 /**
@@ -101,12 +98,7 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
   const hasBootedRef = useRef(false);
   const [isBootComplete, setIsBootComplete] = useState(false);
 
-  // V2 Post-login splash
-  const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
-  const [showSplash, setShowSplash] = useState(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return sessionStorage.getItem("xai_seen_splash") !== today;
-  });
+  // PostLoginSplash moved to DashboardLayout
   
   // Hook 2: Context hooks - ALL called unconditionally
   const { user, userId, loading, ready, profile, isProfileLoading } = useAuth();
@@ -267,30 +259,9 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
     return <PreparingWorkspaceScreen />;
   }
   
-  const dismissSplash = () => {
-    sessionStorage.setItem("xai_seen_splash", new Date().toISOString().slice(0, 10));
-    setShowSplash(false);
-  };
-
-  // Get user's first name for splash greeting
-  const splashName = (() => {
-    const raw = profile?.display_name?.split(" ")[0] || profile?.first_name || user?.email?.split("@")[0] || "there";
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  })();
-
   return (
     <>
       {children}
-      {/* V2 Post-Login Splash — replaces WelcomeBackOverlay */}
-      {onboardingCompleted && showSplash && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <PostLoginSplash
-            userName={splashName}
-            onContinue={dismissSplash}
-            onOpenPrime={() => { dismissSplash(); setIsPrimeBriefingOpen(true); }}
-          />
-        </div>
-      )}
     </>
   );
 }

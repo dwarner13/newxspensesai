@@ -25,6 +25,7 @@ import { UnifiedOnboardingFlow } from "../components/onboarding/UnifiedOnboardin
 import { PrimeToolsPanel } from "../components/prime/PrimeToolsPanel";
 import { PrimeBriefingPanel } from "../pages/PrimeChatV2/PrimeBriefingPanel";
 import { UploadModal } from "../components/upload/UploadModal";
+import PostLoginSplash from "../pages/AuthV2/PostLoginSplash";
 import { useAtom } from "jotai";
 import { isPrimeBriefingOpenAtom } from "../lib/uiStore";
 import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
@@ -54,6 +55,12 @@ export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   
+  // Splash screen state
+  const [showSplash, setShowSplash] = useState(() => {
+    const today = new Date().toDateString();
+    return sessionStorage.getItem("xai_splash_date") !== today;
+  });
+
   // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
   // All routes are now full-width — activity feed rail removed
@@ -963,6 +970,35 @@ export default function DashboardLayout() {
       };
     }
   }, [useBodyScroll, location.pathname]);
+
+  // ═══ SPLASH SCREEN — EARLY RETURN ═══
+  if (showSplash && ready && userId) {
+    return (
+      <div style={{
+        position: "fixed",
+        top: 0, left: 0, right: 0, bottom: 0,
+        zIndex: 99999,
+        background: "#0b1220",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <PostLoginSplash
+          userName={(() => { const raw = profile?.display_name || profile?.first_name || profile?.full_name || "there"; return raw.charAt(0).toUpperCase() + raw.slice(1); })()}
+          onContinue={() => {
+            sessionStorage.setItem("xai_splash_date", new Date().toDateString());
+            setShowSplash(false);
+          }}
+          onOpenPrime={() => {
+            sessionStorage.setItem("xai_splash_date", new Date().toDateString());
+            setShowSplash(false);
+            setIsPrimeBriefingOpen(true);
+          }}
+        />
+      </div>
+    );
+  }
+  // ═══ END SPLASH SCREEN ═══
 
   // Onboarding minimal layout (after all hooks)
   if (isOnboardingRoute) {
