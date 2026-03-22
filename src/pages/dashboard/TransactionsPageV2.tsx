@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronRight, ArrowDownLeft, ArrowUpRight, TrendingDown, Hash, Upload, Download, Star } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
+import { useUnifiedChatLauncher } from '@/hooks/useUnifiedChatLauncher';
 import { TransactionInsightDrawer } from '@/components/transactions/TransactionInsightDrawer';
 import type { CommittedTransaction } from '@/types/transactions';
 
@@ -38,11 +39,32 @@ const fmtDate = (d: string) => {
 export default function TransactionsPageV2() {
   const { transactions, isLoading, refetch } = useTransactions();
   const { imports } = useImportList();
+  const { openChat } = useUnifiedChatLauncher();
   const [filter, setFilter] = useState<'all' | 'expenses' | 'income'>('all');
   const [statementFilter, setStatementFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
+
+  const handleUpload = useCallback(() => {
+    openChat({
+      initialEmployeeSlug: 'prime-boss',
+      force: true,
+      context: { data: { source: 'transactions-upload', intent: 'upload' } },
+      routeHint: '/dashboard/prime-chat',
+    });
+    window.setTimeout(() => {
+      const inputs = Array.from(
+        document.querySelectorAll('input[type="file"][accept*=".pdf"][accept*=".csv"]')
+      ) as HTMLInputElement[];
+      const el = inputs.find(i => !i.disabled);
+      el?.click();
+    }, 120);
+  }, [openChat]);
+
+  const handleOpenPrime = useCallback(() => {
+    openChat({ initialEmployeeSlug: 'prime-boss', force: true });
+  }, [openChat]);
 
   // Filtering
   const filtered = useMemo(() => {
@@ -58,6 +80,25 @@ export default function TransactionsPageV2() {
     }
     return [...list].sort((a, b) => (b.posted_at || '').localeCompare(a.posted_at || ''));
   }, [transactions, filter, statementFilter, searchQuery]);
+
+  const handleExport = useCallback(() => {
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = filtered.map(t => [
+      t.posted_at?.slice(0, 10) || '',
+      escape(t.merchant_name || 'Unknown'),
+      (isIncomeTx(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
+      escape(t.category || 'Uncategorized'),
+      escape(t.import_id || ''),
+    ].join(','));
+    const csv = ['Date,Merchant,Amount,Category,Statement Source', ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filtered]);
 
   // Stats
   const totalSpent = useMemo(() => transactions.reduce((s, t) => !isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [transactions]);
@@ -132,8 +173,8 @@ export default function TransactionsPageV2() {
             <p className="text-[12px] text-slate-400 mt-1">{imports.length} statement{imports.length !== 1 ? 's' : ''} &middot; {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-colors"><Download className="h-4 w-4" />Export</button>
-            <button className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-400 hover:to-orange-400 transition-colors"><Upload className="h-4 w-4" />Upload</button>
+            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-colors"><Download className="h-4 w-4" />Export</button>
+            <button onClick={handleUpload} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-400 hover:to-orange-400 transition-colors"><Upload className="h-4 w-4" />Upload</button>
           </div>
         </div>
 
@@ -292,7 +333,7 @@ export default function TransactionsPageV2() {
 
       {/* Floating Prime bubble */}
       <div className="fixed bottom-6 right-6 z-40">
-        <button className="relative flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg hover:shadow-xl transition-shadow">
+        <button onClick={handleOpenPrime} className="relative flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg hover:shadow-xl transition-shadow">
           <svg className="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
           <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3"><span className="absolute inset-0 rounded-full bg-emerald-400" /><span className="absolute inset-[2px] rounded-full bg-emerald-400 ring-2 ring-[#0b1220]" /></span>
         </button>
