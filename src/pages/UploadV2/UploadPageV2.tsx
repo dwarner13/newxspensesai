@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171" };
-const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp";
+const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,image/*";
 
 type QueueStatus = "queued" | "processing" | "categorizing" | "complete" | "failed";
 interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; }
@@ -19,6 +19,7 @@ export default function UploadPageV2() {
   const [dragOver, setDragOver] = useState(false);
   const [allDone, setAllDone] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
   const processingRef = useRef(false);
 
