@@ -40,62 +40,64 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
   return (
     <div onClick={skipToEnd} style={{
-      minHeight: "100vh", width: "100vw",
+      minHeight: "100dvh", width: "100vw",
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "40px 24px",
+      padding: "80px 24px 40px",
+      overflowY: "auto",
       cursor: showButtons ? "default" : "pointer",
     }}>
-      {/* Crown with glow */}
+      {/* Crown */}
       <div style={{
-        width: 80, height: 80, borderRadius: "50%",
+        width: 64, height: 64, borderRadius: "50%",
         background: `linear-gradient(135deg, ${C.accent}25, ${C.accent}08)`,
         border: `2px solid ${C.accent}33`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 36, marginBottom: 32,
+        fontSize: 28, marginBottom: 20,
         boxShadow: `0 0 40px ${C.accent}15, 0 0 80px ${C.accent}08`,
         animation: "crownFloat 3s ease-in-out infinite",
+        flexShrink: 0,
       }}>{"\uD83D\uDC51"}</div>
 
       <div style={{
         fontSize: 10, textTransform: "uppercase", letterSpacing: 3,
-        color: C.accent, fontWeight: 700, marginBottom: 16,
+        color: C.accent, fontWeight: 700, marginBottom: 10,
       }}>Previously On XspensesAI</div>
 
       <h1 style={{
-        fontSize: 36, fontWeight: 800, letterSpacing: -1,
-        color: C.text, marginBottom: 8, textAlign: "center",
+        fontSize: 32, fontWeight: 800, letterSpacing: -1,
+        color: C.text, marginBottom: 6, textAlign: "center",
       }}>Welcome back, {userName}</h1>
 
-      <p style={{ fontSize: 14, color: C.dim, marginBottom: 40, textAlign: "center" }}>
+      <p style={{ fontSize: 13, color: C.dim, marginBottom: 28, textAlign: "center" }}>
         Here&apos;s what your AI team did while you were away.
       </p>
 
       {/* Agent lines */}
-      <div style={{ maxWidth: 520, width: "100%", marginBottom: 40 }}>
+      <div style={{ maxWidth: 480, width: "100%", marginBottom: 28 }}>
         {agents.map((agent, i) => (
           <div key={agent.name} style={{
-            display: "flex", alignItems: "flex-start", gap: 14,
-            padding: "16px 20px", marginBottom: 12,
+            display: "flex", alignItems: "flex-start", gap: 12,
+            padding: "12px 16px", marginBottom: 8,
             background: visibleLines > i ? `${agent.color}06` : "transparent",
             border: `1px solid ${visibleLines > i ? agent.color + "18" : "transparent"}`,
-            borderRadius: 16,
+            borderRadius: 14,
             opacity: visibleLines > i ? 1 : 0,
             transform: visibleLines > i ? "translateY(0)" : "translateY(12px)",
             transition: "all 0.6s cubic-bezier(0.16,1,0.3,1)",
           }}>
             <div style={{
-              width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+              width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
               background: `linear-gradient(135deg, ${agent.color}25, ${agent.color}10)`,
               border: `1.5px solid ${agent.color}33`,
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14, fontWeight: 700, color: agent.color,
-              boxShadow: `0 0 16px ${agent.color}15`,
+              fontSize: 12, fontWeight: 700, color: agent.color,
+              boxShadow: `0 0 12px ${agent.color}15`,
             }}>{agent.letter}</div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: agent.color, marginBottom: 3 }}>{agent.name}</div>
-              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{agent.line}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: agent.color, marginBottom: 2 }}>{agent.name}</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{agent.line}</div>
             </div>
           </div>
         ))}
@@ -103,37 +105,37 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
       {/* Buttons */}
       <div style={{
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
         opacity: showButtons ? 1 : 0,
         transform: showButtons ? "translateY(0)" : "translateY(16px)",
         transition: "all 0.6s cubic-bezier(0.16,1,0.3,1)",
       }}>
         <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{
-          padding: "16px 48px", borderRadius: 14, fontSize: 16, fontWeight: 700,
+          padding: "14px 40px", borderRadius: 12, fontSize: 15, fontWeight: 700,
           background: `linear-gradient(135deg, ${C.accent}, #a08030)`,
           border: "none", color: "#0b1220", cursor: "pointer",
           boxShadow: `0 4px 24px ${C.accent}44`,
-          transition: "all 0.2s", minWidth: 280,
+          transition: "all 0.2s", minWidth: 260,
         }}>Continue to Dashboard {"\u2192"}</button>
 
         <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); }} style={{
-          padding: "12px 36px", borderRadius: 12, fontSize: 14, fontWeight: 600,
+          padding: "10px 28px", borderRadius: 10, fontSize: 13, fontWeight: 600,
           background: "transparent", border: `1px solid ${C.border}`,
           color: C.muted, cursor: "pointer", transition: "all 0.2s",
           display: "flex", alignItems: "center", gap: 8,
         }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.accent, boxShadow: `0 0 8px ${C.accent}44` }} />
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.accent, boxShadow: `0 0 8px ${C.accent}44` }} />
           Open Prime Chat
         </button>
 
-        <div style={{ fontSize: 11, color: C.dim, marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.green, boxShadow: `0 0 6px ${C.green}44` }} />
+        <div style={{ fontSize: 10, color: C.dim, marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.green, boxShadow: `0 0 6px ${C.green}44` }} />
           Secure session restored {"\u2022"} Guardrails active
         </div>
       </div>
 
       {!showButtons && (
-        <div style={{ position: "fixed", bottom: 32, fontSize: 11, color: C.dim, opacity: 0.5 }}>Tap anywhere to skip</div>
+        <div style={{ position: "fixed", bottom: 24, fontSize: 10, color: C.dim, opacity: 0.5 }}>Tap anywhere to skip</div>
       )}
 
       <style>{`@keyframes crownFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
