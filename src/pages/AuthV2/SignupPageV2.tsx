@@ -13,8 +13,15 @@ export default function SignupPageV2() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => setLoaded(true), []);
+  useEffect(() => {
+    const handle = () => setIsMobile(window.innerWidth <= 768);
+    handle();
+    window.addEventListener("resize", handle);
+    return () => window.removeEventListener("resize", handle);
+  }, []);
 
   const handleSignup = async () => {
     setLoading(true);
@@ -47,13 +54,15 @@ export default function SignupPageV2() {
     <div style={{
       fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
       background: C.bg, color: C.text, minHeight: "100vh",
-      display: "flex", position: "relative", overflow: "hidden",
+      display: "flex", flexDirection: isMobile ? "column" : "row",
+      position: "relative", overflow: "hidden",
     }}>
       <div style={{ position: "absolute", top: -200, left: -200, width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent}08 0%, transparent 70%)`, filter: "blur(80px)" }} />
 
-      {/* LEFT — Brand */}
+      {/* LEFT — Brand (hidden on mobile) */}
       <div style={{
-        flex: 1, padding: "60px 80px", display: "flex", flexDirection: "column",
+        flex: 1, padding: isMobile ? "40px 24px 20px" : "60px 80px",
+        display: isMobile ? "none" : "flex", flexDirection: "column",
         justifyContent: "center", position: "relative", zIndex: 1,
         opacity: loaded ? 1 : 0, transition: "all 0.8s cubic-bezier(0.16,1,0.3,1)",
       }}>
@@ -97,10 +106,12 @@ export default function SignupPageV2() {
 
       {/* RIGHT — Form */}
       <div style={{
-        width: 480, padding: "60px 50px", display: "flex", flexDirection: "column",
-        justifyContent: "center", borderLeft: `1px solid ${C.border}`,
-        background: `linear-gradient(180deg, ${C.surface} 0%, ${C.bg} 100%)`,
-        position: "relative", zIndex: 1,
+        width: isMobile ? "100%" : 480, padding: isMobile ? "40px 24px" : "60px 50px",
+        display: "flex", flexDirection: "column",
+        justifyContent: "center",
+        borderLeft: isMobile ? "none" : `1px solid ${C.border}`,
+        background: isMobile ? C.bg : `linear-gradient(180deg, ${C.surface} 0%, ${C.bg} 100%)`,
+        position: "relative", zIndex: 1, flex: isMobile ? 1 : undefined,
         opacity: loaded ? 1 : 0, transition: "all 0.8s cubic-bezier(0.16,1,0.3,1) 0.2s",
       }}>
         <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>Get started free</h2>
