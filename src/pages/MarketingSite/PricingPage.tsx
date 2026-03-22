@@ -43,7 +43,7 @@ export default function PricingPage() {
       <section style={{ padding: isMobile ? "120px 20px 60px" : "140px 48px 100px", textAlign: "center" }}>
         <MarketingReveal>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: C.accent, fontWeight: 700, marginBottom: 12 }}>Pricing</div>
-          <h1 style={{ fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: -1, marginBottom: 12 }}>Simple pricing.<br /><span style={{ color: C.accent }}>Serious AI.</span></h1>
+          <h1 style={{ fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: -1, marginBottom: 12 }}>Simple Pricing.<br /><span style={{ color: C.accent }}>Serious AI.</span></h1>
           <p style={{ fontSize: isMobile ? 14 : 16, color: C.textMuted, maxWidth: 500, margin: "0 auto 32px" }}>Start free. Upgrade when your AI team needs more room to work.</p>
 
           <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "6px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}` }}>

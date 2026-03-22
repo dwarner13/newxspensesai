@@ -28,10 +28,10 @@ export default function MarketingHomePage() {
   ];
 
   const STEPS = [
-    { step: "1", title: "Drop a statement", desc: 'PDF, CSV, even a photo. Byte reads it in seconds. "Got it \u2014 24 transactions extracted."', color: C.green, icon: "B" },
-    { step: "2", title: "Tag sorts everything", desc: 'Every transaction categorized. "3 look off \u2014 takes 2 min to fix."', color: C.cyan, icon: "T" },
-    { step: "3", title: "Crystal spots patterns", desc: 'Trends you\'d never see. "Dining up 39% in 3 months. Want details?"', color: C.purple, icon: "C" },
-    { step: "4", title: "Prime briefs you", desc: 'Your advisor pulls it together. "Here\'s what matters and what to do."', color: C.accent, icon: "\u2655" },
+    { step: "1", title: "Drop a Statement", desc: 'PDF, CSV, even a photo. Byte reads it in seconds. "Got it \u2014 24 transactions extracted."', color: C.green, icon: "B" },
+    { step: "2", title: "Tag Sorts Everything", desc: 'Every transaction categorized. "3 look off \u2014 takes 2 min to fix."', color: C.cyan, icon: "T" },
+    { step: "3", title: "Crystal Spots Patterns", desc: 'Trends you\'d never see. "Dining up 39% in 3 months. Want details?"', color: C.purple, icon: "C" },
+    { step: "4", title: "Prime Briefs You", desc: 'Your advisor pulls it together. "Here\'s what matters and what to do."', color: C.accent, icon: "\u2655" },
   ];
 
   const SCORE_PILLARS = [
@@ -108,8 +108,8 @@ export default function MarketingHomePage() {
       <section id="conversation" style={{ padding: "60px 48px 100px", maxWidth: 700, margin: "0 auto" }}>
         <MarketingReveal>
           <div style={{ textAlign: "center", marginBottom: 40 }}>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: C.accent, fontWeight: 700, marginBottom: 12 }}>This is what it feels like</div>
-            <h2 style={{ fontSize: 36, fontWeight: 800 }}>Your agents. Talking to you.</h2>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: C.accent, fontWeight: 700, marginBottom: 12 }}>This Is What It Feels Like</div>
+            <h2 style={{ fontSize: 36, fontWeight: 800 }}>Your Agents. Talking to You.</h2>
             <p style={{ fontSize: 14, color: C.textDim, marginTop: 8 }}>This happens every time you open the app.</p>
           </div>
         </MarketingReveal>
@@ -170,7 +170,7 @@ export default function MarketingHomePage() {
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <MarketingReveal><div style={{ textAlign: "center", marginBottom: 64 }}>
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: C.accent, fontWeight: 700, marginBottom: 12 }}>How It Works</div>
-            <h2 style={{ fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: -1 }}>You upload. They handle the rest.</h2>
+            <h2 style={{ fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: -1 }}>You Upload. They Handle the Rest.</h2>
           </div></MarketingReveal>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 20 }}>
             {STEPS.map((s, i) => (
@@ -191,7 +191,7 @@ export default function MarketingHomePage() {
       <section style={{ padding: isMobile ? "60px 20px" : "100px 48px", maxWidth: 1200, margin: "0 auto" }}>
         <MarketingReveal><div style={{ textAlign: "center", marginBottom: 64 }}>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: C.accent, fontWeight: 700, marginBottom: 12 }}>Not Your Typical Finance App</div>
-          <h2 style={{ fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: -1, color: C.text }}>Finance doesn't have to be boring.</h2>
+          <h2 style={{ fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: -1, color: C.text }}>Finance Doesn't Have to Be Boring.</h2>
           <p style={{ fontSize: 16, color: C.textMuted, marginTop: 12 }}>We made it conversational, visual, and a little addictive.</p>
         </div></MarketingReveal>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 20 }}>
@@ -212,7 +212,7 @@ export default function MarketingHomePage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <MarketingReveal><div style={{ textAlign: "center", marginBottom: 64 }}>
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: C.accent, fontWeight: 700, marginBottom: 12 }}>The Team</div>
-            <h2 style={{ fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: -1, color: C.text }}>6 agents. Zero attitude. All results.</h2>
+            <h2 style={{ fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: -1, color: C.text }}>6 Agents. Zero Attitude. All Results.</h2>
           </div></MarketingReveal>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
             {AGENTS.map((a, i) => (
@@ -265,7 +265,7 @@ export default function MarketingHomePage() {
           <MarketingReveal delay={200}>
             <div>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: C.accent, fontWeight: 700, marginBottom: 12 }}>Xspense Score</div>
-              <h2 style={{ fontSize: isMobile ? 28 : 40, fontWeight: 800, letterSpacing: -1, marginBottom: 16, color: C.text }}>Finally. A number that<br />actually means something.</h2>
+              <h2 style={{ fontSize: isMobile ? 28 : 40, fontWeight: 800, letterSpacing: -1, marginBottom: 16, color: C.text }}>Finally. A Number That<br />Actually Means Something.</h2>
               <p style={{ fontSize: 16, color: C.textMuted, lineHeight: 1.7, marginBottom: 28 }}>
                 Not a credit score. Not a net worth. Your Xspense Score measures how well you're managing your money across 28 factors. Watch it climb as your habits improve.
               </p>
@@ -280,7 +280,7 @@ export default function MarketingHomePage() {
         <div style={{ position: "absolute", top: "50%", left: "50%", width: 600, height: 400, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent}05 0%, transparent 70%)`, transform: "translate(-50%, -50%)", filter: "blur(60px)" }} />
         <MarketingReveal>
           <div style={{ maxWidth: 600, margin: "0 auto", position: "relative", zIndex: 1 }}>
-            <h2 style={{ fontSize: isMobile ? 32 : 48, fontWeight: 800, letterSpacing: -1, marginBottom: 16, lineHeight: 1.1 }}>Your money has a lot to say.<br /><span style={{ color: C.accent }}>Start listening.</span></h2>
+            <h2 style={{ fontSize: isMobile ? 32 : 48, fontWeight: 800, letterSpacing: -1, marginBottom: 16, lineHeight: 1.1 }}>Your Money Has a Lot to Say.<br /><span style={{ color: C.accent }}>Start Listening.</span></h2>
             <p style={{ fontSize: 16, color: C.textMuted, lineHeight: 1.6, marginBottom: 40 }}>Free to start. No credit card. Upload your first statement and meet your AI team in 60 seconds.</p>
             <a href="/login" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "18px 48px", borderRadius: 14, fontSize: 17, fontWeight: 700, background: `linear-gradient(135deg, ${C.accent}, #a08030)`, color: "#0b1220", boxShadow: `0 6px 32px ${C.accent}44`, textDecoration: "none" }}>Meet Your Team {"\u2192"}</a>
           </div>

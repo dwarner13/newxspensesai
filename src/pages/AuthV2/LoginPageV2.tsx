@@ -136,7 +136,7 @@ export default function LoginPageV2() {
 
       {/* RIGHT — Form */}
       <div style={{
-        width: isMobile ? "100%" : 480, padding: isMobile ? "40px 24px" : "60px 50px",
+        width: isMobile ? "100%" : 440, padding: isMobile ? "32px 24px" : "40px 36px",
         display: "flex", flexDirection: "column",
         justifyContent: "center",
         borderLeft: isMobile ? "none" : `1px solid ${C.border}`,
@@ -145,17 +145,17 @@ export default function LoginPageV2() {
         opacity: loaded ? 1 : 0, transform: loaded ? "translateX(0)" : "translateX(20px)",
         transition: "all 0.8s cubic-bezier(0.16,1,0.3,1) 0.2s",
       }}>
-        <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>Welcome back</h2>
-        <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 36 }}>Sign in to continue to XspensesAI</p>
+        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Welcome back</h2>
+        <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 20 }}>Sign in to continue to XspensesAI</p>
 
         {error && (
           <div style={{ padding: "10px 14px", borderRadius: 10, background: `${C.red}12`, border: `1px solid ${C.red}22`, color: C.red, fontSize: 12, marginBottom: 16 }}>{error}</div>
         )}
 
         <button onClick={handleGoogleLogin} style={{
-          width: "100%", padding: "14px", borderRadius: 12, marginBottom: 10,
+          width: "100%", padding: "10px 16px", borderRadius: 10, marginBottom: 8,
           background: C.surfaceLight, border: `1px solid ${C.border}`,
-          color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer",
+          color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
           transition: "all 0.15s",
         }}
@@ -167,9 +167,9 @@ export default function LoginPageV2() {
         </button>
 
         <button onClick={handleAppleLogin} style={{
-          width: "100%", padding: "14px", borderRadius: 12, marginBottom: 24,
+          width: "100%", padding: "10px 16px", borderRadius: 10, marginBottom: 14,
           background: C.surfaceLight, border: `1px solid ${C.border}`,
-          color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer",
+          color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
           transition: "all 0.15s",
         }}
@@ -180,7 +180,7 @@ export default function LoginPageV2() {
           Continue with Apple
         </button>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
           <div style={{ flex: 1, height: 1, background: C.border }} />
           <span style={{ fontSize: 12, color: C.textDim }}>OR</span>
           <div style={{ flex: 1, height: 1, background: C.border }} />
@@ -191,7 +191,7 @@ export default function LoginPageV2() {
           onFocus={() => setFocusedField("email")} onBlur={() => setFocusedField(null)}
           placeholder="you@example.com"
           style={{
-            width: "100%", padding: "14px 16px", borderRadius: 12, marginBottom: 18,
+            width: "100%", padding: "10px 14px", borderRadius: 10, marginBottom: 12,
             background: C.surfaceLight, border: `1px solid ${focusedField === "email" ? C.accent : C.border}`,
             color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none",
             boxShadow: focusedField === "email" ? `0 0 0 2px ${C.accent}22, 0 4px 16px ${C.accent}08` : "none",
@@ -207,7 +207,7 @@ export default function LoginPageV2() {
           onFocus={() => setFocusedField("password")} onBlur={() => setFocusedField(null)}
           placeholder={"\u2022".repeat(10)}
           style={{
-            width: "100%", padding: "14px 16px", borderRadius: 12, marginBottom: 24,
+            width: "100%", padding: "10px 14px", borderRadius: 10, marginBottom: 14,
             background: C.surfaceLight, border: `1px solid ${focusedField === "password" ? C.accent : C.border}`,
             color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none",
             boxShadow: focusedField === "password" ? `0 0 0 2px ${C.accent}22, 0 4px 16px ${C.accent}08` : "none",
@@ -216,9 +216,9 @@ export default function LoginPageV2() {
         />
 
         <button onClick={handleEmailLogin} disabled={loading} style={{
-          width: "100%", padding: "16px", borderRadius: 12,
+          width: "100%", padding: "12px", borderRadius: 10,
           background: `linear-gradient(135deg, ${C.accent}, #a08030)`,
-          border: "none", color: "#0b1220", fontSize: 15, fontWeight: 700,
+          border: "none", color: "#0b1220", fontSize: 14, fontWeight: 700,
           cursor: loading ? "wait" : "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           boxShadow: `0 4px 20px ${C.accent}44`, opacity: loading ? 0.7 : 1,
@@ -227,12 +227,12 @@ export default function LoginPageV2() {
           {loading ? "Signing in..." : <>Sign in <span style={{ fontSize: 18 }}>{"\u2192"}</span></>}
         </button>
 
-        <p style={{ fontSize: 13, color: C.textMuted, textAlign: "center", marginTop: 24 }}>
+        <p style={{ fontSize: 12, color: C.textMuted, textAlign: "center", marginTop: 14 }}>
           Don't have an account?{" "}
-          <button onClick={() => navigate("/signup")} style={{ color: C.accent, fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>Create one</button>
+          <button onClick={() => navigate("/signup")} style={{ color: C.accent, fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontSize: 12 }}>Create one</button>
         </p>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 16 }}>
           <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.green, boxShadow: `0 0 6px ${C.green}66` }} />
           <span style={{ fontSize: 10, color: C.textDim }}>Secured {"\u2022"} Guardrails + PII protection active</span>
         </div>
