@@ -3,6 +3,7 @@ import { X, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
+import { resolveMerchantAlias } from '../../lib/merchantAliases';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
 
 type DrawerTransaction =
@@ -53,6 +54,7 @@ export function TransactionInsightDrawer({
   onEditCommitted,
   categories = DEFAULT_CATEGORIES,
   onCommittedCategorySaved,
+  onPendingCategorySaved,
   onAskTag,
   onFlagReview,
 }: TransactionInsightDrawerProps) {
@@ -171,8 +173,14 @@ export function TransactionInsightDrawer({
   const merchUpper = rawMerchant.toUpperCase();
   const isIncomeTx =
     amount < 0 || catLower === 'income' || INCOME_PATTERNS_TR.test(merchUpper);
-  const amountClass = isIncomeTx ? 'text-emerald-500' : 'text-red-500';
+  const amountClass = isIncomeTx ? 'text-[#10b981]' : 'text-[#ef4444]';
   const amountPrefix = isIncomeTx ? '+' : '−';
+
+  const mapHintSource =
+    row.kind === 'committed'
+      ? row.transaction.merchant_name || ''
+      : String((row.transaction.data_json as Record<string, unknown>)?.merchant || '');
+  const merchantHasMapHint = resolveMerchantAlias(mapHintSource) != null;
 
   const saveCategory = async () => {
     if (row.kind !== 'committed') return;
@@ -233,32 +241,32 @@ export function TransactionInsightDrawer({
         className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="fixed inset-y-0 right-0 z-[61] w-full max-w-md border-l border-slate-700 bg-slate-950 shadow-2xl text-base">
-        <div className="flex h-full flex-col">
-          <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-4">
-            <div className="min-w-0">
-              <h2 className="text-2xl font-semibold leading-snug text-slate-50 break-words">{rawMerchant}</h2>
-              <p className="mt-1 text-sm text-slate-500">{formattedDate}</p>
+      <div className="fixed inset-y-0 right-0 z-[61] flex w-full max-w-[400px] flex-col border-l border-white/10 bg-slate-950 text-base shadow-[0_0_60px_rgba(0,0,0,0.45)]">
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="flex items-start justify-between gap-3 border-b border-white/5 px-6 py-5">
+            <div className="min-w-0 pr-2">
+              <h2 className="break-words text-2xl font-semibold leading-tight tracking-tight text-white">{rawMerchant}</h2>
+              <p className={`mt-3 text-[28px] font-bold tabular-nums ${amountClass}`}>
+                {amountPrefix}${Math.abs(amount).toFixed(2)}
+              </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 shrink-0"
+              className="shrink-0 rounded-xl border border-white/10 p-2.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6">
             <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Amount</div>
-              <div className={`mt-1 text-3xl font-semibold tabular-nums ${amountClass}`}>
-                {amountPrefix}${Math.abs(amount).toFixed(2)}
-              </div>
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Date</div>
+              <div className="mt-1.5 text-sm text-slate-200">{formattedDate}</div>
             </div>
 
             <div>
-              <label htmlFor="tx-drawer-cat" className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <label htmlFor="tx-drawer-cat" className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
                 Category
               </label>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -266,7 +274,7 @@ export function TransactionInsightDrawer({
                   id="tx-drawer-cat"
                   value={localCategory}
                   onChange={(e) => setLocalCategory(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-base text-slate-100"
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-base text-slate-100 focus:border-white/20 focus:outline-none"
                 >
                   {categories.map((c) => (
                     <option key={c} value={c}>
@@ -278,7 +286,7 @@ export function TransactionInsightDrawer({
                   type="button"
                   onClick={() => void (row.kind === 'committed' ? saveCategory() : savePendingCategory())}
                   disabled={isSavingCat}
-                  className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-50"
+                  className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
                 >
                   {isSavingCat ? 'Saving…' : 'Save'}
                 </button>
@@ -287,14 +295,27 @@ export function TransactionInsightDrawer({
 
             {statementLabel ? (
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Statement</div>
-                <div className="mt-1 text-sm text-slate-300">{statementLabel}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Statement source</div>
+                <div className="mt-1.5 text-sm text-slate-300">{statementLabel}</div>
+              </div>
+            ) : null}
+
+            {merchantHasMapHint ? (
+              <div>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-cyan-400/90 underline decoration-cyan-500/40 underline-offset-4 transition-colors hover:text-cyan-300"
+                  onClick={() => toast('Maps coming soon')}
+                >
+                  View on map
+                </button>
+                <p className="mt-1 text-xs text-slate-500">Location preview — full maps integration soon.</p>
               </div>
             ) : null}
 
             {hasTrendData ? (
-              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
                   <TrendingUp className="h-4 w-4" />
                   This month at this merchant
                 </div>
@@ -302,7 +323,7 @@ export function TransactionInsightDrawer({
                   Total activity{' '}
                   <span className="font-semibold text-emerald-400">${currentMonthSpend.toFixed(2)}</span>
                 </div>
-                <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 p-2">
+                <div className="mt-3 rounded-xl border border-white/5 bg-slate-950/50 p-2">
                   <svg viewBox="0 0 220 48" className="h-12 w-full">
                     <path d={sparklinePath} fill="none" stroke="#34d399" strokeWidth="2" />
                   </svg>
@@ -310,18 +331,18 @@ export function TransactionInsightDrawer({
               </div>
             ) : null}
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="flex flex-col gap-3 border-t border-white/5 pt-6">
               <button
                 type="button"
                 onClick={() => onAskTag?.(row)}
-                className="w-full rounded-xl border border-violet-500/40 bg-violet-500/15 py-3 text-sm font-medium text-violet-100 hover:bg-violet-500/25"
+                className="w-full rounded-xl border border-violet-400/50 bg-transparent py-3 text-sm font-medium text-violet-200 transition-colors hover:bg-violet-500/10"
               >
                 Ask Tag to recategorize
               </button>
               <button
                 type="button"
                 onClick={() => onFlagReview?.(row)}
-                className="w-full rounded-xl border border-amber-500/40 bg-amber-500/10 py-3 text-sm font-medium text-amber-100 hover:bg-amber-500/20"
+                className="w-full rounded-xl border border-amber-400/50 bg-transparent py-3 text-sm font-medium text-amber-200/90 transition-colors hover:bg-amber-500/10"
               >
                 Flag for review
               </button>

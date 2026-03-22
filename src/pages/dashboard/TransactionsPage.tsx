@@ -39,7 +39,7 @@ import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import UnifiedAssistantChat from '../../components/chat/UnifiedAssistantChat';
 import toast from 'react-hot-toast';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
-import { Sparkles, MessageCircle, ChevronUp } from 'lucide-react';
+import { ChevronUp } from 'lucide-react';
 
 type Transaction = CommittedTransaction | PendingTransaction;
 type WowPreviewRow = {
@@ -1723,8 +1723,6 @@ export default function TransactionsPage() {
     }
   }, []);
 
-  const [txFabOpen, setTxFabOpen] = useState(false);
-
   const handleDrawerAskTag = useCallback(
     (dr: { kind: 'committed' | 'pending'; transaction: CommittedTransaction | PendingTransaction }) => {
       const merchant =
@@ -1795,60 +1793,62 @@ export default function TransactionsPage() {
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
       <DashboardPageShell
         center={
-          <div className="flex flex-col gap-4 text-base">
+          <div className="mx-auto flex w-full max-w-[900px] flex-col gap-6 px-4 pb-16 text-base sm:px-6">
             {isStatementView ? (
-              <div className="mx-auto w-full max-w-[800px]">
+              <div className="w-full">
                 <button
                   type="button"
                   onClick={clearImportFilter}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-500/45 bg-cyan-500/15 px-4 py-3 text-sm font-semibold text-cyan-50 shadow-sm hover:bg-cyan-500/25 transition-colors"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/40 bg-cyan-500/[0.08] px-5 py-3.5 text-sm font-semibold text-cyan-50 transition-colors hover:bg-cyan-500/15"
                 >
                   ← Back to all transactions
                 </button>
-                <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
-                  <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200/95">
                     Statement view
                   </span>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-sm text-slate-400">
                     {sanitizeIssuerPillLabel(selectedStatementInstitution)}
                   </span>
                 </div>
               </div>
             ) : null}
-            <div className="mx-auto w-full max-w-[800px] rounded-xl border border-slate-800/70 bg-slate-900/50 px-4 py-4 sm:px-5">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
-                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Total transactions</div>
-                  <div className="mt-1 text-[20px] font-semibold tabular-nums text-slate-100">
+
+            <section className="border-b border-white/[0.06] pb-8">
+              <div className="grid grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-12">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-widest text-slate-400">Total transactions</div>
+                  <div className="mt-2 text-[28px] font-bold tabular-nums tracking-tight text-white">
                     {urlFilteredCommitted.length + urlFilteredPending.length}
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
-                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-widest text-slate-400">
                     {isStatementView ? 'Spent (statement)' : 'Total spent'}
                   </div>
-                  <div className="mt-1 text-[20px] font-semibold tabular-nums text-red-500">
+                  <div className="mt-2 text-[28px] font-bold tabular-nums tracking-tight text-[#ef4444]">
                     {formatMoney(filteredViewSummary.spent)}
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 px-3 py-3">
-                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-widest text-slate-400">
                     {isStatementView ? 'Income (statement)' : 'Total income'}
                   </div>
-                  <div className="mt-1 text-[20px] font-semibold tabular-nums text-emerald-500">
+                  <div className="mt-2 text-[28px] font-bold tabular-nums tracking-tight text-[#10b981]">
                     {formatMoney(filteredViewSummary.income)}
                   </div>
                 </div>
               </div>
+
               {uncategorizedCount > 0 ? (
-                <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-amber-100">
+                <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-amber-400/25 bg-gradient-to-r from-amber-500/[0.12] to-amber-600/[0.06] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm leading-relaxed text-amber-100/95">
                     Tag found {uncategorizedCount} transaction{uncategorizedCount !== 1 ? 's' : ''} that need review.
                   </p>
                   <button
                     type="button"
                     onClick={focusUncategorizedTransactions}
-                    className="shrink-0 rounded-lg border border-amber-400/50 bg-amber-500/15 px-4 py-2 text-sm font-medium text-amber-50 hover:bg-amber-500/25"
+                    className="shrink-0 rounded-xl border border-amber-400/60 bg-amber-400/15 px-5 py-2.5 text-sm font-semibold text-amber-50 shadow-sm transition-colors hover:bg-amber-400/25"
                   >
                     Review categories
                   </button>
@@ -1856,7 +1856,7 @@ export default function TransactionsPage() {
               ) : null}
 
               {isStatementView && (
-                <div className="mb-3 mt-4">
+                <div className="mt-8">
                   <StatementSummaryHeader
                     statementTransactions={statementHeaderSummary.statementTransactions}
                     income={statementHeaderSummary.income}
@@ -2054,42 +2054,15 @@ export default function TransactionsPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div
+            <section
               id="transactions-feed-anchor"
-              className="mx-auto grid w-full max-w-[800px] grid-cols-1 gap-4 scroll-mt-24"
+              className="flex scroll-mt-28 flex-col gap-6"
             >
-              <div className="flex flex-col rounded-xl border border-slate-800/70 bg-slate-900/40">
               {!showWowPreview && (
                 <>
-              <div className="border-b border-slate-800/80 px-4 py-3">
-                <div className="flex flex-wrap items-center justify-end gap-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSortOrder((s) => (s === 'newest' ? 'oldest' : 'newest'))}
-                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:border-violet-500/40 hover:text-violet-200 transition-colors"
-                    >
-                      {sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const params = new URLSearchParams();
-                        if (importIdFilter) params.set('importId', importIdFilter);
-                        params.set('handoff', 'transactions_to_tag');
-                        const qs = params.toString();
-                        navigate(`/dashboard/smart-categories${qs ? `?${qs}` : ''}`);
-                      }}
-                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:border-violet-500/50 hover:text-violet-200 transition-colors"
-                    >
-                      Smart Categories
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="border-b border-slate-800 bg-slate-900/85 px-3 py-2">
+              <div className="border-b border-white/[0.06] pb-6">
                 <MonthNavigator
                   imports={importListLoading ? [] : importList}
                   currentImportId={importIdFilter || null}
@@ -2097,12 +2070,55 @@ export default function TransactionsPage() {
                 />
               </div>
 
-              <div className="border-b border-slate-800 p-4 flex-shrink-0">
+              <div className="pb-2">
                 <SemanticSearch
                   allTransactions={allTransactions}
                   onResults={setSearchResults}
+                  sortOrder={sortOrder}
+                  onSortOrderChange={setSortOrder}
+                  onOpenSmartCategories={() => {
+                    const params = new URLSearchParams();
+                    if (importIdFilter) params.set('importId', importIdFilter);
+                    params.set('handoff', 'transactions_to_tag');
+                    const qs = params.toString();
+                    navigate(`/dashboard/smart-categories${qs ? `?${qs}` : ''}`);
+                  }}
                 />
               </div>
+
+              {(categoryFilter || importIdFilter) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {importIdFilter ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/35 bg-cyan-500/10 py-1 pl-3 pr-1.5 text-xs font-medium text-cyan-100">
+                      <span className="max-w-[200px] truncate">{sanitizeIssuerPillLabel(selectedStatementInstitution)}</span>
+                      <span className="text-cyan-200/70">· {importScopedCount} tx</span>
+                      <button
+                        type="button"
+                        onClick={clearImportFilter}
+                        className="rounded-full p-1 text-cyan-200/80 hover:bg-cyan-500/20 hover:text-cyan-50"
+                        aria-label="Clear statement filter"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ) : null}
+                  {categoryFilter ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/35 bg-violet-500/10 py-1 pl-3 pr-1.5 text-xs font-medium text-violet-100">
+                      <span className="text-violet-200/80">Category</span>
+                      <span className="max-w-[160px] truncate font-semibold">{categoryFilter}</span>
+                      <span className="text-violet-300/60">({urlFilteredCommitted.length + urlFilteredPending.length})</span>
+                      <button
+                        type="button"
+                        onClick={clearCategoryFilter}
+                        className="rounded-full p-1 text-violet-200/80 hover:bg-violet-500/20 hover:text-violet-50"
+                        aria-label="Clear category filter"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               {deviceImportNotice && (
                 <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
                   <div className="min-w-0">
@@ -2175,47 +2191,7 @@ export default function TransactionsPage() {
                   </details>
                 </div>
               )}
-              {showWowPreview && (
-                <div className="mx-4 mt-3 rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2">
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Statements</div>
-                  <MonthNavigator
-                    imports={importListLoading ? [] : importList}
-                    currentImportId={importIdFilter || null}
-                    onSelect={handleSelectMonthInTable}
-                  />
-                </div>
-              )}
 
-              {importIdFilter && (
-                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
-                  <div className="min-w-0 truncate">
-                    <span className="font-semibold">{sanitizeIssuerPillLabel(selectedStatementInstitution)}</span>
-                    <span className="text-cyan-200/80"> · {importScopedCount} transactions</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearImportFilter}
-                    className="shrink-0 rounded-md border border-cyan-300/40 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-400/20 transition-colors"
-                  >
-                    Clear filter
-                  </button>
-                </div>
-              )}
-              {categoryFilter && (
-                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
-                  <div className="min-w-0 truncate">
-                    Category: <span className="font-semibold">{categoryFilter}</span>
-                    {' '}({urlFilteredCommitted.length} records)
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearCategoryFilter}
-                    className="shrink-0 rounded-md border border-violet-300/40 px-2 py-1 text-[11px] text-violet-100 hover:bg-violet-400/20 transition-colors"
-                  >
-                    Clear filter
-                  </button>
-                </div>
-              )}
               {focusFilter && (
                 <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
                   <div className="min-w-0 truncate">
@@ -2328,7 +2304,7 @@ export default function TransactionsPage() {
                 </>
               )}
 
-              <div ref={spendingBreakdownRef} className="w-full min-h-0">
+              <div ref={spendingBreakdownRef} className="w-full">
                 {hasLoadError ? (
                   <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
                     <p className="text-sm text-amber-300">Could not load transactions right now.</p>
@@ -2589,63 +2565,28 @@ export default function TransactionsPage() {
                   />
                 )}
               </div>
-              </div>
-            </div>
+            </section>
           </div>
         }
       />
 
-      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
-        {txFabOpen ? (
-          <div className="mb-1 flex min-w-[200px] flex-col gap-2 rounded-xl border border-slate-700 bg-slate-900/95 p-3 shadow-2xl backdrop-blur">
-            {pendingCount > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setTxFabOpen(false);
-                  void handleCategorizeWithTagAI();
-                }}
-                disabled={isTagRunning}
-                className="flex items-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-2 text-left text-sm text-violet-100 hover:bg-violet-500/25 disabled:opacity-50"
-              >
-                <Sparkles className="h-4 w-4 shrink-0" />
-                {isTagRunning ? 'Tag is working…' : `Run Tag AI (${pendingCount})`}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                setTxFabOpen(false);
-                openPrimeFromTransactions();
-              }}
-              className="flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-left text-sm text-cyan-100 hover:bg-cyan-500/20"
-            >
-              <MessageCircle className="h-4 w-4 shrink-0" />
-              Ask Prime
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTxFabOpen(false);
-                const params = new URLSearchParams();
-                if (importIdFilter) params.set('importId', importIdFilter);
-                params.set('handoff', 'transactions_to_tag');
-                const qs = params.toString();
-                navigate(`/dashboard/smart-categories${qs ? `?${qs}` : ''}`);
-              }}
-              className="rounded-lg border border-slate-600 px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-800"
-            >
-              Open Smart Categories
-            </button>
-          </div>
-        ) : null}
+      <div className="fixed bottom-6 right-6 z-40">
         <button
           type="button"
-          onClick={() => setTxFabOpen((o) => !o)}
-          className="flex h-14 w-14 items-center justify-center rounded-full border border-violet-500/50 bg-violet-600/90 text-white shadow-lg hover:bg-violet-500 transition-colors"
-          aria-label={txFabOpen ? 'Close assistant actions' : 'Open assistant actions'}
+          onClick={() => {
+            if (typeof document === 'undefined') return;
+            const main = document.querySelector('main[data-dashboard-content]') as HTMLElement | null;
+            if (main) {
+              main.scrollTo({ top: 0, behavior: 'smooth' });
+              return;
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-600/80 bg-slate-900/90 text-slate-100 shadow-lg transition-colors hover:bg-slate-800"
+          aria-label="Scroll to top"
+          title="Scroll to top"
         >
-          {txFabOpen ? <ChevronUp className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
+          <ChevronUp className="h-5 w-5" />
         </button>
       </div>
 

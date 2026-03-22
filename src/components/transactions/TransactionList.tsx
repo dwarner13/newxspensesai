@@ -155,8 +155,8 @@ export function TransactionList({
   const hasMore = visibleCount < allItems.length;
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-col">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {visibleItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
             <p className="text-base text-slate-400 mb-1">No transactions found</p>
@@ -168,18 +168,21 @@ export function TransactionList({
           </div>
         ) : (
           groupedByDay.map((section, sectionIndex) => (
-            <div key={section.key} className="mb-1">
+            <div key={section.key} className="mb-0">
               <div
-                className="sticky top-0 z-[2] px-1 py-2.5 mt-2 first:mt-0 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-sm"
+                className={`px-1 ${sectionIndex === 0 ? 'mt-0' : 'mt-8'} mb-3`}
               >
-                <div className="text-[13px] font-medium uppercase tracking-wide text-slate-500">
-                  {section.label}
+                <div className="flex items-center gap-4">
+                  <span className="shrink-0 text-[13px] font-medium uppercase tracking-[0.15em] text-slate-500">
+                    {section.label}
+                  </span>
+                  <div className="h-px flex-1 bg-white/10" aria-hidden />
                 </div>
                 {sectionIndex === 0 && groupInsight ? (
-                  <p className="mt-1.5 text-sm text-violet-300/90 leading-snug pr-2">{groupInsight}</p>
+                  <p className="mt-3 text-sm leading-snug text-violet-300/90">{groupInsight}</p>
                 ) : null}
               </div>
-              <div className="flex flex-col gap-1.5 pt-2">
+              <div className="flex flex-col">
                 {section.items.map((item) => (
                   <TransactionRow
                     key={item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id}
@@ -227,11 +230,11 @@ export function TransactionList({
       </div>
 
       {hasMore && (
-        <div className="flex justify-center py-4 border-t border-slate-800/80 bg-slate-950/50">
+        <div className="mt-6 border-t border-white/5 pt-2">
           <button
             type="button"
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            className="rounded-full border border-slate-600 bg-slate-800/80 px-6 py-2.5 text-sm font-medium text-slate-200 hover:bg-slate-700 hover:border-slate-500 transition-colors"
+            className="flex h-12 w-full items-center justify-center rounded-xl border border-white/[0.08] bg-transparent text-[14px] text-slate-500 transition-colors hover:border-white/15 hover:bg-white/[0.03] hover:text-slate-400"
           >
             Load more transactions
           </button>

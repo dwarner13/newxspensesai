@@ -135,6 +135,7 @@ export default function DashboardLayout() {
   
   // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
+  const isTransactionsRoute = location.pathname.startsWith('/dashboard/transactions');
   
   // If on onboarding route, render minimal layout (no sidebar, header, chat, rails)
   if (isOnboardingRoute) {
@@ -1220,7 +1221,7 @@ export default function DashboardLayout() {
             - For ALL /dashboard/* routes: Main element is scroll container (internal scrolling only)
             - For other routes: Main element is scroll container (overflow-y-auto with scrollbar-hide) */}
         <main 
-          className="flex-1 min-w-0 w-full max-w-full h-full overflow-y-auto scrollbar-hide overflow-x-hidden pl-8 pr-[calc(2rem+104px)] pb-6 md:pb-8"
+          className={`flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto scrollbar-hide overflow-x-hidden pl-8 pb-6 md:pb-8 ${isTransactionsRoute ? 'pr-8' : 'pr-[calc(2rem+104px)]'}`}
           data-dashboard-content
         >
           <DashboardContentGrid>
@@ -1258,7 +1259,7 @@ export default function DashboardLayout() {
             forceOpen={chatOptions.force === true}
             renderMode="slideout"
             viewportInsetLeftPx={isSidebarCollapsed ? 64 : 224}
-            viewportInsetRightPx={104}
+            viewportInsetRightPx={isTransactionsRoute ? 0 : 104}
             panelPlacement="center"
           />
         </ChatErrorBoundary>
@@ -1274,9 +1275,11 @@ export default function DashboardLayout() {
       {/* All buttons (Prime, Byte, Tag, Crystal) open UnifiedAssistantChat */}
       {/* Rail always mounts on desktop (md+) but visually dims when chat is open */}
       {/* CRITICAL: Always render rail on all dashboard routes (including /dashboard/prime-chat) */}
-      <DesktopChatSideBar 
-        onHistoryClick={handleOpenChatHistory}
-      />
+      {!isTransactionsRoute && (
+        <DesktopChatSideBar 
+          onHistoryClick={handleOpenChatHistory}
+        />
+      )}
 
       {/* Prime Floating Action Button - Bottom-right (z-30, below header z-40) */}
       {/* Opens unified chat slideout with Prime when clicked */}

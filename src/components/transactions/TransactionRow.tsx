@@ -141,11 +141,11 @@ export function TransactionRow({
     !isGenericMerchantLabel(cleanedItemHint);
   const merchantTitle = aliasMatch?.label || prettifyMerchant(merchantResolved);
   const icon = merchantEmoji(merchantTitle);
-  const baseMerchantDisplay = icon ? `${icon} ${merchantTitle}` : merchantTitle;
 
   const renderMerchantDisplay = () => {
-    if (baseMerchantDisplay.toLowerCase().includes('7-eleven')) {
-      const parts = baseMerchantDisplay.split(/(7-eleven)/i);
+    const t = merchantTitle;
+    if (t.toLowerCase().includes('7-eleven')) {
+      const parts = t.split(/(7-eleven)/i);
       return (
         <>
           {parts.map((part, i) =>
@@ -160,7 +160,7 @@ export function TransactionRow({
         </>
       );
     }
-    return baseMerchantDisplay;
+    return t;
   };
 
   const merchantSubtext = showItemHint ? cleanedItemHint : aliasMatch?.itemHint || '';
@@ -187,7 +187,8 @@ export function TransactionRow({
   const isCredit = numAmount < 0 || isIncomeTx;
   const amountPrefix = isCredit ? '+' : '−';
   const amountClass = isCredit ? 'text-emerald-500' : 'text-red-500';
-  const amountStr = Math.abs(numAmount).toFixed(2);
+  const safeAmount = Number.isFinite(numAmount) ? Math.abs(numAmount) : 0;
+  const amountStr = safeAmount.toFixed(2);
 
   const tagConf =
     isPending && pendingTransaction.tag_confidence != null
@@ -226,14 +227,12 @@ export function TransactionRow({
           onClick();
         }
       }}
-      className={`group relative flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors cursor-pointer ${
-        isHighlighted
-          ? 'border-amber-400/50 bg-amber-500/10'
-          : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-600/80 hover:bg-slate-800/50'
+      className={`group relative flex cursor-pointer items-center gap-4 border-b border-white/5 px-1 py-4 transition-all duration-200 ease-out hover:scale-[1.01] hover:bg-white/[0.05] ${
+        isHighlighted ? 'bg-amber-500/[0.08] ring-1 ring-amber-400/30 ring-inset' : ''
       }`}
     >
       <div
-        className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${dotClass} text-lg shadow-inner`}
+        className={`relative flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full ${dotClass} text-lg shadow-inner`}
         aria-hidden
       >
         {isUncategorized ? (
@@ -293,8 +292,8 @@ export function TransactionRow({
         )}
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1 pl-2">
-        <div className={`text-base font-semibold tabular-nums leading-none ${amountClass}`}>
+      <div className="flex min-w-[110px] shrink-0 flex-col items-end gap-1 pl-2 text-right">
+        <div className={`whitespace-nowrap text-[18px] font-bold tabular-nums leading-none tracking-tight ${amountClass}`}>
           {amountPrefix}${amountStr}
         </div>
         {onAskTag && (

@@ -55,32 +55,34 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
 
   if (imports.length === 0) {
     return (
-      <div className="flex items-center gap-2 border-b border-slate-800 px-4 py-2">
-        <span className="text-[11px] text-slate-500">No statements uploaded yet</span>
+      <div className="flex items-center py-1">
+        <span className="text-xs text-slate-500">No statements uploaded yet</span>
       </div>
     );
   }
 
   const isAllActive = currentImportId === null;
 
+  const pillBase =
+    'flex-shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-all duration-200';
+
   return (
     <div
       ref={containerRef}
-      className="flex items-center gap-2 overflow-x-auto border-b border-slate-800 px-4 py-2 scrollbar-none"
+      className="scrollbar-none flex items-center gap-4 overflow-x-auto py-1"
     >
-      {/* All Statements chip */}
       <button
         type="button"
         ref={isAllActive ? activeRef : undefined}
         onClick={() => onSelect(null)}
         className={[
-          'flex-shrink-0 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors',
+          pillBase,
           isAllActive
-            ? 'border-violet-500/60 bg-violet-500/15 text-violet-200'
-            : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-600 hover:text-slate-200',
+            ? 'border-cyan-400/70 bg-cyan-500/10 text-cyan-100 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]'
+            : 'border-transparent bg-white/[0.03] text-slate-500 hover:bg-white/[0.06] hover:text-slate-300',
         ].join(' ')}
       >
-        All Statements
+        All statements
       </button>
 
       {uniqueImports.map((imp) => {
@@ -93,13 +95,13 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
             onClick={() => onSelect(imp.id)}
             title={`${sanitizeIssuerPillLabel(imp.statementLabel)} • ${imp.docName} • Uploaded ${formatLongDate(imp.created_at)}`}
             className={[
-              'flex-shrink-0 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors',
+              pillBase,
               isActive
-                ? 'border-violet-500/60 bg-violet-500/15 text-violet-200'
-                : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-600 hover:text-slate-200',
+                ? 'border-cyan-400/70 bg-cyan-500/10 text-cyan-100 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]'
+                : 'border-transparent bg-white/[0.03] text-slate-500 hover:bg-white/[0.06] hover:text-slate-300',
             ].join(' ')}
           >
-            <span className="truncate max-w-[260px] inline-block align-middle">
+            <span className="inline-block max-w-[220px] truncate align-middle">
               {sanitizeIssuerPillLabel(imp.statementLabel)} · {sanitizeIssuerPillLabel(imp.label)}
             </span>
           </button>

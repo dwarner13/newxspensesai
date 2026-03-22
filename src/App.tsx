@@ -76,6 +76,7 @@ const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPa
 const UploadSpeedTest = lazy(() => import('./pages/dev/UploadSpeedTest'));
 const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 const TransactionsPage = lazy(() => import('./pages/dashboard/TransactionsPage'));
+const TransactionsPageV2 = lazy(() => import('./pages/dashboard/TransactionsPageV2'));
 const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const SmartCategoriesPage = lazy(() => import('./pages/dashboard/SmartCategoriesPage'));
@@ -492,7 +493,7 @@ function App() {
                       <Route path="ai-financial-freedom" element={<Suspense fallback={<LoadingSpinner />}><AIFinancialFreedomPage /></Suspense>} />
                       
                       {/* Planning & Analysis */}
-                      <Route path="transactions" element={<TransactionsPage />} />
+                      <Route path="transactions" element={<TransactionsPageV2 />} />
                       <Route path="bank-accounts" element={<Suspense fallback={<LoadingSpinner />}><BankAccountsPage /></Suspense>} />
                       <Route path="goal-concierge" element={<GoalConciergePage />} />
                       <Route path="smart-automation" element={<Suspense fallback={<LoadingSpinner />}><SmartAutomation /></Suspense>} />
