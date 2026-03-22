@@ -159,6 +159,14 @@ export default function UploadPageV2() {
           </div>
           <input ref={fileRef} type="file" accept={ACCEPT} multiple style={{ display: "none" }}
             onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+            onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+          <button onClick={() => cameraRef.current?.click()} style={{
+            padding: "12px 24px", borderRadius: 12, fontSize: 13, fontWeight: 600,
+            background: T.surface, border: `1px solid ${T.border}`, color: T.muted,
+            cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+            margin: "12px auto 0",
+          }}>{"\uD83D\uDCF7"} Take Photo of Receipt</button>
         </Reveal>
 
         {/* Queue controls */}
