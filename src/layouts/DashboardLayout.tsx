@@ -971,6 +971,17 @@ export default function DashboardLayout() {
     }
   }, [useBodyScroll, location.pathname]);
 
+  // ═══ ONBOARDING REDIRECT ═══
+  // New users (no onboarding_completed) go to /onboarding
+  useEffect(() => {
+    if (!ready || !userId || !profile) return;
+    const metadata = profile?.metadata && typeof profile.metadata === "object" ? profile.metadata : {};
+    const onboardingDone = (metadata as Record<string, unknown>).onboarding_completed === true;
+    if (!onboardingDone && location.pathname.startsWith("/dashboard")) {
+      navigate("/onboarding", { replace: true });
+    }
+  }, [ready, userId, profile, location.pathname, navigate]);
+
   // ═══ SPLASH SCREEN — EARLY RETURN ═══
   if (showSplash && ready && userId) {
     return (

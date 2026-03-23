@@ -91,6 +91,11 @@ const TaxBusinessPageV2 = lazy(() => import('./pages/TaxBusinessV2/TaxBusinessPa
 const SettingsPageV2 = lazy(() => import('./pages/SettingsV2/SettingsPageV2'));
 const XspenseScorePage = lazy(() => import('./pages/XspenseScore/XspenseScorePage'));
 const UploadPageV2 = lazy(() => import('./pages/UploadV2/UploadPageV2'));
+const OnboardingFlowV2 = lazy(() => import('./pages/OnboardingV2/OnboardingFlowV2'));
+const TermsOfServicePage = lazy(() => import('./pages/Legal/TermsOfServicePage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/Legal/PrivacyPolicyPage'));
+const DisclaimerPage = lazy(() => import('./pages/Legal/DisclaimerPage'));
+const DataProcessingPage = lazy(() => import('./pages/Legal/DataProcessingPage'));
 const LoginPageV2 = lazy(() => import('./pages/AuthV2/LoginPageV2'));
 const SignupPageV2 = lazy(() => import('./pages/AuthV2/SignupPageV2'));
 const MarketingHomePage = lazy(() => import('./pages/MarketingSite/MarketingHomePage'));
@@ -303,6 +308,15 @@ function App() {
                         <Route path="/auth/callback" element={<AuthCallbackPage />} />
                         <Route path="/reset-password" element={<Suspense fallback={<LoadingSpinner />}><ResetPasswordPage /></Suspense>} />
                       </Route>
+
+                      {/* Onboarding (standalone, no dashboard layout) */}
+                      <Route path="/onboarding" element={<OnboardingFlowV2 />} />
+
+                      {/* Legal pages (public, use MarketingNav+Footer) */}
+                      <Route path="/terms" element={<TermsOfServicePage />} />
+                      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                      <Route path="/disclaimer" element={<DisclaimerPage />} />
+                      <Route path="/data-processing" element={<DataProcessingPage />} />
 
                       {/* V2 Marketing pages (standalone, have their own nav+footer) */}
                       <Route path="/" element={<MarketingHomePage />} />

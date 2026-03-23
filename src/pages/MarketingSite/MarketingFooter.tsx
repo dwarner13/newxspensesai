@@ -31,7 +31,7 @@ export function MarketingFooter() {
             <div key={col.title}>
               <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 16, textTransform: "uppercase", letterSpacing: 1 }}>{col.title}</div>
               {col.links.map(link => (
-                <a key={link} href={link === "Pricing" ? "/pricing" : "#"} style={{ display: "block", fontSize: 13, color: C.textMuted, textDecoration: "none", marginBottom: 10 }}>{link}</a>
+                <a key={link} href={link === "Pricing" ? "/pricing" : link === "Privacy" ? "/privacy" : link === "Terms" ? "/terms" : "#"} style={{ display: "block", fontSize: 13, color: C.textMuted, textDecoration: "none", marginBottom: 10 }}>{link}</a>
               ))}
             </div>
           ))}

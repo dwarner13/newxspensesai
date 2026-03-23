@@ -227,10 +227,24 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           </div>
         </Reveal>
 
-        {/* Spending breakdown */}
-        {typeDone && (
+        {/* Top transactions */}
+        {typeDone && data.topTransactions.length > 0 && (
           <Reveal delay={0} style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
-            <SpendingBreakdown categories={data.categoryBreakdown} total={data.totalSpent} />
+            <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "14px 16px" }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700, marginBottom: 12 }}>Top Transactions — Latest Statement</div>
+              {data.topTransactions.map((tx, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: i < data.topTransactions.length - 1 ? `1px solid ${THEME.border}` : "none" }}>
+                  <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: THEME.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant}</div>
+                  <div style={{ fontSize: 10.5, color: THEME.textDim, flexShrink: 0, width: 48 }}>{tx.date}</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: tx.isIncome ? "#34d399" : THEME.text, flexShrink: 0, width: 70, textAlign: "right" }}>{tx.isIncome ? "+" : "-"}${tx.amount.toFixed(2)}</div>
+                  <div style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: `${tx.categoryColor}15`, color: tx.categoryColor, flexShrink: 0 }}>{tx.category}</div>
+                </div>
+              ))}
+              {/* Compact category summary */}
+              {data.categorySummary && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${THEME.border}`, fontSize: 10.5, color: THEME.textDim }}>{data.categorySummary}</div>
+              )}
+            </div>
           </Reveal>
         )}
 

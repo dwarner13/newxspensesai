@@ -58,8 +58,11 @@ export default function UploadPageV2() {
       const result = await runSmartImportPipeline({
         userId,
         file: current.file,
+        fileName: current.file.name,
+        mimeType: current.file.type || "application/octet-stream",
+        fileSize: current.file.size,
         source: "upload",
-        accessToken: session?.access_token,
+        authToken: session?.access_token,
       });
 
       updateItem(current.id, { status: "categorizing" });
@@ -85,7 +88,7 @@ export default function UploadPageV2() {
       processingRef.current = true;
       updateItem(next.id, { status: "processing" });
       try {
-        const result = await runSmartImportPipeline({ userId, file: next.file, source: "upload", accessToken: session?.access_token });
+        const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token });
         updateItem(next.id, { status: "categorizing" });
         await new Promise(r => setTimeout(r, 1200));
         updateItem(next.id, { status: "complete", txCount: result?.stats?.transactionCount || result?.transactionCount || 0 });

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { THEME } from "./categoryConfig";
@@ -20,6 +20,12 @@ export default function CategoriesPageV2() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
   const [search, setSearch] = useState("");
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth <= 768);
+    h(); window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
 
   const handleExport = useCallback(() => {
     if (data.categories.length === 0) { toast.error("No categories to export"); return; }
@@ -49,7 +55,7 @@ export default function CategoriesPageV2() {
     return (
       <div style={{
         fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-        maxWidth: 1100, margin: "0 auto", padding: "32px 24px",
+        maxWidth: 1100, margin: "0 auto", padding: isMobile ? "20px 16px" : "32px 24px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, color: THEME.textMuted }}>
           <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid #334155", borderTopColor: "#94a3b8", animation: "spin 1s linear infinite" }} />
@@ -65,7 +71,7 @@ export default function CategoriesPageV2() {
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <div style={{
         fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-        maxWidth: 1100, margin: "0 auto", padding: "32px 24px",
+        maxWidth: 1100, margin: "0 auto", padding: isMobile ? "20px 16px" : "32px 24px",
       }}>
         {/* Header */}
         <Reveal delay={0}>
@@ -76,12 +82,12 @@ export default function CategoriesPageV2() {
                 {data.categoryCount} categories &middot; {totalTxCount} transactions
               </p>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={handleExport} style={{
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {!isMobile && <button onClick={handleExport} style={{
                 display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700,
                 background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 10,
                 color: THEME.textMuted, cursor: "pointer", transition: "all 0.15s",
-              }}>Export Report</button>
+              }}>Export Report</button>}
               {/* Tag Copilot button */}
               <button onClick={() => setCopilotOpen(true)} style={{
                 display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700,
@@ -110,7 +116,7 @@ export default function CategoriesPageV2() {
 
         {/* Stat cards */}
         <Reveal delay={100}>
-          <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
             <StatCard label="Total Spent" value={`$${fmt(data.totalSpent)}`} color={THEME.red}
               icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7 7-7" /></svg>} />
             <StatCard label="Categories" value={String(data.categoryCount)} color={THEME.text}
@@ -180,7 +186,7 @@ export default function CategoriesPageV2() {
         </Reveal>
 
         {/* Category grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
           {filtered.map((cat, i) => (
             <Reveal key={cat.name} delay={300 + i * 60}>
               <CategoryCard category={cat} onClick={() => setSelectedCategory(cat)} />

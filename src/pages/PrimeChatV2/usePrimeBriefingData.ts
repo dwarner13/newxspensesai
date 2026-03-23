@@ -17,6 +17,15 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Healthcare": "#f87171", "Bank Fees": "#94a3b8", "Income": "#34d399", "Other": "#4a5a75",
 };
 
+export interface TopTransaction {
+  merchant: string;
+  date: string;
+  amount: number;
+  category: string;
+  categoryColor: string;
+  isIncome: boolean;
+}
+
 export interface PrimeBriefingData {
   statementCount: number;
   transactionCount: number;
@@ -24,6 +33,9 @@ export interface PrimeBriefingData {
   monthOverMonthPct: number;
   topCategoryChange: { category: string; pct: number };
   categoryBreakdown: { label: string; amount: number; color: string }[];
+  categorySummary: string;
+  topTransactions: TopTransaction[];
+  topMerchant: { name: string; amount: number } | null;
   uncategorizedCount: number;
   pendingImports: number;
   trendAlert: { category: string; months: number[]; direction: "up" | "down" } | null;
@@ -40,7 +52,8 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       return {
         statementCount: 0, transactionCount: 0, totalSpent: 0,
         monthOverMonthPct: 0, topCategoryChange: { category: "", pct: 0 },
-        categoryBreakdown: [], uncategorizedCount: 0, pendingImports: 0,
+        categoryBreakdown: [], categorySummary: "", topTransactions: [], topMerchant: null,
+        uncategorizedCount: 0, pendingImports: 0,
         trendAlert: null, deductions: { total: 0, categories: [] }, loading: true,
       };
     }
@@ -50,10 +63,13 @@ export function usePrimeBriefingData(): PrimeBriefingData {
     // Total spent
     const totalSpent = expenses.reduce((s, t) => s + Math.abs(t.amount), 0);
 
+    // Normalize category names (merge Subscription/Subscriptions)
+    const normCat = (c: string) => c === "Subscription" ? "Subscriptions" : c;
+
     // Category breakdown (expenses only)
     const catMap: Record<string, number> = {};
     expenses.forEach(t => {
-      const cat = t.category || "Other";
+      const cat = normCat(t.category || "Other");
       catMap[cat] = (catMap[cat] || 0) + Math.abs(t.amount);
     });
     const categoryBreakdown = Object.entries(catMap)
@@ -139,6 +155,31 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       .map(l => ({ label: l, amount: Math.round(catMap[l]), color: deductionColors[l] || "#4a5a75" }));
     const dedTotal = dedCats.reduce((s, c) => s + c.amount, 0);
 
+    // Top transactions (by amount, desc)
+    const topTransactions: TopTransaction[] = [...transactions]
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+      .slice(0, 10)
+      .map(t => {
+        const cat = normCat(t.category || "Other");
+        const d = new Date(t.posted_at || "");
+        return {
+          merchant: t.merchant_name || "Unknown",
+          date: isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          amount: Math.abs(t.amount),
+          category: cat,
+          categoryColor: CATEGORY_COLORS[cat] || "#4a5a75",
+          isIncome: isIncome(t),
+        };
+      });
+    const topMerchant = topTransactions.length > 0 && !topTransactions[0].isIncome
+      ? { name: topTransactions[0].merchant, amount: topTransactions[0].amount }
+      : null;
+
+    // Compact category summary string
+    const categorySummary = categoryBreakdown.slice(0, 5)
+      .map(c => `${c.label} ${totalSpent > 0 ? Math.round((c.amount / totalSpent) * 100) : 0}%`)
+      .join(" \u2022 ");
+
     return {
       statementCount: imports.length,
       transactionCount: transactions.length,
@@ -146,6 +187,9 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       monthOverMonthPct,
       topCategoryChange: topCatChange,
       categoryBreakdown,
+      categorySummary,
+      topTransactions,
+      topMerchant,
       uncategorizedCount,
       pendingImports,
       trendAlert,
@@ -159,9 +203,12 @@ export function buildSummaryText(d: PrimeBriefingData): string {
   const dir = d.monthOverMonthPct > 0 ? "up" : "down";
   const topCat = d.topCategoryChange;
 
-  let text =
+  let text = d.topMerchant
+    ? `Your biggest expense this period was ${d.topMerchant.name} at $${d.topMerchant.amount.toLocaleString()}. `
+    : "";
+  text +=
     `You've processed ${d.statementCount} statement${d.statementCount !== 1 ? "s" : ""} totaling $${d.totalSpent.toLocaleString()} ` +
-    `across ${d.transactionCount} transactions this period.`;
+    `across ${d.transactionCount} transactions.`;
 
   if (d.monthOverMonthPct !== 0) {
     text += ` Your spending is ${dir} ${Math.abs(d.monthOverMonthPct)}% month-over-month`;
