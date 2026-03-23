@@ -1074,13 +1074,14 @@ export default function DashboardLayout() {
           </div>
         </div>
 
-        {/* Mobile Menu Drawer â€“ Now using reusable component */}
-        <MobileMenuDrawer
-          open={isMobileMenuOpen}
-          onClose={() => setIsMobileMenuOpen(false)}
-        >
-          <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
-        </MobileMenuDrawer>
+        <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
+        {/* Mobile Menu — direct sidebar, no wrapper */}
+
+
+
+
+
+
 
         {/* Main Content - flex-1 min-h-0 allows proper scrolling */}
         <main className="flex-1 min-h-0 overflow-y-auto pt-16 pb-16 scrollbar-hide">

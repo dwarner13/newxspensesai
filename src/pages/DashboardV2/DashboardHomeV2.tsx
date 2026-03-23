@@ -98,7 +98,6 @@ export default function DashboardHomeV2() {
             <button onClick={() => navigate("/dashboard/xspense-score")} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "24px 20px", marginBottom: 20, borderRadius: 20, background: `linear-gradient(180deg, ${THEME.surface}, ${THEME.bg})`, border: `1px solid ${THEME.border}`, cursor: "pointer", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 180, height: 180, borderRadius: "50%", background: `radial-gradient(circle, ${THEME.accent}15, transparent 70%)`, filter: "blur(30px)" }} />
               <CompactScoreRing score={scoreData.overallScore} size={100} />
-              <div style={{ fontSize: 32, fontWeight: 800, color: THEME.text, marginTop: 8 }}>{scoreData.overallScore}</div>
               <div style={{ fontSize: 12, fontWeight: 600, color: THEME.textMuted, marginTop: 2 }}>Xspense Score</div>
               <div style={{ fontSize: 11, fontWeight: 700, color: THEME.green, marginTop: 6, padding: "3px 12px", borderRadius: 20, background: `${THEME.green}12` }}>+{scoreData.overallScore - scoreData.previousScore} this month</div>
             </button>
@@ -130,7 +129,7 @@ export default function DashboardHomeV2() {
         </Reveal>
 
         {/* FINANCIAL PULSE */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: isMobile ? 8 : 12, marginBottom: 28, padding: isMobile ? "0 2px" : 0 }}>
           {[
             { label: "Income", value: `$${data.income.toLocaleString()}`, trend: data.incomeTrend !== 0 ? `${data.incomeTrend > 0 ? "+" : ""}${data.incomeTrend}%` : null, dir: data.incomeTrend >= 0 ? "up" as const : "down" as const, color: THEME.green, spark: incSpark },
             { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, trend: data.expenseTrend !== 0 ? `${data.expenseTrend > 0 ? "+" : ""}${data.expenseTrend}%` : null, dir: data.expenseTrend >= 0 ? "up" as const : "down" as const, color: "#f87171", spark: expSpark },
@@ -143,7 +142,7 @@ export default function DashboardHomeV2() {
                 onMouseLeave={(e) => { e.currentTarget.style.boxShadow = `0 4px 20px ${s.color}10`; }}
                 style={{
                 background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16,
-                padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: isMobile ? "12px 12px" : "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center",
                 boxShadow: `0 4px 20px ${s.color}10`, transition: "box-shadow 0.25s ease",
               }}>
                 <div>
