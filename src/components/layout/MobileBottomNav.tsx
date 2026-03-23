@@ -106,7 +106,7 @@ export default function MobileBottomNav() {
                 transition: 'color 0.15s',
               }}>
                 <Icon size={20} />
-                <span style={{ fontSize: 10, fontWeight: 600 }}>{tab.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{tab.label}</span>
               </NavLink>
             );
           })}

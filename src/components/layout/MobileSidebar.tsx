@@ -62,12 +62,12 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
                 background: isActive ? `${C.accent}12` : "transparent",
                 borderLeft: isActive ? `3px solid ${C.accent}` : "3px solid transparent",
                 color: isActive ? C.accent : C.muted,
-                textDecoration: "none", fontSize: 14, fontWeight: isActive ? 700 : 500,
+                textDecoration: "none", fontSize: 16, fontWeight: isActive ? 700 : 500,
                 transition: "all 0.15s",
               }}>
                 <Icon size={18} />
                 {item.label}
-                {item.badge && <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${C.accent}15`, color: C.accent }}>{item.badge}</span>}
+                {item.badge && <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${C.accent}15`, color: C.accent }}>{item.badge}</span>}
               </NavLink>
             );
           })}
@@ -77,7 +77,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
             display: "flex", alignItems: "center", gap: 12, width: "100%",
             padding: "14px 16px", borderRadius: 12, marginTop: 12,
             background: `${C.accent}08`, border: `1.5px dashed ${C.accent}33`,
-            color: C.accent, fontSize: 14, fontWeight: 700, cursor: "pointer",
+            color: C.accent, fontSize: 16, fontWeight: 700, cursor: "pointer",
             textAlign: "left",
           }}>
             <Upload size={18} />
@@ -91,8 +91,8 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
             {(firstName || "D").charAt(0).toUpperCase()}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{firstName || "User"}</div>
-            <div style={{ fontSize: 10, color: C.dim }}>Free Plan</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{firstName || "User"}</div>
+            <div style={{ fontSize: 12, color: C.dim }}>Free Plan</div>
           </div>
           <button onClick={() => { onClose(); void signOut(); }} style={{ fontSize: 12, color: "#f87171", background: "none", border: "none", cursor: "pointer" }}>Sign Out</button>
         </div>
