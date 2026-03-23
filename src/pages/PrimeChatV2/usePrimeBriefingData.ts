@@ -200,29 +200,39 @@ export function usePrimeBriefingData(): PrimeBriefingData {
 }
 
 export function buildSummaryText(d: PrimeBriefingData): string {
-  const dir = d.monthOverMonthPct > 0 ? "up" : "down";
-  const topCat = d.topCategoryChange;
+  const parts: string[] = [];
+  const income = d.topTransactions.filter(t => t.isIncome).reduce((s, t) => s + t.amount, 0);
+  const net = income - d.totalSpent;
+  const netLabel = net >= 0 ? `+$${Math.abs(net).toLocaleString()}` : `-$${Math.abs(net).toLocaleString()}`;
 
-  let text = d.topMerchant
-    ? `Your biggest expense this period was ${d.topMerchant.name} at $${d.topMerchant.amount.toLocaleString()}. `
-    : "";
-  text +=
-    `You've processed ${d.statementCount} statement${d.statementCount !== 1 ? "s" : ""} totaling $${d.totalSpent.toLocaleString()} ` +
-    `across ${d.transactionCount} transactions.`;
-
-  if (d.monthOverMonthPct !== 0) {
-    text += ` Your spending is ${dir} ${Math.abs(d.monthOverMonthPct)}% month-over-month`;
-    if (topCat.category) {
-      text += ` \u2014 the biggest driver is a ${Math.abs(topCat.pct)}% ${topCat.pct > 0 ? "jump" : "drop"} in ${topCat.category}`;
-    }
-    text += ".";
+  // Lead with the headline number
+  if (d.transactionCount === 0) {
+    return "No transactions yet. Upload a statement to get started.";
   }
 
+  parts.push(`Across ${d.statementCount} statement${d.statementCount !== 1 ? "s" : ""}, you had $${d.totalSpent.toLocaleString()} in spending and $${income.toLocaleString()} in income \u2014 net ${netLabel} this period.`);
+
+  // Category insight (skip if mostly Other)
+  const topCat = d.categoryBreakdown[0];
+  const topPct = topCat && d.totalSpent > 0 ? Math.round((topCat.amount / d.totalSpent) * 100) : 0;
+  if (topCat && topCat.label !== "Other" && topPct > 25) {
+    parts.push(`${topCat.label} is your biggest spend at $${topCat.amount.toLocaleString()} (${topPct}%).`);
+  } else if (topCat && topCat.label === "Other" && topPct > 50) {
+    parts.push(`${topPct}% of your spending is uncategorized \u2014 review your categories to get a clearer picture.`);
+  }
+
+  // Month-over-month (only if meaningful)
+  if (d.monthOverMonthPct !== 0 && Math.abs(d.monthOverMonthPct) < 500) {
+    const dir = d.monthOverMonthPct > 0 ? "up" : "down";
+    parts.push(`Spending is ${dir} ${Math.abs(d.monthOverMonthPct)}% from last month.`);
+  }
+
+  // Deductions
   if (d.deductions.total > 0) {
-    text += ` I've identified $${d.deductions.total.toLocaleString()} in potential tax deductions you'll want to flag for your accountant.`;
+    parts.push(`I spotted $${d.deductions.total.toLocaleString()} in potential tax deductions worth flagging.`);
   }
 
-  return text;
+  return parts.join(" ");
 }
 
 export function buildThoughtsText(d: PrimeBriefingData): string {
