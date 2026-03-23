@@ -58,8 +58,18 @@ function buildStatementLabel(
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  const hasInstitutionLikeText = /[A-Za-z]{3,}/.test(cleaned);
-  if (hasInstitutionLikeText) return cleaned;
+    const KNOWN_BANKS: Record<string, string> = {
+    'rbc': 'RBC', 'td': 'TD', 'bmo': 'BMO', 'cibc': 'CIBC', 'scotia': 'Scotiabank',
+    'scotiabank': 'Scotiabank', 'tangerine': 'Tangerine', 'simplii': 'Simplii',
+    'capital one': 'Capital One', 'capitalone': 'Capital One', 'amex': 'Amex',
+    'american express': 'Amex', 'chase': 'Chase', 'triangle': 'Triangle',
+    'canadian tire': 'Canadian Tire', 'desjardins': 'Desjardins', 'national bank': 'National Bank',
+    'rogers': 'Rogers', 'mbna': 'MBNA', 'hsbc': 'HSBC', 'pc financial': 'PC Financial',
+  };
+  const lowerCleaned = cleaned.toLowerCase();
+  for (const [key, bankName] of Object.entries(KNOWN_BANKS)) {
+    if (lowerCleaned.includes(key)) return bankName;
+  }
   return 'Statement';
 }
 

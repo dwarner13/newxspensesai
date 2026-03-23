@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import toast from "react-hot-toast";
 import { THEME } from "../PrimeChatV2/agentConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
@@ -174,7 +174,7 @@ export default function SettingsPageV2() {
                       const supabase = getSupabase();
                       if (!supabase || !userId) { toast.error("Not authenticated"); return; }
                       const uid = userId;
-                      // Delete in dependency order — children before parents
+                      // Delete in dependency order � children before parents
                       const tables = [
                         "chat_messages", "chat_sessions", "chat_threads",
                         "score_history", "goals", "debts",

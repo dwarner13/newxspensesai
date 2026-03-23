@@ -230,22 +230,6 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
       {/* SCORE + AI STATUS */}
       {!isCollapsed && (
         <div className="px-3 py-2" style={{ borderTop: '1px solid #1e2d4a' }}>
-          {/* Score badge */}
-          {!scoreData.loading && (
-            <button
-              onClick={() => navigate('/dashboard/xspense-score')}
-              className="w-full flex items-center gap-2.5 rounded-lg px-1 py-1.5 mb-2 transition-colors"
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#162035'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              <CompactScoreRing score={scoreData.overallScore} size={32} />
-              <div>
-                <div className="text-[11px] font-bold" style={{ color: '#e8ecf4' }}>Xspense Score</div>
-                <div className="text-[9px]" style={{ color: '#6b7a99' }}>+{scoreData.overallScore - scoreData.previousScore} this month</div>
-              </div>
-            </button>
-          )}
           <div className="flex items-center gap-2">
             <div className="w-[5px] h-[5px] rounded-full" style={{ background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)' }} />
             <span className="text-[12px] font-semibold" style={{ color: '#6b7a99' }}>4 AI Agents Active</span>

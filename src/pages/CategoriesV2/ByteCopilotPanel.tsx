@@ -5,6 +5,7 @@ import { useImportList } from "@/hooks/useImportList";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { useSetAtom } from "jotai";
 import { isUploadModalOpenAtom } from "@/lib/uiStore";
+import { ChatAttachmentButton } from "@/components/chat/ChatAttachmentButton";
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#7b8ba5", dim: "#4a5a75" };
 const GREEN = "#34d399";
@@ -102,6 +103,7 @@ export function ByteCopilotPanel({ onClose }: ByteCopilotPanelProps) {
         {/* Input */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${T.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: "4px 6px 4px 16px" }}>
+            <ChatAttachmentButton onFileSelected={(file) => { setUploadOpen(true); }} />
             <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Byte about imports..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: 13, padding: "10px 0", fontFamily: "inherit" }} />
             <button onClick={() => { if (input.trim()) { sendMessage(input.trim()); setInput(""); } }} style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${GREEN}, #059669)`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 12px ${GREEN}33` }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="#0b1220" /></svg>

@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
 import { Search, ChevronRight, ArrowDownLeft, ArrowUpRight, TrendingDown, Hash, Upload, Download, Star } from 'lucide-react';
@@ -49,6 +50,13 @@ export default function TransactionsPageV2() {
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("from") === "upload") {
+      setCopilotOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   const handleUpload = useCallback(() => {
     openChat({
@@ -264,8 +272,11 @@ export default function TransactionsPageV2() {
             {stmtPills.map(p => {
               let lbl = p.statementLabel;
               if (lbl.length > 30 || lbl.toLowerCase().includes('nsaction')) lbl = 'Unknown';
+              const pillColors: Record<string, string> = { 'RBC': '#003168', 'Capital One': '#d03027', 'TD': '#2b8000', 'BMO': '#0079c1', 'CIBC': '#c41f3e', 'Scotiabank': '#ec111a', 'Tangerine': '#f58220', 'Amex': '#006fcf', 'Triangle': '#e31837' };
+              const pColor = pillColors[lbl] || '#6366f1';
+              const isActive = statementFilter === p.id;
               return (
-                <button key={p.id} onClick={() => setStatementFilter(p.id)} className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full border transition-colors ${statementFilter === p.id ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' : 'text-slate-600 border-transparent hover:text-slate-400'}`}>{lbl}</button>
+                <button key={p.id} onClick={() => setStatementFilter(p.id)} style={{ background: isActive ? pColor + '22' : 'transparent', color: isActive ? '#e8ecf4' : '#6b7a99', borderColor: isActive ? pColor + '55' : 'transparent', borderWidth: 1, borderStyle: 'solid', padding: '6px 14px', borderRadius: 999, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', cursor: 'pointer', transition: 'all 0.2s', boxShadow: isActive ? `0 0 12px ${pColor}30` : 'none' }}>{lbl}</button>
               );
             })}
           </div>

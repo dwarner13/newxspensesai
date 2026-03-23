@@ -10,7 +10,7 @@ const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,image/*";
 
 type QueueStatus = "queued" | "processing" | "categorizing" | "complete" | "failed";
-interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; }
+interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; progress?: number; }
 
 export default function UploadPageV2() {
   const navigate = useNavigate();
@@ -22,6 +22,8 @@ export default function UploadPageV2() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
   const processingRef = useRef(false);
+  const queueRef = useRef<QueueItem[]>([]);
+  queueRef.current = queue;
 
   const introText = "Drop as many statements as you want. I'll work through them one at a time \u2014 extract transactions, hand each off to Tag for categorization, then Prime reviews.";
   const [typed, typeDone] = useTypewriter(introText, 14, 400);
@@ -81,14 +83,14 @@ export default function UploadPageV2() {
   // Auto-process: after each item completes, start next
   const processAll = useCallback(async () => {
     if (!userId) { toast.error("Not authenticated"); return; }
-    let hasMore = true;
-    while (hasMore) {
-      const next = queue.find(q => q.status === "queued");
-      if (!next) { hasMore = false; break; }
+    const processNextInQueue = async (): Promise<void> => {
+      const currentQueue = queueRef.current;
+      const next = currentQueue.find(q => q.status === "queued");
+      if (!next) { setAllDone(true); return; }
       processingRef.current = true;
       updateItem(next.id, { status: "processing" });
       try {
-        const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token });
+        const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token, onProgress: (p) => updateItem(next.id, { progress: p }) });
         updateItem(next.id, { status: "categorizing" });
         await new Promise(r => setTimeout(r, 1200));
         updateItem(next.id, { status: "complete", txCount: result?.stats?.transactionCount || result?.transactionCount || 0 });
@@ -96,11 +98,11 @@ export default function UploadPageV2() {
         updateItem(next.id, { status: "failed", error: err instanceof Error ? err.message : "Failed" });
       }
       processingRef.current = false;
-      // Re-read queue for next iteration
-      await new Promise(r => setTimeout(r, 300));
-    }
-    setAllDone(true);
-  }, [queue, userId, session, updateItem]);
+      await new Promise(r => setTimeout(r, 500));
+      await processNextInQueue();
+    };
+    await processNextInQueue();
+  }, [userId, session, updateItem]);
 
   const removeItem = (id: string) => setQueue(prev => prev.filter(q => q.id !== id));
   const retryItem = (id: string) => { updateItem(id, { status: "queued", error: undefined }); };
@@ -216,16 +218,17 @@ export default function UploadPageV2() {
                 <div style={{ fontSize: 11, color: T.dim }}>
                   {(item.file.size / 1024).toFixed(0)} KB
                   {item.status === "queued" && ` \u2022 #${queue.filter(q => q.status === "queued").indexOf(item) + 1} in queue`}
-                  {item.status === "processing" && " \u2022 Processing with Byte..."}
+                  {item.status === "processing" && ` \u2022 Processing with Byte... ${item.progress || 0}%`}
                   {item.status === "categorizing" && " \u2022 Categorizing with Tag..."}
                   {item.status === "complete" && ` \u2022 ${item.txCount || 0} transactions extracted`}
                   {item.status === "failed" && ` \u2022 ${item.error || "Failed"}`}
                 </div>
+              {(item.status === "processing" || item.status === "categorizing") && <div style={{ width: "100%", height: 3, borderRadius: 2, background: `${T.dim}22`, marginTop: 6, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: item.status === "categorizing" ? T.cyan : T.green, width: `${item.progress || 0}%`, transition: "width 0.5s ease" }} /></div>}
               </div>
 
               {/* Actions */}
               {item.status === "queued" && <button onClick={() => removeItem(item.id)} style={{ fontSize: 11, color: T.dim, background: "none", border: "none", cursor: "pointer" }}>Remove</button>}
-              {item.status === "complete" && <button onClick={() => navigate("/dashboard/transactions")} style={{ fontSize: 11, fontWeight: 600, color: T.green, background: "none", border: "none", cursor: "pointer" }}>View {"\u2192"}</button>}
+              {item.status === "complete" && <button onClick={() => navigate("/dashboard/transactions?from=upload")} style={{ fontSize: 11, fontWeight: 600, color: T.green, background: "none", border: "none", cursor: "pointer" }}>View {"\u2192"}</button>}
               {item.status === "failed" && <button onClick={() => retryItem(item.id)} style={{ fontSize: 11, fontWeight: 600, color: T.accent, background: "none", border: "none", cursor: "pointer" }}>Retry</button>}
             </div>
           ))}
@@ -260,7 +263,7 @@ export default function UploadPageV2() {
                 {stats.failed > 0 && <span style={{ color: T.red }}> {"\u2022"} {stats.failed} failed</span>}
               </div>
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => navigate("/dashboard/transactions")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: T.bg, cursor: "pointer", boxShadow: `0 4px 16px ${T.accent}35` }}>View Transactions</button>
+                <button onClick={() => navigate("/dashboard/transactions?from=upload")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: T.bg, cursor: "pointer", boxShadow: `0 4px 16px ${T.accent}35` }}>View Transactions</button>
                 <button onClick={() => navigate("/dashboard/categories")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Review Categories</button>
                 <button onClick={() => { setQueue([]); setAllDone(false); }} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Start New Batch</button>
               </div>

@@ -22,6 +22,8 @@ export default function DashboardHomeV2() {
   const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
   const scoreData = useXspenseScore();
   const [loaded, setLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); h(); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
   useEffect(() => setLoaded(true), []);
 
   const hour = new Date().getHours();
@@ -55,16 +57,16 @@ export default function DashboardHomeV2() {
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-      <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", color: THEME.text, padding: "28px 36px" }}>
+      <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", color: THEME.text, padding: isMobile ? "20px 16px" : "28px 36px" }}>
 
         {/* HEADER */}
         <Reveal delay={0}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-start", gap: isMobile ? 12 : 0, marginBottom: 8 }}>
             <div>
               <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0, color: "white" }}>{greeting}, {firstName}</h1>
               <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>Your AI team has been working while you were away.</p>
             </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {/* Xspense Score widget */}
               {!scoreData.loading && (
                 <button onClick={() => navigate("/dashboard/xspense-score")} style={{
@@ -115,7 +117,7 @@ export default function DashboardHomeV2() {
         </Reveal>
 
         {/* FINANCIAL PULSE */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 28 }}>
           {[
             { label: "Income", value: `$${data.income.toLocaleString()}`, trend: data.incomeTrend !== 0 ? `${data.incomeTrend > 0 ? "+" : ""}${data.incomeTrend}%` : null, dir: data.incomeTrend >= 0 ? "up" as const : "down" as const, color: THEME.green, spark: incSpark },
             { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, trend: data.expenseTrend !== 0 ? `${data.expenseTrend > 0 ? "+" : ""}${data.expenseTrend}%` : null, dir: data.expenseTrend >= 0 ? "up" as const : "down" as const, color: "#f87171", spark: expSpark },
@@ -159,7 +161,7 @@ export default function DashboardHomeV2() {
           </div>
         </Reveal>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 28 }}>
           <AgentBriefingCard
             delay={600} agent="Prime" color={THEME.accent}
             urgency={data.netFlow < 0 ? "medium" : null}
@@ -211,7 +213,7 @@ export default function DashboardHomeV2() {
         </div>
 
         {/* BOTTOM: Smart Actions + Activity */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
           <Reveal delay={1100}>
             <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 18, padding: "24px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>

@@ -1,5 +1,6 @@
 import { useState, useRef, type KeyboardEvent } from "react";
 import { THEME } from "./agentConfig";
+import { ChatAttachmentButton } from "@/components/chat/ChatAttachmentButton";
 
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,application/pdf,text/csv,image/jpeg,image/png,image/webp";
 
@@ -49,12 +50,14 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: Pr
           padding: "4px 6px 4px 6px",
         }}
       >
-        {/* Attachment button */}
+        {/* Attachment button with camera/gallery/file menu */}
+        <ChatAttachmentButton onFileSelected={(file) => { if (onFileSelected) onFileSelected(file); }} />
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           title="Attach a statement (PDF, CSV, image)"
           style={{
+            display: "none", /* Hidden — replaced by ChatAttachmentButton */
             width: 34,
             height: 34,
             borderRadius: 10,
@@ -62,7 +65,6 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: Pr
             border: `1px solid ${THEME.border}`,
             color: THEME.textMuted,
             cursor: "pointer",
-            display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,

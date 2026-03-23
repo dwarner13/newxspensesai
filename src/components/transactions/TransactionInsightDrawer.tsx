@@ -5,6 +5,7 @@ import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
 import { resolveMerchantAlias } from '../../lib/merchantAliases';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
+import { CategoryDropdown } from '../CategoryDropdown';
 
 type DrawerTransaction =
   | { kind: 'committed'; transaction: CommittedTransaction }
@@ -83,14 +84,29 @@ export function TransactionInsightDrawer({
     return String(dj.date || row.transaction.parsed_at || '');
   }, [row]);
 
-  const statementLabel = useMemo(() => {
-    if (!row || row.kind !== 'committed') return null;
+  const [statementLabel, setStatementLabel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!row || row.kind !== 'committed') { setStatementLabel(null); return; }
     const imp = row.transaction.import;
     const label = imp?.document?.original_name || (imp as Record<string, unknown>)?.label;
-    if (typeof label === 'string' && label.trim()) return sanitizeIssuerPillLabel(label.trim());
-    const id = String(row.transaction.import_id || '').trim();
-    if (id) return `Statement …${id.slice(-6)}`;
-    return null;
+    if (typeof label === 'string' && label.trim()) { setStatementLabel(sanitizeIssuerPillLabel(label.trim())); return; }
+    // Try fetching issuer from imports table
+    const importId = row.transaction.import_id;
+    if (!importId) { setStatementLabel(null); return; }
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        if (!supabase) return;
+        const { data } = await supabase.from('imports').select('statement_breakdown_json').eq('id', importId).single();
+        const meta = (data?.statement_breakdown_json as Record<string, unknown>)?.statement_meta as Record<string, unknown> | undefined;
+        const issuer = String(meta?.issuer || '').trim();
+        if (issuer) { setStatementLabel(issuer); return; }
+        // Fallback to document name
+        const { data: doc } = await supabase.from('user_documents').select('original_name').eq('id', importId).single();
+        if (doc?.original_name) { setStatementLabel(sanitizeIssuerPillLabel(String(doc.original_name))); return; }
+      } catch { /* ignore */ }
+      setStatementLabel(`Statement \u2026${importId.slice(-6)}`);
+    })();
   }, [row]);
 
   const normalizedMerchant = useMemo(() => normalizeMerchant(rawMerchant), [rawMerchant]);
@@ -269,27 +285,13 @@ export function TransactionInsightDrawer({
               <label htmlFor="tx-drawer-cat" className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
                 Category
               </label>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <select
-                  id="tx-drawer-cat"
+              <div className="mt-2">
+                <CategoryDropdown
                   value={localCategory}
-                  onChange={(e) => setLocalCategory(e.target.value)}
-                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-base text-slate-100 focus:border-white/20 focus:outline-none"
-                >
-                  {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => void (row.kind === 'committed' ? saveCategory() : savePendingCategory())}
-                  disabled={isSavingCat}
-                  className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
-                >
-                  {isSavingCat ? 'Saving…' : 'Save'}
-                </button>
+                  onChange={(cat) => setLocalCategory(cat)}
+                  onSave={() => void (row.kind === 'committed' ? saveCategory() : savePendingCategory())}
+                  showSaveButton={!isSavingCat}
+                />
               </div>
             </div>
 
