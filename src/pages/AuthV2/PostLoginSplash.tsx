@@ -66,11 +66,11 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       }}>Previously On XspensesAI</div>
 
       <h1 style={{
-        fontSize: 32, fontWeight: 800, letterSpacing: -1,
+        fontSize: 38, fontWeight: 800, letterSpacing: -1,
         color: C.text, marginBottom: 6, textAlign: "center",
       }}>Welcome back, {userName}</h1>
 
-      <p style={{ fontSize: 13, color: C.dim, marginBottom: 28, textAlign: "center" }}>
+      <p style={{ fontSize: 15, color: C.dim, marginBottom: 28, textAlign: "center" }}>
         Here&apos;s what your AI team did while you were away.
       </p>
 
@@ -97,7 +97,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             }}>{agent.letter}</div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: agent.color, marginBottom: 2 }}>{agent.name}</div>
-              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{agent.line}</div>
+              <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.5 }}>{agent.line}</div>
             </div>
           </div>
         ))}

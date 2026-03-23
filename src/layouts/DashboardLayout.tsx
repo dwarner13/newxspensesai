@@ -1060,7 +1060,7 @@ export default function DashboardLayout() {
             </div>
             
             <button 
-              onClick={() => setIsProfileModalOpen(true)}
+              onClick={() => { window.location.href = "/dashboard/settings"; }}
               className="flex items-center gap-2 hover:bg-white/10 rounded-lg p-1 transition-all duration-200"
               aria-label="Profile menu"
             >
