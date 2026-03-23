@@ -160,7 +160,7 @@ export default function GoalsDebtPageV2() {
 
       {/* Goalie floating bubble */}
       <div style={{
-        position: "fixed", bottom: 24, right: 24, width: 52, height: 52,
+        position: "fixed", bottom: typeof window !== "undefined" && window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52,
         borderRadius: "50%", background: `linear-gradient(135deg, ${GOALIE_COLOR}, #d4a017)`,
         display: "flex", alignItems: "center", justifyContent: "center",
         cursor: "pointer", boxShadow: `0 4px 20px ${GOALIE_COLOR}44`,

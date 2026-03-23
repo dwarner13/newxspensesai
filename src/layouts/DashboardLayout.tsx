@@ -1210,7 +1210,7 @@ export default function DashboardLayout() {
           aria-label="Open Prime Briefing"
           className="fixed z-40 transition-all hover:scale-105 active:scale-95"
           style={{
-            bottom: 24, right: 24, width: 56, height: 56, borderRadius: 18,
+            bottom: isMobile ? 80 : 24, right: 24, width: 56, height: 56, borderRadius: 18,
             background: 'linear-gradient(135deg, #c8a64e, #a08030)',
             boxShadow: '0 4px 20px rgba(200,166,78,0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',

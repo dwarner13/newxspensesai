@@ -192,7 +192,7 @@ export default function TransactionsPageV2() {
         </div>
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
             { label: 'Total Spent', value: `$${fmt(totalSpent)}`, color: 'text-red-400', icon: <ArrowUpRight className="h-3.5 w-3.5 text-red-400" /> },
             { label: 'Total Income', value: `$${fmt(totalIncome)}`, color: 'text-emerald-400', icon: <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400" /> },
@@ -204,13 +204,13 @@ export default function TransactionsPageV2() {
                 <span className="text-[11px] uppercase tracking-[0.14em] text-slate-400 font-bold">{c.label}</span>
                 <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-slate-800/60">{c.icon}</div>
               </div>
-              <div className={`text-[26px] font-extrabold ${c.color}`}>{c.value}</div>
+              <div className={`text-[18px] md:text-[26px] font-extrabold ${c.color}`}>{c.value}</div>
             </div>
           ))}
         </div>
 
         {/* TWO COLUMN: Donut + AI Insights */}
-        <div className="grid grid-cols-2 gap-3 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
           {/* Donut */}
           <div className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-4">Spending by category</div>
@@ -349,7 +349,7 @@ export default function TransactionsPageV2() {
 
       {/* Byte copilot bubble */}
       {!copilotOpen && (
-        <button onClick={() => setCopilotOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #34d399, #34d399cc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(52,211,153,0.44)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">B</button>
+        <button onClick={() => setCopilotOpen(true)} style={{ position: "fixed", bottom: window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #34d399, #34d399cc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(52,211,153,0.44)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">B</button>
       )}
       {copilotOpen && <ByteCopilotPanel onClose={() => setCopilotOpen(false)} />}
 

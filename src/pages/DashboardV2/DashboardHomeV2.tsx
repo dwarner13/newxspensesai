@@ -136,7 +136,7 @@ export default function DashboardHomeV2() {
                 <div>
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textMuted, fontWeight: 800, marginBottom: 6 }}>{s.label}</div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 24, fontWeight: 800, color: THEME.text }}>{s.value}</span>
+                    <span style={{ fontSize: isMobile ? 18 : 24, fontWeight: 800, color: THEME.text }}>{s.value}</span>
                     {s.trend && (
                       <span style={{
                         fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6,

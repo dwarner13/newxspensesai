@@ -119,7 +119,7 @@ export default function TaxBusinessPageV2() {
 
       {/* Ledger copilot bubble */}
       {!copilotOpen && (
-        <button onClick={() => setCopilotOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #34d399, #34d399cc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(52,211,153,0.44)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }}>L</button>
+        <button onClick={() => setCopilotOpen(true)} style={{ position: "fixed", bottom: typeof window !== "undefined" && window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #34d399, #34d399cc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(52,211,153,0.44)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }}>L</button>
       )}
       {copilotOpen && <LedgerCopilotPanel onClose={() => setCopilotOpen(false)} data={data} />}
     </div>

@@ -1,217 +1,102 @@
-/**
- * Mobile Sidebar Component
- * Uses NAV_ITEMS from nav-registry.tsx as single source of truth
- * Matches DesktopSidebar structure for consistency
- */
+import React from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { X, Home, Receipt, Tags, Brain, FileText, Star, Target, Mic, Briefcase, Settings, Upload } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
-import React, { useRef } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { X, User } from 'lucide-react';
-import NAV_ITEMS from '../../navigation/nav-registry';
-import { isActivePath } from '../../navigation/is-active';
-import { EMPLOYEES } from '../../data/aiEmployees';
-import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
-import { usePrimeState } from '../../contexts/usePrimeState';
-import { getFeatureKeyForRoute } from '../../navigation/feature-keys';
+interface MobileSidebarProps { open: boolean; onClose: () => void; }
 
-interface MobileSidebarProps {
-  open: boolean;
-  onClose: () => void;
-}
+const C = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99", accent: "#c8a64e" };
 
-// Map routes to AI employees (matches DesktopSidebar)
-const getAIEmployeeForRoute = (route: string) => {
-  const routeToEmployee: Record<string, string> = {
-    '/dashboard': 'prime',
-    '/dashboard/prime-chat': 'prime',
-    '/dashboard/chat-history': 'prime',
-    '/dashboard/smart-import-ai': 'byte',
-    '/dashboard/ai-chat-assistant': 'finley',
-    '/dashboard/ai-financial-assistant': 'finley',
-    '/dashboard/smart-categories': 'tag',
-    '/dashboard/analytics-ai': 'dash',
-    '/dashboard/transactions': 'byte',
-    '/dashboard/bank-accounts': 'byte',
-    '/dashboard/goal-concierge': 'goalie',
-    '/dashboard/smart-automation': 'automa',
-    '/dashboard/spending-predictions': 'crystal',
-    '/dashboard/debt-payoff-planner': 'liberty',
-    '/dashboard/ai-financial-freedom': 'liberty',
-    '/dashboard/bill-reminders': 'chime',
-    '/dashboard/personal-podcast': 'roundtable',
-    '/dashboard/financial-story': 'roundtable',
-    '/dashboard/financial-therapist': 'harmony',
-    '/dashboard/wellness-studio': 'harmony',
-    '/dashboard/spotify': 'wave',
-    '/dashboard/tax-assistant': 'ledger',
-    '/dashboard/business-intelligence': 'intelia',
-    '/dashboard/analytics': 'dash',
-    '/dashboard/settings': 'prime',
-    '/dashboard/reports': 'prism'
-  };
-  
-  return routeToEmployee[route] || 'prime';
-};
+const NAV = [
+  { label: "Dashboard", to: "/dashboard", icon: Home, group: "primary" },
+  { label: "Transactions", to: "/dashboard/transactions", icon: Receipt, group: "primary" },
+  { label: "Categories", to: "/dashboard/categories", icon: Tags, group: "primary" },
+  { label: "My Story", to: "/dashboard/my-story", icon: Brain, group: "primary", badge: "New" },
+  { label: "Reports", to: "/dashboard/reports", icon: FileText, group: "primary" },
+  { label: "Xspense Score", to: "/dashboard/xspense-score", icon: Star, group: "primary" },
+  { label: "Goals & Debt", to: "/dashboard/goal-concierge", icon: Target, group: "more" },
+  { label: "Monthly Recap", to: "/dashboard/monthly-recap", icon: Mic, group: "more" },
+  { label: "Tax & Business", to: "/dashboard/tax-business", icon: Briefcase, group: "more" },
+  { label: "Settings", to: "/dashboard/settings", icon: Settings, group: "more" },
+];
 
 export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   const location = useLocation();
-  const primeState = usePrimeState();
-  const warnedKeysRef = useRef<Set<string>>(new Set());
+  const navigate = useNavigate();
+  const { firstName, signOut } = useAuth();
 
-  // Filter items by Prime visibility map (fail-open: show all if Prime state unavailable)
-  const visibleItems = NAV_ITEMS.filter((item) => {
-    const featureKey = getFeatureKeyForRoute(item.to);
-    
-    // If no feature key mapping, show item (fail-open)
-    if (!featureKey) {
-      if (import.meta.env.DEV && !warnedKeysRef.current.has(item.to)) {
-        console.warn(
-          `[MobileSidebar] Nav item "${item.label}" (${item.to}) has no FeatureKey mapping. ` +
-          `Add it to ROUTE_TO_FEATURE_KEY in navigation/feature-keys.ts`
-        );
-        warnedKeysRef.current.add(item.to);
-      }
-      return true; // Fail-open: show item if no mapping
-    }
-    
-    // If Prime state unavailable, show item (fail-open)
-    if (!primeState) {
-      return true;
-    }
-    
-    // Check visibility from Prime state
-    const visibility = primeState.featureVisibilityMap[featureKey];
-    const visible = visibility?.visible ?? true; // Fail-open: default visible
-    
-    // Dev warning if Prime map missing key
-    if (import.meta.env.DEV && visibility === undefined && !warnedKeysRef.current.has(featureKey)) {
-      console.warn(
-        `[MobileSidebar] FeatureKey "${featureKey}" not found in Prime featureVisibilityMap. ` +
-        `Add it to buildFeatureVisibilityMap() in netlify/functions/prime-state.ts`
-      );
-      warnedKeysRef.current.add(featureKey);
-    }
-    
-    return visible;
-  });
-
-  // Group filtered items by their group property (matches DesktopSidebar)
-  const groups = Object.entries(
-    visibleItems.reduce((acc, item) => {
-      const group = item.group ?? 'GENERAL';
-      if (!acc[group]) {
-        acc[group] = [];
-      }
-      acc[group].push(item);
-      return acc;
-    }, {} as Record<string, typeof NAV_ITEMS>)
-  );
+  if (!open) return null;
 
   return (
-    <div
-      className="h-full w-full bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20 flex flex-col backdrop-blur-sm"
-      onClick={(e) => e.stopPropagation()}
-      style={{
-        transform: 'translateX(0)',
-        opacity: 1,
-        transition: 'transform 0.2s ease-out, opacity 0.2s ease-out'
-      }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <PrimeLogoBadge size={32} showGlow={true} />
-          <span className="font-black text-xl text-white">XspensesAI</span>
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 998 }} onClick={onClose} />
+      <div style={{
+        position: "fixed", top: 0, left: 0, bottom: 0, width: 280, zIndex: 999,
+        background: C.bg, borderRight: `1px solid ${C.border}`,
+        display: "flex", flexDirection: "column",
+        fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
+        transform: "translateX(0)", transition: "transform 0.3s",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 20 }}>{"\uD83D\uDC51"}</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: C.text }}>XspensesAI</span>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", padding: 4 }}>
+            <X size={20} />
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors duration-150"
-        >
-          <X size={24} />
-        </button>
-      </div>
 
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 pb-2">
-        {groups.map(([groupName, groupItems], groupIndex) => (
-          <div key={groupName}>
-            {/* Group Header */}
-            <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-              {groupName}
-            </div>
-            
-            {/* Group Items */}
-            <ul className="space-y-1 mb-4">
-              {groupItems.map((item) => {
-                const active = isActivePath(location.pathname, item.to);
-                const employeeKey = getAIEmployeeForRoute(item.to);
-                const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
-                
-                // Check if item is enabled (fail-open: default enabled)
-                const featureKey = getFeatureKeyForRoute(item.to);
-                const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
-                const enabled = visibility?.enabled ?? true;
-                
-                return (
-                  <li key={item.to}>
-                    <NavLink 
-                      to={item.to}
-                      onClick={(e) => {
-                        // Prevent navigation if disabled
-                        if (!enabled) {
-                          e.preventDefault();
-                          if (import.meta.env.DEV) {
-                            console.warn(`[MobileSidebar] Feature "${featureKey}" is disabled. Reason: ${visibility?.reason || 'Unknown'}`);
-                          }
-                          return;
-                        }
-                        // Close sidebar on mobile after navigation
-                        onClose();
-                      }}
-                      className={({ isActive }) => 
-                        `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 ${
-                          enabled ? 'hover:bg-white/10 cursor-pointer' : 'cursor-not-allowed opacity-50'
-                        } ${
-                          (isActive || active) ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                        }`
-                      }
-                    >
-                      <span className="w-5 h-5 shrink-0 relative">
-                        {item.icon}
-                        {/* AI Employee Badge */}
-                        {employee && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80">
-                            {employee.emoji}
-                          </div>
-                        )}
-                      </span>
-                      <span className="font-medium text-white/90">{item.label}</span>
-                    </NavLink>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </div>
+        {/* Nav items */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 8px" }}>
+          {NAV.map(item => {
+            const isActive = item.to === "/dashboard"
+              ? location.pathname === "/dashboard" || location.pathname === "/dashboard/"
+              : location.pathname.startsWith(item.to);
+            const Icon = item.icon;
+            return (
+              <NavLink key={item.to} to={item.to} end={item.to === "/dashboard"} onClick={onClose} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "12px 16px", borderRadius: 10, marginBottom: 2,
+                background: isActive ? `${C.accent}12` : "transparent",
+                borderLeft: isActive ? `3px solid ${C.accent}` : "3px solid transparent",
+                color: isActive ? C.accent : C.muted,
+                textDecoration: "none", fontSize: 14, fontWeight: isActive ? 700 : 500,
+                transition: "all 0.15s",
+              }}>
+                <Icon size={18} />
+                {item.label}
+                {item.badge && <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${C.accent}15`, color: C.accent }}>{item.badge}</span>}
+              </NavLink>
+            );
+          })}
 
-      {/* Footer */}
-      <div className="border-t border-white/10 px-4 py-4 pb-6">
-        <div className="p-4 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-xl border border-purple-500/30 shadow-lg">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-              <User size={20} className="text-white" />
-            </div>
-            <div className="flex-1">
-              <div className="font-semibold text-white text-sm">John Doe</div>
-              <div className="text-xs text-white/80">Premium Plan</div>
-            </div>
+          {/* Upload CTA */}
+          <button onClick={() => { onClose(); navigate("/dashboard/upload"); }} style={{
+            display: "flex", alignItems: "center", gap: 12, width: "100%",
+            padding: "14px 16px", borderRadius: 12, marginTop: 12,
+            background: `${C.accent}08`, border: `1.5px dashed ${C.accent}33`,
+            color: C.accent, fontSize: 14, fontWeight: 700, cursor: "pointer",
+            textAlign: "left",
+          }}>
+            <Upload size={18} />
+            Upload Statement
+          </button>
+        </div>
+
+        {/* User section */}
+        <div style={{ padding: "16px 20px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${C.accent}20`, border: `1px solid ${C.accent}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.accent }}>
+            {(firstName || "D").charAt(0).toUpperCase()}
           </div>
-          <div className="bg-white/20 text-white px-2 py-1 rounded-md text-xs font-medium backdrop-blur-sm">
-            Level 8 Money Master
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{firstName || "User"}</div>
+            <div style={{ fontSize: 10, color: C.dim }}>Free Plan</div>
           </div>
+          <button onClick={() => { onClose(); void signOut(); }} style={{ fontSize: 12, color: "#f87171", background: "none", border: "none", cursor: "pointer" }}>Sign Out</button>
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { THEME } from "../PrimeChatV2/agentConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
@@ -26,6 +26,8 @@ export default function SettingsPageV2() {
   const { userId, signOut } = useAuth();
   const [activeSection, setActiveSection] = useState("account");
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
   const InputRow = ({ label, value }: { label: string; value: string }) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: `1px solid ${THEME.border}` }}>
       <span style={{ fontSize: 13, color: THEME.textMuted }}>{label}</span>
@@ -46,9 +48,9 @@ export default function SettingsPageV2() {
         <p style={{ fontSize: 13, color: THEME.textMuted, marginBottom: 24 }}>Manage your XspensesAI experience</p>
       </Reveal>
 
-      <div style={{ display: "flex", gap: 24 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 16 : 24 }}>
         {/* Left nav */}
-        <Reveal delay={100} style={{ width: 220, flexShrink: 0 }}>
+        <Reveal delay={100} style={{ width: isMobile ? "100%" : 220, flexShrink: 0 }}>
           <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: "8px", position: "sticky", top: 80 }}>
             {NAV_ITEMS.map(item => (
               <div key={item.id} onClick={() => setActiveSection(item.id)} style={{

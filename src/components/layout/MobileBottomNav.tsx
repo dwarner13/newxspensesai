@@ -1,186 +1,117 @@
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Crown, Receipt, Tags, Mic, Settings } from 'lucide-react';
-import { EMPLOYEES } from '../../data/aiEmployees';
-// Legacy ByteDocumentChat removed - now using unified chat
-// import { ByteDocumentChat } from '../chat/_legacy/ByteDocumentChat';
-import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
-import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
+import React, { useState, useRef } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Receipt, Tags, Settings, Plus, X } from 'lucide-react';
 
-interface MobileBottomNavProps {
-  activeEmployee?: string;
-  onEmployeeSelect?: (employeeId: string) => void;
-  onUpload?: () => void;
-  notifications?: number;
-  onViewChange?: (view: string) => void;
-}
-
-// Map routes to AI employees
-const getAIEmployeeForRoute = (route: string) => {
-  const routeToEmployee: Record<string, string> = {
-    '/dashboard': 'prime',
-    '/dashboard/smart-import-ai': 'byte',
-    '/dashboard/ai-financial-assistant': 'finley',
-    '/dashboard/smart-categories': 'tag',
-    '/dashboard/transactions': 'byte',
-    '/dashboard/goal-concierge': 'goalie',
-    '/dashboard/smart-automation': 'automa',
-    '/dashboard/spending-predictions': 'crystal',
-    '/dashboard/debt-payoff-planner': 'liberty',
-    '/dashboard/ai-financial-freedom': 'liberty',
-    '/dashboard/bill-reminders': 'chime',
-    '/dashboard/podcast': 'roundtable',
-    '/dashboard/financial-story': 'roundtable',
-    '/dashboard/financial-therapist': 'harmony',
-    '/dashboard/wellness-studio': 'harmony',
-    '/dashboard/spotify-integration': 'wave',
-    '/dashboard/tax-assistant': 'ledger',
-    '/dashboard/business-intelligence': 'intelia',
-    '/dashboard/analytics': 'dash',
-    '/dashboard/settings': 'prime',
-    '/dashboard/reports': 'prism'
-  };
-  
-  return routeToEmployee[route] || 'prime';
-};
-
-export default function MobileBottomNav({ 
-  activeEmployee, 
-  onEmployeeSelect, 
-  onUpload, 
-  notifications = 0, 
-  onViewChange 
-}: MobileBottomNavProps) {
+export default function MobileBottomNav() {
   const location = useLocation();
-  // Legacy Byte chat state removed - now using unified chat
-  // const [isByteChatOpen, setIsByteChatOpen] = useState(false);
-  const { openChat, isOpen: isChatOpen } = useUnifiedChatLauncher();
-  
-  // Get current AI employee based on route
-  const currentEmployeeKey = getAIEmployeeForRoute(location.pathname);
-  const currentEmployee = EMPLOYEES.find(emp => emp.key === currentEmployeeKey);
-  
-  // Map employee key to slug
-  const employeeKeyToSlug: Record<string, string> = {
-    'prime': 'prime-boss',
-    'byte': EMPLOYEE_SLUGS.BYTE,
-    'tag': 'tag-ai',
-    'crystal': 'crystal-ai',
-    'blitz': 'blitz-debt',
-    'liberty': 'liberty-freedom',
-    'goalie': 'goalie-ai',
-    'finley': 'finley-financial',
-    'ledger': 'ledger-tax',
-    'chime': 'chime-reminders',
-  };
-  const currentEmployeeSlug = employeeKeyToSlug[currentEmployeeKey] || 'prime-boss';
+  const navigate = useNavigate();
+  const [showUploadMenu, setShowUploadMenu] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
-  const triggerPrimeUploadFlow = () => {
-    openChat({
-      initialEmployeeSlug: 'prime-boss',
-      force: true,
-      context: {
-        data: { source: 'mobile-import', intent: 'upload' },
-      },
-      routeHint: '/dashboard/prime-chat',
-    });
+  if (!location.pathname.startsWith('/dashboard')) return null;
 
-    if (typeof window !== 'undefined') {
-      window.setTimeout(() => {
-        const statementInputs = Array.from(
-          document.querySelectorAll(
-            'input[type="file"][accept*=".pdf"][accept*=".csv"][accept*=".xlsx"][accept*=".xls"]'
-          )
-        ) as HTMLInputElement[];
-        const statementInput = statementInputs.find((input) => !input.disabled);
-        statementInput?.click();
-      }, 120);
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Navigate to upload page — file will need to be added there
+      navigate('/dashboard/upload');
     }
+    e.target.value = '';
+    setShowUploadMenu(false);
   };
 
-  const navItems = [
-    {
-      icon: Crown,
-      label: "Prime",
-      to: "/dashboard/prime-chat",
-      isChatbot: true,
-      employee: currentEmployee,
-    },
+  const tabs = [
+    { icon: Home, label: "Home", to: "/dashboard" },
     { icon: Receipt, label: "Money", to: "/dashboard/transactions" },
-    { icon: Tags, label: "Categories", to: "/dashboard/smart-categories" },
-    { icon: Mic, label: "Recap", to: "/dashboard/personal-podcast" },
+    null, // center button placeholder
+    { icon: Tags, label: "Categories", to: "/dashboard/categories" },
     { icon: Settings, label: "Settings", to: "/dashboard/settings" },
   ];
 
   return (
-    <div data-mobile-bottom-nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0b1220] border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <div className="flex items-center justify-between px-2 py-2">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.to;
-          
-          const handleClick = (e: React.MouseEvent) => {
-            if (item.isChatbot) {
-              e.preventDefault();
-              openChat({ 
-                initialEmployeeSlug: currentEmployeeSlug,
-                context: { page: location.pathname }
-              });
-            } else if (item.isByteChat) {
-              e.preventDefault();
-              triggerPrimeUploadFlow();
+    <>
+      {/* Hidden file inputs */}
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFile} />
+      <input ref={galleryRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
+
+      {/* Upload menu overlay */}
+      {showUploadMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 199 }} onClick={() => setShowUploadMenu(false)} />
+          <div style={{
+            position: 'fixed', bottom: 80, left: 16, right: 16,
+            background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 16,
+            padding: 8, zIndex: 200, boxShadow: '0 -8px 40px rgba(0,0,0,0.5)',
+            fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
+          }}>
+            {[
+              { emoji: "\uD83D\uDCF7", title: "Take Photo", desc: "Open camera to snap a receipt", action: () => { cameraRef.current?.click(); } },
+              { emoji: "\uD83D\uDDBC\uFE0F", title: "Choose from Gallery", desc: "Select an existing photo", action: () => { galleryRef.current?.click(); } },
+              { emoji: "\uD83D\uDCC4", title: "Upload Statement", desc: "PDF, CSV, or image file", action: () => { setShowUploadMenu(false); navigate('/dashboard/upload'); } },
+            ].map((opt, i) => (
+              <button key={opt.title} onClick={opt.action} style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                padding: '14px 16px', background: 'transparent', border: 'none', borderRadius: 10,
+                borderBottom: i < 2 ? '1px solid rgba(30,45,74,0.5)' : 'none',
+                color: '#e8ecf4', cursor: 'pointer', textAlign: 'left',
+              }}>
+                <span style={{ fontSize: 20, width: 28, textAlign: 'center' }}>{opt.emoji}</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{opt.title}</div>
+                  <div style={{ fontSize: 11, color: '#6b7a99', marginTop: 2 }}>{opt.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Bottom tab bar */}
+      <div data-mobile-bottom-nav style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+        background: '#0b1220', borderTop: '1px solid #1e2d4a',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: '6px 4px' }}>
+          {tabs.map((tab, i) => {
+            if (!tab) {
+              // Center upload button
+              return (
+                <button key="upload" onClick={() => setShowUploadMenu(!showUploadMenu)} style={{
+                  width: 52, height: 52, borderRadius: '50%',
+                  background: showUploadMenu ? '#1e2d4a' : 'linear-gradient(135deg, #c8a64e, #a08030)',
+                  border: '3px solid #0b1220',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'relative', top: -12,
+                  boxShadow: showUploadMenu ? 'none' : '0 4px 20px rgba(200,166,78,0.4)',
+                  cursor: 'pointer', transition: 'all 0.2s',
+                }}>
+                  {showUploadMenu ? <X size={22} color="#e8ecf4" /> : <Plus size={22} color="#fff" />}
+                </button>
+              );
             }
-          };
-          
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={handleClick}
-              className={`flex flex-col items-center gap-1 px-1 py-1 rounded-lg transition-all duration-200 relative min-w-0 flex-1 ${
-                (isActive || (item.isChatbot && isChatOpen))
-                  ? 'bg-purple-500/20 text-purple-400' 
-                  : 'text-white/60 hover:text-white/80 hover:bg-white/5'
-              }`}
-            >
-              <div
-                className="relative"
-              >
-                {/* Show AI employee emoji for AI Chat, otherwise show icon */}
-                {item.employee ? (
-                  <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                    <span className="text-sm">{item.employee.emoji}</span>
-                  </div>
-                ) : (
-                  <item.icon size={18} />
-                )}
-                
-                {/* Notification badge for AI Chat */}
-                {(item.label === "AI Chat" || item.employee) && notifications > 0 && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {notifications}
-                  </div>
-                )}
-                {/* Notification badge for Alerts */}
-                {item.label === "Alerts" && notifications > 0 && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {notifications}
-                  </div>
-                )}
-              </div>
-              <span className="text-xs font-medium text-center truncate">{item.label}</span>
-              {isActive && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-purple-400 rounded-full"
-                />
-              )}
-            </NavLink>
-          );
-        })}
+
+            const isActive = tab.to === '/dashboard'
+              ? location.pathname === '/dashboard' || location.pathname === '/dashboard/'
+              : location.pathname.startsWith(tab.to);
+            const Icon = tab.icon;
+
+            return (
+              <NavLink key={tab.to} to={tab.to} end={tab.to === '/dashboard'} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                padding: '6px 12px', borderRadius: 8, textDecoration: 'none',
+                color: isActive ? '#c8a64e' : '#6b7a99',
+                transition: 'color 0.15s',
+              }}>
+                <Icon size={20} />
+                <span style={{ fontSize: 10, fontWeight: 600 }}>{tab.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
       </div>
-      
-      {/* Legacy Byte Document Chat Modal removed - now using unified chat from DashboardLayout */}
-    </div>
+    </>
   );
 }

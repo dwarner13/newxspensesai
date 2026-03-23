@@ -232,7 +232,7 @@ export default function MyFinancialStoryV2() {
 
       {/* Crystal floating bubble */}
       <div onClick={() => setCopilotOpen(!copilotOpen)} style={{
-        position: "fixed", bottom: 24, right: 24, width: 52, height: 52,
+        position: "fixed", bottom: typeof window !== "undefined" && window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52,
         borderRadius: "50%", background: "linear-gradient(135deg, #a78bfa, #7c3aed)",
         display: "flex", alignItems: "center", justifyContent: "center",
         cursor: "pointer", boxShadow: "0 4px 20px rgba(167,139,250,0.44)",
