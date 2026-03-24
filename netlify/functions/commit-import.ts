@@ -1223,7 +1223,9 @@ export const handler: Handler = async (event, context) => {
           merchant: merchantName,      // kept for legacy breakdown queries
           amount: signedAmount,
           type: isIncome ? 'income' : 'expense',
-          category: isIncome ? 'Income' : (category || 'Uncategorized'),
+          category: isIncome
+            ? (category && category !== 'Uncategorized' && category !== 'Other' ? category : 'Business Income')
+            : (category || 'Uncategorized'),
           category_source: categorySource || (tx.category_source as string | null) || null,
           source_type: 'smart_import',
           source: 'bank_statement',

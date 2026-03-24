@@ -99,6 +99,16 @@ export async function categorizeTransaction(
       };
     }
   }
+
+  // Step 2b: Income detection — positive amounts or income-type keywords
+  // Self-employed income sources (FreshBooks payments, client cheques, etc.)
+  if (amount > 0) {
+    return {
+      category: 'Business Income',
+      confidence: 0.85,
+      source: 'rule'
+    };
+  }
   
   // Step 3: Check user's vendor memory (optional, skip for now)
   // TODO: Query categorization_rules table for user-specific patterns
@@ -112,7 +122,7 @@ export async function categorizeTransaction(
         messages: [
           {
             role: 'system',
-            content: 'Categorize this transaction into ONE category: Dining, Groceries, Transportation, Shopping, Entertainment, Utilities, Healthcare, Travel, Office Supplies, Subscription, or Other. Reply with ONLY the category name.'
+            content: 'Categorize this transaction into ONE category: Business Income, Client Payment, Dining, Groceries, Transportation, Shopping, Entertainment, Utilities, Healthcare, Travel, Office Supplies, Subscription, or Other. If the transaction is income/revenue/payment received from a client, use "Business Income" or "Client Payment". Reply with ONLY the category name.'
           },
           {
             role: 'user',
