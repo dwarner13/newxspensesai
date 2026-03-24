@@ -29,13 +29,13 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 998 }} onClick={onClose} />
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 998 }} onClick={onClose} />
       <div style={{
-        position: "fixed", top: 0, left: 0, bottom: 0, width: 280, zIndex: 999,
+        position: "fixed", top: 0, left: 0, bottom: 0, width: "85%", maxWidth: 360, zIndex: 999,
         background: C.bg, borderRight: `1px solid ${C.border}`,
         display: "flex", flexDirection: "column",
         fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
-        transform: "translateX(0)", transition: "transform 0.3s",
+        animation: "slideInLeft 0.25s ease-out",
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
@@ -48,7 +48,6 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           </button>
         </div>
 
-        {/* Nav items */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 8px" }}>
           {NAV.map(item => {
             const isActive = item.to === "/dashboard"
@@ -61,7 +60,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
                 padding: "12px 16px", borderRadius: 10, marginBottom: 2,
                 background: isActive ? `${C.accent}12` : "transparent",
                 borderLeft: isActive ? `3px solid ${C.accent}` : "3px solid transparent",
-                color: isActive ? C.accent : C.muted,
+                color: isActive ? C.accent : C.text,
                 textDecoration: "none", fontSize: 16, fontWeight: isActive ? 700 : 500,
                 transition: "all 0.15s",
               }}>
@@ -97,6 +96,9 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           <button onClick={() => { onClose(); void signOut(); }} style={{ fontSize: 12, color: "#f87171", background: "none", border: "none", cursor: "pointer" }}>Sign Out</button>
         </div>
       </div>
+      <style>{`@keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }`}</style>
     </>
   );
 }
+
+

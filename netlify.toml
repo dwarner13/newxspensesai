@@ -43,3 +43,6 @@ external_node_modules = ["undici", "jsdom", "@mozilla/readability", "pdf-lib", "
 
 [functions."chat"]
   timeout = 60
+
+[functions."process-spreadsheet"]
+  timeout = 60

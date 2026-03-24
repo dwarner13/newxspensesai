@@ -7,7 +7,66 @@ import { useAuth } from "@/contexts/AuthContext";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171" };
-const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,image/*";
+const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,.xlsx,.xls,image/*";
+
+function isSpreadsheetFile(name: string): boolean {
+  const ext = name.toLowerCase().split(".").pop() || "";
+  return ["xlsx", "xls", "csv"].includes(ext);
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip "data:...;base64," prefix
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleSpreadsheetUpload(file: File, userId: string, authToken?: string): Promise<{ success: boolean; import_id?: string; byte_message?: string; transaction_count?: number; error?: string }> {
+  const base64 = await fileToBase64(file);
+  const response = await fetch("/.netlify/functions/process-spreadsheet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-user-id": userId },
+    body: JSON.stringify({ file_base64: base64, filename: file.name }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Spreadsheet import failed");
+
+  // Auto-approve and auto-commit so transactions flow through the full pipeline
+  // (approve sets approved_at, commit moves staging → transactions + runs Tag)
+  if (data.import_id) {
+    const authHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-user-id": userId,
+    };
+    if (authToken) authHeaders["Authorization"] = `Bearer ${authToken}`;
+
+    // Approve
+    await fetch("/.netlify/functions/approve-import", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ importId: data.import_id }),
+    });
+
+    // Commit (moves staging → transactions, triggers Tag categorization)
+    const commitRes = await fetch("/.netlify/functions/commit-import", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ importId: data.import_id }),
+    });
+    const commitData = await commitRes.json();
+    if (commitData.committed) {
+      data.transaction_count = commitData.committed;
+    }
+  }
+
+  return data;
+}
 
 type QueueStatus = "queued" | "processing" | "categorizing" | "complete" | "failed";
 interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; progress?: number; }
@@ -57,21 +116,24 @@ export default function UploadPageV2() {
     updateItem(current.id, { status: "processing" });
 
     try {
-      const result = await runSmartImportPipeline({
-        userId,
-        file: current.file,
-        fileName: current.file.name,
-        mimeType: current.file.type || "application/octet-stream",
-        fileSize: current.file.size,
-        source: "upload",
-        authToken: session?.access_token,
-      });
+      let txCount = 0;
+
+      if (isSpreadsheetFile(current.file.name)) {
+        // ── XLSX/CSV path — use dedicated spreadsheet processor ──
+        const xlResult = await handleSpreadsheetUpload(current.file, userId, session?.access_token);
+        txCount = xlResult.transaction_count || 0;
+      } else {
+        // ── PDF/image path — use existing OCR pipeline ──
+        const result = await runSmartImportPipeline({
+          userId, file: current.file, fileName: current.file.name,
+          mimeType: current.file.type || "application/octet-stream",
+          fileSize: current.file.size, source: "upload", authToken: session?.access_token,
+        });
+        txCount = result?.stats?.transactionCount || result?.transactionCount || 0;
+      }
 
       updateItem(current.id, { status: "categorizing" });
-      // Brief pause to show Tag status
       await new Promise(r => setTimeout(r, 1500));
-
-      const txCount = result?.stats?.transactionCount || result?.transactionCount || 0;
       updateItem(current.id, { status: "complete", txCount });
     } catch (err: unknown) {
       updateItem(current.id, { status: "failed", error: err instanceof Error ? err.message : "Processing failed" });
@@ -90,10 +152,17 @@ export default function UploadPageV2() {
       processingRef.current = true;
       updateItem(next.id, { status: "processing" });
       try {
-        const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token, onProgress: (p) => updateItem(next.id, { progress: p }) });
+        let txCount = 0;
+        if (isSpreadsheetFile(next.file.name)) {
+          const xlResult = await handleSpreadsheetUpload(next.file, userId, session?.access_token);
+          txCount = xlResult.transaction_count || 0;
+        } else {
+          const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token });
+          txCount = result?.stats?.transactionCount || result?.transactionCount || 0;
+        }
         updateItem(next.id, { status: "categorizing" });
         await new Promise(r => setTimeout(r, 1200));
-        updateItem(next.id, { status: "complete", txCount: result?.stats?.transactionCount || result?.transactionCount || 0 });
+        updateItem(next.id, { status: "complete", txCount });
       } catch (err: unknown) {
         updateItem(next.id, { status: "failed", error: err instanceof Error ? err.message : "Failed" });
       }
