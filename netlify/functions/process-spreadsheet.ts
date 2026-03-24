@@ -28,6 +28,7 @@ interface ClassificationResult {
     client?: string;
     method?: string;
     category?: string;
+    subcategory?: string;
   };
   confidence: number;
   notes: string;
@@ -39,6 +40,7 @@ interface NormalizedTransaction {
   amount: number;
   type: "income" | "expense";
   category: string;
+  subcategory: string | null;
   merchant: string | null;
   payer: string | null;
   payment_method: string | null;
@@ -88,7 +90,8 @@ Given a spreadsheet's filename, column headers, and first 10 rows, determine:
    - description: which column has a description or memo
    - client: which column has client/payer name (income reports)
    - method: which column has payment method
-   - category: which column has expense category
+   - category: which column has the primary/parent expense category (e.g. "Parent Category", "Category")
+   - subcategory: which column has the subcategory or detailed category (e.g. "Subcategory", "Sub-Category")
 
 3. issuer — detected source app or institution (e.g. "FreshBooks", "QuickBooks", "Wave", "Custom", "Unknown")
 4. currency — detected or assumed currency (default "CAD")
@@ -174,11 +177,12 @@ function normalizeRows(
     const paymentMethod = column_map.method ? String(row[column_map.method] ?? "").trim() : null;
 
     let category = column_map.category ? String(row[column_map.category] ?? "").trim() : "";
+    const subcategory = column_map.subcategory ? String(row[column_map.subcategory] ?? "").trim() || null : null;
     if (!category) category = isIncome ? "Business Income" : "Other";
 
     transactions.push({
       date, description: description || "Unknown", amount: normalizedAmount,
-      type, category, merchant, payer, payment_method: paymentMethod, original_row: row,
+      type, category, subcategory, merchant, payer, payment_method: paymentMethod, original_row: row,
     });
   }
 
@@ -261,7 +265,8 @@ async function insertToStaging(
         type: t.type,
         currency: classification.currency || "CAD",
         category: t.category || null,
-        category_source: t.category ? "xlsx-classification" : null,
+        subcategory: t.subcategory || null,
+        category_source: t.category ? "xlsx-spreadsheet" : null,
         payer: t.payer,
         payment_method: t.payment_method,
         is_business: classification.document_type !== "bank_statement" ? true : null,
