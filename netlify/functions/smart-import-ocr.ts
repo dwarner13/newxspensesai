@@ -433,6 +433,10 @@ type OcrRunMetrics = {
 
 function detectDocTypeFromNameAndText(name: string, text: string): OcrResult['docType'] {
   const lowerName = name.toLowerCase();
+  // Income report PDFs (FreshBooks "Payments Collected", Wave, etc.) contain "Invoice"
+  // on every row as a payment reference — classify as 'statement' so they get row parsing,
+  // not the single-total invoice extractor.
+  if (/payments?\s+collected/i.test(text) || /freshbooks.*payment/i.test(lowerName)) return 'statement';
   if (/invoice/.test(lowerName) || /\binvoice\b/i.test(text)) return 'invoice';
   if (/statement|bank|credit.?card|account/.test(lowerName) || /\bstatement\b|\bopening balance\b|\bclosing balance\b|\btransaction\b/i.test(text)) return 'statement';
   if (/receipt/.test(lowerName) || /\bsubtotal\b|\btip\b|\btotal\b/i.test(text)) return 'receipt';

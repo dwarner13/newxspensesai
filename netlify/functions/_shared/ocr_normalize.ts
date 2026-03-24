@@ -101,6 +101,36 @@ export function normalizeOcrResult(
   const isCreditCard = /credit card|cardmember|visa|mastercard|amex|capital one|account ending|minimum payment/i.test(normalizedText);
   const statementText = hasStatementHints ? filterStatementPages(normalizedText) : normalizedText;
 
+  // ── Income report detection (FreshBooks, Wave, etc.) ───────────────────
+  // Must come BEFORE the invoice check: FreshBooks "Payments Collected" PDFs
+  // contain "Invoice" on every row (as a payment reference) which falsely
+  // triggers invoiceKeywordHint.  These are tabular income reports with
+  // individual payment rows, NOT a single invoice.
+  const isIncomeReport =
+    /payments?\s+collected/i.test(normalizedText) ||
+    (/freshbooks|wave\s+payments|payments?\s+report/i.test(normalizedText) &&
+      /\d{1,2}\/\d{1,2}\/\d{4}/.test(normalizedText));
+
+  if (isIncomeReport) {
+    console.log('[Byte OCR] Detected income report (FreshBooks / Payments Collected)');
+    const incomeRows = parseIncomeReportRows(normalizedText);
+    if (incomeRows.length > 0) {
+      console.log(`[Byte OCR] Parsed ${incomeRows.length} income transactions from report`);
+      const mapped: NormalizedTransaction[] = incomeRows.map(row => ({
+        userId,
+        kind: 'bank' as const,
+        date: row.date,
+        merchant: row.client,
+        amount: row.amount,       // positive = income
+        currency: row.currency || 'CAD',
+        description: `${row.client} — ${row.method || 'Payment'}${row.invoiceNo ? ` (Invoice ${row.invoiceNo})` : ''}`,
+        docId: undefined,
+      }));
+      return openaiClient ? Promise.resolve(mapped) : mapped;
+    }
+    console.warn('[Byte OCR] Income report detected but 0 rows parsed, falling through');
+  }
+
   const invoiceFilenameHint = /invoice/i.test(filename);
   const invoiceKeywordHint = /invoice/i.test(normalizedText) && /(subtotal|tax|total)/i.test(normalizedText);
   const invoiceAddressHint = /(bill to|ship to)/i.test(normalizedText);
@@ -108,6 +138,7 @@ export function normalizeOcrResult(
   const shouldTreatAsInvoice =
     !hasStatementHints &&
     !isCreditCard &&
+    !isIncomeReport &&
     (invoiceFilenameHint || invoiceKeywordHint || invoiceAddressHint || invoicePaymentDueHint);
 
   if (shouldTreatAsInvoice) {
@@ -897,6 +928,97 @@ async function categorizeWithTag(tx: NormalizedTransaction): Promise<Categorizat
 export async function linkToDocument(txId: number, docId: string): Promise<void> {
   // This will be implemented in transactions_store.ts
   // For now, it's a no-op (link is stored in transaction.doc_id)
+}
+
+/**
+ * parseIncomeReportRows — Extracts individual payment rows from income
+ * report PDFs (FreshBooks "Payments Collected", Wave, etc.)
+ *
+ * Expected OCR text pattern (FreshBooks):
+ *   MM/DD/YYYY ClientName Method Invoice NNNNNNN $X,XXX.XX CAD
+ *
+ * Returns each row as a positive-amount income transaction.
+ * Skips $0.00 rows and header/footer text.
+ */
+function parseIncomeReportRows(text: string): Array<{
+  date: string;
+  client: string;
+  method: string | null;
+  invoiceNo: string | null;
+  amount: number;
+  currency: string;
+}> {
+  const results: Array<{
+    date: string;
+    client: string;
+    method: string | null;
+    invoiceNo: string | null;
+    amount: number;
+    currency: string;
+  }> = [];
+
+  // Find each date anchor, then grab everything up to the next date or end-of-text.
+  const datePattern = /(\d{1,2}\/\d{1,2}\/\d{4})/g;
+  const datePositions: Array<{ index: number; date: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = datePattern.exec(text)) !== null) {
+    datePositions.push({ index: m.index, date: m[1] });
+  }
+
+  for (let i = 0; i < datePositions.length; i++) {
+    const start = datePositions[i].index + datePositions[i].date.length;
+    const end = i + 1 < datePositions.length ? datePositions[i + 1].index : text.length;
+    const chunk = text.slice(start, end).replace(/\n/g, ' ').trim();
+
+    // Extract dollar amount: $1,200.00 or $300.00
+    const amountMatch = chunk.match(/\$([0-9,]+\.\d{2})/);
+    if (!amountMatch) continue;
+    const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+    if (amount === 0) continue; // skip $0.00 rows
+
+    // Extract currency (default CAD)
+    const currencyMatch = chunk.match(/\$[0-9,]+\.\d{2}\s*(CAD|USD|EUR|GBP)/i);
+    const currency = currencyMatch?.[1]?.toUpperCase() || 'CAD';
+
+    // Extract invoice number
+    const invoiceMatch = chunk.match(/(?:Invoice|Credit)\s*(\d{4,})/i);
+    const invoiceNo = invoiceMatch?.[1] || null;
+
+    // Extract method — must appear as a standalone word followed by "Invoice"/"Credit"
+    // or end-of-chunk.  Avoid matching "Cash" inside client names like "Cash for Cars".
+    const methodMatch = chunk.match(/\b(Transfer|Check|Credit|EFT|Wire|ACH|Direct\s+Deposit)\s+(?=Invoice|Credit|\$)/i);
+    const method = methodMatch?.[1] || null;
+
+    // Client name: everything before the method keyword (or before Invoice/amount)
+    let clientText = chunk;
+    if (methodMatch?.index !== undefined && methodMatch.index > 0) {
+      clientText = chunk.slice(0, methodMatch.index);
+    } else if (invoiceMatch?.index !== undefined) {
+      clientText = chunk.slice(0, invoiceMatch.index);
+    } else if (amountMatch?.index !== undefined) {
+      clientText = chunk.slice(0, amountMatch.index);
+    }
+    const client = clientText.replace(/\s+/g, ' ').trim();
+    if (!client || client.length < 2) continue;
+
+    // Skip header/footer lines
+    if (/^Date\b|^Client\b|^Method\b|payments?\s+applied|do not count/i.test(client)) continue;
+
+    // Normalize date: MM/DD/YYYY → YYYY-MM-DD
+    const [mm, dd, yyyy] = datePositions[i].date.split('/');
+    const isoDate = `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+
+    results.push({
+      date: isoDate,
+      client,
+      method,
+      invoiceNo,
+      amount: Math.abs(amount), // income = positive
+      currency,
+    });
+  }
+
+  return results;
 }
 
 /**
