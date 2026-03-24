@@ -140,8 +140,23 @@ function normalizeRows(
     if (column_map.date) {
       const rawDate = String(row[column_map.date] ?? "").trim();
       if (rawDate) {
-        const parsed = new Date(rawDate);
-        date = !isNaN(parsed.getTime()) ? parsed.toISOString().split("T")[0] : rawDate;
+        // Excel serial number detection: a pure number between 30000-60000
+        // is days since 1900-01-01 (e.g. 45339 = 2024-02-15)
+        const numVal = Number(rawDate);
+        if (!isNaN(numVal) && numVal > 30000 && numVal < 60000) {
+          const converted = new Date((numVal - 25569) * 86400000);
+          date = converted.toISOString().split("T")[0];
+        } else {
+          const parsed = new Date(rawDate);
+          date = !isNaN(parsed.getTime()) ? parsed.toISOString().split("T")[0] : rawDate;
+        }
+        // Validate: must be between 2000 and 2030, otherwise null out
+        if (date) {
+          const year = parseInt(date.slice(0, 4), 10);
+          if (isNaN(year) || year < 2000 || year > 2030) {
+            date = "";
+          }
+        }
       }
     }
 
