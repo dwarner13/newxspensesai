@@ -272,7 +272,7 @@ async function insertToStaging(
     const batch = dedupedRows.slice(i, i + BATCH_SIZE);
     const { error: stagingError } = await supabase
       .from("transactions_staging")
-      .upsert(batch, { onConflict: "hash", ignoreDuplicates: true });
+      .insert(batch);
     if (stagingError) throw new Error(`Failed to insert staging batch ${i}: ${stagingError.message}`);
   }
 
