@@ -172,7 +172,7 @@ export default function TransactionsPageV2() {
   const uncategorizedCount = transactions.filter(t => !t.category || t.category === 'Uncategorized').length;
 
   if (isLoading) return (
-    <div className="max-w-[1100px] mx-auto px-6 py-8">
+    <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8">
       <div className="flex items-center gap-3 text-slate-400"><div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-600 border-t-slate-300" /> Loading transactions...</div>
     </div>
   );
@@ -180,8 +180,8 @@ export default function TransactionsPageV2() {
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-      <div className="max-w-[1100px] mx-auto px-6 py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-        {/* HEADER */}
+      <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-3">
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0 }}>Transactions</h1>

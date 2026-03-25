@@ -75,7 +75,7 @@ export default function CategoriesPageV2() {
       }}>
         {/* Header */}
         <Reveal delay={0}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-start", marginBottom: 24, gap: isMobile ? 12 : 0 }}>
             <div>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: "white", margin: 0, letterSpacing: -0.3 }}>Categories</h1>
               <p style={{ fontSize: 12, color: THEME.textDim, marginTop: 4 }}>

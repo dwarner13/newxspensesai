@@ -5906,7 +5906,18 @@ export const handler: Handler = async (event, context) => {
           const hasHandoff = employeeTools.includes('request_employee_handoff');
           console.log(`[Chat] Tag tools check - request_employee_handoff included: ${hasHandoff}`);
           if (!hasHandoff) {
-            console.warn(`[Chat] WARNING: Tag is missing request_employee_handoff tool! Current tools:`, employeeTools);
+            console.log(`[Chat] Adding request_employee_handoff to Tag's tools (was missing from DB profile)`);
+            employeeTools.push('request_employee_handoff');
+            toolModules = pickTools(employeeTools);
+          }
+        }
+        if (finalEmployeeSlug === 'byte-docs' || finalEmployeeSlug === 'byte') {
+          const hasHandoff = employeeTools.includes('request_employee_handoff');
+          console.log(`[Chat] Byte tools check - request_employee_handoff included: ${hasHandoff}`);
+          if (!hasHandoff) {
+            console.log(`[Chat] Adding request_employee_handoff to Byte's tools (was missing from DB profile)`);
+            employeeTools.push('request_employee_handoff');
+            toolModules = pickTools(employeeTools);
           }
         }
       } else {
@@ -9007,9 +9018,73 @@ CUSTODIAN CONTEXT (Account Security & Settings):
           }
         : null;
 
+    // Tag-specific: escalation + rule-setting instructions
+    const tagAuthorityHint =
+      (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag')
+        ? {
+            role: 'system' as const,
+            content: `TAG ESCALATION & RULE-SETTING INSTRUCTIONS
+
+ESCALATION: If the user asks about financial strategy, tax advice, deduction optimization, budgeting goals, or anything beyond categorization — do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my categorization expertise — let me bring in Prime for that."
+
+RULE-SETTING: You can set categorization rules. When a user says "mark X as business" or "X should be categorized as Y", insert into category_rules table: { user_id, merchant_pattern (the match_value), category, is_business, match_type: "contains", is_active: true }. Then confirm: "Rule saved — all future X transactions will be categorized as Y." Use the tag-learn function or direct Supabase insert via tag_upsert_rule if available.`,
+          }
+        : null;
+
+    // Byte-specific: upload/import awareness + escalation instructions
+    let byteContextHint: { role: 'system'; content: string } | null = null;
+    if (finalEmployeeSlug === 'byte-docs' || finalEmployeeSlug === 'byte') {
+      try {
+        const [importsResult, docsResult] = await Promise.all([
+          sb.from('imports')
+            .select('id, filename, status, via, source, created_at, statement_breakdown_json')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(20),
+          sb.from('user_documents')
+            .select('id, file_name, file_type, created_at')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(20),
+        ]);
+
+        const importLines = (importsResult.data || []).map((imp: any) => {
+          const bd = imp.statement_breakdown_json;
+          const txCount = bd?.total_transactions ?? '?';
+          const totalAmt = bd?.total_amount != null ? `$${Number(bd.total_amount).toLocaleString('en-CA', { minimumFractionDigits: 2 })}` : '?';
+          return `- [${imp.status}] "${imp.filename}" (${imp.via || imp.source || 'unknown'}) — ${txCount} txns, ${totalAmt} — ${imp.created_at}`;
+        });
+
+        const docLines = (docsResult.data || []).map((doc: any) =>
+          `- "${doc.file_name}" (${doc.file_type || 'unknown'}) — ${doc.created_at}`
+        );
+
+        const contextBlock = [
+          `BYTE CONTEXT: RECENT UPLOADS & IMPORTS`,
+          ``,
+          `Recent imports (${importLines.length}):`,
+          ...(importLines.length > 0 ? importLines : ['  (none)']),
+          ``,
+          `Recent documents (${docLines.length}):`,
+          ...(docLines.length > 0 ? docLines : ['  (none)']),
+          ``,
+          `Use this data to answer questions about upload status, processing results, transaction counts, and file history.`,
+          ``,
+          `ESCALATION: If the user asks about financial strategy, spending analysis, tax advice, or anything beyond document processing and imports — do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my document expertise — let me bring in Prime for that."`,
+        ].join('\n');
+
+        byteContextHint = { role: 'system' as const, content: contextBlock };
+        console.log(`[Chat] Byte context loaded: ${importLines.length} imports, ${docLines.length} documents`);
+      } catch (byteCtxErr: any) {
+        console.warn('[Chat] Failed to load Byte context (non-fatal):', byteCtxErr?.message);
+      }
+    }
+
     // Build final messages: system messages + chat history + current user message
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       ...(primeAuthorityHint ? [primeAuthorityHint] : []),
+      ...(tagAuthorityHint ? [tagAuthorityHint] : []),
+      ...(byteContextHint ? [byteContextHint] : []),
       ...systemMessages,
       ...recentMessages.map((m: any) => ({
         role: m.role as 'user' | 'assistant',
