@@ -1043,11 +1043,9 @@ export default function DashboardLayout() {
                 log('Mobile menu button clicked, setting isMobileMenuOpen to true');
                 setIsMobileMenuOpen(true);
               }}
-              className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
               className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             
@@ -1075,7 +1073,7 @@ export default function DashboardLayout() {
         </div>
 
         <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
-        {/* Mobile Menu — direct sidebar, no wrapper */}
+        {/* Mobile Menu ï¿½ direct sidebar, no wrapper */}
 
 
 
@@ -1084,14 +1082,12 @@ export default function DashboardLayout() {
 
 
         {/* Main Content - flex-1 min-h-0 allows proper scrolling */}
-        <main className="flex-1 min-h-0 overflow-y-auto pt-16 pb-16 scrollbar-hide">
         <main className="flex-1 min-h-0 overflow-y-auto pt-20 pb-20 scrollbar-hide">
             <div className="h-full">
               <Outlet />
             </div>
-          </div>
         </main>
-        {/* Prime Floating Bubble — mobile */}
+        {/* Prime Floating Bubble ï¿½ mobile */}
         {!isPrimeBriefingOpen && !(/\/(transactions|categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
           <button
             onClick={() => setIsPrimeBriefingOpen(true)}
