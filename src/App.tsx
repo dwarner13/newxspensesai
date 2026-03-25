@@ -88,6 +88,7 @@ const ReportsPageV2 = lazy(() => import('./pages/ReportsV2/ReportsPageV2'));
 const GoalsDebtPageV2 = lazy(() => import('./pages/GoalsDebtV2/GoalsDebtPageV2'));
 const MonthlyRecapPageV2 = lazy(() => import('./pages/MonthlyRecapV2/MonthlyRecapPageV2'));
 const TaxBusinessPageV2 = lazy(() => import('./pages/TaxBusinessV2/TaxBusinessPageV2'));
+const TaxWorkspacePage = lazy(() => import('./pages/dashboard/TaxWorkspacePage'));
 const SettingsPageV2 = lazy(() => import('./pages/SettingsV2/SettingsPageV2'));
 const XspenseScorePage = lazy(() => import('./pages/XspenseScore/XspenseScorePage'));
 const UploadPageV2 = lazy(() => import('./pages/UploadV2/UploadPageV2'));
@@ -540,6 +541,7 @@ function App() {
                       <Route path="spotify" element={<SpotifyIntegrationPage />} />
                       
                       {/* Business & Tax */}
+                      <Route path="tax-workspace" element={<Suspense fallback={<LoadingSpinner />}><TaxWorkspacePage /></Suspense>} />
                       <Route path="tax-business" element={<TaxBusinessPageV2 />} />
                       <Route path="tax-assistant" element={<Navigate to="/dashboard/tax-business" replace />} />
                       <Route path="business-intelligence" element={<Suspense fallback={<LoadingSpinner />}><BusinessIntelligencePage /></Suspense>} />

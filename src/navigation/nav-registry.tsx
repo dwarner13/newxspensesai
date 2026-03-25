@@ -82,6 +82,14 @@ const NAV_ITEMS: NavItem[] = [
     description: "AI-generated financial recaps",
   },
   {
+    label: "Tax Summary",
+    to: "/dashboard/tax-workspace",
+    icon: <Briefcase className="w-5 h-5" />,
+    group: "MORE",
+    description: "Auto-generated tax summary from your statements",
+    badge: 'new',
+  },
+  {
     label: "Tax & Business",
     to: "/dashboard/tax-business",
     icon: <Briefcase className="w-5 h-5" />,
