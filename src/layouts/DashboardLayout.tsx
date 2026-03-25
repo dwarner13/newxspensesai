@@ -1035,7 +1035,6 @@ export default function DashboardLayout() {
           isPulling={pullToRefresh.isPulling}
         />
         {/* Mobile Header */}
-        <div className="fixed top-0 left-0 right-0 z-50 bg-[#0b1220] border-b border-white/10" style={{right: 'var(--scrollbar-width, 0px)'}}>
         <div className="fixed top-0 left-0 right-0 z-50 bg-[#0b1220] border-b border-white/10" style={{right: "var(--scrollbar-width, 0px)", paddingTop: "env(safe-area-inset-top, 0px)"}}>
           <div className="flex items-center justify-between px-4 py-3">
             <button
