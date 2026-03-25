@@ -31,7 +31,9 @@ function isIncomeTx(t: CommittedTransaction): boolean {
   const cat = (t.category || '').toLowerCase();
   const merchant = (t.merchant_name || '').toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || '').toLowerCase();
-  return t.amount < 0 || txType === 'income' || cat === 'income' || INCOME_PATTERNS.test(merchant);
+  // Primary signal: type field set by commit-import (most reliable)
+  // Do NOT use amount sign — expenses are stored as negative values
+  return txType === 'income' || cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

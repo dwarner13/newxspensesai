@@ -1091,6 +1091,16 @@ export default function DashboardLayout() {
             </div>
           </div>
         </main>
+        {/* Prime Floating Bubble — mobile */}
+        {!isPrimeBriefingOpen && !(/\/(transactions|categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
+          <button
+            onClick={() => setIsPrimeBriefingOpen(true)}
+            style={{ position: "fixed", bottom: 80, right: 16, width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg, #c8a64e, #a08030)", boxShadow: "0 4px 20px rgba(200,166,78,0.4)", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", zIndex: 40 }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+            <span style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: "#34d399", border: "2px solid #0b1220" }} />
+          </button>
+        )}
 
         {/* Mobile Bottom Navigation */}
         <MobileBottomNav />
@@ -1100,6 +1110,7 @@ export default function DashboardLayout() {
           isOpen={isProfileModalOpen} 
           onClose={() => setIsProfileModalOpen(false)} 
         />
+        <PrimeBriefingPanel />
         
         {/* Prime Intro Modal - REMOVED: Prime onboarding now handled in chat */}
         {/* <PrimeIntroModal open={showIntro} onComplete={complete} /> */}

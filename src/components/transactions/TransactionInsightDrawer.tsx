@@ -187,8 +187,10 @@ export function TransactionInsightDrawer({
   const INCOME_PATTERNS_TR = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
   const catLower = localCategory.toLowerCase();
   const merchUpper = rawMerchant.toUpperCase();
+  const txTypeLower = String((row.transaction as Record<string, unknown>)?.type || '').toLowerCase();
+  // Do NOT use amount sign — expenses are stored as negative values
   const isIncomeTx =
-    amount < 0 || catLower === 'income' || INCOME_PATTERNS_TR.test(merchUpper);
+    txTypeLower === 'income' || catLower === 'income' || catLower === 'business income' || INCOME_PATTERNS_TR.test(merchUpper);
   const amountClass = isIncomeTx ? 'text-[#10b981]' : 'text-[#ef4444]';
   const amountPrefix = isIncomeTx ? '+' : '−';
 

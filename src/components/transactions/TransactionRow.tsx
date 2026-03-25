@@ -184,7 +184,8 @@ export function TransactionRow({
   const isIncomeTx =
     txType === 'income' || txCategoryLower === 'income' || INCOME_PATTERNS_TR.test(txMerchantUpper);
   const numAmount = Number(amount);
-  const isCredit = numAmount < 0 || isIncomeTx;
+  // Do NOT use amount sign — expenses are stored as negative values
+  const isCredit = isIncomeTx;
   const amountPrefix = isCredit ? '+' : '−';
   const amountClass = isCredit ? 'text-emerald-500' : 'text-red-500';
   const safeAmount = Number.isFinite(numAmount) ? Math.abs(numAmount) : 0;
