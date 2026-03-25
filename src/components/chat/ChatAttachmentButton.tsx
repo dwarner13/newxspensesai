@@ -52,10 +52,11 @@ export function ChatAttachmentButton({ onFileSelected }: ChatAttachmentButtonPro
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setShowMenu(false)} />
           <div style={{
-            position: "absolute", bottom: "100%", left: -8, right: -8, marginBottom: 12,
-            background: "#111a2e", border: "1px solid #1e2d4a", borderRadius: 14,
+            position: "absolute", bottom: "100%", left: 0, marginBottom: 12,
+            minWidth: 260,
+            background: "#1a2332", border: "1px solid #2a3a52", borderRadius: 12,
             padding: 8, zIndex: 100,
-            boxShadow: "0 -8px 32px rgba(0,0,0,0.4)",
+            boxShadow: "0 -8px 32px rgba(0,0,0,0.5), 0 -2px 8px rgba(0,0,0,0.3)",
           }}>
             {[
               { emoji: "\uD83D\uDCF7", title: "Take Photo", desc: "Open camera to snap a receipt", action: () => cameraRef.current?.click() },
@@ -64,12 +65,12 @@ export function ChatAttachmentButton({ onFileSelected }: ChatAttachmentButtonPro
             ].map((opt, i) => (
               <button key={opt.title} onClick={() => { opt.action(); setShowMenu(false); }} style={{
                 display: "flex", alignItems: "center", gap: 12, width: "100%",
-                padding: "14px 16px", background: "transparent", border: "none", borderRadius: 10,
+                padding: "10px 16px", background: "transparent", border: "none", borderRadius: 10,
                 borderBottom: i < 2 ? "1px solid rgba(30,45,74,0.5)" : "none",
                 color: "#e8ecf4", cursor: "pointer", textAlign: "left",
                 transition: "background 0.15s", fontFamily: "inherit",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2d4a"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#243044"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
                 <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{opt.emoji}</span>

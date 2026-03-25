@@ -24,7 +24,7 @@ export function AgentCallout({ agent, text, cta, onCtaClick }: AgentCalloutProps
     >
       <AgentDot agent={agent} size={24} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, color: "#e8ecf4", lineHeight: 1.5 }}>{text}</div>
+        <div style={{ fontSize: 15, color: "#e8ecf4", lineHeight: 1.6 }}>{text}</div>
         {cta && (
           <button
             onClick={onCtaClick}

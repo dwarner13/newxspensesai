@@ -23,7 +23,8 @@ export default function DashboardHomeV2() {
   const scoreData = useXspenseScore();
   const [loaded, setLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); h(); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
+  const [isVerySmall, setIsVerySmall] = useState(false);
+  useEffect(() => { const h = () => { setIsMobile(window.innerWidth <= 768); setIsVerySmall(window.innerWidth < 480); }; h(); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
   useEffect(() => setLoaded(true), []);
 
   const hour = new Date().getHours();
@@ -92,7 +93,7 @@ export default function DashboardHomeV2() {
           </div>
         </Reveal>
 
-        {/* MOBILE HERO SCORE — Borrowell style */}
+        {/* MOBILE HERO SCORE ï¿½ Borrowell style */}
         {isMobile && !scoreData.loading && (
           <Reveal delay={100}>
             <button onClick={() => navigate("/dashboard/xspense-score")} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "24px 20px", marginBottom: 20, borderRadius: 20, background: `linear-gradient(180deg, ${THEME.surface}, ${THEME.bg})`, border: `1px solid ${THEME.border}`, cursor: "pointer", position: "relative", overflow: "hidden" }}>
@@ -129,14 +130,14 @@ export default function DashboardHomeV2() {
         </Reveal>
 
         {/* FINANCIAL PULSE */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: isMobile ? 8 : 12, marginBottom: 28, padding: isMobile ? "0 2px" : 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isVerySmall ? "1fr" : isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: 28, padding: isMobile ? "0 2px" : 0 }}>
           {[
             { label: "Income", value: `$${data.income.toLocaleString()}`, trend: data.incomeTrend !== 0 ? `${data.incomeTrend > 0 ? "+" : ""}${data.incomeTrend}%` : null, dir: data.incomeTrend >= 0 ? "up" as const : "down" as const, color: THEME.green, spark: incSpark },
             { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, trend: data.expenseTrend !== 0 ? `${data.expenseTrend > 0 ? "+" : ""}${data.expenseTrend}%` : null, dir: data.expenseTrend >= 0 ? "up" as const : "down" as const, color: "#f87171", spark: expSpark },
             { label: "Net Flow", value: `${data.netFlow >= 0 ? "+" : ""}$${data.netFlow.toLocaleString()}`, trend: null, dir: data.netFlow >= 0 ? "up" as const : "down" as const, color: data.netFlow >= 0 ? THEME.green : "#fb923c", spark: netSpark },
             { label: "Deductions Found", value: `$${data.deductions.toLocaleString()}`, trend: null, dir: "up" as const, color: THEME.accent, spark: dedSpark },
           ].map((s, i) => (
-            <Reveal key={s.label} delay={300 + i * 80} style={{ flex: 1 }}>
+            <Reveal key={s.label} delay={300 + i * 80} style={{ minWidth: 0 }}>
               <div
                 onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 8px 32px ${s.color}20`; }}
                 onMouseLeave={(e) => { e.currentTarget.style.boxShadow = `0 4px 20px ${s.color}10`; }}
@@ -144,11 +145,12 @@ export default function DashboardHomeV2() {
                 background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16,
                 padding: isMobile ? "12px 12px" : "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center",
                 boxShadow: `0 4px 20px ${s.color}10`, transition: "box-shadow 0.25s ease",
+                height: "100%", minWidth: 0,
               }}>
-                <div>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textMuted, fontWeight: 800, marginBottom: 6 }}>{s.label}</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: isMobile ? 18 : 24, fontWeight: 800, color: THEME.text }}>{s.value}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: isMobile ? 9 : 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textMuted, fontWeight: 800, marginBottom: 6, whiteSpace: "nowrap" }}>{s.label}</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: isMobile ? 4 : 8 }}>
+                    <span style={{ fontSize: isVerySmall ? 18 : isMobile ? 16 : 24, fontWeight: 800, color: THEME.text, whiteSpace: "nowrap" }}>{s.value}</span>
                     {s.trend && (
                       <span style={{
                         fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6,

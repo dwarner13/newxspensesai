@@ -2,23 +2,80 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { THEME } from "./agentConfig";
 import { AgentDot } from "./AgentDot";
-import { Reveal } from "./Reveal";
-import { useTypewriter } from "./useTypewriter";
-import { SpendingBreakdown } from "./SpendingBreakdown";
 import { AgentCallout } from "./AgentCallout";
 import { TaxDeductionsCard } from "./TaxDeductionsCard";
-import { PrimeThoughts } from "./PrimeThoughts";
 import { QuickActionChips } from "./QuickActionChips";
 import { PrimeChatInput } from "./PrimeChatInput";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { useTeamActivitySummary } from "@/hooks/useTeamActivitySummary";
-import { TypingMessage, FormattedMessageText } from "@/components/chat/TypingMessage";
+import { TypingMessage } from "@/components/chat/TypingMessage";
+import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
 import {
   usePrimeBriefingData,
   buildSummaryText,
   buildThoughtsText,
 } from "./usePrimeBriefingData";
+
+/* ── File upload helpers ── */
+
+function isSpreadsheetFile(name: string): boolean {
+  const ext = name.toLowerCase().split(".").pop() || "";
+  return ["xlsx", "xls", "csv"].includes(ext);
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleSpreadsheetUpload(
+  file: File,
+  userId: string,
+  authToken?: string,
+): Promise<{ success: boolean; import_id?: string; byte_message?: string; transaction_count?: number; error?: string }> {
+  const base64 = await fileToBase64(file);
+  const response = await fetch("/.netlify/functions/process-spreadsheet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-user-id": userId },
+    body: JSON.stringify({ file_base64: base64, filename: file.name }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Spreadsheet import failed");
+
+  if (data.import_id) {
+    const authHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-user-id": userId,
+    };
+    if (authToken) authHeaders["Authorization"] = `Bearer ${authToken}`;
+
+    await fetch("/.netlify/functions/approve-import", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ importId: data.import_id }),
+    });
+
+    const commitRes = await fetch("/.netlify/functions/commit-import", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ importId: data.import_id }),
+    });
+    const commitData = await commitRes.json();
+    if (commitData.committed) {
+      data.transaction_count = commitData.committed;
+    }
+  }
+
+  return data;
+}
 
 interface PrimeChatV2ContentProps {
   onClose?: () => void;
@@ -27,7 +84,7 @@ interface PrimeChatV2ContentProps {
 export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const data = usePrimeBriefingData();
   const navigate = useNavigate();
-  const { firstName } = useAuth();
+  const { firstName, userId, session } = useAuth();
   const teamActivity = useTeamActivitySummary();
 
   // Wire into the EXISTING chat engine — sends to POST /.netlify/functions/chat
@@ -36,35 +93,21 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     messages,
     sendMessage,
     isStreaming,
-    addUploadFiles,
   } = useUnifiedChatEngine({
     employeeSlug: "prime-boss",
     additionalPrimeContext: teamActivity.summaryText ? { teamActivitySummary: teamActivity.summaryText } : undefined,
   });
 
-  const [loaded, setLoaded] = useState(false);
-  const [thoughtsDone, setThoughtsDone] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [promptsUsed, setPromptsUsed] = useState(false);
   const [briefingCollapsed, setBriefingCollapsed] = useState(false);
+  const [uploadMessages, setUploadMessages] = useState<{ id: string; text: string; type: "info" | "success" | "error" }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragCountRef = useRef(0);
   const typedIdsRef = useRef<Set<string>>(new Set());
-  const animationCompleteRef = useRef(false);
-
-  useEffect(() => setLoaded(true), []);
-
-  // Mark animations as complete once PrimeThoughts finishes
-  const handleThoughtsDone = useCallback(() => {
-    setThoughtsDone(true);
-    animationCompleteRef.current = true;
-  }, []);
-
-  const animDone = animationCompleteRef.current;
 
   const summaryText = data.loading ? "" : buildSummaryText(data);
   const thoughtsText = data.loading ? "" : buildThoughtsText(data);
-  const [typed, typeDone] = useTypewriter(summaryText, 18, 600, !data.loading, animDone);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
@@ -76,7 +119,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // Auto-scroll on new content
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [typed, typeDone, thoughtsDone, chatMessages.length, isStreaming]);
+  }, [chatMessages.length, isStreaming, uploadMessages.length]);
 
   // Send through the real chat engine — no openChat(), stays in-panel
   const handleSend = useCallback(async (message: string) => {
@@ -85,10 +128,60 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     await sendMessage(message);
   }, [sendMessage]);
 
-  // File upload via the engine's addUploadFiles (queues for next send)
+  // ── Process file through the import pipeline ──
+  const processFile = useCallback(async (file: File) => {
+    if (!userId) return;
+    const msgId = `upload-${Date.now()}`;
+    const authToken = session?.access_token;
+
+    // Show progress message
+    setUploadMessages(prev => [...prev, { id: msgId, text: `Byte is processing ${file.name}...`, type: "info" }]);
+    setBriefingCollapsed(true);
+
+    try {
+      if (isSpreadsheetFile(file.name)) {
+        // Spreadsheet path: process-spreadsheet → approve → commit
+        const result = await handleSpreadsheetUpload(file, userId, authToken);
+        const successMsg = result.byte_message
+          || `Imported ${result.transaction_count ?? 0} transactions from ${file.name}`;
+        setUploadMessages(prev =>
+          prev.map(m => m.id === msgId ? { ...m, text: successMsg, type: "success" as const } : m)
+        );
+      } else {
+        // PDF/image path: full smart import pipeline (uploads to Supabase storage via smart-import-init)
+        const result = await runSmartImportPipeline({
+          userId,
+          source: "chat",
+          file,
+          fileName: file.name,
+          mimeType: file.type,
+          fileSize: file.size,
+          lastModified: file.lastModified || 0,
+          authToken,
+        });
+        const txCount = result.transactionCount ?? result.stats?.transactionCount ?? 0;
+        const successMsg = txCount > 0
+          ? `Processed ${file.name} — ${txCount} transactions imported.`
+          : `Processed ${file.name}. Byte is extracting transactions — this may take a moment.`;
+        setUploadMessages(prev =>
+          prev.map(m => m.id === msgId ? { ...m, text: successMsg, type: "success" as const } : m)
+        );
+      }
+
+      // Ask Prime to summarize the upload
+      await sendMessage(`I just uploaded ${file.name}, summarize it`);
+    } catch (err: any) {
+      const errorMsg = err?.message || "Upload failed. Please try again.";
+      setUploadMessages(prev =>
+        prev.map(m => m.id === msgId ? { ...m, text: `Failed to process ${file.name}: ${errorMsg}`, type: "error" as const } : m)
+      );
+    }
+  }, [userId, session, sendMessage]);
+
+  // File upload handler (paperclip button)
   const handleFileSelected = useCallback(async (file: File) => {
-    await addUploadFiles([file]);
-  }, [addUploadFiles]);
+    await processFile(file);
+  }, [processFile]);
 
   // Drag and drop
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -113,8 +206,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     dragCountRef.current = 0;
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file) await addUploadFiles([file]);
-  }, [addUploadFiles]);
+    if (file) await processFile(file);
+  }, [processFile]);
 
   if (data.loading) {
     return (
@@ -167,7 +260,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         padding: "14px 16px 12px", display: "flex", alignItems: "center", gap: 10,
         borderBottom: `1px solid ${THEME.border}`,
         background: `linear-gradient(180deg, ${THEME.surface} 0%, ${THEME.bg} 100%)`,
-        opacity: loaded ? 1 : 0, transition: "opacity 0.5s", flexShrink: 0,
+        flexShrink: 0,
       }}>
         <div style={{
           width: 36, height: 36, borderRadius: "50%",
@@ -242,134 +335,138 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             </svg>
           </button>
         ) : (
-          /* ── Full briefing ── */
+          /* ── Full briefing (static) ── */
           <>
             {/* Prime greeting + summary */}
-            <Reveal delay={200} instant={animDone}>
-              <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
-                <AgentDot agent="Prime" size={28} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
-                    <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: THEME.text, marginBottom: 8 }}>
-                    {greeting}, {firstName}. Here&apos;s your financial briefing.
-                  </div>
-                  <div style={{
-                    fontSize: 12.5, color: THEME.textMuted, lineHeight: 1.65,
-                    padding: "12px 14px", borderRadius: 12,
-                    background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}55`,
-                  }}>
-                    {typed}
-                    <span style={{ opacity: !typeDone ? 1 : 0, transition: "opacity 0.3s", color: THEME.accent }}>{"\u2588"}</span>
-                  </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
+              <AgentDot agent="Prime" size={28} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
+                  <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text, marginBottom: 8 }}>
+                  {greeting}, {firstName}. Here&apos;s your briefing.
+                </div>
+                <div style={{
+                  fontSize: 15, color: THEME.textMuted, lineHeight: 1.7,
+                  padding: "12px 14px", borderRadius: 12,
+                  background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}55`,
+                }}>
+                  {summaryText}
                 </div>
               </div>
-            </Reveal>
+            </div>
 
             {/* Top transactions */}
-            {typeDone && data.topTransactions.length > 0 && (
-              <Reveal delay={0} instant={animDone} style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
-                <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "14px 16px" }}>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700, marginBottom: 12 }}>Top Transactions — Latest Statement</div>
-                  {data.topTransactions.map((tx, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: i < data.topTransactions.length - 1 ? `1px solid ${THEME.border}` : "none" }}>
-                      <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: THEME.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant}</div>
-                      <div style={{ fontSize: 10.5, color: THEME.textDim, flexShrink: 0, width: 48 }}>{tx.date}</div>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: tx.isIncome ? "#34d399" : THEME.text, flexShrink: 0, width: 70, textAlign: "right" }}>{tx.isIncome ? "+" : "-"}${tx.amount.toFixed(2)}</div>
-                      <div style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: `${tx.categoryColor}15`, color: tx.categoryColor, flexShrink: 0 }}>{tx.category}</div>
+            {data.topTransactions.length > 0 && (
+              <div style={{ marginLeft: 38, marginTop: 14, marginBottom: 18, display: "flex", justifyContent: "center" }}>
+                <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "14px 16px", width: "100%" }}>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700, marginBottom: 12, textAlign: "center" }}>Top Transactions — Latest Statement</div>
+                  {data.topTransactions.slice(0, 5).map((tx, i, arr) => (
+                    <div key={i} style={{
+                      display: "grid", gridTemplateColumns: "1fr 60px 100px 90px", gap: 8, alignItems: "center",
+                      padding: "7px 0", borderBottom: i < arr.length - 1 ? `1px solid ${THEME.border}44` : "none",
+                    }}>
+                      <div style={{ minWidth: 0, fontSize: 12.5, fontWeight: 600, color: THEME.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant}</div>
+                      <div style={{ fontSize: 10.5, color: THEME.textDim, textAlign: "center" }}>{tx.date}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: tx.isIncome ? "#34d399" : THEME.text, textAlign: "right" }}>{tx.isIncome ? "+" : "-"}${tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div style={{ textAlign: "right" }}><span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: `${tx.categoryColor}15`, color: tx.categoryColor }}>{tx.category}</span></div>
                     </div>
                   ))}
-                  {/* Compact category summary */}
                   {data.categorySummary && (
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${THEME.border}`, fontSize: 10.5, color: THEME.textDim }}>{data.categorySummary}</div>
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${THEME.border}`, fontSize: 10.5, color: THEME.textDim, textAlign: "center" }}>{data.categorySummary}</div>
                   )}
                 </div>
-              </Reveal>
+              </div>
             )}
 
             {/* Agent callouts */}
-            {typeDone && (
-              <Reveal delay={400} instant={animDone} style={{ marginLeft: 38, marginBottom: 6 }}>
-                <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
-                  Here&apos;s what the team flagged for you:
-                </div>
-              </Reveal>
-            )}
+            <div style={{ marginLeft: 38, marginBottom: 6 }}>
+              <div style={{ fontSize: 14, color: THEME.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
+                Here&apos;s what the team flagged for you:
+              </div>
+            </div>
 
-            {typeDone && (
-              <Reveal delay={600} instant={animDone} style={{ marginLeft: 38, marginBottom: 6 }}>
-                <AgentCallout
-                  agent="Tag"
-                  text={data.uncategorizedCount > 0
-                    ? `Found ${data.uncategorizedCount} transactions that need your call \u2014 some look like duplicates, others are uncategorized.`
-                    : "All clear \u2014 every transaction is categorized. Nice work."}
-                  cta="Review with Tag"
-                  onCtaClick={() => { onClose?.(); navigate("/dashboard/smart-categories"); }}
-                />
-              </Reveal>
-            )}
+            <div style={{ marginLeft: 38, marginBottom: 6 }}>
+              <AgentCallout
+                agent="Tag"
+                text={data.uncategorizedCount > 0
+                  ? `Found ${data.uncategorizedCount} transactions that need your call \u2014 some look like duplicates, others are uncategorized.`
+                  : "All clear \u2014 every transaction is categorized. Nice work."}
+                cta="Review with Tag"
+                onCtaClick={() => { onClose?.(); navigate("/dashboard/smart-categories"); }}
+              />
+            </div>
 
-            {typeDone && (
-              <Reveal delay={800} instant={animDone} style={{ marginLeft: 38, marginBottom: 6 }}>
-                <AgentCallout
-                  agent="Byte"
-                  text={data.pendingImports > 0
-                    ? `${data.pendingImports} statement${data.pendingImports > 1 ? "s" : ""} ready to import. Detected transactions awaiting your approval.`
-                    : "No pending imports \u2014 all statements have been processed."}
-                  cta={data.pendingImports > 0 ? "Import now" : "Upload new"}
-                  onCtaClick={() => {
-                    onClose?.();
-                    // Trigger upload flow via Byte's file picker
-                    window.dispatchEvent(new CustomEvent("prime:open-upload", { detail: { source: "prime-briefing" } }));
-                    window.setTimeout(() => {
-                      const inputs = Array.from(
-                        document.querySelectorAll('input[type="file"][accept*=".pdf"][accept*=".csv"]')
-                      ) as HTMLInputElement[];
-                      inputs.find(i => !i.disabled)?.click();
-                    }, 120);
-                  }}
-                />
-              </Reveal>
-            )}
+            <div style={{ marginLeft: 38, marginBottom: 6 }}>
+              <AgentCallout
+                agent="Byte"
+                text={data.pendingImports > 0
+                  ? `${data.pendingImports} statement${data.pendingImports > 1 ? "s" : ""} ready to import. Detected transactions awaiting your approval.`
+                  : "No pending imports \u2014 all statements have been processed."}
+                cta={data.pendingImports > 0 ? "Import now" : "Upload new"}
+                onCtaClick={() => {
+                  onClose?.();
+                  window.dispatchEvent(new CustomEvent("prime:open-upload", { detail: { source: "prime-briefing" } }));
+                  window.setTimeout(() => {
+                    const inputs = Array.from(
+                      document.querySelectorAll('input[type="file"][accept*=".pdf"][accept*=".csv"]')
+                    ) as HTMLInputElement[];
+                    inputs.find(i => !i.disabled)?.click();
+                  }, 120);
+                }}
+              />
+            </div>
 
-            {typeDone && (
-              <Reveal delay={1000} instant={animDone} style={{ marginLeft: 38, marginBottom: 6 }}>
-                <AgentCallout
-                  agent="Crystal"
-                  text={data.trendAlert
-                    ? `${data.trendAlert.category} has ${data.trendAlert.direction === "up" ? "increased" : "decreased"} ${data.trendAlert.months.length} months straight: ${data.trendAlert.months.map((m) => "$" + m.toLocaleString()).join(" \u2192 ")}.`
-                    : data.categoryBreakdown.length > 0
-                      ? `Your top category is ${data.categoryBreakdown[0].label} at $${data.categoryBreakdown[0].amount.toLocaleString()}. No unusual trends detected.`
-                      : "Not enough data yet to spot trends. Upload more statements to unlock insights."}
-                  cta="See trend analysis"
-                  onCtaClick={() => { onClose?.(); navigate("/dashboard/analytics-ai"); }}
-                />
-              </Reveal>
-            )}
+            <div style={{ marginLeft: 38, marginBottom: 6 }}>
+              <AgentCallout
+                agent="Crystal"
+                text={data.trendAlert
+                  ? `${data.trendAlert.category} has ${data.trendAlert.direction === "up" ? "increased" : "decreased"} ${data.trendAlert.months.length} months straight: ${data.trendAlert.months.map((m) => "$" + m.toLocaleString()).join(" \u2192 ")}.`
+                  : data.categoryBreakdown.length > 0
+                    ? `Your top category is ${data.categoryBreakdown[0].label} at $${data.categoryBreakdown[0].amount.toLocaleString()}. No unusual trends detected.`
+                    : "Not enough data yet to spot trends. Upload more statements to unlock insights."}
+                cta="See trend analysis"
+                onCtaClick={() => { onClose?.(); navigate("/dashboard/analytics-ai"); }}
+              />
+            </div>
 
             {/* Tax deductions */}
-            {typeDone && data.deductions.total > 0 && (
-              <Reveal delay={1200} instant={animDone} style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
+            {data.deductions.total > 0 && (
+              <div style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
                 <TaxDeductionsCard total={data.deductions.total} categories={data.deductions.categories} />
-              </Reveal>
+              </div>
             )}
 
             {/* Prime's Take */}
-            {typeDone && (
-              <Reveal delay={1500} instant={animDone} style={{ marginLeft: 38, marginBottom: 18 }}>
-                <PrimeThoughts text={thoughtsText} enabled={typeDone} onDone={handleThoughtsDone} instant={animDone} />
-              </Reveal>
-            )}
+            <div style={{ marginLeft: 38, marginBottom: 18 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 18, height: 2, borderRadius: 1, background: THEME.accent }} />
+                  <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.8, fontWeight: 700, color: THEME.accent }}>
+                    Prime&apos;s Take
+                  </span>
+                  <div style={{ flex: 1, height: 1, background: THEME.border }} />
+                </div>
+                <div style={{
+                  fontSize: 15, color: THEME.textMuted, lineHeight: 1.7,
+                  padding: "14px 16px", borderRadius: 14,
+                  background: `linear-gradient(135deg, ${THEME.accent}08, transparent)`,
+                  border: `1px solid ${THEME.accent}15`,
+                }}>
+                  {thoughtsText}
+                </div>
+              </div>
+            </div>
 
             {/* Follow-up prompts — hidden after first use */}
-            {thoughtsDone && !promptsUsed && (
-              <Reveal delay={300} instant={animDone} style={{ marginLeft: 38 }}>
+            {!promptsUsed && (
+              <div style={{ marginLeft: 38 }}>
                 <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>
                   Want me to dig into any of this?
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
                   {[
                     "Break down the dining spend",
                     "Show me deduction details",
@@ -391,9 +488,31 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                     </button>
                   ))}
                 </div>
-              </Reveal>
+              </div>
             )}
           </>
+        )}
+
+        {/* ══════════ UPLOAD STATUS MESSAGES ══════════ */}
+        {uploadMessages.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            {uploadMessages.map((msg) => (
+              <div key={msg.id} style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <AgentDot agent="Byte" size={24} />
+                <div style={{
+                  flex: 1, padding: "10px 14px", borderRadius: 12,
+                  background: msg.type === "error" ? "#f8717112" : msg.type === "success" ? "#34d39912" : `${THEME.surface}`,
+                  borderLeft: `3px solid ${msg.type === "error" ? "#f87171" : msg.type === "success" ? "#34d399" : "#22d3ee"}88`,
+                  fontSize: 13, color: THEME.textMuted, lineHeight: 1.5,
+                }}>
+                  {msg.text}
+                  {msg.type === "info" && (
+                    <span style={{ display: "inline-block", marginLeft: 6, animation: "primeDot 1.4s ease-in-out infinite", color: "#22d3ee" }}>...</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {/* ══════════ CONVERSATION SECTION (live chat) ══════════ */}
@@ -461,7 +580,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         padding: "10px 16px 12px",
         background: THEME.bg,
       }}>
-        <div style={{ marginBottom: 8 }}>
+        <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}>
           <QuickActionChips chips={[
             { icon: "\uD83D\uDCCA", label: "Categories", action: () => { onClose?.(); navigate("/dashboard/smart-categories"); } },
             { icon: "\uD83E\uDDFE", label: "Tax summary", action: () => { onClose?.(); navigate("/dashboard/tax-assistant"); } },

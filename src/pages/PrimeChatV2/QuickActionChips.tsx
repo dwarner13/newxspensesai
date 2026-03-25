@@ -15,6 +15,7 @@ export function QuickActionChips({ chips }: QuickActionChipsProps) {
     <div
       style={{
         display: "flex",
+        justifyContent: "center",
         gap: 7,
         overflowX: "auto",
         scrollbarWidth: "none",
