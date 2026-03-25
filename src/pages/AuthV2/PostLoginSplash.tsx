@@ -44,7 +44,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "80px 24px 40px",
+      padding: "0px 24px 40px",
       overflowY: "auto",
       cursor: showButtons ? "default" : "pointer",
     }}>
@@ -68,7 +68,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       <h1 style={{
         fontSize: 38, fontWeight: 800, letterSpacing: -1,
         color: C.text, marginBottom: 6, textAlign: "center",
-      }}>Welcome back, {userName}</h1>
+      }}>Welcome Back, {userName}</h1>
 
       <p style={{ fontSize: 15, color: C.dim, marginBottom: 28, textAlign: "center" }}>
         Here&apos;s what your AI team did while you were away.

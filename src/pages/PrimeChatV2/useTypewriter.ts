@@ -1,16 +1,22 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 export function useTypewriter(
   text: string,
   speed: number = 18,
   startDelay: number = 300,
-  enabled: boolean = true
+  enabled: boolean = true,
+  instant: boolean = false
 ): [string, boolean] {
-  const [display, setDisplay] = useState("");
-  const [done, setDone] = useState(false);
+  const [display, setDisplay] = useState(instant ? text : "");
+  const [done, setDone] = useState(instant);
 
   useEffect(() => {
     if (!enabled) return;
+    if (instant) {
+      setDisplay(text);
+      setDone(true);
+      return;
+    }
     setDisplay("");
     setDone(false);
     let i = 0;
@@ -32,7 +38,7 @@ export function useTypewriter(
       clearTimeout(timeout);
       if (interval) clearInterval(interval);
     };
-  }, [text, speed, startDelay, enabled]);
+  }, [text, speed, startDelay, enabled, instant]);
 
   return [display, done];
 }

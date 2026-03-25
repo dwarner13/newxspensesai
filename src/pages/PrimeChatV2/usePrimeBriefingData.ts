@@ -30,6 +30,7 @@ export interface PrimeBriefingData {
   statementCount: number;
   transactionCount: number;
   totalSpent: number;
+  totalIncome: number;
   monthOverMonthPct: number;
   topCategoryChange: { category: string; pct: number };
   categoryBreakdown: { label: string; amount: number; color: string }[];
@@ -50,7 +51,7 @@ export function usePrimeBriefingData(): PrimeBriefingData {
   return useMemo(() => {
     if (txLoading || impLoading) {
       return {
-        statementCount: 0, transactionCount: 0, totalSpent: 0,
+        statementCount: 0, transactionCount: 0, totalSpent: 0, totalIncome: 0,
         monthOverMonthPct: 0, topCategoryChange: { category: "", pct: 0 },
         categoryBreakdown: [], categorySummary: "", topTransactions: [], topMerchant: null,
         uncategorizedCount: 0, pendingImports: 0,
@@ -58,10 +59,12 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       };
     }
 
+    const incomeTransactions = transactions.filter(t => isIncome(t));
     const expenses = transactions.filter(t => !isIncome(t));
 
-    // Total spent
+    // Totals
     const totalSpent = expenses.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const totalIncome = incomeTransactions.reduce((s, t) => s + Math.abs(t.amount), 0);
 
     // Normalize category names (merge Subscription/Subscriptions)
     const normCat = (c: string) => c === "Subscription" ? "Subscriptions" : c;
@@ -184,6 +187,7 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       statementCount: imports.length,
       transactionCount: transactions.length,
       totalSpent: Math.round(totalSpent),
+      totalIncome: Math.round(totalIncome),
       monthOverMonthPct,
       topCategoryChange: topCatChange,
       categoryBreakdown,

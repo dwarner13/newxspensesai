@@ -46,15 +46,25 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [thoughtsDone, setThoughtsDone] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [promptsUsed, setPromptsUsed] = useState(false);
+  const [briefingCollapsed, setBriefingCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragCountRef = useRef(0);
   const typedIdsRef = useRef<Set<string>>(new Set());
+  const animationCompleteRef = useRef(false);
 
   useEffect(() => setLoaded(true), []);
 
+  // Mark animations as complete once PrimeThoughts finishes
+  const handleThoughtsDone = useCallback(() => {
+    setThoughtsDone(true);
+    animationCompleteRef.current = true;
+  }, []);
+
+  const animDone = animationCompleteRef.current;
+
   const summaryText = data.loading ? "" : buildSummaryText(data);
   const thoughtsText = data.loading ? "" : buildThoughtsText(data);
-  const [typed, typeDone] = useTypewriter(summaryText, 18, 600, !data.loading);
+  const [typed, typeDone] = useTypewriter(summaryText, 18, 600, !data.loading, animDone);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
@@ -68,11 +78,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [typed, typeDone, thoughtsDone, chatMessages.length, isStreaming]);
 
-  const handleThoughtsDone = useCallback(() => setThoughtsDone(true), []);
-
   // Send through the real chat engine — no openChat(), stays in-panel
   const handleSend = useCallback(async (message: string) => {
     setPromptsUsed(true);
+    setBriefingCollapsed(true);
     await sendMessage(message);
   }, [sendMessage]);
 
@@ -199,158 +208,192 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       </div>
 
       {/* SCROLLABLE BODY */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 16px 140px", minHeight: 0 }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 16px 16px", minHeight: 0 }}>
 
-        {/* ══════════ BRIEFING SECTION (static) ══════════ */}
+        {/* ══════════ BRIEFING SECTION ══════════ */}
 
-        {/* Prime greeting + summary */}
-        <Reveal delay={200}>
-          <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
-            <AgentDot agent="Prime" size={28} />
+        {briefingCollapsed ? (
+          /* ── Collapsed briefing card ── */
+          <button
+            onClick={() => setBriefingCollapsed(false)}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 14px", marginBottom: 16, borderRadius: 12,
+              background: THEME.accentGlow, border: `1px solid ${THEME.accent}22`,
+              cursor: "pointer", textAlign: "left", transition: "border-color 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${THEME.accent}55`; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${THEME.accent}22`; }}
+          >
+            <AgentDot agent="Prime" size={24} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
-                <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+              <div style={{ fontSize: 12, fontWeight: 700, color: THEME.accent, marginBottom: 2 }}>
+                Prime&apos;s Briefing
               </div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: THEME.text, marginBottom: 8 }}>
-                {greeting}, {firstName}. Here&apos;s your financial briefing.
-              </div>
-              <div style={{
-                fontSize: 12.5, color: THEME.textMuted, lineHeight: 1.65,
-                padding: "12px 14px", borderRadius: 12,
-                background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}55`,
-              }}>
-                {typed}
-                <span style={{ opacity: !typeDone ? 1 : 0, transition: "opacity 0.3s", color: THEME.accent }}>{"\u2588"}</span>
+              <div style={{ fontSize: 11, color: THEME.textMuted }}>
+                ${data.totalIncome.toLocaleString()} income · ${data.totalSpent.toLocaleString()} expenses · {data.transactionCount} transactions
               </div>
             </div>
-          </div>
-        </Reveal>
-
-        {/* Top transactions */}
-        {typeDone && data.topTransactions.length > 0 && (
-          <Reveal delay={0} style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
-            <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "14px 16px" }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700, marginBottom: 12 }}>Top Transactions — Latest Statement</div>
-              {data.topTransactions.map((tx, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: i < data.topTransactions.length - 1 ? `1px solid ${THEME.border}` : "none" }}>
-                  <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: THEME.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant}</div>
-                  <div style={{ fontSize: 10.5, color: THEME.textDim, flexShrink: 0, width: 48 }}>{tx.date}</div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: tx.isIncome ? "#34d399" : THEME.text, flexShrink: 0, width: 70, textAlign: "right" }}>{tx.isIncome ? "+" : "-"}${tx.amount.toFixed(2)}</div>
-                  <div style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: `${tx.categoryColor}15`, color: tx.categoryColor, flexShrink: 0 }}>{tx.category}</div>
+            <svg
+              width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke={THEME.textDim} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        ) : (
+          /* ── Full briefing ── */
+          <>
+            {/* Prime greeting + summary */}
+            <Reveal delay={200} instant={animDone}>
+              <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
+                <AgentDot agent="Prime" size={28} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
+                    <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: THEME.text, marginBottom: 8 }}>
+                    {greeting}, {firstName}. Here&apos;s your financial briefing.
+                  </div>
+                  <div style={{
+                    fontSize: 12.5, color: THEME.textMuted, lineHeight: 1.65,
+                    padding: "12px 14px", borderRadius: 12,
+                    background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}55`,
+                  }}>
+                    {typed}
+                    <span style={{ opacity: !typeDone ? 1 : 0, transition: "opacity 0.3s", color: THEME.accent }}>{"\u2588"}</span>
+                  </div>
                 </div>
-              ))}
-              {/* Compact category summary */}
-              {data.categorySummary && (
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${THEME.border}`, fontSize: 10.5, color: THEME.textDim }}>{data.categorySummary}</div>
-              )}
-            </div>
-          </Reveal>
-        )}
+              </div>
+            </Reveal>
 
-        {/* Agent callouts */}
-        {typeDone && (
-          <Reveal delay={400} style={{ marginLeft: 38, marginBottom: 6 }}>
-            <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
-              Here&apos;s what the team flagged for you:
-            </div>
-          </Reveal>
-        )}
+            {/* Top transactions */}
+            {typeDone && data.topTransactions.length > 0 && (
+              <Reveal delay={0} instant={animDone} style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
+                <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700, marginBottom: 12 }}>Top Transactions — Latest Statement</div>
+                  {data.topTransactions.map((tx, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: i < data.topTransactions.length - 1 ? `1px solid ${THEME.border}` : "none" }}>
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: THEME.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant}</div>
+                      <div style={{ fontSize: 10.5, color: THEME.textDim, flexShrink: 0, width: 48 }}>{tx.date}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: tx.isIncome ? "#34d399" : THEME.text, flexShrink: 0, width: 70, textAlign: "right" }}>{tx.isIncome ? "+" : "-"}${tx.amount.toFixed(2)}</div>
+                      <div style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: `${tx.categoryColor}15`, color: tx.categoryColor, flexShrink: 0 }}>{tx.category}</div>
+                    </div>
+                  ))}
+                  {/* Compact category summary */}
+                  {data.categorySummary && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${THEME.border}`, fontSize: 10.5, color: THEME.textDim }}>{data.categorySummary}</div>
+                  )}
+                </div>
+              </Reveal>
+            )}
 
-        {typeDone && (
-          <Reveal delay={600} style={{ marginLeft: 38, marginBottom: 6 }}>
-            <AgentCallout
-              agent="Tag"
-              text={data.uncategorizedCount > 0
-                ? `Found ${data.uncategorizedCount} transactions that need your call \u2014 some look like duplicates, others are uncategorized.`
-                : "All clear \u2014 every transaction is categorized. Nice work."}
-              cta="Review with Tag"
-              onCtaClick={() => { onClose?.(); navigate("/dashboard/smart-categories"); }}
-            />
-          </Reveal>
-        )}
+            {/* Agent callouts */}
+            {typeDone && (
+              <Reveal delay={400} instant={animDone} style={{ marginLeft: 38, marginBottom: 6 }}>
+                <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
+                  Here&apos;s what the team flagged for you:
+                </div>
+              </Reveal>
+            )}
 
-        {typeDone && (
-          <Reveal delay={800} style={{ marginLeft: 38, marginBottom: 6 }}>
-            <AgentCallout
-              agent="Byte"
-              text={data.pendingImports > 0
-                ? `${data.pendingImports} statement${data.pendingImports > 1 ? "s" : ""} ready to import. Detected transactions awaiting your approval.`
-                : "No pending imports \u2014 all statements have been processed."}
-              cta={data.pendingImports > 0 ? "Import now" : "Upload new"}
-              onCtaClick={() => {
-                onClose?.();
-                // Trigger upload flow via Byte's file picker
-                window.dispatchEvent(new CustomEvent("prime:open-upload", { detail: { source: "prime-briefing" } }));
-                window.setTimeout(() => {
-                  const inputs = Array.from(
-                    document.querySelectorAll('input[type="file"][accept*=".pdf"][accept*=".csv"]')
-                  ) as HTMLInputElement[];
-                  inputs.find(i => !i.disabled)?.click();
-                }, 120);
-              }}
-            />
-          </Reveal>
-        )}
+            {typeDone && (
+              <Reveal delay={600} instant={animDone} style={{ marginLeft: 38, marginBottom: 6 }}>
+                <AgentCallout
+                  agent="Tag"
+                  text={data.uncategorizedCount > 0
+                    ? `Found ${data.uncategorizedCount} transactions that need your call \u2014 some look like duplicates, others are uncategorized.`
+                    : "All clear \u2014 every transaction is categorized. Nice work."}
+                  cta="Review with Tag"
+                  onCtaClick={() => { onClose?.(); navigate("/dashboard/smart-categories"); }}
+                />
+              </Reveal>
+            )}
 
-        {typeDone && (
-          <Reveal delay={1000} style={{ marginLeft: 38, marginBottom: 6 }}>
-            <AgentCallout
-              agent="Crystal"
-              text={data.trendAlert
-                ? `${data.trendAlert.category} has ${data.trendAlert.direction === "up" ? "increased" : "decreased"} ${data.trendAlert.months.length} months straight: ${data.trendAlert.months.map((m) => "$" + m.toLocaleString()).join(" \u2192 ")}.`
-                : data.categoryBreakdown.length > 0
-                  ? `Your top category is ${data.categoryBreakdown[0].label} at $${data.categoryBreakdown[0].amount.toLocaleString()}. No unusual trends detected.`
-                  : "Not enough data yet to spot trends. Upload more statements to unlock insights."}
-              cta="See trend analysis"
-              onCtaClick={() => { onClose?.(); navigate("/dashboard/analytics-ai"); }}
-            />
-          </Reveal>
-        )}
-
-        {/* Tax deductions */}
-        {typeDone && data.deductions.total > 0 && (
-          <Reveal delay={1200} style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
-            <TaxDeductionsCard total={data.deductions.total} categories={data.deductions.categories} />
-          </Reveal>
-        )}
-
-        {/* Prime's Take */}
-        {typeDone && (
-          <Reveal delay={1500} style={{ marginLeft: 38, marginBottom: 18 }}>
-            <PrimeThoughts text={thoughtsText} enabled={typeDone} onDone={handleThoughtsDone} />
-          </Reveal>
-        )}
-
-        {/* Follow-up prompts — hidden after first use */}
-        {thoughtsDone && !promptsUsed && (
-          <Reveal delay={300} style={{ marginLeft: 38 }}>
-            <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>
-              Want me to dig into any of this?
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {[
-                "Break down the dining spend",
-                "Show me deduction details",
-                ...(data.uncategorizedCount > 0 ? [`Categorize the ${data.uncategorizedCount} flagged`] : []),
-                "Compare to last quarter",
-              ].map((q) => (
-                <button
-                  key={q}
-                  onClick={() => handleSend(q)}
-                  style={{
-                    padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500,
-                    background: THEME.surface, border: `1px solid ${THEME.border}`,
-                    color: THEME.text, cursor: "pointer", transition: "all 0.15s",
+            {typeDone && (
+              <Reveal delay={800} instant={animDone} style={{ marginLeft: 38, marginBottom: 6 }}>
+                <AgentCallout
+                  agent="Byte"
+                  text={data.pendingImports > 0
+                    ? `${data.pendingImports} statement${data.pendingImports > 1 ? "s" : ""} ready to import. Detected transactions awaiting your approval.`
+                    : "No pending imports \u2014 all statements have been processed."}
+                  cta={data.pendingImports > 0 ? "Import now" : "Upload new"}
+                  onCtaClick={() => {
+                    onClose?.();
+                    // Trigger upload flow via Byte's file picker
+                    window.dispatchEvent(new CustomEvent("prime:open-upload", { detail: { source: "prime-briefing" } }));
+                    window.setTimeout(() => {
+                      const inputs = Array.from(
+                        document.querySelectorAll('input[type="file"][accept*=".pdf"][accept*=".csv"]')
+                      ) as HTMLInputElement[];
+                      inputs.find(i => !i.disabled)?.click();
+                    }, 120);
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = THEME.accent; e.currentTarget.style.background = THEME.accentGlow; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.background = THEME.surface; }}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </Reveal>
+                />
+              </Reveal>
+            )}
+
+            {typeDone && (
+              <Reveal delay={1000} instant={animDone} style={{ marginLeft: 38, marginBottom: 6 }}>
+                <AgentCallout
+                  agent="Crystal"
+                  text={data.trendAlert
+                    ? `${data.trendAlert.category} has ${data.trendAlert.direction === "up" ? "increased" : "decreased"} ${data.trendAlert.months.length} months straight: ${data.trendAlert.months.map((m) => "$" + m.toLocaleString()).join(" \u2192 ")}.`
+                    : data.categoryBreakdown.length > 0
+                      ? `Your top category is ${data.categoryBreakdown[0].label} at $${data.categoryBreakdown[0].amount.toLocaleString()}. No unusual trends detected.`
+                      : "Not enough data yet to spot trends. Upload more statements to unlock insights."}
+                  cta="See trend analysis"
+                  onCtaClick={() => { onClose?.(); navigate("/dashboard/analytics-ai"); }}
+                />
+              </Reveal>
+            )}
+
+            {/* Tax deductions */}
+            {typeDone && data.deductions.total > 0 && (
+              <Reveal delay={1200} instant={animDone} style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
+                <TaxDeductionsCard total={data.deductions.total} categories={data.deductions.categories} />
+              </Reveal>
+            )}
+
+            {/* Prime's Take */}
+            {typeDone && (
+              <Reveal delay={1500} instant={animDone} style={{ marginLeft: 38, marginBottom: 18 }}>
+                <PrimeThoughts text={thoughtsText} enabled={typeDone} onDone={handleThoughtsDone} instant={animDone} />
+              </Reveal>
+            )}
+
+            {/* Follow-up prompts — hidden after first use */}
+            {thoughtsDone && !promptsUsed && (
+              <Reveal delay={300} instant={animDone} style={{ marginLeft: 38 }}>
+                <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>
+                  Want me to dig into any of this?
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {[
+                    "Break down the dining spend",
+                    "Show me deduction details",
+                    ...(data.uncategorizedCount > 0 ? [`Categorize the ${data.uncategorizedCount} flagged`] : []),
+                    "Compare to last quarter",
+                  ].map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => handleSend(q)}
+                      style={{
+                        padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500,
+                        background: THEME.surface, border: `1px solid ${THEME.border}`,
+                        color: THEME.text, cursor: "pointer", transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = THEME.accent; e.currentTarget.style.background = THEME.accentGlow; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.background = THEME.surface; }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </Reveal>
+            )}
+          </>
         )}
 
         {/* ══════════ CONVERSATION SECTION (live chat) ══════════ */}
@@ -411,11 +454,12 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         )}
       </div>
 
-      {/* FIXED BOTTOM */}
+      {/* BOTTOM INPUT BAR — flex child, not absolute */}
       <div style={{
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        background: `linear-gradient(0deg, ${THEME.bg} 75%, transparent)`,
-        padding: "28px 16px 12px",
+        flexShrink: 0,
+        borderTop: `1px solid ${THEME.border}`,
+        padding: "10px 16px 12px",
+        background: THEME.bg,
       }}>
         <div style={{ marginBottom: 8 }}>
           <QuickActionChips chips={[

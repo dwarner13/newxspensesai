@@ -48,7 +48,7 @@ export function useTeamActivitySummary(): TeamActivitySummary {
         // Using a single query ordered by created_at desc, then deduplicating client-side
         const { data, error } = await supabase
           .from('chat_messages')
-          .select('content, role, created_at, meta')
+          .select('content, role, created_at, metadata')
           .eq('role', 'assistant')
           .order('created_at', { ascending: false })
           .limit(50);
