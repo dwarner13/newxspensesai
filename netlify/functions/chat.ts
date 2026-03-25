@@ -4075,6 +4075,45 @@ async function loadStatementQaRows(
   };
 
   const rows: StatementQaRow[] = [];
+
+  // Helper: filter fetched transaction rows by the request criteria.
+  // When filterByImport is true, only rows matching req.importId are kept.
+  const filterTxRows = (data: any[], filterByImport: boolean): StatementQaRow[] => {
+    const out: StatementQaRow[] = [];
+    for (const row of data) {
+      const importId = row?.import_id ? String(row.import_id) : null;
+      const documentId = row?.document_id ? String(row.document_id) : null;
+      if (filterByImport && req.importId && importId !== req.importId) continue;
+      const date = normalizeDate(row?.date || row?.posted_at || row?.occurred_at);
+      if (req.startDate && (!date || date < req.startDate)) continue;
+      if (req.endDate && (!date || date > req.endDate)) continue;
+      const merchant = String(row?.merchant || row?.merchant_name || row?.vendor || row?.description || 'UNKNOWN-MERCHANT').trim();
+      const description = String(row?.description || row?.memo || '').trim() || null;
+      const category = String(row?.category || '').trim() || null;
+      const amount = normalizeStatementQaSignedAmount(row?.amount, row);
+      if (req.queryText) {
+        const q = req.queryText;
+        const textMatch =
+          matchText(merchant, q) ||
+          matchText(description, q) ||
+          matchText(category, q);
+        if (!textMatch) continue;
+      }
+      out.push({
+        id: String(row?.id || `${importId || 'tx'}-${merchant}-${date || 'unknown'}`),
+        date,
+        merchant,
+        description,
+        category,
+        amount,
+        importId,
+        documentId,
+        source: 'transactions',
+      });
+    }
+    return out;
+  };
+
   try {
     const { data, error } = await sb
       .from('transactions')
@@ -4082,37 +4121,16 @@ async function loadStatementQaRows(
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(800);
-    if (!error) {
-      for (const row of Array.isArray(data) ? data : []) {
-        const importId = row?.import_id ? String(row.import_id) : null;
-        const documentId = row?.document_id ? String(row.document_id) : null;
-        if (req.importId && importId !== req.importId) continue;
-        const date = normalizeDate(row?.date || row?.posted_at || row?.occurred_at);
-        if (req.startDate && (!date || date < req.startDate)) continue;
-        if (req.endDate && (!date || date > req.endDate)) continue;
-        const merchant = String(row?.merchant || row?.merchant_name || row?.vendor || row?.description || 'UNKNOWN-MERCHANT').trim();
-        const description = String(row?.description || row?.memo || '').trim() || null;
-        const category = String(row?.category || '').trim() || null;
-        const amount = normalizeStatementQaSignedAmount(row?.amount, row);
-        if (req.queryText) {
-          const q = req.queryText;
-          const textMatch =
-            matchText(merchant, q) ||
-            matchText(description, q) ||
-            matchText(category, q);
-          if (!textMatch) continue;
-        }
-        rows.push({
-          id: String(row?.id || `${importId || 'tx'}-${merchant}-${date || 'unknown'}`),
-          date,
-          merchant,
-          description,
-          category,
-          amount,
-          importId,
-          documentId,
-          source: 'transactions',
-        });
+    if (!error && Array.isArray(data)) {
+      // First try filtering by import_id if one was resolved
+      const filtered = filterTxRows(data, true);
+      if (filtered.length > 0) {
+        rows.push(...filtered);
+      } else if (req.importId) {
+        // import_id filter returned 0 rows — fall back to ALL user transactions
+        // This handles cases where the resolved import_id doesn't match committed rows
+        const unfiltered = filterTxRows(data, false);
+        rows.push(...unfiltered);
       }
     }
   } catch {
@@ -4127,37 +4145,47 @@ async function loadStatementQaRows(
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(800);
-      if (!stagedError) {
-        for (const row of Array.isArray(staged) ? staged : []) {
-          const data = row?.data_json && typeof row.data_json === 'object' ? row.data_json : {};
-          const importId = row?.import_id ? String(row.import_id) : null;
-          if (req.importId && importId !== req.importId) continue;
-          const date = normalizeDate(data?.date || data?.posted_at || data?.occurred_at);
-          if (req.startDate && (!date || date < req.startDate)) continue;
-          if (req.endDate && (!date || date > req.endDate)) continue;
-          const merchant = String(data?.merchant || data?.merchant_name || data?.vendor || data?.description || 'UNKNOWN-MERCHANT').trim();
-          const description = String(data?.description || data?.memo || '').trim() || null;
-          const category = String(data?.category || '').trim() || null;
-          const amount = normalizeStatementQaSignedAmount(data?.amount, data);
-          if (req.queryText) {
-            const q = req.queryText;
-            const textMatch =
-              matchText(merchant, q) ||
-              matchText(description, q) ||
-              matchText(category, q);
-            if (!textMatch) continue;
+      if (!stagedError && Array.isArray(staged)) {
+        const filterStagedRows = (stagedData: any[], filterByImport: boolean): StatementQaRow[] => {
+          const out: StatementQaRow[] = [];
+          for (const row of stagedData) {
+            const data = row?.data_json && typeof row.data_json === 'object' ? row.data_json : {};
+            const importId = row?.import_id ? String(row.import_id) : null;
+            if (filterByImport && req.importId && importId !== req.importId) continue;
+            const date = normalizeDate(data?.date || data?.posted_at || data?.occurred_at);
+            if (req.startDate && (!date || date < req.startDate)) continue;
+            if (req.endDate && (!date || date > req.endDate)) continue;
+            const merchant = String(data?.merchant || data?.merchant_name || data?.vendor || data?.description || 'UNKNOWN-MERCHANT').trim();
+            const description = String(data?.description || data?.memo || '').trim() || null;
+            const category = String(data?.category || '').trim() || null;
+            const amount = normalizeStatementQaSignedAmount(data?.amount, data);
+            if (req.queryText) {
+              const q = req.queryText;
+              const textMatch =
+                matchText(merchant, q) ||
+                matchText(description, q) ||
+                matchText(category, q);
+              if (!textMatch) continue;
+            }
+            out.push({
+              id: String(row?.id || `${importId || 'staged'}-${merchant}-${date || 'unknown'}`),
+              date,
+              merchant,
+              description,
+              category,
+              amount,
+              importId,
+              documentId: null,
+              source: 'transactions_staging',
+            });
           }
-          rows.push({
-            id: String(row?.id || `${importId || 'staged'}-${merchant}-${date || 'unknown'}`),
-            date,
-            merchant,
-            description,
-            category,
-            amount,
-            importId,
-            documentId: null,
-            source: 'transactions_staging',
-          });
+          return out;
+        };
+        const filteredStaged = filterStagedRows(staged, true);
+        if (filteredStaged.length > 0) {
+          rows.push(...filteredStaged);
+        } else if (req.importId) {
+          rows.push(...filterStagedRows(staged, false));
         }
       }
     } catch {

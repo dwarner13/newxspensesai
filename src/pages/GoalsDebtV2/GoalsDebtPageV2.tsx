@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { THEME, GOALIE_COLOR } from "./goalsConfig";
 import { useGoalsData, buildGoalieIntro } from "./useGoalsData";
 import { GoalCard } from "./GoalCard";

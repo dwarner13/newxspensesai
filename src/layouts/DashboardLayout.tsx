@@ -1036,18 +1036,18 @@ export default function DashboardLayout() {
         />
         {/* Mobile Header */}
         <div className="fixed top-0 left-0 right-0 z-50 bg-[#0b1220] border-b border-white/10" style={{right: 'var(--scrollbar-width, 0px)'}}>
-          {/* Top bar with menu, logo, and profile */}
+        <div className="fixed top-0 left-0 right-0 z-50 bg-[#0b1220] border-b border-white/10" style={{right: "var(--scrollbar-width, 0px)", paddingTop: "env(safe-area-inset-top, 0px)"}}>
           <div className="flex items-center justify-between px-3 py-2">
-            <button
+          <div className="flex items-center justify-between px-4 py-3">
               onClick={() => {
                 log('Mobile menu button clicked, setting isMobileMenuOpen to true');
                 setIsMobileMenuOpen(true);
               }}
               className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
-              aria-label="Open menu"
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               </svg>
             </button>
             
@@ -1085,7 +1085,7 @@ export default function DashboardLayout() {
 
         {/* Main Content - flex-1 min-h-0 allows proper scrolling */}
         <main className="flex-1 min-h-0 overflow-y-auto pt-16 pb-16 scrollbar-hide">
-          <div className="px-1 py-0">
+        <main className="flex-1 min-h-0 overflow-y-auto pt-20 pb-20 scrollbar-hide">
             <div className="h-full">
               <Outlet />
             </div>

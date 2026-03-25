@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { THEME, LEDGER_COLOR } from "./taxConfig";
 import { useTaxData } from "./useTaxData";
 import { LedgerCopilotPanel } from "./LedgerCopilotPanel";

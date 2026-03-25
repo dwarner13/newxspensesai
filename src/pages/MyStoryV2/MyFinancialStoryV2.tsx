@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { THEME } from "./storyConfig";
 import { useStoryData, buildCrystalIntro } from "./useStoryData";
 import { HealthRing } from "./HealthRing";
