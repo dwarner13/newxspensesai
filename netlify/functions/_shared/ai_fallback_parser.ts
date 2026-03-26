@@ -188,7 +188,7 @@ Return a JSON object with a "transactions" array containing all extracted transa
     } catch (parseError) {
       console.error('[Byte OCR] AI fallback JSON parse error:', parseError);
       // Try to extract JSON array from markdown code blocks
-      const jsonMatch = content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[1]);
       } else {
