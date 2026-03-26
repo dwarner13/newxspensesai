@@ -900,7 +900,7 @@ async function processNormalizationInBackground(
         includeAllAccounts: options?.includeAllAccounts,
         sourceTextPath,
         sourceValueType: typeof options?.transientOcrText,
-        pdfBase64: pdfBase64ForVision,
+        pdfBase64: (guardedOcrInputText.length < 500) ? pdfBase64ForVision : null,
       });
     }
 
