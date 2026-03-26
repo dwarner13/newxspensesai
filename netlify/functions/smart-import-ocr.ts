@@ -3510,7 +3510,6 @@ export const handler: Handler = async (event, context) => {
             ocrTextLength: textMetrics.length ?? 0,
           }),
         }).then(async () => {
-        }).then(async () => {
           console.log("[smart-import-ocr] normalize done, polling for staged rows...");
           const sb = admin();
           const { data: imp } = await sb.from("imports").select("id").eq("document_id", docId).eq("user_id", effectiveUserId).order("created_at", { ascending: false }).limit(1).maybeSingle();
