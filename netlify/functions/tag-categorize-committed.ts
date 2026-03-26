@@ -22,6 +22,15 @@ const headers = {
 };
 
 const RULES: Array<{ contains: string[]; category: string }> = [
+  { contains: ['gordon food', 'gordon foods'], category: 'Income' },
+  { contains: ['celtic group'], category: 'Housing' },
+  { contains: ['b/m payt', 'b/m pay'], category: 'Housing' },
+  { contains: ['td loan'], category: 'Transportation' },
+  { contains: ['capital one'], category: 'Transfers' },
+  { contains: ['bmo invinc'], category: 'Transfers' },
+  { contains: ['easyfinancial', 'national money', 'lenddirect', 'lend direct'], category: 'Debt Payments' },
+  { contains: ['ind all saving'], category: 'Savings' },
+  { contains: ['mobile cheque deposit', 'cheque deposit'], category: 'Income' },
   { contains: ['starbucks', 'tim horton', 'second cup'], category: 'Food & Dining' },
   { contains: ['uber', 'lyft', 'taxi', 'transit', 'presto'], category: 'Transportation' },
   { contains: ['amazon', 'amzn'], category: 'Shopping' },
@@ -52,7 +61,7 @@ const RULES: Array<{ contains: string[]; category: string }> = [
   { contains: ['payment'], category: 'Income' },
 
   // Debt & loan payments
-  { contains: ['ind all saving', 'b/m payt', 'b/m pay', 'td loan', 'celtic group', 'easyfinancial', 'national money', 'lenddirect', 'lend direct', 'fairstone', 'money mart', 'cash money', 'cash store'], category: 'Transfers' },
+  { contains: ['fairstone', 'money mart', 'cash money', 'cash store'], category: 'Debt Payments' },
   // Software & dev tools
   { contains: ['openai', 'chatgpt', 'anthropic', 'claude', 'replit', 'heroku', 'netlify', 'supabase', 'digitalocean', 'aws ', 'cloudflare'], category: 'Subscriptions' },
   // Fitness (specific brands)
