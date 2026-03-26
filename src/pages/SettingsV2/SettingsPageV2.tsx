@@ -181,10 +181,10 @@ export default function SettingsPageV2() {
                         "chat_messages", "chat_sessions", "chat_threads",
                         "score_history", "goals", "debts",
                         "transactions_staging", "transactions",
-                        "import_summaries", "user_documents", "imports",
+                        "import_summaries", "ai_activity_events", "user_documents", "imports",
                       ];
                       for (const table of tables) {
-                        try { await supabase.from(table).delete().eq("user_id", uid); } catch { /* table may not exist */ }
+                        const { error } = await supabase.from(table).delete().eq("user_id", uid); if (error) console.warn(`Nuke: ${table} failed:`, error.message);
                       }
                       toast.success("All financial data deleted. Refreshing...");
                       setTimeout(() => window.location.reload(), 1500);

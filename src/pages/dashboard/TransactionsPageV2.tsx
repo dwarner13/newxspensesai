@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
-import { Search, ChevronRight, ArrowDownLeft, ArrowUpRight, TrendingDown, Hash, Upload, Download, Star } from 'lucide-react';
+import { Search, ChevronRight, ChevronDown, ArrowDownLeft, ArrowUpRight, TrendingDown, Hash, Upload, Download, Star } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
@@ -115,46 +115,52 @@ export default function TransactionsPageV2() {
     URL.revokeObjectURL(url);
   }, [filtered]);
 
-  // Stats
-  const totalSpent = useMemo(() => transactions.reduce((s, t) => !isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [transactions]);
-  const totalIncome = useMemo(() => transactions.reduce((s, t) => isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [transactions]);
+  // Stats — computed from filtered list so they respond to statement/type filters
+  const totalSpent = useMemo(() => filtered.reduce((s, t) => !isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
+  const totalIncome = useMemo(() => filtered.reduce((s, t) => isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const netFlow = totalIncome - totalSpent;
 
-  // Category data for donut
+  // Category data for donut — also from filtered
   const catData = useMemo(() => {
     const map: Record<string, number> = {};
-    transactions.forEach(t => { if (!isIncomeTx(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
+    filtered.forEach(t => { if (!isIncomeTx(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
     return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
-  }, [transactions]);
+  }, [filtered]);
   const catTotal = catData.reduce((s, d) => s + d.value, 0);
 
-  // Statement pills
-  const stmtPills = useMemo(() => {
-    const seen = new Set<string>();
-    return imports.filter(i => {
-      let lbl = i.statementLabel || '';
-      if (lbl.length > 30 || lbl.toLowerCase().includes('nsaction')) lbl = 'Unknown';
-      if (seen.has(lbl)) return false;
-      seen.add(lbl);
-      return true;
-    });
+  // Statement options for dropdown (each individual import with filename)
+  const stmtOptions = useMemo(() => {
+    return imports
+      .filter(i => i.status === 'committed')
+      .map(i => {
+        let label = i.docName || '';
+        // Strip file extension for cleaner display
+        label = label.replace(/\.[a-z0-9]+$/i, '');
+        if (!label || label === 'Statement') {
+          // Fallback to date if no filename
+          const d = new Date(i.created_at);
+          label = `Statement — ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+        }
+        return { id: i.id, label };
+      });
   }, [imports]);
+  const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
 
-  // AI insights
+  // AI insights — from filtered
   const insights = useMemo(() => {
-    const uncatCount = transactions.filter(t => !t.category || t.category === 'Uncategorized').length;
-    const catCount = transactions.length - uncatCount;
+    const uncatCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
+    const catCount = filtered.length - uncatCount;
     const topCat = catData[0];
     const topPct = topCat && catTotal > 0 ? ((topCat.value / catTotal) * 100).toFixed(0) : '0';
     const merchantCounts: Record<string, number> = {};
-    transactions.forEach(t => { if (t.merchant_name) merchantCounts[t.merchant_name] = (merchantCounts[t.merchant_name] || 0) + 1; });
+    filtered.forEach(t => { if (t.merchant_name) merchantCounts[t.merchant_name] = (merchantCounts[t.merchant_name] || 0) + 1; });
     const recurring = Object.entries(merchantCounts).find(([, c]) => c >= 2);
     return [
       { agent: 'Tag', color: '#34d399', title: `${catCount} categorized, ${uncatCount} need review`, detail: uncatCount > 0 ? 'Tap uncategorized rows to assign categories' : 'All transactions categorized' },
       { agent: 'Crystal', color: '#ec4899', title: `Top: ${topCat?.name || 'N/A'} at ${topPct}%`, detail: topCat ? `$${fmt(topCat.value)} spent in ${topCat.name}` : 'No spending data yet' },
       { agent: 'Chime', color: '#fbbf24', title: recurring ? `${recurring[0]} appears ${recurring[1]}x` : 'No recurring detected', detail: recurring ? 'Possible recurring charge detected' : 'Upload more statements for patterns' },
     ];
-  }, [transactions, catData, catTotal]);
+  }, [filtered, catData, catTotal]);
 
   // Date groups
   const dateGroups = useMemo(() => {
@@ -169,7 +175,7 @@ export default function TransactionsPageV2() {
     return groups;
   }, [filtered, visibleCount]);
 
-  const uncategorizedCount = transactions.filter(t => !t.category || t.category === 'Uncategorized').length;
+  const uncategorizedCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
 
   if (isLoading) return (
     <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8">
@@ -198,7 +204,7 @@ export default function TransactionsPageV2() {
             { label: 'Total Spent', value: `$${fmt(totalSpent)}`, color: 'text-red-400', icon: <ArrowUpRight className="h-3.5 w-3.5 text-red-400" /> },
             { label: 'Total Income', value: `$${fmt(totalIncome)}`, color: 'text-emerald-400', icon: <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400" /> },
             { label: 'Net Flow', value: `${netFlow >= 0 ? '+' : '-'}$${fmt(Math.abs(netFlow))}`, color: netFlow >= 0 ? 'text-emerald-400' : 'text-amber-400', icon: <TrendingDown className="h-3.5 w-3.5 text-amber-400" /> },
-            { label: 'Transactions', value: String(transactions.length), color: 'text-white', icon: <Hash className="h-3.5 w-3.5 text-white" /> },
+            { label: 'Transactions', value: String(filtered.length), color: 'text-white', icon: <Hash className="h-3.5 w-3.5 text-white" /> },
           ].map(c => (
             <div key={c.label} className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5 hover:border-slate-600/50 hover:shadow-lg transition-all" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
               <div className="flex items-center justify-between mb-3">
@@ -268,18 +274,56 @@ export default function TransactionsPageV2() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            <button onClick={() => setStatementFilter('all')} className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full border transition-colors ${statementFilter === 'all' ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' : 'text-slate-600 border-transparent hover:text-slate-400'}`}>All</button>
-            {stmtPills.map(p => {
-              let lbl = p.statementLabel;
-              if (lbl.length > 30 || lbl.toLowerCase().includes('nsaction')) lbl = 'Unknown';
-              const pillColors: Record<string, string> = { 'RBC': '#003168', 'Capital One': '#d03027', 'TD': '#2b8000', 'BMO': '#0079c1', 'CIBC': '#c41f3e', 'Scotiabank': '#ec111a', 'Tangerine': '#f58220', 'Amex': '#006fcf', 'Triangle': '#e31837' };
-              const pColor = pillColors[lbl] || '#6366f1';
-              const isActive = statementFilter === p.id;
-              return (
-                <button key={p.id} onClick={() => setStatementFilter(p.id)} style={{ background: isActive ? pColor + '22' : 'transparent', color: isActive ? '#e8ecf4' : '#6b7a99', borderColor: isActive ? pColor + '55' : 'transparent', borderWidth: 1, borderStyle: 'solid', padding: '6px 14px', borderRadius: 999, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', cursor: 'pointer', transition: 'all 0.2s', boxShadow: isActive ? `0 0 12px ${pColor}30` : 'none' }}>{lbl}</button>
-              );
-            })}
+          <div className="relative">
+            <button
+              onClick={() => setStmtDropdownOpen(v => !v)}
+              className={`flex items-center gap-2 px-4 py-2 text-[13px] font-bold rounded-lg border transition-colors ${
+                statementFilter !== 'all'
+                  ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                  : 'text-slate-400 bg-slate-800/40 border-slate-700/30 hover:text-slate-300'
+              }`}
+            >
+              <span className="truncate max-w-[200px]">
+                {statementFilter === 'all'
+                  ? 'All Statements'
+                  : stmtOptions.find(s => s.id === statementFilter)?.label || 'Statement'}
+              </span>
+              <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${stmtDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {stmtDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setStmtDropdownOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 min-w-[260px] max-h-[320px] overflow-y-auto rounded-xl border border-slate-700/50 bg-slate-900 shadow-xl">
+                  <button
+                    onClick={() => { setStatementFilter('all'); setStmtDropdownOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-[13px] font-semibold border-b border-slate-800/60 transition-colors ${
+                      statementFilter === 'all' ? 'text-indigo-300 bg-indigo-500/10' : 'text-slate-300 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    All Statements
+                    <span className="ml-2 text-[11px] text-slate-500">{transactions.length} txns</span>
+                  </button>
+                  {stmtOptions.map(s => {
+                    const count = transactions.filter(t => t.import_id === s.id).length;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => { setStatementFilter(s.id); setStmtDropdownOpen(false); }}
+                        className={`w-full text-left px-4 py-3 text-[13px] border-b border-slate-800/40 last:border-b-0 transition-colors ${
+                          statementFilter === s.id ? 'text-indigo-300 bg-indigo-500/10 font-semibold' : 'text-slate-300 hover:bg-slate-800/50'
+                        }`}
+                      >
+                        <div className="truncate">{s.label}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{count} transaction{count !== 1 ? 's' : ''}</div>
+                      </button>
+                    );
+                  })}
+                  {stmtOptions.length === 0 && (
+                    <div className="px-4 py-3 text-[13px] text-slate-500">No committed statements</div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
