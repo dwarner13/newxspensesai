@@ -138,7 +138,7 @@ Return a JSON object with a "transactions" array containing all extracted transa
           headers: claudeHeaders,
           body: JSON.stringify({
             model: visionModel,
-            max_tokens: 8000,
+            max_tokens: 16000,
             system: systemPrompt,
             messages: [{ role: "user", content: userContent }],
           }),
@@ -166,7 +166,7 @@ Return a JSON object with a "transactions" array containing all extracted transa
         ],
         response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 8000,
+        max_tokens: 16000,
       });
       content = response.choices[0]?.message?.content ?? null;
     }
