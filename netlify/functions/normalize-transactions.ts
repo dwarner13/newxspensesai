@@ -91,9 +91,9 @@ function isMissingColumnError(error: any): boolean {
 
 async function fetchDocumentWithCompatibility(sb: any, documentId: string): Promise<{ doc: UserDocumentRow | null; error: any }> {
   const selectAttempts = [
-    'id, user_id, storage_path, mime_type, original_name, status, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, extracted_data, normalized_json, metadata, extraction_quality, pages_detected, ocr_completed_at, ocr_engine',
-    'id, user_id, storage_path, mime_type, original_name, status, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, extracted_data, normalized_json, metadata',
-    'id, user_id, storage_path, mime_type, original_name, status, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, metadata',
+    'id, user_id, storage_path, mime_type, original_name, status, ocr_text, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, extracted_data, normalized_json, metadata, extraction_quality, pages_detected, ocr_completed_at, ocr_engine',
+    'id, user_id, storage_path, mime_type, original_name, status, ocr_text, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, extracted_data, normalized_json, metadata',
+    'id, user_id, storage_path, mime_type, original_name, status, ocr_text, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, metadata',
     'id, storage_path, mime_type, original_name, status',
   ];
 
@@ -477,7 +477,7 @@ async function processNormalizationInBackground(
     const isImage = doc.mime_type?.startsWith('image/') || false;
     const transientText = String(options?.transientOcrText || '');
     const transientTextPathActive = transientText.trim().length > 0;
-    const ocrInputText = transientText;
+    const ocrInputText = transientText || doc?.ocr_text || "";
     const guardrailedInput = await sanitizePreCategorizationText(ocrInputText, userIdText, documentId);
     let guardedOcrInputText = guardrailedInput.text;
     let hasOcrText = guardedOcrInputText.trim().length > 0;
