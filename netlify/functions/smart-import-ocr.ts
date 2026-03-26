@@ -3509,8 +3509,9 @@ export const handler: Handler = async (event, context) => {
             ocrTextHash: textMetrics.hash || null,
             ocrTextLength: textMetrics.length ?? 0,
           }),
-        }).then(() => {
-          console.log("[smart-import-ocr] normalize done, re-triggering sync");
+        }).then(async () => {
+          console.log("[smart-import-ocr] normalize done, waiting 5s before re-triggering sync");
+          await new Promise(r => setTimeout(r, 5000));
           return fetch(`${netlifyUrl}/.netlify/functions/smart-import-sync`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
