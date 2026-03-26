@@ -27,6 +27,21 @@ export default function SettingsPageV2() {
   const [activeSection, setActiveSection] = useState("account");
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [dataStats, setDataStats] = useState("Loading...");
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getSupabase } = await import("@/lib/supabase");
+        const sb = getSupabase();
+        if (!sb || !userId) return;
+        const [{ count: docs }, { count: txns }] = await Promise.all([
+          sb.from("user_documents").select("*", { count: "exact", head: true }).eq("user_id", userId),
+          sb.from("transactions").select("*", { count: "exact", head: true }).eq("user_id", userId),
+        ]);
+        setDataStats(`${docs || 0} statements, ${txns || 0} transactions`);
+      } catch { setDataStats("Unable to load"); }
+    })();
+  }, [userId]);
   useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
   const InputRow = ({ label, value }: { label: string; value: string }) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: `1px solid ${THEME.border}` }}>
@@ -154,7 +169,7 @@ export default function SettingsPageV2() {
 
           {activeSection === "data" && (
             <Reveal delay={200}><div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 18, padding: "28px" }}>
-              <InputRow label="Data Stored" value="14 statements, 184 transactions" />
+              <InputRow label="Data Stored" value={dataStats} />
               <InputRow label="Storage Used" value="12.4 MB" />
               <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                 <button onClick={() => toast("Data export coming soon")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}>Export All Data</button>
@@ -186,7 +201,7 @@ export default function SettingsPageV2() {
                       for (const table of tables) {
                         const { error } = await supabase.from(table).delete().eq("user_id", uid); if (error) console.warn(`Nuke: ${table} failed:`, error.message);
                       }
-                      toast.success("All financial data deleted.");
+                      toast.success("All financial data deleted."); setDataStats("0 statements, 0 transactions");
                       // page stays on Data & Privacy tab
                     } catch (err) {
                       console.error("Nuke failed:", err);
