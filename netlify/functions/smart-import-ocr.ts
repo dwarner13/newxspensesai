@@ -3510,19 +3510,27 @@ export const handler: Handler = async (event, context) => {
             ocrTextLength: textMetrics.length ?? 0,
           }),
         }).then(async () => {
-          console.log("[smart-import-ocr] normalize done, waiting 5s before re-triggering sync");
-          await new Promise(r => setTimeout(r, 5000));
-          return fetch(`${netlifyUrl}/.netlify/functions/smart-import-sync`, {
+          console.log("[smart-import-ocr] normalize done, approving and committing");
+          await new Promise(r => setTimeout(r, 3000));
+          const sb = admin();
+          const { data: imp } = await sb.from("imports").select("id").eq("document_id", docId).eq("user_id", effectiveUserId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+          if (!imp?.id) { console.warn("[smart-import-ocr] no import found for docId:", docId); return; }
+          console.log("[smart-import-ocr] found import:", imp.id, "approving...");
+          const approveRes = await fetch(`${netlifyUrl}/.netlify/functions/approve-import`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: effectiveUserId,
-              docIds: [docId],
-              importRunId: `ocr-retrigger-${docId}-${Date.now()}`,
-            }),
+            headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId },
+            body: JSON.stringify({ importId: imp.id, userId: effectiveUserId }),
           });
+          console.log("[smart-import-ocr] approve status:", approveRes.status);
+          const commitRes = await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId },
+            body: JSON.stringify({ importId: imp.id, userId: effectiveUserId }),
+          });
+          const commitData = await commitRes.json();
+          console.log("[smart-import-ocr] commit result:", commitData.committed || 0, "transactions");
         }).catch((err) => {
-          console.error("[smart-import-ocr] normalize or sync re-trigger failed", err);
+          console.error("[smart-import-ocr] approve/commit failed", err);
         });
       }
     }
