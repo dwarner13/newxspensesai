@@ -3510,13 +3510,22 @@ export const handler: Handler = async (event, context) => {
             ocrTextLength: textMetrics.length ?? 0,
           }),
         }).then(async () => {
-          console.log("[smart-import-ocr] normalize done, approving and committing");
-          await new Promise(r => setTimeout(r, 3000));
+        }).then(async () => {
+          console.log("[smart-import-ocr] normalize done, polling for staged rows...");
           const sb = admin();
           const { data: imp } = await sb.from("imports").select("id").eq("document_id", docId).eq("user_id", effectiveUserId).order("created_at", { ascending: false }).limit(1).maybeSingle();
           if (!imp?.id) { console.warn("[smart-import-ocr] no import found for docId:", docId); return; }
-          console.log("[smart-import-ocr] found import:", imp.id, "committing...");
-          // Commit via internal call with service role
+          // Poll for staging rows (normalize takes ~30s internally)
+          let stagedCount = 0;
+          for (let attempt = 0; attempt < 20; attempt++) {
+            await new Promise(r => setTimeout(r, 3000));
+            const { count } = await sb.from("transactions_staging").select("*", { count: "exact", head: true }).eq("import_id", imp.id);
+            stagedCount = count || 0;
+            console.log(`[smart-import-ocr] poll ${attempt + 1}/20: ${stagedCount} staged rows`);
+            if (stagedCount > 0) break;
+          }
+          if (stagedCount === 0) { console.warn("[smart-import-ocr] no staged rows after 60s, giving up"); return; }
+          console.log("[smart-import-ocr] found", stagedCount, "staged rows, committing import:", imp.id);
           await sb.from("imports").update({ status: "parsed" }).eq("id", imp.id);
           const commitRes = await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
             method: "POST",
