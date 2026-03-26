@@ -3515,10 +3515,7 @@ export const handler: Handler = async (event, context) => {
           const sb = admin();
           const { data: imp } = await sb.from("imports").select("id").eq("document_id", docId).eq("user_id", effectiveUserId).order("created_at", { ascending: false }).limit(1).maybeSingle();
           if (!imp?.id) { console.warn("[smart-import-ocr] no import found for docId:", docId); return; }
-          console.log("[smart-import-ocr] found import:", imp.id, "approving...");
-          // Approve directly via admin (bypasses auth)
-          await sb.from("imports").update({ status: "approved" }).eq("id", imp.id);
-          console.log("[smart-import-ocr] approved import:", imp.id);
+          console.log("[smart-import-ocr] found import:", imp.id, "committing...");
           // Commit via internal call with service role
           const commitRes = await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
             method: "POST",
