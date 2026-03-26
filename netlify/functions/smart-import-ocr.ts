@@ -3517,6 +3517,7 @@ export const handler: Handler = async (event, context) => {
           if (!imp?.id) { console.warn("[smart-import-ocr] no import found for docId:", docId); return; }
           console.log("[smart-import-ocr] found import:", imp.id, "committing...");
           // Commit via internal call with service role
+          await sb.from("imports").update({ status: "parsed" }).eq("id", imp.id);
           const commitRes = await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId, "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
