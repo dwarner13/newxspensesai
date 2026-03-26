@@ -186,8 +186,8 @@ export default function SettingsPageV2() {
                       for (const table of tables) {
                         const { error } = await supabase.from(table).delete().eq("user_id", uid); if (error) console.warn(`Nuke: ${table} failed:`, error.message);
                       }
-                      toast.success("All financial data deleted. Refreshing...");
-                      setTimeout(() => window.location.reload(), 1500);
+                      toast.success("All financial data deleted.");
+                      // page stays on Data & Privacy tab
                     } catch (err) {
                       console.error("Nuke failed:", err);
                       toast.error("Failed to delete some data. Check console.");
