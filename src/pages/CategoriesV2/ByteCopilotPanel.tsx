@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
-import { useImportList } from "@/hooks/useImportList";
+import { useImportList, type ImportListItem } from "@/hooks/useImportList";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { useSetAtom } from "jotai";
 import { isUploadModalOpenAtom } from "@/lib/uiStore";
@@ -9,6 +9,37 @@ import { ChatAttachmentButton } from "@/components/chat/ChatAttachmentButton";
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#7b8ba5", dim: "#4a5a75" };
 const GREEN = "#34d399";
+
+function fmtCurrency(n: number): string {
+  return "$" + Math.abs(n).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildBriefing(latest: ImportListItem): string {
+  const bd = latest.breakdown;
+  const filename = latest.docName || "your statement";
+
+  if (!bd?.totals) {
+    return `I processed ${filename} — details are still being extracted.`;
+  }
+
+  const { total_debits, total_credits, transaction_count } = bd.totals;
+  const isIncome = total_credits > total_debits;
+  const totalAmount = isIncome ? total_credits : total_debits;
+  const txType = isIncome ? "income" : "expense";
+  const txCount = transaction_count || 0;
+
+  let msg = `I processed ${filename} — ${txCount} ${txType} transaction${txCount !== 1 ? "s" : ""} totaling ${fmtCurrency(totalAmount)}.`;
+
+  if (isIncome && bd.top_merchants && bd.top_merchants.length > 0) {
+    const topPayers = bd.top_merchants.slice(0, 3).map(m => `${m.merchant} (${fmtCurrency(m.total)})`).join(", ");
+    msg += ` Top payers: ${topPayers}.`;
+  } else if (!isIncome && bd.category_totals && bd.category_totals.length > 0) {
+    const topCats = bd.category_totals.slice(0, 3).map(c => `${c.category} (${fmtCurrency(c.total)})`).join(", ");
+    msg += ` Top categories: ${topCats}.`;
+  }
+
+  return msg;
+}
 
 interface ByteCopilotPanelProps { onClose: () => void; }
 
@@ -23,7 +54,12 @@ export function ByteCopilotPanel({ onClose }: ByteCopilotPanelProps) {
   useEffect(() => { requestAnimationFrame(() => setOpen(true)); }, []);
   const handleClose = () => { setOpen(false); setTimeout(onClose, 300); };
 
-  const statusText = `I've processed ${imports.length} statement${imports.length !== 1 ? "s" : ""} with high accuracy. ${imports.length > 0 ? `Your last import was ${imports[0]?.label || "recently"}.` : "Upload a statement to get started."}`;
+  const latest = imports[0];
+  const statusText = latest?.breakdown?.totals
+    ? buildBriefing(latest)
+    : imports.length > 0
+      ? `I've processed ${imports.length} statement${imports.length !== 1 ? "s" : ""}. ${latest ? `Your last import was ${latest.label || "recently"}.` : ""}`
+      : "Upload a statement to get started.";
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [typed, messages.length]);

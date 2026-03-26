@@ -4,7 +4,40 @@ import { useNavigate } from "react-router-dom";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useAuth } from "@/contexts/AuthContext";
+import { getSupabase } from "@/lib/supabase";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
+
+async function computeFileHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function checkDuplicateHash(hash: string, userId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  const { data } = await supabase
+    .from("user_documents")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("file_hash", hash)
+    .limit(1);
+  return (data && data.length > 0) || false;
+}
+
+async function storeFileHash(userId: string, fileName: string, hash: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  await supabase
+    .from("user_documents")
+    .update({ file_hash: hash })
+    .eq("user_id", userId)
+    .eq("original_name", fileName)
+    .is("file_hash", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+}
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171" };
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,.xlsx,.xls,image/*";
@@ -27,12 +60,12 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-async function handleSpreadsheetUpload(file: File, userId: string, authToken?: string): Promise<{ success: boolean; import_id?: string; byte_message?: string; transaction_count?: number; error?: string }> {
+async function handleSpreadsheetUpload(file: File, userId: string, authToken?: string, fileHash?: string): Promise<{ success: boolean; import_id?: string; byte_message?: string; transaction_count?: number; error?: string }> {
   const base64 = await fileToBase64(file);
   const response = await fetch("/.netlify/functions/process-spreadsheet", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-user-id": userId },
-    body: JSON.stringify({ file_base64: base64, filename: file.name }),
+    body: JSON.stringify({ file_base64: base64, filename: file.name, file_hash: fileHash }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Spreadsheet import failed");
@@ -116,11 +149,21 @@ export default function UploadPageV2() {
     updateItem(current.id, { status: "processing" });
 
     try {
+      // ── Duplicate file check ──
+      const fileHash = await computeFileHash(current.file);
+      const isDupe = await checkDuplicateHash(fileHash, userId);
+      if (isDupe) {
+        toast.error(`This file has already been uploaded: ${current.file.name}`);
+        updateItem(current.id, { status: "failed", error: "Duplicate file" });
+        processingRef.current = false;
+        return;
+      }
+
       let txCount = 0;
 
       if (isSpreadsheetFile(current.file.name)) {
         // ── XLSX/CSV path — use dedicated spreadsheet processor ──
-        const xlResult = await handleSpreadsheetUpload(current.file, userId, session?.access_token);
+        const xlResult = await handleSpreadsheetUpload(current.file, userId, session?.access_token, fileHash);
         txCount = xlResult.transaction_count || 0;
       } else {
         // ── PDF/image path — use existing OCR pipeline ──
@@ -131,6 +174,9 @@ export default function UploadPageV2() {
         });
         txCount = result?.stats?.transactionCount || result?.transactionCount || 0;
       }
+
+      // Store hash for future duplicate detection
+      void storeFileHash(userId, current.file.name, fileHash);
 
       updateItem(current.id, { status: "categorizing" });
       await new Promise(r => setTimeout(r, 1500));
@@ -152,14 +198,30 @@ export default function UploadPageV2() {
       processingRef.current = true;
       updateItem(next.id, { status: "processing" });
       try {
+        // ── Duplicate file check ──
+        const fileHash = await computeFileHash(next.file);
+        const isDupe = await checkDuplicateHash(fileHash, userId);
+        if (isDupe) {
+          toast.error(`This file has already been uploaded: ${next.file.name}`);
+          updateItem(next.id, { status: "failed", error: "Duplicate file" });
+          processingRef.current = false;
+          await processNextInQueue();
+          return;
+        }
+
         let txCount = 0;
+
         if (isSpreadsheetFile(next.file.name)) {
-          const xlResult = await handleSpreadsheetUpload(next.file, userId, session?.access_token);
+          const xlResult = await handleSpreadsheetUpload(next.file, userId, session?.access_token, fileHash);
           txCount = xlResult.transaction_count || 0;
         } else {
           const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token });
           txCount = result?.stats?.transactionCount || result?.transactionCount || 0;
         }
+
+        // Store hash for future duplicate detection
+        void storeFileHash(userId, next.file.name, fileHash);
+
         updateItem(next.id, { status: "categorizing" });
         await new Promise(r => setTimeout(r, 1200));
         updateItem(next.id, { status: "complete", txCount });

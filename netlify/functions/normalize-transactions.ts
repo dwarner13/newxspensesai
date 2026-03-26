@@ -24,6 +24,7 @@ type UserDocumentRow = {
   mime_type?: string | null;
   original_name?: string | null;
   status?: string | null;
+  ocr_text?: string | null;
   ocr_text_hash?: string | null;
   ocr_text_length?: number | null;
   extracted_text_hash?: string | null;
@@ -478,8 +479,8 @@ async function processNormalizationInBackground(
     const transientTextPathActive = transientText.trim().length > 0;
     const ocrInputText = transientText;
     const guardrailedInput = await sanitizePreCategorizationText(ocrInputText, userIdText, documentId);
-    const guardedOcrInputText = guardrailedInput.text;
-    const hasOcrText = guardedOcrInputText.trim().length > 0;
+    let guardedOcrInputText = guardrailedInput.text;
+    let hasOcrText = guardedOcrInputText.trim().length > 0;
     const docTextLengthValue =
       doc?.ocr_text_length ??
       doc?.extracted_text_length ??
@@ -533,6 +534,31 @@ async function processNormalizationInBackground(
         textLength: guardedOcrInputText.length,
         preview: guardedOcrInputText.slice(0, 300),
       });
+    }
+
+    // Persist transient OCR text to user_documents BEFORE the lock attempt.
+    // This prevents a race condition where the caller with text loses the lock
+    // and the caller that wins has no text (producing 0 transactions).
+    if (transientTextPathActive && guardedOcrInputText.length > 0) {
+      try {
+        await sb
+          .from('user_documents')
+          .update({
+            ocr_text: guardedOcrInputText,
+            ocr_text_length: guardedOcrInputText.length,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', documentId);
+        console.log('[normalize-transactions] Persisted transient OCR text to user_documents', {
+          documentId,
+          textLength: guardedOcrInputText.length,
+        });
+      } catch (e: any) {
+        console.warn('[normalize-transactions] Failed to persist transient OCR text', {
+          documentId,
+          error: e?.message || String(e),
+        });
+      }
     }
 
     // 2) Find existing import (if any) BEFORE creating one.
@@ -742,6 +768,34 @@ async function processNormalizationInBackground(
     }
     if (!lockAcquired) {
       lockAcquired = true;
+    }
+
+    // If we acquired the lock but have no OCR text, re-fetch from user_documents.
+    // The other caller may have persisted transient text before losing the lock race.
+    if (!hasOcrText && !transientTextPathActive) {
+      try {
+        const { data: freshDoc } = await sb
+          .from('user_documents')
+          .select('ocr_text, ocr_text_length')
+          .eq('id', documentId)
+          .maybeSingle();
+        const persistedOcrText = String(freshDoc?.ocr_text || '').trim();
+        if (persistedOcrText.length > 0) {
+          console.log('[normalize-transactions] Recovered persisted OCR text after lock acquisition', {
+            documentId,
+            importId: importRecord.id,
+            textLength: persistedOcrText.length,
+          });
+          const reGuardrailed = await sanitizePreCategorizationText(persistedOcrText, userIdText, documentId);
+          guardedOcrInputText = reGuardrailed.text;
+          hasOcrText = guardedOcrInputText.trim().length > 0;
+        }
+      } catch (e: any) {
+        console.warn('[normalize-transactions] Failed to re-fetch persisted OCR text', {
+          documentId,
+          error: e?.message || String(e),
+        });
+      }
     }
 
     const { count: existingStagingCount } = await sb

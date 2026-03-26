@@ -9,6 +9,31 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
+export interface ImportBreakdown {
+  totals?: {
+    total_debits: number;
+    total_credits: number;
+    net: number;
+    transaction_count: number;
+  };
+  category_totals?: Array<{
+    category: string;
+    total: number;
+    count: number;
+    percentage: number;
+  }>;
+  top_merchants?: Array<{
+    merchant: string;
+    total: number;
+    count: number;
+  }>;
+  statementTotals?: {
+    totalDeducted?: number;
+    totalAdded?: number;
+    source?: string;
+  };
+}
+
 export interface ImportListItem {
   id: string;
   status: string;
@@ -19,6 +44,8 @@ export interface ImportListItem {
   statementLabel: string;
   /** Original document filename */
   docName: string;
+  /** Statement breakdown data from imports table */
+  breakdown: ImportBreakdown | null;
 }
 
 export interface UseImportListResult {
@@ -108,6 +135,7 @@ export function useImportList(): UseImportListResult {
         const r = row as Record<string, unknown>;
         const doc = r.document as Record<string, unknown> | null;
         const docName = String(doc?.original_name || 'Statement');
+        const rawBreakdown = (r.statement_breakdown_json as ImportBreakdown | null) || null;
         return {
           id: String(r.id || ''),
           status: String(r.status || ''),
@@ -115,6 +143,7 @@ export function useImportList(): UseImportListResult {
           label: formatImportDateLabel(String(r.created_at || '')),
           statementLabel: buildStatementLabel(r, docName, doc),
           docName,
+          breakdown: rawBreakdown,
         };
       });
 
