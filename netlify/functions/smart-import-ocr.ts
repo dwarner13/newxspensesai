@@ -3509,25 +3509,21 @@ export const handler: Handler = async (event, context) => {
             ocrTextHash: textMetrics.hash || null,
             ocrTextLength: textMetrics.length ?? 0,
           }),
+        }).then(() => {
+          console.log("[smart-import-ocr] normalize done, re-triggering sync");
+          return fetch(`${netlifyUrl}/.netlify/functions/smart-import-sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: effectiveUserId,
+              docIds: [docId],
+              importRunId: `ocr-retrigger-${docId}-${Date.now()}`,
+            }),
+          });
         }).catch((err) => {
-          console.error('[smart-import-ocr] Error calling normalize-transactions:', err);
+          console.error("[smart-import-ocr] normalize or sync re-trigger failed", err);
         });
       }
-
-      // Re-trigger smart-import-sync after OCR completes (fire-and-forget).
-      // On Netlify, sync often fires before OCR finishes and finds nothing.
-      // This ensures sync runs again once OCR data is actually available.
-      fetch(`${netlifyUrl}/.netlify/functions/smart-import-sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: effectiveUserId,
-          docIds: [docId],
-          importRunId: `ocr-retrigger-${docId}-${Date.now()}`,
-        }),
-      }).catch((err) => {
-        console.error('[smart-import-ocr] sync re-trigger failed', err);
-      });
     }
     const cleanedTextForDebug = includeCleanedTextDebug ? sanitizedText : undefined;
     // Best-effort drop reference after handoff to normalization stage.
