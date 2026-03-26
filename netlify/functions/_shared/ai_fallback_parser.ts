@@ -183,6 +183,7 @@ Return a JSON object with a "transactions" array containing all extracted transa
     // Parse JSON response
     // OpenAI JSON mode returns: { "transactions": [...] } or direct array
     let parsed: any;
+    content = content.replace(/^```(?:json)?\s*/gm, "").replace(/```\s*$/gm, "").trim();
     try {
       parsed = JSON.parse(content);
     } catch (parseError) {
