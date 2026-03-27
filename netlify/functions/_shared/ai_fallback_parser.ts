@@ -118,7 +118,7 @@ Return a JSON object with a "transactions" array containing all extracted transa
     // Try Claude first — use Vision (PDF direct) when available, text fallback otherwise
     if (anthropicKey) {
       const useVision = Boolean(pdfBase64);
-      const visionModel = useVision ? "claude-sonnet-4-20250514" : "claude-haiku-4-5-20251001";
+      const visionModel = "claude-sonnet-4-20250514";
       console.log(`[Byte OCR] Calling Claude ${useVision ? "Vision (PDF)" : "text"} parser for ${statementType} statement, model: ${visionModel}`);
       try {
         const userContent = useVision
