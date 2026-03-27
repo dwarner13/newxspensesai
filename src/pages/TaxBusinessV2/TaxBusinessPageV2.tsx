@@ -1,127 +1,81 @@
-import { useState, useEffect } from "react";
-import { THEME, LEDGER_COLOR } from "./taxConfig";
-import { useTaxData } from "./useTaxData";
-import { LedgerCopilotPanel } from "./LedgerCopilotPanel";
-import { Reveal } from "../PrimeChatV2/Reveal";
-import { useTypewriter } from "../PrimeChatV2/useTypewriter";
+
+const T = {
+  bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
+  text: "#e8ecf4", muted: "#7a8fa6", dim: "#4a5568",
+  accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", purple: "#a78bfa",
+};
+
+const verticals = [
+  { icon: "🍽️", name: "Restaurants & Food Service", desc: "Cost of goods, labour, occupancy, merchant fees — auto-sorted from your statements." },
+  { icon: "⚖️", name: "Professional Services", desc: "Law firms, accountants, consultants — track billable expenses and subcontractors." },
+  { icon: "🔧", name: "Trades & Contractors", desc: "Vehicle, tools, materials, job-site costs — organized for T2125 filing." },
+  { icon: "🏪", name: "Retail & E-Commerce", desc: "Inventory, shipping, platform fees — clean expense reports for your bookkeeper." },
+];
+
+const features = [
+  { icon: "📂", title: "Business Category Rules", desc: "Tag learns your business — COGS, labour, occupancy, professional fees." },
+  { icon: "📊", title: "Accountant-Ready Export", desc: "One-click export your bookkeeper can open directly in their software." },
+  { icon: "🧾", title: "HST / GST Tracking", desc: "Flag HST-eligible expenses automatically as transactions come in." },
+  { icon: "👥", title: "Multi-User Access", desc: "Invite your bookkeeper or accountant to view and export your data." },
+];
 
 export default function TaxBusinessPageV2() {
-  const data = useTaxData();
-  const [tab, setTab] = useState<"deductions" | "deadlines" | "tips">("deductions");
-  const [copilotOpen, setCopilotOpen] = useState(false);
-
-  const intro = data.loading ? "" : `I've scanned your transactions and organized $${data.deductionsFound.toLocaleString()} in potential deductions across ${data.deductionCategories.length} categories. Your filing deadline is ${data.daysToDeadline} days away \u2014 let's make sure everything is documented.`;
-  const [typed, typeDone] = useTypewriter(intro, 14, 600, !data.loading);
-
-  if (data.loading) return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ fontSize: 13, color: THEME.textMuted }}>Ledger is reviewing your tax position...</div>
-    </div>
-  );
-
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", padding: "28px 36px" }}>
-      <Reveal delay={0}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>Tax & Business</h1>
-          <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>AI-organized tax preparation {"\u2022"} Guided by Ledger</p>
+    <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 24px", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      {/* Header */}
+      <div style={{ marginBottom: 40 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 12px", borderRadius: 20, background: `${T.accent}15`, border: `1px solid ${T.accent}30`, marginBottom: 16 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.accent }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: "0.1em" }}>Coming Soon</span>
         </div>
-        <button style={{ padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: `${LEDGER_COLOR}12`, border: `1px solid ${LEDGER_COLOR}28`, color: LEDGER_COLOR, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 20, height: 20, borderRadius: "50%", background: `${LEDGER_COLOR}25`, border: `1px solid ${LEDGER_COLOR}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: LEDGER_COLOR }}>L</div>
-          Ledger Copilot
-        </button>
-      </div></Reveal>
-
-      <Reveal delay={200}><div style={{ padding: "20px 24px", borderRadius: 16, marginBottom: 24, background: `linear-gradient(135deg, ${LEDGER_COLOR}06, transparent)`, border: `1px solid ${LEDGER_COLOR}15`, display: "flex", gap: 14, alignItems: "flex-start" }}>
-        <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(135deg, ${LEDGER_COLOR}30, ${LEDGER_COLOR}10)`, border: `1.5px solid ${LEDGER_COLOR}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: LEDGER_COLOR, boxShadow: `0 0 16px ${LEDGER_COLOR}33` }}>L</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.8, fontWeight: 700, color: LEDGER_COLOR, marginBottom: 8 }}>Ledger's Tax Review</div>
-          <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6 }}>{typed}<span style={{ opacity: !typeDone ? 1 : 0, color: LEDGER_COLOR }}>{"\u2588"}</span></div>
-        </div>
-      </div></Reveal>
-
-      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-        {[
-          { label: "Deductions Found", value: `$${data.deductionsFound.toLocaleString()}`, color: LEDGER_COLOR, icon: "\uD83E\uDDFE" },
-          { label: "Estimated Savings", value: data.estimatedSavings, color: "#60a5fa", icon: "\uD83D\uDCB0" },
-          { label: "Docs Processed", value: `${data.docsProcessed}`, color: "#a78bfa", icon: "\uD83D\uDCC4" },
-          { label: "Filing Deadline", value: `${data.daysToDeadline} days`, color: "#fbbf24", icon: "\uD83D\uDCC5" },
-        ].map((s, i) => (
-          <Reveal key={s.label} delay={100 + i * 60} style={{ flex: 1 }}>
-            <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: `${s.color}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{s.icon}</div>
-              <div>
-                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700, marginBottom: 2 }}>{s.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: THEME.text }}>{s.value}</div>
-              </div>
-            </div>
-          </Reveal>
-        ))}
+        <h1 style={{ fontSize: 32, fontWeight: 800, color: T.text, marginBottom: 10, letterSpacing: -0.5 }}>
+          XspensesAI for Business
+        </h1>
+        <p style={{ fontSize: 15, color: T.muted, lineHeight: 1.6, maxWidth: 560 }}>
+          Everything self-employed Canadians love about XspensesAI — rebuilt for small business owners. Upload your statements, let AI organize your expenses by business category, and hand your accountant a clean report at tax time.
+        </p>
       </div>
 
-      <Reveal delay={350}><div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-        {([
-          { id: "deductions" as const, label: "\uD83E\uDDFE Deductions", count: data.deductionCategories.length },
-          { id: "deadlines" as const, label: "\uD83D\uDCC5 Deadlines", count: data.deadlines.length },
-          { id: "tips" as const, label: "\uD83D\uDCA1 Tax Tips", count: data.tips.length },
-        ]).map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "9px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: tab === t.id ? THEME.accentGlow : THEME.surface, border: `1px solid ${tab === t.id ? THEME.accent + "44" : THEME.border}`, color: tab === t.id ? THEME.accent : THEME.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-            {t.label}
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 6, background: tab === t.id ? `${THEME.accent}20` : THEME.bg, color: tab === t.id ? THEME.accent : THEME.textDim }}>{t.count}</span>
-          </button>
-        ))}
-      </div></Reveal>
-
-      {tab === "deductions" && data.deductionCategories.map((d, i) => (
-        <Reveal key={d.name} delay={100 + i * 80}>
-          <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: "20px 24px", marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: `${d.color}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{"\uD83E\uDDFE"}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: THEME.text }}>{d.name}</div>
-                <div style={{ fontSize: 11, color: THEME.textDim }}>{d.count} transactions {"\u2022"} {d.confidence}% confidence</div>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: d.color }}>${d.amount.toLocaleString()}</div>
-              <button style={{ padding: "6px 16px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: `${d.color}12`, border: `1px solid ${d.color}28`, color: d.color, cursor: "pointer" }}>Review</button>
+      {/* Verticals */}
+      <div style={{ marginBottom: 40 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 16 }}>Built for your industry</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+          {verticals.map(v => (
+            <div key={v.name} style={{ padding: "16px 18px", borderRadius: 14, background: T.surface, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 24, marginBottom: 10 }}>{v.icon}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 6 }}>{v.name}</div>
+              <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5 }}>{v.desc}</div>
             </div>
-          </div>
-        </Reveal>
-      ))}
-
-      {tab === "deadlines" && data.deadlines.map((d, i) => (
-        <Reveal key={d.label} delay={100 + i * 80}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 22px", background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, marginBottom: 10 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: `${d.color}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{"\uD83D\uDCC5"}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: THEME.text }}>{d.label}</div>
-              <div style={{ fontSize: 11, color: THEME.textDim }}>{d.date}</div>
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: d.color, padding: "4px 14px", borderRadius: 8, background: `${d.color}12`, border: `1px solid ${d.color}22` }}>{d.status}</span>
-          </div>
-        </Reveal>
-      ))}
-
-      {tab === "tips" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
-          {data.tips.map((t, i) => (
-            <Reveal key={t.title} delay={100 + i * 80}>
-              <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: "22px", cursor: "pointer", transition: "all 0.25s" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: `${t.color}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, marginBottom: 14 }}>{t.icon}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: THEME.text, marginBottom: 6 }}>{t.title}</div>
-                <div style={{ fontSize: 12, color: THEME.textDim, marginBottom: 4 }}>By Ledger {"\u2022"} {t.duration}</div>
-                <div style={{ fontSize: 12.5, color: THEME.textMuted, lineHeight: 1.5, marginBottom: 14 }}>{t.desc}</div>
-                <button style={{ padding: "8px 18px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: `${t.color}12`, border: `1px solid ${t.color}28`, color: t.color, cursor: "pointer" }}>Read More {"\u2192"}</button>
-              </div>
-            </Reveal>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Ledger copilot bubble */}
-      {!copilotOpen && (
-        <button onClick={() => setCopilotOpen(true)} style={{ position: "fixed", bottom: typeof window !== "undefined" && window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #34d399, #34d399cc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(52,211,153,0.44)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }}>L</button>
-      )}
-      {copilotOpen && <LedgerCopilotPanel onClose={() => setCopilotOpen(false)} data={data} />}
+      {/* Features */}
+      <div style={{ marginBottom: 40 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 16 }}>What's included</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+          {features.map(f => (
+            <div key={f.title} style={{ padding: "16px 18px", borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, display: "flex", gap: 14 }}>
+              <div style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>{f.title}</div>
+                <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5 }}>{f.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div style={{ padding: "28px 32px", borderRadius: 18, background: `${T.accent}08`, border: `1px solid ${T.accent}20`, textAlign: "center" }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 8 }}>Be first when it launches</div>
+        <p style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>We're building this for restaurants, trades, and professional services first. Join the waitlist and get 3 months free at launch.</p>
+        <button
+          onClick={() => window.open('mailto:hello@xspensesai.com?subject=Business Waitlist', '_blank')}
+          style={{ padding: "12px 32px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: "#0b1220", cursor: "pointer" }}>
+          Join the Waitlist
+        </button>
+      </div>
     </div>
   );
 }
