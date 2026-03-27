@@ -227,8 +227,6 @@ export function TransactionInsightDrawer({
       setIsSavingCat(false);
     }
   };
-  };
-
   const savePendingCategory = async () => {
     if (row.kind !== 'pending') return;
     const p = row.transaction;

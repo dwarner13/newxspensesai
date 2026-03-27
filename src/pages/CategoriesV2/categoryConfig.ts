@@ -51,7 +51,7 @@ export const CATEGORY_META: Record<string, { color: string; icon: string; budget
   "Education":     { color: "#60a5fa", icon: "📚", budget: 200 },
   "Travel":        { color: "#fbbf24", icon: "🌍", budget: 500 },
   "Home & Garden": { color: "#34d399", icon: "🔨", budget: 200 },
-  "Business":      { color: "#c8a64e", icon: "💼", budget: 0 },,
+  "Business":      { color: "#c8a64e", icon: "💼", budget: 0 },
   "Uncategorized": { color: "#f59e0b", icon: "\u2753", budget: 0 },
 };
 
