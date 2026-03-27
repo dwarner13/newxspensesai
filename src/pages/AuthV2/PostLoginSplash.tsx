@@ -54,7 +54,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         background: `linear-gradient(135deg, ${C.accent}25, ${C.accent}08)`,
         border: `2px solid ${C.accent}33`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 28, marginBottom: 12,
+        fontSize: 28, marginBottom: 12, marginTop: 40,
         boxShadow: `0 0 40px ${C.accent}15, 0 0 80px ${C.accent}08`,
         animation: "crownFloat 3s ease-in-out infinite",
         flexShrink: 0,
