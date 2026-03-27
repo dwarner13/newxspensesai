@@ -39,6 +39,8 @@ interface TransactionInsightDrawerProps {
   onPendingCategorySaved?: (pendingId: string, category: string) => void;
   onAskTag?: (row: DrawerTransaction) => void;
   onFlagReview?: (row: DrawerTransaction) => void;
+  tagInsight?: { category?: string; categorySource?: string; confidence?: number; message?: string } | null;
+  tagInsightLoading?: boolean;
 }
 
 function normalizeMerchant(value: string): string {
@@ -58,6 +60,8 @@ export function TransactionInsightDrawer({
   onPendingCategorySaved,
   onAskTag,
   onFlagReview,
+  tagInsight,
+  tagInsightLoading = false,
 }: TransactionInsightDrawerProps) {
   const [localCategory, setLocalCategory] = useState('');
   const [isSavingCat, setIsSavingCat] = useState(false);
@@ -305,6 +309,26 @@ export function TransactionInsightDrawer({
                 <div className="mt-1.5 text-sm text-slate-300">{statementLabel}</div>
               </div>
             ) : null}
+
+            {/* Tag insight */}
+            {(tagInsightLoading || tagInsight?.message) && (
+              <div style={{ padding: "12px 14px", borderRadius: 12, background: "rgba(34,211,153,0.04)", border: "1px solid rgba(34,211,153,0.15)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(34,211,153,0.12)", border: "1px solid rgba(34,211,153,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#22d3ee", flexShrink: 0 }}>T</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#22d3ee", marginBottom: 3 }}>Tag</div>
+                  {tagInsightLoading ? (
+                    <div style={{ fontSize: 11, color: "#7a8fa6", lineHeight: 1.5 }}>Analyzing this transaction…</div>
+                  ) : tagInsight?.message ? (
+                    <>
+                      <div style={{ fontSize: 12, color: "#e8ecf4", lineHeight: 1.5, marginBottom: 4 }}>{tagInsight.message}</div>
+                      {tagInsight.confidence != null && (
+                        <div style={{ fontSize: 11, color: "#7a8fa6" }}>Confidence: {Math.round((tagInsight.confidence ?? 0) * 100)}% · Source: {tagInsight.categorySource ?? "rules"}</div>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            )}
 
             {/* Receipt hint */}
             <div style={{ padding: "12px 14px", borderRadius: 12, background: "rgba(34,211,238,0.04)", border: "1px solid rgba(34,211,238,0.12)", display: "flex", alignItems: "flex-start", gap: 10 }}>

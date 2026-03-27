@@ -11,6 +11,8 @@ import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
 import { TransactionInsightDrawer } from '@/components/transactions/TransactionInsightDrawer';
 import { ByteCopilotPanel } from '@/pages/CategoriesV2/ByteCopilotPanel';
 import type { CommittedTransaction } from '@/types/transactions';
+import { getSupabase } from '@/lib/supabase';
+import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
 
 const CAT_COLORS: Record<string, string> = {
   'Personal Care': '#ec4899', Subscriptions: '#818cf8', Shopping: '#a78bfa',
@@ -51,6 +53,10 @@ export default function TransactionsPageV2() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string } | null>(null);
+  const [tagInsightLoading, setTagInsightLoading] = useState(false);
+  const [tagPanelOpen, setTagPanelOpen] = useState(false);
+  const [tagPanelTx, setTagPanelTx] = useState<CommittedTransaction | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
@@ -81,6 +87,23 @@ export default function TransactionsPageV2() {
   const handleOpenPrime = useCallback(() => {
     setIsPrimeBriefingOpen(true);
   }, [setIsPrimeBriefingOpen]);
+
+  const fetchTagInsight = useCallback(async (tx: CommittedTransaction) => {
+    setTagInsight(null);
+    setTagInsightLoading(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const res = await fetch(`/.netlify/functions/tag-explain`, {
+        method: `POST`,
+        headers: { `content-type`: `application/json`, `x-user-id`: user.id },
+        body: JSON.stringify({ transactionId: tx.id }),
+      });
+      if (res.ok) setTagInsight(await res.json());
+    } catch { /* silent */ } finally { setTagInsightLoading(false); }
+  }, []);
 
   // Filtering
   const filtered = useMemo(() => {
@@ -361,7 +384,7 @@ export default function TransactionsPageV2() {
                 const isIncome = isIncomeTx(t);
                 const c = colorFor(cat);
                 return (
-                  <button key={t.id} onClick={() => setSelectedTx(t)} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left">
+                  <button key={t.id} onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left">
                     <div className="relative flex items-center justify-center h-[44px] w-[44px] rounded-xl shrink-0" style={{ background: c + '2e', border: `1px solid ${c}40` }}>
                       <span className="text-base">{iconFor(cat)}</span>
                       {isUncat && <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-2.5 w-2.5 rounded-full bg-amber-400" /></span>}
@@ -398,6 +421,10 @@ export default function TransactionsPageV2() {
         <button onClick={() => setCopilotOpen(true)} style={{ position: "fixed", bottom: window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #34d399, #34d399cc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(52,211,153,0.44)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">B</button>
       )}
       {copilotOpen && <ByteCopilotPanel onClose={() => setCopilotOpen(false)} />}
+      {!tagPanelOpen && (
+        <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: window.innerWidth <= 768 ? 140 : 84, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
+      )}
+      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
 
       {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
@@ -407,6 +434,9 @@ export default function TransactionsPageV2() {
           allCommittedTransactions={transactions}
           onClose={() => setSelectedTx(null)}
           onCommittedCategorySaved={() => { setSelectedTx(null); void refetch(); }}
+          tagInsight={tagInsight}
+          tagInsightLoading={tagInsightLoading}
+          onAskTag={(row) => { if (row.kind === `committed`) { setTagPanelTx(row.transaction); setTagPanelOpen(true); setSelectedTx(null); } }}
         />,
         document.body
       )}
