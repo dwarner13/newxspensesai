@@ -44,8 +44,8 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "0 24px",
-      overflowY: "auto",
+      padding: "24px 24px",
+      overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 24px)",
       cursor: showButtons ? "default" : "pointer",
     }}>
       {/* Crown */}
@@ -54,7 +54,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         background: `linear-gradient(135deg, ${C.accent}25, ${C.accent}08)`,
         border: `2px solid ${C.accent}33`,
         display: "flex", alignItems: "center", justifyContent: "flex-start",
-        fontSize: 28, marginBottom: 20,
+        fontSize: 28, marginBottom: 12,
         boxShadow: `0 0 40px ${C.accent}15, 0 0 80px ${C.accent}08`,
         animation: "crownFloat 3s ease-in-out infinite",
         flexShrink: 0,
@@ -70,16 +70,16 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         color: C.text, marginBottom: 6, textAlign: "center",
       }}>Welcome Back, {userName}</h1>
 
-      <p style={{ fontSize: 15, color: C.dim, marginBottom: 28, textAlign: "center" }}>
+      <p style={{ fontSize: 15, color: C.dim, marginBottom: 16, textAlign: "center" }}>
         Here&apos;s what your AI team did while you were away.
       </p>
 
       {/* Agent lines */}
-      <div style={{ maxWidth: 480, width: "100%", marginBottom: 28 }}>
+      <div style={{ maxWidth: 480, width: "100%", marginBottom: 16 }}>
         {agents.map((agent, i) => (
           <div key={agent.name} style={{
             display: "flex", alignItems: "flex-start", gap: 12,
-            padding: "12px 16px", marginBottom: 8,
+            padding: "10px 14px", marginBottom: 6,
             background: visibleLines > i ? `${agent.color}06` : "transparent",
             border: `1px solid ${visibleLines > i ? agent.color + "18" : "transparent"}`,
             borderRadius: 14,
