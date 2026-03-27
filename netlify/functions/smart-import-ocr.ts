@@ -3496,7 +3496,8 @@ export const handler: Handler = async (event, context) => {
         console.log('[OCR HANDOFF DEBUG] transient_text_preview', transientPreview);
         console.log('[OCR HANDOFF DEBUG] same_text:', rescuedTextForHandoff ? rescuedTextForHandoff === sanitizedText : false);
         console.log('[OCR HANDOFF DEBUG] handoff_source', handoffSource);
-        await fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
+        // Fire-and-forget: normalize-transactions
+        fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -3509,41 +3510,17 @@ export const handler: Handler = async (event, context) => {
             ocrTextHash: textMetrics.hash || null,
             ocrTextLength: textMetrics.length ?? 0,
           }),
-        }).then(async () => {
-          console.log("[smart-import-ocr] normalize done, polling for staged rows...");
-          const sb = admin();
-          const { data: imp } = await sb.from("imports").select("id").eq("document_id", docId).eq("user_id", effectiveUserId).order("created_at", { ascending: false }).limit(1).maybeSingle();
-          if (!imp?.id) { console.warn("[smart-import-ocr] no import found for docId:", docId); return; }
-          // Poll for staging rows (normalize takes ~30s internally)
-          let stagedCount = 0;
-          for (let attempt = 0; attempt < 20; attempt++) {
-            await new Promise(r => setTimeout(r, 3000));
-            const { count } = await sb.from("transactions_staging").select("*", { count: "exact", head: true }).eq("import_id", imp.id);
-            stagedCount = count || 0;
-            console.log(`[smart-import-ocr] poll ${attempt + 1}/20: ${stagedCount} staged rows`);
-            if (stagedCount > 0) break;
-          }
-          if (stagedCount === 0) { console.warn("[smart-import-ocr] no staged rows after 60s, giving up"); return; }
-          console.log("[smart-import-ocr] found", stagedCount, "staged rows, committing import:", imp.id);
-          // Direct DB commit - bypass commit-import function
-          const { data: stagingRows, error: fetchErr } = await sb.from("transactions_staging").select("*").eq("import_id", imp.id);
-          if (fetchErr || !stagingRows?.length) { console.warn("[smart-import-ocr] failed to fetch staging rows:", fetchErr?.message); return; }
-          const txRows = stagingRows.map((row: any) => ({
-            id: crypto.randomUUID(),
-            user_id: row.user_id,
-            merchant_name: row.data_json?.merchant || "Unknown",
-            amount: row.data_json?.amount || 0,
-            date: row.data_json?.date || null,
-            type: row.data_json?.type === "Credit" ? "income" : "expense",
-            category: row.tag_category || "Other",
-            import_id: row.import_id,
-          }));
-          const { error: insertErr } = await sb.from("transactions").insert(txRows);
-          if (insertErr) { console.error("[smart-import-ocr] insert failed:", insertErr.message); return; }
-          await sb.from("imports").update({ status: "committed" }).eq("id", imp.id);
-          console.log("[smart-import-ocr] committed", txRows.length, "transactions directly");
         }).catch((err) => {
-          console.error("[smart-import-ocr] approve/commit failed", err);
+          console.error('[smart-import-ocr] Error calling normalize-transactions:', err);
+        });
+
+        // Fire-and-forget: auto-commit-import (polls for staged rows and commits)
+        fetch(`${netlifyUrl}/.netlify/functions/auto-commit-import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ docId, userId: effectiveUserId }),
+        }).catch((err) => {
+          console.error('[smart-import-ocr] auto-commit-import trigger failed', err);
         });
       }
     }

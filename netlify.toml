@@ -50,3 +50,6 @@ external_node_modules = ["undici", "jsdom", "@mozilla/readability", "pdf-lib", "
   timeout = 120
 [functions."normalize-transactions"]
   timeout = 120
+
+[functions."auto-commit-import"]
+  timeout = 120
