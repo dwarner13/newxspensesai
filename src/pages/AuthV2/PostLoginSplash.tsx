@@ -44,7 +44,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "24px 24px",
+      padding: "60px 24px 40px",
       overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 24px)",
       cursor: showButtons ? "default" : "pointer",
     }}>
@@ -53,7 +53,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         width: 64, height: 64, borderRadius: "50%",
         background: `linear-gradient(135deg, ${C.accent}25, ${C.accent}08)`,
         border: `2px solid ${C.accent}33`,
-        display: "flex", alignItems: "center", justifyContent: "flex-start",
+        display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: 28, marginBottom: 12,
         boxShadow: `0 0 40px ${C.accent}15, 0 0 80px ${C.accent}08`,
         animation: "crownFloat 3s ease-in-out infinite",
@@ -91,7 +91,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
               width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
               background: `linear-gradient(135deg, ${agent.color}25, ${agent.color}10)`,
               border: `1.5px solid ${agent.color}33`,
-              display: "flex", alignItems: "center", justifyContent: "flex-start",
+              display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 12, fontWeight: 700, color: agent.color,
               boxShadow: `0 0 12px ${agent.color}15`,
             }}>{agent.letter}</div>
