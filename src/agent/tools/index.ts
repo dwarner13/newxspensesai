@@ -21,6 +21,7 @@ import * as tagExplain from './impl/tag_explain';
 import * as tagMerchantInsights from './impl/tag_merchant_insights';
 import * as tagCategoryBrain from './impl/tag_category_brain';
 import * as tagUpdateTransactionCategory from './impl/tag_update_transaction_category';
+import * as tagBulkRecategorize from './impl/tag_bulk_recategorize';
 import * as tagCreateManualTransaction from './impl/tag_create_manual_transaction';
 import * as requestEmployeeHandoff from './impl/request_employee_handoff';
 import * as analyticsForecast from './impl/analytics_forecast';
@@ -343,6 +344,14 @@ const toolModules: Map<string, ToolModule> = new Map([
       timeout: 15000,
       rateLimit: { perMinute: 30 },
     },
+  }],
+  ['tag_bulk_recategorize', {
+    id: 'tag_bulk_recategorize',
+    description: 'Bulk recategorize all transactions matching a merchant name or keyword. Use when users say change X to Y, move all X to category Y, mark all X as Y.',
+    inputSchema: tagBulkRecategorize.inputSchema,
+    outputSchema: tagBulkRecategorize.outputSchema,
+    run: tagBulkRecategorize.execute,
+    meta: { requiresConfirm: false, mutates: true, timeout: 20000, rateLimit: { perMinute: 20 } },
   }],
   ['tag_create_manual_transaction', {
     id: 'tag_create_manual_transaction',

@@ -205,17 +205,17 @@ export function TransactionInsightDrawer({
     const tx = row.transaction;
     setIsSavingCat(true);
     try {
-      const supabase = getSupabase();
-      if (!supabase) throw new Error('Not available');
-      const { error } = await supabase
-        .from('transactions')
-        .update({
+      const res = await fetch('/.netlify/functions/tx-update-category', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: tx.id,
+          table: 'transactions',
           category: localCategory,
-          category_source: 'manual',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', tx.id);
-      if (error) throw error;
+          applyToVendor: true,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
       onCommittedCategorySaved?.(tx.id, localCategory);
       toast.success('Category updated');
     } catch (e: unknown) {
@@ -223,6 +223,7 @@ export function TransactionInsightDrawer({
     } finally {
       setIsSavingCat(false);
     }
+  };
   };
 
   const savePendingCategory = async () => {

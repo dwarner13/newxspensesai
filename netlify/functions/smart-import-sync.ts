@@ -1692,10 +1692,18 @@ export const handler: Handler = async (event) => {
       }
     }
     
-    // TODO: Trigger Tag AI to categorize new transactions for these docIds
-    // e.g. call `tag-autocategorize` with userId + docIds or importIds
-    // Note: commit-import already categorizes transactions using Tag learning,
-    // so this might be redundant unless we want additional categorization passes
+    // ??? TAG AUTO-CATEGORIZE: Fire-and-forget after commit
+    // Catches any rows commit-import missed — rule + vendor-memory, no AI
+    if (committedImportIds.length > 0) {
+      const netlifyUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'http://localhost:8888';
+      const authToken = event.headers.authorization || event.headers['x-authorization'] || '';
+      fetch(`${netlifyUrl}/.netlify/functions/tag-categorize-committed`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'authorization': authToken },
+        body: JSON.stringify({ limit: 500 }),
+      }).catch((err: any) => console.error('[smart-import-sync] tag-categorize-committed error:', err));
+      console.log('[smart-import-sync] Tag auto-categorize triggered', { importCount: committedImportIds.length });
+    }
     
     console.log('[smart-import-sync] Sync complete', { docIds, transactionCount: totalTransactionCount });
 
