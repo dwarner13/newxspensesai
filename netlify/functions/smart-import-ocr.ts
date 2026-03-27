@@ -3525,14 +3525,23 @@ export const handler: Handler = async (event, context) => {
           }
           if (stagedCount === 0) { console.warn("[smart-import-ocr] no staged rows after 60s, giving up"); return; }
           console.log("[smart-import-ocr] found", stagedCount, "staged rows, committing import:", imp.id);
-          await sb.from("imports").update({ status: "parsed" }).eq("id", imp.id);
-          const commitRes = await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId, "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
-            body: JSON.stringify({ importId: imp.id, userId: effectiveUserId }),
-          });
-          const commitData = await commitRes.json();
-          console.log("[smart-import-ocr] commit status:", commitRes.status, "transactions:", commitData.committed || 0);
+          // Direct DB commit - bypass commit-import function
+          const { data: stagingRows, error: fetchErr } = await sb.from("transactions_staging").select("*").eq("import_id", imp.id);
+          if (fetchErr || !stagingRows?.length) { console.warn("[smart-import-ocr] failed to fetch staging rows:", fetchErr?.message); return; }
+          const txRows = stagingRows.map((row: any) => ({
+            id: crypto.randomUUID(),
+            user_id: row.user_id,
+            merchant_name: row.data_json?.merchant || "Unknown",
+            amount: row.data_json?.amount || 0,
+            date: row.data_json?.date || null,
+            type: row.data_json?.type === "Credit" ? "income" : "expense",
+            category: row.tag_category || "Other",
+            import_id: row.import_id,
+          }));
+          const { error: insertErr } = await sb.from("transactions").insert(txRows);
+          if (insertErr) { console.error("[smart-import-ocr] insert failed:", insertErr.message); return; }
+          await sb.from("imports").update({ status: "committed" }).eq("id", imp.id);
+          console.log("[smart-import-ocr] committed", txRows.length, "transactions directly");
         }).catch((err) => {
           console.error("[smart-import-ocr] approve/commit failed", err);
         });
