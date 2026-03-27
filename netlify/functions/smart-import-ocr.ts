@@ -3427,6 +3427,8 @@ export const handler: Handler = async (event, context) => {
     } else {
       console.log(`${logPrefix} DB_WRITE_OK`, { docId, usedMetadataFallback, len: guardrailResult.text.length });
     }
+      // Force ocr_text write via admin (fallback often skips this column)
+      try { await admin().from("user_documents").update({ ocr_text: guardrailResult.text }).eq("id", docId); } catch (e: any) { console.warn("[OCR] direct ocr_text write failed:", e?.message); }
 
     // Backup: direct admin write of ocr_text in case the proof write dropped it
     if (sanitizedText) {
