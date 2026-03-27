@@ -79,7 +79,7 @@ export function TransactionInsightDrawer({
 
   const postedAt = useMemo(() => {
     if (!row) return '';
-    if (row.kind === 'committed') return row.transaction.posted_at || (row.transaction as any).transaction_date || (row.transaction as any).date || '';
+    if (row.kind === 'committed') return (row.transaction as any).date || row.transaction.posted_at || (row.transaction as any).transaction_date || '';
     const dj = row.transaction.data_json as Record<string, unknown>;
     return String(dj.date || row.transaction.parsed_at || '');
   }, [row]);
