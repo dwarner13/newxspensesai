@@ -74,7 +74,7 @@ export default function MobileBottomNav() {
         paddingBottom: 'env(safe-area-inset-bottom)',
         fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: '6px 4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-evenly', padding: '6px 4px' }}>
           {tabs.map((tab, i) => {
             if (!tab) {
               // Center upload button
@@ -84,7 +84,7 @@ export default function MobileBottomNav() {
                   background: showUploadMenu ? '#1e2d4a' : 'linear-gradient(135deg, #c8a64e, #a08030)',
                   border: '3px solid #0b1220',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  position: 'relative', top: -12,
+                  position: 'relative', top: -16, marginTop: -4,
                   boxShadow: showUploadMenu ? 'none' : '0 4px 20px rgba(200,166,78,0.4)',
                   cursor: 'pointer', transition: 'all 0.2s',
                 }}>
