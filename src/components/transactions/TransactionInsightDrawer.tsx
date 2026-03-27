@@ -79,7 +79,7 @@ export function TransactionInsightDrawer({
 
   const postedAt = useMemo(() => {
     if (!row) return '';
-    if (row.kind === 'committed') return row.transaction.posted_at || '';
+    if (row.kind === 'committed') return row.transaction.posted_at || (row.transaction as any).transaction_date || (row.transaction as any).date || '';
     const dj = row.transaction.data_json as Record<string, unknown>;
     return String(dj.date || row.transaction.parsed_at || '');
   }, [row]);
@@ -97,13 +97,16 @@ export function TransactionInsightDrawer({
       try {
         const supabase = getSupabase();
         if (!supabase) return;
-        const { data } = await supabase.from('imports').select('statement_breakdown_json').eq('id', importId).single();
+        const { data } = await supabase.from('imports').select('statement_breakdown_json, file_url').eq('id', importId).single();
         const meta = (data?.statement_breakdown_json as Record<string, unknown>)?.statement_meta as Record<string, unknown> | undefined;
         const issuer = String(meta?.issuer || '').trim();
         if (issuer) { setStatementLabel(issuer); return; }
         // Fallback to document name
         const { data: doc } = await supabase.from('user_documents').select('original_name').eq('id', importId).single();
         if (doc?.original_name) { setStatementLabel(sanitizeIssuerPillLabel(String(doc.original_name))); return; }
+        // Fallback to filename from file_url
+        const fileUrl = String((data as any)?.file_url || '');
+        if (fileUrl) { const fname = decodeURIComponent(fileUrl.split('/').pop() || ''); if (fname) { setStatementLabel(fname.replace('.pdf','').replace('.PDF','')); return; } }
       } catch { /* ignore */ }
       setStatementLabel(`Statement \u2026${importId.slice(-6)}`);
     })();
