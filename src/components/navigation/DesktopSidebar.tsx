@@ -156,6 +156,29 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
           {primaryItems.map(item => renderItem(item))}
         </div>
 
+        {/* Upload CTA */}
+        {!isCollapsed && (
+          <div className="px-3 mt-4">
+            <button
+              type="button"
+              onClick={triggerUpload}
+              className="w-full rounded-xl p-3 text-left transition-all"
+              style={{
+                border: '1.5px dashed rgba(200,166,78,0.35)',
+                background: 'rgba(200,166,78,0.04)',
+                animation: 'glowPulse 3s ease-in-out infinite',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.6)'; e.currentTarget.style.background = 'rgba(200,166,78,0.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.35)'; e.currentTarget.style.background = 'rgba(200,166,78,0.04)'; }}
+            >
+              <div className="flex items-center gap-2 text-[13px] font-bold" style={{ color: '#c8a64e' }}>
+                <Upload className="w-4 h-4" />
+                Upload Statement
+              </div>
+              <div className="mt-1 text-[11px]" style={{ color: '#6b7a99' }}>Byte processes instantly</div>
+            </button>
+          </div>
+        )}
         {/* More toggle */}
         <button
           type="button"
@@ -183,29 +206,6 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
           </div>
         )}
 
-        {/* Upload CTA */}
-        {!isCollapsed && (
-          <div className="px-3 mt-4">
-            <button
-              type="button"
-              onClick={triggerUpload}
-              className="w-full rounded-xl p-3 text-left transition-all"
-              style={{
-                border: '1.5px dashed rgba(200,166,78,0.35)',
-                background: 'rgba(200,166,78,0.04)',
-                animation: 'glowPulse 3s ease-in-out infinite',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.6)'; e.currentTarget.style.background = 'rgba(200,166,78,0.08)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.35)'; e.currentTarget.style.background = 'rgba(200,166,78,0.04)'; }}
-            >
-              <div className="flex items-center gap-2 text-[13px] font-bold" style={{ color: '#c8a64e' }}>
-                <Upload className="w-4 h-4" />
-                Upload Statement
-              </div>
-              <div className="mt-1 text-[11px]" style={{ color: '#6b7a99' }}>Byte processes instantly</div>
-            </button>
-          </div>
-        )}
         {isCollapsed && (
           <div className="px-2 mt-3">
             <TooltipProvider>
