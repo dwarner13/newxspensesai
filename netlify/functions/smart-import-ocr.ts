@@ -3326,7 +3326,7 @@ export const handler: Handler = async (event, context) => {
       status: 'ready',
     });
     const baseUpdatePayload: Record<string, any> = {
-      ocr_text: null,
+      ocr_text: sanitizedText || null,
       ocr_status: 'ready',
       ocr_completed_at: proofCompletedAt,
       ocr_text_length: redactedTextLength,
@@ -3426,6 +3426,19 @@ export const handler: Handler = async (event, context) => {
       console.warn(`${logPrefix} DB_WRITE_EMPTY_NON_FATAL`, { docId, userId: effectiveUserId, docUserId: doc.user_id });
     } else {
       console.log(`${logPrefix} DB_WRITE_OK`, { docId, usedMetadataFallback, len: guardrailResult.text.length });
+    }
+
+    // Backup: direct admin write of ocr_text in case the proof write dropped it
+    if (sanitizedText) {
+      admin()
+        .from('user_documents')
+        .update({ ocr_text: sanitizedText })
+        .eq('id', docId)
+        .then(({ error }) => {
+          if (error) console.warn('[smart-import-ocr] ocr_text backup write failed', { docId, error: error.message });
+          else console.log('[smart-import-ocr] ocr_text backup write OK', { docId, len: sanitizedText.length });
+        })
+        .catch((err: any) => console.warn('[smart-import-ocr] ocr_text backup write threw', { docId, err: err?.message }));
     }
 
     await finalizeOcrJobOutcome(sb, {
