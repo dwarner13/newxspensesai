@@ -41,6 +41,17 @@ export const CATEGORY_META: Record<string, { color: string; icon: string; budget
   "Bank Fees": { color: "#94a3b8", icon: "\ud83c\udfe6", budget: 100 },
   "Income": { color: "#34d399", icon: "\ud83d\udcb0", budget: 0 },
   "Other": { color: "#475569", icon: "\ud83d\udcc1", budget: 300 },
+  "Transfers":     { color: "#60a5fa", icon: "🔄", budget: 0 },
+  "Housing":       { color: "#a78bfa", icon: "🏠", budget: 2000 },
+  "Debt Payments": { color: "#f87171", icon: "💳", budget: 500 },
+  "Savings":       { color: "#34d399", icon: "🪣", budget: 500 },
+  "Recreation":    { color: "#fb923c", icon: "🎮", budget: 300 },
+  "Entertainment": { color: "#818cf8", icon: "🎬", budget: 200 },
+  "Insurance":     { color: "#94a3b8", icon: "🛡", budget: 300 },
+  "Education":     { color: "#60a5fa", icon: "📚", budget: 200 },
+  "Travel":        { color: "#fbbf24", icon: "🌍", budget: 500 },
+  "Home & Garden": { color: "#34d399", icon: "🔨", budget: 200 },
+  "Business":      { color: "#c8a64e", icon: "💼", budget: 0 },,
   "Uncategorized": { color: "#f59e0b", icon: "\u2753", budget: 0 },
 };
 

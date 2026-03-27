@@ -41,7 +41,7 @@ export function AgentInsightStrip({ data }: AgentInsightStripProps) {
               letterSpacing: 1, padding: "1px 6px", borderRadius: 4, marginBottom: 4,
               background: `${ins.color}15`, color: ins.color,
             }}>{ins.agent}</span>
-            <div style={{ fontSize: 12, color: THEME.textMuted, lineHeight: 1.5 }}>{ins.text}</div>
+            <div style={{ fontSize: 12, color: THEME.text, lineHeight: 1.5 }}>{ins.text}</div>
           </div>
         </div>
       ))}
