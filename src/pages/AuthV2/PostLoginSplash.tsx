@@ -42,7 +42,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
     <div onClick={skipToEnd} style={{
       minHeight: "100dvh", width: "100vw",
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
       padding: "clamp(32px, 6vh, 80px) 24px clamp(32px, 6vh, 60px)",
       overflowY: "auto",

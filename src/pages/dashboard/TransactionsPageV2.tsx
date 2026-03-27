@@ -168,7 +168,7 @@ export default function TransactionsPageV2() {
     const visible = filtered.slice(0, visibleCount);
     const groups: { date: string; label: string; txs: CommittedTransaction[] }[] = [];
     visible.forEach(t => {
-      const d = (t.posted_at || '').slice(0, 10);
+      const d = (t.posted_at || t.transaction_date || t.date || '').slice(0, 10);
       const last = groups[groups.length - 1];
       if (last && last.date === d) last.txs.push(t);
       else groups.push({ date: d, label: fmtDate(d), txs: [t] });
