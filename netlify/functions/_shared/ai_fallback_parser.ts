@@ -87,6 +87,11 @@ CRITICAL RULES:
    - The Balance column values are typically much larger numbers (e.g., 2,751.36 vs 6.74). If an amount seems unusually large for a convenience store or small purchase, you are likely reading the Balance column by mistake.
    - For BMO statements specifically: columns are "Amounts deducted from your account ($)" and "Amounts added to your account ($)" and "Balance ($)". Only use the first two.
    - A 7-Eleven purchase should be $1-60, not $500+. A gas station fill should be $40-80, not $800+. Use common sense as a sanity check.
+   - CRITICAL BMO OCR PATTERN: When OCR text concatenates numbers without spaces, like "SOBEYS155.722,818.25", the FIRST number (155.72) is the transaction amount and the SECOND number (2,818.25) is the running balance. The balance always has a comma for thousands. Split on this pattern: the amount comes BEFORE the comma-separated thousands number.
+   - Example: "7-ELEVENSTORE6.742,751.36" means amount=6.74, balance=2,751.36 — NOT amount=6,742,751.36
+   - Example: "PETRO-CANADA48.502,702.86" means amount=48.50, balance=2,702.86
+   - Example: "GORDONFOODSPAY/PAY1,818.194,406.69" means amount=1,818.19 (credit/deposit), balance=4,406.69. When BOTH numbers have commas, the first is the transaction amount and second is the balance.
+   - The balance column value changes with every row (goes up for credits, down for debits). The transaction amount is always the smaller, isolated number.
 
 6. If you cannot find any real line-item transactions, output: { "transactions": [] }
 
@@ -118,7 +123,7 @@ Return a JSON object with a "transactions" array containing all extracted transa
     // Try Claude first — use Vision (PDF direct) when available, text fallback otherwise
     if (anthropicKey) {
       const useVision = Boolean(pdfBase64);
-      const visionModel = "claude-sonnet-4-20250514";
+      const visionModel = useVision ? "claude-sonnet-4-20250514" : "claude-haiku-4-5-20251001";
       console.log(`[Byte OCR] Calling Claude ${useVision ? "Vision (PDF)" : "text"} parser for ${statementType} statement, model: ${visionModel}`);
       try {
         const userContent = useVision
