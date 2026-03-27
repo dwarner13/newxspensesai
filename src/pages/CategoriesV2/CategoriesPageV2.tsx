@@ -208,7 +208,7 @@ export default function CategoriesPageV2() {
           aria-label="Open Tag Copilot"
           className="fixed z-40 transition-all hover:scale-105 active:scale-95"
           style={{
-            bottom: 88, right: 24, width: 52, height: 52, borderRadius: "50%",
+            bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%",
             background: `linear-gradient(135deg, ${CYAN}, #0891b2)`,
             boxShadow: `0 4px 20px ${CYAN}44`,
             display: "flex", alignItems: "center", justifyContent: "center",
