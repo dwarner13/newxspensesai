@@ -59,6 +59,7 @@ export default function TransactionsPageV2() {
       setSearchParams({}, { replace: true });
     }
   }, []);
+  useEffect(() => { const id = setInterval(() => { refetch(); }, 10000); return () => clearInterval(id); }, [refetch]);
 
   const handleUpload = useCallback(() => {
     openChat({
