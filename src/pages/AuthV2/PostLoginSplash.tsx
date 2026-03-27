@@ -44,7 +44,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "80px 24px 60px",
+      padding: "clamp(32px, 6vh, 80px) 24px clamp(32px, 6vh, 60px)",
       overflowY: "auto",
       cursor: showButtons ? "default" : "pointer",
     }}>
@@ -66,7 +66,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       }}>Previously On XspensesAI</div>
 
       <h1 style={{
-        fontSize: 38, fontWeight: 800, letterSpacing: -1,
+        fontSize: "clamp(26px, 4vw, 38px)", fontWeight: 800, letterSpacing: -1,
         color: C.text, marginBottom: 6, textAlign: "center",
       }}>Welcome Back, {userName}</h1>
 
@@ -117,16 +117,6 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           boxShadow: `0 4px 24px ${C.accent}44`,
           transition: "all 0.2s", minWidth: 260,
         }}>Continue to Dashboard {"\u2192"}</button>
-
-        <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); }} style={{
-          padding: "10px 28px", borderRadius: 10, fontSize: 13, fontWeight: 600,
-          background: "transparent", border: `1px solid ${C.border}`,
-          color: C.muted, cursor: "pointer", transition: "all 0.2s",
-          display: "flex", alignItems: "center", gap: 8,
-        }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.accent, boxShadow: `0 0 8px ${C.accent}44` }} />
-          Open Prime Chat
-        </button>
 
         <div style={{ fontSize: 10, color: C.dim, marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
           <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.green, boxShadow: `0 0 6px ${C.green}44` }} />
