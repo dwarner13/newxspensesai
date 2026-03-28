@@ -74,10 +74,21 @@ Help the user with their finances. Be direct, specific, and action-oriented.`,
 }
 
 export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversationId }: PrimeChatDrawerProps) {
-  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([]);
+  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('prime_chat_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId] = useState(() => 'prime-drawer-' + Date.now());
+  const [sessionId] = useState(() => {
+    const saved = localStorage.getItem('prime_session_id');
+    if (saved) return saved;
+    const id = 'prime-drawer-' + Date.now();
+    localStorage.setItem('prime_session_id', id);
+    return id;
+  });
   const [primeSnapshot, setPrimeSnapshot] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -163,6 +174,11 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    localStorage.setItem('prime_chat_history', JSON.stringify(messages.slice(-20)));
   }, [messages]);
 
   // Fire opening message when drawer first opens

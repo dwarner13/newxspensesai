@@ -14,7 +14,13 @@ interface TagCopilotPanelProps {
 }
 
 export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: TagCopilotPanelProps) {
-  const [localMessages, setLocalMessages] = useState<{ role: 'tag' | 'user'; text: string }[]>([]);
+  const [localMessages, setLocalMessages] = useState<{ role: 'tag' | 'user'; text: string }[]>(() => {
+    if (transaction) return [];
+    try {
+      const saved = localStorage.getItem('tag_chat_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -40,6 +46,12 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
   }, [transaction?.id]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [localMessages]);
+
+  useEffect(() => {
+    if (!transaction && localMessages.length > 0) {
+      localStorage.setItem('tag_chat_history', JSON.stringify(localMessages.slice(-20)));
+    }
+  }, [localMessages, transaction]);
 
   const send = async () => {
     const text = input.trim();
