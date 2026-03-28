@@ -6,6 +6,9 @@ interface TagCopilotPanelProps {
   transaction?: CommittedTransaction | null;
   onClose: () => void;
   onCategoryUpdated?: () => void;
+  sharedChatHistory?: { role: string; content: string }[];
+  sharedChatReply?: string | null;
+  onChatHistoryChange?: (history: { role: string; content: string }[], reply: string | null) => void;
 }
 
 const CATEGORIES = [
@@ -13,23 +16,26 @@ const CATEGORIES = [
   'Subscriptions','Personal Care','Healthcare','Bank Fees','Transfers','Other',
 ];
 
-export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: TagCopilotPanelProps) {
-  const [messages, setMessages] = useState<{ role: 'tag' | 'user'; text: string }[]>([]);
+export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, sharedChatHistory, sharedChatReply, onChatHistoryChange }: TagCopilotPanelProps) {
+  const [localMessages, setLocalMessages] = useState<{ role: 'tag' | 'user'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (transaction) {
+    if (sharedChatHistory && sharedChatHistory.length > 0) {
+      // Show shared history — convert format
+      setLocalMessages(sharedChatHistory.map(m => ({ role: m.role === 'user' ? 'user' as const : 'tag' as const, text: m.content })));
+    } else if (transaction) {
       const cat = transaction.category || 'Uncategorized';
       const amt = Math.abs(transaction.amount).toFixed(2);
-      setMessages([{ role: 'tag', text: `I tagged **${transaction.merchant_name || 'this transaction'}** ($${amt}) as **${cat}**. If that is wrong, just tell me the right category and I will fix it now.` }]);
+      setLocalMessages([{ role: 'tag', text: `I tagged **${transaction.merchant_name || 'this transaction'}** ($${amt}) as **${cat}**. If that is wrong, just tell me the right category and I will fix it now.` }]);
     } else {
-      setMessages([{ role: 'tag', text: `Hey — I am Tag. Tap any transaction row and I will explain my reasoning. Tell me to recategorize and I will do it instantly.` }]);
+      setLocalMessages([{ role: 'tag', text: `Hey — I am Tag. Tap any transaction row and I will explain my reasoning. Tell me to recategorize and I will do it instantly.` }]);
     }
-  }, [transaction?.id]);
+  }, [transaction?.id, sharedChatHistory?.length]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [localMessages]);
 
   const send = async () => {
     const text = input.trim();
@@ -47,15 +53,15 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
           body: JSON.stringify({ id: transaction.id, table: 'transactions', category: matchedCat, applyToVendor: true }),
         });
         if (!res.ok) throw new Error('Update failed');
-        setMessages(m => [...m, { role: 'tag', text: `Done. I have recategorized **${transaction.merchant_name || 'this transaction'}** as **${matchedCat}** and applied that rule to all future transactions from this merchant.` }]);
+        setLocalMessages(m => [...m, { role: 'tag', text: `Done. I have recategorized **${transaction.merchant_name || 'this transaction'}** as **${matchedCat}** and applied that rule to all future transactions from this merchant.` }]);
         onCategoryUpdated?.();
       } catch {
         setMessages(m => [...m, { role: 'tag', text: `Something went wrong — try again?` }]);
       }
     } else if (transaction) {
-      setMessages(m => [...m, { role: 'tag', text: `Tell me the right category and I will update it. Options: ${CATEGORIES.slice(0,7).join(', ')}, and more.` }]);
+      setLocalMessages(m => [...m, { role: 'tag', text: `Tell me the right category and I will update it. Options: ${CATEGORIES.slice(0,7).join(', ')}, and more.` }]);
     } else {
-      setMessages(m => [...m, { role: 'tag', text: `Tap a transaction row first and I will pull it up here.` }]);
+      setLocalMessages(m => [...m, { role: 'tag', text: `Tap a transaction row first and I will pull it up here.` }]);
     }
     setBusy(false);
   };
@@ -78,7 +84,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
           </div>
         )}
         <div style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:12 }}>
-          {messages.map((m, i) => (
+          {localMessages.map((m, i) => (
             <div key={i} style={{ display:'flex', gap:8, justifyContent: m.role==='user' ? 'flex-end' : 'flex-start' }}>
               {m.role==='tag' && <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>T</div>}
               <div style={{ maxWidth:'80%', padding:'8px 12px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:13, color:'#e8ecf4', lineHeight:1.5 }}>
