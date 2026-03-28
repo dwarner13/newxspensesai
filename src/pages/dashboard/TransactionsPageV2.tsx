@@ -1,4 +1,4 @@
-ï»¿import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
@@ -33,7 +33,7 @@ function isIncomeTx(t: CommittedTransaction): boolean {
   const merchant = (t.merchant_name || '').toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || '').toLowerCase();
   // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign â€” expenses are stored as negative values
+  // Do NOT use amount sign — expenses are stored as negative values
   return txType === 'income' || cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
 }
 
@@ -137,12 +137,12 @@ export default function TransactionsPageV2() {
     URL.revokeObjectURL(url);
   }, [filtered]);
 
-  // Stats â€” computed from filtered list so they respond to statement/type filters
+  // Stats — computed from filtered list so they respond to statement/type filters
   const totalSpent = useMemo(() => filtered.reduce((s, t) => !isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const totalIncome = useMemo(() => filtered.reduce((s, t) => isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const netFlow = totalIncome - totalSpent;
 
-  // Category data for donut â€” also from filtered
+  // Category data for donut — also from filtered
   const catData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(t => { if (!isIncomeTx(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
@@ -161,14 +161,14 @@ export default function TransactionsPageV2() {
         if (!label || label === 'Statement') {
           // Fallback to date if no filename
           const d = new Date(i.created_at);
-          label = `Statement â€” ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+          label = `Statement — ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
         }
         return { id: i.id, label };
       });
   }, [imports]);
   const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
 
-  // AI insights â€” from filtered
+  // AI insights — from filtered
   const insights = useMemo(() => {
     const uncatCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
     const catCount = filtered.length - uncatCount;
@@ -420,11 +420,11 @@ export default function TransactionsPageV2() {
       {/* Byte copilot bubble */}
 
       {!tagPanelOpen && !selectedTx && !(/\/(categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
-        <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 50, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
+        <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: "calc(24px + env(safe-area-inset-bottom, 0px))", right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 50, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
       )}
       {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
 
-      {/* Drawer â€” portalled to body to escape any stacking context from DashboardLayout */}
+      {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
         <TransactionInsightDrawer
           open={!!selectedTx}
@@ -443,7 +443,7 @@ export default function TransactionsPageV2() {
                 force: true,
                 handoff: {
                   fromEmployeeSlug: 'prime-boss',
-                  note: `I am looking at ${tx.merchant_name || 'a transaction'} ï¿½ $${Math.abs(tx.amount).toFixed(2)} ï¿½ currently tagged as ${tx.category || 'Uncategorized'}. Can you help me with this?`,
+                  note: `I am looking at ${tx.merchant_name || 'a transaction'} ? $${Math.abs(tx.amount).toFixed(2)} ? currently tagged as ${tx.category || 'Uncategorized'}. Can you help me with this?`,
                 },
                 context: {
                   data: {
