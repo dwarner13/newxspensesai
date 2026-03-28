@@ -112,42 +112,11 @@ export function TagCopilotPanel({
         }),
       });
 
-      if (!res.ok) throw new Error(`tag-chat ${res.status}`);
+      if (!res.ok) throw new Error(`tag-copilot ${res.status}`);
 
-      const assistantMsg: ChatMessage = { role: "assistant", content: "" };
-      setMessages(prev => [...prev, assistantMsg]);
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-            const raw = line.slice(5).trim();
-            if (raw === "[DONE]") break;
-            try {
-              const parsed = JSON.parse(raw);
-              const delta = parsed?.choices?.[0]?.delta?.content ?? parsed?.delta?.text ?? "";
-              if (delta) {
-                setMessages(prev => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    ...updated[updated.length - 1],
-                    content: updated[updated.length - 1].content + delta,
-                  };
-                  return updated;
-                });
-                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-              }
-            } catch { /* skip malformed chunk */ }
-          }
-        }
-      }
+      const data = await res.json();
+      const replyText = data.reply || "I couldn't process that. Try again.";
+      setMessages(prev => [...prev, { role: "assistant", content: replyText }]);
     } catch (err) {
       setMessages(prev => [
         ...prev,
@@ -265,7 +234,7 @@ export function TagCopilotPanel({
                         <div style={{ width: 8, height: 8, borderRadius: 2, background: sg.parentColor }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12.5, fontWeight: 600, color: THEME.text }}>{s.name}</div>
-                          <div style={{ fontSize: 10.5, color: THEME.textDim }}>{s.count} txns · Top: {s.topMerchant}</div>
+                          <div style={{ fontSize: 10.5, color: THEME.textDim }}>{s.count} txns ï¿½ Top: {s.topMerchant}</div>
                         </div>
                         <span style={{ fontSize: 13, fontWeight: 700, color: THEME.text }}>{s.amount}</span>
                       </div>
@@ -358,7 +327,7 @@ export function TagCopilotPanel({
           )}
         </div>
 
-        {/* Input — wired directly to tag-chat API */}
+        {/* Input ï¿½ wired directly to tag-chat API */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${THEME.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, background: THEME.surface, borderRadius: 14, border: `1px solid ${THEME.border}`, padding: "4px 6px 4px 16px" }}>
             <input
@@ -381,7 +350,7 @@ export function TagCopilotPanel({
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 8 }}>
             <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green, boxShadow: `0 0 8px ${THEME.green}66` }} />
-            <span style={{ fontSize: 10, color: THEME.textDim }}>Tag Copilot · Powered by AI categorization engine</span>
+            <span style={{ fontSize: 10, color: THEME.textDim }}>Tag Copilot ï¿½ Powered by AI categorization engine</span>
           </div>
         </div>
       </div>
