@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Send } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 
@@ -78,9 +78,88 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId] = useState(() => 'prime-drawer-' + Date.now());
+  const [primeSnapshot, setPrimeSnapshot] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pageCtx = buildPageContext(currentPage);
+
+  const fetchPrimeSnapshot = useCallback(async () => {
+    try {
+      const sb = getSupabase();
+      if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.user?.id) return;
+      const uid = session.user.id;
+
+      const [txRes, impRes] = await Promise.all([
+        sb.from('transactions')
+          .select('amount, category, type, posted_at, date, import_id')
+          .eq('user_id', uid)
+          .order('posted_at', { ascending: false })
+          .limit(1500),
+        sb.from('imports')
+          .select('id, issuer, created_at, status')
+          .eq('user_id', uid)
+          .eq('status', 'committed')
+          .order('created_at', { ascending: false }),
+      ]);
+
+      const txs = txRes.data || [];
+      const imps = impRes.data || [];
+
+      // Monthly spend (last 30 days, expenses only)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+      let monthlySpend = 0;
+      let uncategorizedCount = 0;
+      const catMap: Record<string, number> = {};
+
+      for (const tx of txs) {
+        const amt = Math.abs(Number(tx.amount) || 0);
+        const isIncome = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
+        if (!isIncome) {
+          const d = tx.posted_at || tx.date || '';
+          if (d >= thirtyDaysAgo) monthlySpend += amt;
+          const cat = tx.category || 'Other';
+          catMap[cat] = (catMap[cat] || 0) + amt;
+          if (!tx.category || tx.category === 'Other' || tx.category === 'Uncategorized') uncategorizedCount++;
+        }
+      }
+
+      const topCategories = Object.entries(catMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([name, amount]) => ({ name, amount: Math.round(amount) }));
+
+      // Per-import summaries
+      const txByImport = new Map<string, number>();
+      for (const tx of txs) {
+        if (tx.import_id) txByImport.set(tx.import_id, (txByImport.get(tx.import_id) || 0) + 1);
+      }
+      const recentImportSummaries = imps.slice(0, 5).map(imp => ({
+        importId: imp.id,
+        label: imp.issuer || 'Unknown',
+        totalSpend: 0,
+        txCount: txByImport.get(imp.id) || 0,
+        displayedAt: imp.created_at,
+      }));
+
+      setPrimeSnapshot({
+        currency: 'CAD',
+        currentStage: 'power',
+        financialSnapshot: {
+          hasTransactions: txs.length > 0,
+          uncategorizedCount,
+          monthlySpend: Math.round(monthlySpend),
+          topCategories,
+          hasDebt: false,
+          hasGoals: false,
+        },
+        recentImportSummaries,
+      });
+    } catch (err) {
+      console.warn('[PrimeChatDrawer] snapshot fetch failed:', err);
+    }
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -88,6 +167,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
 
   // Fire opening message when drawer first opens
   useEffect(() => {
+    if (isOpen && !primeSnapshot) { fetchPrimeSnapshot(); }
     if (isOpen && messages.length === 0) {
       const openingMessages: Record<string, string> = {
         '/dashboard/reports':
@@ -173,6 +253,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
           history,
           hidden,
           systemPromptOverride: pageCtx.systemPrompt,
+          prime_context: primeSnapshot,
         }),
       });
 
@@ -226,7 +307,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
     } finally {
       setIsLoading(false);
     }
-  }, [input, messages, isLoading, sessionId, pageCtx]);
+  }, [input, messages, isLoading, sessionId, pageCtx, primeSnapshot]);
 
   if (!isOpen) return null;
 
@@ -251,7 +332,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
         }}>{"\u265B"}</div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Prime</div>
-          <div style={{ fontSize: 11, color: T.gold }}>{pageCtx.label} · Your Financial Advisor</div>
+          <div style={{ fontSize: 11, color: T.gold }}>{pageCtx.label} - Your Financial Advisor</div>
         </div>
         <button onClick={onClose} style={{
           marginLeft: 'auto', background: 'none', border: 'none',
@@ -339,10 +420,11 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
         padding: '8px 16px', borderTop: '1px solid ' + T.border,
         fontSize: 11, color: T.dim, textAlign: 'center',
       }}>
-        Secured · Guardrails + PII protection active
+        Secured - Guardrails + PII protection active
       </div>
     </div>
   );
 }
 
 export default PrimeChatDrawer;
+

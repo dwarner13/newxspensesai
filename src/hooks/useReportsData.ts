@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useMemo } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -68,7 +68,7 @@ export function useReportsData(): ReportsData {
           .eq('status', 'committed')
           .order('created_at', { ascending: false }),
         sb.from('transactions')
-          .select('id, import_id, amount, posted_at, category, type')
+          .select('id, import_id, amount, posted_at, date, category, type')
           .eq('user_id', userId),
       ]);
 
@@ -115,7 +115,7 @@ export function useReportsData(): ReportsData {
         const isIncome = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
         if (isIncome) totalIncome += amt;
         else totalSpent += amt;
-        const d = tx.posted_at;
+        const d = tx.posted_at || tx.date;
         if (d) {
           if (!earliest || d < earliest) earliest = d;
           if (!latest || d > latest) latest = d;
@@ -156,7 +156,7 @@ export function useReportsData(): ReportsData {
     // Monthly trends
     const monthMap = new Map<string, { spent: number; income: number }>();
     for (const tx of transactions) {
-      const d = tx.posted_at;
+      const d = tx.posted_at || tx.date;
       if (!d) continue;
       const dt = new Date(d);
       const key = MONTH_NAMES[dt.getMonth()] + ' ' + dt.getFullYear();
@@ -197,3 +197,4 @@ export function useReportsData(): ReportsData {
     };
   }, [imports, transactions, loading, error, fetchData]);
 }
+
