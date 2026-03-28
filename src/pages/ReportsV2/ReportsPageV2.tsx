@@ -137,6 +137,45 @@ export default function ReportsPageV2() {
     URL.revokeObjectURL(url);
   }, [data.issuerGroups]);
 
+  // Destructure for cleaner access in callbacks
+  const { issuerGroups, grandTotalSpent, grandTotalIncome, grandTxCount, monthlyTrends, topCategories } = data;
+
+  // Build real financial context from live data for all agents
+  const buildPrimeContext = useCallback(() => {
+    const topCats = topCategories.slice(0, 8).map(c => ({
+      name: c.category,
+      amount: c.total,
+    }));
+
+    const issuerSummaries = issuerGroups.map(g => ({
+      importId: g.statements[0]?.importId || '',
+      label: g.issuer,
+      totalSpend: g.totalSpent,
+      totalIncome: g.totalIncome,
+      txCount: g.txCount,
+      topCategories: topCats,
+      topMerchants: [],
+      displayedAt: new Date().toISOString(),
+    }));
+
+    return {
+      displayName: null,
+      timezone: 'America/Edmonton',
+      currency: 'CAD',
+      currentStage: 'power' as const,
+      financialSnapshot: {
+        hasTransactions: grandTxCount > 0,
+        uncategorizedCount: 0,
+        monthlySpend: grandTotalSpent,
+        topCategories: topCats,
+        hasDebt: false,
+        hasGoals: false,
+      },
+      memorySummary: null,
+      recentImportSummaries: issuerSummaries,
+    };
+  }, [topCategories, issuerGroups, grandTotalSpent, grandTotalIncome, grandTxCount]);
+
   // ── Inline chat ──
   const sendChat = useCallback(async (text?: string) => {
     const msg = (text || chatInput).trim();
@@ -148,14 +187,25 @@ export default function ReportsPageV2() {
     try {
       const sb = getSupabase();
       const session = sb ? (await sb.auth.getSession()).data.session : null;
-      const slugMap = { Prime: "prime", Crystal: "crystal-insights", Tag: "tag-categorizer" };
+      const slugMap: Record<string, string> = { Prime: "prime", Crystal: "crystal-insights", Tag: "tag-categorizer" };
+      const token = session?.access_token ?? '';
       const res = await fetch("/.netlify/functions/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(session ? { Authorization: "Bearer " + session.access_token } : {}),
+          "Authorization": "Bearer " + token,
         },
-        body: JSON.stringify({ message: msg, employeeSlug: slugMap[chatAgent], history: updated.slice(-6) }),
+        body: JSON.stringify({
+          message: msg,
+          employeeSlug: slugMap[chatAgent],
+          history: updated.slice(-6),
+          prime_context: buildPrimeContext(),
+          systemPromptOverride: chatAgent === "Crystal"
+            ? "You are Crystal -- XspensesAI's trend analyst. You have the user's full spending data.\n\nFINANCIAL DATA:\n- Total spent: " + grandTotalSpent.toFixed(2) + " CAD\n- Total income: " + grandTotalIncome.toFixed(2) + " CAD\n- Total transactions: " + grandTxCount + "\n- Statements: " + issuerGroups.length + " issuers (" + issuerGroups.map(g => g.issuer).join(", ") + ")\n- Monthly trends: " + monthlyTrends.slice(-6).map(m => m.month + ": " + m.spent.toFixed(0)).join(", ") + "\n- Top categories: " + topCategories.slice(0, 5).map(c => c.category + " " + c.total.toFixed(0)).join(", ") + "\n\nFocus on trends, patterns, month-over-month changes, and spending insights. Be specific with numbers. Crystal personality: analytical, precise, pattern-obsessed, forward-looking."
+            : chatAgent === "Tag"
+            ? "You are Tag -- XspensesAI's categorization expert. You have the user's full spending data.\n\nFINANCIAL DATA:\n- Total spent: " + grandTotalSpent.toFixed(2) + " CAD\n- Total transactions: " + grandTxCount + "\n- Top categories: " + topCategories.slice(0, 8).map(c => c.category + " " + c.total.toFixed(0)).join(", ") + "\n- Statements: " + issuerGroups.map(g => g.issuer + " (" + g.txCount + " txns, " + g.totalSpent.toFixed(0) + ")").join(", ") + "\n\nFocus on categorization questions, tax deductibility, and category optimization for Canadian self-employed. Tag personality: detective-like, precise, witty, always helpful."
+            : undefined,
+        }),
       });
       if (!res.ok) throw new Error("Chat failed");
       // Handle SSE stream
@@ -204,7 +254,7 @@ export default function ReportsPageV2() {
     } finally {
       setChatLoading(false);
     }
-  }, [chatInput, chatMessages, chatLoading, chatAgent]);
+  }, [chatInput, chatMessages, chatLoading, chatAgent, buildPrimeContext, grandTotalSpent, grandTotalIncome, grandTxCount, issuerGroups, monthlyTrends, topCategories]);
 
   // ── Chart insights ──
   const chartInsights = useMemo(() => {
@@ -418,13 +468,35 @@ export default function ReportsPageV2() {
             </div>
 
             {/* Suggested prompts */}
-            {chatMessages.length === 0 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                {["What are my biggest spending categories?", "Am I on track to reduce spending?", "What can I deduct for taxes?", "How much did I spend on dining vs last month?"].map(q => (
-                  <button key={q} onClick={() => sendChat(q)} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500, background: agentColor + "08", border: "1px solid " + agentColor + "20", color: T.muted, cursor: "pointer" }}>{q}</button>
-                ))}
-              </div>
-            )}
+            {chatMessages.length === 0 && (() => {
+              const suggestedPrompts = chatAgent === "Crystal"
+                ? [
+                    "What are my spending trends month over month?",
+                    "Which month did I spend the most?",
+                    "Am I spending more or less than last period?",
+                    "What should I cut to save money?",
+                  ]
+                : chatAgent === "Tag"
+                ? [
+                    "What are my biggest spending categories?",
+                    "What can I deduct for taxes?",
+                    "Are any of my categories wrong?",
+                    "How much did I spend on dining?",
+                  ]
+                : [
+                    "I have " + grandTxCount + " transactions -- am I ready for my accountant?",
+                    "What statements am I still missing?",
+                    "Generate my accountant summary.",
+                    "What were my biggest expenses?",
+                  ];
+              return (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                  {suggestedPrompts.map(q => (
+                    <button key={q} onClick={() => sendChat(q)} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500, background: agentColor + "08", border: "1px solid " + agentColor + "20", color: T.muted, cursor: "pointer" }}>{q}</button>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Messages */}
             <div style={{ maxHeight: 300, overflowY: "auto", marginBottom: 12 }}>
