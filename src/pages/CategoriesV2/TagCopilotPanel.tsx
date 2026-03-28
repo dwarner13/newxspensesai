@@ -97,6 +97,7 @@ export function TagCopilotPanel({
   topCategories,
 }: TagCopilotPanelProps) {
   const [open, setOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(initialMessage || "");
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -247,9 +248,19 @@ export function TagCopilotPanel({
             </div>
           </div>
 
-          {/* Stats */}
+          {/* Details toggle */}
           {typeDone && (
-            <Reveal delay={0} style={{ marginLeft: 38, marginTop: 16, marginBottom: 24 }}>
+            <div style={{ marginLeft: 38, marginTop: 12, marginBottom: detailsOpen ? 8 : 16 }}>
+              <button type="button" onClick={() => setDetailsOpen(!detailsOpen)} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0, fontSize: 11, fontWeight: 600, color: CYAN }}>
+                <span style={{ transition: "transform 0.2s", transform: detailsOpen ? "rotate(90deg)" : "rotate(0)" }}>{"\u25B6"}</span>
+                {detailsOpen ? "Hide details" : "Show stats, flagged & rules"}
+              </button>
+            </div>
+          )}
+
+          {/* Stats */}
+          {typeDone && detailsOpen && (
+            <Reveal delay={0} style={{ marginLeft: 38, marginTop: 8, marginBottom: 24 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 {[
                   { label: "Categorized", value: `${categorizedCount}/${totalCount}`, color: THEME.green },
@@ -267,7 +278,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Real flagged transactions */}
-          {typeDone && flaggedTransactions.length > 0 && (
+          {typeDone && detailsOpen && flaggedTransactions.length > 0 && (
             <Reveal delay={200} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: "#fb923c" }} />
@@ -291,7 +302,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Real subcategory suggestions */}
-          {typeDone && subcategorySuggestions.length > 0 && (
+          {typeDone && detailsOpen && subcategorySuggestions.length > 0 && (
             <Reveal delay={400} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: "#a78bfa" }} />
@@ -324,7 +335,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Real learned rules */}
-          {typeDone && learnedRules.length > 0 && (
+          {typeDone && detailsOpen && learnedRules.length > 0 && (
             <Reveal delay={600} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: THEME.green }} />
@@ -345,7 +356,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Tag recommendation */}
-          {typeDone && messages.length === 0 && (
+          {typeDone && detailsOpen && messages.length === 0 && (
             <Reveal delay={800} style={{ marginLeft: 38 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: CYAN }} />
