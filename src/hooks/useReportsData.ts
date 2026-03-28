@@ -68,7 +68,7 @@ export function useReportsData(): ReportsData {
           .eq('status', 'committed')
           .order('created_at', { ascending: false }),
         sb.from('transactions')
-          .select('id, import_id, amount, posted_at, category')
+          .select('id, import_id, amount, posted_at, category, type')
           .eq('user_id', userId),
       ]);
 
@@ -111,9 +111,10 @@ export function useReportsData(): ReportsData {
       let latest: string | null = null;
 
       for (const tx of txs) {
-        const amt = Number(tx.amount) || 0;
-        if (amt < 0) totalSpent += Math.abs(amt);
-        else totalIncome += amt;
+        const amt = Math.abs(Number(tx.amount) || 0);
+        const isIncome = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
+        if (isIncome) totalIncome += amt;
+        else totalSpent += amt;
         const d = tx.posted_at;
         if (d) {
           if (!earliest || d < earliest) earliest = d;
@@ -161,9 +162,10 @@ export function useReportsData(): ReportsData {
       const key = MONTH_NAMES[dt.getMonth()] + ' ' + dt.getFullYear();
       if (!monthMap.has(key)) monthMap.set(key, { spent: 0, income: 0 });
       const entry = monthMap.get(key)!;
-      const amt = Number(tx.amount) || 0;
-      if (amt < 0) entry.spent += Math.abs(amt);
-      else entry.income += amt;
+      const amt = Math.abs(Number(tx.amount) || 0);
+      const isInc = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
+      if (isInc) entry.income += amt;
+      else entry.spent += amt;
     }
     const monthlyTrends: MonthlyTrend[] = Array.from(monthMap.entries())
       .map(([month, v]) => ({ month, spent: Math.round(v.spent), income: Math.round(v.income) }))
@@ -175,13 +177,14 @@ export function useReportsData(): ReportsData {
         return MONTH_NAMES.indexOf(pa[0]) - MONTH_NAMES.indexOf(pb[0]);
       });
 
-    // Top categories
+    // Top categories (expenses only)
     const catMap = new Map<string, number>();
     for (const tx of transactions) {
-      const amt = Number(tx.amount) || 0;
-      if (amt >= 0) continue;
+      const isInc = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
+      if (isInc) continue;
+      const amt = Math.abs(Number(tx.amount) || 0);
       const cat = tx.category || 'Other';
-      catMap.set(cat, (catMap.get(cat) || 0) + Math.abs(amt));
+      catMap.set(cat, (catMap.get(cat) || 0) + amt);
     }
     const topCategories: CategoryTotal[] = Array.from(catMap.entries())
       .map(([category, total]) => ({ category, total: Math.round(total) }))

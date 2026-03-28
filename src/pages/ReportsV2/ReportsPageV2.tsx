@@ -60,7 +60,7 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
     <div style={{ borderRadius: 14, border: "1px solid " + T.border, background: T.surface, marginBottom: 12, overflow: "hidden" }}>
       <button type="button" onClick={() => setOpen(!open)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
         <div style={{ width: 10, height: 10, borderRadius: "50%", background: dot, flexShrink: 0 }} />
-        <span style={{ fontSize: 14, fontWeight: 700, color: T.text, flex: 1 }}>{group.issuer}</span>
+        <span style={{ fontSize: 15, fontWeight: 600, color: T.text, flex: 1 }}>{group.issuer}</span>
         <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: dot + "18", color: dot }}>{group.statements.length}</span>
         <span style={{ fontSize: 12, color: T.muted, marginLeft: 8 }}>{fmtCAD(group.totalSpent)} spent</span>
         <span style={{ fontSize: 12, color: T.dim, marginLeft: 4 }}>{group.txCount} txns</span>
@@ -75,7 +75,7 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
           </div>
           {group.statements.map(s => (
             <div key={s.importId} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "10px 18px", borderTop: "1px solid " + T.border, alignItems: "center", fontSize: 12 }}>
-              <span style={{ color: T.text }}>{s.earliestDate && s.latestDate ? fmtDate(s.earliestDate) + " – " + fmtDateFull(s.latestDate) : "—"}</span>
+              <span style={{ color: T.text }}>{s.earliestDate && s.latestDate ? fmtDate(s.earliestDate) + " – " + fmtDateFull(s.latestDate) : "Imported " + fmtDateFull(s.createdAt)}</span>
               <span style={{ color: T.muted }}>{s.txCount}</span>
               <span style={{ color: T.red, fontWeight: 600 }}>{fmtCAD(s.totalSpent)}</span>
               <span style={{ color: T.green, fontWeight: 600 }}>{fmtCAD(s.totalIncome)}</span>
