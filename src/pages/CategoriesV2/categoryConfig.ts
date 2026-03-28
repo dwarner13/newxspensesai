@@ -25,33 +25,33 @@ export interface CategoryData {
   budget: number;
   color: string;
   icon: string;
-  trend: number; // MoM percentage change
+  trend: number;
   topMerchant: string;
   transactionCount: number;
 }
 
 export const CATEGORY_META: Record<string, { color: string; icon: string; budget: number }> = {
-  "Groceries": { color: "#34d399", icon: "\ud83e\uded2", budget: 800 },
+  "Groceries":     { color: "#34d399", icon: "\ud83e\uded2", budget: 800 },
   "Food & Dining": { color: "#fb923c", icon: "\ud83c\udf7d\ufe0f", budget: 600 },
-  "Transportation": { color: "#60a5fa", icon: "\ud83d\ude97", budget: 400 },
-  "Shopping": { color: "#a78bfa", icon: "\ud83d\udecd\ufe0f", budget: 500 },
+  "Transportation":{ color: "#60a5fa", icon: "\ud83d\ude97", budget: 400 },
+  "Shopping":      { color: "#a78bfa", icon: "\ud83d\udecd\ufe0f", budget: 500 },
   "Subscriptions": { color: "#818cf8", icon: "\ud83d\udd01", budget: 200 },
   "Personal Care": { color: "#ec4899", icon: "\u2728", budget: 300 },
-  "Healthcare": { color: "#f87171", icon: "\ud83c\udfe5", budget: 400 },
-  "Bank Fees": { color: "#94a3b8", icon: "\ud83c\udfe6", budget: 100 },
-  "Income": { color: "#34d399", icon: "\ud83d\udcb0", budget: 0 },
-  "Other": { color: "#475569", icon: "\ud83d\udcc1", budget: 300 },
-  "Transfers":     { color: "#60a5fa", icon: "🔄", budget: 0 },
-  "Housing":       { color: "#a78bfa", icon: "🏠", budget: 2000 },
-  "Debt Payments": { color: "#f87171", icon: "💳", budget: 500 },
-  "Savings":       { color: "#34d399", icon: "🪣", budget: 500 },
-  "Recreation":    { color: "#fb923c", icon: "🎮", budget: 300 },
-  "Entertainment": { color: "#818cf8", icon: "🎬", budget: 200 },
-  "Insurance":     { color: "#94a3b8", icon: "🛡", budget: 300 },
-  "Education":     { color: "#60a5fa", icon: "📚", budget: 200 },
-  "Travel":        { color: "#fbbf24", icon: "🌍", budget: 500 },
-  "Home & Garden": { color: "#34d399", icon: "🔨", budget: 200 },
-  "Business":      { color: "#c8a64e", icon: "💼", budget: 0 },
+  "Healthcare":    { color: "#f87171", icon: "\ud83c\udfe5", budget: 400 },
+  "Bank Fees":     { color: "#94a3b8", icon: "\ud83c\udfe6", budget: 100 },
+  "Income":        { color: "#34d399", icon: "\ud83d\udcb0", budget: 0 },
+  "Other":         { color: "#475569", icon: "\ud83d\udcc1", budget: 300 },
+  "Transfers":     { color: "#60a5fa", icon: "\ud83d\udd04", budget: 0 },
+  "Housing":       { color: "#a78bfa", icon: "\ud83c\udfe0", budget: 2000 },
+  "Debt Payments": { color: "#f87171", icon: "\ud83d\udcb3", budget: 500 },
+  "Savings":       { color: "#34d399", icon: "\ud83e\udea3", budget: 500 },
+  "Recreation":    { color: "#fb923c", icon: "\ud83c\udfae", budget: 300 },
+  "Entertainment": { color: "#818cf8", icon: "\ud83c\udfac", budget: 200 },
+  "Insurance":     { color: "#94a3b8", icon: "\ud83d\udee1\ufe0f", budget: 300 },
+  "Education":     { color: "#60a5fa", icon: "\ud83d\udcda", budget: 200 },
+  "Travel":        { color: "#fbbf24", icon: "\ud83c\udf0d", budget: 500 },
+  "Home & Garden": { color: "#34d399", icon: "\ud83d\udd28", budget: 200 },
+  "Business":      { color: "#c8a64e", icon: "\ud83d\udcbc", budget: 0 },
   "Uncategorized": { color: "#f59e0b", icon: "\u2753", budget: 0 },
 };
 

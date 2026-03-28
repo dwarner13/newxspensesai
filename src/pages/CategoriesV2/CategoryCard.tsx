@@ -55,7 +55,7 @@ export function CategoryCard({ category, onClick }: CategoryCardProps) {
 
       {/* Progress bar */}
       {category.budget > 0 && (
-        <AnimatedBar pct={pct} color={isOver ? THEME.red : category.color} />
+        <AnimatedBar pct={pct} color={isOver ? THEME.red : pct >= 80 ? THEME.amber : category.color} />
       )}
 
       {/* Top merchant */}

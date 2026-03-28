@@ -9,8 +9,6 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   const cat = (t.category || "").toLowerCase();
   const merchant = (t.merchant_name || "").toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || "").toLowerCase();
-  // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign â€” expenses are stored as negative values
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
@@ -31,6 +29,7 @@ export interface SubcategorySuggestion {
 export interface CategoriesPageData {
   categories: CategoryData[];
   totalSpent: number;
+  totalIncome: number;
   totalBudget: number;
   categoryCount: number;
   uncategorizedCount: number;
@@ -38,27 +37,53 @@ export interface CategoriesPageData {
   loading: boolean;
   flaggedTransactions: FlaggedTransaction[];
   subcategorySuggestions: SubcategorySuggestion[];
+  availablePeriods: string[];
 }
 
-export function useCategoriesData(): CategoriesPageData {
+export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
   const { transactions, isLoading } = useTransactions();
 
   return useMemo(() => {
     if (isLoading) {
       return {
-        categories: [], totalSpent: 0, totalBudget: 0, categoryCount: 0,
+        categories: [], totalSpent: 0, totalIncome: 0, totalBudget: 0, categoryCount: 0,
         uncategorizedCount: 0, avgSpentPerCategory: 0, loading: true,
+        flaggedTransactions: [], subcategorySuggestions: [], availablePeriods: [],
       };
     }
 
-    const expenses = transactions.filter(t => !isIncome(t));
+    // Build available periods (YYYY-MM) from all transactions
+    const periodSet = new Set<string>();
+    transactions.forEach(t => {
+      const d = new Date(t.posted_at || "");
+      if (!isNaN(d.getTime())) {
+        periodSet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+      }
+    });
+    const availablePeriods = Array.from(periodSet).sort().reverse();
 
-    // Group by month buckets for MoM calculation
+    // Filter to selected period when provided
+    const periodFiltered = selectedPeriod
+      ? transactions.filter(t => {
+          const d = new Date(t.posted_at || "");
+          if (isNaN(d.getTime())) return false;
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` === selectedPeriod;
+        })
+      : transactions;
+
+    // Income total
+    const totalIncome = Math.round(
+      periodFiltered.filter(t => isIncome(t)).reduce((s, t) => s + Math.abs(t.amount), 0)
+    );
+
+    const expenses = periodFiltered.filter(t => !isIncome(t));
+
+    // MoM trend buckets — always from all transactions for context
     const monthBuckets: Record<string, Record<string, number>> = {};
-    expenses.forEach(t => {
+    transactions.filter(t => !isIncome(t)).forEach(t => {
       const d = new Date(t.posted_at || "");
       if (isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const cat = t.category || "Other";
       if (!monthBuckets[key]) monthBuckets[key] = {};
       monthBuckets[key][cat] = (monthBuckets[key][cat] || 0) + Math.abs(t.amount);
@@ -99,14 +124,17 @@ export function useCategoriesData(): CategoriesPageData {
         };
       });
 
-    const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
+    // Exclude Transfers from totalSpent — money movement, not real spending
+    const totalSpent = categories
+      .filter(c => c.name !== "Transfers")
+      .reduce((s, c) => s + c.spent, 0);
     const totalBudget = categories.reduce((s, c) => s + c.budget, 0);
-    const uncategorizedCount = transactions.filter(
+
+    const uncategorizedCount = periodFiltered.filter(
       t => !t.category || t.category === "Uncategorized"
     ).length;
 
-    // Real flagged transactions — uncategorized ones
-    const flaggedTransactions: FlaggedTransaction[] = transactions
+    const flaggedTransactions: FlaggedTransaction[] = periodFiltered
       .filter(t => !t.category || t.category === "Uncategorized" || t.category === "Other")
       .slice(0, 5)
       .map(t => ({
@@ -114,33 +142,32 @@ export function useCategoriesData(): CategoriesPageData {
         merchant: t.merchant_name || "Unknown",
         amount: `$${Math.abs(t.amount).toFixed(2)}`,
         issue: !t.category || t.category === "Uncategorized"
-          ? "Uncategorized — Tag needs your input"
-          : "Categorized as Other — can you be more specific?",
+          ? "Uncategorized \u2014 Tag needs your input"
+          : "Categorized as Other \u2014 can you be more specific?",
         category: t.category || "Uncategorized",
       }));
 
-    // Subcategory suggestions — detect merchant clusters within large categories
     const subcategorySuggestions: SubcategorySuggestion[] = [];
     const SUBCATEGORY_PATTERNS: Record<string, { name: string; keywords: string[] }[]> = {
       "Transportation": [
-        { name: "Gas & Fuel", keywords: ["petro", "shell", "esso", "gas", "fuel", "husky", "irving"] },
-        { name: "Parking", keywords: ["parking", "park lot", "parkade", "impark", "indigo"] },
-        { name: "Rideshare", keywords: ["uber", "lyft", "taxi"] },
-        { name: "Transit", keywords: ["transit", "presto", "bus", "train"] },
+        { name: "Gas & Fuel",  keywords: ["petro", "shell", "esso", "gas", "fuel", "husky", "irving"] },
+        { name: "Parking",     keywords: ["parking", "park lot", "parkade", "impark", "indigo"] },
+        { name: "Rideshare",   keywords: ["uber", "lyft", "taxi"] },
+        { name: "Transit",     keywords: ["transit", "presto", "bus", "train"] },
       ],
       "Food & Dining": [
-        { name: "Coffee", keywords: ["starbucks", "tim horton", "second cup", "coffee", "cafe"] },
-        { name: "Delivery", keywords: ["doordash", "ubereats", "skip"] },
+        { name: "Coffee",      keywords: ["starbucks", "tim horton", "second cup", "coffee", "cafe"] },
+        { name: "Delivery",    keywords: ["doordash", "ubereats", "skip"] },
         { name: "Restaurants", keywords: ["restaurant", "grill", "pub", "sushi", "pizza", "burger"] },
       ],
       "Shopping": [
-        { name: "Online Shopping", keywords: ["amazon", "amzn", "ebay"] },
-        { name: "Clothing", keywords: ["zara", "h&m", "old navy", "gap", "winners"] },
+        { name: "Online",      keywords: ["amazon", "amzn", "ebay"] },
+        { name: "Clothing",    keywords: ["zara", "h&m", "old navy", "gap", "winners"] },
         { name: "Electronics", keywords: ["best buy", "apple", "the source", "staples"] },
       ],
       "Subscriptions": [
-        { name: "Streaming", keywords: ["netflix", "disney", "crave", "spotify", "apple tv"] },
-        { name: "Software", keywords: ["github", "notion", "figma", "openai", "cursor", "netlify", "vercel"] },
+        { name: "Streaming",       keywords: ["netflix", "disney", "crave", "spotify", "apple tv"] },
+        { name: "Software",        keywords: ["github", "notion", "figma", "openai", "cursor", "netlify", "vercel"] },
         { name: "Cloud & Storage", keywords: ["icloud", "google", "dropbox", "microsoft"] },
       ],
     };
@@ -176,13 +203,15 @@ export function useCategoriesData(): CategoriesPageData {
     return {
       categories,
       totalSpent,
+      totalIncome,
       totalBudget,
-      categoryCount: categories.length,
+      categoryCount: categories.filter(c => c.name !== "Transfers").length,
       uncategorizedCount,
       avgSpentPerCategory: categories.length > 0 ? Math.round(totalSpent / categories.length) : 0,
       loading: false,
       flaggedTransactions,
       subcategorySuggestions,
+      availablePeriods,
     };
-  }, [transactions, isLoading]);
+  }, [transactions, isLoading, selectedPeriod]);
 }
