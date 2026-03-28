@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
 const T = {
@@ -33,15 +33,15 @@ function statusColor(status: string) {
 }
 
 function statusLabel(status: string) {
-  if (status === 'committed') return '✅ Committed';
-  if (status === 'normalizing') return '⏳ Processing';
-  if (status === 'parsing') return '⏳ Parsing';
-  if (status === 'failed' || status === 'error') return '❌ Failed';
+  if (status === 'committed') return '? Committed';
+  if (status === 'normalizing') return '? Processing';
+  if (status === 'parsing') return '? Parsing';
+  if (status === 'failed' || status === 'error') return '? Failed';
   return status;
 }
 
 function formatDate(d: string | null) {
-  if (!d) return '—';
+  if (!d) return '�';
   return new Date(d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 }
 
@@ -92,6 +92,14 @@ export function StatementHistory() {
     load();
   }, []);
 
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this statement and its transactions?')) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    await sb.from('transactions').delete().eq('import_id', id);
+    await sb.from('imports').delete().eq('id', id);
+    setRows(rows.filter(r => r.id !== id));
+  }
   if (loading) return (
     <div style={{ marginTop: 32, padding: '16px 20px', borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, color: T.dim, fontSize: 12 }}>
       Loading statement history...
@@ -107,8 +115,8 @@ export function StatementHistory() {
       </div>
       <div style={{ borderRadius: 14, border: `1px solid ${T.border}`, overflow: 'hidden' }}>
         {/* Header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', background: T.surface, borderBottom: `1px solid ${T.border}` }}>
-          {['File', 'Status', 'Transactions', 'Date Range'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', padding: '10px 16px', background: T.surface, borderBottom: `1px solid ${T.border}` }}>
+          {['File', 'Status', 'Transactions', 'Date Range', ''].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{h}</div>
           ))}
         </div>
@@ -116,7 +124,7 @@ export function StatementHistory() {
         {rows.map((row, i) => (
           <div key={row.id} style={{
             display: 'grid',
-            gridTemplateColumns: '2fr 1fr 1fr 1fr',
+            gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
             padding: '12px 16px',
             borderBottom: i < rows.length - 1 ? `1px solid ${T.border}` : 'none',
             background: i % 2 === 0 ? T.bg : `${T.surface}80`,
@@ -129,10 +137,16 @@ export function StatementHistory() {
               {statusLabel(row.status)}
             </div>
             <div style={{ fontSize: 12, color: row.txn_count > 0 ? T.text : T.dim }}>
-              {row.txn_count > 0 ? `${row.txn_count} txns` : '—'}
+              {row.txn_count > 0 ? `${row.txn_count} txns` : '�'}
             </div>
             <div style={{ fontSize: 11, color: T.muted }}>
-              {row.earliest ? `${formatDate(row.earliest)} → ${formatDate(row.latest)}` : '—'}
+              {row.earliest ? `${formatDate(row.earliest)} ? ${formatDate(row.latest)}` : '�'}
+            </div>
+            <div>
+              <button onClick={() => handleDelete(row.id)} style={{
+                fontSize: 10, fontWeight: 700, color: T.red, background: 'transparent',
+                border: `1px solid ${T.red}44`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
+              }}>Delete</button>
             </div>
           </div>
         ))}
@@ -140,3 +154,6 @@ export function StatementHistory() {
     </div>
   );
 }
+
+
+
