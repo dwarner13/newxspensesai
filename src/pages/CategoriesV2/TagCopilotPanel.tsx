@@ -113,18 +113,9 @@ export function TagCopilotPanel({
     requestAnimationFrame(() => setOpen(true));
   }, []);
 
-  // Auto-send initialMessage after panel opens
+  // Auto-send initialMessage after panel opens (skip if history was rehydrated)
   useEffect(() => {
-    if (initialMessage && initialMessage.trim()) {
-      const timer = setTimeout(() => handleSend(initialMessage), 800);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-
-  // Auto-send initialMessage after panel opens
-  useEffect(() => {
-    if (initialMessage && initialMessage.trim()) {
+    if (initialMessage && initialMessage.trim() && messages.length === 0) {
       const timer = setTimeout(() => handleSend(initialMessage.trim()), 800);
       return () => clearTimeout(timer);
     }
