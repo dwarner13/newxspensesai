@@ -9,7 +9,6 @@ import { useImportList } from '@/hooks/useImportList';
 import { useUnifiedChatLauncher } from '@/hooks/useUnifiedChatLauncher';
 import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
 import { TransactionInsightDrawer } from '@/components/transactions/TransactionInsightDrawer';
-import { ByteCopilotPanel } from '@/pages/CategoriesV2/ByteCopilotPanel';
 import type { CommittedTransaction } from '@/types/transactions';
 import { getSupabase } from '@/lib/supabase';
 import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
@@ -52,7 +51,6 @@ export default function TransactionsPageV2() {
   const [statementFilter, setStatementFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
-  const [copilotOpen, setCopilotOpen] = useState(false);
   const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string } | null>(null);
   const [tagInsightLoading, setTagInsightLoading] = useState(false);
   const [tagPanelOpen, setTagPanelOpen] = useState(false);
@@ -61,7 +59,6 @@ export default function TransactionsPageV2() {
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("from") === "upload") {
-      setCopilotOpen(true);
       setSearchParams({}, { replace: true });
     }
   }, []);
@@ -417,10 +414,7 @@ export default function TransactionsPageV2() {
       </div>
 
       {/* Byte copilot bubble */}
-      {!copilotOpen && (
-        <button onClick={() => setCopilotOpen(true)} style={{ position: "fixed", bottom: window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #34d399, #34d399cc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(52,211,153,0.44)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">B</button>
-      )}
-      {copilotOpen && <ByteCopilotPanel onClose={() => setCopilotOpen(false)} />}
+
       {!tagPanelOpen && !selectedTx && (
         <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: window.innerWidth <= 768 ? 140 : 84, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
       )}
