@@ -60,6 +60,14 @@ export function TagCopilotPanel({
     }
   }, []);
 
+
+  // Auto-send initialMessage after panel opens
+  useEffect(() => {
+    if (initialMessage && initialMessage.trim()) {
+      const timer = setTimeout(() => handleSend(initialMessage.trim()), 800);
+      return () => clearTimeout(timer);
+    }
+  }, []);
   // Fetch real learned rules from vendor_category_memory
   useEffect(() => {
     (async () => {
