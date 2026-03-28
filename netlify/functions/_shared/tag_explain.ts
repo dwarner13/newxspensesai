@@ -1,5 +1,5 @@
 /**
- * Tag Explanation Helper — enhanced with merchant history + anomaly detection
+ * Tag Explanation Helper ï¿½ enhanced with merchant history + anomaly detection
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -47,7 +47,7 @@ export async function explainTransactionCategory(
     const amount = Math.abs(Number(tx.amount || 0));
     const categorySourceFromDb = tx.category_source;
 
-    // 2. Merchant history — all transactions from this merchant
+    // 2. Merchant history ï¿½ all transactions from this merchant
     const { data: merchantTxs } = await supabase
       .from('transactions')
       .select('amount, category, posted_at')
@@ -90,7 +90,7 @@ export async function explainTransactionCategory(
     else if (categorySourceFromDb === 'rule' || categorySourceFromDb === 'rules') categorySource = 'rule';
     else if (categorySourceFromDb === 'manual' || categorySourceFromDb === 'user' || categorySourceFromDb === 'user_chat') categorySource = 'manual';
 
-    // 5. Confidence — enrich from merchant history
+    // 5. Confidence ï¿½ enrich from merchant history
     let confidence = tx.confidence != null ? Number(tx.confidence) : null;
     if (confidence === null || confidence === 0) {
       if (merchantSeenCount >= 10 && dominantCatCount / merchantSeenCount >= 0.8) confidence = 0.95;
@@ -104,36 +104,36 @@ export async function explainTransactionCategory(
     // 6. Build primary message
     let message = '';
     if (categorySource === 'manual') {
-      message = `You set this category yourself${learnedCount > 1 ? ` — and you have corrected this merchant ${learnedCount} times` : ''}. I am locked in.`;
+      message = `You set this category yourself${learnedCount > 1 ? ` ï¿½ and you have corrected this merchant ${learnedCount} times` : ''}. I am locked in.`;
     } else if (categorySource === 'learned' && learnedCount >= 2) {
       message = `I learned from your ${learnedCount} past corrections and always tag ${merchant || 'this merchant'} as ${category}.`;
     } else if (merchantSeenCount >= 5 && dominantCat === category) {
-      message = `I have seen ${merchant || 'this merchant'} ${merchantSeenCount} times — ${dominantCatCount} of those were ${category}. High confidence.`;
+      message = `I have seen ${merchant || 'this merchant'} ${merchantSeenCount} times ï¿½ ${dominantCatCount} of those were ${category}. High confidence.`;
     } else if (merchantSeenCount >= 2) {
       message = `I have seen ${merchant || 'this merchant'} ${merchantSeenCount} times before. Based on that history I tagged this as ${category}.`;
     } else if (categorySource === 'rule') {
-      message = `The merchant name matched my ${category} rules. First time I have seen this one — tell me if I am wrong.`;
+      message = `The merchant name matched my ${category} rules. First time I have seen this one ï¿½ tell me if I am wrong.`;
     } else {
-      message = `First time I have seen this merchant. I made my best guess — correct me and I will remember it.`;
+      message = `First time I have seen this merchant. I made my best guess ï¿½ correct me and I will remember it.`;
     }
 
-    // 7. Proactive insights — Tag volunteers these unprompted
+    // 7. Proactive insights ï¿½ Tag volunteers these unprompted
     const proactiveInsights: string[] = [];
 
     if (isAmountAnomaly) {
-      proactiveInsights.push(`?? This amount ($${amount.toFixed(2)}) is ${anomalyRatio.toFixed(1)}x your usual spend here (avg $${merchantAvgAmount.toFixed(2)}). Worth a second look.`);
+      proactiveInsights.push(`âš ï¸ This amount ($${amount.toFixed(2)}) is ${anomalyRatio.toFixed(1)}x your usual spend here (avg $${merchantAvgAmount.toFixed(2)}). Worth a second look.`);
     }
 
     if (merchantSeenCount >= 3 && dominantCat && dominantCat !== category) {
-      proactiveInsights.push(`?? You usually tag ${merchant} as ${dominantCat} (${dominantCatCount}/${merchantSeenCount} times). This one is ${category} — is that right?`);
+      proactiveInsights.push(`ðŸ”„ You usually tag ${merchant} as ${dominantCat} (${dominantCatCount}/${merchantSeenCount} times). This one is ${category} â€” is that right?`);
     }
 
     if (merchantSeenCount === 0 && !category) {
-      proactiveInsights.push(`?? New merchant. Tell me what category fits and I will apply it to all future ${merchant} transactions automatically.`);
+      proactiveInsights.push(`âœ¨ New merchant. Tell me what category fits and I will apply it to all future ${merchant} transactions automatically.`);
     }
 
     if (merchantSeenCount >= 5) {
-      proactiveInsights.push(`?? You have spent $${merchantTotalSpent.toFixed(2)} at ${merchant} across ${merchantSeenCount} transactions.`);
+      proactiveInsights.push(`ðŸ“Š You have spent $${merchantTotalSpent.toFixed(2)} at ${merchant} across ${merchantSeenCount} transactions.`);
     }
 
     return {
