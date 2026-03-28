@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
-import { useUnifiedChatLauncher } from "@/hooks/useUnifiedChatLauncher";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "./useCategoriesData";
 
@@ -25,6 +24,11 @@ interface LearnedRule {
   confidence: number;
 }
 
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export function TagCopilotPanel({
   onClose,
   flaggedCount,
@@ -38,8 +42,9 @@ export function TagCopilotPanel({
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { openChat } = useUnifiedChatLauncher();
 
   useEffect(() => {
     requestAnimationFrame(() => setOpen(true));
@@ -75,20 +80,88 @@ export function TagCopilotPanel({
     setTimeout(onClose, 300);
   };
 
-  const handleSend = () => {
-    const text = inputValue.trim();
-    if (!text) return;
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText ?? inputValue).trim();
+    if (!text || isLoading) return;
     setInputValue("");
-    handleClose();
-    openChat({
-      initialEmployeeSlug: "tag-ai",
-      force: true,
-      initialQuestion: text,
-      routeHint: "/dashboard/categories",
-    });
+
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
+    setIsLoading(true);
+
+    // Scroll to bottom after user message
+    setTimeout(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, 50);
+
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token;
+
+      const res = await fetch("/.netlify/functions/tag-chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: text,
+          history: updatedMessages.slice(0, -1),
+        }),
+      });
+
+      if (!res.ok) throw new Error(`tag-chat ${res.status}`);
+
+      const assistantMsg: ChatMessage = { role: "assistant", content: "" };
+      setMessages(prev => [...prev, assistantMsg]);
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const raw = line.slice(5).trim();
+            if (raw === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(raw);
+              const delta = parsed?.choices?.[0]?.delta?.content ?? parsed?.delta?.text ?? "";
+              if (delta) {
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    content: updated[updated.length - 1].content + delta,
+                  };
+                  return updated;
+                });
+                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              }
+            } catch { /* skip malformed chunk */ }
+          }
+        }
+      }
+    } catch (err) {
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", content: "Sorry, I ran into an issue. Try again in a moment." },
+      ]);
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 50);
+    }
   };
 
-  const statusText = `I have categorized ${categorizedCount} out of ${totalCount} transactions across your categories. Confidence is high overall — ${avgConfidence}% average. ${flaggedCount} transactions flagged for your review.${subcategorySuggestions.length > 0 ? ` I also spotted ${subcategorySuggestions.length} categories with distinct spending patterns worth splitting.` : ""}`;
+  const statusText = `I have categorized ${categorizedCount} out of ${totalCount} transactions across your categories. Confidence is high overall \u2014 ${avgConfidence}% average. ${flaggedCount} transactions flagged for your review.${subcategorySuggestions.length > 0 ? ` I also spotted ${subcategorySuggestions.length} categories with distinct spending patterns worth splitting.` : ""}`;
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
   useEffect(() => {
@@ -166,10 +239,7 @@ export function TagCopilotPanel({
                   </div>
                   <div style={{ fontSize: 11.5, color: THEME.textMuted, marginBottom: 10 }}>{f.issue}</div>
                   <button
-                    onClick={() => {
-                      handleClose();
-                      openChat({ initialEmployeeSlug: "tag-ai", force: true, initialQuestion: `Help me categorize ${f.merchant} ${f.amount}`, routeHint: "/dashboard/categories" });
-                    }}
+                    onClick={() => handleSend(`Help me categorize ${f.merchant} ${f.amount}`)}
                     style={{ padding: "6px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: `${CYAN}12`, border: `1px solid ${CYAN}28`, color: CYAN, cursor: "pointer" }}
                   >Ask Tag {"\u2192"}</button>
                 </div>
@@ -202,10 +272,7 @@ export function TagCopilotPanel({
                     ))}
                   </div>
                   <button
-                    onClick={() => {
-                      handleClose();
-                      openChat({ initialEmployeeSlug: "tag-ai", force: true, initialQuestion: `Split my ${sg.parentCategory} category into subcategories: ${sg.subcategories.map(s => s.name).join(", ")}`, routeHint: "/dashboard/categories" });
-                    }}
+                    onClick={() => handleSend(`Split my ${sg.parentCategory} category into subcategories: ${sg.subcategories.map(s => s.name).join(", ")}`)}
                     style={{ width: "100%", padding: "9px 16px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: `linear-gradient(135deg, ${CYAN}, #0891b2)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: `0 2px 12px ${CYAN}33` }}
                   >Ask Tag to Apply Split</button>
                 </div>
@@ -235,7 +302,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Tag recommendation */}
-          {typeDone && (
+          {typeDone && messages.length === 0 && (
             <Reveal delay={800} style={{ marginLeft: 38 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: CYAN }} />
@@ -244,17 +311,54 @@ export function TagCopilotPanel({
               </div>
               <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6, padding: "14px 16px", borderRadius: 14, background: `linear-gradient(135deg, ${CYAN}08, transparent)`, border: `1px solid ${CYAN}15` }}>
                 {flaggedCount > 0
-                  ? `Start with the ${flaggedCount} flagged transaction${flaggedCount !== 1 ? "s" : ""} — once those are categorized, your spending totals will be accurate and Prime can give you a better summary.`
+                  ? `Start with the ${flaggedCount} flagged transaction${flaggedCount !== 1 ? "s" : ""} \u2014 once those are categorized, your spending totals will be accurate and Prime can give you a better summary.`
                   : subcategorySuggestions.length > 0
-                    ? `All transactions look good. Consider approving the subcategory splits — it will give Crystal better data for trend analysis.`
+                    ? `All transactions look good. Consider approving the subcategory splits \u2014 it will give Crystal better data for trend analysis.`
                     : `Everything looks clean. Your categories are well organized and Tag confidence is high.`
                 }
               </div>
             </Reveal>
           )}
+
+          {/* Inline conversation thread */}
+          {messages.map((msg, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, marginTop: 16, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
+              {msg.role === "assistant" && (
+                <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
+              )}
+              <div style={{
+                maxWidth: "78%",
+                padding: "10px 14px",
+                borderRadius: 14,
+                fontSize: 13,
+                lineHeight: 1.6,
+                ...(msg.role === "user"
+                  ? { background: `${CYAN}14`, border: `1px solid ${CYAN}28`, color: THEME.text, borderBottomRightRadius: 4 }
+                  : { background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44`, color: THEME.textMuted, borderBottomLeftRadius: 4 }
+                ),
+              }}>
+                {msg.content}
+                {msg.role === "assistant" && i === messages.length - 1 && isLoading && (
+                  <span style={{ color: CYAN, marginLeft: 2 }}>{"\u2588"}</span>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Loading dots while waiting for first token */}
+          {isLoading && messages[messages.length - 1]?.role === "user" && (
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
+              <div style={{ padding: "10px 14px", borderRadius: 14, background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44`, display: "flex", gap: 4, alignItems: "center" }}>
+                {[0, 1, 2].map(d => (
+                  <div key={d} style={{ width: 6, height: 6, borderRadius: "50%", background: CYAN, opacity: 0.5, animation: `pulse 1.2s ease-in-out ${d * 0.2}s infinite` }} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Input — wired to UnifiedAssistantChat */}
+        {/* Input — wired directly to tag-chat API */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${THEME.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, background: THEME.surface, borderRadius: 14, border: `1px solid ${THEME.border}`, padding: "4px 6px 4px 16px" }}>
             <input
@@ -266,12 +370,12 @@ export function TagCopilotPanel({
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: THEME.text, fontSize: 13, padding: "10px 0", fontFamily: "inherit" }}
             />
             <button
-              onClick={handleSend}
-              disabled={!inputValue.trim()}
-              style={{ width: 34, height: 34, borderRadius: 10, background: inputValue.trim() ? `linear-gradient(135deg, ${CYAN}, #0891b2)` : THEME.surface, border: `1px solid ${inputValue.trim() ? "transparent" : THEME.border}`, cursor: inputValue.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: inputValue.trim() ? `0 2px 12px ${CYAN}33` : "none" }}
+              onClick={() => handleSend()}
+              disabled={!inputValue.trim() || isLoading}
+              style={{ width: 34, height: 34, borderRadius: 10, background: inputValue.trim() && !isLoading ? `linear-gradient(135deg, ${CYAN}, #0891b2)` : THEME.surface, border: `1px solid ${inputValue.trim() && !isLoading ? "transparent" : THEME.border}`, cursor: inputValue.trim() && !isLoading ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: inputValue.trim() && !isLoading ? `0 2px 12px ${CYAN}33` : "none" }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill={inputValue.trim() ? "#0b1220" : THEME.textDim} />
+                <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill={inputValue.trim() && !isLoading ? "#0b1220" : THEME.textDim} />
               </svg>
             </button>
           </div>
