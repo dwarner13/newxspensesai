@@ -97,7 +97,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
             ) : null}
           </div>
 
-          {/* Subcategory chips — show all chips when viewing parent */}
+          {/* Subcategory chips ï¿½ show all chips when viewing parent */}
           {!subcategoryFilter && category.subcategories && category.subcategories.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 8 }}>Breakdown</div>
@@ -151,12 +151,12 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
             style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: `${category.color}15`, border: `1px solid ${category.color}30`, color: category.color, cursor: "pointer" }}>
             View Trends
           </button>
-          <button onClick={() => { onClose(); navigate("/dashboard/smart-categories"); }}
+          <button onClick={() => { onClose(); onAskTag && onAskTag("Help me re-categorize " + category.name + " â€” $" + category.spent.toLocaleString() + " across " + category.transactionCount + " transactions, top merchant " + category.topMerchant + ". What should I do?"); }}
             style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}>
             Re-categorize
           </button>
           {subcategoryFilter && onAskTag && (
-            <button onClick={() => { onClose(); onAskTag(`Help me recategorize ${subcategoryFilter.name} transactions under ${category.name} — should they stay or move to a different category?`); }}
+            <button onClick={() => { onClose(); onAskTag(`Help me recategorize ${subcategoryFilter.name} transactions under ${category.name} ï¿½ should they stay or move to a different category?`); }}
               style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: `${CYAN}15`, border: `1px solid ${CYAN}30`, color: CYAN, cursor: "pointer" }}>
               Ask Tag
             </button>
