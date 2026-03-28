@@ -359,10 +359,18 @@ export function TransactionInsightDrawer({
                     <div style={{ fontSize: 11, color: "#7a8fa6", lineHeight: 1.5 }}>Analyzing this transaction…</div>
                   ) : tagInsight?.message ? (
                     <>
-                      <div style={{ fontSize: 12, color: "#e8ecf4", lineHeight: 1.5, marginBottom: 4 }}>{tagInsight.message}</div>
+                      <div style={{ fontSize: 12, color: "#e8ecf4", lineHeight: 1.5, marginBottom: 6 }}>{tagInsight.message}</div>
                       {tagInsight.confidence != null && (
-                        <div style={{ fontSize: 11, color: "#7a8fa6" }}>Confidence: {Math.round((tagInsight.confidence ?? 0) * 100)}% · Source: {tagInsight.categorySource ?? "rules"}</div>
+                        <div style={{ fontSize: 11, color: "#7a8fa6", marginBottom: (tagInsight as any).proactiveInsights?.length ? 8 : 0 }}>
+                          Confidence: {Math.round((tagInsight.confidence ?? 0) * 100)}% · Source: {tagInsight.categorySource ?? "rules"}
+                          {(tagInsight as any).merchantSeenCount > 0 && ` · Seen ${(tagInsight as any).merchantSeenCount}x`}
+                        </div>
                       )}
+                      {((tagInsight as any).proactiveInsights as string[] | undefined)?.map((insight: string, i: number) => (
+                        <div key={i} style={{ marginTop: 6, padding: "6px 8px", borderRadius: 6, background: (tagInsight as any).isAmountAnomaly && i === 0 ? "rgba(251,191,36,0.08)" : "rgba(255,255,255,0.03)", border: `1px solid ${(tagInsight as any).isAmountAnomaly && i === 0 ? "rgba(251,191,36,0.2)" : "rgba(255,255,255,0.06)"}`, fontSize: 11, color: "#a0aec4", lineHeight: 1.5 }}>
+                          {insight}
+                        </div>
+                      ))}
                     </>
                   ) : null}
                 </div>

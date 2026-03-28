@@ -1,173 +1,152 @@
 /**
- * Tag Explanation Helper
- * 
- * Provides human-friendly explanations for how Tag categorized a transaction.
- * Used by Prime/Crystal/Byte to explain Tag's decisions to users.
+ * Tag Explanation Helper — enhanced with merchant history + anomaly detection
  */
-
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type TagExplanationResult = {
   category: string | null;
   categorySource: 'manual' | 'learned' | 'ai' | 'rule' | 'unknown';
   confidence: number | null;
-  learnedCount: number;        // how many feedback rows we used
+  learnedCount: number;
   lastLearnedAt?: string | null;
-  message: string;             // human-friendly explanation string
+  message: string;
+  // Enhanced fields
+  merchantSeenCount: number;
+  merchantTotalSpent: number;
+  merchantAvgAmount: number;
+  isAmountAnomaly: boolean;
+  anomalyRatio: number;
+  proactiveInsights: string[];
 };
 
-/**
- * Explain how Tag categorized a specific transaction
- * 
- * Looks up the transaction and any related feedback to build a friendly explanation.
- * 
- * @param supabase - Supabase client instance
- * @param userId - User ID
- * @param transactionId - Transaction ID to explain
- * @returns Explanation result with category, source, confidence, and message
- */
 export async function explainTransactionCategory(
   supabase: SupabaseClient,
   userId: string,
   transactionId: string
 ): Promise<TagExplanationResult> {
+  const empty: TagExplanationResult = {
+    category: null, categorySource: 'unknown', confidence: null,
+    learnedCount: 0, lastLearnedAt: null, message: '',
+    merchantSeenCount: 0, merchantTotalSpent: 0, merchantAvgAmount: 0,
+    isAmountAnomaly: false, anomalyRatio: 1, proactiveInsights: [],
+  };
+
   try {
-    // Step 1: Look up the transaction
-    const { data: transaction, error: txError } = await supabase
+    // 1. Fetch the transaction
+    const { data: tx, error: txErr } = await supabase
       .from('transactions')
-      .select('id, category, category_source, confidence, merchant, description, user_id')
+      .select('id, category, category_source, confidence, merchant_name, merchant, description, amount, posted_at, user_id')
       .eq('id', transactionId)
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (txError) {
-      console.error('[Tag Explain] Transaction lookup error:', txError);
-      return {
-        category: null,
-        categorySource: 'unknown',
-        confidence: null,
-        learnedCount: 0,
-        message: "I couldn't find this transaction. It might not exist or belong to another user."
-      };
-    }
+    if (txErr || !tx) return { ...empty, message: "I could not find this transaction." };
 
-    if (!transaction) {
-      return {
-        category: null,
-        categorySource: 'unknown',
-        confidence: null,
-        learnedCount: 0,
-        message: "I couldn't find this transaction. It might not exist or belong to another user."
-      };
-    }
+    const merchant = tx.merchant_name || tx.merchant || '';
+    const category = tx.category;
+    const amount = Math.abs(Number(tx.amount || 0));
+    const categorySourceFromDb = tx.category_source;
 
-    const category = transaction.category;
-    const categorySourceFromDb = transaction.category_source;
-    const confidence = transaction.confidence;
-    const merchant = transaction.merchant;
+    // 2. Merchant history — all transactions from this merchant
+    const { data: merchantTxs } = await supabase
+      .from('transactions')
+      .select('amount, category, posted_at')
+      .eq('user_id', userId)
+      .ilike('merchant_name', `%${merchant.toLowerCase().trim()}%`)
+      .neq('id', transactionId)
+      .order('posted_at', { ascending: false })
+      .limit(100);
 
-    // Step 2: Look up feedback rows for this merchant (to see learning history)
+    const merchantSeenCount = merchantTxs?.length || 0;
+    const merchantTotalSpent = merchantTxs?.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) || 0;
+    const merchantAvgAmount = merchantSeenCount > 0 ? merchantTotalSpent / merchantSeenCount : 0;
+    const anomalyRatio = merchantAvgAmount > 0 ? amount / merchantAvgAmount : 1;
+    const isAmountAnomaly = merchantSeenCount >= 3 && anomalyRatio > 2.0;
+
+    // Most common past category for this merchant
+    const catCounts: Record<string, number> = {};
+    merchantTxs?.forEach(t => { if (t.category) catCounts[t.category] = (catCounts[t.category] || 0) + 1; });
+    const dominantCat = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const dominantCatCount = dominantCat ? catCounts[dominantCat] : 0;
+
+    // 3. Feedback history
     let learnedCount = 0;
     let lastLearnedAt: string | null = null;
-
-    if (merchant && merchant.trim()) {
-      try {
-        const { data: feedback } = await supabase
-          .from('tag_category_feedback')
-          .select('new_category, created_at')
-          .eq('user_id', userId)
-          .ilike('merchant', `%${merchant.trim()}%`)
-          .order('created_at', { ascending: false });
-
-        if (feedback && feedback.length > 0) {
-          learnedCount = feedback.length;
-          lastLearnedAt = feedback[0]?.created_at || null;
-        }
-      } catch (error) {
-        console.error('[Tag Explain] Feedback lookup error:', error);
-        // Continue without feedback data
-      }
+    if (merchant.trim()) {
+      const { data: feedback } = await supabase
+        .from('tag_category_feedback')
+        .select('new_category, created_at')
+        .eq('user_id', userId)
+        .ilike('merchant', `%${merchant.trim()}%`)
+        .order('created_at', { ascending: false });
+      learnedCount = feedback?.length || 0;
+      lastLearnedAt = feedback?.[0]?.created_at || null;
     }
 
-    // Step 3: Determine categorySource
-    let categorySource: 'manual' | 'learned' | 'ai' | 'rule' | 'unknown' = 'unknown';
+    // 4. Determine source
+    let categorySource: TagExplanationResult['categorySource'] = 'unknown';
+    if (categorySourceFromDb === 'learned' || learnedCount >= 2) categorySource = 'learned';
+    else if (categorySourceFromDb === 'ai') categorySource = 'ai';
+    else if (categorySourceFromDb === 'rule' || categorySourceFromDb === 'rules') categorySource = 'rule';
+    else if (categorySourceFromDb === 'manual' || categorySourceFromDb === 'user' || categorySourceFromDb === 'user_chat') categorySource = 'manual';
 
-    if (categorySourceFromDb === 'learned') {
-      categorySource = 'learned';
-    } else if (categorySourceFromDb === 'ai') {
-      categorySource = 'ai';
-    } else if (learnedCount >= 2) {
-      // If we have feedback but category_source wasn't set, assume it was learned
-      categorySource = 'learned';
-    } else if (categorySourceFromDb === 'rule' || categorySourceFromDb === 'rules') {
-      categorySource = 'rule';
-    } else if (categorySourceFromDb === 'manual' || categorySourceFromDb === 'user') {
-      categorySource = 'manual';
-    } else if (categorySourceFromDb) {
-      // Unknown source type, default to 'unknown'
-      categorySource = 'unknown';
+    // 5. Confidence — enrich from merchant history
+    let confidence = tx.confidence != null ? Number(tx.confidence) : null;
+    if (confidence === null || confidence === 0) {
+      if (merchantSeenCount >= 10 && dominantCatCount / merchantSeenCount >= 0.8) confidence = 0.95;
+      else if (merchantSeenCount >= 5 && dominantCatCount / merchantSeenCount >= 0.7) confidence = 0.85;
+      else if (merchantSeenCount >= 3) confidence = 0.70;
+      else if (merchantSeenCount >= 1) confidence = 0.55;
+      else if (categorySource === 'rule') confidence = 0.75;
+      else confidence = 0.30;
     }
 
-    // Step 4: Build friendly message
+    // 6. Build primary message
     let message = '';
-
-    if (categorySource === 'learned' && learnedCount >= 2) {
-      const merchantName = merchant ? ` (${merchant})` : '';
-      message = `I used your past ${learnedCount} correction${learnedCount > 1 ? 's' : ''} for this merchant${merchantName} and now always classify it as ${category || 'this category'}.`;
-    } else if (categorySource === 'learned' && learnedCount === 1) {
-      const merchantName = merchant ? ` (${merchant})` : '';
-      message = `I saw you corrected this merchant${merchantName} once before, so I used that category: ${category || 'this category'}.`;
-    } else if (categorySource === 'ai') {
-      message = `I used AI to guess this category based on the description and amount.`;
-      if (merchant) {
-        message += ` The merchant "${merchant}" helped me decide.`;
-      }
+    if (categorySource === 'manual') {
+      message = `You set this category yourself${learnedCount > 1 ? ` — and you have corrected this merchant ${learnedCount} times` : ''}. I am locked in.`;
+    } else if (categorySource === 'learned' && learnedCount >= 2) {
+      message = `I learned from your ${learnedCount} past corrections and always tag ${merchant || 'this merchant'} as ${category}.`;
+    } else if (merchantSeenCount >= 5 && dominantCat === category) {
+      message = `I have seen ${merchant || 'this merchant'} ${merchantSeenCount} times — ${dominantCatCount} of those were ${category}. High confidence.`;
+    } else if (merchantSeenCount >= 2) {
+      message = `I have seen ${merchant || 'this merchant'} ${merchantSeenCount} times before. Based on that history I tagged this as ${category}.`;
     } else if (categorySource === 'rule') {
-      message = `I used a simple rule to categorize this transaction.`;
-      if (merchant) {
-        message += ` The merchant "${merchant}" matched a known pattern.`;
-      }
-    } else if (categorySource === 'manual') {
-      message = `You chose this category manually. I'm remembering it for future suggestions.`;
+      message = `The merchant name matched my ${category} rules. First time I have seen this one — tell me if I am wrong.`;
     } else {
-      message = `I don't have much history for this transaction yet, so this category might be a guess.`;
-      if (merchant) {
-        message += ` If you correct it, I'll remember "${merchant}" for next time.`;
-      }
+      message = `First time I have seen this merchant. I made my best guess — correct me and I will remember it.`;
     }
 
-    // Step 5: Return explanation
+    // 7. Proactive insights — Tag volunteers these unprompted
+    const proactiveInsights: string[] = [];
+
+    if (isAmountAnomaly) {
+      proactiveInsights.push(`?? This amount ($${amount.toFixed(2)}) is ${anomalyRatio.toFixed(1)}x your usual spend here (avg $${merchantAvgAmount.toFixed(2)}). Worth a second look.`);
+    }
+
+    if (merchantSeenCount >= 3 && dominantCat && dominantCat !== category) {
+      proactiveInsights.push(`?? You usually tag ${merchant} as ${dominantCat} (${dominantCatCount}/${merchantSeenCount} times). This one is ${category} — is that right?`);
+    }
+
+    if (merchantSeenCount === 0 && !category) {
+      proactiveInsights.push(`?? New merchant. Tell me what category fits and I will apply it to all future ${merchant} transactions automatically.`);
+    }
+
+    if (merchantSeenCount >= 5) {
+      proactiveInsights.push(`?? You have spent $${merchantTotalSpent.toFixed(2)} at ${merchant} across ${merchantSeenCount} transactions.`);
+    }
+
     return {
-      category,
-      categorySource,
-      confidence,
-      learnedCount,
-      lastLearnedAt,
-      message
+      category, categorySource, confidence, learnedCount, lastLearnedAt,
+      message, merchantSeenCount, merchantTotalSpent, merchantAvgAmount,
+      isAmountAnomaly, anomalyRatio, proactiveInsights,
     };
 
-  } catch (error) {
-    console.error('[Tag Explain] Unexpected error:', error);
-    return {
-      category: null,
-      categorySource: 'unknown',
-      confidence: null,
-      learnedCount: 0,
-      message: "I encountered an error while trying to explain this transaction. Please try again."
-    };
+  } catch (e) {
+    return { ...empty, message: "I encountered an error explaining this transaction." };
   }
 }
 
-/**
- * Get insights about how a user categorizes a specific merchant
- * 
- * Looks at all feedback for a merchant to show learning patterns.
- * 
- * @param supabase - Supabase client instance
- * @param userId - User ID
- * @param merchant - Merchant name to analyze
- * @returns Merchant insight with top category and correction stats
- */
 export type TagMerchantInsight = {
   merchant: string;
   topCategory: string | null;
@@ -181,84 +160,19 @@ export async function getMerchantCategoryInsight(
   merchant: string
 ): Promise<TagMerchantInsight> {
   try {
-    if (!merchant || !merchant.trim()) {
-      return {
-        merchant: merchant || '',
-        topCategory: null,
-        totalCorrections: 0,
-        lastCorrectedAt: null
-      };
-    }
-
-    // Query tag_category_feedback for this user + merchant
-    const { data: feedback, error } = await supabase
+    if (!merchant?.trim()) return { merchant, topCategory: null, totalCorrections: 0 };
+    const { data: feedback } = await supabase
       .from('tag_category_feedback')
       .select('new_category, created_at')
       .eq('user_id', userId)
       .ilike('merchant', `%${merchant.trim()}%`)
       .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('[Tag Insights] Query error:', error);
-      return {
-        merchant: merchant.trim(),
-        topCategory: null,
-        totalCorrections: 0,
-        lastCorrectedAt: null
-      };
-    }
-
-    if (!feedback || feedback.length === 0) {
-      return {
-        merchant: merchant.trim(),
-        topCategory: null,
-        totalCorrections: 0,
-        lastCorrectedAt: null
-      };
-    }
-
-    // Count occurrences of each category
-    const categoryCounts: Record<string, number> = {};
-    feedback.forEach((entry) => {
-      const cat = entry.new_category;
-      if (cat) {
-        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-      }
-    });
-
-    // Find most common category
-    const entries = Object.entries(categoryCounts);
-    let topCategory: string | null = null;
-
-    if (entries.length > 0) {
-      entries.sort((a, b) => b[1] - a[1]);
-      topCategory = entries[0][0];
-    }
-
-    // Get latest correction date
-    const lastCorrectedAt = feedback[0]?.created_at || null;
-
-    return {
-      merchant: merchant.trim(),
-      topCategory,
-      totalCorrections: feedback.length,
-      lastCorrectedAt
-    };
-
-  } catch (error) {
-    console.error('[Tag Insights] Unexpected error:', error);
-    return {
-      merchant: merchant || '',
-      topCategory: null,
-      totalCorrections: 0,
-      lastCorrectedAt: null
-    };
+    if (!feedback?.length) return { merchant, topCategory: null, totalCorrections: 0 };
+    const counts: Record<string, number> = {};
+    feedback.forEach(f => { if (f.new_category) counts[f.new_category] = (counts[f.new_category] || 0) + 1; });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    return { merchant, topCategory: top, totalCorrections: feedback.length, lastCorrectedAt: feedback[0]?.created_at };
+  } catch {
+    return { merchant, topCategory: null, totalCorrections: 0 };
   }
 }
-
-
-
-
-
-
-
