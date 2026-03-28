@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PrimeChatDrawer } from './PrimeChatDrawer';
 
@@ -25,7 +25,7 @@ export function PrimeChatMount() {
           aria-label="Open Prime Assistant"
           className="fixed z-40 rounded-full shadow-lg transition-transform"
           style={{
-            bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+            bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
             right: 'calc(24px + env(safe-area-inset-right, 0px))',
             width: 56,
             height: 56,
@@ -45,3 +45,4 @@ export function PrimeChatMount() {
 }
 
 export default PrimeChatMount;
+
