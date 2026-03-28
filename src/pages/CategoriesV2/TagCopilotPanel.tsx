@@ -8,6 +8,7 @@ import type { FlaggedTransaction, SubcategorySuggestion } from "./useCategoriesD
 const CYAN = "#22d3ee";
 
 interface TagCopilotPanelProps {
+  initialMessage?: string;
   onClose: () => void;
   flaggedCount: number;
   categorizedCount: number;
@@ -30,6 +31,7 @@ interface ChatMessage {
 }
 
 export function TagCopilotPanel({
+  initialMessage,
   onClose,
   flaggedCount,
   categorizedCount,
@@ -40,7 +42,7 @@ export function TagCopilotPanel({
   subcategorySuggestions = [],
 }: TagCopilotPanelProps) {
   const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState(initialMessage || "");
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);

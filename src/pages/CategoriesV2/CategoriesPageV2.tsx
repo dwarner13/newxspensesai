@@ -26,6 +26,7 @@ export default function CategoriesPageV2() {
   const [subcategoryFilter, setSubcategoryFilter] = useState<{ name: string; merchantNames: string[] } | null>(null);
   const [search, setSearch] = useState("");
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [copilotInitialMessage, setCopilotInitialMessage] = useState("");
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -254,7 +255,7 @@ export default function CategoriesPageV2() {
 
       {/* Tag Copilot Panel */}
       {copilotOpen && (
-        <TagCopilotPanel
+        <TagCopilotPanel initialMessage={copilotInitialMessage}
           onClose={() => setCopilotOpen(false)}
           flaggedCount={data.uncategorizedCount}
           categorizedCount={totalTxCount - data.uncategorizedCount}
@@ -271,6 +272,7 @@ export default function CategoriesPageV2() {
         category={selectedCategory}
         onClose={() => { setSelectedCategory(null); setSubcategoryFilter(null); }}
         subcategoryFilter={subcategoryFilter}
+        onAskTag={(question) => { setCopilotInitialMessage(question); setCopilotOpen(true); }}
       />
     </>
   );

@@ -6,13 +6,15 @@ import { THEME, type CategoryData } from "./categoryConfig";
 import { AnimatedBar } from "./AnimatedBar";
 import { useTransactions } from "@/hooks/useTransactions";
 
+const CYAN = "#22d3ee";
 interface CategoryDetailDrawerProps {
   category: CategoryData | null;
   onClose: () => void;
   subcategoryFilter?: { name: string; merchantNames: string[] } | null;
+  onAskTag?: (question: string) => void;
 }
 
-export function CategoryDetailDrawer({ category, onClose, subcategoryFilter }: CategoryDetailDrawerProps) {
+export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onAskTag }: CategoryDetailDrawerProps) {
   const navigate = useNavigate();
   const { transactions } = useTransactions();
 
@@ -153,6 +155,12 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter }: C
             style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}>
             Re-categorize
           </button>
+          {subcategoryFilter && onAskTag && (
+            <button onClick={() => { onClose(); onAskTag(`Help me recategorize ${subcategoryFilter.name} transactions under ${category.name} — should they stay or move to a different category?`); }}
+              style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: `${CYAN}15`, border: `1px solid ${CYAN}30`, color: CYAN, cursor: "pointer" }}>
+              Ask Tag
+            </button>
+          )}
           <button onClick={() => toast("Budget editing coming soon")}
             style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, color: THEME.textDim, cursor: "pointer" }}>
             Edit Budget
