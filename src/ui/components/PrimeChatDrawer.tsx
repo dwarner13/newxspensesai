@@ -1,6 +1,7 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { X, Send } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
+import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 
 interface PrimeChatDrawerProps {
   isOpen: boolean;
@@ -92,6 +93,23 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
   const [primeSnapshot, setPrimeSnapshot] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastCompletedIndex = useRef(-1);
+
+  // Track when loading finishes to mark the last assistant message as completed
+  const prevLoading = useRef(isLoading);
+  useEffect(() => {
+    if (prevLoading.current && !isLoading) {
+      // Loading just finished — find last assistant message index
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'assistant') { lastCompletedIndex.current = i; break; }
+      }
+    }
+    prevLoading.current = isLoading;
+  }, [isLoading, messages]);
+
+  const typewriterIndex = lastCompletedIndex.current;
+  const typewriterText = !isLoading && typewriterIndex >= 0 ? messages[typewriterIndex]?.content ?? '' : '';
+  const [twDisplay, twDone] = useTypewriter(typewriterText, 18, 150);
   const pageCtx = buildPageContext(currentPage);
 
   const fetchPrimeSnapshot = useCallback(async () => {
@@ -363,30 +381,34 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {messages.map(m => (
-          <div key={m.id} style={{
-            display: 'flex', gap: 8,
-            justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-          }}>
-            {m.role === 'assistant' && (
-              <div style={{
-                width: 26, height: 26, borderRadius: '50%', flexShrink: 0, marginTop: 2,
-                background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 800, color: T.gold,
-              }}>{"\u265B"}</div>
-            )}
-            <div style={{
-              maxWidth: '80%', padding: '10px 14px', fontSize: 14, color: T.text,
-              lineHeight: 1.6, whiteSpace: 'pre-wrap',
-              borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-              background: m.role === 'user' ? 'rgba(200,166,78,0.15)' : 'rgba(255,255,255,0.04)',
-              border: '1px solid ' + (m.role === 'user' ? 'rgba(200,166,78,0.25)' : 'rgba(255,255,255,0.06)'),
+        {messages.map((m, idx) => {
+          const isTypewriterTarget = !isLoading && m.role === 'assistant' && idx === typewriterIndex;
+          const displayContent = isTypewriterTarget ? twDisplay : m.content;
+          return (
+            <div key={m.id} style={{
+              display: 'flex', gap: 8,
+              justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
             }}>
-              {m.content || (isLoading ? '...' : '')}
+              {m.role === 'assistant' && (
+                <div style={{
+                  width: 26, height: 26, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+                  background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 800, color: T.gold,
+                }}>{"\u265B"}</div>
+              )}
+              <div style={{
+                maxWidth: '80%', padding: '10px 14px', fontSize: 14, color: T.text,
+                lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                background: m.role === 'user' ? 'rgba(200,166,78,0.15)' : 'rgba(255,255,255,0.04)',
+                border: '1px solid ' + (m.role === 'user' ? 'rgba(200,166,78,0.25)' : 'rgba(255,255,255,0.06)'),
+              }}>
+                {displayContent || (isLoading ? '...' : '')}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <div style={{
