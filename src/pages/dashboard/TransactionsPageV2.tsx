@@ -39,6 +39,7 @@ function isIncomeTx(t: CommittedTransaction): boolean {
 
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d: string) => {
+  if (!d) return "Unknown Date";
   const dt = new Date(d + 'T00:00:00');
   return dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 };
