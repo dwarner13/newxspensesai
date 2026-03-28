@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Send } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
+import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 import type { CommittedTransaction } from '@/types/transactions';
 
 interface TagCopilotPanelProps {
@@ -17,6 +18,16 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const lastTagIndex = useMemo(() => {
+    for (let i = localMessages.length - 1; i >= 0; i--) {
+      if (localMessages[i].role === 'tag') return i;
+    }
+    return -1;
+  }, [localMessages]);
+
+  const lastTagText = lastTagIndex >= 0 ? localMessages[lastTagIndex].text : '';
+  const [typewriterText, typewriterDone] = useTypewriter(lastTagText, 18, 150);
 
   useEffect(() => {
     if (transaction) {
@@ -73,7 +84,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
             <div style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#c8d0e0', fontWeight:400 }}>Copilot</span></div>
             <div style={{ fontSize:11, color:'#22d3ee' }}>Your categorization assistant</div>
           </div>
-          <button onClick={onClose} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', padding:4, display:'flex' }}><X style={{ width:18, height:18 }} /></button>
+          <button onClick={onClose} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#c8d0e0', padding:4, display:'flex' }}><X style={{ width:18, height:18 }} /></button>
         </div>
         {/* ACTIVE TRANSACTION PILL */}
         {transaction && (
@@ -85,20 +96,24 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
         )}
         {/* MESSAGES */}
         <div style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:12 }}>
-          {localMessages.map((m, i) => (
-            <div key={i} style={{ display:'flex', gap:8, justifyContent: m.role==='user' ? 'flex-end' : 'flex-start' }}>
-              {m.role==='tag' && (
-                <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>T</div>
-              )}
-              <div style={{ maxWidth:'80%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7 }}>
-                {m.text.split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
+          {localMessages.map((m, i) => {
+            const isLastTag = m.role === 'tag' && i === lastTagIndex;
+            const displayText = isLastTag ? typewriterText : m.text;
+            return (
+              <div key={i} style={{ display:'flex', gap:8, justifyContent: m.role==='user' ? 'flex-end' : 'flex-start' }}>
+                {m.role==='tag' && (
+                  <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>T</div>
+                )}
+                <div style={{ maxWidth:'80%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7 }}>
+                  {displayText.split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
+                </div>
               </div>
-            </div>
-          ))}
-          {busy && (
+            );
+          })}
+          {busy && typewriterDone && (
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee' }}>T</div>
-              <div style={{ fontSize:13, color:'#c8d0e0' }}>Thinking…</div>
+              <div style={{ fontSize:13, color:'#e8ecf4' }}>Thinking…</div>
             </div>
           )}
           <div ref={bottomRef} />
@@ -110,7 +125,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && void send()}
             placeholder="Ask Tag about this transaction…"
-            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:8, padding:'8px 12px', fontSize:13, color:'#e8ecf4', outline:'none', fontFamily:'inherit' }}
+            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:8, padding:'8px 12px', fontSize:14, color:'#e8ecf4', outline:'none', fontFamily:'inherit' }}
           />
           <button
             onClick={() => void send()}
