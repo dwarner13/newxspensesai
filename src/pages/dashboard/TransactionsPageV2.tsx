@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+ï»¿import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
@@ -33,7 +33,7 @@ function isIncomeTx(t: CommittedTransaction): boolean {
   const merchant = (t.merchant_name || '').toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || '').toLowerCase();
   // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign — expenses are stored as negative values
+  // Do NOT use amount sign â€” expenses are stored as negative values
   return txType === 'income' || cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
 }
 
@@ -137,12 +137,12 @@ export default function TransactionsPageV2() {
     URL.revokeObjectURL(url);
   }, [filtered]);
 
-  // Stats — computed from filtered list so they respond to statement/type filters
+  // Stats â€” computed from filtered list so they respond to statement/type filters
   const totalSpent = useMemo(() => filtered.reduce((s, t) => !isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const totalIncome = useMemo(() => filtered.reduce((s, t) => isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const netFlow = totalIncome - totalSpent;
 
-  // Category data for donut — also from filtered
+  // Category data for donut â€” also from filtered
   const catData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(t => { if (!isIncomeTx(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
@@ -161,14 +161,14 @@ export default function TransactionsPageV2() {
         if (!label || label === 'Statement') {
           // Fallback to date if no filename
           const d = new Date(i.created_at);
-          label = `Statement — ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+          label = `Statement â€” ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
         }
         return { id: i.id, label };
       });
   }, [imports]);
   const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
 
-  // AI insights — from filtered
+  // AI insights â€” from filtered
   const insights = useMemo(() => {
     const uncatCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
     const catCount = filtered.length - uncatCount;
@@ -192,7 +192,7 @@ export default function TransactionsPageV2() {
       const d = (t.date || t.posted_at || t.transaction_date || (t as any).txn_date || "").slice(0, 10);
       const last = groups[groups.length - 1];
       if (last && last.date === d) last.txs.push(t);
-      else groups.push({ date: d, label: fmtDate(d), txs: [t] });
+      else groups.push({ date: d, label: d ? fmtDate(d) : "Unknown Date", txs: [t] });
     });
     return groups;
   }, [filtered, visibleCount]);
@@ -424,7 +424,7 @@ export default function TransactionsPageV2() {
       )}
       {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
 
-      {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
+      {/* Drawer â€” portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
         <TransactionInsightDrawer
           open={!!selectedTx}
@@ -464,4 +464,5 @@ export default function TransactionsPageV2() {
     </>
   );
 }
+
 
