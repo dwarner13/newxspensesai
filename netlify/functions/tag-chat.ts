@@ -74,8 +74,8 @@ export const handler: Handler = async (event) => {
   const body = JSON.parse(event.body || '{}');
   const { transactionId, message, history = [] } = body;
 
-  if (!transactionId || !message) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'transactionId and message required' }) };
+  if (!message) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
   }
 
   const supabase = serverSupabase();
