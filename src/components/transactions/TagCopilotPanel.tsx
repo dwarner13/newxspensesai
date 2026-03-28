@@ -70,14 +70,14 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ width:36, height:36, borderRadius:'50%', background:'rgba(34,211,153,0.15)', border:'1px solid rgba(34,211,153,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>T</div>
           <div>
-            <div style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#94a3b8', fontWeight:400 }}>Copilot</span></div>
+            <div style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#c8d0e0', fontWeight:400 }}>Copilot</span></div>
             <div style={{ fontSize:11, color:'#22d3ee' }}>Your categorization assistant</div>
           </div>
-          <button onClick={onClose} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#64748b', padding:4, display:'flex' }}><X style={{ width:18, height:18 }} /></button>
+          <button onClick={onClose} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', padding:4, display:'flex' }}><X style={{ width:18, height:18 }} /></button>
         </div>
         {/* ACTIVE TRANSACTION PILL */}
         {transaction && (
-          <div style={{ margin:'12px 16px 0', padding:'10px 14px', borderRadius:8, background:'rgba(34,211,153,0.06)', border:'1px solid rgba(34,211,153,0.12)', fontSize:12, color:'#94a3b8' }}>
+          <div style={{ margin:'12px 16px 0', padding:'10px 14px', borderRadius:8, background:'rgba(34,211,153,0.06)', border:'1px solid rgba(34,211,153,0.12)', fontSize:13, color:'#c8d0e0' }}>
             <span style={{ color:'#e8ecf4', fontWeight:600 }}>{transaction.merchant_name || 'Transaction'}</span>
             {' · $'}{Math.abs(transaction.amount).toFixed(2)}
             {' · '}<span style={{ color:'#22d3ee' }}>{transaction.category || 'Uncategorized'}</span>
@@ -124,3 +124,4 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
     </>
   );
 }
+
