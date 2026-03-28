@@ -44,7 +44,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "0px 24px 40px",
+      padding: "0px 24px 20px",
       overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 24px)",
       cursor: showButtons ? "default" : "pointer",
     }}>
@@ -54,7 +54,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         background: `linear-gradient(135deg, ${C.accent}25, ${C.accent}08)`,
         border: `2px solid ${C.accent}33`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 28, marginBottom: 12, marginTop: 80,
+        fontSize: 24, marginBottom: 8, marginTop: 20,
         boxShadow: `0 0 40px ${C.accent}15, 0 0 80px ${C.accent}08`,
         animation: "crownFloat 3s ease-in-out infinite",
         flexShrink: 0,
@@ -67,7 +67,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
       <h1 style={{
         fontSize: "clamp(26px, 4vw, 38px)", fontWeight: 800, letterSpacing: -1,
-        color: C.text, marginBottom: 6, textAlign: "center",
+        color: C.text, marginBottom: 4, textAlign: "center", fontSize: 28,
       }}>Welcome Back, {userName}</h1>
 
       <p style={{ fontSize: 15, color: C.dim, marginBottom: 16, textAlign: "center" }}>
