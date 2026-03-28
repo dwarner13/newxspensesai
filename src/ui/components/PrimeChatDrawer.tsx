@@ -86,6 +86,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Fire opening message when drawer first opens
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       const openingMessages: Record<string, string> = {
@@ -110,6 +111,38 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [isOpen]);
+
+  // Re-brief when page changes while Prime is open
+  const prevPageRef = useRef<string>(currentPage);
+  useEffect(() => {
+    if (!isOpen) {
+      prevPageRef.current = currentPage;
+      return;
+    }
+    if (currentPage !== prevPageRef.current) {
+      prevPageRef.current = currentPage;
+      const newCtx = buildPageContext(currentPage);
+      const pageChangeMsg = Object.entries({
+        '/reports': 'I just navigated to the Reports page. Give me a reports-specific briefing -- statements committed, what is missing, accountant readiness.',
+        '/transactions': 'I just navigated to the Transactions page. Give me a quick transaction status -- any patterns or issues worth flagging.',
+        '/categories': 'I just navigated to the Categories page. Give me a category overview -- top spending areas and anything that looks wrong.',
+        '/upload': 'I just navigated to the Upload page. What should I be uploading right now?',
+        '/dashboard': 'I just navigated to the Dashboard. Give me a quick overall financial status.',
+      }).find(([key]) => currentPage.includes(key))?.[1]
+        || 'I just navigated to a new page. Give me a relevant financial update.';
+
+      setMessages(prev => [
+        ...prev,
+        {
+          id: 'nav-' + Date.now(),
+          role: 'assistant' as const,
+          content: '-- Now on ' + newCtx.label + ' --',
+        },
+      ]);
+
+      setTimeout(() => sendMessage(pageChangeMsg, true), 300);
+    }
+  }, [currentPage, isOpen]);
 
   const sendMessage = useCallback(async (text?: string, hidden = false) => {
     const msg = (text || input).trim();
