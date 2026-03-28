@@ -151,7 +151,7 @@ export function TransactionInsightDrawer({
           }
         }
       } catch { /* ignore */ }
-      setStatementLabel(`Statement �${importId.slice(-6)}`);
+      setStatementLabel(`Statement …${importId.slice(-6)}`);
     })();
   }, [row]);
 
@@ -274,13 +274,13 @@ export function TransactionInsightDrawer({
             {/* Meta row */}
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {formattedDate && (
-                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px' }}>?? {formattedDate}</span>
+                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px' }}>{formattedDate}</span>
               )}
               {statementLabel && (
-                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px' }}>?? {statementLabel}</span>
+                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px' }}>{statementLabel}</span>
               )}
               {merchantMonthSpend > 0 && (
-                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px' }}>?? ${fmt(merchantMonthSpend)} this month</span>
+                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px' }}>{fmt(merchantMonthSpend)} this month</span>
               )}
             </div>
           </div>
@@ -301,7 +301,7 @@ export function TransactionInsightDrawer({
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{localCategory}</div>
                 <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
                   {tagInsightLoading ? 'Analyzing�' : [
-                    confidence != null && confidence > 0 && `\${confidence}% confidence`,
+                    confidence != null && confidence > 0 && `${confidence}% confidence`,
                     seenCount > 0 && `Seen ${seenCount}x`,
                     tagInsight?.categorySource && tagInsight.categorySource !== 'unknown' && tagInsight.categorySource,
                   ].filter(Boolean).join(' � ') || 'Current category'}
