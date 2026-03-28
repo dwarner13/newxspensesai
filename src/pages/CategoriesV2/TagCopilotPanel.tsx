@@ -100,7 +100,12 @@ export function TagCopilotPanel({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(initialMessage || "");
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem('tag_chat_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -211,6 +216,11 @@ export function TagCopilotPanel({
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [typed, typeDone]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    localStorage.setItem('tag_chat_history', JSON.stringify(messages.slice(-20)));
+  }, [messages]);
 
   return (
     <>
