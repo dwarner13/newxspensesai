@@ -430,7 +430,30 @@ export default function TransactionsPageV2() {
           onCommittedCategorySaved={() => { setSelectedTx(null); void refetch(); }}
           tagInsight={tagInsight}
           tagInsightLoading={tagInsightLoading}
-          onAskTag={(row) => { if (row.kind === `committed`) { setTagPanelTx(row.transaction); setTagPanelOpen(true); setSelectedTx(null); } }}
+          onAskTag={(row) => {
+            if (row.kind === 'committed') {
+              const tx = row.transaction;
+              setSelectedTx(null);
+              openChat({
+                initialEmployeeSlug: 'tag-ai',
+                force: true,
+                handoff: {
+                  fromEmployeeSlug: 'prime-boss',
+                  note: `I am looking at ${tx.merchant_name || 'a transaction'} — $${Math.abs(tx.amount).toFixed(2)} — currently tagged as ${tx.category || 'Uncategorized'}. Can you help me with this?`,
+                },
+                context: {
+                  data: {
+                    transactionId: tx.id,
+                    merchant: tx.merchant_name,
+                    amount: tx.amount,
+                    category: tx.category,
+                    source: 'transaction-drawer',
+                  },
+                },
+                routeHint: '/dashboard/transactions',
+              });
+            }
+          }}
         />,
         document.body
       )}
