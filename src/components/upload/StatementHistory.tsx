@@ -42,7 +42,7 @@ function statusLabel(status: string) {
 }
 
 function formatDate(d: string | null) {
-  if (!d) return '—';
+  if (!d) return '--';
   return new Date(d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 }
 
@@ -104,7 +104,7 @@ export function StatementHistory() {
     setRows(rows.filter(r => r.id !== id));
   }
   if (loading) return (
-    <div style={{ marginTop: 32, padding: '16px 20px', borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, color: T.dim, fontSize: 12 }}>
+    <div style={{ marginTop: 32, padding: '16px 20px', borderRadius: 14, background: T.surface, border: '1px solid ' + T.border, color: T.dim, fontSize: 12 }}>
       Loading statement history...
     </div>
   );
@@ -116,7 +116,7 @@ export function StatementHistory() {
       <div style={{ fontSize: 13, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>
         Statement History
       </div>
-      <div style={{ borderRadius: 14, border: `1px solid ${T.border}`, overflow: 'hidden' }}>
+      <div style={{ borderRadius: 14, border: '1px solid ' + T.border, overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', padding: '10px 16px', background: T.surface, borderBottom: `1px solid ${T.border}` }}>
           {['File', 'Status', 'Transactions', 'Date Range', ''].map(h => (
@@ -140,10 +140,10 @@ export function StatementHistory() {
               {statusLabel(row.status)}
             </div>
             <div style={{ fontSize: 12, color: row.txn_count > 0 ? T.text : T.dim }}>
-              {row.txn_count > 0 ? `${row.txn_count} txns` : '—'}
+              {row.txn_count > 0 ? `${row.txn_count} txns` : '--'}
             </div>
             <div style={{ fontSize: 11, color: T.muted }}>
-              {row.earliest ? `${formatDate(row.earliest)} ? ${formatDate(row.latest)}` : '—'}
+              {row.earliest ? `${formatDate(row.earliest)} - ${formatDate(row.latest)}` : '--'}
             </div>
             <div>
               <button onClick={() => handleDelete(row.id)} style={{
