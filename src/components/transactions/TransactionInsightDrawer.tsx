@@ -292,6 +292,15 @@ export function TransactionInsightDrawer({
         {/* SCROLLABLE BODY */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+          {/* TAG CHANGED BANNER */}
+          {row.kind === 'committed' && (row.transaction as any).category_source === 'user_chat' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: 'rgba(34,211,153,0.08)', border: '1px solid rgba(34,211,153,0.2)' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
+              <div style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>Tag changed this category</div>
+              <div style={{ fontSize: 10, color: '#475569', marginLeft: 'auto' }}>{new Date((row.transaction as any).updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+            </div>
+          )}
+
           {/* TAG VERDICT */}
           <div style={{ borderRadius: 14, background: 'rgba(34,211,153,0.05)', border: '1px solid rgba(34,211,153,0.15)', overflow: 'hidden' }}>
             {/* Verdict row */}
@@ -306,12 +315,12 @@ export function TransactionInsightDrawer({
                     tagInsight?.categorySource && tagInsight.categorySource !== 'unknown' && tagInsight.categorySource,
                   ].filter(Boolean).join(' � ') || 'Current category'}
                 </div>
-              </div>
-              {TAX_INFO[localCategory] && (
-                <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 10, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
+                            {TAX_INFO[localCategory] && (
+                <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 10, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
                   {TAX_INFO[localCategory].label}
                 </div>
               )}
+              </div>
               {tagInsight?.isAmountAnomaly && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '2px 6px', flexShrink: 0 }}>?? Unusual</span>
               )}
@@ -323,9 +332,9 @@ export function TransactionInsightDrawer({
               </div>
             )}
             {/* Proactive insights */}
-            {tagInsight?.proactiveInsights?.map((insight, i) => (
-              <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{insight}</div>
-            ))}
+            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[◆■• �]/g, "—"); return (
+              <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{cleanInsight}</div>
+            ); })}
           </div>
 
           {/* QUICK CATEGORY CHIPS */}

@@ -395,6 +395,9 @@ export default function TransactionsPageV2() {
                       <div className={`text-[16px] font-bold tabular-nums ${isIncome ? 'text-emerald-400' : 'text-slate-200'}`}>{isIncome ? '+' : '-'}${fmt(Math.abs(t.amount))}</div>
                       <div className="text-[11px] text-slate-600">{(t.posted_at || '').slice(0, 10)}</div>
                     </div>
+                    {(t as any).category_source === 'user_chat' && (
+                      <span title="Tag changed this category" style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</span>
+                    )}
                     <ChevronRight className="h-3.5 w-3.5 text-slate-700 shrink-0" />
                   </button>
                 );
