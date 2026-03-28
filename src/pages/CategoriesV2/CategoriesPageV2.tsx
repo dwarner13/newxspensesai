@@ -188,7 +188,7 @@ export default function CategoriesPageV2() {
               {data.subcategorySuggestions?.length > 0 && <>{" \u2022 "}{data.subcategorySuggestions.length} subcategory split{data.subcategorySuggestions.length !== 1 ? "s" : ""} suggested</>}
               {" \u2022 "}Tag rules active
             </div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: CYAN, flexShrink: 0 }}>Open Copilot {"\u2192"}</span>
+
           </button>
         </Reveal>
 
