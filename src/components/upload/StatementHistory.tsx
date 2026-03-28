@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getSupabase } from '@/lib/supabase';
 
 const T = {
@@ -46,7 +47,7 @@ function formatDate(d: string | null) {
 }
 
 export function StatementHistory() {
-  const [rows, setRows] = useState<StatementRow[]>([]);
+  const [rows, setRows] = useState<StatementRow[]>([]);`n  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -124,7 +125,7 @@ export function StatementHistory() {
         </div>
         {/* Rows */}
         {rows.map((row, i) => (
-          <div key={row.id} style={{
+          <div key={row.id} onClick={() => row.status === "committed" && navigate(`/dashboard/transactions?importId=${row.id}`)} style={{
             display: 'grid',
             gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
             padding: '12px 16px',
@@ -156,6 +157,7 @@ export function StatementHistory() {
     </div>
   );
 }
+
 
 
 
