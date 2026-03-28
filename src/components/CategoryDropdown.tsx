@@ -38,7 +38,7 @@ export function CategoryDropdown({ value, onChange, onSave, showSaveButton = tru
           cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           {value || "Select category"}
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#6b7a99" strokeWidth="2" strokeLinecap="round">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#9ba8bc" strokeWidth="2" strokeLinecap="round">
             <path d={isOpen ? "M2 8L6 4L10 8" : "M2 4L6 8L10 4"} />
           </svg>
         </button>
@@ -66,7 +66,7 @@ export function CategoryDropdown({ value, onChange, onSave, showSaveButton = tru
               onMouseLeave={(e) => { if (cat !== value) e.currentTarget.style.background = "transparent"; }}
               >{cat}</button>
             ))}
-            {filtered.length === 0 && <div style={{ padding: 12, color: "#6b7a99", fontSize: 13, textAlign: "center" }}>No matching category</div>}
+            {filtered.length === 0 && <div style={{ padding: 12, color: "#9ba8bc", fontSize: 13, textAlign: "center" }}>No matching category</div>}
           </div>
         )}
       </div>

@@ -212,7 +212,7 @@ export default function TransactionsPageV2() {
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-3">
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0 }}>Transactions</h1>
-            <p className="text-[13px] mt-1" style={{ color: '#a0aec4' }}>{imports.length} statement{imports.length !== 1 ? 's' : ''} &middot; {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} &middot; Processed by Byte &middot; Categorized by Tag</p>
+            <p className="text-[13px] mt-1" style={{ color: '#c8d0e0' }}>{imports.length} statement{imports.length !== 1 ? 's' : ''} &middot; {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} &middot; Processed by Byte &middot; Categorized by Tag</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-colors"><Download className="h-4 w-4" />Export</button>

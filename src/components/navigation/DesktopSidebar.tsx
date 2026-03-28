@@ -89,7 +89,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
 
     const activeStyle = active
       ? { borderLeftColor: '#c8a64e', background: 'rgba(200,166,78,0.08)', color: '#c8a64e', boxShadow: 'inset 3px 0 12px rgba(200,166,78,0.15)' }
-      : { color: dimmed ? '#6b7a99' : '#a0aec4' };
+      : { color: dimmed ? '#9ba8bc' : '#c8d0e0' };
 
     const navLink = (
       <NavLink
@@ -99,7 +99,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
         style={activeStyle}
         end={item.to === '/dashboard'}
         onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#e8ecf4'; } }}
-        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = dimmed ? '#6b7a99' : '#a0aec4'; } }}
+        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = dimmed ? '#9ba8bc' : '#c8d0e0'; } }}
       >
         {inner}
       </NavLink>
@@ -143,7 +143,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
             <PrimeLogoBadge size={28} showGlow />
             <div>
               <div className="text-[17px] font-extrabold tracking-wide" style={{ color: '#e8ecf4' }}>XspensesAI</div>
-              <div className="text-[11px]" style={{ color: '#6b7a99' }}>AI Finance</div>
+              <div className="text-[11px]" style={{ color: '#9ba8bc' }}>AI Finance</div>
             </div>
           </div>
         )}
@@ -175,7 +175,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
                 <Upload className="w-4 h-4" />
                 Upload Statement
               </div>
-              <div className="mt-1 text-[11px]" style={{ color: '#6b7a99' }}>Byte processes instantly</div>
+              <div className="mt-1 text-[11px]" style={{ color: '#9ba8bc' }}>Byte processes instantly</div>
             </button>
           </div>
         )}
@@ -184,9 +184,9 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
           type="button"
           onClick={() => setMoreOpen(v => !v)}
           className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer transition-all rounded-lg mx-1.5 mt-2 w-[calc(100%-12px)]"
-          style={{ color: '#6b7a99', borderLeft: '2px solid transparent' }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#a0aec4'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#6b7a99'; e.currentTarget.style.background = 'transparent'; }}
+          style={{ color: '#9ba8bc', borderLeft: '2px solid transparent' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#c8d0e0'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#9ba8bc'; e.currentTarget.style.background = 'transparent'; }}
         >
           <MoreHorizontal className="w-5 h-5 shrink-0" />
           {!isCollapsed && (
@@ -232,7 +232,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
         <div className="px-3 py-2" style={{ borderTop: '1px solid #1e2d4a' }}>
           <div className="flex items-center gap-2">
             <div className="w-[5px] h-[5px] rounded-full" style={{ background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)' }} />
-            <span className="text-[12px] font-semibold" style={{ color: '#6b7a99' }}>4 AI Agents Active</span>
+            <span className="text-[12px] font-semibold" style={{ color: '#9ba8bc' }}>4 AI Agents Active</span>
             <div className="flex ml-auto -space-x-1.5">
               {AGENT_DOTS.map(a => (
                 <div key={a.letter} className={`w-6 h-6 rounded-full text-[9px] font-bold border flex items-center justify-center ${a.bg} ${a.border} ${a.text}`} style={{ zIndex: 1 }}>
@@ -266,11 +266,11 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
             </button>
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-semibold truncate" style={{ color: '#e8ecf4' }}>{profile.fullName}</div>
-              <div className="text-[11px] truncate" style={{ color: '#6b7a99' }}>{profile.plan}</div>
+              <div className="text-[11px] truncate" style={{ color: '#9ba8bc' }}>{profile.plan}</div>
             </div>
-            <button type="button" onClick={() => setUserMenuOpen(v => !v)} className="shrink-0" style={{ color: '#6b7a99' }}
+            <button type="button" onClick={() => setUserMenuOpen(v => !v)} className="shrink-0" style={{ color: '#9ba8bc' }}
               onMouseEnter={(e) => { e.currentTarget.style.color = '#9ba8c4'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = '#6b7a99'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#9ba8bc'; }}
             >
               <MoreHorizontal className="w-4 h-4" />
             </button>
@@ -301,9 +301,9 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
         <button
           onClick={() => setCollapsed(!isCollapsed)}
           className="w-full flex items-center justify-center rounded-lg py-1.5 transition-colors"
-          style={{ color: '#6b7a99' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#a0aec4'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7a99'; }}
+          style={{ color: '#9ba8bc' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#c8d0e0'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ba8bc'; }}
         >
           {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>

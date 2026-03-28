@@ -9,7 +9,7 @@ import { getSupabase } from "@/lib/supabase";
 // ─── Design tokens ──────────────────────────────────────────────────────
 const T = {
   bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
-  text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99",
+  text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc",
   gold: "#c8a64e", cyan: "#22d3ee", purple: "#a78bfa", green: "#34d399",
   red: "#f87171", amber: "#fbbf24",
 };
@@ -17,7 +17,7 @@ const T = {
 const ISSUER_COLORS: Record<string, string> = {
   BMO: "#3b82f6", "RBC Avion": "#ef4444", CIBC: "#f97316",
   "Canadian Tire": "#34d399", TD: "#22d3ee", Amex: "#6366f1",
-  Scotiabank: "#ef4444", Unknown: "#6b7a99",
+  Scotiabank: "#ef4444", Unknown: "#9ba8bc",
 };
 
 const KNOWN_ISSUERS = ["BMO", "RBC Avion", "CIBC", "Canadian Tire"];

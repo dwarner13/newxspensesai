@@ -37,10 +37,10 @@ export function ChatAttachmentButton({ onFileSelected }: ChatAttachmentButtonPro
       <button onClick={() => setShowMenu(!showMenu)} style={{
         background: "none", border: "none", cursor: "pointer", padding: 8,
         display: "flex", alignItems: "center", justifyContent: "center",
-        color: "#a0aec4", transition: "color 0.2s",
+        color: "#c8d0e0", transition: "color 0.2s",
       }}
       onMouseEnter={(e) => { e.currentTarget.style.color = "#c8a64e"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.color = "#a0aec4"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = "#c8d0e0"; }}
       title="Attach file"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -76,7 +76,7 @@ export function ChatAttachmentButton({ onFileSelected }: ChatAttachmentButtonPro
                 <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{opt.emoji}</span>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{opt.title}</div>
-                  <div style={{ fontSize: 11, color: "#6b7a99", marginTop: 2 }}>{opt.desc}</div>
+                  <div style={{ fontSize: 11, color: "#9ba8bc", marginTop: 2 }}>{opt.desc}</div>
                 </div>
               </button>
             ))}

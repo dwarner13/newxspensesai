@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface MobileSidebarProps { open: boolean; onClose: () => void; }
 
-const C = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99", accent: "#c8a64e" };
+const C = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc", accent: "#c8a64e" };
 
 const NAV = [
   { label: "Dashboard", to: "/dashboard", icon: Home, group: "primary" },

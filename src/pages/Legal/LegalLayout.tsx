@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { MarketingNav } from "../MarketingSite/MarketingNav";
 import { MarketingFooter } from "../MarketingSite/MarketingFooter";
 
-const C = { bg: "#0b1220", text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99", accent: "#c8a64e", border: "#1e2d4a" };
+const C = { bg: "#0b1220", text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc", accent: "#c8a64e", border: "#1e2d4a" };
 
 export function LegalLayout({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {
   return (

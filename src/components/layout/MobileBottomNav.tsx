@@ -59,7 +59,7 @@ export default function MobileBottomNav() {
                 <span style={{ fontSize: 20, width: 28, textAlign: 'center' }}>{opt.emoji}</span>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{opt.title}</div>
-                  <div style={{ fontSize: 11, color: '#6b7a99', marginTop: 2 }}>{opt.desc}</div>
+                  <div style={{ fontSize: 11, color: '#9ba8bc', marginTop: 2 }}>{opt.desc}</div>
                 </div>
               </button>
             ))}
@@ -102,7 +102,7 @@ export default function MobileBottomNav() {
               <NavLink key={tab.to} to={tab.to} end={tab.to === '/dashboard'} style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                 padding: '6px 12px', borderRadius: 8, textDecoration: 'none',
-                color: isActive ? '#c8a64e' : '#6b7a99',
+                color: isActive ? '#c8a64e' : '#9ba8bc',
                 transition: 'color 0.15s',
               }}>
                 <Icon size={20} />

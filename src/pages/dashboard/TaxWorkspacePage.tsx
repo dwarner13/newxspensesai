@@ -201,7 +201,7 @@ function exportCSV(
 export default function TaxWorkspacePage() {
   const { userId } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
-  const [year, setYear] = useState(2024);
+  const [year, setYear] = useState(2025);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(

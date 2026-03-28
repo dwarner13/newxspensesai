@@ -2,7 +2,7 @@
 
 const C = {
   bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
-  text: "#e8ecf4", muted: "#a0aec4", dim: "#6b7a99",
+  text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc",
   accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", purple: "#a78bfa", yellow: "#fbbf24",
 };
 

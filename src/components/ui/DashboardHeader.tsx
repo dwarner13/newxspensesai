@@ -93,7 +93,7 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
       onMouseEnter={(e) => { e.currentTarget.style.background = danger ? 'rgba(248,113,113,0.08)' : '#162035'; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
     >
-      <span style={{ color: danger ? '#f87171' : '#6b7a99', display: 'flex' }}>{icon}</span>
+      <span style={{ color: danger ? '#f87171' : '#9ba8bc', display: 'flex' }}>{icon}</span>
       {label}
     </button>
   );
@@ -119,7 +119,7 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
               e.currentTarget.blur();
             }}
           />
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" fill="none" stroke="#6b7a99" viewBox="0 0 24 24" strokeWidth={2}>
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" fill="none" stroke="#9ba8bc" viewBox="0 0 24 24" strokeWidth={2}>
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </div>
@@ -138,9 +138,9 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
             <button
               onClick={() => { setIsNotificationsOpen(!isNotificationsOpen); setIsProfileOpen(false); }}
               className="relative flex items-center justify-center w-[34px] h-[34px] rounded-[10px] transition-colors"
-              style={{ background: 'transparent', color: '#a0aec4' }}
+              style={{ background: 'transparent', color: '#c8d0e0' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = '#162035'; e.currentTarget.style.color = '#e8ecf4'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#a0aec4'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#c8d0e0'; }}
               aria-label="Notifications"
             >
               <Bell className="w-[18px] h-[18px]" />
@@ -153,9 +153,9 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-[13px] font-bold" style={{ color: '#e8ecf4' }}>Notifications</h3>
-                    <span className="text-[11px]" style={{ color: '#6b7a99' }}>{unreadCount} unread</span>
+                    <span className="text-[11px]" style={{ color: '#9ba8bc' }}>{unreadCount} unread</span>
                   </div>
-                  <div className="text-[12px]" style={{ color: '#a0aec4' }}>Your AI team activity appears on the Dashboard home.</div>
+                  <div className="text-[12px]" style={{ color: '#c8d0e0' }}>Your AI team activity appears on the Dashboard home.</div>
                 </div>
               </div>
             )}
@@ -189,7 +189,7 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-[14px] font-bold truncate" style={{ color: '#e8ecf4' }}>{computedDisplayName}</div>
-                      <div className="text-[11px] truncate" style={{ color: '#6b7a99' }}>{userEmail}</div>
+                      <div className="text-[11px] truncate" style={{ color: '#9ba8bc' }}>{userEmail}</div>
                     </div>
                   </div>
                   <div className="mt-2">
