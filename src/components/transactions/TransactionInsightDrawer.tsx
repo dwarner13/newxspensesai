@@ -275,13 +275,13 @@ export function TransactionInsightDrawer({
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid rgba(34,211,153,0.08)' }}>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#e8ecf4' }}>{localCategory}</div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{localCategory}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
                   {tagInsightLoading ? 'Analyzing…' : [
                     confidence != null && `${confidence}% confidence`,
                     seenCount > 0 && `Seen ${seenCount}x`,
                     tagInsight?.categorySource && tagInsight.categorySource !== 'unknown' && tagInsight.categorySource,
-                  ].filter(Boolean).join(' · ') || 'Tag verdict'}
+                  ].filter(Boolean).join(' · ') || 'Current category'}
                 </div>
               </div>
               {tagInsight?.isAmountAnomaly && (
@@ -290,7 +290,7 @@ export function TransactionInsightDrawer({
             </div>
             {/* Tag message */}
             {(tagInsightLoading || tagInsight?.message) && (
-              <div style={{ padding: '10px 14px', fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+              <div style={{ padding: '10px 14px', fontSize: 12, color: '#cbd5e1', lineHeight: 1.6 }}>
                 {tagInsightLoading ? 'Analyzing this transaction…' : tagInsight?.message}
               </div>
             )}
@@ -302,12 +302,12 @@ export function TransactionInsightDrawer({
 
           {/* QUICK CATEGORY CHIPS */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#475569', marginBottom: 8 }}>Quick change</div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8', marginBottom: 8 }}>Quick change</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {QUICK_CATS.map(q => (
                 <button key={q.category} type="button" onClick={() => void applyCategory(q.category)} disabled={isSaving}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: localCategory === q.category ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${localCategory === q.category ? 'rgba(34,211,153,0.4)' : 'rgba(255,255,255,0.08)'}`, color: localCategory === q.category ? '#22d3ee' : '#94a3b8' }}>
-                  <span>{q.emoji}</span>{q.label}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: localCategory === q.category ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${localCategory === q.category ? 'rgba(34,211,153,0.4)' : 'rgba(255,255,255,0.08)'}`, color: localCategory === q.category ? '#22d3ee' : '#cbd5e1' }}>
+                  {q.label}
                 </button>
               ))}
               <button type="button" onClick={() => setShowAllCats(v => !v)}
@@ -374,7 +374,7 @@ export function TransactionInsightDrawer({
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button type="button" onClick={() => onAskTag?.(row)} style={{ padding: '10px', borderRadius: 10, border: '1px solid rgba(34,211,153,0.25)', background: 'rgba(34,211,153,0.08)', color: '#22d3ee', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Open Tag Chat</button>
+              <button type="button" onClick={() => onEditCommitted?.(row.transaction)} style={{ padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Edit / Split</button>
               <button type="button" onClick={onClose} style={{ padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Close</button>
             </div>
           )}
