@@ -8072,3 +8072,15 @@ body.marketing-page * {
   font-size: 1.2rem;
   text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
+/* PWA Safe Area Fix */
+:root {
+  --sat: env(safe-area-inset-top);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+  --sar: env(safe-area-inset-right);
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}

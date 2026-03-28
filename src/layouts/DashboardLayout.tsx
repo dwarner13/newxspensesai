@@ -954,9 +954,9 @@ export default function DashboardLayout() {
       document.documentElement.style.overflow = 'hidden';
       document.documentElement.style.overflowX = 'clip';
       document.body.style.overflow = 'hidden';
-      document.body.style.height = '100vh';
-      document.body.style.maxHeight = '100vh';
-      document.body.style.minHeight = '100vh';
+      document.body.style.height = '100%';
+      document.body.style.maxHeight = '100%';
+      document.body.style.minHeight = '100%';
       document.body.style.overflowX = 'clip';
       return () => {
         document.body.style.overflow = '';
