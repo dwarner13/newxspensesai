@@ -90,13 +90,15 @@ RULES FOR ACTIONS:
 - applyToExisting defaults to true unless user says otherwise
 
 YOUR PERSONALITY:
-- Detective-like, precise, a little witty
-- Confident about what you know, honest about what you do not
+- You are Tag — a sharp, warm financial detective. You talk like a smart friend who happens to know the user's finances inside out.
+- Keep responses to 2-3 sentences MAX then ask ONE specific question. Never dump everything at once.
+- Lead with the most interesting thing you notice, not a status report. BAD: "I have categorized 607 transactions at 96% confidence." GOOD: "Your books are actually really clean — 96% confidence across 607 transactions. The one thing that caught my eye was Transfers at 44% of spend. What are those payments going to?"
 - Canadian tax context when relevant (self-employed deductions, HST)
-- Concise � 2-4 sentences unless explaining something complex
 - When the user asks what rules you know, list them clearly from the RULES section above
 
-IMPORTANT: Only emit the JSON action line when making a real change. Never emit it for explanations or questions.`;
+IMPORTANT:
+- Only emit the JSON action line when making a real change. Never emit it for explanations or questions.
+- If the user asks about statement dates, import dates, or when statements were uploaded, tell them clearly: 'I don't have statement date info directly — check the Reports page for your full statement history by date.' Never guess or make up dates.`;
 }
 
 export const handler: Handler = async (event) => {
@@ -111,152 +113,163 @@ export const handler: Handler = async (event) => {
 
   if (!message) return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
 
-  const supabase = serverSupabase();
+  try {
+    const supabase = serverSupabase();
 
-  // 1. Load learned rules
-  const { data: rulesData } = await supabase
-    .from('vendor_category_memory')
-    .select('vendor_key, category, updated_at')
-    .eq('user_id', auth.userId)
-    .order('updated_at', { ascending: false })
-    .limit(50);
-  const learnedRules: LearnedRule[] = rulesData || [];
+    // 1. Load learned rules
+    const { data: rulesData } = await supabase
+      .from('vendor_category_memory')
+      .select('vendor_key, category, updated_at')
+      .eq('user_id', auth.userId)
+      .order('updated_at', { ascending: false })
+      .limit(50);
+    const learnedRules: LearnedRule[] = rulesData || [];
 
-  // 2. Load category summary
-  const yearStart = `${new Date().getFullYear()}-01-01`;
-  const { data: allTxs } = await supabase
-    .from('transactions')
-    .select('amount, category, merchant_name, posted_at')
-    .eq('user_id', auth.userId)
-    .gte('posted_at', yearStart);
+    // 2. Load category summary (all transactions, capped at 600)
+    const yearStart = `${new Date().getFullYear()}-01-01`;
+    const { data: allTxs } = await supabase
+      .from('transactions')
+      .select('amount, category, merchant_name, posted_at, date')
+      .eq('user_id', auth.userId)
+      .limit(600);
 
-  const catMap: Record<string, { count: number; total: number }> = {};
-  let yearSpent = 0;
-  let yearIncome = 0;
+    const catMap: Record<string, { count: number; total: number }> = {};
+    let yearSpent = 0;
+    let yearIncome = 0;
 
-  for (const t of allTxs || []) {
-    const amt = Math.abs(Number(t.amount || 0));
-    const cat = t.category || 'Other';
-    if (cat === 'Income') { yearIncome += amt; continue; }
-    yearSpent += amt;
-    if (!catMap[cat]) catMap[cat] = { count: 0, total: 0 };
-    catMap[cat].count++;
-    catMap[cat].total += amt;
-  }
+    for (const t of allTxs || []) {
+      const d = t.posted_at || t.date || '';
+      if (d && d < yearStart) continue;
+      const amt = Math.abs(Number(t.amount || 0));
+      const cat = t.category || 'Other';
+      if (cat === 'Income') { yearIncome += amt; continue; }
+      yearSpent += amt;
+      if (!catMap[cat]) catMap[cat] = { count: 0, total: 0 };
+      catMap[cat].count++;
+      catMap[cat].total += amt;
+    }
 
-  const categorySummary: CategorySummary[] = Object.entries(catMap)
-    .sort((a, b) => b[1].total - a[1].total)
-    .map(([category, d]) => ({ category, count: d.count, total: Math.round(d.total) }));
+    const categorySummary: CategorySummary[] = Object.entries(catMap)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([category, d]) => ({ category, count: d.count, total: Math.round(d.total) }));
 
-  // 3. Flagged / uncategorized
-  const flaggedMerchants = (allTxs || [])
-    .filter(t => !t.category || t.category === 'Uncategorized' || t.category === 'Other')
-    .slice(0, 5)
-    .map(t => ({
-      merchant: t.merchant_name || 'Unknown',
-      amount: Math.abs(Number(t.amount || 0)),
-      category: t.category || 'Uncategorized',
-    }));
+    // 3. Flagged / uncategorized
+    const flaggedMerchants = (allTxs || [])
+      .filter(t => !t.category || t.category === 'Uncategorized' || t.category === 'Other')
+      .slice(0, 5)
+      .map(t => ({
+        merchant: t.merchant_name || 'Unknown',
+        amount: Math.abs(Number(t.amount || 0)),
+        category: t.category || 'Uncategorized',
+      }));
 
-  const uncategorizedCount = (allTxs || []).filter(
-    t => !t.category || t.category === 'Uncategorized'
-  ).length;
+    const uncategorizedCount = (allTxs || []).filter(
+      t => !t.category || t.category === 'Uncategorized'
+    ).length;
 
-  // 4. Call Claude Haiku
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    // 4. Call Claude Haiku
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 500,
-    system: systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }),
-    messages: [
-      ...history.map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
-      { role: 'user', content: message },
-    ],
-  });
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      system: systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }),
+      messages: [
+        ...history.map((m: { role: string; content: string }) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        })),
+        { role: 'user', content: message },
+      ],
+    });
 
-  const reply = response.content?.[0]?.type === 'text' ? response.content[0].text : 'Sorry, I could not process that.';
+    const reply = response.content?.[0]?.type === 'text' ? response.content[0].text : 'Sorry, I could not process that.';
 
-  // 5. Parse and execute action
-  let action: Record<string, unknown> | null = null;
-  const actionMatch = reply.match(/\{[^{}]*"action"\s*:\s*"[^"]+?"[^{}]*\}/);
+    // 5. Parse and execute action
+    let action: Record<string, unknown> | null = null;
+    const actionMatch = reply.match(/\{[^{}]*"action"\s*:\s*"[^"]+?"[^{}]*\}/);
 
-  if (actionMatch) {
-    try {
-      action = JSON.parse(actionMatch[0]);
+    if (actionMatch) {
+      try {
+        action = JSON.parse(actionMatch[0]);
 
-      if (action?.action === 'set_subcategory') {
-        const vendor = String(action.vendor || '').toLowerCase().trim();
-        const subcategory = String(action.subcategory || '');
-        const category = String(action.category || '');
-        await supabase
-          .from('transactions')
-          .update({ subcategory, subcategory_source: 'user_chat', updated_at: new Date().toISOString() })
-          .eq('user_id', auth.userId)
-          .ilike('merchant_name', '%' + vendor + '%');
-        if (category) {
+        if (action?.action === 'set_subcategory') {
+          const vendor = String(action.vendor || '').toLowerCase().trim();
+          const subcategory = String(action.subcategory || '');
+          const category = String(action.category || '');
+          await supabase
+            .from('transactions')
+            .update({ subcategory, subcategory_source: 'user_chat', updated_at: new Date().toISOString() })
+            .eq('user_id', auth.userId)
+            .ilike('merchant_name', '%' + vendor + '%');
+          if (category) {
+            await supabase.from('vendor_category_memory').upsert({
+              user_id: auth.userId,
+              vendor_key: vendor.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
+              category,
+              subcategory,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,vendor_key' });
+          }
+          action.applied = true;
+        }
+
+        if (action?.action === 'set_rule' || action?.action === 'apply_to_merchant') {
+          const vendor = String(action.vendor || '').toLowerCase().trim();
+          const category = String(action.category || '');
+          const applyToExisting = action.applyToExisting !== false;
+
+          // Write rule
           await supabase.from('vendor_category_memory').upsert({
             user_id: auth.userId,
             vendor_key: vendor.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
             category,
-            subcategory,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,vendor_key' });
-        }
-        action.applied = true;
-      }
 
-      if (action?.action === 'set_rule' || action?.action === 'apply_to_merchant') {
-        const vendor = String(action.vendor || '').toLowerCase().trim();
-        const category = String(action.category || '');
-        const applyToExisting = action.applyToExisting !== false;
-
-        // Write rule
-        await supabase.from('vendor_category_memory').upsert({
-          user_id: auth.userId,
-          vendor_key: vendor.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
-          category,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,vendor_key' });
-
-        // Apply to existing transactions
-        if (applyToExisting) {
-          await supabase
-            .from('transactions')
-            .update({ category, category_source: 'tag_rule', updated_at: new Date().toISOString() })
-            .eq('user_id', auth.userId)
-            .ilike('merchant_name', `%${vendor}%`);
-        }
-        action.applied = true;
-      }
-
-      if (action?.action === 'bulk_recategorize') {
-        const from = String(action.from || '');
-        const to = String(action.to || '');
-        if (from && to) {
-          const { count } = await supabase
-            .from('transactions')
-            .update({ category: to, category_source: 'tag_bulk', updated_at: new Date().toISOString() })
-            .eq('user_id', auth.userId)
-            .eq('category', from)
-            .select('id', { count: 'exact', head: true });
-          action.affectedCount = count || 0;
+          // Apply to existing transactions
+          if (applyToExisting) {
+            await supabase
+              .from('transactions')
+              .update({ category, category_source: 'tag_rule', updated_at: new Date().toISOString() })
+              .eq('user_id', auth.userId)
+              .ilike('merchant_name', `%${vendor}%`);
+          }
           action.applied = true;
         }
+
+        if (action?.action === 'bulk_recategorize') {
+          const from = String(action.from || '');
+          const to = String(action.to || '');
+          if (from && to) {
+            const { count } = await supabase
+              .from('transactions')
+              .update({ category: to, category_source: 'tag_bulk', updated_at: new Date().toISOString() })
+              .eq('user_id', auth.userId)
+              .eq('category', from)
+              .select('id', { count: 'exact', head: true });
+            action.affectedCount = count || 0;
+            action.applied = true;
+          }
+        }
+      } catch {
+        action = null;
       }
-    } catch {
-      action = null;
     }
+
+    const cleanReply = reply.replace(/\n?\{[^{}]*"action"\s*:[^{}]*\}/g, '').trim();
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ reply: cleanReply, action }),
+    };
+  } catch (err) {
+    console.error('[tag-copilot] handler error:', err);
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ reply: "I ran into a brief issue loading your data. Try again in a moment." }),
+    };
   }
-
-  const cleanReply = reply.replace(/\n?\{[^{}]*"action"\s*:[^{}]*\}/g, '').trim();
-
-  return {
-    statusCode: 200,
-    headers,
-    body: JSON.stringify({ reply: cleanReply, action }),
-  };
 };

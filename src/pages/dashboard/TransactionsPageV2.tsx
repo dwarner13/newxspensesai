@@ -1,4 +1,4 @@
-ï»¿import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
@@ -33,7 +33,7 @@ function isIncomeTx(t: CommittedTransaction): boolean {
   const merchant = (t.merchant_name || '').toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || '').toLowerCase();
   // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign â€” expenses are stored as negative values
+  // Do NOT use amount sign — expenses are stored as negative values
   return txType === 'income' || cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
 }
 
@@ -115,13 +115,13 @@ export default function TransactionsPageV2() {
         || (t.category || '').toLowerCase().includes(q)
         || String(t.amount).includes(q));
     }
-    return [...list].sort((a, b) => (b.posted_at || '').localeCompare(a.posted_at || ''));
+    return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
   }, [transactions, filter, statementFilter, searchQuery]);
 
   const handleExport = useCallback(() => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const rows = filtered.map(t => [
-      t.posted_at?.slice(0, 10) || '',
+      t.date || t.posted_at?.slice(0, 10) || '',
       escape(t.merchant_name || 'Unknown'),
       (isIncomeTx(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
       escape(t.category || 'Uncategorized'),
@@ -137,12 +137,12 @@ export default function TransactionsPageV2() {
     URL.revokeObjectURL(url);
   }, [filtered]);
 
-  // Stats â€” computed from filtered list so they respond to statement/type filters
+  // Stats — computed from filtered list so they respond to statement/type filters
   const totalSpent = useMemo(() => filtered.reduce((s, t) => !isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const totalIncome = useMemo(() => filtered.reduce((s, t) => isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const netFlow = totalIncome - totalSpent;
 
-  // Category data for donut â€” also from filtered
+  // Category data for donut — also from filtered
   const catData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(t => { if (!isIncomeTx(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
@@ -161,14 +161,14 @@ export default function TransactionsPageV2() {
         if (!label || label === 'Statement') {
           // Fallback to date if no filename
           const d = new Date(i.created_at);
-          label = `Statement â€” ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+          label = `Statement — ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
         }
         return { id: i.id, label };
       });
   }, [imports]);
   const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
 
-  // AI insights â€” from filtered
+  // AI insights — from filtered
   const insights = useMemo(() => {
     const uncatCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
     const catCount = filtered.length - uncatCount;
@@ -394,7 +394,7 @@ export default function TransactionsPageV2() {
                     </div>
                     <div className="text-right shrink-0">
                       <div className={`text-[16px] font-bold tabular-nums ${isIncome ? 'text-emerald-400' : 'text-slate-200'}`}>{isIncome ? '+' : '-'}${fmt(Math.abs(t.amount))}</div>
-                      <div className="text-[11px] text-slate-600">{(t.posted_at || '').slice(0, 10)}</div>
+                      <div className="text-[11px] text-slate-600">{(t.date || t.posted_at || '').slice(0, 10)}</div>
                     </div>
                     {(t as any).category_source === 'user_chat' && (
                       <span title="Tag changed this category" style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</span>
@@ -424,7 +424,7 @@ export default function TransactionsPageV2() {
       )}
       {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
 
-      {/* Drawer â€” portalled to body to escape any stacking context from DashboardLayout */}
+      {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
         <TransactionInsightDrawer
           open={!!selectedTx}
