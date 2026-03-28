@@ -269,7 +269,8 @@ export default function CategoriesPageV2() {
       {/* Category detail drawer */}
       <CategoryDetailDrawer
         category={selectedCategory}
-        onClose={() => setSelectedCategory(null)}
+        onClose={() => { setSelectedCategory(null); setSubcategoryFilter(null); }}
+        subcategoryFilter={subcategoryFilter}
       />
     </>
   );
