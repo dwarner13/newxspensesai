@@ -25,34 +25,40 @@ function buildSystemPrompt(
   const merchantCatList = [...new Set(merchantHistory.categories)].join(', ') || 'none yet';
   const topCatList = topCategories.slice(0, 5).map(c => `${c.category} $${c.total.toFixed(0)}`).join(', ');
 
-  return `You are Tag � XspensesAI's sharp, friendly categorization expert. You speak directly to the user in first person. You are looking at one specific transaction together and you have full context about their finances.
-
+  const hasTransaction = Boolean(tx && (tx as any).merchant_name);
+  const transactionBlock = hasTransaction ? `
 TRANSACTION IN FOCUS:
-- Merchant: ${tx.merchant_name || 'Unknown'}
-- Amount: $${Math.abs(Number(tx.amount || 0)).toFixed(2)}
-- Date: ${String(tx.posted_at || tx.date || 'Unknown').slice(0, 10)}
-- Current category: ${tx.category || 'Uncategorized'}
+- Merchant: ${(tx as any).merchant_name || 'Unknown'}
+- Amount: $${Math.abs(Number((tx as any).amount || 0)).toFixed(2)}
+- Date: ${String((tx as any).posted_at || (tx as any).date || 'Unknown').slice(0, 10)}
+- Current category: ${(tx as any).category || 'Uncategorized'}
 
 MERCHANT HISTORY (this user + this merchant):
 - Times seen: ${merchantHistory.count}
 - Total spent: $${merchantHistory.totalSpent.toFixed(2)}
 - Previously categorized as: ${merchantCatList}
 - Last seen: ${merchantHistory.lastSeen || 'first time'}
+` : `
+MODE: General financial question (no specific transaction selected).
+Answer using the user's overall financial data below. Be helpful and specific.
+`;
 
+  return `You are Tag -- XspensesAI's categorization and spending expert. You speak directly to the user in first person. You have full context about their finances.
+${transactionBlock}
 USER'S OVERALL FINANCES (this year):
 - Total spent: $${yearTotal.spent.toFixed(2)}
 - Total income: $${yearTotal.income.toFixed(2)}
 - Top spending categories: ${topCatList}
 
 YOUR JOB:
-- Answer questions about this transaction naturally and helpfully
-- Use the merchant history to explain your confidence level
-- If you have seen this merchant many times before, say so � it builds trust
-- Suggest better categories if the user thinks it is wrong
+- Answer questions about transactions and spending naturally and helpfully
+- If a transaction is in focus, use merchant history to explain your confidence
+- For general questions, use the overall finance data to give specific answers
+- Suggest better categories if the user thinks one is wrong
 - If asked about tax deductibility, give a practical Canadian self-employed perspective
 - If the user wants to change the category, confirm what they want and end your reply with exactly this JSON on its own line: {"action":"recategorize","category":"CATEGORY_NAME"}
 - Use only these categories: ${CATEGORIES.join(', ')}
-- Be concise � 2-4 sentences unless explaining something complex
+- Be concise -- 2-4 sentences unless explaining something complex
 - You have Tag's personality: detective-like, precise, a little witty, always helpful
 
 IMPORTANT: Only output the JSON action line when the user clearly wants to change the category. Do not output it for questions or explanations.`;
@@ -88,20 +94,22 @@ export const handler: Handler = async (event) => {
 
   // 2. Fetch merchant history for this user
   const merchantName = String((tx as any)?.merchant_name || '').toLowerCase().trim();
-  const { data: merchantTxs } = await supabase
-    .from('transactions')
-    .select('amount, category, posted_at')
-    .eq('user_id', auth.userId)
-    .ilike('merchant_name', `%${merchantName}%`)
-    .order('posted_at', { ascending: false })
-    .limit(50);
-
-  const merchantHistory = {
-    count: merchantTxs?.length || 0,
-    totalSpent: merchantTxs?.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) || 0,
-    categories: merchantTxs?.map(t => t.category).filter(Boolean) as string[] || [],
-    lastSeen: merchantTxs?.[1]?.posted_at?.slice(0, 10) || '',
-  };
+  let merchantHistory = { count: 0, totalSpent: 0, categories: [] as string[], lastSeen: '' };
+  if (merchantName) {
+    const { data: merchantTxs } = await supabase
+      .from('transactions')
+      .select('amount, category, posted_at')
+      .eq('user_id', auth.userId)
+      .ilike('merchant_name', `%${merchantName}%`)
+      .order('posted_at', { ascending: false })
+      .limit(50);
+    merchantHistory = {
+      count: merchantTxs?.length || 0,
+      totalSpent: merchantTxs?.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) || 0,
+      categories: merchantTxs?.map(t => t.category).filter(Boolean) as string[] || [],
+      lastSeen: merchantTxs?.[1]?.posted_at?.slice(0, 10) || '',
+    };
+  }
 
   // 3. Fetch top spending categories this year
   const yearStart = `${new Date().getFullYear()}-01-01`;
