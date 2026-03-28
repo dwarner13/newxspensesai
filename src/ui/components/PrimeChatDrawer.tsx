@@ -1,191 +1,299 @@
-import React, { useState, useRef, useEffect } from "react";
-import { isPrimeEnabled } from "../../env";
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Send } from 'lucide-react';
+import { getSupabase } from '../../lib/supabase';
 
 interface PrimeChatDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  currentPage?: string;
   conversationId?: string;
 }
 
-export function PrimeChatDrawer({
-  isOpen,
-  onClose,
-  conversationId,
-}: PrimeChatDrawerProps) {
-  const [messages, setMessages] = useState<
-    Array<{ id: string; role: "user" | "assistant"; content: string }>
-  >([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+const T = {
+  bg: '#0b1220',
+  surface: '#111a2e',
+  border: '#1e2d4a',
+  text: '#e8ecf4',
+  muted: '#c8d0e0',
+  dim: '#9ba8bc',
+  gold: '#c8a64e',
+};
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+function buildPageContext(page: string): { label: string; systemPrompt: string } {
+  if (page.includes('/reports')) {
+    return {
+      label: 'Reports',
+      systemPrompt: `You are Prime on the REPORTS PAGE. The user is reviewing their statement breakdown for their accountant.
+Focus on: accountant readiness, missing statements, category totals, CSV export, tax summary.
+Open with a reports-specific briefing. Mention what statements are present, what is missing,
+and what the user needs to do next to be accountant-ready.
+Be direct and action-oriented. Reference specific numbers if available in prime_context.`,
+    };
+  }
+  if (page.includes('/transactions')) {
+    return {
+      label: 'Transactions',
+      systemPrompt: `You are Prime on the TRANSACTIONS PAGE. The user is reviewing their transaction list.
+Focus on: uncategorized transactions, spending patterns, category corrections, merchant insights.
+Reference specific transaction counts and amounts if available.
+Suggest what Tag can help with if categories need review.`,
+    };
+  }
+  if (page.includes('/categories')) {
+    return {
+      label: 'Categories',
+      systemPrompt: `You are Prime on the CATEGORIES PAGE. The user is reviewing their spending by category.
+Focus on: category accuracy, business vs personal split, tax deductibility, top spending areas.
+Suggest which categories need review and what Tag can help recategorize.
+Reference specific category totals if available in prime_context.`,
+    };
+  }
+  if (page.includes('/upload')) {
+    return {
+      label: 'Upload',
+      systemPrompt: `You are Prime on the UPLOAD PAGE. The user is uploading financial statements.
+Focus on: upload status, which statements are needed, pipeline progress.
+Be encouraging and guide them through the upload process step by step.
+Let them know what Byte is doing and when statements are ready.`,
+    };
+  }
+  if (page.includes('/dashboard') || page === '/') {
+    return {
+      label: 'Dashboard',
+      systemPrompt: `You are Prime on the DASHBOARD. Give the user their complete financial briefing.
+Focus on: overall financial health, recent activity, what needs attention today.
+Reference total spent, income, top categories, and any missing statements.
+Be proactive -- tell them what matters most right now without waiting to be asked.`,
+    };
+  }
+  return {
+    label: 'XspensesAI',
+    systemPrompt: `You are Prime -- the AI financial CEO of XspensesAI.
+Help the user with their finances. Be direct, specific, and action-oriented.`,
   };
+}
+
+export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversationId }: PrimeChatDrawerProps) {
+  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionId] = useState(() => 'prime-drawer-' + Date.now());
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pageCtx = buildPageContext(currentPage);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  useEffect(() => {
+    if (isOpen && messages.length === 0) {
+      sendMessage('Give me a briefing for the ' + pageCtx.label + ' page.', true);
+    }
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
+  }, [isOpen]);
 
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      role: "user" as const,
-      content: input.trim(),
-    };
+  const sendMessage = useCallback(async (text?: string, hidden = false) => {
+    const msg = (text || input).trim();
+    if (!msg || isLoading) return;
+    if (!hidden) setInput('');
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
+    const userMsg = { id: 'user-' + Date.now(), role: 'user' as const, content: msg };
+    if (!hidden) setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
     try {
-      // Demo response
-      setTimeout(() => {
-        const aiMessage = {
-          id: `ai-${Date.now()}`,
-          role: "assistant" as const,
-          content: `I received your message: "${userMessage.content}". This is a demo response from the Prime Agent Kernel. In production, this would connect to the AI backend with all the tools and features we've built!`,
-        };
-        setMessages((prev) => [...prev, aiMessage]);
-        setIsLoading(false);
-      }, 1000);
-    } catch (error) {
-      console.error("Failed to send message", error);
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
+
+      const history = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
+
+      const res = await fetch('/.netlify/functions/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify({
+          message: msg,
+          employeeSlug: 'prime',
+          sessionId,
+          history,
+          hidden,
+          systemPromptOverride: pageCtx.systemPrompt,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Chat failed: ' + res.status);
+
+      const contentType = res.headers.get('content-type') || '';
+      let reply = '';
+
+      if (contentType.includes('text/event-stream')) {
+        // SSE streaming
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'assistant', content: '' }]);
+
+        while (reader) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'text' && data.content) {
+                reply += data.content;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    content: reply,
+                  };
+                  return updated;
+                });
+              }
+              if (data.type === 'done') break;
+            } catch { /* skip malformed SSE */ }
+          }
+        }
+      } else {
+        // JSON fallback
+        const data = await res.json();
+        reply = data.content || data.reply || 'Sorry, something went wrong.';
+        setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'assistant', content: reply }]);
+      }
+    } catch {
+      setMessages(prev => [...prev, {
+        id: 'ai-err-' + Date.now(),
+        role: 'assistant',
+        content: 'Something went wrong -- please try again.',
+      }]);
+    } finally {
       setIsLoading(false);
     }
-  };
+  }, [input, messages, isLoading, sessionId, pageCtx]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
-  if (!isPrimeEnabled()) {
-    return null;
-  }
+  if (!isOpen) return null;
 
   return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-50"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Drawer */}
-      <div
-        className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 flex flex-col ${
-          isOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Prime Assistant
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+    <div style={{
+      position: 'fixed', top: 0, right: 0, bottom: 0, width: 420,
+      background: T.surface, borderLeft: '1px solid ' + T.border,
+      zIndex: 50, display: 'flex', flexDirection: 'column',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '14px 18px', borderBottom: '1px solid ' + T.border,
+      }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'rgba(200,166,78,0.15)', border: '1px solid ' + T.gold,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 16, color: T.gold, fontWeight: 800, flexShrink: 0,
+        }}>{"\u265B"}</div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Prime</div>
+          <div style={{ fontSize: 11, color: T.gold }}>{pageCtx.label} · Your Financial Advisor</div>
         </div>
+        <button onClick={onClose} style={{
+          marginLeft: 'auto', background: 'none', border: 'none',
+          cursor: 'pointer', color: T.dim, padding: 4, display: 'flex',
+        }}>
+          <X style={{ width: 18, height: 18 }} />
+        </button>
+      </div>
 
-        {/* Messages */}
-        {/* IMPORTANT: remove inner vertical scrolling so BODY owns scroll */}
-        <div className="flex-1 min-h-0 overflow-y-visible p-4 space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center text-gray-500 py-8">
-              <p>Welcome to Prime Assistant!</p>
-              <p className="text-sm mt-2">
-                Ask me anything about financial management, data processing, or
-                general assistance.
-              </p>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {messages.map(m => (
+          <div key={m.id} style={{
+            display: 'flex', gap: 8,
+            justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+          }}>
+            {m.role === 'assistant' && (
+              <div style={{
+                width: 26, height: 26, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+                background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 800, color: T.gold,
+              }}>{"\u265B"}</div>
+            )}
+            <div style={{
+              maxWidth: '80%', padding: '10px 14px', fontSize: 14, color: T.text,
+              lineHeight: 1.6, whiteSpace: 'pre-wrap',
+              borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+              background: m.role === 'user' ? 'rgba(200,166,78,0.15)' : 'rgba(255,255,255,0.04)',
+              border: '1px solid ' + (m.role === 'user' ? 'rgba(200,166,78,0.25)' : 'rgba(255,255,255,0.06)'),
+            }}>
+              {m.content || (isLoading ? '...' : '')}
             </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    message.role === "user"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-900"
-                  }`}
-                >
-                  {message.content}
-                </div>
-              </div>
-            ))
-          )}
+          </div>
+        ))}
+        {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: '50%',
+              background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 800, color: T.gold,
+            }}>{"\u265B"}</div>
+            <div style={{ fontSize: 12, color: T.dim }}>Thinking...</div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
 
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                  <div
-                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "0.1s" }}
-                  />
-                  <div
-                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "0.2s" }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div
-          className="p-4 border-t"
+      {/* Input */}
+      <div style={{
+        padding: '12px 16px', borderTop: '1px solid ' + T.border,
+        display: 'flex', gap: 8,
+      }}>
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && void sendMessage()}
+          placeholder={'Ask Prime about ' + pageCtx.label.toLowerCase() + '...'}
           style={{
-            paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
+            flex: 1, background: 'rgba(255,255,255,0.04)',
+            border: '1px solid ' + T.border, borderRadius: 8,
+            padding: '8px 12px', fontSize: 14, color: T.text,
+            outline: 'none', fontFamily: 'inherit',
+          }}
+        />
+        <button
+          onClick={() => void sendMessage()}
+          disabled={isLoading || !input.trim()}
+          style={{
+            width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+            background: isLoading ? 'rgba(200,166,78,0.1)' : 'rgba(200,166,78,0.2)',
+            border: '1px solid rgba(200,166,78,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: isLoading ? 'default' : 'pointer', color: T.gold,
           }}
         >
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Type your message..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || isLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Send
-            </button>
-          </div>
-        </div>
+          <Send style={{ width: 16, height: 16 }} />
+        </button>
       </div>
-    </>
+
+      {/* Footer */}
+      <div style={{
+        padding: '8px 16px', borderTop: '1px solid ' + T.border,
+        fontSize: 11, color: T.dim, textAlign: 'center',
+      }}>
+        Secured · Guardrails + PII protection active
+      </div>
+    </div>
   );
 }
+
+export default PrimeChatDrawer;

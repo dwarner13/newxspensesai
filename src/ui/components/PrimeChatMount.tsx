@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PrimeChatDrawer } from './PrimeChatDrawer';
 
 export function PrimeChatMount() {
   const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const open = () => setIsOpen(true);
@@ -17,7 +19,6 @@ export function PrimeChatMount() {
 
   return (
     <>
-      {/* Floating launcher visible on all pages */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
@@ -28,21 +29,19 @@ export function PrimeChatMount() {
             right: 'calc(24px + env(safe-area-inset-right, 0px))',
             width: 56,
             height: 56,
-            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+            background: 'linear-gradient(135deg, #c8a64e, #a07830)',
           }}
         >
-          <span style={{ fontSize: 24 }}>👑</span>
+          <span style={{ fontSize: 24 }}>{"\u265B"}</span>
         </button>
       )}
-
-      {/* Slide-out drawer */}
       <PrimeChatDrawer
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
+        currentPage={location.pathname}
       />
     </>
   );
 }
 
 export default PrimeChatMount;
-
