@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 
 const C = {
   bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
@@ -67,7 +67,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
       <h1 style={{
         fontSize: "clamp(26px, 4vw, 38px)", fontWeight: 800, letterSpacing: -1,
-        color: C.text, marginBottom: 4, textAlign: "center", fontSize: 28,
+        color: C.text, marginBottom: 4, textAlign: "center",
       }}>Welcome Back, {userName}</h1>
 
       <p style={{ fontSize: 15, color: C.dim, marginBottom: 16, textAlign: "center" }}>
