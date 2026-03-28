@@ -1,5 +1,5 @@
 ﻿import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
 import { Search, ChevronRight, ChevronDown, ArrowDownLeft, ArrowUpRight, TrendingDown, Hash, Upload, Download, Star } from 'lucide-react';
@@ -44,6 +44,7 @@ const fmtDate = (d: string) => {
 };
 
 export default function TransactionsPageV2() {
+  const location = useLocation();
   const { transactions, isLoading, refetch } = useTransactions();
   const { imports } = useImportList();
   const { openChat } = useUnifiedChatLauncher();
@@ -418,7 +419,7 @@ export default function TransactionsPageV2() {
 
       {/* Byte copilot bubble */}
 
-      {!tagPanelOpen && !selectedTx && (
+      {!tagPanelOpen && !selectedTx && !(/\/(categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
         <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 50, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
       )}
       {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
