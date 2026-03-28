@@ -12,6 +12,40 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
+const SUBCATEGORY_PATTERNS: Record<string, { name: string; keywords: string[] }[]> = {
+  "Transportation": [
+    { name: "Gas & Fuel",  keywords: ["petro", "shell", "esso", "gas", "fuel", "husky", "irving"] },
+    { name: "Parking",     keywords: ["parking", "park lot", "parkade", "impark", "indigo"] },
+    { name: "Rideshare",   keywords: ["uber", "lyft", "taxi"] },
+    { name: "Transit",     keywords: ["transit", "presto", "bus", "train"] },
+  ],
+  "Food & Dining": [
+    { name: "Coffee",      keywords: ["starbucks", "tim horton", "second cup", "coffee", "cafe"] },
+    { name: "Delivery",    keywords: ["doordash", "ubereats", "skip"] },
+    { name: "Restaurants", keywords: ["restaurant", "grill", "pub", "sushi", "pizza", "burger", "diner"] },
+  ],
+  "Shopping": [
+    { name: "Online",      keywords: ["amazon", "amzn", "ebay"] },
+    { name: "Clothing",    keywords: ["zara", "h&m", "old navy", "gap", "winners"] },
+    { name: "Electronics", keywords: ["best buy", "apple", "the source", "staples"] },
+  ],
+  "Subscriptions": [
+    { name: "Streaming",       keywords: ["netflix", "disney", "crave", "spotify", "apple tv"] },
+    { name: "Software",        keywords: ["github", "notion", "figma", "openai", "cursor", "netlify", "vercel"] },
+    { name: "Cloud & Storage", keywords: ["icloud", "google", "dropbox", "microsoft"] },
+  ],
+  "Personal Care": [
+    { name: "Hair & Nails", keywords: ["salon", "hair", "nails", "barber", "spa"] },
+    { name: "Pharmacy",     keywords: ["shoppers", "rexall", "pharma", "drug"] },
+    { name: "Fitness",      keywords: ["gym", "fitness", "yoga", "crossfit"] },
+  ],
+  "Healthcare": [
+    { name: "Dental",   keywords: ["dental", "dentist", "orthodon"] },
+    { name: "Pharmacy", keywords: ["shoppers", "rexall", "pharma", "drug"] },
+    { name: "Clinic",   keywords: ["clinic", "medical", "doctor", "physio", "chiro", "massage"] },
+  ],
+};
+
 export interface FlaggedTransaction {
   id: string;
   merchant: string;
@@ -52,17 +86,16 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
       };
     }
 
-    // Build available periods (YYYY-MM) from all transactions
+    // Build available periods
     const periodSet = new Set<string>();
     transactions.forEach(t => {
       const d = new Date(t.posted_at || "");
-      if (!isNaN(d.getTime())) {
+      if (!isNaN(d.getTime()))
         periodSet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-      }
     });
     const availablePeriods = Array.from(periodSet).sort().reverse();
 
-    // Filter to selected period when provided
+    // Filter to selected period
     const periodFiltered = selectedPeriod
       ? transactions.filter(t => {
           const d = new Date(t.posted_at || "");
@@ -78,7 +111,7 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
 
     const expenses = periodFiltered.filter(t => !isIncome(t));
 
-    // MoM trend buckets — always from all transactions for context
+    // MoM trend from all transactions
     const monthBuckets: Record<string, Record<string, number>> = {};
     transactions.filter(t => !isIncome(t)).forEach(t => {
       const d = new Date(t.posted_at || "");
@@ -90,7 +123,7 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
     });
     const sortedMonths = Object.keys(monthBuckets).sort().reverse();
     const latestMonth = sortedMonths[0] ? monthBuckets[sortedMonths[0]] : {};
-    const prevMonth = sortedMonths[1] ? monthBuckets[sortedMonths[1]] : {};
+    const prevMonth   = sortedMonths[1] ? monthBuckets[sortedMonths[1]] : {};
 
     // Aggregate per category
     const catMap: Record<string, { spent: number; count: number; merchants: Record<string, number> }> = {};
@@ -124,61 +157,50 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
         };
       });
 
-    // Attach subcategory chips to matching categories
-    const SUBCATEGORY_PATTERNS: Record<string, { name: string; keywords: string[] }[]> = {
-      "Transportation": [
-        { name: "Gas & Fuel",  keywords: ["petro", "shell", "esso", "gas", "fuel", "husky", "irving"] },
-        { name: "Parking",     keywords: ["parking", "park lot", "parkade", "impark", "indigo"] },
-        { name: "Rideshare",   keywords: ["uber", "lyft", "taxi"] },
-        { name: "Transit",     keywords: ["transit", "presto", "bus", "train"] },
-      ],
-      "Food & Dining": [
-        { name: "Coffee",      keywords: ["starbucks", "tim horton", "second cup", "coffee", "cafe"] },
-        { name: "Delivery",    keywords: ["doordash", "ubereats", "skip"] },
-        { name: "Restaurants", keywords: ["restaurant", "grill", "pub", "sushi", "pizza", "burger", "diner"] },
-      ],
-      "Shopping": [
-        { name: "Online",      keywords: ["amazon", "amzn", "ebay"] },
-        { name: "Clothing",    keywords: ["zara", "h&m", "old navy", "gap", "winners"] },
-        { name: "Electronics", keywords: ["best buy", "apple", "the source", "staples"] },
-      ],
-      "Subscriptions": [
-        { name: "Streaming",       keywords: ["netflix", "disney", "crave", "spotify", "apple tv"] },
-        { name: "Software",        keywords: ["github", "notion", "figma", "openai", "cursor", "netlify", "vercel"] },
-        { name: "Cloud & Storage", keywords: ["icloud", "google", "dropbox", "microsoft"] },
-      ],
-      "Personal Care": [
-        { name: "Hair & Nails",  keywords: ["salon", "hair", "nails", "barber", "spa"] },
-        { name: "Pharmacy",      keywords: ["shoppers", "rexall", "pharma", "drug"] },
-        { name: "Fitness",       keywords: ["gym", "fitness", "yoga", "crossfit"] },
-      ],
-      "Healthcare": [
-        { name: "Dental",    keywords: ["dental", "dentist", "orthodon"] },
-        { name: "Pharmacy",  keywords: ["shoppers", "rexall", "pharma", "drug"] },
-        { name: "Clinic",    keywords: ["clinic", "medical", "doctor", "physio", "chiro", "massage"] },
-      ],
-    };
+    // Build subcategory chips + suggestions from same pattern data
+    const subcategorySuggestions: SubcategorySuggestion[] = [];
+
     categories.forEach(cat => {
       const patterns = SUBCATEGORY_PATTERNS[cat.name];
       if (!patterns) return;
       const catTxs = expenses.filter(t => t.category === cat.name);
+      if (catTxs.length < 3) return;
+
       const chips: SubcategoryChip[] = [];
+      const suggestionSubs: { name: string; amount: string; count: number; topMerchant: string }[] = [];
+
       for (const pattern of patterns) {
         const hits = catTxs.filter(t =>
           pattern.keywords.some(k => (t.merchant_name || "").toLowerCase().includes(k))
         );
         if (hits.length === 0) continue;
         const spent = hits.reduce((s, t) => s + Math.abs(t.amount), 0);
+        const merchantCounts: Record<string, number> = {};
+        hits.forEach(t => {
+          const m = t.merchant_name || "Unknown";
+          merchantCounts[m] = (merchantCounts[m] || 0) + 1;
+        });
         const merchantNames = [...new Set(hits.map(t => t.merchant_name || "Unknown"))];
+        const topMerchant = Object.entries(merchantCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "Unknown";
+
         chips.push({ name: pattern.name, spent: Math.round(spent), count: hits.length, color: cat.color, merchantNames });
+        if (hits.length >= 2) {
+          suggestionSubs.push({ name: pattern.name, amount: `$${Math.round(spent).toLocaleString()}`, count: hits.length, topMerchant });
+        }
       }
+
       if (chips.length > 0) cat.subcategories = chips.sort((a, b) => b.spent - a.spent);
+      if (suggestionSubs.length >= 2) {
+        subcategorySuggestions.push({
+          parentCategory: cat.name,
+          parentColor: cat.color,
+          subcategories: suggestionSubs,
+        });
+      }
     });
 
-    // Exclude Transfers from totalSpent — money movement, not real spending
-    const totalSpent = categories
-      .filter(c => c.name !== "Transfers")
-      .reduce((s, c) => s + c.spent, 0);
+    // Exclude Transfers from totalSpent
+    const totalSpent = categories.filter(c => c.name !== "Transfers").reduce((s, c) => s + c.spent, 0);
     const totalBudget = categories.reduce((s, c) => s + c.budget, 0);
 
     const uncategorizedCount = periodFiltered.filter(
@@ -197,59 +219,6 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
           : "Categorized as Other \u2014 can you be more specific?",
         category: t.category || "Uncategorized",
       }));
-
-    const subcategorySuggestions: SubcategorySuggestion[] = [];
-    const SUBCATEGORY_PATTERNS: Record<string, { name: string; keywords: string[] }[]> = {
-      "Transportation": [
-        { name: "Gas & Fuel",  keywords: ["petro", "shell", "esso", "gas", "fuel", "husky", "irving"] },
-        { name: "Parking",     keywords: ["parking", "park lot", "parkade", "impark", "indigo"] },
-        { name: "Rideshare",   keywords: ["uber", "lyft", "taxi"] },
-        { name: "Transit",     keywords: ["transit", "presto", "bus", "train"] },
-      ],
-      "Food & Dining": [
-        { name: "Coffee",      keywords: ["starbucks", "tim horton", "second cup", "coffee", "cafe"] },
-        { name: "Delivery",    keywords: ["doordash", "ubereats", "skip"] },
-        { name: "Restaurants", keywords: ["restaurant", "grill", "pub", "sushi", "pizza", "burger"] },
-      ],
-      "Shopping": [
-        { name: "Online",      keywords: ["amazon", "amzn", "ebay"] },
-        { name: "Clothing",    keywords: ["zara", "h&m", "old navy", "gap", "winners"] },
-        { name: "Electronics", keywords: ["best buy", "apple", "the source", "staples"] },
-      ],
-      "Subscriptions": [
-        { name: "Streaming",       keywords: ["netflix", "disney", "crave", "spotify", "apple tv"] },
-        { name: "Software",        keywords: ["github", "notion", "figma", "openai", "cursor", "netlify", "vercel"] },
-        { name: "Cloud & Storage", keywords: ["icloud", "google", "dropbox", "microsoft"] },
-      ],
-    };
-
-    for (const [catName, patterns] of Object.entries(SUBCATEGORY_PATTERNS)) {
-      const catTxs = expenses.filter(t => t.category === catName);
-      if (catTxs.length < 5) continue;
-      const matched: { name: string; amount: number; count: number; merchants: Record<string, number> }[] = [];
-      for (const pattern of patterns) {
-        const hits = catTxs.filter(t =>
-          pattern.keywords.some(k => (t.merchant_name || "").toLowerCase().includes(k))
-        );
-        if (hits.length < 2) continue;
-        const total = hits.reduce((s, t) => s + Math.abs(t.amount), 0);
-        const merchantCounts: Record<string, number> = {};
-        hits.forEach(t => { const m = t.merchant_name || "Unknown"; merchantCounts[m] = (merchantCounts[m] || 0) + 1; });
-        matched.push({ name: pattern.name, amount: total, count: hits.length, merchants: merchantCounts });
-      }
-      if (matched.length < 2) continue;
-      const catMeta = categories.find(c => c.name === catName);
-      subcategorySuggestions.push({
-        parentCategory: catName,
-        parentColor: catMeta?.color || "#94a3b8",
-        subcategories: matched.map(m => ({
-          name: m.name,
-          amount: `$${Math.round(m.amount).toLocaleString()}`,
-          count: m.count,
-          topMerchant: Object.entries(m.merchants).sort((a, b) => b[1] - a[1])[0]?.[0] || "Unknown",
-        })),
-      });
-    }
 
     return {
       categories,

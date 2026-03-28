@@ -1,4 +1,4 @@
-ï»¿import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { X, TrendingUp, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
@@ -27,21 +27,21 @@ interface TransactionInsightDrawerProps {
 }
 
 const TAX_INFO: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  Transportation:  { label: 'âœ“ Deductible â€” CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Housing:         { label: 'âœ“ Deductible â€” home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Utilities:       { label: 'âœ“ Deductible â€” business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Healthcare:      { label: 'âœ“ Deductible â€” medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Education:       { label: 'âœ“ Deductible â€” training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Insurance:       { label: 'âœ“ Deductible â€” business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Subscriptions:   { label: 'âœ“ Likely deductible â€” if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  'Bank Fees':     { label: 'âœ“ Deductible â€” bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Travel:          { label: '~ Partially deductible â€” business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  'Food & Dining': { label: '~ 50% deductible â€” meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Shopping:        { label: '~ May be deductible â€” business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Income:          { label: 'â€” Taxable income â€” report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
-  Transfers:       { label: 'â€” Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  Savings:         { label: 'â€” Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  'Debt Payments': { label: 'â€” Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
+  Transportation:  { label: '? Deductible — CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Housing:         { label: '? Deductible — home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Utilities:       { label: '? Deductible — business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Healthcare:      { label: '? Deductible — medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Education:       { label: '? Deductible — training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Insurance:       { label: '? Deductible — business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Subscriptions:   { label: '? Likely deductible — if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  'Bank Fees':     { label: '? Deductible — bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Travel:          { label: '~ Partially deductible — business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  'Food & Dining': { label: '~ 50% deductible — meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  Shopping:        { label: '~ May be deductible — business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  Income:          { label: '— Taxable income — report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
+  Transfers:       { label: '— Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
+  Savings:         { label: '— Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
+  'Debt Payments': { label: '— Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
 };
 const QUICK_CATS = [
   { label: 'Gas', category: 'Transportation', emoji: '?' },
@@ -151,7 +151,7 @@ export function TransactionInsightDrawer({
           }
         }
       } catch { /* ignore */ }
-      setStatementLabel(`Statement â€¦${importId.slice(-6)}`);
+      setStatementLabel(`Statement …${importId.slice(-6)}`);
     })();
   }, [row]);
 
@@ -212,7 +212,7 @@ export function TransactionInsightDrawer({
         body: JSON.stringify({ id: row.transaction.id, table: 'transactions', category, applyToVendor: true }),
       });
       if (!res.ok) throw new Error(await res.text());
-      setChatReply(`Done ï¿½ moved to ${category}. I have updated the rule for all future ${rawMerchant} transactions.`);
+      setChatReply(`Done ? moved to ${category}. I have updated the rule for all future ${rawMerchant} transactions.`);
       onCommittedCategorySaved?.(row.transaction.id, category);
       toast.success('Category updated');
     } catch {
@@ -248,7 +248,7 @@ export function TransactionInsightDrawer({
         onCommittedCategorySaved?.(row.transaction.id, data.action.category);
       }
     } catch {
-      const errMsg = { role: 'assistant' as const, content: 'Something went wrong â€” try again.' };
+      const errMsg = { role: 'assistant' as const, content: 'Something went wrong — try again.' };
       setChatHistory([...newHistory, errMsg]);
     }
     setChatBusy(false);
@@ -274,13 +274,13 @@ export function TransactionInsightDrawer({
             {/* Meta row */}
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {formattedDate && (
-                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{formattedDate}</span>
+                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{formattedDate}</span>
               )}
               {statementLabel && (
-                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{statementLabel}</span>
+                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{statementLabel}</span>
               )}
               {merchantMonthSpend > 0 && (
-                <span style={{ fontSize: 11, color: '#64748b', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{fmt(merchantMonthSpend)} this month</span>
+                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{fmt(merchantMonthSpend)} this month</span>
               )}
             </div>
           </div>
@@ -309,11 +309,11 @@ export function TransactionInsightDrawer({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{localCategory}</div>
                 <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                  {tagInsightLoading ? 'Analyzingï¿½' : [
+                  {tagInsightLoading ? 'Analyzing?' : [
                     confidence != null && confidence > 0 && `${confidence}% confidence`,
                     seenCount > 0 && `Seen ${seenCount}x`,
                     tagInsight?.categorySource && tagInsight.categorySource !== 'unknown' && tagInsight.categorySource,
-                  ].filter(Boolean).join(' Â· ') || 'Current category'}
+                  ].filter(Boolean).join(' · ') || 'Current category'}
                 </div>
                             {TAX_INFO[localCategory] && (
                 <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 10, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
@@ -328,11 +328,11 @@ export function TransactionInsightDrawer({
             {/* Tag message */}
             {(tagInsightLoading || tagInsight?.message) && (
               <div style={{ padding: '10px 14px', fontSize: 12, color: '#cbd5e1', lineHeight: 1.6 }}>
-                {tagInsightLoading ? 'Analyzing this transactionï¿½' : tagInsight?.message}
+                {tagInsightLoading ? 'Analyzing this transaction?' : tagInsight?.message}
               </div>
             )}
             {/* Proactive insights */}
-            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[â—†â– â€¢Â ï¿½]/g, "â€”"); return (
+            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[?¦• ?]/g, "—"); return (
               <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{cleanInsight}</div>
             ); })}
           </div>
@@ -375,14 +375,14 @@ export function TransactionInsightDrawer({
                   </div>
                 </div>
               ))}
-              {chatBusy && <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee' }}>T</div><div style={{ fontSize: 12, color: '#475569' }}>Thinkingï¿½</div></div>}
+              {chatBusy && <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee' }}>T</div><div style={{ fontSize: 12, color: '#475569' }}>Thinking?</div></div>}
               <div ref={chatEndRef} />
             </div>
           )}
 
         </div>
 
-        {/* FOOTER ï¿½ chat input + actions */}
+        {/* FOOTER ? chat input + actions */}
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* Tag chat input */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(34,211,153,0.04)', border: '1px solid rgba(34,211,153,0.12)', borderRadius: 10, padding: '6px 8px 6px 12px' }}>
