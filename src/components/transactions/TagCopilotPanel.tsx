@@ -33,10 +33,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
   const send = async () => {
     const text = input.trim();
     if (!text || busy) return;
-    if (!transaction) {
-      setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Tap a transaction row first and I will pull it up here.' }]);
-      return;
-    }
+    const txId = transaction?.id ?? null;
     setInput('');
     setLocalMessages(m => [...m, { role: 'user' as const, text }]);
     setBusy(true);
@@ -51,7 +48,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
       const res = await fetch('/.netlify/functions/tag-chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'authorization': `Bearer ${token}` },
-        body: JSON.stringify({ transactionId: transaction.id, message: text, history }),
+        body: JSON.stringify({ transactionId: txId, message: text, history }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();

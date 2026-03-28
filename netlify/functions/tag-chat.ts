@@ -25,7 +25,7 @@ function buildSystemPrompt(
   const merchantCatList = [...new Set(merchantHistory.categories)].join(', ') || 'none yet';
   const topCatList = topCategories.slice(0, 5).map(c => `${c.category} $${c.total.toFixed(0)}`).join(', ');
 
-  return `You are Tag — XspensesAI's sharp, friendly categorization expert. You speak directly to the user in first person. You are looking at one specific transaction together and you have full context about their finances.
+  return `You are Tag ï¿½ XspensesAI's sharp, friendly categorization expert. You speak directly to the user in first person. You are looking at one specific transaction together and you have full context about their finances.
 
 TRANSACTION IN FOCUS:
 - Merchant: ${tx.merchant_name || 'Unknown'}
@@ -47,12 +47,12 @@ USER'S OVERALL FINANCES (this year):
 YOUR JOB:
 - Answer questions about this transaction naturally and helpfully
 - Use the merchant history to explain your confidence level
-- If you have seen this merchant many times before, say so — it builds trust
+- If you have seen this merchant many times before, say so ï¿½ it builds trust
 - Suggest better categories if the user thinks it is wrong
 - If asked about tax deductibility, give a practical Canadian self-employed perspective
 - If the user wants to change the category, confirm what they want and end your reply with exactly this JSON on its own line: {"action":"recategorize","category":"CATEGORY_NAME"}
 - Use only these categories: ${CATEGORIES.join(', ')}
-- Be concise — 2-4 sentences unless explaining something complex
+- Be concise ï¿½ 2-4 sentences unless explaining something complex
 - You have Tag's personality: detective-like, precise, a little witty, always helpful
 
 IMPORTANT: Only output the JSON action line when the user clearly wants to change the category. Do not output it for questions or explanations.`;
@@ -74,18 +74,20 @@ export const handler: Handler = async (event) => {
 
   const supabase = serverSupabase();
 
-  // 1. Fetch the transaction
-  const { data: tx, error: txErr } = await supabase
-    .from('transactions')
-    .select('id, merchant_name, amount, posted_at, date, category, import_id')
-    .eq('id', transactionId)
-    .eq('user_id', auth.userId)
-    .single();
-
-  if (txErr || !tx) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Transaction not found' }) };
+  // 1. Fetch the transaction (optional - general mode if no transactionId)
+  let tx: Record<string, unknown> | null = null;
+  if (transactionId) {
+    const { data: txData, error: txErr } = await supabase
+      .from("transactions")
+      .select("id, merchant_name, amount, posted_at, date, category, import_id")
+      .eq("id", transactionId)
+      .eq("user_id", auth.userId)
+      .single();
+    if (!txErr && txData) tx = txData as Record<string, unknown>;
+  }
 
   // 2. Fetch merchant history for this user
-  const merchantName = String(tx.merchant_name || '').toLowerCase().trim();
+  const merchantName = String((tx as any)?.merchant_name || '').toLowerCase().trim();
   const { data: merchantTxs } = await supabase
     .from('transactions')
     .select('amount, category, posted_at')
@@ -133,7 +135,7 @@ export const handler: Handler = async (event) => {
     max_tokens: 350,
     messages: [
       { role: 'system', content: buildSystemPrompt(
-        tx as Record<string, unknown>,
+        tx ?? {},
         merchantHistory,
         topCategories,
         { spent: yearSpent, income: yearIncome }
@@ -176,3 +178,5 @@ export const handler: Handler = async (event) => {
     body: JSON.stringify({ reply: cleanReply, action }),
   };
 };
+
+
