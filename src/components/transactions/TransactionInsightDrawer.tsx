@@ -371,12 +371,6 @@ export function TransactionInsightDrawer({
             </div>
           )}
 
-          {/* Byte receipt hint */}
-          <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(34,211,238,0.03)', border: '1px solid rgba(34,211,238,0.1)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>B</div>
-            <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>Have a receipt? Snap a photo and send it to Byte in chat — he will match it automatically.</div>
-          </div>
-
         </div>
 
         {/* FOOTER � chat input + actions */}
