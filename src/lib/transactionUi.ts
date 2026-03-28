@@ -9,7 +9,7 @@ export function sanitizeIssuerPillLabel(raw: string): string {
   const lower = s.toLowerCase();
   if (lower.includes('nsaction')) return 'Unknown';
   if (s.length > 30) return 'Unknown';
-  return s;
+    return s.replace(/[^\x20-\x7E]/g, '').trim() || 'Unknown';
 }
 
 /** Background class for category dot in transaction feed (Tailwind). */
