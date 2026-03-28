@@ -235,7 +235,7 @@ export function TransactionInsightDrawer({
       const token = session?.access_token ?? '';
       const res = await fetch('/.netlify/functions/tag-chat', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'authorization': Bearer ${token} },
+        headers: { 'content-type': 'application/json', 'authorization': `Bearer ${token}` },
         body: JSON.stringify({ transactionId: row.transaction.id, message: text, history: chatHistory }),
       });
       if (!res.ok) throw new Error(await res.text());
