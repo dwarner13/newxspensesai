@@ -416,7 +416,7 @@ export default function TransactionsPageV2() {
       {/* Byte copilot bubble */}
 
       {!tagPanelOpen && !selectedTx && (
-        <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: window.innerWidth <= 768 ? 140 : 84, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
+        <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
       )}
       {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
 

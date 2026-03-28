@@ -65,6 +65,9 @@ export function TransactionInsightDrawer({
 }: TransactionInsightDrawerProps) {
   const [localCategory, setLocalCategory] = useState('');
   const [isSavingCat, setIsSavingCat] = useState(false);
+  const [tagChatInput, setTagChatInput] = useState('');
+  const [tagChatBusy, setTagChatBusy] = useState(false);
+  const [tagChatReply, setTagChatReply] = useState<string | null>(null);
 
   const rawMerchant = useMemo(() => {
     if (!row) return 'Unknown merchant';
@@ -179,6 +182,31 @@ export function TransactionInsightDrawer({
       );
     }
   }, [row]);
+
+  const CATS = ['Income','Groceries','Food & Dining','Transportation','Housing','Utilities','Shopping','Subscriptions','Healthcare','Bank Fees','Transfers','Personal Care','Other'];
+  const sendTagChat = async () => {
+    const text = tagChatInput.trim();
+    if (!text || tagChatBusy || row.kind !== 'committed') return;
+    setTagChatInput('');
+    setTagChatBusy(true);
+    const matched = CATS.find(c => text.toLowerCase().includes(c.toLowerCase()));
+    if (matched) {
+      try {
+        const res = await fetch('/.netlify/functions/tx-update-category', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: row.transaction.id, table: 'transactions', category: matched, applyToVendor: true }),
+        });
+        if (!res.ok) throw new Error('failed');
+        setLocalCategory(matched);
+        setTagChatReply(`Done — moved to ${matched}. Rule applied to all future ${row.transaction.merchant_name || 'this merchant'} transactions.`);
+        onCommittedCategorySaved?.(row.transaction.id, matched);
+      } catch { setTagChatReply('Something went wrong, try again.'); }
+    } else {
+      setTagChatReply(`Tell me the category to move this to. Options: ${CATS.slice(0,6).join(', ')}, and more.`);
+    }
+    setTagChatBusy(false);
+  };
 
   if (!open || !row) return null;
 
@@ -329,6 +357,33 @@ export function TransactionInsightDrawer({
                 </div>
               </div>
             )}
+
+            {/* Inline Tag chat */}
+            <div style={{ borderRadius: 12, background: "rgba(34,211,153,0.03)", border: "1px solid rgba(34,211,153,0.12)", overflow: "hidden" }}>
+              {tagChatReply && (
+                <div style={{ display: "flex", gap: 8, padding: "10px 12px", borderBottom: "1px solid rgba(34,211,153,0.08)" }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(34,211,153,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#22d3ee", flexShrink: 0, marginTop: 1 }}>T</div>
+                  <div style={{ fontSize: 12, color: "#e8ecf4", lineHeight: 1.5 }}>{tagChatReply}</div>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, padding: "8px 10px", alignItems: "center" }}>
+                <input
+                  value={tagChatInput}
+                  onChange={e => setTagChatInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && void sendTagChat()}
+                  placeholder={row.kind === "committed" ? "Tell Tag to recategorize…" : "Select a committed transaction"}
+                  disabled={row.kind !== "committed" || tagChatBusy}
+                  style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 12, color: "#e8ecf4", fontFamily: "inherit" }}
+                />
+                <button
+                  onClick={() => void sendTagChat()}
+                  disabled={!tagChatInput.trim() || tagChatBusy || row.kind !== "committed"}
+                  style={{ fontSize: 11, fontWeight: 700, color: "#22d3ee", background: "none", border: "none", cursor: "pointer", opacity: tagChatInput.trim() ? 1 : 0.4, padding: "2px 6px" }}
+                >
+                  {tagChatBusy ? "…" : "Send"}
+                </button>
+              </div>
+            </div>
 
             {/* Receipt hint */}
             <div style={{ padding: "12px 14px", borderRadius: 12, background: "rgba(34,211,238,0.04)", border: "1px solid rgba(34,211,238,0.12)", display: "flex", alignItems: "flex-start", gap: 10 }}>
