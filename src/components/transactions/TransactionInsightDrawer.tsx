@@ -125,7 +125,7 @@ export function TransactionInsightDrawer({
           if (dateMatch) {
             const d = new Date(`${dateMatch[1]} ${dateMatch[2]} ${dateMatch[3]}`);
             if (!isNaN(d.getTime())) {
-              setStatementLabel(`BMO · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`);
+              setStatementLabel(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
               return;
             }
           }
