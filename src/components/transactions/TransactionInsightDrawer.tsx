@@ -68,6 +68,7 @@ export function TransactionInsightDrawer({
   const [tagChatInput, setTagChatInput] = useState('');
   const [tagChatBusy, setTagChatBusy] = useState(false);
   const [tagChatReply, setTagChatReply] = useState<string | null>(null);
+  const [tagChatHistory, setTagChatHistory] = useState<{ role: string; content: string }[]>([]);
 
   const rawMerchant = useMemo(() => {
     if (!row) return 'Unknown merchant';
@@ -169,6 +170,9 @@ export function TransactionInsightDrawer({
     sparklinePoints.some((v) => v > 0) && Math.max(...sparklinePoints) > 0 && currentMonthSpend > 0;
 
   useEffect(() => {
+    setTagChatHistory([]);
+    setTagChatReply(null);
+    setTagChatInput('');
     if (!row) {
       setLocalCategory('');
       return;
@@ -183,27 +187,34 @@ export function TransactionInsightDrawer({
     }
   }, [row]);
 
-  const CATS = ['Income','Groceries','Food & Dining','Transportation','Housing','Utilities','Shopping','Subscriptions','Healthcare','Bank Fees','Transfers','Personal Care','Other'];
   const sendTagChat = async () => {
     const text = tagChatInput.trim();
     if (!text || tagChatBusy || row.kind !== 'committed') return;
+    const userMsg = { role: 'user', content: text };
     setTagChatInput('');
     setTagChatBusy(true);
-    const matched = CATS.find(c => text.toLowerCase().includes(c.toLowerCase()));
-    if (matched) {
-      try {
-        const res = await fetch('/.netlify/functions/tx-update-category', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ id: row.transaction.id, table: 'transactions', category: matched, applyToVendor: true }),
-        });
-        if (!res.ok) throw new Error('failed');
-        setLocalCategory(matched);
-        setTagChatReply(`Done — moved to ${matched}. Rule applied to all future ${row.transaction.merchant_name || 'this merchant'} transactions.`);
-        onCommittedCategorySaved?.(row.transaction.id, matched);
-      } catch { setTagChatReply('Something went wrong, try again.'); }
-    } else {
-      setTagChatReply(`Tell me the category to move this to. Options: ${CATS.slice(0,6).join(', ')}, and more.`);
+    setTagChatHistory(h => [...h, userMsg]);
+    try {
+      const res = await fetch('/.netlify/functions/tag-chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          transactionId: row.transaction.id,
+          message: text,
+          history: tagChatHistory,
+        }),
+      });
+      if (!res.ok) throw new Error('Request failed');
+      const data = await res.json();
+      const assistantMsg = { role: 'assistant', content: data.reply };
+      setTagChatHistory(h => [...h, assistantMsg]);
+      setTagChatReply(data.reply);
+      if (data.action?.action === 'recategorize' && data.action?.category) {
+        setLocalCategory(data.action.category);
+        onCommittedCategorySaved?.(row.transaction.id, data.action.category);
+      }
+    } catch {
+      setTagChatReply('Something went wrong — try again.');
     }
     setTagChatBusy(false);
   };
