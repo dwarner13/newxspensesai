@@ -358,33 +358,6 @@ export function TransactionInsightDrawer({
               </div>
             )}
 
-            {/* Inline Tag chat */}
-            <div style={{ borderRadius: 12, background: "rgba(34,211,153,0.03)", border: "1px solid rgba(34,211,153,0.12)", overflow: "hidden" }}>
-              {tagChatReply && (
-                <div style={{ display: "flex", gap: 8, padding: "10px 12px", borderBottom: "1px solid rgba(34,211,153,0.08)" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(34,211,153,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#22d3ee", flexShrink: 0, marginTop: 1 }}>T</div>
-                  <div style={{ fontSize: 12, color: "#e8ecf4", lineHeight: 1.5 }}>{tagChatReply}</div>
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 8, padding: "8px 10px", alignItems: "center" }}>
-                <input
-                  value={tagChatInput}
-                  onChange={e => setTagChatInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && void sendTagChat()}
-                  placeholder={row.kind === "committed" ? "Tell Tag to recategorize…" : "Select a committed transaction"}
-                  disabled={row.kind !== "committed" || tagChatBusy}
-                  style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 12, color: "#e8ecf4", fontFamily: "inherit" }}
-                />
-                <button
-                  onClick={() => void sendTagChat()}
-                  disabled={!tagChatInput.trim() || tagChatBusy || row.kind !== "committed"}
-                  style={{ fontSize: 11, fontWeight: 700, color: "#22d3ee", background: "none", border: "none", cursor: "pointer", opacity: tagChatInput.trim() ? 1 : 0.4, padding: "2px 6px" }}
-                >
-                  {tagChatBusy ? "…" : "Send"}
-                </button>
-              </div>
-            </div>
-
             {/* Receipt hint */}
             <div style={{ padding: "12px 14px", borderRadius: 12, background: "rgba(34,211,238,0.04)", border: "1px solid rgba(34,211,238,0.12)", display: "flex", alignItems: "flex-start", gap: 10 }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(34,211,238,0.12)", border: "1px solid rgba(34,211,238,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#22d3ee", flexShrink: 0 }}>B</div>
@@ -444,6 +417,30 @@ export function TransactionInsightDrawer({
           </div>
 
           <div className="border-t border-slate-800 p-4">
+            {/* Tag reply */}
+            {tagChatReply && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 10, padding: "8px 10px", borderRadius: 10, background: "rgba(34,211,153,0.06)", border: "1px solid rgba(34,211,153,0.12)" }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(34,211,153,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#22d3ee", flexShrink: 0 }}>T</div>
+                <div style={{ fontSize: 12, color: "#e8ecf4", lineHeight: 1.5 }}>{tagChatReply}</div>
+              </div>
+            )}
+            {/* Tag chat input — always visible */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(34,211,153,0.04)", border: "1px solid rgba(34,211,153,0.15)", alignItems: "center" }}>
+              <div style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(34,211,153,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#22d3ee", flexShrink: 0 }}>T</div>
+              <input
+                value={tagChatInput}
+                onChange={e => setTagChatInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && void sendTagChat()}
+                placeholder="Ask Tag to recategorize…"
+                disabled={row.kind !== "committed" || tagChatBusy}
+                style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 13, color: "#e8ecf4", fontFamily: "inherit" }}
+              />
+              <button
+                onClick={() => void sendTagChat()}
+                disabled={!tagChatInput.trim() || tagChatBusy || row.kind !== "committed"}
+                style={{ fontSize: 12, fontWeight: 700, color: "#22d3ee", background: "none", border: "none", cursor: "pointer", opacity: tagChatInput.trim() ? 1 : 0.35, padding: "2px 4px", flexShrink: 0 }}
+              >{tagChatBusy ? "…" : "Send"}</button>
+            </div>
             {row.kind === 'pending' ? (
               <div className="grid grid-cols-3 gap-2">
                 <button
