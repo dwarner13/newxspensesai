@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+ï»¿import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
@@ -416,7 +416,7 @@ export default function TransactionsPageV2() {
       {/* Byte copilot bubble */}
 
       {!tagPanelOpen && !selectedTx && (
-        <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 100, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
+        <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 50, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
       )}
       {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
 
@@ -439,7 +439,7 @@ export default function TransactionsPageV2() {
                 force: true,
                 handoff: {
                   fromEmployeeSlug: 'prime-boss',
-                  note: `I am looking at ${tx.merchant_name || 'a transaction'} — $${Math.abs(tx.amount).toFixed(2)} — currently tagged as ${tx.category || 'Uncategorized'}. Can you help me with this?`,
+                  note: `I am looking at ${tx.merchant_name || 'a transaction'} ï¿½ $${Math.abs(tx.amount).toFixed(2)} ï¿½ currently tagged as ${tx.category || 'Uncategorized'}. Can you help me with this?`,
                 },
                 context: {
                   data: {
