@@ -44,7 +44,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "0px 24px 80px",
+      padding: "0px 24px 120px",
       overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 24px)",
       cursor: showButtons ? "default" : "pointer",
     }}>
@@ -54,7 +54,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         background: `linear-gradient(135deg, ${C.accent}25, ${C.accent}08)`,
         border: `2px solid ${C.accent}33`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 28, marginBottom: 12, marginTop: 40,
+        fontSize: 28, marginBottom: 12, marginTop: 80,
         boxShadow: `0 0 40px ${C.accent}15, 0 0 80px ${C.accent}08`,
         animation: "crownFloat 3s ease-in-out infinite",
         flexShrink: 0,
