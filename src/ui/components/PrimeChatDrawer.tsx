@@ -88,7 +88,23 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      sendMessage('Give me a briefing for the ' + pageCtx.label + ' page.', true);
+      const openingMessages: Record<string, string> = {
+        '/dashboard/reports':
+          'I am on the Reports page reviewing my statements for my accountant. What statements do I have committed, which issuers are missing, and what do I need to do to be fully accountant-ready? Be specific.',
+        '/dashboard/transactions':
+          'I am on the Transactions page. Give me a quick status on my transactions -- are there any that need my attention, any patterns worth flagging, or anything Tag should review?',
+        '/dashboard/categories':
+          'I am on the Categories page. Walk me through my top spending categories and flag anything that looks wrong or could be optimized for a self-employed Canadian.',
+        '/dashboard/upload':
+          'I am on the Upload page. What statements should I be uploading right now and what is the current status of my pipeline?',
+      };
+
+      const page = currentPage || '/';
+      const openingMsg = Object.entries(openingMessages).find(([key]) =>
+        page.includes(key.replace('/dashboard', ''))
+      )?.[1] || 'I just opened XspensesAI. Give me a quick financial status update based on my current data -- what matters most right now?';
+
+      sendMessage(openingMsg, true);
     }
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 300);
