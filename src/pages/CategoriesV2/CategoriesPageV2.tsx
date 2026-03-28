@@ -23,6 +23,7 @@ export default function CategoriesPageV2() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
   const data = useCategoriesData(selectedPeriod || undefined);
   const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
+  const [subcategoryFilter, setSubcategoryFilter] = useState<{ name: string; merchantNames: string[] } | null>(null);
   const [search, setSearch] = useState("");
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -214,7 +215,7 @@ export default function CategoriesPageV2() {
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
           {filtered.map((cat, i) => (
             <Reveal key={cat.name} delay={300 + i * 60}>
-              <CategoryCard category={cat} onClick={() => setSelectedCategory(cat)} />
+              <CategoryCard category={cat} onClick={() => { setSubcategoryFilter(null); setSelectedCategory(cat); }} onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(cat); }} />
             </Reveal>
           ))}
         </div>
@@ -236,7 +237,7 @@ export default function CategoriesPageV2() {
                 <span style={{ fontSize: 11, color: THEME.textDim }}>Not counted in expenses</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
-                <CategoryCard category={transfersCategory} onClick={() => setSelectedCategory(transfersCategory)} />
+                <CategoryCard category={transfersCategory} onClick={() => { setSubcategoryFilter(null); setSelectedCategory(transfersCategory); }} onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(transfersCategory); }} />
               </div>
             </div>
           </Reveal>
