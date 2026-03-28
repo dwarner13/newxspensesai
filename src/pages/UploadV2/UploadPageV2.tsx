@@ -8,6 +8,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
 
+function detectIssuer(filename: string): string {
+  const f = (filename || '').toLowerCase();
+  if (f.includes('bmo')) return 'BMO';
+  if (f.includes('rbc') || f.includes('avion')) return 'RBC Avion';
+  if (f.includes('cibc')) return 'CIBC';
+  if (f.includes('canadian tire') || f.includes('ctfs')) return 'Canadian Tire';
+  if (f.includes('td ') || f.includes('td_') || f.startsWith('td')) return 'TD';
+  if (f.includes('amex') || f.includes('american express')) return 'Amex';
+  if (f.includes('scotiabank') || f.includes('scotia')) return 'Scotiabank';
+  return 'Unknown';
+}
+
 async function computeFileHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
@@ -97,6 +109,14 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
     if (commitData.committed) {
       data.transaction_count = commitData.committed;
     }
+
+    // Tag the import with detected issuer — non-blocking
+    const issuer = detectIssuer(file.name);
+    fetch('/.netlify/functions/set-import-issuer', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ importId: data.import_id, issuer }),
+    }).catch(err => console.warn('set-import-issuer failed (non-blocking):', err));
   }
 
   return data;
