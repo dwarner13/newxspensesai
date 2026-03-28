@@ -98,6 +98,8 @@ export function StatementHistory() {
     if (!sb) return;
     await sb.from('transactions').delete().eq('import_id', id);
     await sb.from('imports').delete().eq('id', id);
+    await sb.from('transactions_staging').delete().eq('import_id', id);
+    await sb.from('import_summaries').delete().eq('import_id', id);
     setRows(rows.filter(r => r.id !== id));
   }
   if (loading) return (
@@ -154,6 +156,7 @@ export function StatementHistory() {
     </div>
   );
 }
+
 
 
 
