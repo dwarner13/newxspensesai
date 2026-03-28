@@ -406,7 +406,6 @@ export default function UploadPageV2() {
 
       {/* Statement History */}
       <StatementHistory />
-      <StatementHistory />
       <style>{`@keyframes uploadPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }`}</style>
     </>
   );

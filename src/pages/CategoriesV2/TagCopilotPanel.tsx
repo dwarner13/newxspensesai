@@ -100,7 +100,7 @@ export function TagCopilotPanel({
       const { data: { session } } = await supabase!.auth.getSession();
       const token = session?.access_token;
 
-      const res = await fetch("/.netlify/functions/tag-chat", {
+      const res = await fetch("/.netlify/functions/tag-copilot", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
