@@ -14,6 +14,20 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
+export interface FlaggedTransaction {
+  id: string;
+  merchant: string;
+  amount: string;
+  issue: string;
+  category: string;
+}
+
+export interface SubcategorySuggestion {
+  parentCategory: string;
+  parentColor: string;
+  subcategories: { name: string; amount: string; count: number; topMerchant: string }[];
+}
+
 export interface CategoriesPageData {
   categories: CategoryData[];
   totalSpent: number;
@@ -22,6 +36,8 @@ export interface CategoriesPageData {
   uncategorizedCount: number;
   avgSpentPerCategory: number;
   loading: boolean;
+  flaggedTransactions: FlaggedTransaction[];
+  subcategorySuggestions: SubcategorySuggestion[];
 }
 
 export function useCategoriesData(): CategoriesPageData {
@@ -89,6 +105,74 @@ export function useCategoriesData(): CategoriesPageData {
       t => !t.category || t.category === "Uncategorized"
     ).length;
 
+    // Real flagged transactions — uncategorized ones
+    const flaggedTransactions: FlaggedTransaction[] = transactions
+      .filter(t => !t.category || t.category === "Uncategorized" || t.category === "Other")
+      .slice(0, 5)
+      .map(t => ({
+        id: t.id,
+        merchant: t.merchant_name || "Unknown",
+        amount: `$${Math.abs(t.amount).toFixed(2)}`,
+        issue: !t.category || t.category === "Uncategorized"
+          ? "Uncategorized — Tag needs your input"
+          : "Categorized as Other — can you be more specific?",
+        category: t.category || "Uncategorized",
+      }));
+
+    // Subcategory suggestions — detect merchant clusters within large categories
+    const subcategorySuggestions: SubcategorySuggestion[] = [];
+    const SUBCATEGORY_PATTERNS: Record<string, { name: string; keywords: string[] }[]> = {
+      "Transportation": [
+        { name: "Gas & Fuel", keywords: ["petro", "shell", "esso", "gas", "fuel", "husky", "irving"] },
+        { name: "Parking", keywords: ["parking", "park lot", "parkade", "impark", "indigo"] },
+        { name: "Rideshare", keywords: ["uber", "lyft", "taxi"] },
+        { name: "Transit", keywords: ["transit", "presto", "bus", "train"] },
+      ],
+      "Food & Dining": [
+        { name: "Coffee", keywords: ["starbucks", "tim horton", "second cup", "coffee", "cafe"] },
+        { name: "Delivery", keywords: ["doordash", "ubereats", "skip"] },
+        { name: "Restaurants", keywords: ["restaurant", "grill", "pub", "sushi", "pizza", "burger"] },
+      ],
+      "Shopping": [
+        { name: "Online Shopping", keywords: ["amazon", "amzn", "ebay"] },
+        { name: "Clothing", keywords: ["zara", "h&m", "old navy", "gap", "winners"] },
+        { name: "Electronics", keywords: ["best buy", "apple", "the source", "staples"] },
+      ],
+      "Subscriptions": [
+        { name: "Streaming", keywords: ["netflix", "disney", "crave", "spotify", "apple tv"] },
+        { name: "Software", keywords: ["github", "notion", "figma", "openai", "cursor", "netlify", "vercel"] },
+        { name: "Cloud & Storage", keywords: ["icloud", "google", "dropbox", "microsoft"] },
+      ],
+    };
+
+    for (const [catName, patterns] of Object.entries(SUBCATEGORY_PATTERNS)) {
+      const catTxs = expenses.filter(t => t.category === catName);
+      if (catTxs.length < 5) continue;
+      const matched: { name: string; amount: number; count: number; merchants: Record<string, number> }[] = [];
+      for (const pattern of patterns) {
+        const hits = catTxs.filter(t =>
+          pattern.keywords.some(k => (t.merchant_name || "").toLowerCase().includes(k))
+        );
+        if (hits.length < 2) continue;
+        const total = hits.reduce((s, t) => s + Math.abs(t.amount), 0);
+        const merchantCounts: Record<string, number> = {};
+        hits.forEach(t => { const m = t.merchant_name || "Unknown"; merchantCounts[m] = (merchantCounts[m] || 0) + 1; });
+        matched.push({ name: pattern.name, amount: total, count: hits.length, merchants: merchantCounts });
+      }
+      if (matched.length < 2) continue;
+      const catMeta = categories.find(c => c.name === catName);
+      subcategorySuggestions.push({
+        parentCategory: catName,
+        parentColor: catMeta?.color || "#94a3b8",
+        subcategories: matched.map(m => ({
+          name: m.name,
+          amount: `$${Math.round(m.amount).toLocaleString()}`,
+          count: m.count,
+          topMerchant: Object.entries(m.merchants).sort((a, b) => b[1] - a[1])[0]?.[0] || "Unknown",
+        })),
+      });
+    }
+
     return {
       categories,
       totalSpent,
@@ -97,6 +181,8 @@ export function useCategoriesData(): CategoriesPageData {
       uncategorizedCount,
       avgSpentPerCategory: categories.length > 0 ? Math.round(totalSpent / categories.length) : 0,
       loading: false,
+      flaggedTransactions,
+      subcategorySuggestions,
     };
   }, [transactions, isLoading]);
 }

@@ -150,7 +150,8 @@ export default function CategoriesPageV2() {
             }}>T</div>
             <div style={{ flex: 1, fontSize: 12, color: THEME.textMuted }}>
               <span style={{ color: CYAN, fontWeight: 600 }}>{data.uncategorizedCount} items need review</span>
-              {" \u2022 "}2 subcategory splits suggested{" \u2022 "}12 auto-rules active
+              {data.subcategorySuggestions?.length > 0 && <>{" \u2022 "}{data.subcategorySuggestions.length} subcategory split{data.subcategorySuggestions.length !== 1 ? "s" : ""} suggested</>}
+              {" \u2022 "}Tag rules active
             </div>
             <span style={{ fontSize: 12, fontWeight: 600, color: CYAN, flexShrink: 0 }}>Open Copilot {"\u2192"}</span>
           </button>
@@ -221,11 +222,13 @@ export default function CategoriesPageV2() {
       {copilotOpen && (
         <TagCopilotPanel
           onClose={() => setCopilotOpen(false)}
-          flaggedCount={data.uncategorizedCount || 3}
-          categorizedCount={totalTxCount - (data.uncategorizedCount || 0)}
-          totalCount={totalTxCount || 184}
-          avgConfidence={96}
-          rulesCount={12}
+          flaggedCount={data.uncategorizedCount}
+          categorizedCount={totalTxCount - data.uncategorizedCount}
+          totalCount={totalTxCount}
+          avgConfidence={data.uncategorizedCount === 0 ? 96 : Math.round((1 - data.uncategorizedCount / Math.max(totalTxCount, 1)) * 100)}
+          rulesCount={0}
+          flaggedTransactions={data.flaggedTransactions}
+          subcategorySuggestions={data.subcategorySuggestions}
         />
       )}
 
