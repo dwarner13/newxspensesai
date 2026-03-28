@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
@@ -32,6 +32,53 @@ interface LearnedRule {
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+function renderInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} style={{ color: '#22d3ee', fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={i} style={{ color: '#c8d0e0' }}>{part.slice(1, -1)}</em>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split('\n');
+  return lines.map((line, lineIdx) => {
+    const headerMatch = line.match(/^#{1,3}\s+(.+)/);
+    if (headerMatch) {
+      return (
+        <div key={lineIdx} style={{ fontWeight: 700, color: '#e8ecf4', marginBottom: 4, marginTop: lineIdx > 0 ? 8 : 0 }}>
+          {headerMatch[1]}
+        </div>
+      );
+    }
+    const bulletMatch = line.match(/^[-*]\s+(.+)/);
+    if (bulletMatch) {
+      return (
+        <div key={lineIdx} style={{ display: 'flex', gap: 6, marginBottom: 2 }}>
+          <span style={{ color: '#22d3ee', flexShrink: 0 }}>{"\u2022"}</span>
+          <span>{renderInline(bulletMatch[1])}</span>
+        </div>
+      );
+    }
+    const numberedMatch = line.match(/^(\d+)\.\s+(.+)/);
+    if (numberedMatch) {
+      return (
+        <div key={lineIdx} style={{ display: 'flex', gap: 6, marginBottom: 2 }}>
+          <span style={{ color: '#22d3ee', flexShrink: 0, minWidth: 16 }}>{numberedMatch[1]}.</span>
+          <span>{renderInline(numberedMatch[2])}</span>
+        </div>
+      );
+    }
+    if (!line.trim()) return <div key={lineIdx} style={{ height: 6 }} />;
+    return <div key={lineIdx} style={{ marginBottom: 2 }}>{renderInline(line)}</div>;
+  });
 }
 
 export function TagCopilotPanel({
@@ -333,7 +380,7 @@ export function TagCopilotPanel({
                   : { background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44`, color: THEME.textMuted, borderBottomLeftRadius: 4 }
                 ),
               }}>
-                {msg.content}
+                {msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}
                 {msg.role === "assistant" && i === messages.length - 1 && isLoading && (
                   <span style={{ color: CYAN, marginLeft: 2 }}>{"\u2588"}</span>
                 )}
