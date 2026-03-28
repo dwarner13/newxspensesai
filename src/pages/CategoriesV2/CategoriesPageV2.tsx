@@ -128,7 +128,7 @@ export default function CategoriesPageV2() {
                 <div style={{ fontSize: 11, color: THEME.textDim, marginTop: 2 }}>excl. transfers</div>
               </div>
 
-              {/* Net — desktop only */}
+              {/* Net ï¿½ desktop only */}
               {!isMobile && (
                 <div>
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 6 }}>Net</div>
@@ -227,7 +227,7 @@ export default function CategoriesPageV2() {
           </div>
         )}
 
-        {/* Money Movement — Transfers shown separately, excluded from expense totals */}
+        {/* Money Movement ï¿½ Transfers shown separately, excluded from expense totals */}
         {!search && transfersCategory && (
           <Reveal delay={200}>
             <div style={{ marginTop: 32 }}>
@@ -245,7 +245,7 @@ export default function CategoriesPageV2() {
         )}
       </div>
 
-      {/* Floating T bubble — only when copilot closed */}
+      {/* Floating T bubble ï¿½ only when copilot closed */}
       {!copilotOpen && (
         <button onClick={() => setCopilotOpen(true)} aria-label="Open Tag Copilot"
           className="fixed z-40 transition-all hover:scale-105 active:scale-95"
@@ -264,6 +264,14 @@ export default function CategoriesPageV2() {
           rulesCount={0}
           flaggedTransactions={data.flaggedTransactions}
           subcategorySuggestions={data.subcategorySuggestions}
+          totalSpent={data.totalSpent}
+          totalIncome={data.totalIncome}
+          txCount={totalTxCount}
+          topCategories={data.categories.slice(0, 8).map(c => ({
+            category: c.name,
+            total: c.spent,
+            transactionCount: c.transactionCount,
+          }))}
         />
       )}
 

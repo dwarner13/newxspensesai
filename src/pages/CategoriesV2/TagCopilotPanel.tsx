@@ -17,6 +17,10 @@ interface TagCopilotPanelProps {
   rulesCount: number;
   flaggedTransactions?: FlaggedTransaction[];
   subcategorySuggestions?: SubcategorySuggestion[];
+  totalSpent?: number;
+  totalIncome?: number;
+  txCount?: number;
+  topCategories?: { category: string; total: number; transactionCount: number }[];
 }
 
 interface LearnedRule {
@@ -40,6 +44,10 @@ export function TagCopilotPanel({
   rulesCount,
   flaggedTransactions = [],
   subcategorySuggestions = [],
+  totalSpent,
+  totalIncome,
+  txCount,
+  topCategories,
 }: TagCopilotPanelProps) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(initialMessage || "");
@@ -127,6 +135,7 @@ export function TagCopilotPanel({
         body: JSON.stringify({
           message: text,
           history: updatedMessages.slice(0, -1),
+          systemPromptOverride: "You are Tag -- XspensesAI's categorization expert on the CATEGORIES PAGE.\n\nUSER'S FINANCIAL DATA (real, current):\n- Total spent: " + (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) + " CAD\n- Total transactions: " + (txCount || 0) + "\n- Top spending categories:\n" + (topCategories || []).slice(0, 8).map(c => "  - " + c.category + ": " + c.total.toFixed(2) + " (" + c.transactionCount + " transactions)").join("\n") + "\n\nYou are looking at the Categories page with the user. Answer questions about their spending categories, tax deductibility, business vs personal split, and category optimization for Canadian self-employed. Reference the real numbers above.\nTag personality: detective-like, precise, witty, always helpful.",
         }),
       });
 

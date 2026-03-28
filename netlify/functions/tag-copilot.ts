@@ -107,7 +107,7 @@ export const handler: Handler = async (event) => {
   if (auth.error || !auth.userId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   const body = JSON.parse(event.body || '{}');
-  const { message, history = [] } = body;
+  const { message, history = [], systemPromptOverride } = body;
 
   if (!message) return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
 
@@ -168,7 +168,7 @@ export const handler: Handler = async (event) => {
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 500,
-    system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }),
+    system: systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }),
     messages: [
       ...history.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
