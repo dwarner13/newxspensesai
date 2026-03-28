@@ -357,7 +357,7 @@ export function TransactionInsightDrawer({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(34,211,153,0.04)', border: '1px solid rgba(34,211,153,0.12)', borderRadius: 10, padding: '6px 8px 6px 12px' }}>
             <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(34,211,153,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
             <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && void sendChat()}
-              placeholder="Ask Tag anything about this transaction…"
+              placeholder="Ask Tag anything about this transaction..."
               disabled={row.kind !== 'committed' || chatBusy}
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: '#e8ecf4', fontFamily: 'inherit' }} />
             <button type="button" onClick={() => void sendChat()} disabled={!chatInput.trim() || chatBusy || row.kind !== 'committed'}
