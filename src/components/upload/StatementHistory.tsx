@@ -47,7 +47,8 @@ function formatDate(d: string | null) {
 }
 
 export function StatementHistory() {
-  const [rows, setRows] = useState<StatementRow[]>([]);`n  const navigate = useNavigate();
+  const [rows, setRows] = useState<StatementRow[]>([]);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -118,19 +119,19 @@ export function StatementHistory() {
       </div>
       <div style={{ borderRadius: 14, border: '1px solid ' + T.border, overflow: 'hidden' }}>
         {/* Header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', padding: '10px 16px', background: T.surface, borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', padding: '10px 16px', background: T.surface, borderBottom: '1px solid ' + T.border }}>
           {['File', 'Status', 'Transactions', 'Date Range', ''].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{h}</div>
           ))}
         </div>
         {/* Rows */}
         {rows.map((row, i) => (
-          <div key={row.id} onClick={() => row.status === "committed" && navigate(`/dashboard/transactions?importId=${row.id}`)} style={{
+          <div key={row.id} onClick={() => row.status === "committed" && navigate('/dashboard/transactions?importId=' + row.id)} style={{
             display: 'grid',
             gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
             padding: '12px 16px',
-            borderBottom: i < rows.length - 1 ? `1px solid ${T.border}` : 'none',
-            background: i % 2 === 0 ? T.bg : `${T.surface}80`,
+            borderBottom: i < rows.length - 1 ? '1px solid ' + T.border : 'none',
+            background: i % 2 === 0 ? T.bg : T.surface + '80',
             alignItems: 'center',
           }}>
             <div style={{ fontSize: 12, color: T.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>
@@ -140,15 +141,15 @@ export function StatementHistory() {
               {statusLabel(row.status)}
             </div>
             <div style={{ fontSize: 12, color: row.txn_count > 0 ? T.text : T.dim }}>
-              {row.txn_count > 0 ? `${row.txn_count} txns` : '--'}
+              {row.txn_count > 0 ? row.txn_count + ' txns' : '--'}
             </div>
             <div style={{ fontSize: 11, color: T.muted }}>
-              {row.earliest ? `${formatDate(row.earliest)} - ${formatDate(row.latest)}` : '--'}
+              {row.earliest ? formatDate(row.earliest) + ' - ' + formatDate(row.latest) : '--'}
             </div>
             <div>
               <button onClick={() => handleDelete(row.id)} style={{
                 fontSize: 10, fontWeight: 700, color: T.red, background: 'transparent',
-                border: `1px solid ${T.red}44`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
+                border: '1px solid ' + T.red + '44', borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
               }}>Delete</button>
             </div>
           </div>
