@@ -19,6 +19,14 @@ export const THEME = {
   amber: "#fbbf24",
 } as const;
 
+export interface SubcategoryChip {
+  name: string;
+  spent: number;
+  count: number;
+  color: string;
+  merchantNames: string[];
+}
+
 export interface CategoryData {
   name: string;
   spent: number;
@@ -28,6 +36,7 @@ export interface CategoryData {
   trend: number;
   topMerchant: string;
   transactionCount: number;
+  subcategories?: SubcategoryChip[];
 }
 
 export const CATEGORY_META: Record<string, { color: string; icon: string; budget: number }> = {

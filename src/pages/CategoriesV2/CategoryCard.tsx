@@ -4,11 +4,13 @@ import { AnimatedBar } from "./AnimatedBar";
 interface CategoryCardProps {
   category: CategoryData;
   onClick: () => void;
+  onSubcategoryClick?: (subName: string, merchantNames: string[]) => void;
 }
 
-export function CategoryCard({ category, onClick }: CategoryCardProps) {
+export function CategoryCard({ category, onClick, onSubcategoryClick }: CategoryCardProps) {
   const pct = category.budget > 0 ? Math.round((category.spent / category.budget) * 100) : 0;
   const isOver = pct > 100;
+  const barColor = isOver ? THEME.red : pct >= 80 ? THEME.amber : category.color;
   const trendDir = category.trend > 0 ? "\u2191" : category.trend < 0 ? "\u2193" : "";
   const trendColor = category.trend > 10 ? THEME.red : category.trend < -5 ? THEME.green : THEME.textDim;
 
@@ -20,16 +22,14 @@ export function CategoryCard({ category, onClick }: CategoryCardProps) {
         padding: "16px 18px", textAlign: "left", cursor: "pointer", transition: "all 0.2s",
         width: "100%", boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = category.color + "66"; e.currentTarget.style.boxShadow = `0 8px 32px ${category.color}15`; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.1)"; }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = category.color + "66"; e.currentTarget.style.boxShadow = `0 8px 32px ${category.color}15`; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.1)"; }}
     >
-      {/* Top row: icon + name + trend */}
+      {/* Top row */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: category.color + "18", border: `1px solid ${category.color}30`,
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-        }}>{category.icon}</div>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: category.color + "18", border: `1px solid ${category.color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+          {category.icon}
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: THEME.text, marginBottom: 2 }}>{category.name}</div>
           <div style={{ fontSize: 10, color: THEME.textDim }}>{category.transactionCount} transactions</div>
@@ -47,15 +47,39 @@ export function CategoryCard({ category, onClick }: CategoryCardProps) {
           ${category.spent.toLocaleString()}
         </span>
         {category.budget > 0 && (
-          <span style={{ fontSize: 12, color: THEME.textDim }}>
-            / ${category.budget.toLocaleString()}
-          </span>
+          <span style={{ fontSize: 12, color: THEME.textDim }}>/ ${category.budget.toLocaleString()}</span>
         )}
       </div>
 
       {/* Progress bar */}
-      {category.budget > 0 && (
-        <AnimatedBar pct={pct} color={isOver ? THEME.red : pct >= 80 ? THEME.amber : category.color} />
+      {category.budget > 0 && <AnimatedBar pct={pct} color={barColor} />}
+
+      {/* Subcategory chips */}
+      {category.subcategories && category.subcategories.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 10 }}
+          onClick={e => e.stopPropagation()}
+        >
+          {category.subcategories.slice(0, 4).map(sub => (
+            <button
+              key={sub.name}
+              onClick={e => {
+                e.stopPropagation();
+                onSubcategoryClick?.(sub.name, sub.merchantNames);
+              }}
+              style={{
+                padding: "3px 9px", borderRadius: 20, fontSize: 10, fontWeight: 600,
+                background: `${category.color}14`, border: `1px solid ${category.color}28`,
+                color: category.color, cursor: "pointer", transition: "all 0.15s",
+                display: "inline-flex", alignItems: "center", gap: 4,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = `${category.color}28`; e.currentTarget.style.borderColor = `${category.color}55`; }}
+              onMouseLeave={e => { e.currentTarget.style.background = `${category.color}14`; e.currentTarget.style.borderColor = `${category.color}28`; }}
+            >
+              {sub.name}
+              <span style={{ opacity: 0.7 }}>${sub.spent >= 1000 ? (sub.spent / 1000).toFixed(1) + "k" : sub.spent}</span>
+            </button>
+          ))}
+        </div>
       )}
 
       {/* Top merchant */}
