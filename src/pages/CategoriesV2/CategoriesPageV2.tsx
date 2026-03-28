@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+﻿import { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
 import { THEME } from "./categoryConfig";
 import { useCategoriesData } from "./useCategoriesData";
@@ -128,7 +128,7 @@ export default function CategoriesPageV2() {
                 <div style={{ fontSize: 11, color: THEME.textDim, marginTop: 2 }}>excl. transfers</div>
               </div>
 
-              {/* Net � desktop only */}
+              {/* Net ï¿½ desktop only */}
               {!isMobile && (
                 <div>
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 6 }}>Net</div>
@@ -227,7 +227,7 @@ export default function CategoriesPageV2() {
           </div>
         )}
 
-        {/* Money Movement � Transfers shown separately, excluded from expense totals */}
+        {/* Money Movement ï¿½ Transfers shown separately, excluded from expense totals */}
         {!search && transfersCategory && (
           <Reveal delay={200}>
             <div style={{ marginTop: 32 }}>
@@ -245,11 +245,11 @@ export default function CategoriesPageV2() {
         )}
       </div>
 
-      {/* Floating T bubble � only when copilot closed */}
+      {/* Floating T bubble ï¿½ only when copilot closed */}
       {!copilotOpen && (
         <button onClick={() => setCopilotOpen(true)} aria-label="Open Tag Copilot"
           className="fixed z-40 transition-all hover:scale-105 active:scale-95"
-          style={{ bottom: 80, right: 16, width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${CYAN}, #0891b2)`, boxShadow: `0 4px 20px ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#0b1220" }}
+          style={{ bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 16, width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${CYAN}, #0891b2)`, boxShadow: `0 4px 20px ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#0b1220" }}
         >T</button>
       )}
 
@@ -285,3 +285,4 @@ export default function CategoriesPageV2() {
     </>
   );
 }
+
