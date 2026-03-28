@@ -125,3 +125,4 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
   );
 }
 
+
