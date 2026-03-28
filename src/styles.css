@@ -1,8 +1,22 @@
 /* Import Dashboard Global Styles */
 
 @tailwind base;
+
+/* === GLOBAL TYPOGRAPHY === */
+html {
+  font-size: 15px;
+}
+@media (max-width: 768px) {
+  html {
+    font-size: 15px;
+  }
+}
 @tailwind components;
 @tailwind utilities;
+
+/* Global base font size */
+html { font-size: 15px; }
+@media (max-width: 768px) { html { font-size: 15px; } }
 
 /* ═══ V2 Mobile Overflow Fix ═══ */
 html, body {

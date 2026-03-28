@@ -80,7 +80,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
         </div>
         {/* ACTIVE TRANSACTION PILL */}
         {transaction && (
-          <div style={{ margin:'12px 16px 0', padding:'8px 12px', borderRadius:8, background:'rgba(34,211,153,0.06)', border:'1px solid rgba(34,211,153,0.12)', fontSize:12, color:'#94a3b8' }}>
+          <div style={{ margin:'12px 16px 0', padding:'10px 14px', borderRadius:8, background:'rgba(34,211,153,0.06)', border:'1px solid rgba(34,211,153,0.12)', fontSize:12, color:'#94a3b8' }}>
             <span style={{ color:'#e8ecf4', fontWeight:600 }}>{transaction.merchant_name || 'Transaction'}</span>
             {' · $'}{Math.abs(transaction.amount).toFixed(2)}
             {' · '}<span style={{ color:'#22d3ee' }}>{transaction.category || 'Uncategorized'}</span>
@@ -93,7 +93,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated }: Tag
               {m.role==='tag' && (
                 <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>T</div>
               )}
-              <div style={{ maxWidth:'80%', padding:'8px 12px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:13, color:'#e8ecf4', lineHeight:1.5 }}>
+              <div style={{ maxWidth:'80%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:13, color:'#e8ecf4', lineHeight:1.5 }}>
                 {m.text.split('**').map((part, j) => j % 2 === 1 ? <strong key={j}>{part}</strong> : part)}
               </div>
             </div>

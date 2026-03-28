@@ -167,7 +167,7 @@ export function TagCopilotPanel({
                 <span style={{ fontSize: 12, fontWeight: 700, color: CYAN }}>Tag</span>
                 <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
               </div>
-              <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6, padding: "12px 14px", borderRadius: 14, background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44` }}>
+              <div style={{ fontSize: 14, color: THEME.text, lineHeight: 1.7, padding: "12px 14px", borderRadius: 14, background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44` }}>
                 {typed}<span style={{ opacity: !typeDone ? 1 : 0, transition: "opacity 0.3s", color: CYAN }}>{"\u2588"}</span>
               </div>
             </div>
@@ -206,7 +206,7 @@ export function TagCopilotPanel({
                     <span style={{ fontSize: 13, fontWeight: 600, color: THEME.text }}>{f.merchant}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: THEME.text }}>{f.amount}</span>
                   </div>
-                  <div style={{ fontSize: 11.5, color: THEME.textMuted, marginBottom: 10 }}>{f.issue}</div>
+                  <div style={{ fontSize: 13, color: THEME.text, marginBottom: 10 }}>{f.issue}</div>
                   <button
                     onClick={() => handleSend(`Help me categorize ${f.merchant} ${f.amount}`)}
                     style={{ padding: "6px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: `${CYAN}12`, border: `1px solid ${CYAN}28`, color: CYAN, cursor: "pointer" }}
@@ -227,7 +227,7 @@ export function TagCopilotPanel({
               {subcategorySuggestions.map((sg, idx) => (
                 <div key={idx} style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(167,139,250,0.04)", border: "1px solid rgba(167,139,250,0.1)", marginBottom: 10 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: THEME.text, marginBottom: 4 }}>Split "{sg.parentCategory}" into {sg.subcategories.length} subcategories</div>
-                  <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 12 }}>Distinct spending patterns detected:</div>
+                  <div style={{ fontSize: 13, color: THEME.text, marginBottom: 12 }}>Distinct spending patterns detected:</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
                     {sg.subcategories.map(s => (
                       <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: THEME.surface, border: `1px solid ${THEME.border}` }}>
@@ -261,7 +261,7 @@ export function TagCopilotPanel({
                 {learnedRules.map((r, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < learnedRules.length - 1 ? `1px solid ${THEME.border}` : "none" }}>
                     <span style={{ fontSize: 11.5, fontWeight: 600, color: THEME.text, flex: 1, fontFamily: "monospace" }}>{r.merchant}</span>
-                    <span style={{ fontSize: 11, color: THEME.textMuted }}>{"\u2192"}</span>
+                    <span style={{ fontSize: 12, color: THEME.textMuted }}>{"\u2192"}</span>
                     <span style={{ fontSize: 11.5, fontWeight: 600, color: CYAN, minWidth: 100 }}>{r.category}</span>
                     <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>{r.confidence}%</span>
                   </div>
@@ -278,7 +278,7 @@ export function TagCopilotPanel({
                 <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: CYAN }}>Tag Recommends</span>
                 <div style={{ flex: 1, height: 1, background: THEME.border }} />
               </div>
-              <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6, padding: "14px 16px", borderRadius: 14, background: `linear-gradient(135deg, ${CYAN}08, transparent)`, border: `1px solid ${CYAN}15` }}>
+              <div style={{ fontSize: 14, color: THEME.text, lineHeight: 1.7, padding: "14px 16px", borderRadius: 14, background: `linear-gradient(135deg, ${CYAN}08, transparent)`, border: `1px solid ${CYAN}15` }}>
                 {flaggedCount > 0
                   ? `Start with the ${flaggedCount} flagged transaction${flaggedCount !== 1 ? "s" : ""} \u2014 once those are categorized, your spending totals will be accurate and Prime can give you a better summary.`
                   : subcategorySuggestions.length > 0
