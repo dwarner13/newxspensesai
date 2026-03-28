@@ -98,7 +98,7 @@ export default function TransactionsPageV2() {
       if (!user) return;
       const res = await fetch(`/.netlify/functions/tag-explain`, {
         method: `POST`,
-        headers: { `content-type`: `application/json`, `x-user-id`: user.id },
+        headers: { 'content-type': 'application/json', 'x-user-id': user.id },
         body: JSON.stringify({ transactionId: tx.id }),
       });
       if (res.ok) setTagInsight(await res.json());
