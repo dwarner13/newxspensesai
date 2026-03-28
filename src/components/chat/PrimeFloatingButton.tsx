@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Prime Floating Button Component
  * 
  * Floating action button that opens unified chat slideout with Prime.
@@ -54,7 +54,7 @@ export function PrimeFloatingButton({ onPrimeClick, hidden = false }: PrimeFloat
         background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
       }}
     >
-      <span className="text-2xl">ðŸ‘‘</span>
+      <span className="text-2xl">👑</span>
     </button>
   );
 }

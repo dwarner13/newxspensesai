@@ -249,7 +249,7 @@ export default function CategoriesPageV2() {
       {!copilotOpen && (
         <button onClick={() => setCopilotOpen(true)} aria-label="Open Tag Copilot"
           className="fixed z-40 transition-all hover:scale-105 active:scale-95"
-          style={{ bottom: "calc(24px + env(safe-area-inset-bottom, 0px))", right: 16, width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${CYAN}, #0891b2)`, boxShadow: `0 4px 20px ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#0b1220" }}
+          style={{ bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 16, width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${CYAN}, #0891b2)`, boxShadow: `0 4px 20px ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#0b1220" }}
         >T</button>
       )}
 
