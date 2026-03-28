@@ -171,6 +171,7 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
 
       for (const pattern of patterns) {
         const hits = catTxs.filter(t =>
+          (t as any).subcategory === pattern.name ||
           pattern.keywords.some(k => (t.merchant_name || "").toLowerCase().includes(k))
         );
         if (hits.length === 0) continue;

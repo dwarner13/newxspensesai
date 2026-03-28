@@ -76,6 +76,7 @@ export function useTransactions(options?: {
             'amount',
             'category',
             'subcategory',
+            'subcategory_source',
             'category_source',
             'type',
             'import_id',

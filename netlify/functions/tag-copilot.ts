@@ -49,7 +49,7 @@ function buildSystemPrompt(
     ? flaggedMerchants.slice(0, 5).map(f => `  ${f.merchant} $${f.amount.toFixed(2)} (currently: ${f.category})`).join('\n')
     : '  None';
 
-  return `You are Tag — XspensesAI's sharp, friendly categorization expert. You are speaking with the user from the Categories dashboard. You have full visibility into their spending categories and the rules you have learned.
+  return `You are Tag ï¿½ XspensesAI's sharp, friendly categorization expert. You are speaking with the user from the Categories dashboard. You have full visibility into their spending categories and the rules you have learned.
 
 USER'S FINANCES (this year):
 - Total spent: $${yearTotal.spent.toLocaleString()}
@@ -65,7 +65,7 @@ ${rulesText}
 TRANSACTIONS NEEDING REVIEW:
 ${flaggedText}
 
-YOUR CAPABILITIES — you can take these actions when the user asks:
+YOUR CAPABILITIES ï¿½ you can take these actions when the user asks:
 
 1. SET A RULE for a merchant (e.g. "always categorize Shell as Transportation"):
    End your reply with: {"action":"set_rule","vendor":"shell","category":"Transportation","applyToExisting":true}
@@ -75,11 +75,15 @@ YOUR CAPABILITIES — you can take these actions when the user asks:
    End your reply with: {"action":"bulk_recategorize","from":"Other","to":"Food & Dining"}
    This updates every transaction in that category.
 
-3. APPLY RULE TO SPECIFIC MERCHANT across all transactions:
+3. SET SUBCATEGORY for specific merchants (e.g. mark all Shell as Gas & Fuel under Transportation):
+   End your reply with: {"action":"set_subcategory","vendor":"shell","subcategory":"Gas & Fuel","category":"Transportation"}
+   This stores the subcategory on all matching transactions.
+
+4. APPLY RULE TO SPECIFIC MERCHANT across all transactions:
    End your reply with: {"action":"apply_to_merchant","vendor":"leduc diner","category":"Food & Dining"}
 
 RULES FOR ACTIONS:
-- Only emit an action JSON when the user clearly wants a change made — not for questions
+- Only emit an action JSON when the user clearly wants a change made ï¿½ not for questions
 - Use only these categories: ${CATEGORIES.join(', ')}
 - When setting a rule, confirm what you are doing in plain language first, then emit the JSON on its own line
 - After a bulk action, tell the user how many transactions will be affected if you know
@@ -89,7 +93,7 @@ YOUR PERSONALITY:
 - Detective-like, precise, a little witty
 - Confident about what you know, honest about what you do not
 - Canadian tax context when relevant (self-employed deductions, HST)
-- Concise — 2-4 sentences unless explaining something complex
+- Concise ï¿½ 2-4 sentences unless explaining something complex
 - When the user asks what rules you know, list them clearly from the RULES section above
 
 IMPORTANT: Only emit the JSON action line when making a real change. Never emit it for explanations or questions.`;
@@ -183,6 +187,27 @@ export const handler: Handler = async (event) => {
   if (actionMatch) {
     try {
       action = JSON.parse(actionMatch[0]);
+
+      if (action?.action === 'set_subcategory') {
+        const vendor = String(action.vendor || '').toLowerCase().trim();
+        const subcategory = String(action.subcategory || '');
+        const category = String(action.category || '');
+        await supabase
+          .from('transactions')
+          .update({ subcategory, subcategory_source: 'user_chat', updated_at: new Date().toISOString() })
+          .eq('user_id', auth.userId)
+          .ilike('merchant_name', '%' + vendor + '%');
+        if (category) {
+          await supabase.from('vendor_category_memory').upsert({
+            user_id: auth.userId,
+            vendor_key: vendor.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
+            category,
+            subcategory,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,vendor_key' });
+        }
+        action.applied = true;
+      }
 
       if (action?.action === 'set_rule' || action?.action === 'apply_to_merchant') {
         const vendor = String(action.vendor || '').toLowerCase().trim();
