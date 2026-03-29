@@ -47,7 +47,9 @@ You can help with:
 1. Filtering — detect filter intent and return: FILTER:{"search":"<term>","category":"<cat or null>"}
 2. Bulk categorization — detect bulk intent, confirm first, then: BULK_CHANGE:{"merchant":"<merchant>","category":"<cat>","confirm":true}
 3. Undo — if user says undo: UNDO:{}
-4. Questions — answer naturally about their spending, no action JSON
+4. Smart reclassify — when user wants to "categorize everything", "use your judgment", "fix all uncategorized", "clean up", "reclassify", end with: RECLASSIFY_PREVIEW:{}
+   Do NOT ask what category — Tag will figure it out. Do NOT execute — just signal the preview.
+5. Questions — answer naturally about their spending, no action JSON
 
 Rules:
 - Always confirm before bulk changes
@@ -56,6 +58,7 @@ Rules:
 - Use only these categories: ${CATEGORIES.join(', ')}
 - For filter/search: detect "show me X", "find X", "search for X" patterns
 - For bulk: detect "change all X to Y", "categorize X as Y"
+- For reclassify: detect "categorize everything", "fix uncategorized", "use your judgment", "clean up my transactions", "auto categorize"
 
 IMPORTANT: Only output action JSON when the user clearly wants an action. Never output it for questions.`;
   }

@@ -5,7 +5,7 @@ import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 import type { CommittedTransaction } from '@/types/transactions';
 
 interface TagAction {
-  type: 'filter' | 'bulk_change' | 'undo';
+  type: 'filter' | 'bulk_change' | 'undo' | 'reclassify_preview';
   search?: string;
   category?: string;
   merchant?: string;
@@ -43,6 +43,9 @@ function parseTagAction(reply: string): { cleanReply: string; action: TagAction 
   } else if (undoMatch) {
     action = { type: 'undo' };
     cleanReply = reply.replace(/UNDO:\{[^}]*\}/g, '').trim();
+  } else if (/RECLASSIFY_PREVIEW:\{\}/.test(reply)) {
+    action = { type: 'reclassify_preview' };
+    cleanReply = reply.replace(/RECLASSIFY_PREVIEW:\{\}/g, '').trim();
   }
   return { cleanReply, action };
 }

@@ -68,40 +68,78 @@ export const handler: Handler = async (event) => {
   if (auth.error || !auth.userId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   const sb = serverSupabase();
+  const preview = event.queryStringParameters?.preview === 'true';
 
   const { data: otherTxs } = await sb
     .from('transactions')
     .select('id, merchant_name, amount')
     .eq('user_id', auth.userId)
-    .eq('category', 'Other')
+    .or('category.eq.Other,category.eq.Needs Review,category.eq.Uncategorized,category.is.null')
     .limit(1000);
 
-  let reclassified = 0;
-  let needsReview = 0;
+  // Classify all transactions
+  const confidentMatches: Array<{ id: string; merchant_name: string; newCategory: string; subcategory?: string }> = [];
+  let needsReviewCount = 0;
 
   for (const tx of otherTxs ?? []) {
     const match = matchMerchantMap(tx.merchant_name || '');
     if (match) {
-      await sb.from('transactions').update({
-        category: match.category,
-        subcategory: match.subcategory ?? null,
-        category_source: 'tag_rule',
-        updated_at: new Date().toISOString(),
-      }).eq('id', tx.id).eq('user_id', auth.userId);
-      reclassified++;
+      confidentMatches.push({ id: tx.id, merchant_name: tx.merchant_name, newCategory: match.category, subcategory: match.subcategory });
     } else {
-      await sb.from('transactions').update({
-        category: 'Needs Review',
-        category_source: 'needs_review',
-        updated_at: new Date().toISOString(),
-      }).eq('id', tx.id).eq('user_id', auth.userId);
-      needsReview++;
+      needsReviewCount++;
     }
   }
 
+  // Group confident by merchant+category
+  const confidentGrouped = Object.values(
+    confidentMatches.reduce((acc: Record<string, { merchant_name: string; category: string; count: number; ids: string[] }>, tx) => {
+      const key = `${tx.merchant_name}|${tx.newCategory}`;
+      if (!acc[key]) acc[key] = { merchant_name: tx.merchant_name, category: tx.newCategory, count: 0, ids: [] };
+      acc[key].count++;
+      acc[key].ids.push(tx.id);
+      return acc;
+    }, {})
+  ).sort((a, b) => b.count - a.count);
+
+  if (preview) {
+    return {
+      statusCode: 200, headers,
+      body: JSON.stringify({
+        ok: true, preview: true,
+        confident_groups: confidentGrouped,
+        confident_count: confidentMatches.length,
+        needs_review_count: needsReviewCount,
+        total_scanned: (otherTxs ?? []).length,
+      }),
+    };
+  }
+
+  // Execute updates
+  let reclassified = 0;
+  for (const tx of confidentMatches) {
+    await sb.from('transactions').update({
+      category: tx.newCategory,
+      subcategory: tx.subcategory ?? null,
+      category_source: 'tag_rule',
+      updated_at: new Date().toISOString(),
+    }).eq('id', tx.id).eq('user_id', auth.userId);
+    reclassified++;
+  }
+
+  // Mark remaining as Needs Review
+  let needsReviewUpdated = 0;
+  for (const tx of otherTxs ?? []) {
+    if (confidentMatches.some(m => m.id === tx.id)) continue;
+    await sb.from('transactions').update({
+      category: 'Needs Review',
+      category_source: 'needs_review',
+      updated_at: new Date().toISOString(),
+    }).eq('id', tx.id).eq('user_id', auth.userId);
+    needsReviewUpdated++;
+  }
+
   return {
-    statusCode: 200,
-    headers,
-    body: JSON.stringify({ ok: true, reclassified, needs_review: needsReview, total: (otherTxs ?? []).length }),
+    statusCode: 200, headers,
+    body: JSON.stringify({ ok: true, reclassified, needs_review: needsReviewUpdated, total: (otherTxs ?? []).length }),
   };
 };

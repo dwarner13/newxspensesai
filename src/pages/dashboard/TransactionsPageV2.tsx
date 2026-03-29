@@ -68,6 +68,7 @@ export default function TransactionsPageV2() {
   const [lastBulkAction, setLastBulkAction] = useState<{ ids: string[]; previousCategory: string } | null>(null);
   const [pendingSweep, setPendingSweep] = useState<any>(null);
   const [badgePulse, setBadgePulse] = useState(false);
+  const [reclassifyPreview, setReclassifyPreview] = useState<any>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("from") === "upload") {
@@ -629,6 +630,37 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
+      {/* Reclassify preview banner */}
+      {tagPanelOpen && reclassifyPreview && (() => {
+        const d = reclassifyPreview;
+        const topGroups = (d.confident_groups ?? []).slice(0, 5);
+        const more = (d.confident_groups?.length ?? 0) - 5;
+        return (
+          <div style={{ position: 'fixed', top: 0, right: 0, width: 380, zIndex: 72, padding: '12px 16px', background: '#0d1a2d', borderBottom: '1px solid rgba(34,211,238,0.2)', borderLeft: '1px solid rgba(34,211,153,0.15)' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(34,211,238,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
+              <div style={{ flex: 1, fontSize: 12, color: '#c8d0e0', lineHeight: 1.5 }}>
+                <div style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Scanned {d.total_scanned} transactions</div>
+                {topGroups.map((g: any, i: number) => <div key={i}>{'\u2022'} {g.merchant_name} \u00d7{g.count} \u2192 {g.category}</div>)}
+                {more > 0 && <div style={{ color: '#475569' }}>...and {more} more</div>}
+                <div style={{ marginTop: 4 }}><strong style={{ color: '#22d3ee' }}>{d.confident_count}</strong> confident, <strong style={{ color: '#64748b' }}>{d.needs_review_count}</strong> need your input</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={async () => {
+                try {
+                  const sb = getSupabase(); if (!sb) return;
+                  const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+                  const res = await fetch('/.netlify/functions/tag-reclassify-other', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
+                  const result = await res.json();
+                  if (result.ok) { toast.success(`Categorized ${result.reclassified} transactions`); setReclassifyPreview(null); void refetch(); void fetchTagInbox(); }
+                } catch { toast.error('Failed'); }
+              }} style={{ padding: '5px 14px', borderRadius: 16, fontSize: 11, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>Apply {d.confident_count} {'\u2192'}</button>
+              <button onClick={() => setReclassifyPreview(null)} style={{ padding: '5px 14px', borderRadius: 16, fontSize: 11, fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#475569', cursor: 'pointer' }}>Skip</button>
+            </div>
+          </div>
+        );
+      })()}
       {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
         if (action.type === 'filter') { setSearchQuery(action.search || ''); }
         else if (action.type === 'bulk_change' && action.merchant && !action.confirm) {
@@ -649,6 +681,15 @@ export default function TransactionsPageV2() {
             const { data: { session } } = await sb.auth.getSession(); if (!session) return;
             await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'undo', affectedIds: lastBulkAction.ids, previousCategory: lastBulkAction.previousCategory }) });
             setLastBulkAction(null); void refetch();
+          } catch { /* silent */ }
+        }
+        else if (action.type === 'reclassify_preview') {
+          try {
+            const sb = getSupabase(); if (!sb) return;
+            const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+            const res = await fetch('/.netlify/functions/tag-reclassify-other?preview=true', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
+            const d = await res.json();
+            if (d.ok) setReclassifyPreview(d);
           } catch { /* silent */ }
         }
       }} />}
