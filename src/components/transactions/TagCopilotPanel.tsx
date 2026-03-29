@@ -4,10 +4,20 @@ import { getSupabase } from '../../lib/supabase';
 import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 import type { CommittedTransaction } from '@/types/transactions';
 
+interface TagAction {
+  type: 'filter' | 'bulk_change' | 'undo';
+  search?: string;
+  category?: string;
+  merchant?: string;
+  confirm?: boolean;
+}
+
 interface TagCopilotPanelProps {
   transaction?: CommittedTransaction | null;
   onClose: () => void;
   onCategoryUpdated?: () => void;
+  onTagAction?: (action: TagAction) => void;
+  onToggleActivity?: () => void;
   totalCount?: number;
   firstName?: string;
   totalSpent?: number;
@@ -18,7 +28,26 @@ interface TagCopilotPanelProps {
   onChatHistoryChange?: (history: { role: string; content: string }[], reply: string | null) => void;
 }
 
-export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, totalCount, firstName, totalSpent, totalIncome, netFlow }: TagCopilotPanelProps) {
+function parseTagAction(reply: string): { cleanReply: string; action: TagAction | null } {
+  const filterMatch = reply.match(/FILTER:(\{[^}]*\})/);
+  const bulkMatch = reply.match(/BULK_CHANGE:(\{[^}]*\})/);
+  const undoMatch = reply.match(/UNDO:(\{[^}]*\})/);
+  let action: TagAction | null = null;
+  let cleanReply = reply;
+  if (filterMatch) {
+    try { action = { type: 'filter', ...JSON.parse(filterMatch[1]) }; } catch {}
+    cleanReply = reply.replace(/FILTER:\{[^}]*\}/g, '').trim();
+  } else if (bulkMatch) {
+    try { action = { type: 'bulk_change', ...JSON.parse(bulkMatch[1]) }; } catch {}
+    cleanReply = reply.replace(/BULK_CHANGE:\{[^}]*\}/g, '').trim();
+  } else if (undoMatch) {
+    action = { type: 'undo' };
+    cleanReply = reply.replace(/UNDO:\{[^}]*\}/g, '').trim();
+  }
+  return { cleanReply, action };
+}
+
+export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTagAction, onToggleActivity, totalCount, firstName, totalSpent, totalIncome, netFlow }: TagCopilotPanelProps) {
   const [localMessages, setLocalMessages] = useState<{ role: 'tag' | 'user'; text: string }[]>(() => {
     if (transaction) return [];
     try {
@@ -80,6 +109,8 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, total
         headers: { 'content-type': 'application/json', 'authorization': `Bearer ${token}` },
         body: JSON.stringify({
           transactionId: txId, message: text, history,
+          merchant: transaction?.merchant_name || undefined,
+          context: transaction ? undefined : 'page',
           pageContext: {
             totalSpent: totalSpent ?? 0,
             totalIncome: totalIncome ?? 0,
@@ -90,7 +121,9 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, total
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setLocalMessages(m => [...m, { role: 'tag' as const, text: data.reply }]);
+      const { cleanReply, action: tagAction } = parseTagAction(data.reply);
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
+      if (tagAction && onTagAction) onTagAction(tagAction);
       if (data.action?.action && data.action?.category) {
         onCategoryUpdated?.();
       }
@@ -111,7 +144,8 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, total
             <div style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#c8d0e0', fontWeight:400 }}>Copilot</span></div>
             <div style={{ fontSize:11, color:'#22d3ee' }}>Your categorization assistant</div>
           </div>
-          <button onClick={() => { localStorage.removeItem('tag_chat_history'); const hi = firstName ? `Hey ${firstName}, ` : ''; const count = totalCount ?? 0; setLocalMessages([{ role: 'tag', text: `${hi}${count} transactions in view. Tap any row and I'll tell you exactly why I categorized it that way — or change it on the spot.` }]); }} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', fontSize:12, display:'flex', alignItems:'center', gap:4, padding:'4px 8px', borderRadius:6 }}><Trash2 size={13} /> Clear</button>
+          {onToggleActivity && <button onClick={onToggleActivity} title="Tag Activity" style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#475569', fontSize:14, padding:'2px 6px' }}>{'\uD83D\uDCCB'}</button>}
+          <button onClick={() => { localStorage.removeItem('tag_chat_history'); const hi = firstName ? `Hey ${firstName}, ` : ''; const count = totalCount ?? 0; setLocalMessages([{ role: 'tag', text: `${hi}${count} transactions in view. Tap any row and I'll tell you exactly why I categorized it that way — or change it on the spot.` }]); }} style={{ marginLeft: onToggleActivity ? undefined : 'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', fontSize:12, display:'flex', alignItems:'center', gap:4, padding:'4px 8px', borderRadius:6 }}><Trash2 size={13} /> Clear</button>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#c8d0e0', padding:4, display:'flex' }}><X style={{ width:18, height:18 }} /></button>
         </div>
         {/* ACTIVE TRANSACTION PILL */}

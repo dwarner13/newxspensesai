@@ -87,6 +87,12 @@ export function TransactionInsightDrawer({
   const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
   const [chatReply, setChatReply] = useState<string | null>(null);
   const [showAllCats, setShowAllCats] = useState(false);
+  const [splitMode, setSplitMode] = useState(false);
+  const [splits, setSplits] = useState([{ amount: '', category: '' }, { amount: '', category: '' }]);
+  const [localSubcategory, setLocalSubcategory] = useState('');
+  const [subcategoryOptions, setSubcategoryOptions] = useState<string[]>([]);
+  const [addingSubcategory, setAddingSubcategory] = useState(false);
+  const [newSubcategoryText, setNewSubcategoryText] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Reset on transaction change
@@ -95,13 +101,38 @@ export function TransactionInsightDrawer({
     setChatReply(null);
     setChatInput('');
     setShowAllCats(false);
-    if (!row) { setLocalCategory(''); return; }
-    if (row.kind === 'committed') setLocalCategory(row.transaction.category || 'Uncategorized');
-    else {
+    setSplitMode(false);
+    setAddingSubcategory(false);
+    setPendingRuleCategory(null);
+    if (!row) { setLocalCategory(''); setLocalSubcategory(''); return; }
+    if (row.kind === 'committed') {
+      setLocalCategory(row.transaction.category || 'Uncategorized');
+      setLocalSubcategory((row.transaction as any).subcategory || '');
+    } else {
       const dj = row.transaction.data_json as Record<string, unknown>;
       setLocalCategory(String(row.transaction.tag_category || dj.category || 'Uncategorized'));
+      setLocalSubcategory(String((dj as any).subcategory || ''));
     }
   }, [row?.kind === 'committed' ? (row as any).transaction.id : null]);
+
+  // Fetch subcategory options when category changes
+  useEffect(() => {
+    if (!localCategory || localCategory === 'Uncategorized') { setSubcategoryOptions([]); return; }
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        const { data: { session } } = await supabase!.auth.getSession();
+        if (!session) return;
+        const res = await fetch(`/.netlify/functions/user-subcategories?category=${encodeURIComponent(localCategory)}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSubcategoryOptions([...(data.built_in ?? []), ...(data.custom ?? []).map((c: any) => c.subcategory)]);
+        }
+      } catch { /* silent */ }
+    })();
+  }, [localCategory]);
 
   // Statement label
   useEffect(() => {
@@ -263,6 +294,43 @@ export function TransactionInsightDrawer({
     }
   };
 
+  const handleSubcategoryChange = async (value: string) => {
+    if (value === '__add_new__') { setAddingSubcategory(true); return; }
+    setLocalSubcategory(value);
+    if (!row || row.kind !== 'committed') return;
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
+      await fetch('/.netlify/functions/tx-update-category', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: row.transaction.id, table: 'transactions', category: localCategory, subcategory: value }),
+      });
+    } catch { /* silent */ }
+  };
+
+  const saveNewSubcategory = async () => {
+    const name = newSubcategoryText.trim();
+    if (!name) return;
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
+      await fetch('/.netlify/functions/user-subcategories', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ category: localCategory, subcategory: name }),
+      });
+      setSubcategoryOptions(prev => [...prev, name]);
+      setLocalSubcategory(name);
+      await handleSubcategoryChange(name);
+      setNewSubcategoryText('');
+      setAddingSubcategory(false);
+      toast.success('Subcategory saved');
+    } catch { toast.error('Could not save subcategory'); }
+  };
+
   // AI chat
   const sendChat = async () => {
     const text = chatInput.trim();
@@ -390,6 +458,24 @@ export function TransactionInsightDrawer({
             ); })}
           </div>
 
+          {/* SUBCATEGORY */}
+          {localCategory && localCategory !== 'Uncategorized' && subcategoryOptions.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 11, color: '#475569', width: 80, flexShrink: 0 }}>Subcategory</div>
+              <select value={localSubcategory} onChange={e => void handleSubcategoryChange(e.target.value)} style={{ flex: 1, padding: '4px 8px', borderRadius: 8, background: '#0b1220', border: '1px solid #1e2d4a', color: localSubcategory ? '#f1f5f9' : '#475569', fontSize: 12, fontFamily: 'inherit' }}>
+                <option value="">-- select --</option>
+                {subcategoryOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="__add_new__">+ Add new...</option>
+              </select>
+            </div>
+          )}
+          {addingSubcategory && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input autoFocus placeholder="e.g. Hair & Grooming" value={newSubcategoryText} onChange={e => setNewSubcategoryText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void saveNewSubcategory(); if (e.key === 'Escape') setAddingSubcategory(false); }} style={{ flex: 1, padding: '6px 10px', borderRadius: 8, background: '#0b1220', border: '1px solid rgba(34,211,238,0.4)', color: '#f1f5f9', fontSize: 12, outline: 'none' }} />
+              <button onClick={() => void saveNewSubcategory()} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>Save</button>
+            </div>
+          )}
+
           {/* QUICK CATEGORY CHIPS */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8', marginBottom: 8 }}>Quick change</div>
@@ -472,6 +558,52 @@ export function TransactionInsightDrawer({
               <Send style={{ width: 13, height: 13 }} />
             </button>
           </div>
+          {/* SPLIT UI */}
+          {splitMode && row?.kind === 'committed' && (() => {
+            const totalAmt = Math.abs(Number(row.transaction.amount || 0));
+            const splitsSum = splits.reduce((s, sp) => s + Math.abs(Number(sp.amount || 0)), 0);
+            const remaining = Math.round((totalAmt - splitsSum) * 100) / 100;
+            const saveSplit = async () => {
+              if (Math.abs(remaining) > 0.02) return;
+              try {
+                const supabase = getSupabase();
+                const { data: { session } } = await supabase!.auth.getSession();
+                const token = session?.access_token ?? '';
+                const res = await fetch('/.netlify/functions/tx-split', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ originalId: row.transaction.id, splits: splits.map(sp => ({ amount: Number(sp.amount), category: sp.category || localCategory })) }),
+                });
+                if (res.ok) { toast.success('Transaction split'); setSplitMode(false); onCommittedCategorySaved?.(row.transaction.id, splits[0].category || localCategory); }
+                else toast.error('Split failed');
+              } catch { toast.error('Split failed'); }
+            };
+            return (
+              <div style={{ padding: 14, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid #1e2d4a' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 10 }}>Split ${totalAmt.toFixed(2)}</div>
+                {splits.map((sp, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                    <input type="number" value={sp.amount} onChange={e => { const n = [...splits]; n[i] = { ...n[i], amount: e.target.value }; setSplits(n); }} placeholder="$" style={{ width: 72, padding: '5px 8px', borderRadius: 8, background: '#0b1220', border: '1px solid #1e2d4a', color: '#f1f5f9', fontSize: 12 }} />
+                    <select value={sp.category} onChange={e => { const n = [...splits]; n[i] = { ...n[i], category: e.target.value }; setSplits(n); }} style={{ flex: 1, padding: '5px 8px', borderRadius: 8, background: '#0b1220', border: '1px solid #1e2d4a', color: '#f1f5f9', fontSize: 12 }}>
+                      <option value="">Category</option>
+                      {ALL_CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    {splits.length > 2 && <button onClick={() => setSplits(splits.filter((_, j) => j !== i))} style={{ color: '#475569', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}>{"\u2715"}</button>}
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: Math.abs(remaining) < 0.02 ? '#34d399' : '#ef4444' }}>
+                    {Math.abs(remaining) < 0.02 ? '\u2713 Balanced' : `$${Math.abs(remaining).toFixed(2)} ${remaining > 0 ? 'remaining' : 'over'}`}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => setSplits([...splits, { amount: '', category: '' }])} style={{ fontSize: 11, color: '#22d3ee', background: 'none', border: 'none', cursor: 'pointer' }}>+ Add</button>
+                    <button onClick={() => void saveSplit()} disabled={Math.abs(remaining) > 0.02} style={{ padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 700, background: Math.abs(remaining) < 0.02 ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.05)', border: '1px solid rgba(34,211,238,0.3)', color: Math.abs(remaining) < 0.02 ? '#22d3ee' : '#475569', cursor: Math.abs(remaining) < 0.02 ? 'pointer' : 'not-allowed' }}>Save Split</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Action buttons */}
           {row.kind === 'pending' ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
@@ -481,7 +613,7 @@ export function TransactionInsightDrawer({
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button type="button" onClick={() => onEditCommitted?.(row.transaction)} style={{ padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Edit / Split</button>
+              <button type="button" onClick={() => setSplitMode(v => !v)} style={{ padding: '10px', borderRadius: 10, border: splitMode ? '1px solid rgba(34,211,238,0.3)' : '1px solid rgba(255,255,255,0.08)', background: splitMode ? 'rgba(34,211,238,0.1)' : 'rgba(255,255,255,0.04)', color: splitMode ? '#22d3ee' : '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{splitMode ? 'Cancel Split' : 'Split'}</button>
               <button type="button" onClick={onClose} style={{ padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Close</button>
             </div>
           )}

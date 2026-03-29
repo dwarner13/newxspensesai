@@ -131,6 +131,7 @@ export default function UploadPageV2() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [allDone, setAllDone] = useState(false);
+  const [sweepSuggestion, setSweepSuggestion] = useState<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
@@ -182,10 +183,12 @@ export default function UploadPageV2() {
 
       let txCount = 0;
 
+      let importIdForSweep = '';
       if (isSpreadsheetFile(current.file.name)) {
         // ── XLSX/CSV path — use dedicated spreadsheet processor ──
         const xlResult = await handleSpreadsheetUpload(current.file, userId, session?.access_token, fileHash);
         txCount = xlResult.transaction_count || 0;
+        importIdForSweep = xlResult.import_id || '';
       } else {
         // ── PDF/image path — use existing OCR pipeline ──
         const result = await runSmartImportPipeline({
@@ -194,6 +197,7 @@ export default function UploadPageV2() {
           fileSize: current.file.size, source: "upload", authToken: session?.access_token,
         });
         txCount = result?.stats?.transactionCount || result?.transactionCount || 0;
+        importIdForSweep = result?.importId || '';
       }
 
       // Store hash for future duplicate detection
@@ -202,6 +206,21 @@ export default function UploadPageV2() {
       updateItem(current.id, { status: "categorizing" });
       await new Promise(r => setTimeout(r, 1500));
       updateItem(current.id, { status: "complete", txCount });
+
+      // Trigger Tag background sweep
+      if (importIdForSweep && session?.access_token) {
+        try {
+          const sweepRes = await fetch('/.netlify/functions/tag-background-sweep', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ importId: importIdForSweep }),
+          });
+          if (sweepRes.ok) {
+            const sweepData = await sweepRes.json();
+            if (sweepData.confident_count > 0) setSweepSuggestion(sweepData);
+          }
+        } catch { /* silent */ }
+      }
     } catch (err: unknown) {
       updateItem(current.id, { status: "failed", error: err instanceof Error ? err.message : "Processing failed" });
     } finally {
@@ -343,6 +362,43 @@ export default function UploadPageV2() {
               </div>
             </div>
           </Reveal>
+        )}
+
+        {/* Tag sweep suggestion */}
+        {sweepSuggestion && sweepSuggestion.confident_count > 0 && (
+          <div style={{ margin: '16px 0', padding: 16, borderRadius: 14, background: 'rgba(34,211,238,0.06)', border: '1px solid rgba(34,211,238,0.2)' }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(34,211,238,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>I scanned your import:</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+                  {sweepSuggestion.confident_groups.slice(0, 4).map((g: any) => (
+                    <div key={g.merchant_name}>{"\u2713"} {g.merchant_name} x{g.count} {"\u2192"} {g.category}</div>
+                  ))}
+                  {sweepSuggestion.confident_groups.length > 4 && <div style={{ color: '#475569' }}>+ {sweepSuggestion.confident_groups.length - 4} more</div>}
+                  {sweepSuggestion.unsure_count > 0 && <div style={{ marginTop: 4, color: '#64748b' }}>{"\u26A0"} {sweepSuggestion.unsure_count} merchants need your input</div>}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={async () => {
+                try {
+                  const token = session?.access_token;
+                  if (!token) return;
+                  await fetch('/.netlify/functions/tag-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ intent: 'bulk_apply', groups: sweepSuggestion.confident_groups }),
+                  });
+                  toast.success(`Applied ${sweepSuggestion.confident_count} categorizations`);
+                  setSweepSuggestion(null);
+                } catch { toast.error('Could not apply'); }
+              }} style={{ padding: '8px 18px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>
+                Apply all {sweepSuggestion.confident_count} {"\u2192"}
+              </button>
+              <button onClick={() => setSweepSuggestion(null)} style={{ padding: '8px 18px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#475569', cursor: 'pointer' }}>Skip</button>
+            </div>
+          </div>
         )}
 
         {/* Queue list */}

@@ -134,7 +134,40 @@ export const handler: Handler = async (event) => {
   const body = JSON.parse(event.body || '{}');
   const { intent, matchValue, targetCategory, matchType = 'contains', importId } = body;
 
-  if (!intent) return err('Missing intent (preview | commit)');
+  if (!intent) return err('Missing intent (preview | commit | save_rule | undo | bulk_apply)');
+
+  // Bulk apply — from background sweep
+  if (intent === 'bulk_apply') {
+    const { groups } = body;
+    if (!Array.isArray(groups)) return err('Missing groups array');
+    let total = 0;
+    for (const group of groups) {
+      if (!Array.isArray(group.ids) || !group.category) continue;
+      await supabase
+        .from('transactions')
+        .update({ category: group.category, category_source: 'tag_rule', updated_at: new Date().toISOString() })
+        .in('id', group.ids)
+        .eq('user_id', userId);
+      total += group.ids.length;
+    }
+    return ok({ ok: true, intent: 'bulk_apply', applied: total });
+  }
+
+  // Undo intent — doesn't need matchValue/targetCategory
+  if (intent === 'undo') {
+    const { affectedIds, previousCategory } = body;
+    if (!Array.isArray(affectedIds) || !previousCategory) return err('Missing affectedIds or previousCategory');
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category: previousCategory, category_source: 'user_undo', updated_at: new Date().toISOString() })
+        .in('id', affectedIds)
+        .eq('user_id', userId);
+      if (error) return err(error.message, 500);
+      return ok({ ok: true, intent: 'undo', reverted: affectedIds.length });
+    } catch (e: any) { return err(e.message, 500); }
+  }
+
   if (!matchValue || !targetCategory) return err('Missing matchValue or targetCategory');
   const parsedTargetRaw = parseCategoryInput(String(targetCategory));
   const parsedTarget = {

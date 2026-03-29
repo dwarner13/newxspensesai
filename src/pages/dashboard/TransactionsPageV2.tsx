@@ -65,6 +65,9 @@ export default function TransactionsPageV2() {
   const [tagBadgeCount, setTagBadgeCount] = useState(0);
   const [tagInboxData, setTagInboxData] = useState<any>(null);
   const [tagActivityOpen, setTagActivityOpen] = useState(false);
+  const [lastBulkAction, setLastBulkAction] = useState<{ ids: string[]; previousCategory: string } | null>(null);
+  const [pendingSweep, setPendingSweep] = useState<any>(null);
+  const [badgePulse, setBadgePulse] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("from") === "upload") {
@@ -87,6 +90,34 @@ export default function TransactionsPageV2() {
   }, []);
   useEffect(() => { const id = setInterval(() => { refetch(); }, 10000); return () => clearInterval(id); }, [refetch]);
 
+  // Sweep apply/dismiss
+  const applySweepFromChat = useCallback(async (payload: any) => {
+    try {
+      const sb = getSupabase(); if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+      const res = await fetch('/.netlify/functions/tag-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ intent: 'bulk_apply', groups: (payload.confident_groups ?? []).map((g: any) => ({ ids: g.ids, category: g.category })) }),
+      });
+      const d = await res.json();
+      if (d.ok) { toast.success(`Tag categorized ${d.applied} transactions`); void dismissSweep(); void refetch(); void fetchTagInbox(); }
+    } catch { toast.error('Could not apply'); }
+  }, []);
+  const dismissSweep = useCallback(async () => {
+    if (!pendingSweep) return;
+    try {
+      const sb = getSupabase(); if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+      await fetch('/.netlify/functions/tag-notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ id: pendingSweep.id }),
+      });
+    } catch { /* silent */ }
+    setPendingSweep(null);
+  }, [pendingSweep]);
+
   // Fetch tag inbox for badge count
   const fetchTagInbox = useCallback(async () => {
     try {
@@ -99,6 +130,28 @@ export default function TransactionsPageV2() {
     } catch { /* silent */ }
   }, []);
   useEffect(() => { fetchTagInbox(); }, [fetchTagInbox]);
+
+  // Poll for Tag sweep notifications
+  const checkTagNotifications = useCallback(async () => {
+    try {
+      const sb = getSupabase(); if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+      const res = await fetch('/.netlify/functions/tag-notifications', { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (!res.ok) return;
+      const d = await res.json();
+      const sweepNotif = d.notifications?.find((n: any) => n.type === 'sweep_result');
+      if (sweepNotif && !pendingSweep) {
+        setPendingSweep(sweepNotif);
+        setBadgePulse(true);
+        setTimeout(() => setBadgePulse(false), 3000);
+      }
+    } catch { /* silent */ }
+  }, [pendingSweep]);
+  useEffect(() => {
+    checkTagNotifications();
+    const interval = setInterval(checkTagNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [checkTagNotifications]);
 
   const handleUpload = useCallback(() => {
     openChat({
@@ -469,7 +522,7 @@ export default function TransactionsPageV2() {
 
       {!tagPanelOpen && !selectedTx && !(/\/(categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
         <div style={{ position: "fixed", bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 24, zIndex: 50 }}>
-          <button onClick={() => setTagActivityOpen(v => !v)} style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: tagBadgeCount > 0 ? "0 0 0 0 rgba(34,211,238,0.4)" : "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", border: "none", transition: "transform 0.15s", animation: tagBadgeCount > 0 ? "tagPulse 2s ease-in-out" : "none" }} className="hover:scale-105 active:scale-95">
+          <button onClick={() => setTagPanelOpen(true)} style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: tagBadgeCount > 0 || badgePulse ? "0 0 0 0 rgba(34,211,238,0.4)" : "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", border: "none", transition: "transform 0.15s", animation: tagBadgeCount > 0 || badgePulse ? "tagPulse 2s ease-in-out" : "none" }} className="hover:scale-105 active:scale-95">
             T
             {tagBadgeCount > 0 && (
               <div style={{ position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 9, background: "#ef4444", color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px", border: "2px solid #0b1220", pointerEvents: "none" }}>
@@ -489,7 +542,7 @@ export default function TransactionsPageV2() {
             <div style={{ padding: "14px 16px", borderBottom: "1px solid #1e2d4a", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#f1f5f9" }}>Tag Activity</div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button onClick={() => { setTagActivityOpen(false); setTagPanelOpen(true); }} style={{ fontSize: 11, fontWeight: 600, color: "#22d3ee", background: "none", border: "none", cursor: "pointer" }}>Chat</button>
+                <button onClick={() => setTagActivityOpen(false)} style={{ fontSize: 11, fontWeight: 600, color: "#22d3ee", background: "none", border: "none", cursor: "pointer" }}>Close</button>
                 <button onClick={() => setTagActivityOpen(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16 }}>{"\u2715"}</button>
               </div>
             </div>
@@ -533,13 +586,72 @@ export default function TransactionsPageV2() {
               </div>
             )}
 
-            {tagInboxData?.badge_count === 0 && (
+            {tagInboxData?.rule_suggestions?.length > 0 && (
+              <div>
+                <div style={{ padding: "10px 16px 6px", fontSize: 10, fontWeight: 700, color: "#c8a64e", textTransform: "uppercase", letterSpacing: "0.1em" }}>{"\uD83D\uDCA1"} Suggested Rules</div>
+                {tagInboxData.rule_suggestions.slice(0, 5).map((s: any, i: number) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#c8d0e0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.merchant_name}</div>
+                      <div style={{ fontSize: 11, color: "#475569", marginTop: 1 }}>{s.category} &middot; {s.count}x &middot; {s.consistency}%</div>
+                    </div>
+                    <button onClick={async () => { try { const sb = getSupabase(); if (!sb) return; const { data: { session } } = await sb.auth.getSession(); if (!session) return; await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'save_rule', matchValue: s.merchant_name, targetCategory: s.category, matchType: 'contains' }) }); void fetchTagInbox(); } catch {} }} style={{ padding: "4px 10px", borderRadius: 16, fontSize: 10, fontWeight: 700, background: "rgba(200,166,78,0.12)", border: "1px solid rgba(200,166,78,0.25)", color: "#c8a64e", cursor: "pointer", flexShrink: 0, marginLeft: 8 }}>Save</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tagInboxData?.badge_count === 0 && !tagInboxData?.rule_suggestions?.length && (
               <div style={{ padding: 24, textAlign: "center", color: "#475569", fontSize: 12 }}>All caught up {"\u2713"}</div>
             )}
           </div>
         </>
       )}
-      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} />}
+      {/* Sweep notification banner inside Tag panel */}
+      {tagPanelOpen && pendingSweep && (() => {
+        const p = pendingSweep.payload || {};
+        const lines = (p.confident_groups ?? []).slice(0, 4).map((g: any) => `\u2713 ${g.merchant_name} \u00d7${g.count} \u2192 ${g.category}`);
+        return (
+          <div style={{ position: 'fixed', top: 0, right: 0, width: 380, zIndex: 72, padding: '12px 16px', background: '#0d1a2d', borderBottom: '1px solid rgba(34,211,238,0.2)', borderLeft: '1px solid rgba(34,211,153,0.15)' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(34,211,238,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
+              <div style={{ flex: 1, fontSize: 12, color: '#c8d0e0', lineHeight: 1.5 }}>
+                <div style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>Import scan complete</div>
+                {lines.map((l: string, i: number) => <div key={i}>{l}</div>)}
+                {(p.confident_groups ?? []).length > 4 && <div style={{ color: '#475569' }}>+ {p.confident_groups.length - 4} more</div>}
+                {p.unsure_count > 0 && <div style={{ color: '#64748b', marginTop: 2 }}>{'\u26A0'} {p.unsure_count} need your input</div>}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => void applySweepFromChat(p)} style={{ padding: '5px 14px', borderRadius: 16, fontSize: 11, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>Apply {p.confident_count} {'\u2192'}</button>
+              <button onClick={() => void dismissSweep()} style={{ padding: '5px 14px', borderRadius: 16, fontSize: 11, fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#475569', cursor: 'pointer' }}>Skip</button>
+            </div>
+          </div>
+        );
+      })()}
+      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
+        if (action.type === 'filter') { setSearchQuery(action.search || ''); }
+        else if (action.type === 'bulk_change' && action.merchant && !action.confirm) {
+          try {
+            const sb = getSupabase(); if (!sb) return;
+            const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+            const { data: matching } = await sb.from('transactions').select('id, category').eq('user_id', session.user.id).ilike('merchant_name', `%${action.merchant}%`);
+            const ids = matching?.map(t => t.id) ?? [];
+            const prevCat = matching?.[0]?.category ?? 'Needs Review';
+            await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category: action.category }] }) });
+            setLastBulkAction({ ids, previousCategory: prevCat });
+            void refetch(); void fetchTagInbox();
+          } catch { /* silent */ }
+        }
+        else if (action.type === 'undo' && lastBulkAction) {
+          try {
+            const sb = getSupabase(); if (!sb) return;
+            const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+            await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'undo', affectedIds: lastBulkAction.ids, previousCategory: lastBulkAction.previousCategory }) });
+            setLastBulkAction(null); void refetch();
+          } catch { /* silent */ }
+        }
+      }} />}
 
       {/* Drawer � portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
