@@ -267,10 +267,12 @@ export default function CategoriesPageV2() {
           totalSpent={data.totalSpent}
           totalIncome={data.totalIncome}
           txCount={totalTxCount}
-          topCategories={data.categories.slice(0, 8).map(c => ({
+          topCategories={data.categories.map(c => ({
             category: c.name,
             total: c.spent,
             transactionCount: c.transactionCount,
+            budget: c.budget,
+            topMerchant: c.topMerchant,
           }))}
         />
       )}

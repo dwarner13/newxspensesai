@@ -20,7 +20,7 @@ interface TagCopilotPanelProps {
   totalSpent?: number;
   totalIncome?: number;
   txCount?: number;
-  topCategories?: { category: string; total: number; transactionCount: number }[];
+  topCategories?: { category: string; total: number; transactionCount: number; budget?: number; topMerchant?: string }[];
 }
 
 interface LearnedRule {
@@ -179,7 +179,16 @@ export function TagCopilotPanel({
         body: JSON.stringify({
           message: text,
           history: updatedMessages.slice(0, -1),
-          systemPromptOverride: "You are Tag -- XspensesAI's categorization expert on the CATEGORIES PAGE.\n\nUSER'S FINANCIAL DATA (real, current):\n- Total spent: " + (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) + " CAD\n- Total transactions: " + (txCount || 0) + "\n- Top spending categories:\n" + (topCategories || []).slice(0, 8).map(c => "  - " + c.category + ": " + c.total.toFixed(2) + " (" + c.transactionCount + " transactions)").join("\n") + "\n\nYou are looking at the Categories page with the user. Answer questions about their spending categories, tax deductibility, business vs personal split, and category optimization for Canadian self-employed. Reference the real numbers above.\nTag personality: detective-like, precise, witty, always helpful.",
+          systemPromptOverride: "You are Tag -- XspensesAI's categorization expert on the CATEGORIES PAGE.\n\nUSER'S FINANCIAL DATA (real, current):\n- Total spent: " + (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) + " CAD\n- Total transactions: " + (txCount || 0) + "\n- Spending categories:\n" + (topCategories || []).map(c => {
+            let line = "  - " + c.category + ": $" + c.total.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " spent";
+            if (c.budget && c.budget > 0) {
+              line += " / $" + c.budget + " budget";
+              if (c.total > c.budget) line += " (OVER BUDGET)";
+            }
+            line += " \u00b7 " + c.transactionCount + " txns";
+            if (c.topMerchant) line += " \u00b7 Top: " + c.topMerchant;
+            return line;
+          }).join("\n") + "\n\nYou are looking at the Categories page with the user. Answer questions about their spending categories, budget status, tax deductibility, business vs personal split, and category optimization for Canadian self-employed. Reference the real numbers above.\nTag personality: detective-like, precise, witty, always helpful.",
         }),
       });
 
