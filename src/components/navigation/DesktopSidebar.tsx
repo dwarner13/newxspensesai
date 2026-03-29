@@ -38,6 +38,21 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
   const tagStats = useSmartCategoriesStats();
   const setUploadOpen = useSetAtom(isUploadModalOpenAtom);
   const scoreData = useXspenseScore();
+  const [inboxBadge, setInboxBadge] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getSupabase } = await import('../../lib/supabase');
+        const sb = getSupabase();
+        if (!sb) return;
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) return;
+        const res = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (res.ok) { const d = await res.json(); setInboxBadge(d.badge_count ?? 0); }
+      } catch { /* silent */ }
+    })();
+  }, []);
 
   const isCollapsed = onToggleCollapse ? collapsed : internalCollapsed;
   const setCollapsed = onToggleCollapse ? onToggleCollapse : setInternalCollapsed;
@@ -76,6 +91,9 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
         )}
         {!isCollapsed && !!uncatBadge && item.to === '/dashboard/categories' && (
           <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)' }}>{uncatBadge}</span>
+        )}
+        {!isCollapsed && inboxBadge > 0 && item.to === '/dashboard/inbox' && (
+          <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>{inboxBadge}</span>
         )}
       </>
     );

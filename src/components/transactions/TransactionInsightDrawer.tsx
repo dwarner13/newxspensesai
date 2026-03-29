@@ -27,21 +27,21 @@ interface TransactionInsightDrawerProps {
 }
 
 const TAX_INFO: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  Transportation:  { label: '? Deductible — CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Housing:         { label: '? Deductible — home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Utilities:       { label: '? Deductible — business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Healthcare:      { label: '? Deductible — medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Education:       { label: '? Deductible — training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Insurance:       { label: '? Deductible — business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Subscriptions:   { label: '? Likely deductible — if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  'Bank Fees':     { label: '? Deductible — bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Travel:          { label: '~ Partially deductible — business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  'Food & Dining': { label: '~ 50% deductible — meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Shopping:        { label: '~ May be deductible — business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Income:          { label: '— Taxable income — report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
-  Transfers:       { label: '— Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  Savings:         { label: '— Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  'Debt Payments': { label: '— Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
+  Transportation:  { label: '? Deductible ï¿½ CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Housing:         { label: '? Deductible ï¿½ home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Utilities:       { label: '? Deductible ï¿½ business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Healthcare:      { label: '? Deductible ï¿½ medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Education:       { label: '? Deductible ï¿½ training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Insurance:       { label: '? Deductible ï¿½ business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Subscriptions:   { label: '? Likely deductible ï¿½ if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  'Bank Fees':     { label: '? Deductible ï¿½ bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Travel:          { label: '~ Partially deductible ï¿½ business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  'Food & Dining': { label: '~ 50% deductible ï¿½ meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  Shopping:        { label: '~ May be deductible ï¿½ business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  Income:          { label: 'ï¿½ Taxable income ï¿½ report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
+  Transfers:       { label: 'ï¿½ Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
+  Savings:         { label: 'ï¿½ Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
+  'Debt Payments': { label: 'ï¿½ Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
 };
 const QUICK_CATS = [
   { label: 'Gas', category: 'Transportation', emoji: '?' },
@@ -151,7 +151,7 @@ export function TransactionInsightDrawer({
           }
         }
       } catch { /* ignore */ }
-      setStatementLabel(`Statement …${importId.slice(-6)}`);
+      setStatementLabel(`Statement ï¿½${importId.slice(-6)}`);
     })();
   }, [row]);
 
@@ -201,23 +201,66 @@ export function TransactionInsightDrawer({
   }, [allCommittedTransactions, rawMerchant]);
 
   // Quick category tap
+  const [pendingRuleCategory, setPendingRuleCategory] = useState<string | null>(null);
+
   const applyCategory = async (category: string) => {
     if (!row || row.kind !== 'committed') return;
     setLocalCategory(category);
     setIsSaving(true);
     try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
       const res = await fetch('/.netlify/functions/tx-update-category', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ id: row.transaction.id, table: 'transactions', category, applyToVendor: true }),
       });
       if (!res.ok) throw new Error(await res.text());
-      setChatReply(`Done ? moved to ${category}. I have updated the rule for all future ${rawMerchant} transactions.`);
       onCommittedCategorySaved?.(row.transaction.id, category);
       toast.success('Category updated');
+      // Start Tag conversation about this change
+      try {
+        const chatRes = await fetch('/.netlify/functions/tag-chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            message: '__system_category_changed__',
+            merchant: rawMerchant,
+            category,
+            amount: Math.abs(Number(row.transaction.amount || 0)),
+            context: 'quick_change',
+            transactionId: row.transaction.id,
+          }),
+        });
+        if (chatRes.ok) {
+          const chatData = await chatRes.json();
+          setChatReply(chatData.reply || `Moved to **${category}**.`);
+        }
+      } catch { setChatReply(`Moved to **${category}**.`); }
     } catch {
       toast.error('Could not save category');
     } finally { setIsSaving(false); }
+  };
+
+  const saveTagRule = async () => {
+    if (!pendingRuleCategory || !rawMerchant) return;
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
+      const res = await fetch('/.netlify/functions/tag-action', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ intent: 'save_rule', matchValue: rawMerchant, targetCategory: pendingRuleCategory, matchType: 'exact' }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success('Rule saved \u2014 Tag will remember this');
+      setChatReply('Done \u2713 I\'ll automatically categorize future **' + rawMerchant + '** transactions as **' + pendingRuleCategory + '**.');
+      setPendingRuleCategory(null);
+    } catch {
+      toast.error('Could not save rule');
+    }
   };
 
   // AI chat
@@ -236,19 +279,22 @@ export function TransactionInsightDrawer({
       const res = await fetch('/.netlify/functions/tag-chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'authorization': `Bearer ${token}` },
-        body: JSON.stringify({ transactionId: row.transaction.id, message: text, history: chatHistory }),
+        body: JSON.stringify({ transactionId: row.transaction.id, message: text, history: chatHistory, merchant: rawMerchant }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      const assistantMsg = { role: 'assistant', content: data.reply };
+      const backfillNote = data.backfill_count > 0 ? ` (${data.backfill_count} existing transaction${data.backfill_count !== 1 ? 's' : ''} updated)` : '';
+      const replyContent = data.rule_saved ? data.reply + backfillNote + '\n__rule_saved__' : data.reply;
+      const assistantMsg = { role: 'assistant', content: replyContent };
       setChatHistory([...newHistory, assistantMsg]);
-      setChatReply(data.reply);
+      setChatReply(data.rule_saved ? data.reply + backfillNote : data.reply);
+      if (data.rule_saved) setPendingRuleCategory(null);
       if (data.action?.action === 'recategorize' && data.action?.category) {
         setLocalCategory(data.action.category);
         onCommittedCategorySaved?.(row.transaction.id, data.action.category);
       }
     } catch {
-      const errMsg = { role: 'assistant' as const, content: 'Something went wrong — try again.' };
+      const errMsg = { role: 'assistant' as const, content: 'Something went wrong ï¿½ try again.' };
       setChatHistory([...newHistory, errMsg]);
     }
     setChatBusy(false);
@@ -301,6 +347,13 @@ export function TransactionInsightDrawer({
             </div>
           )}
 
+          {/* TAG RULE BADGE */}
+          {row.kind === 'committed' && ['tag_rule', 'user_rule', 'rule'].includes((row.transaction as any).category_source) && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 12, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)', fontSize: 10, fontWeight: 700, color: '#22d3ee', width: 'fit-content' }}>
+              {'\u26A1'} Tag rule
+            </div>
+          )}
+
           {/* TAG VERDICT */}
           <div style={{ borderRadius: 14, background: 'rgba(34,211,153,0.05)', border: '1px solid rgba(34,211,153,0.15)' }}>
             {/* Verdict row */}
@@ -313,7 +366,7 @@ export function TransactionInsightDrawer({
                     confidence != null && confidence > 0 && `${confidence}% confidence`,
                     seenCount > 0 && `Seen ${seenCount}x`,
                     tagInsight?.categorySource && tagInsight.categorySource !== 'unknown' && tagInsight.categorySource,
-                  ].filter(Boolean).join(' · ') || 'Current category'}
+                  ].filter(Boolean).join(' ï¿½ ') || 'Current category'}
                 </div>
                             {TAX_INFO[localCategory] && (
                 <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 10, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
@@ -332,7 +385,7 @@ export function TransactionInsightDrawer({
               </div>
             )}
             {/* Proactive insights */}
-            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[?¦• ?]/g, "—"); return (
+            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[?ï¿½ï¿½ï¿½?]/g, "ï¿½"); return (
               <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{cleanInsight}</div>
             ); })}
           </div>
@@ -364,14 +417,37 @@ export function TransactionInsightDrawer({
             )}
           </div>
 
+          {/* TAG REPLY + RULE PROMPT */}
+          {chatReply && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0, marginTop: 2 }}>T</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ padding: '8px 11px', borderRadius: '12px 12px 12px 4px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', fontSize: 12, color: '#e8ecf4', lineHeight: 1.5 }}>
+                  {chatReply.split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{ color: '#22d3ee' }}>{part}</strong> : <span key={j}>{part}</span>)}
+                </div>
+                {pendingRuleCategory && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <button onClick={() => void saveTagRule()} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.3)', color: '#22d3ee' }}>Yes, remember it</button>
+                    <button onClick={() => { setPendingRuleCategory(null); setChatReply('No problem \u2014 just this one.'); }} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#9ba8bc' }}>No thanks</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* TAG CHAT HISTORY */}
           {chatHistory.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {chatHistory.map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                   {m.role === 'assistant' && <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0, marginTop: 2 }}>T</div>}
-                  <div style={{ maxWidth: '82%', padding: '8px 11px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? 'rgba(34,211,153,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${m.role === 'user' ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.06)'}`, fontSize: 12, color: '#e8ecf4', lineHeight: 1.5 }}>
-                    {m.content}
+                  <div>
+                    <div style={{ maxWidth: '82%', padding: '8px 11px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? 'rgba(34,211,153,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${m.role === 'user' ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.06)'}`, fontSize: 12, color: '#e8ecf4', lineHeight: 1.5 }}>
+                      {m.content.replace('__rule_saved__', '')}
+                    </div>
+                    {m.content.includes('__rule_saved__') && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 4, fontSize: 10, fontWeight: 700, color: '#22d3ee', background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)', borderRadius: 6, padding: '2px 8px' }}>{'\u26A1'} Rule saved</span>
+                    )}
                   </div>
                 </div>
               ))}

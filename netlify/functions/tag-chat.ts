@@ -17,53 +17,52 @@ const CATEGORIES = [
 ];
 
 function buildSystemPrompt(
-  tx: Record<string, unknown>,
-  merchantHistory: { count: number; totalSpent: number; categories: string[]; lastSeen: string },
-  topCategories: { category: string; total: number }[],
+  merchant: string,
+  isQuickChange: boolean,
+  category: string | null,
+  amount: number | null,
+  merchantHistory: { count: number; totalSpent: number; categories: string[] },
   yearTotal: { spent: number; income: number },
-  pageCtx?: { totalSpent: number; totalIncome: number; netFlow: number; transactionCount: number } | null
+  pageContext?: any
 ): string {
-  const merchantCatList = [...new Set(merchantHistory.categories)].join(', ') || 'none yet';
-  const topCatList = topCategories.slice(0, 5).map(c => `${c.category} $${c.total.toFixed(0)}`).join(', ');
+  const merchantBlock = merchant ? `
+MERCHANT IN FOCUS: ${merchant}
+${merchantHistory.count > 0 ? `- Seen ${merchantHistory.count} times, total $${merchantHistory.totalSpent.toFixed(2)}` : '- First time seeing this merchant'}
+${merchantHistory.categories.length > 0 ? `- Previously categorized as: ${[...new Set(merchantHistory.categories)].join(', ')}` : ''}
+${category ? `- Currently categorized as: ${category}` : ''}
+${amount != null ? `- Transaction amount: $${Math.abs(amount).toFixed(2)}` : ''}
+` : '';
 
-  const hasTransaction = Boolean(tx && (tx as any).merchant_name);
-  const transactionBlock = hasTransaction ? `
-TRANSACTION IN FOCUS:
-- Merchant: ${(tx as any).merchant_name || 'Unknown'}
-- Amount: $${Math.abs(Number((tx as any).amount || 0)).toFixed(2)}
-- Date: ${String((tx as any).posted_at || (tx as any).date || 'Unknown').slice(0, 10)}
-- Current category: ${(tx as any).category || 'Uncategorized'}
+  if (isQuickChange) {
+    return `You are Tag, XspensesAI's categorization agent.
 
-MERCHANT HISTORY (this user + this merchant):
-- Times seen: ${merchantHistory.count}
-- Total spent: $${merchantHistory.totalSpent.toFixed(2)}
-- Previously categorized as: ${merchantCatList}
-- Last seen: ${merchantHistory.lastSeen || 'first time'}
-` : `
-MODE: General financial question (no specific transaction selected).
-Answer using the user's overall financial data below. Be helpful and specific.
-`;
+The user just changed merchant "${merchant}" (${amount != null ? '$' + Math.abs(amount).toFixed(2) : 'unknown amount'}) to category "${category}".
+Do NOT just confirm the change. Ask ONE short question to understand what this purchase actually was, so you can help build a smart rule. Examples:
+- "Got it — was this a gas fill-up or something else?"
+- "Makes sense — coffee run or snacks?"
+- "Quick one — what was the $${amount != null ? Math.abs(amount).toFixed(2) : '?'} at ${merchant}?"
+Be casual, 1 sentence max. Do not offer to save a rule yet.`;
+  }
 
-  return `You are Tag -- XspensesAI's categorization and spending expert. You speak directly to the user in first person. You have full context about their finances.
-${transactionBlock}
+  return `You are Tag, XspensesAI's categorization agent. You are having a conversation about merchant "${merchant}".
+${merchantBlock}
 USER'S OVERALL FINANCES (this year):
 - Total spent: $${yearTotal.spent.toFixed(2)}
 - Total income: $${yearTotal.income.toFixed(2)}
-- Top spending categories: ${topCatList}
 
-YOUR JOB:
-- Answer questions about transactions and spending naturally and helpfully
-- If a transaction is in focus, use merchant history to explain your confidence
-- For general questions, use the overall finance data to give specific answers
-- Suggest better categories if the user thinks one is wrong
-- If asked about tax deductibility, give a practical Canadian self-employed perspective
-- If the user wants to change the category, confirm what they want and end your reply with exactly this JSON on its own line: {"action":"recategorize","category":"CATEGORY_NAME"}
-- Use only these categories: ${CATEGORIES.join(', ')}
-- Be concise -- 2-4 sentences unless explaining something complex
-- You have Tag's personality: detective-like, precise, a little witty, always helpful
+Conversation rules:
+1. Ask clarifying questions to understand what purchases at this merchant actually are
+2. Once you understand the pattern, ask the user if they want a rule — NEVER assume
+3. If user says yes to a rule, ask if it should apply to ALL transactions at this merchant, or only above/below a certain amount
+4. When the user has confirmed a rule, end your message with this exact text on its own line:
+   SAVE_RULE:{"merchant_pattern":"${merchant}","category":"<category>","match_type":"exact","amount_min":null,"amount_max":null}
+5. If the user says no to a rule, just acknowledge and close naturally
+6. Never categorize ambiguous merchants without asking first
+7. Keep all replies to 1-2 sentences max
+8. Use only these categories: ${CATEGORIES.join(', ')}
+${pageContext ? `\nPAGE CONTEXT:\n- Total spent: $${pageContext.totalSpent?.toFixed(2) || '0'}\n- Total income: $${pageContext.totalIncome?.toFixed(2) || '0'}\n- Transactions in view: ${pageContext.transactionCount || 0}` : ''}
 
-IMPORTANT: Only output the JSON action line when the user clearly wants to change the category. Do not output it for questions or explanations.`
-  + (pageCtx ? `\n\nPAGE CONTEXT (current filtered view):\n- Total spent: $${pageCtx.totalSpent.toFixed(2)}\n- Total income: $${pageCtx.totalIncome.toFixed(2)}\n- Net flow: $${pageCtx.netFlow.toFixed(2)}\n- Transactions in view: ${pageCtx.transactionCount}` : '');
+IMPORTANT: Only output SAVE_RULE when the user has explicitly confirmed they want a rule saved. Never output it for questions or explanations.`;
 }
 
 export const handler: Handler = async (event) => {
@@ -74,120 +73,234 @@ export const handler: Handler = async (event) => {
   if (auth.error || !auth.userId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   const body = JSON.parse(event.body || '{}');
-  const { transactionId, message, history = [], pageContext } = body;
+  const { transactionId, message, history = [], pageContext, merchant: bodyMerchant, category: bodyCategory, amount: bodyAmount, context: bodyContext } = body;
 
   if (!message) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
   }
 
   const supabase = serverSupabase();
+  const isQuickChange = message === '__system_category_changed__' && bodyContext === 'quick_change';
 
-  // 1. Fetch the transaction (optional - general mode if no transactionId)
+  // 1. Resolve merchant name
+  let merchantName = bodyMerchant || '';
   let tx: Record<string, unknown> | null = null;
   if (transactionId) {
-    const { data: txData, error: txErr } = await supabase
-      .from("transactions")
-      .select("id, merchant_name, amount, posted_at, date, category, import_id")
-      .eq("id", transactionId)
-      .eq("user_id", auth.userId)
+    const { data: txData } = await supabase
+      .from('transactions')
+      .select('id, merchant_name, amount, posted_at, date, category, import_id')
+      .eq('id', transactionId)
+      .eq('user_id', auth.userId)
       .single();
-    if (!txErr && txData) tx = txData as Record<string, unknown>;
+    if (txData) { tx = txData as Record<string, unknown>; merchantName = merchantName || String(txData.merchant_name || ''); }
   }
 
-  // 2. Fetch merchant history for this user
-  const merchantName = String((tx as any)?.merchant_name || '').toLowerCase().trim();
-  let merchantHistory = { count: 0, totalSpent: 0, categories: [] as string[], lastSeen: '' };
+  // 2. Load conversation history from tag_conversations
+  let persistedHistory: Array<{ role: string; content: string; ts: number }> = [];
   if (merchantName) {
+    try {
+      const { data: conv } = await supabase
+        .from('tag_conversations')
+        .select('messages')
+        .eq('user_id', auth.userId)
+        .eq('merchant_name', merchantName)
+        .maybeSingle();
+      persistedHistory = conv?.messages ?? [];
+    } catch { /* table may not exist */ }
+  }
+
+  // Merge: use persisted history if no frontend history provided
+  const effectiveHistory = history.length > 0 ? history : persistedHistory.map((m: any) => ({ role: m.role, content: m.content }));
+
+  // 3. Fetch merchant history
+  const merchantLower = merchantName.toLowerCase().trim();
+  let merchantHistory = { count: 0, totalSpent: 0, categories: [] as string[] };
+  if (merchantLower) {
     const { data: merchantTxs } = await supabase
       .from('transactions')
       .select('amount, category, posted_at')
       .eq('user_id', auth.userId)
-      .ilike('merchant_name', `%${merchantName}%`)
+      .ilike('merchant_name', `%${merchantLower}%`)
       .order('posted_at', { ascending: false })
       .limit(50);
     merchantHistory = {
       count: merchantTxs?.length || 0,
       totalSpent: merchantTxs?.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) || 0,
-      categories: merchantTxs?.map(t => t.category).filter(Boolean) as string[] || [],
-      lastSeen: merchantTxs?.[1]?.posted_at?.slice(0, 10) || '',
+      categories: (merchantTxs?.map(t => t.category).filter(Boolean) as string[]) || [],
     };
   }
 
-  // 3. Fetch top spending categories this year
+  // 4. Year totals
   const yearStart = `${new Date().getFullYear()}-01-01`;
   const { data: allTxs } = await supabase
     .from('transactions')
     .select('amount, category')
     .eq('user_id', auth.userId)
-    .gte('posted_at', yearStart);
-
-  const catMap: Record<string, number> = {};
-  let yearSpent = 0;
-  let yearIncome = 0;
+    .gte('posted_at', yearStart)
+    .limit(600);
+  let yearSpent = 0, yearIncome = 0;
   for (const t of allTxs || []) {
     const amt = Math.abs(Number(t.amount || 0));
-    const cat = t.category || 'Other';
-    if (cat === 'Income') { yearIncome += amt; continue; }
-    yearSpent += amt;
-    catMap[cat] = (catMap[cat] || 0) + amt;
+    if ((t.category || '').toLowerCase() === 'income') yearIncome += amt; else yearSpent += amt;
   }
-  const topCategories = Object.entries(catMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([category, total]) => ({ category, total }));
 
-  // 4. Call OpenAI with full context
+  // 5. Build messages for LLM
+  const userMessage = isQuickChange
+    ? `I just changed ${merchantName} to ${bodyCategory}.`
+    : message;
+
+  const systemPrompt = buildSystemPrompt(
+    merchantName, isQuickChange, bodyCategory || (tx as any)?.category || null,
+    bodyAmount ?? (tx as any)?.amount ?? null,
+    merchantHistory, { spent: yearSpent, income: yearIncome }, pageContext
+  );
+
+  // 6. Call OpenAI
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
     temperature: 0.4,
     max_tokens: 350,
     messages: [
-      { role: 'system', content: buildSystemPrompt(
-        tx ?? {},
-        merchantHistory,
-        topCategories,
-        { spent: yearSpent, income: yearIncome },
-        pageContext || null
-      )},
-      ...history.map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
+      { role: 'system', content: systemPrompt },
+      ...effectiveHistory.map((m: { role: string; content: string }) => ({
+        role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
         content: m.content,
       })),
-      { role: 'user', content: message },
+      { role: 'user', content: userMessage },
     ],
   });
 
-  const reply = completion.choices?.[0]?.message?.content || 'Sorry, I could not process that.';
+  let reply = completion.choices?.[0]?.message?.content || 'Sorry, I could not process that.';
 
-  // 5. Parse and execute recategorize action
+  /*
+   * SQL RPC required for staging backfill — run in Supabase SQL editor:
+   *
+   * create or replace function backfill_staging_category(
+   *   p_user_id uuid,
+   *   p_merchant_pattern text,
+   *   p_category text
+   * ) returns int language plpgsql security definer as $$
+   * declare
+   *   updated_count int;
+   * begin
+   *   update transactions_staging
+   *   set data_json = jsonb_set(
+   *     jsonb_set(data_json, '{category}', to_jsonb(p_category)),
+   *     '{category_source}', '"tag_rule"'
+   *   )
+   *   where user_id = p_user_id::text
+   *     and (data_json->>'merchant' ilike '%' || p_merchant_pattern || '%'
+   *       or data_json->>'description' ilike '%' || p_merchant_pattern || '%')
+   *     and data_json->>'category_source' is distinct from 'user_override';
+   *   get diagnostics updated_count = row_count;
+   *   return updated_count;
+   * end;
+   * $$;
+   */
+
+  // 7. Detect SAVE_RULE: in response
+  let ruleSaved = false;
+  let backfillCount = 0;
+  const ruleMatch = reply.match(/SAVE_RULE:\s*(\{[^}]+\})/);
+  if (ruleMatch) {
+    try {
+      const ruleData = JSON.parse(ruleMatch[1]);
+      const pattern = String(ruleData.merchant_pattern || merchantName).toUpperCase();
+
+      // 7a. Upsert rule
+      await supabase.from('category_rules').upsert({
+        user_id: auth.userId,
+        match_value: pattern,
+        category: ruleData.category,
+        match_type: ruleData.match_type || 'exact',
+        amount_min: ruleData.amount_min ?? null,
+        amount_max: ruleData.amount_max ?? null,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,match_type,match_value' });
+
+      // 7b. Write vendor memory
+      await supabase.from('vendor_category_memory').upsert({
+        user_id: auth.userId,
+        vendor_key: pattern.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
+        category: ruleData.category,
+        source: 'tag_conversation',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,vendor_key' });
+
+      // 7c. Backfill committed transactions
+      let backfillQuery = supabase
+        .from('transactions')
+        .update({
+          category: ruleData.category,
+          category_source: 'tag_rule',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', auth.userId)
+        .ilike('merchant_name', `%${pattern}%`)
+        .not('category_source', 'eq', 'user_override');
+
+      if (ruleData.amount_min != null) {
+        backfillQuery = backfillQuery.gte('amount', ruleData.amount_min);
+      }
+      if (ruleData.amount_max != null) {
+        backfillQuery = backfillQuery.lte('amount', ruleData.amount_max);
+      }
+
+      const { data: backfilled } = await backfillQuery.select('id');
+      backfillCount = backfilled?.length ?? 0;
+
+      // 7d. Backfill staging transactions (RPC — may not exist yet)
+      try {
+        await supabase.rpc('backfill_staging_category', {
+          p_user_id: auth.userId,
+          p_match_value: pattern,
+          p_category: ruleData.category,
+        });
+      } catch { /* RPC may not exist yet — skip */ }
+
+      ruleSaved = true;
+    } catch { /* ignore parse errors */ }
+    // Strip SAVE_RULE from reply
+    reply = reply.replace(/\n?SAVE_RULE:\s*\{[^}]+\}/g, '').trim();
+  }
+
+  // 8. Legacy recategorize action support
   let action: { action: string; category: string } | null = null;
   const actionMatch = reply.match(/\{"action"\s*:\s*"recategorize"\s*,\s*"category"\s*:\s*"([^"]+)"\}/);
   if (actionMatch) {
     const category = actionMatch[1];
     action = { action: 'recategorize', category };
-    await supabase.from('transactions').update({
-      category,
-      category_source: 'user_chat',
-      updated_at: new Date().toISOString(),
-    }).eq('id', transactionId).eq('user_id', auth.userId);
-
-    await supabase.from('vendor_category_memory').upsert({
-      user_id: auth.userId,
-      vendor_key: merchantName.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
-      category,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,vendor_key' });
+    if (transactionId) {
+      await supabase.from('transactions').update({
+        category, category_source: 'user_chat', updated_at: new Date().toISOString(),
+      }).eq('id', transactionId).eq('user_id', auth.userId);
+    }
+    reply = reply.replace(/\n?\{"action"[^}]+\}/g, '').trim();
   }
 
-  const cleanReply = reply.replace(/\n?\{"action"[^}]+\}/g, '').trim();
+  // 9. Save conversation to tag_conversations
+  if (merchantName) {
+    try {
+      const newMessages = [
+        ...persistedHistory,
+        { role: 'user', content: userMessage, ts: Date.now() },
+        { role: 'assistant', content: reply, ts: Date.now() },
+      ].slice(-30); // cap at 30 messages
+
+      await supabase.from('tag_conversations').upsert({
+        user_id: auth.userId,
+        merchant_name: merchantName,
+        messages: newMessages,
+        last_active: new Date().toISOString(),
+      }, { onConflict: 'user_id,merchant_name' });
+    } catch { /* table may not exist */ }
+  }
 
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({ reply: cleanReply, action }),
+    body: JSON.stringify({ reply, action, rule_saved: ruleSaved, backfill_count: backfillCount, history: persistedHistory }),
   };
 };
-
-

@@ -260,14 +260,14 @@ export const handler: Handler = async (event) => {
         id: tx.id,
         category: normalizeCanonicalCategory(dbRuleMatch.category),
         subcategory: dbRuleMatch.subcategory,
-        source: 'rule',
+        source: 'tag_rule',
       });
       continue;
     }
 
     const ruleCat = applyRules(merchant);
     if (ruleCat) {
-      updates.push({ id: tx.id, category: ruleCat, source: 'rule' });
+      updates.push({ id: tx.id, category: ruleCat, source: 'tag_rule' });
     }
   }
 

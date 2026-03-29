@@ -62,6 +62,9 @@ export default function TransactionsPageV2() {
   const [tagPanelOpen, setTagPanelOpen] = useState(false);
   const [tagPanelTx, setTagPanelTx] = useState<CommittedTransaction | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
+  const [tagBadgeCount, setTagBadgeCount] = useState(0);
+  const [tagInboxData, setTagInboxData] = useState<any>(null);
+  const [tagActivityOpen, setTagActivityOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("from") === "upload") {
@@ -70,8 +73,32 @@ export default function TransactionsPageV2() {
     const filterParam = searchParams.get("filter");
     if (filterParam === "income") setFilter("income");
     else if (filterParam === "expenses") setFilter("expenses");
+    // Auto-open drawer from tag-inbox Answer button
+    const autoOpenId = searchParams.get("autoOpen");
+    if (autoOpenId) {
+      const waitForTx = () => {
+        const tx = transactions.find(t => t.id === autoOpenId);
+        if (tx) { setSelectedTx(tx); void fetchTagInsight(tx); }
+      };
+      setTimeout(waitForTx, 500);
+    }
+    const searchParam = searchParams.get("search");
+    if (searchParam) setSearchQuery(searchParam);
   }, []);
   useEffect(() => { const id = setInterval(() => { refetch(); }, 10000); return () => clearInterval(id); }, [refetch]);
+
+  // Fetch tag inbox for badge count
+  const fetchTagInbox = useCallback(async () => {
+    try {
+      const sb = getSupabase();
+      if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) { const d = await res.json(); setTagInboxData(d); setTagBadgeCount(d.badge_count ?? 0); }
+    } catch { /* silent */ }
+  }, []);
+  useEffect(() => { fetchTagInbox(); }, [fetchTagInbox]);
 
   const handleUpload = useCallback(() => {
     openChat({
@@ -441,9 +468,78 @@ export default function TransactionsPageV2() {
       {/* Byte copilot bubble */}
 
       {!tagPanelOpen && !selectedTx && !(/\/(categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
-        <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 50, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
+        <div style={{ position: "fixed", bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 24, zIndex: 50 }}>
+          <button onClick={() => setTagActivityOpen(v => !v)} style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: tagBadgeCount > 0 ? "0 0 0 0 rgba(34,211,238,0.4)" : "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", border: "none", transition: "transform 0.15s", animation: tagBadgeCount > 0 ? "tagPulse 2s ease-in-out" : "none" }} className="hover:scale-105 active:scale-95">
+            T
+            {tagBadgeCount > 0 && (
+              <div style={{ position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 9, background: "#ef4444", color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px", border: "2px solid #0b1220", pointerEvents: "none" }}>
+                {tagBadgeCount}
+              </div>
+            )}
+          </button>
+          <style>{`@keyframes tagPulse { 0% { box-shadow: 0 0 0 0 rgba(34,211,238,0.4); } 70% { box-shadow: 0 0 0 12px rgba(34,211,238,0); } 100% { box-shadow: 0 0 0 0 rgba(34,211,238,0); } }`}</style>
+        </div>
       )}
-      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
+
+      {/* Tag Activity Panel */}
+      {tagActivityOpen && (
+        <>
+          <div onClick={() => setTagActivityOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 55 }} />
+          <div style={{ position: "fixed", bottom: "calc(140px + env(safe-area-inset-bottom, 0px))", right: 20, width: 340, maxHeight: "65vh", overflowY: "auto", background: "#111a2e", border: "1px solid #1e2d4a", borderRadius: 16, zIndex: 56, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid #1e2d4a", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#f1f5f9" }}>Tag Activity</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button onClick={() => { setTagActivityOpen(false); setTagPanelOpen(true); }} style={{ fontSize: 11, fontWeight: 600, color: "#22d3ee", background: "none", border: "none", cursor: "pointer" }}>Chat</button>
+                <button onClick={() => setTagActivityOpen(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16 }}>{"\u2715"}</button>
+              </div>
+            </div>
+
+            {tagInboxData?.unresolved?.length > 0 && (
+              <div>
+                <div style={{ padding: "10px 16px 6px", fontSize: 10, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.1em" }}>Needs Your Input</div>
+                {tagInboxData.unresolved.slice(0, 8).map((item: any) => (
+                  <div key={item.merchant_name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#f1f5f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.merchant_name}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{item.transaction_count} txns &middot; ${item.total_amount.toFixed(2)}</div>
+                    </div>
+                    <button onClick={() => { setTagActivityOpen(false); setSearchQuery(item.merchant_name); setTimeout(() => { const tx = transactions.find(t => (t.merchant_name || '').toLowerCase() === item.merchant_name.toLowerCase()); if (tx) { setSelectedTx(tx); void fetchTagInsight(tx); } }, 100); }} style={{ padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "rgba(34,211,238,0.12)", border: "1px solid rgba(34,211,238,0.25)", color: "#22d3ee", cursor: "pointer", flexShrink: 0, marginLeft: 8 }}>Answer</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tagInboxData?.resolved?.length > 0 && (
+              <div>
+                <div style={{ padding: "10px 16px 6px", fontSize: 10, fontWeight: 700, color: "#34d399", textTransform: "uppercase", letterSpacing: "0.1em" }}>Recently Handled</div>
+                {tagInboxData.resolved.map((rule: any, i: number) => (
+                  <div key={i} style={{ padding: "8px 16px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#34d399" }}>{"\u2713"} {rule.match_value}</div>
+                    <div style={{ fontSize: 11, color: "#475569", marginTop: 1 }}>Saved as {rule.category}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tagInboxData?.imports?.length > 0 && (
+              <div>
+                <div style={{ padding: "10px 16px 6px", fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em" }}>Import History</div>
+                {tagInboxData.imports.map((imp: any) => (
+                  <div key={imp.id} style={{ padding: "8px 16px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>{imp.filename}</div>
+                    <div style={{ fontSize: 11, color: "#475569", marginTop: 1 }}>{imp.total_count} transactions</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tagInboxData?.badge_count === 0 && (
+              <div style={{ padding: 24, textAlign: "center", color: "#475569", fontSize: 12 }}>All caught up {"\u2713"}</div>
+            )}
+          </div>
+        </>
+      )}
+      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} />}
 
       {/* Drawer � portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(

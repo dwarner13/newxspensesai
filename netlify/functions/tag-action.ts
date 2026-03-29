@@ -265,5 +265,44 @@ export const handler: Handler = async (event) => {
     }
   }
 
+  // ── SAVE_RULE ──────────────────────────────────────────────────────────────
+  if (intent === 'save_rule') {
+    try {
+      // Upsert into category_rules
+      await supabase.from('category_rules').upsert(
+        {
+          user_id: userId,
+          match_type: matchType,
+          match_value: normalized,
+          category: encodeRuleCategory(parsedTarget.category, parsedTarget.subcategory),
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,match_type,match_value' }
+      );
+
+      // Also write vendor memory
+      await supabase.from('vendor_category_memory').upsert(
+        {
+          user_id: userId,
+          vendor_key: normalized.toLowerCase(),
+          category: parsedTarget.category,
+          subcategory: parsedTarget.subcategory,
+          source: 'user_rule',
+          confidence: 1.0,
+          times_confirmed: 1,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,vendor_key' }
+      );
+
+      safeLog('tag-action.save_rule', { userId, matchValue: normalized, targetCategory: parsedTarget.category, matchType });
+
+      return ok({ ok: true, intent: 'save_rule', rule: { merchant: normalized, category: parsedTarget.category } });
+    } catch (e: any) {
+      return err(e.message, 500);
+    }
+  }
+
   return err(`Unknown intent: ${intent}`);
 };
