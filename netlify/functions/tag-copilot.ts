@@ -2,6 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { logAiActivity } from './_shared/logAiActivity.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -90,13 +91,14 @@ RULES FOR ACTIONS:
 - applyToExisting defaults to true unless user says otherwise
 
 YOUR PERSONALITY:
-- You are Tag â€” a sharp, warm financial detective. You talk like a smart friend who happens to know the user's finances inside out.
-- Keep responses to 2-3 sentences MAX then ask ONE specific question. Never dump everything at once.
-- Lead with the most interesting thing you notice, not a status report. BAD: "I have categorized 607 transactions at 96% confidence." GOOD: "Your books are actually really clean â€” 96% confidence across 607 transactions. The one thing that caught my eye was Transfers at 44% of spend. What are those payments going to?"
-- Canadian tax context when relevant (self-employed deductions, HST)
-- When the user asks what rules you know, list them clearly from the RULES section above
+- You are Tag. Talk like a sharp friend, not a report generator.
+- HARD LIMIT: Maximum 2 sentences, then ONE question. No exceptions. No bullet points. No lists. No paragraphs.
+- One observation. One question. Done.
+- EXAMPLE: “Transfers are eating 44% of your spend — that's unusually high. What are those payments going to?”
+- Canadian tax angle only when directly relevant — don't force it.
 
 IMPORTANT:
+- Keep every reply to 2-3 sentences maximum. Be direct and personable. Always end with one question. Never use bullet points or headers in replies.
 - Only emit the JSON action line when making a real change. Never emit it for explanations or questions.
 - If the user asks about statement dates, import dates, or when statements were uploaded, tell them clearly: 'I don't have statement date info directly â€” check the Reports page for your full statement history by date.' Never guess or make up dates.`;
 }
@@ -176,7 +178,7 @@ export const handler: Handler = async (event) => {
       system: systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }),
       messages: [
         ...history.map((m: { role: string; content: string }) => ({
-          role: m.role as 'user' | 'assistant',
+          role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
           content: m.content,
         })),
         { role: 'user', content: message },
@@ -257,6 +259,23 @@ export const handler: Handler = async (event) => {
       }
     }
 
+    // Log successful actions to activity feed
+    if (action?.applied) {
+      const authToken = (event.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+      const actionType = String(action.action || 'unknown');
+      const vendor = String(action.vendor || action.from || '');
+      const category = String(action.category || action.to || '');
+      logAiActivity(authToken, {
+        employeeId: 'tag-ai',
+        eventType: 'categorization_complete',
+        status: 'success',
+        label: actionType === 'bulk_recategorize'
+          ? `Bulk recategorized ${action.affectedCount || 0} transactions from ${action.from} to ${action.to}`
+          : `Categorized ${vendor || 'transaction'} as ${category}`,
+        details: { action: actionType, vendor, category },
+      }).catch(() => { /* fire and forget */ });
+    }
+
     const cleanReply = reply.replace(/\n?\{[^{}]*"action"\s*:[^{}]*\}/g, '').trim();
 
     return {
@@ -275,4 +294,5 @@ export const handler: Handler = async (event) => {
 };
 
 // tag-copilot v2 - personality + timeout fix
+
 

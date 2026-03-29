@@ -205,7 +205,7 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
     const totalBudget = categories.reduce((s, c) => s + c.budget, 0);
 
     const uncategorizedCount = periodFiltered.filter(
-      t => !t.category || t.category === "Uncategorized"
+      t => !t.category || t.category === "Uncategorized" || t.category === "Other"
     ).length;
 
     const flaggedTransactions: FlaggedTransaction[] = periodFiltered

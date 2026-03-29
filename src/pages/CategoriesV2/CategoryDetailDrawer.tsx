@@ -151,7 +151,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
             style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: `${category.color}15`, border: `1px solid ${category.color}30`, color: category.color, cursor: "pointer" }}>
             View Trends
           </button>
-          <button onClick={() => { onClose(); onAskTag && onAskTag("Help me re-categorize " + category.name + " — $" + category.spent.toLocaleString() + " across " + category.transactionCount + " transactions, top merchant " + category.topMerchant + ". What should I do?"); }}
+          <button onClick={() => { onAskTag?.("You have " + category.transactionCount + " transactions in " + category.name + ". Want me to go through them and find better categories?"); onClose(); }}
             style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}>
             Re-categorize
           </button>

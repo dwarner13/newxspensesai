@@ -8849,6 +8849,20 @@ export const handler: Handler = async (event, context) => {
         }
       }
 
+      // Fetch recent agent activity for Prime awareness
+      try {
+        const { data: recentActivity } = await sb
+          .from('ai_activity_events')
+          .select('employee_id, label, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (recentActivity && recentActivity.length > 0) {
+          primeContextMessage += '\nRecent agent activity:\n' +
+            recentActivity.map((e: any) => `- ${e.employee_id}: ${e.label}`).join('\n') + '\n';
+        }
+      } catch { /* non-blocking */ }
+
       // Prepend Prime context BEFORE orchestration rule (so orchestration can reference context)
       systemMessages.push({ role: 'system', content: primeContextMessage });
       

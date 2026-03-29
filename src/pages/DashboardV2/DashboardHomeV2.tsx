@@ -132,20 +132,21 @@ export default function DashboardHomeV2() {
         {/* FINANCIAL PULSE */}
         <div style={{ display: "grid", gridTemplateColumns: isVerySmall ? "1fr" : isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: 28, padding: isMobile ? "0 2px" : 0 }}>
           {[
-            { label: "Income", value: `$${data.income.toLocaleString()}`, trend: data.incomeTrend !== 0 ? `${data.incomeTrend > 0 ? "+" : ""}${data.incomeTrend}%` : null, dir: data.incomeTrend >= 0 ? "up" as const : "down" as const, color: THEME.green, spark: incSpark },
-            { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, trend: data.expenseTrend !== 0 ? `${data.expenseTrend > 0 ? "+" : ""}${data.expenseTrend}%` : null, dir: data.expenseTrend >= 0 ? "up" as const : "down" as const, color: "#f87171", spark: expSpark },
-            { label: "Net Flow", value: `${data.netFlow >= 0 ? "+" : ""}$${data.netFlow.toLocaleString()}`, trend: null, dir: data.netFlow >= 0 ? "up" as const : "down" as const, color: data.netFlow >= 0 ? THEME.green : "#fb923c", spark: netSpark },
-            { label: "Deductions Found", value: `$${data.deductions.toLocaleString()}`, trend: null, dir: "up" as const, color: THEME.accent, spark: dedSpark },
+            { label: "Income", value: `$${data.income.toLocaleString()}`, trend: data.incomeTrend !== 0 ? `${data.incomeTrend > 0 ? "+" : ""}${data.incomeTrend}%` : null, dir: data.incomeTrend >= 0 ? "up" as const : "down" as const, color: THEME.green, spark: incSpark, href: "/dashboard/transactions?filter=income" },
+            { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, trend: data.expenseTrend !== 0 ? `${data.expenseTrend > 0 ? "+" : ""}${data.expenseTrend}%` : null, dir: data.expenseTrend >= 0 ? "up" as const : "down" as const, color: "#f87171", spark: expSpark, href: "/dashboard/transactions?filter=expenses" },
+            { label: "Net Flow", value: `${data.netFlow >= 0 ? "+" : ""}$${data.netFlow.toLocaleString()}`, trend: null, dir: data.netFlow >= 0 ? "up" as const : "down" as const, color: data.netFlow >= 0 ? THEME.green : "#fb923c", spark: netSpark, href: "/dashboard/transactions" },
+            { label: "Deductions Found", value: `$${data.deductions.toLocaleString()}`, trend: null, dir: "up" as const, color: THEME.accent, spark: dedSpark, href: "/dashboard/tax-workspace" },
           ].map((s, i) => (
             <Reveal key={s.label} delay={300 + i * 80} style={{ minWidth: 0 }}>
               <div
-                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 8px 32px ${s.color}20`; }}
-                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = `0 4px 20px ${s.color}10`; }}
+                onClick={() => navigate(s.href)}
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 8px 32px ${s.color}20`; e.currentTarget.style.borderColor = "#2d4a6e"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = `0 4px 20px ${s.color}10`; e.currentTarget.style.borderColor = THEME.border; }}
                 style={{
                 background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16,
                 padding: isMobile ? "12px 12px" : "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center",
-                boxShadow: `0 4px 20px ${s.color}10`, transition: "box-shadow 0.25s ease",
-                height: "100%", minWidth: 0,
+                boxShadow: `0 4px 20px ${s.color}10`, transition: "box-shadow 0.25s ease, border-color 0.15s",
+                height: "100%", minWidth: 0, cursor: "pointer",
               }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: isMobile ? 9 : 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textMuted, fontWeight: 800, marginBottom: 6, whiteSpace: "nowrap" }}>{s.label}</div>

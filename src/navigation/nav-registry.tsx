@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import {
   Home, Receipt, Tags, Brain, FileText, Star,
-  Target, Mic, Briefcase, Settings
+  Target, Mic, Briefcase, Settings, Mail
 } from "lucide-react";
 
 export type NavItem = {
@@ -63,6 +63,13 @@ const NAV_ITEMS: NavItem[] = [
     icon: <Star className="w-5 h-5" />,
     group: "PRIMARY",
     description: "Your financial health score",
+  },
+  {
+    label: "Inbox",
+    to: "/dashboard/inbox",
+    icon: <Mail className="w-5 h-5" />,
+    group: "PRIMARY",
+    description: "Messages from your AI team",
   },
 
   // ── More ──

@@ -181,7 +181,7 @@ export async function logAiActivity(
     // Insert without user_id - RLS policy should set it automatically
     // Handle details column gracefully - if column doesn't exist, omit it
     const insertData: Record<string, unknown> = {
-      employee_id: params.employeeId,
+      employee_id: params.employeeId ?? 'system',
       event_type: params.eventType, // Keep original eventType (e.g., "message_sent")
       status: statusNormalized.normalized, // Use normalized status (e.g., "started")
       label: params.label,

@@ -12,6 +12,7 @@ interface PrimeChatInputProps {
 
 export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: PrimeChatInputProps) {
   const [value, setValue] = useState(initialValue);
+  const [pendingFile, setPendingFile] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSend = () => {
@@ -31,7 +32,10 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: Pr
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onFileSelected) {
+      setPendingFile(file.name);
       onFileSelected(file);
+      // Clear pill after 8s (upload should be done by then)
+      setTimeout(() => setPendingFile(null), 8000);
     }
     // Reset so the same file can be re-selected
     if (fileRef.current) fileRef.current.value = "";
@@ -39,6 +43,20 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: Pr
 
   return (
     <div>
+      {pendingFile && (
+        <div style={{
+          background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 8,
+          padding: '6px 12px', color: '#e8ecf4', fontSize: 13, marginBottom: 8,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span>{'\ud83d\udcce'} {pendingFile}</span>
+          <span style={{ color: '#9ba8bc', fontSize: 11 }}>Processing...</span>
+          <button onClick={() => setPendingFile(null)} style={{
+            marginLeft: 'auto', background: 'none', border: 'none',
+            color: '#9ba8bc', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1,
+          }}>{'\u00d7'}</button>
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -97,8 +115,9 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: Pr
             border: "none",
             outline: "none",
             color: THEME.text,
-            fontSize: 13,
-            padding: "10px 0",
+            fontSize: 14,
+            padding: "12px 4px 12px 16px",
+            minHeight: 48,
             fontFamily: "inherit",
           }}
         />

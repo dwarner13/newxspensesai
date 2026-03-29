@@ -20,7 +20,8 @@ function buildSystemPrompt(
   tx: Record<string, unknown>,
   merchantHistory: { count: number; totalSpent: number; categories: string[]; lastSeen: string },
   topCategories: { category: string; total: number }[],
-  yearTotal: { spent: number; income: number }
+  yearTotal: { spent: number; income: number },
+  pageCtx?: { totalSpent: number; totalIncome: number; netFlow: number; transactionCount: number } | null
 ): string {
   const merchantCatList = [...new Set(merchantHistory.categories)].join(', ') || 'none yet';
   const topCatList = topCategories.slice(0, 5).map(c => `${c.category} $${c.total.toFixed(0)}`).join(', ');
@@ -61,7 +62,8 @@ YOUR JOB:
 - Be concise -- 2-4 sentences unless explaining something complex
 - You have Tag's personality: detective-like, precise, a little witty, always helpful
 
-IMPORTANT: Only output the JSON action line when the user clearly wants to change the category. Do not output it for questions or explanations.`;
+IMPORTANT: Only output the JSON action line when the user clearly wants to change the category. Do not output it for questions or explanations.`
+  + (pageCtx ? `\n\nPAGE CONTEXT (current filtered view):\n- Total spent: $${pageCtx.totalSpent.toFixed(2)}\n- Total income: $${pageCtx.totalIncome.toFixed(2)}\n- Net flow: $${pageCtx.netFlow.toFixed(2)}\n- Transactions in view: ${pageCtx.transactionCount}` : '');
 }
 
 export const handler: Handler = async (event) => {
@@ -72,7 +74,7 @@ export const handler: Handler = async (event) => {
   if (auth.error || !auth.userId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   const body = JSON.parse(event.body || '{}');
-  const { transactionId, message, history = [] } = body;
+  const { transactionId, message, history = [], pageContext } = body;
 
   if (!message) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
@@ -146,7 +148,8 @@ export const handler: Handler = async (event) => {
         tx ?? {},
         merchantHistory,
         topCategories,
-        { spent: yearSpent, income: yearIncome }
+        { spent: yearSpent, income: yearIncome },
+        pageContext || null
       )},
       ...history.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',

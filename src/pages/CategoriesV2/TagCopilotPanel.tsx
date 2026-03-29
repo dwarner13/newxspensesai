@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { Trash2 } from "lucide-react";
 import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
@@ -10,6 +11,7 @@ const CYAN = "#22d3ee";
 interface TagCopilotPanelProps {
   initialMessage?: string;
   onClose: () => void;
+  firstName?: string;
   flaggedCount: number;
   categorizedCount: number;
   totalCount: number;
@@ -84,6 +86,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 export function TagCopilotPanel({
   initialMessage,
   onClose,
+  firstName,
   flaggedCount,
   categorizedCount,
   totalCount,
@@ -105,6 +108,12 @@ export function TagCopilotPanel({
       const saved = localStorage.getItem('tag_chat_history');
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
+  });
+  const [hasRestoredHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tag_chat_history');
+      return saved ? JSON.parse(saved).length > 0 : false;
+    } catch { return false; }
   });
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -210,12 +219,41 @@ export function TagCopilotPanel({
     }
   };
 
-  const statusText = `I have categorized ${categorizedCount} out of ${totalCount} transactions across your categories. Confidence is high overall \u2014 ${avgConfidence}% average. ${flaggedCount} transactions flagged for your review.${subcategorySuggestions.length > 0 ? ` I also spotted ${subcategorySuggestions.length} categories with distinct spending patterns worth splitting.` : ""}`;
-  const [typed, typeDone] = useTypewriter(statusText, 14, 500);
+  const statusText = (() => {
+    const isNewUser = totalCount === 0;
+    const hasUncategorized = flaggedCount > 0;
+    const name = firstName || '';
+    const hi = name ? `Hey ${name}! ` : 'Hey! ';
+
+    if (isNewUser) {
+      return `${hi}I'm Tag \u2014 I handle your categories. Upload a statement and I'll start making sense of your spending. What kind of expenses do you track most?`;
+    }
+    if (hasUncategorized) {
+      return `${hi}${flaggedCount} transaction${flaggedCount > 1 ? 's' : ''} need a category \u2014 want me to sort those out now? I've got ${categorizedCount} of ${totalCount} organized so far.`;
+    }
+    const sorted = [...(topCategories || [])].sort((a, b) => b.total - a.total);
+    if (sorted.length > 0 && totalSpent && totalSpent > 0) {
+      const top = sorted[0];
+      const pct = Math.round((top.total / totalSpent) * 100);
+      return `${hi}Your categories are looking clean. ${top.category} is your biggest bucket at ${pct}% \u2014 is that typical for your business?`;
+    }
+    return `${hi}All ${totalCount} transactions categorized and looking clean. What do you want to dig into?`;
+  })();
+  const [typed, typeDone] = useTypewriter(statusText, 14, 500, !hasRestoredHistory);
+
+  // Typewriter for chat replies — track last assistant message
+  const lastAssistantIdx = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') return i;
+    }
+    return -1;
+  }, [messages]);
+  const lastAssistantText = lastAssistantIdx >= 0 ? messages[lastAssistantIdx]?.content ?? '' : '';
+  const [replyTyped, replyDone] = useTypewriter(lastAssistantText ?? '', 18, 150);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [typed, typeDone]);
+  }, [typed, typeDone, replyTyped]);
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -238,14 +276,15 @@ export function TagCopilotPanel({
             <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green, boxShadow: `0 0 8px ${THEME.green}66` }} />
             <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>Online</span>
           </div>
+          <button onClick={() => { localStorage.removeItem('tag_chat_history'); setMessages([]); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ba8bc", fontSize: 12, display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 6 }}><Trash2 size={13} /> Clear</button>
           <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 8, background: THEME.surface, border: `1px solid ${THEME.border}`, color: THEME.textMuted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
         {/* Body */}
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px 24px 140px" }}>
 
-          {/* Typewriter */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 6 }}>
+          {/* Typewriter greeting — only shown when no restored history */}
+          {!hasRestoredHistory && <div style={{ display: "flex", gap: 10, marginBottom: 6 }}>
             <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -256,10 +295,10 @@ export function TagCopilotPanel({
                 {typed}<span style={{ opacity: !typeDone ? 1 : 0, transition: "opacity 0.3s", color: CYAN }}>{"\u2588"}</span>
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* Details toggle */}
-          {typeDone && (
+          {!hasRestoredHistory && typeDone && (
             <div style={{ marginLeft: 38, marginTop: 12, marginBottom: detailsOpen ? 8 : 16 }}>
               <button type="button" onClick={() => setDetailsOpen(!detailsOpen)} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0, fontSize: 11, fontWeight: 600, color: CYAN }}>
                 <span style={{ transition: "transform 0.2s", transform: detailsOpen ? "rotate(90deg)" : "rotate(0)" }}>{"\u25B6"}</span>
@@ -385,29 +424,33 @@ export function TagCopilotPanel({
           )}
 
           {/* Inline conversation thread */}
-          {messages.map((msg, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, marginTop: 16, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
-              {msg.role === "assistant" && (
-                <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
-              )}
-              <div style={{
-                maxWidth: "78%",
-                padding: "10px 14px",
-                borderRadius: 14,
-                fontSize: 13,
-                lineHeight: 1.6,
-                ...(msg.role === "user"
-                  ? { background: `${CYAN}14`, border: `1px solid ${CYAN}28`, color: THEME.text, borderBottomRightRadius: 4 }
-                  : { background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44`, color: THEME.textMuted, borderBottomLeftRadius: 4 }
-                ),
-              }}>
-                {msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}
-                {msg.role === "assistant" && i === messages.length - 1 && isLoading && (
-                  <span style={{ color: CYAN, marginLeft: 2 }}>{"\u2588"}</span>
+          {messages.map((msg, i) => {
+            const isLastAssistant = msg.role === 'assistant' && i === lastAssistantIdx;
+            const displayContent = isLastAssistant ? replyTyped : msg.content;
+            return (
+              <div key={i} style={{ display: "flex", gap: 10, marginTop: 16, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
+                {msg.role === "assistant" && (
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
                 )}
+                <div style={{
+                  maxWidth: "78%",
+                  padding: "10px 14px",
+                  borderRadius: 14,
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  ...(msg.role === "user"
+                    ? { background: `${CYAN}14`, border: `1px solid ${CYAN}28`, color: THEME.text, borderBottomRightRadius: 4 }
+                    : { background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44`, color: THEME.textMuted, borderBottomLeftRadius: 4 }
+                  ),
+                }}>
+                  {msg.role === "assistant" ? renderMarkdown(displayContent ?? '') : msg.content}
+                  {isLastAssistant && !replyDone && (
+                    <span style={{ color: CYAN, marginLeft: 2 }}>{"\u2588"}</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Loading dots while waiting for first token */}
           {isLoading && messages[messages.length - 1]?.role === "user" && (

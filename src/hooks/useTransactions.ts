@@ -78,6 +78,7 @@ export function useTransactions(options?: {
             'subcategory',
             'subcategory_source',
             'category_source',
+            'date',
             'type',
             'import_id',
             'document_id',

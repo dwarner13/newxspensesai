@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
 import { THEME } from "./categoryConfig";
 import { useCategoriesData } from "./useCategoriesData";
+import { useProfile } from "@/hooks/useProfile";
 import { StatCard } from "./StatCard";
 import { CategoryCard } from "./CategoryCard";
 import { CategoryDetailDrawer } from "./CategoryDetailDrawer";
@@ -20,6 +21,8 @@ function formatPeriod(p: string): string {
 }
 
 export default function CategoriesPageV2() {
+  const { fullName } = useProfile();
+  const firstName = fullName?.split(' ')[0] || '';
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
   const data = useCategoriesData(selectedPeriod || undefined);
   const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
@@ -257,6 +260,7 @@ export default function CategoriesPageV2() {
       {copilotOpen && (
         <TagCopilotPanel initialMessage={copilotInitialMessage}
           onClose={() => setCopilotOpen(false)}
+          firstName={firstName}
           flaggedCount={data.uncategorizedCount}
           categorizedCount={totalTxCount - data.uncategorizedCount}
           totalCount={totalTxCount}

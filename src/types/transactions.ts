@@ -51,6 +51,7 @@ export interface CommittedTransaction {
   id: string;
   user_id: string;
   posted_at: string;
+  date?: string;
   merchant_name: string;
   amount: number;
   category?: string;

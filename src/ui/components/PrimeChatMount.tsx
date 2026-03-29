@@ -19,7 +19,7 @@ export function PrimeChatMount() {
 
   return (
     <>
-      {!isOpen && (
+      {!isOpen && !location.pathname.includes('/inbox') && (
         <button
           onClick={() => setIsOpen(true)}
           aria-label="Open Prime Assistant"

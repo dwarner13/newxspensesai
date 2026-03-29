@@ -85,6 +85,7 @@ const CategoriesPageV2 = lazy(() => import('./pages/CategoriesV2/CategoriesPageV
 const DashboardHomeV2 = lazy(() => import('./pages/DashboardV2/DashboardHomeV2'));
 const MyFinancialStoryV2 = lazy(() => import('./pages/MyStoryV2/MyFinancialStoryV2'));
 const ReportsPageV2 = lazy(() => import('./pages/ReportsV2/ReportsPageV2'));
+const InboxPage = lazy(() => import('./pages/Inbox/InboxPage'));
 const GoalsDebtPageV2 = lazy(() => import('./pages/GoalsDebtV2/GoalsDebtPageV2'));
 const MonthlyRecapPageV2 = lazy(() => import('./pages/MonthlyRecapV2/MonthlyRecapPageV2'));
 const TaxBusinessPageV2 = lazy(() => import('./pages/TaxBusinessV2/TaxBusinessPageV2'));
@@ -525,6 +526,7 @@ function App() {
                       
                       {/* Planning & Analysis */}
                       <Route path="transactions" element={<TransactionsPageV2 />} />
+                      <Route path="inbox" element={<Suspense fallback={<LoadingSpinner />}><InboxPage /></Suspense>} />
                       <Route path="bank-accounts" element={<Suspense fallback={<LoadingSpinner />}><BankAccountsPage /></Suspense>} />
                       <Route path="goal-concierge" element={<GoalsDebtPageV2 />} />
                       <Route path="smart-automation" element={<Suspense fallback={<LoadingSpinner />}><SmartAutomation /></Suspense>} />

@@ -1,7 +1,8 @@
 ﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { X, Send } from 'lucide-react';
+import { X, Send, Paperclip, Trash2 } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
+import { useProfile } from '../../hooks/useProfile';
 
 interface PrimeChatDrawerProps {
   isOpen: boolean;
@@ -20,15 +21,15 @@ const T = {
   gold: '#c8a64e',
 };
 
+const PRIME_VOICE = `\n\nKeep every reply to 2-3 sentences maximum. Be direct, warm and confident — you are a senior financial advisor, not a report generator. Always end with one question to keep the conversation going. Never use bullet points, headers, or numbered lists in replies. Speak like a person, not a dashboard. Never list raw transactions. When asked about statements or spending, summarize in 2-3 sentences covering: total spent, top 2-3 categories, and one insight. Then ask one follow-up question.`;
+
 function buildPageContext(page: string): { label: string; systemPrompt: string } {
   if (page.includes('/reports')) {
     return {
       label: 'Reports',
       systemPrompt: `You are Prime on the REPORTS PAGE. The user is reviewing their statement breakdown for their accountant.
 Focus on: accountant readiness, missing statements, category totals, CSV export, tax summary.
-Open with a reports-specific briefing. Mention what statements are present, what is missing,
-and what the user needs to do next to be accountant-ready.
-Be direct and action-oriented. Reference specific numbers if available in prime_context.`,
+Reference specific numbers if available in prime_context.` + PRIME_VOICE,
     };
   }
   if (page.includes('/transactions')) {
@@ -36,8 +37,7 @@ Be direct and action-oriented. Reference specific numbers if available in prime_
       label: 'Transactions',
       systemPrompt: `You are Prime on the TRANSACTIONS PAGE. The user is reviewing their transaction list.
 Focus on: uncategorized transactions, spending patterns, category corrections, merchant insights.
-Reference specific transaction counts and amounts if available.
-Suggest what Tag can help with if categories need review.`,
+Suggest what Tag can help with if categories need review.` + PRIME_VOICE,
     };
   }
   if (page.includes('/categories')) {
@@ -45,8 +45,7 @@ Suggest what Tag can help with if categories need review.`,
       label: 'Categories',
       systemPrompt: `You are Prime on the CATEGORIES PAGE. The user is reviewing their spending by category.
 Focus on: category accuracy, business vs personal split, tax deductibility, top spending areas.
-Suggest which categories need review and what Tag can help recategorize.
-Reference specific category totals if available in prime_context.`,
+Suggest which categories need review and what Tag can help recategorize.` + PRIME_VOICE,
     };
   }
   if (page.includes('/upload')) {
@@ -54,23 +53,21 @@ Reference specific category totals if available in prime_context.`,
       label: 'Upload',
       systemPrompt: `You are Prime on the UPLOAD PAGE. The user is uploading financial statements.
 Focus on: upload status, which statements are needed, pipeline progress.
-Be encouraging and guide them through the upload process step by step.
-Let them know what Byte is doing and when statements are ready.`,
+Be encouraging and guide them through the upload process.` + PRIME_VOICE,
     };
   }
   if (page.includes('/dashboard') || page === '/') {
     return {
       label: 'Dashboard',
-      systemPrompt: `You are Prime on the DASHBOARD. Give the user their complete financial briefing.
-Focus on: overall financial health, recent activity, what needs attention today.
-Reference total spent, income, top categories, and any missing statements.
-Be proactive -- tell them what matters most right now without waiting to be asked.`,
+      systemPrompt: `You are Prime on the DASHBOARD. The user just opened XspensesAI.
+Focus on: overall financial health, what needs attention today.
+Reference total spent, income, top categories if available in prime_context.` + PRIME_VOICE,
     };
   }
   return {
     label: 'XspensesAI',
     systemPrompt: `You are Prime -- the AI financial CEO of XspensesAI.
-Help the user with their finances. Be direct, specific, and action-oriented.`,
+Help the user with their finances.` + PRIME_VOICE,
   };
 }
 
@@ -91,18 +88,26 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
     return id;
   });
   const [primeSnapshot, setPrimeSnapshot] = useState<any>(null);
+  const { fullName } = useProfile();
+  const firstName = fullName?.split(' ')[0] || '';
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastCompletedIndex = useRef(-1);
 
-  // Track when loading finishes to mark the last assistant message as completed
+  // Track when loading finishes or a greeting is set to mark the last assistant message as completed
   const prevLoading = useRef(isLoading);
   useEffect(() => {
     if (prevLoading.current && !isLoading) {
-      // Loading just finished — find last assistant message index
       for (let i = messages.length - 1; i >= 0; i--) {
         if (messages[i].role === 'assistant') { lastCompletedIndex.current = i; break; }
       }
+    }
+    // Also catch direct message sets (e.g. greeting) — when not loading and last msg is assistant
+    if (!isLoading && !prevLoading.current && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant') {
+      lastCompletedIndex.current = messages.length - 1;
     }
     prevLoading.current = isLoading;
   }, [isLoading, messages]);
@@ -159,18 +164,36 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
         .slice(0, 6)
         .map(([name, amount]) => ({ name, amount: Math.round(amount) }));
 
-      // Per-import summaries
-      const txByImport = new Map<string, number>();
+      // Per-import summaries with real totals, categories, merchants
+      const importStats = new Map<string, { spend: number; income: number; count: number; cats: Record<string, number>; merchants: Record<string, number> }>();
       for (const tx of txs) {
-        if (tx.import_id) txByImport.set(tx.import_id, (txByImport.get(tx.import_id) || 0) + 1);
+        if (!tx.import_id) continue;
+        let s = importStats.get(tx.import_id);
+        if (!s) { s = { spend: 0, income: 0, count: 0, cats: {}, merchants: {} }; importStats.set(tx.import_id, s); }
+        const amt = Math.abs(Number(tx.amount) || 0);
+        const isInc = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
+        if (isInc) { s.income += amt; } else { s.spend += amt; }
+        s.count++;
+        const cat = tx.category || 'Other';
+        s.cats[cat] = (s.cats[cat] || 0) + amt;
+        const merchant = tx.merchant_name || 'Unknown';
+        if (merchant !== 'Unknown') s.merchants[merchant] = (s.merchants[merchant] || 0) + amt;
       }
-      const recentImportSummaries = imps.slice(0, 5).map(imp => ({
-        importId: imp.id,
-        label: imp.issuer || 'Unknown',
-        totalSpend: 0,
-        txCount: txByImport.get(imp.id) || 0,
-        displayedAt: imp.created_at,
-      }));
+      const recentImportSummaries = imps.slice(0, 5).map(imp => {
+        const s = importStats.get(imp.id);
+        const topCats = s ? Object.entries(s.cats).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, amount]) => ({ name, amount: Math.round(amount) })) : [];
+        const topMerchants = s ? Object.entries(s.merchants).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, amount]) => ({ name, amount: Math.round(amount) })) : [];
+        return {
+          importId: imp.id,
+          label: imp.issuer || 'Unknown',
+          totalSpend: Math.round(s?.spend ?? 0),
+          totalIncome: Math.round(s?.income ?? 0),
+          txCount: s?.count ?? 0,
+          topCategories: topCats,
+          topMerchants: topMerchants,
+          displayedAt: imp.created_at,
+        };
+      });
 
       setPrimeSnapshot({
         currency: 'CAD',
@@ -206,27 +229,23 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
     setTimeout(() => inputRef.current?.focus(), 300);
   }, [isOpen]);
 
-  // Fire opening message once snapshot is ready
+  // Fire opening greeting once snapshot is ready
   useEffect(() => {
     if (!isOpen || !primeSnapshot || messages.length > 0) return;
 
-    const openingMessages: Record<string, string> = {
-      '/dashboard/reports':
-        'I am on the Reports page reviewing my statements for my accountant. What statements do I have committed, which issuers are missing, and what do I need to do to be fully accountant-ready? Be specific.',
-      '/dashboard/transactions':
-        'I am on the Transactions page. Give me a quick status on my transactions -- are there any that need my attention, any patterns worth flagging, or anything Tag should review?',
-      '/dashboard/categories':
-        'I am on the Categories page. Walk me through my top spending categories and flag anything that looks wrong or could be optimized for a self-employed Canadian.',
-      '/dashboard/upload':
-        'I am on the Upload page. What statements should I be uploading right now and what is the current status of my pipeline?',
-    };
+    const snap = primeSnapshot.financialSnapshot;
+    const stmtCount = primeSnapshot.recentImportSummaries?.length ?? 0;
+    const txCount = primeSnapshot.recentImportSummaries?.reduce((s: number, r: any) => s + (r.txCount || 0), 0) ?? 0;
+    const hi = firstName ? `Hey ${firstName}` : 'Hey';
 
-    const page = currentPage || '/';
-    const openingMsg = Object.entries(openingMessages).find(([key]) =>
-      page.includes(key.replace('/dashboard', ''))
-    )?.[1] || 'I just opened XspensesAI. Give me a quick financial status update based on my current data -- what matters most right now?';
+    let greeting: string;
+    if (snap?.hasTransactions && txCount > 0) {
+      greeting = `${hi} — ${stmtCount} statement${stmtCount !== 1 ? 's' : ''} in, ${txCount} transactions processed. What do you want to dig into?`;
+    } else {
+      greeting = `${hi} — upload your first statement and I'll get to work. What bank are we starting with?`;
+    }
 
-    sendMessage(openingMsg, true);
+    setMessages([{ id: 'greeting-' + Date.now(), role: 'assistant', content: greeting }]);
   }, [primeSnapshot]);
 
   // Re-brief when page changes while Prime is open
@@ -346,6 +365,58 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
     }
   }, [input, messages, isLoading, sessionId, pageCtx, primeSnapshot]);
 
+  const handleFileSelect = useCallback(async (file: File) => {
+    setAttachedFile(file);
+    setPreviewLoading(true);
+    setMessages(prev => [...prev, {
+      id: 'upload-' + Date.now(),
+      role: 'user' as const,
+      content: '\ud83d\udcce ' + file.name,
+    }]);
+
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
+
+      // Read file as base64
+      const buffer = await file.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+
+      const res = await fetch('/.netlify/functions/prime-preview-statement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ fileBase64: base64, filename: file.name }),
+      });
+
+      const data = await res.json();
+      const txs = data.transactions || [];
+
+      let reply: string;
+      if (txs.length === 0) {
+        reply = "I couldn't pull transactions from that file — it might not be a bank statement, or the format threw me off. Try a different file?";
+      } else {
+        const top5 = txs.slice(0, 5);
+        const lines = top5.map((t: any) =>
+          `${t.merchant} — $${Math.abs(t.amount).toFixed(2)} (${t.type})`
+        ).join('\n');
+        const total = txs.reduce((s: number, t: any) => s + Math.abs(t.amount || 0), 0);
+        reply = `I found ${txs.length} transactions in ${file.name}. Here are the biggest:\n\n${lines}\n\nTotal: $${total.toFixed(2)}. Want me to import this statement?`;
+      }
+
+      setMessages(prev => [...prev, { id: 'preview-' + Date.now(), role: 'assistant', content: reply }]);
+    } catch {
+      setMessages(prev => [...prev, {
+        id: 'preview-err-' + Date.now(),
+        role: 'assistant',
+        content: 'Something went wrong previewing that file. Try again?',
+      }]);
+    } finally {
+      setPreviewLoading(false);
+      setAttachedFile(null);
+    }
+  }, []);
+
   if (!isOpen) return null;
 
   return (
@@ -371,8 +442,21 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
           <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Prime</div>
           <div style={{ fontSize: 11, color: T.gold }}>{pageCtx.label} - Your Financial Advisor</div>
         </div>
+        <button onClick={() => {
+          localStorage.removeItem('prime_chat_history');
+          const snap = primeSnapshot?.financialSnapshot;
+          const stmtCount = primeSnapshot?.recentImportSummaries?.length ?? 0;
+          const txCount = primeSnapshot?.recentImportSummaries?.reduce((s: number, r: any) => s + (r.txCount || 0), 0) ?? 0;
+          const hi = firstName ? `Hey ${firstName}` : 'Hey';
+          const greeting = snap?.hasTransactions && txCount > 0
+            ? `${hi} — ${stmtCount} statement${stmtCount !== 1 ? 's' : ''} in, ${txCount} transactions processed. What do you want to dig into?`
+            : `${hi} — upload your first statement and I'll get to work. What bank are we starting with?`;
+          setMessages([{ id: 'greeting-' + Date.now(), role: 'assistant', content: greeting }]);
+        }} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: T.dim, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6 }}>
+          <Trash2 size={13} /> Clear
+        </button>
         <button onClick={onClose} style={{
-          marginLeft: 'auto', background: 'none', border: 'none',
+          background: 'none', border: 'none',
           cursor: 'pointer', color: T.dim, padding: 4, display: 'flex',
         }}>
           <X style={{ width: 18, height: 18 }} />
@@ -423,11 +507,43 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Attachment pill */}
+      {attachedFile && (
+        <div style={{
+          margin: '0 16px', padding: '6px 12px', borderRadius: 8,
+          background: T.surface, border: '1px solid ' + T.border,
+          display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.text,
+        }}>
+          <span>{'\ud83d\udcce'} {attachedFile.name}</span>
+          {previewLoading && <span style={{ color: T.dim }}>Previewing...</span>}
+          {!previewLoading && (
+            <button onClick={() => setAttachedFile(null)} style={{
+              marginLeft: 'auto', background: 'none', border: 'none',
+              color: T.dim, cursor: 'pointer', fontSize: 14, padding: 0,
+            }}>{'\u00d7'}</button>
+          )}
+        </div>
+      )}
+
       {/* Input */}
+      <input ref={fileInputRef} type="file" accept=".pdf,.csv,.png,.jpg,.jpeg" hidden
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); e.target.value = ''; }} />
       <div style={{
         padding: '12px 16px', borderTop: '1px solid ' + T.border,
-        display: 'flex', gap: 8,
+        display: 'flex', gap: 8, alignItems: 'center',
       }}>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={previewLoading}
+          style={{
+            width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid ' + T.border,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: previewLoading ? 'default' : 'pointer', color: T.dim,
+          }}
+        >
+          <Paperclip style={{ width: 16, height: 16 }} />
+        </button>
         <input
           ref={inputRef}
           value={input}
@@ -437,7 +553,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
           style={{
             flex: 1, background: 'rgba(255,255,255,0.04)',
             border: '1px solid ' + T.border, borderRadius: 8,
-            padding: '8px 12px', fontSize: 14, color: T.text,
+            padding: '12px 16px', minHeight: 48, fontSize: 14, color: T.text,
             outline: 'none', fontFamily: 'inherit',
           }}
         />

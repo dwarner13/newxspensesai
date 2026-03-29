@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
@@ -12,6 +12,7 @@ import { TransactionInsightDrawer } from '@/components/transactions/TransactionI
 import type { CommittedTransaction } from '@/types/transactions';
 import { getSupabase } from '@/lib/supabase';
 import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
+import { useProfile } from '@/hooks/useProfile';
 
 const CAT_COLORS: Record<string, string> = {
   'Personal Care': '#ec4899', Subscriptions: '#818cf8', Shopping: '#a78bfa',
@@ -33,7 +34,7 @@ function isIncomeTx(t: CommittedTransaction): boolean {
   const merchant = (t.merchant_name || '').toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || '').toLowerCase();
   // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign — expenses are stored as negative values
+  // Do NOT use amount sign ï¿½ expenses are stored as negative values
   return txType === 'income' || cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
 }
 
@@ -46,10 +47,13 @@ const fmtDate = (d: string) => {
 
 export default function TransactionsPageV2() {
   const location = useLocation();
+  const { fullName } = useProfile();
+  const firstName = fullName?.split(' ')[0] || '';
   const { transactions, isLoading, refetch } = useTransactions();
   const { imports } = useImportList();
   const { openChat } = useUnifiedChatLauncher();
   const [filter, setFilter] = useState<'all' | 'expenses' | 'income'>('all');
+  const listRef = useRef<HTMLDivElement>(null);
   const [statementFilter, setStatementFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
@@ -63,6 +67,9 @@ export default function TransactionsPageV2() {
     if (searchParams.get("from") === "upload") {
       setSearchParams({}, { replace: true });
     }
+    const filterParam = searchParams.get("filter");
+    if (filterParam === "income") setFilter("income");
+    else if (filterParam === "expenses") setFilter("expenses");
   }, []);
   useEffect(() => { const id = setInterval(() => { refetch(); }, 10000); return () => clearInterval(id); }, [refetch]);
 
@@ -138,12 +145,12 @@ export default function TransactionsPageV2() {
     URL.revokeObjectURL(url);
   }, [filtered]);
 
-  // Stats — computed from filtered list so they respond to statement/type filters
+  // Stats ï¿½ computed from filtered list so they respond to statement/type filters
   const totalSpent = useMemo(() => filtered.reduce((s, t) => !isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const totalIncome = useMemo(() => filtered.reduce((s, t) => isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const netFlow = totalIncome - totalSpent;
 
-  // Category data for donut — also from filtered
+  // Category data for donut ï¿½ also from filtered
   const catData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(t => { if (!isIncomeTx(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
@@ -162,14 +169,14 @@ export default function TransactionsPageV2() {
         if (!label || label === 'Statement') {
           // Fallback to date if no filename
           const d = new Date(i.created_at);
-          label = `Statement — ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+          label = `Statement ï¿½ ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
         }
         return { id: i.id, label };
       });
   }, [imports]);
   const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
 
-  // AI insights — from filtered
+  // AI insights ï¿½ from filtered
   const insights = useMemo(() => {
     const uncatCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
     const catCount = filtered.length - uncatCount;
@@ -189,8 +196,18 @@ export default function TransactionsPageV2() {
   const dateGroups = useMemo(() => {
     const visible = filtered.slice(0, visibleCount);
     const groups: { date: string; label: string; txs: CommittedTransaction[] }[] = [];
+    let unknownLogged = false;
     visible.forEach(t => {
-      const d = (t.date || t.posted_at || t.transaction_date || (t as any).txn_date || "").slice(0, 10);
+      const d = (t.date || t.posted_at || (t as any).transaction_date || (t as any).txn_date || "").slice(0, 10);
+      if (!d && !unknownLogged) {
+        unknownLogged = true;
+        console.log('[TransactionsPageV2] Unknown Date transaction â€” available fields:', {
+          id: t.id, date: t.date, posted_at: t.posted_at,
+          transaction_date: (t as any).transaction_date, txn_date: (t as any).txn_date,
+          created_at: (t as any).created_at, merchant: t.merchant_name,
+          keys: Object.keys(t),
+        });
+      }
       const last = groups[groups.length - 1];
       if (last && last.date === d) last.txs.push(t);
       else groups.push({ date: d, label: d ? fmtDate(d) : "Unknown Date", txs: [t] });
@@ -213,6 +230,9 @@ export default function TransactionsPageV2() {
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-3">
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0 }}>Transactions</h1>
+            {statementFilter !== 'all' && (
+              <p className="text-[13px] mt-0.5" style={{ color: '#c8a64e' }}>{stmtOptions.find(s => s.id === statementFilter)?.label || 'Statement'} &middot; {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}</p>
+            )}
             <p className="text-[13px] mt-1" style={{ color: '#c8d0e0' }}>{imports.length} statement{imports.length !== 1 ? 's' : ''} &middot; {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} &middot; Processed by Byte &middot; Categorized by Tag</p>
           </div>
           <div className="flex items-center gap-2">
@@ -224,12 +244,12 @@ export default function TransactionsPageV2() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
-            { label: 'Total Spent', value: `$${fmt(totalSpent)}`, color: 'text-red-400', icon: <ArrowUpRight className="h-3.5 w-3.5 text-red-400" /> },
-            { label: 'Total Income', value: `$${fmt(totalIncome)}`, color: 'text-emerald-400', icon: <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400" /> },
-            { label: 'Net Flow', value: `${netFlow >= 0 ? '+' : '-'}$${fmt(Math.abs(netFlow))}`, color: netFlow >= 0 ? 'text-emerald-400' : 'text-amber-400', icon: <TrendingDown className="h-3.5 w-3.5 text-amber-400" /> },
-            { label: 'Transactions', value: String(filtered.length), color: 'text-white', icon: <Hash className="h-3.5 w-3.5 text-white" /> },
+            { label: 'Total Spent', value: `$${fmt(totalSpent)}`, color: 'text-red-400', icon: <ArrowUpRight className="h-3.5 w-3.5 text-red-400" />, tab: 'expenses' as const },
+            { label: 'Total Income', value: `$${fmt(totalIncome)}`, color: 'text-emerald-400', icon: <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400" />, tab: 'income' as const },
+            { label: 'Net Flow', value: `${netFlow >= 0 ? '+' : '-'}$${fmt(Math.abs(netFlow))}`, color: netFlow >= 0 ? 'text-emerald-400' : 'text-amber-400', icon: <TrendingDown className="h-3.5 w-3.5 text-amber-400" />, tab: 'all' as const },
+            { label: 'Transactions', value: String(filtered.length), color: 'text-white', icon: <Hash className="h-3.5 w-3.5 text-white" />, tab: 'all' as const },
           ].map(c => (
-            <div key={c.label} className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5 hover:border-slate-600/50 hover:shadow-lg transition-all" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
+            <div key={c.label} onClick={() => { setFilter(c.tab); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth' }), 50); }} className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5 hover:border-[#2d4a6e] hover:shadow-lg transition-all cursor-pointer" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] uppercase tracking-[0.14em] text-slate-400 font-bold">{c.label}</span>
                 <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-slate-800/60">{c.icon}</div>
@@ -289,7 +309,7 @@ export default function TransactionsPageV2() {
         </div>
 
         {/* FILTER BAR */}
-        <div className="flex items-center justify-between mb-5">
+        <div ref={listRef} className="flex items-center justify-between mb-5">
           <div className="flex p-1 rounded-lg bg-slate-800/40 border border-slate-700/30">
             {(['all', 'expenses', 'income'] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)} className={`px-5 py-2 text-[13px] font-bold rounded-md transition-colors ${filter === f ? 'bg-slate-700/60 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -373,7 +393,7 @@ export default function TransactionsPageV2() {
           {dateGroups.map(g => (
             <div key={g.date}>
               <div className="flex items-center gap-3 pt-6 pb-2 px-5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 whitespace-nowrap">{g.label}</span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 whitespace-nowrap">{g.label}</span>
                 <div className="flex-1 h-px bg-slate-800/60" />
                 <span className="text-[11px] text-slate-600">{g.txs.length}</span>
               </div>
@@ -395,7 +415,7 @@ export default function TransactionsPageV2() {
                     </div>
                     <div className="text-right shrink-0">
                       <div className={`text-[16px] font-bold tabular-nums ${isIncome ? 'text-emerald-400' : 'text-slate-200'}`}>{isIncome ? '+' : '-'}${fmt(Math.abs(t.amount))}</div>
-                      <div className="text-[11px] text-slate-600">{(t.date || t.posted_at || '').slice(0, 10)}</div>
+                      <div className="text-[11px] text-slate-500">{(t.date || t.posted_at || '').slice(0, 10)}</div>
                     </div>
                     {(t as any).category_source === 'user_chat' && (
                       <span title="Tag changed this category" style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</span>
@@ -423,9 +443,9 @@ export default function TransactionsPageV2() {
       {!tagPanelOpen && !selectedTx && !(/\/(categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
         <button onClick={() => setTagPanelOpen(true)} style={{ position: "fixed", bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 24, width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", zIndex: 50, border: "none", transition: "transform 0.15s" }} className="hover:scale-105 active:scale-95">T</button>
       )}
-      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
+      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); }} />}
 
-      {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
+      {/* Drawer ï¿½ portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
         <TransactionInsightDrawer
           open={!!selectedTx}

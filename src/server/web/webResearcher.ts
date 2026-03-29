@@ -1,6 +1,4 @@
 import { fetch } from 'undici';
-import { JSDOM } from 'jsdom';
-import { Readability } from '@mozilla/readability';
 import { createHash } from 'crypto';
 import { getSupabaseServerClient } from '../db';
 
@@ -182,7 +180,9 @@ export class WebResearcher {
       
       const html = await response.text();
       
-      // Extract readable content
+      // Extract readable content (lazy-load jsdom to avoid serverless bundling issues)
+      const { JSDOM } = await import('jsdom');
+      const { Readability } = await import('@mozilla/readability');
       const doc = new JSDOM(html, { url});
       const reader = new Readability(doc.window.document);
       const article = reader.parse();
