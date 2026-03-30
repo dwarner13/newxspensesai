@@ -253,12 +253,12 @@ export const handler: Handler = async (event) => {
   }
 
   // 3b. Fetch user-defined DB rules (exact → starts_with → contains → regex priority)
-  type DbRule = { match_type: string; match_value: string; category: string };
+  type DbRule = { match_type: string; match_value: string; category: string; subcategory?: string | null };
   let dbRules: DbRule[] = [];
   try {
     const { data: ruleRows } = await supabase
       .from('category_rules')
-      .select('match_type, match_value, category')
+      .select('match_type, match_value, category, subcategory')
       .eq('user_id', userId)
       .eq('is_active', true);
     const TYPE_PRIORITY: Record<string, number> = { exact: 0, starts_with: 1, contains: 2, regex: 3 };
@@ -273,11 +273,14 @@ export const handler: Handler = async (event) => {
     const lower = merchant.toLowerCase();
     for (const rule of dbRules) {
       const val = rule.match_value.toLowerCase();
-      if (rule.match_type === 'exact' && lower === val) return parseRuleCategory(rule.category);
-      if (rule.match_type === 'starts_with' && lower.startsWith(val)) return parseRuleCategory(rule.category);
-      if (rule.match_type === 'contains' && lower.includes(val)) return parseRuleCategory(rule.category);
-      if (rule.match_type === 'regex') {
-        try { if (new RegExp(rule.match_value, 'i').test(merchant)) return parseRuleCategory(rule.category); } catch {}
+      const matched = (rule.match_type === 'exact' && lower === val)
+        || (rule.match_type === 'starts_with' && lower.startsWith(val))
+        || (rule.match_type === 'contains' && lower.includes(val))
+        || (rule.match_type === 'regex' && (() => { try { return new RegExp(rule.match_value, 'i').test(merchant); } catch { return false; } })());
+      if (matched) {
+        // Prefer direct subcategory column over encoded format
+        if (rule.subcategory) return { category: normalizeCanonicalCategory(rule.category), subcategory: rule.subcategory };
+        return parseRuleCategory(rule.category);
       }
     }
     return null;

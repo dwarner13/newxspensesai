@@ -742,6 +742,19 @@ export default function TransactionsPageV2() {
             if (d.ok) setReclassifyPreview(d);
           } catch { /* silent */ }
         }
+        else if (action.type === 'categorize' && action.merchant && action.category) {
+          try {
+            const sb = getSupabase(); if (!sb) return;
+            const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+            const { data: matching } = await sb.from('transactions').select('id').ilike('merchant_name', `%${action.merchant}%`).or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
+            const ids = matching?.map(t => t.id) ?? [];
+            if (ids.length > 0) {
+              await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category: action.category, subcategory: action.subcategory ?? null }] }) });
+              await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'save_rule', matchValue: action.merchant, targetCategory: action.category, targetSubcategory: action.subcategory ?? null, matchType: 'contains' }) });
+            }
+            void refetch(); void fetchTagInbox();
+          } catch { /* silent */ }
+        }
       }} />}
 
       {/* Drawer � portalled to body to escape any stacking context from DashboardLayout */}

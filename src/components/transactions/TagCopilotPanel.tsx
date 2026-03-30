@@ -5,9 +5,10 @@ import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 import type { CommittedTransaction } from '@/types/transactions';
 
 interface TagAction {
-  type: 'filter' | 'bulk_change' | 'undo' | 'reclassify_preview';
+  type: 'filter' | 'bulk_change' | 'undo' | 'reclassify_preview' | 'categorize';
   search?: string;
   category?: string;
+  subcategory?: string;
   merchant?: string;
   confirm?: boolean;
 }
@@ -49,6 +50,12 @@ function parseTagAction(reply: string): { cleanReply: string; action: TagAction 
   } else if (/RECLASSIFY_PREVIEW:\{\}/.test(reply)) {
     action = { type: 'reclassify_preview' };
     cleanReply = reply.replace(/RECLASSIFY_PREVIEW:\{\}/g, '').trim();
+  } else {
+    const catMatch = reply.match(/CATEGORIZE:(\{[^}]+\})/);
+    if (catMatch) {
+      try { action = { type: 'categorize', ...JSON.parse(catMatch[1]) }; } catch {}
+      cleanReply = reply.replace(/CATEGORIZE:\{[^}]+\}/g, '').trim();
+    }
   }
   return { cleanReply, action };
 }
@@ -226,7 +233,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
       await fetch('/.netlify/functions/tag-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ intent: 'save_rule', matchValue: merchantName, targetCategory: category, matchType: 'contains' }),
+        body: JSON.stringify({ intent: 'save_rule', matchValue: merchantName, targetCategory: category, targetSubcategory: subcategory, matchType: 'contains' }),
       });
 
       const confirmText = subcategory

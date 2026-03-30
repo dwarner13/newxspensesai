@@ -90,11 +90,11 @@ interface SectionDef {
 
 const SECTIONS: SectionDef[] = [
   { id: "income", title: "Income", deductible: false, matchFn: (tx) => tx.type === "income", buckets: [] },
-  { id: "vehicle", title: "Vehicle Expenses", deductible: true, matchFn: (tx) => tx.category === "Car & Truck Expenses", buckets: VEHICLE_BUCKETS },
-  { id: "home", title: "Home / Rent / Lease", deductible: true, matchFn: (tx) => tx.category === "Rent or Lease", buckets: HOME_BUCKETS },
-  { id: "meals", title: "Meals & Entertainment", deductible: true, matchFn: (tx) => tx.category === "Meals & Entertainment", buckets: MEALS_BUCKETS },
-  { id: "business", title: "Business Expenses", deductible: true, matchFn: (tx) => ["Advertising", "Other Expenses", "Professional Services", "Employee Benefits"].includes(tx.category || ""), buckets: BUSINESS_BUCKETS },
-  { id: "personal", title: "Personal (Not Deductible)", deductible: false, matchFn: (tx) => tx.category === "Personal", buckets: PERSONAL_BUCKETS },
+  { id: "vehicle", title: "Vehicle Expenses", deductible: true, matchFn: (tx) => ["Transportation","Car & Truck Expenses"].includes(tx.category || ""), buckets: VEHICLE_BUCKETS },
+  { id: "home", title: "Home / Rent / Lease", deductible: true, matchFn: (tx) => ["Housing","Rent or Lease","Rent","Mortgage"].includes(tx.category || ""), buckets: HOME_BUCKETS },
+  { id: "meals", title: "Meals & Entertainment", deductible: true, matchFn: (tx) => ["Food & Dining","Meals & Entertainment","Entertainment"].includes(tx.category || ""), buckets: MEALS_BUCKETS },
+  { id: "business", title: "Business Expenses", deductible: true, matchFn: (tx) => ["Advertising","Other Expenses","Professional Services","Employee Benefits","Subscriptions","Bank Fees","Business"].includes(tx.category || ""), buckets: BUSINESS_BUCKETS },
+  { id: "personal", title: "Personal (Not Deductible)", deductible: false, matchFn: (tx) => ["Personal","Personal Care","Shopping","Groceries","Debt Payments","Transfers"].includes(tx.category || ""), buckets: PERSONAL_BUCKETS },
 ];
 
 /* ── Grouping helpers ── */

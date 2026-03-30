@@ -303,6 +303,7 @@ export const handler: Handler = async (event) => {
   // ── SAVE_RULE ──────────────────────────────────────────────────────────────
   if (intent === 'save_rule') {
     try {
+      const ruleSubcategory = body.targetSubcategory ?? body.subcategory ?? parsedTarget.subcategory ?? null;
       // Upsert into category_rules — write both column names for compatibility
       await supabase.from('category_rules').upsert(
         {
@@ -310,7 +311,8 @@ export const handler: Handler = async (event) => {
           match_type: matchType,
           match_value: normalized,
           merchant_pattern: normalized,
-          category: encodeRuleCategory(parsedTarget.category, parsedTarget.subcategory),
+          category: parsedTarget.category,
+          subcategory: ruleSubcategory,
           is_active: true,
           updated_at: new Date().toISOString(),
         },
