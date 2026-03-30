@@ -23,6 +23,9 @@ interface TagCopilotPanelProps {
   totalSpent?: number;
   totalIncome?: number;
   netFlow?: number;
+  injectedMessage?: string | null;
+  injectedFollowupMerchants?: any[] | null;
+  onMerchantCategorize?: (merchantName: string, category: string) => void;
   sharedChatHistory?: { role: string; content: string }[];
   sharedChatReply?: string | null;
   onChatHistoryChange?: (history: { role: string; content: string }[], reply: string | null) => void;
@@ -50,8 +53,21 @@ function parseTagAction(reply: string): { cleanReply: string; action: TagAction 
   return { cleanReply, action };
 }
 
-export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTagAction, onToggleActivity, totalCount, firstName, totalSpent, totalIncome, netFlow }: TagCopilotPanelProps) {
-  const [localMessages, setLocalMessages] = useState<{ role: 'tag' | 'user'; text: string }[]>(() => {
+type ChatMsg = { role: 'tag' | 'user'; text: string; merchantQ?: { name: string; count: number; amount: number; options: string[] }; followupMerchants?: any[] };
+
+const SUGGEST_CATS: Record<string, string[]> = {
+  food: ['Food & Dining', 'Business Meals'], gas: ['Transportation'], hotel: ['Travel', 'Business Travel'],
+  pharma: ['Healthcare'], drug: ['Healthcare'], amazon: ['Shopping', 'Business Supplies'],
+  walmart: ['Shopping', 'Groceries'], costco: ['Shopping', 'Groceries'], default: ['Food & Dining', 'Shopping', 'Transportation', 'Personal Care', 'Subscriptions'],
+};
+function suggestCats(name: string): string[] {
+  const n = (name || '').toLowerCase();
+  for (const [k, v] of Object.entries(SUGGEST_CATS)) { if (k !== 'default' && n.includes(k)) return v; }
+  return SUGGEST_CATS.default;
+}
+
+export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTagAction, onToggleActivity, injectedMessage, injectedFollowupMerchants, onMerchantCategorize, totalCount, firstName, totalSpent, totalIncome, netFlow }: TagCopilotPanelProps) {
+  const [localMessages, setLocalMessages] = useState<ChatMsg[]>(() => {
     if (transaction) return [];
     try {
       const saved = localStorage.getItem('tag_chat_history');
@@ -85,6 +101,49 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   }, [transaction?.id]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [localMessages]);
+
+  // Pick up injected messages from parent
+  useEffect(() => {
+    if (injectedMessage) {
+      if (injectedFollowupMerchants && injectedFollowupMerchants.length > 0) {
+        setLocalMessages(m => [...m, { role: 'tag' as const, text: injectedMessage, followupMerchants: injectedFollowupMerchants }]);
+      } else {
+        setLocalMessages(m => [...m, { role: 'tag' as const, text: injectedMessage }]);
+      }
+    }
+  }, [injectedMessage]);
+
+  // Merchant queue state
+  const [merchantQueue, setMerchantQueue] = useState<any[]>([]);
+  const [mqIndex, setMqIndex] = useState(0);
+
+  const startMerchantQueue = (merchants: any[]) => {
+    setMerchantQueue(merchants);
+    setMqIndex(0);
+    if (merchants[0]) askAboutMerchant(merchants[0], 0);
+  };
+
+  const askAboutMerchant = (merchant: any, idx: number) => {
+    setLocalMessages(m => [...m, {
+      role: 'tag' as const,
+      text: `${idx > 0 ? 'Next up \u2014 ' : ''}**${merchant.merchant_name}** \u00d7${merchant.transaction_count} ($${merchant.total_amount.toFixed(2)}). What are these usually?`,
+      merchantQ: { name: merchant.merchant_name, count: merchant.transaction_count, amount: merchant.total_amount, options: suggestCats(merchant.merchant_name) },
+    }]);
+  };
+
+  const handleMerchantPick = async (category: string, merchantName: string) => {
+    setLocalMessages(m => [...m, { role: 'user' as const, text: category }]);
+    onMerchantCategorize?.(merchantName, category);
+    setLocalMessages(m => [...m, { role: 'tag' as const, text: `\u2713 ${merchantName} \u2192 **${category}**. Rule saved.` }]);
+    // Next
+    const next = mqIndex + 1;
+    setMqIndex(next);
+    if (next < merchantQueue.length) {
+      setTimeout(() => askAboutMerchant(merchantQueue[next], next), 600);
+    } else {
+      setTimeout(() => setLocalMessages(m => [...m, { role: 'tag' as const, text: 'All done! Every merchant in the queue has been handled. Your books are looking clean \u2713' }]), 600);
+    }
+  };
 
   useEffect(() => {
     if (!transaction && localMessages.length > 0) {
@@ -169,8 +228,24 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
                 {m.role==='tag' && (
                   <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>T</div>
                 )}
-                <div style={{ maxWidth:'80%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7 }}>
-                  {(displayText ?? '').split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
+                <div>
+                  <div style={{ maxWidth:'80%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7 }}>
+                    {(displayText ?? '').split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
+                  </div>
+                  {m.merchantQ && i === localMessages.length - 1 && (
+                    <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', gap:5 }}>
+                      {m.merchantQ.options.map(cat => (
+                        <button key={cat} onClick={() => void handleMerchantPick(cat, m.merchantQ!.name)} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#cbd5e1', cursor:'pointer' }}>{cat}</button>
+                      ))}
+                      <button onClick={() => { setLocalMessages(ms => [...ms, { role:'tag', text:`Skipping ${m.merchantQ!.name}.` }]); const next = mqIndex + 1; setMqIndex(next); if (next < merchantQueue.length) setTimeout(() => askAboutMerchant(merchantQueue[next], next), 400); }} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', color:'#475569', cursor:'pointer' }}>Skip {'\u2192'}</button>
+                    </div>
+                  )}
+                  {m.followupMerchants && i === localMessages.length - 1 && (
+                    <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                      <button onClick={() => startMerchantQueue(m.followupMerchants!)} style={{ padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, background:'rgba(34,211,238,0.15)', border:'1px solid rgba(34,211,238,0.3)', color:'#22d3ee', cursor:'pointer' }}>Yes, let's go {'\u2192'}</button>
+                      <button onClick={() => setLocalMessages(ms => [...ms, { role:'tag', text:"No problem \u2014 I'll be here. Check Activity anytime." }])} style={{ padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:600, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', color:'#475569', cursor:'pointer' }}>Later</button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

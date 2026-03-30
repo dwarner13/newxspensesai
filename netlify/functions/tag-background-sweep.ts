@@ -116,23 +116,73 @@ export const handler: Handler = async (event) => {
     const confidentGroups = Object.values(groupMap);
     const unsureMerchants = Object.values(unsureMap);
 
-    // 6. Persist to user_notifications so T bubble can pick it up from any page
-    if (confident.length > 0 || Object.keys(unsureMap).length > 0) {
-      try {
-        await sb.from('user_notifications').insert({
-          user_id: userId,
-          employee_slug: 'tag-ai',
-          type: 'sweep_result',
-          title: 'Import scan complete',
-          message: confident.length > 0
-            ? `I can categorize ${confident.length} transactions automatically.${Object.keys(unsureMap).length > 0 ? ` ${Object.keys(unsureMap).length} merchants need your input.` : ''}`
-            : `${Object.keys(unsureMap).length} merchants need your input.`,
-          priority: 'normal',
-          payload: { confident_groups: confidentGroups, confident_count: confident.length, unsure_merchants: unsureMerchants, unsure_count: Object.keys(unsureMap).length, import_id: importId },
-          sent_at: new Date().toISOString(),
-        });
-      } catch { /* table may not exist or RLS issue — non-blocking */ }
-    }
+    // 6. Build statement completion report + persist to user_notifications
+    try {
+      const { data: importData } = await sb
+        .from('imports').select('file_url, created_at').eq('id', importId).eq('user_id', userId).maybeSingle();
+
+      const filename = String(importData?.file_url || '').split('/').pop() || 'Statement';
+      const month = importData?.created_at
+        ? new Date(importData.created_at).toLocaleString('en-CA', { month: 'long', year: 'numeric' })
+        : 'Recent';
+
+      // All transactions from this import for breakdown
+      const { data: allImportTxs } = await sb
+        .from('transactions').select('id, category, amount, merchant_name').eq('user_id', userId).eq('import_id', importId);
+
+      const totalCount = allImportTxs?.length ?? 0;
+
+      // Category breakdown
+      const catMap: Record<string, { count: number; total: number }> = {};
+      for (const tx of allImportTxs ?? []) {
+        const cat = tx.category || 'Needs Review';
+        if (!catMap[cat]) catMap[cat] = { count: 0, total: 0 };
+        catMap[cat].count++;
+        catMap[cat].total += Math.abs(Number(tx.amount || 0));
+      }
+      const topCategories = Object.entries(catMap)
+        .filter(([cat]) => cat !== 'Needs Review' && cat !== 'Transfers')
+        .sort((a, b) => b[1].total - a[1].total).slice(0, 4)
+        .map(([category, d]) => ({ category, count: d.count, total: d.total }));
+
+      // Top merchant
+      const merchantMap: Record<string, number> = {};
+      for (const tx of allImportTxs ?? []) { const m = tx.merchant_name || 'Unknown'; merchantMap[m] = (merchantMap[m] || 0) + 1; }
+      const topMerchant = Object.entries(merchantMap).sort((a, b) => b[1] - a[1])[0] ?? null;
+
+      const autoCount = confident.length;
+      const needsInputCount = allImportTxs?.filter(t => !t.category || t.category === 'Needs Review' || t.category === 'Other' || t.category === 'Uncategorized').length ?? 0;
+
+      const catLines = topCategories.map(c => `   ${c.category} — $${c.total.toFixed(2)} (${c.count} txns)`).join('\n');
+      const reportMessage = [
+        `I finished processing your ${month} statement (${filename}).`,
+        '',
+        `${totalCount} transactions reviewed:`,
+        `   \u2705 ${autoCount} categorized automatically`,
+        needsInputCount > 0 ? `   \u26A0\uFE0F  ${needsInputCount} need your input` : '   \u2705 All categorized',
+        '',
+        topCategories.length > 0 ? `Top spending:\n${catLines}` : '',
+        topMerchant ? `\nTop merchant: ${topMerchant[0]} \u00d7${topMerchant[1]}` : '',
+        needsInputCount > 0 ? `\nReady to handle the ${needsInputCount} flagged ones?` : '\nYour books are up to date \u2713',
+      ].filter(Boolean).join('\n');
+
+      await sb.from('user_notifications').insert({
+        user_id: userId,
+        employee_slug: 'tag-ai',
+        type: 'import_complete',
+        title: `${month} statement processed`,
+        message: reportMessage,
+        priority: 'high',
+        payload: {
+          import_id: importId, filename, month, total_count: totalCount,
+          auto_count: autoCount, needs_input_count: needsInputCount,
+          top_categories: topCategories,
+          top_merchant: topMerchant ? { name: topMerchant[0], count: topMerchant[1] } : null,
+          confident_groups: confidentGroups, unsure_count: Object.keys(unsureMap).length,
+        },
+        sent_at: new Date().toISOString(),
+      });
+    } catch { /* non-blocking */ }
 
     return {
       statusCode: 200,

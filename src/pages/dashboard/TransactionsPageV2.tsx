@@ -69,6 +69,8 @@ export default function TransactionsPageV2() {
   const [pendingSweep, setPendingSweep] = useState<any>(null);
   const [badgePulse, setBadgePulse] = useState(false);
   const [reclassifyPreview, setReclassifyPreview] = useState<any>(null);
+  const [tagInjectedMsg, setTagInjectedMsg] = useState<string | null>(null);
+  const [tagFollowupMerchants, setTagFollowupMerchants] = useState<any[] | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get("from") === "upload") {
@@ -140,11 +142,28 @@ export default function TransactionsPageV2() {
       const res = await fetch('/.netlify/functions/tag-notifications', { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (!res.ok) return;
       const d = await res.json();
-      const sweepNotif = d.notifications?.find((n: any) => n.type === 'sweep_result');
+      const sweepNotif = d.notifications?.find((n: any) => n.type === 'sweep_result' || n.type === 'import_complete');
       if (sweepNotif && !pendingSweep) {
         setPendingSweep(sweepNotif);
         setBadgePulse(true);
         setTimeout(() => setBadgePulse(false), 3000);
+        // Auto-open Tag panel and inject the report
+        if (sweepNotif.type === 'import_complete') {
+          setTagPanelOpen(true);
+          const p = sweepNotif.payload;
+          const hasFollowup = p?.needs_input_count > 0;
+          setTagInjectedMsg(sweepNotif.message);
+          if (hasFollowup) {
+            // Delay followup fetch so report shows first
+            setTimeout(async () => {
+              try {
+                const inboxRes = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
+                const inboxD = await inboxRes.json();
+                setTagFollowupMerchants((inboxD.unresolved ?? []).slice(0, 8));
+              } catch { /* silent */ }
+            }, 1200);
+          }
+        }
       }
     } catch { /* silent */ }
   }, [pendingSweep]);
@@ -653,7 +672,26 @@ export default function TransactionsPageV2() {
                   const { data: { session } } = await sb.auth.getSession(); if (!session) return;
                   const res = await fetch('/.netlify/functions/tag-reclassify-other', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
                   const result = await res.json();
-                  if (result.ok) { toast.success(`Categorized ${result.reclassified} transactions`); setReclassifyPreview(null); void refetch(); void fetchTagInbox(); }
+                  if (result.ok) {
+                    setReclassifyPreview(null);
+                    setTagInjectedMsg(`Done \u2713 \u2014 ${result.reclassified} transactions categorized.`);
+                    void refetch(); void fetchTagInbox();
+                    // Proactive followup for unsure merchants
+                    if (result.needs_review > 0) {
+                      setTimeout(async () => {
+                        try {
+                          const inboxRes = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
+                          const inboxD = await inboxRes.json();
+                          const topM = (inboxD.unresolved ?? []).slice(0, 5);
+                          if (topM.length > 0) {
+                            const lines = topM.map((m: any) => `\u2022 **${m.merchant_name}** \u00d7${m.transaction_count}`).join('\n');
+                            setTagInjectedMsg(`I still have **${result.needs_review} transactions** that need your input. The biggest:\n\n${lines}\n\nWant to work through them now?`);
+                            setTagFollowupMerchants(topM);
+                          }
+                        } catch { /* silent */ }
+                      }, 1000);
+                    }
+                  }
                 } catch { toast.error('Failed'); }
               }} style={{ padding: '5px 14px', borderRadius: 16, fontSize: 11, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>Apply {d.confident_count} {'\u2192'}</button>
               <button onClick={() => setReclassifyPreview(null)} style={{ padding: '5px 14px', borderRadius: 16, fontSize: 11, fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#475569', cursor: 'pointer' }}>Skip</button>
@@ -661,7 +699,19 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
-      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
+      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
+        try {
+          const sb = getSupabase(); if (!sb) return;
+          const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+          const { data: matching } = await sb.from('transactions').select('id').ilike('merchant_name', `%${merchantName}%`).or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
+          const ids = matching?.map(t => t.id) ?? [];
+          if (ids.length > 0) {
+            await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category }] }) });
+            await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'save_rule', matchValue: merchantName, targetCategory: category, matchType: 'contains' }) });
+          }
+          void refetch(); void fetchTagInbox();
+        } catch { /* silent */ }
+      }} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
         if (action.type === 'filter') { setSearchQuery(action.search || ''); }
         else if (action.type === 'bulk_change' && action.merchant && !action.confirm) {
           try {
