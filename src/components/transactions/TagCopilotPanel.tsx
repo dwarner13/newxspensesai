@@ -234,8 +234,10 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   const send = async () => {
     const text = input.trim();
     if (!text || busy) return;
-    // If merchant queue is active, treat typed input as category pick
-    if (merchantQueue.length > 0 && mqIndex < merchantQueue.length) {
+    // If merchant queue is active AND Tag is actively asking about a merchant, treat typed input as category pick
+    const lastMsg = localMessages[localMessages.length - 1];
+    const tagIsAskingMerchant = lastMsg?.role === 'tag' && lastMsg?.merchantQ;
+    if (merchantQueue.length > 0 && mqIndex < merchantQueue.length && tagIsAskingMerchant) {
       setInput('');
       void handleMerchantPick(text, merchantQueue[mqIndex].merchant_name);
       return;
