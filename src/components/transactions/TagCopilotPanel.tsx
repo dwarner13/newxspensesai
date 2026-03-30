@@ -185,6 +185,12 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   };
 
   const handleMerchantPick = async (category: string, merchantName: string) => {
+    // If text looks like a command/question, send to LLM instead of treating as category
+    if (/\b(show|bring|find|search|can you|what|how|why|filter|list|pull up|undo|categorize|help)\b/i.test(category)) {
+      setInput(category);
+      setTimeout(() => void send(), 50);
+      return;
+    }
     setLocalMessages(m => [...m, { role: 'user' as const, text: category }]);
     // Check if subcategories exist for this category
     const subcats = SUBCATEGORY_OPTIONS[category];

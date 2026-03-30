@@ -14,47 +14,7 @@ import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { safeLog } from './_shared/safeLog.js';
 import { normalizeMerchant } from './_shared/merchantUtils.js';
-
-// ── Comprehensive merchant → category+subcategory map ─────────────────────────
-const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcategory?: string }> = {
-  "a&w": { category: "Food & Dining", subcategory: "Fast Food" },
-  "burger king": { category: "Food & Dining", subcategory: "Fast Food" },
-  "dairy queen": { category: "Food & Dining", subcategory: "Fast Food" },
-  "booster juice": { category: "Food & Dining", subcategory: "Drinks & Juice" },
-  "beijing house": { category: "Food & Dining", subcategory: "Restaurants" },
-  "black jacks roadhouse": { category: "Food & Dining", subcategory: "Restaurants" },
-  "coliseum pizza": { category: "Food & Dining", subcategory: "Restaurants" },
-  "audrey's kitchen": { category: "Food & Dining", subcategory: "Restaurants" },
-  "7 eleven": { category: "Transportation", subcategory: "Gas & Fuel" },
-  "7-eleven": { category: "Transportation", subcategory: "Gas & Fuel" },
-  "can co petroleum": { category: "Transportation", subcategory: "Gas & Fuel" },
-  "air-serv": { category: "Transportation", subcategory: "Vehicle Services" },
-  "canadian tire": { category: "Shopping", subcategory: "Auto & Hardware" },
-  "ad's massage": { category: "Personal Care", subcategory: "Massage & Wellness" },
-  "calling wood chiro": { category: "Healthcare", subcategory: "Chiropractic" },
-  "shadified": { category: "Personal Care", subcategory: "Hair & Beauty" },
-  "castle downs bingo": { category: "Entertainment", subcategory: "Gaming & Lottery" },
-  "bear hills casino": { category: "Entertainment", subcategory: "Gaming & Lottery" },
-  "cda carbon rebate": { category: "Income", subcategory: "Government Rebate" },
-  "canada rit": { category: "Income", subcategory: "Tax Refund" },
-  "bmo": { category: "Bank Fees", subcategory: "Banking" },
-  "capital one": { category: "Debt Payments", subcategory: "Credit Card" },
-  "borrowell": { category: "Bank Fees", subcategory: "Credit Services" },
-  "cash money": { category: "Bank Fees", subcategory: "Loans" },
-  "aiprm": { category: "Subscriptions", subcategory: "Software & AI" },
-  "celtic group": { category: "Subscriptions", subcategory: "Software & AI" },
-  "abm": { category: "Transfers", subcategory: "ATM Withdrawal" },
-  "b/m payt": { category: "Transfers", subcategory: "Bill Payment" },
-  "interac": { category: "Transfers", subcategory: "e-Transfer" },
-};
-
-function matchMerchantMap(merchantName: string): { category: string; subcategory?: string } | null {
-  const normalized = normalizeMerchant(merchantName);
-  for (const [pattern, result] of Object.entries(MERCHANT_CATEGORY_MAP)) {
-    if (normalized.includes(pattern)) return result;
-  }
-  return null;
-}
+import { matchMerchantMap } from './_shared/merchantCategoryMap.js';
 
 const headers = {
   'Content-Type': 'application/json',
