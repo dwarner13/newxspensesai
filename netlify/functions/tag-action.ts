@@ -144,9 +144,11 @@ export const handler: Handler = async (event) => {
     let total = 0;
     for (const group of groups) {
       if (!Array.isArray(group.ids) || !group.category) continue;
+      const updatePayload: Record<string, any> = { category: group.category, category_source: 'tag_rule', updated_at: new Date().toISOString() };
+      if (group.subcategory) { updatePayload.subcategory = group.subcategory; updatePayload.subcategory_source = 'tag_rule'; }
       await supabase
         .from('transactions')
-        .update({ category: group.category, category_source: 'tag_rule', updated_at: new Date().toISOString() })
+        .update(updatePayload)
         .in('id', group.ids)
         .eq('user_id', userId);
       total += group.ids.length;

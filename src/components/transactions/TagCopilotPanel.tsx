@@ -32,7 +32,7 @@ interface TagCopilotPanelProps {
 }
 
 function parseTagAction(reply: string): { cleanReply: string; action: TagAction | null } {
-  const filterMatch = reply.match(/FILTER:(\{[^}]*\})/);
+  const filterMatch = reply.match(/FILTER:(\{[^\}]+\})/s);
   const bulkMatch = reply.match(/BULK_CHANGE:(\{[^}]*\})/);
   const undoMatch = reply.match(/UNDO:(\{[^}]*\})/);
   let action: TagAction | null = null;
@@ -53,7 +53,20 @@ function parseTagAction(reply: string): { cleanReply: string; action: TagAction 
   return { cleanReply, action };
 }
 
-type ChatMsg = { role: 'tag' | 'user'; text: string; merchantQ?: { name: string; count: number; amount: number; options: string[] }; followupMerchants?: any[] };
+type ChatMsg = { role: 'tag' | 'user'; text: string; merchantQ?: { name: string; count: number; amount: number; options: string[] }; subcategoryQ?: { merchantName: string; category: string; options: string[] }; followupMerchants?: any[] };
+
+const SUBCATEGORY_OPTIONS: Record<string, string[]> = {
+  'Transportation': ['Gas & Fuel', 'Parking', 'Transit', 'Vehicle Insurance', 'Vehicle Services', 'Rideshare'],
+  'Food & Dining': ['Restaurants', 'Fast Food', 'Coffee & Drinks', 'Delivery', 'Groceries'],
+  'Personal Care': ['Hair & Beauty', 'Massage & Wellness', 'Gym & Fitness', 'Clothing'],
+  'Healthcare': ['Dental', 'Chiropractic', 'Pharmacy', 'Medical', 'Vision'],
+  'Shopping': ['Electronics', 'Auto & Hardware', 'Home & Garden', 'Clothing', 'General'],
+  'Subscriptions': ['Software & AI', 'Streaming', 'Memberships', 'News & Media'],
+  'Entertainment': ['Gaming & Lottery', 'Movies & Events', 'Sports', 'Golf', 'Hobbies'],
+  'Bank Fees': ['Banking', 'Credit Services', 'Loans', 'ATM'],
+  'Income': ['Employment', 'Business Income', 'Government Rebate', 'Tax Refund', 'Investment'],
+  'Debt Payments': ['Credit Card', 'Line of Credit', 'Loan Payment'],
+};
 
 const SUGGEST_CATS: Record<string, string[]> = {
   food: ['Food & Dining', 'Business Meals'], gas: ['Transportation'], hotel: ['Travel', 'Business Travel'],
@@ -148,6 +161,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   // Merchant queue state
   const [merchantQueue, setMerchantQueue] = useState<any[]>([]);
   const [mqIndex, setMqIndex] = useState(0);
+  const [pendingSubcategory, setPendingSubcategory] = useState<{ merchantName: string; category: string } | null>(null);
 
   const startMerchantQueue = (merchants: any[]) => {
     setMerchantQueue(merchants);
@@ -165,8 +179,29 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
 
   const handleMerchantPick = async (category: string, merchantName: string) => {
     setLocalMessages(m => [...m, { role: 'user' as const, text: category }]);
+    // Check if subcategories exist for this category
+    const subcats = SUBCATEGORY_OPTIONS[category];
+    if (subcats && subcats.length > 0) {
+      setPendingSubcategory({ merchantName, category });
+      setLocalMessages(m => [...m, {
+        role: 'tag' as const,
+        text: `Got it \u2014 **${category}**. What type?`,
+        subcategoryQ: { merchantName, category, options: subcats },
+      }]);
+      return;
+    }
+    await saveWithSubcategory(category, merchantName, null);
+  };
 
-    // Actually save to DB — don't rely on parent callback alone
+  const handleSubcategoryPick = async (subcategory: string) => {
+    if (!pendingSubcategory) return;
+    const { merchantName, category } = pendingSubcategory;
+    setLocalMessages(m => [...m, { role: 'user' as const, text: subcategory }]);
+    setPendingSubcategory(null);
+    await saveWithSubcategory(category, merchantName, subcategory);
+  };
+
+  const saveWithSubcategory = async (category: string, merchantName: string, subcategory: string | null) => {
     try {
       const sb = getSupabase();
       if (!sb) throw new Error('No Supabase');
@@ -174,52 +209,45 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
       if (!session) throw new Error('No session');
       const token = session.access_token;
 
-      // Step 1: Find matching Needs Review transactions
       const { data: matchingTxs } = await sb
         .from('transactions').select('id')
         .ilike('merchant_name', `%${merchantName}%`)
         .or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
       const ids = matchingTxs?.map(t => t.id) ?? [];
 
-      // Step 2: Bulk apply
       if (ids.length > 0) {
-        const applyRes = await fetch('/.netlify/functions/tag-action', {
+        await fetch('/.netlify/functions/tag-action', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category }] }),
+          body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category, subcategory }] }),
         });
-        const applyData = await applyRes.json();
-        if (!applyData.ok) console.error('[Tag] bulk_apply failed:', applyData);
       }
 
-      // Step 3: Save rule
-      const ruleRes = await fetch('/.netlify/functions/tag-action', {
+      await fetch('/.netlify/functions/tag-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ intent: 'save_rule', matchValue: merchantName, targetCategory: category, matchType: 'contains' }),
       });
-      const ruleData = await ruleRes.json();
-      if (!ruleData.ok) console.error('[Tag] save_rule failed:', ruleData);
 
-      setLocalMessages(m => [...m, { role: 'tag' as const, text: `\u2713 ${ids.length > 0 ? `${ids.length} ` : ''}${merchantName} \u2192 **${category}**. Rule saved.` }]);
-
-      // Also notify parent for refresh
+      const confirmText = subcategory
+        ? `\u2713 ${ids.length > 0 ? `${ids.length} ` : ''}${merchantName} \u2192 **${category}** / **${subcategory}**. Rule saved.`
+        : `\u2713 ${ids.length > 0 ? `${ids.length} ` : ''}${merchantName} \u2192 **${category}**. Rule saved.`;
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: confirmText }]);
       onMerchantCategorize?.(merchantName, category);
       onCategoryUpdated?.();
     } catch (err) {
-      console.error('[Tag] handleMerchantPick error:', err);
-      setLocalMessages(m => [...m, { role: 'tag' as const, text: `Had trouble saving that \u2014 ${err instanceof Error ? err.message : 'try again'}.` }]);
-      return; // Don't auto-continue on error
+      console.error('[Tag] saveWithSubcategory error:', err);
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Had trouble saving \u2014 try again.' }]);
+      return;
     }
 
-    // Auto-continue to next merchant
     const next = mqIndex + 1;
     setMqIndex(next);
     if (next < merchantQueue.length) {
       setTimeout(() => askAboutMerchant(merchantQueue[next], next), 1000);
     } else {
       setTimeout(() => {
-        setLocalMessages(m => [...m, { role: 'tag' as const, text: 'All done! Every merchant in the queue has been handled. Your books are looking clean \u2713' }]);
+        setLocalMessages(m => [...m, { role: 'tag' as const, text: 'All done! Every merchant has been handled. Your books are looking clean \u2713' }]);
         setMerchantQueue([]);
       }, 1000);
     }
@@ -340,6 +368,14 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
                         <button key={cat} onClick={() => void handleMerchantPick(cat, m.merchantQ!.name)} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#cbd5e1', cursor:'pointer' }}>{cat}</button>
                       ))}
                       <button onClick={() => { setLocalMessages(ms => [...ms, { role:'tag', text:`Skipping ${m.merchantQ!.name}.` }]); const next = mqIndex + 1; setMqIndex(next); if (next < merchantQueue.length) setTimeout(() => askAboutMerchant(merchantQueue[next], next), 400); }} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', color:'#475569', cursor:'pointer' }}>Skip {'\u2192'}</button>
+                    </div>
+                  )}
+                  {m.subcategoryQ && i === localMessages.length - 1 && (
+                    <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', gap:5 }}>
+                      {m.subcategoryQ.options.map(sub => (
+                        <button key={sub} onClick={() => void handleSubcategoryPick(sub)} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(34,211,238,0.08)', border:'1px solid rgba(34,211,238,0.2)', color:'#22d3ee', cursor:'pointer' }}>{sub}</button>
+                      ))}
+                      <button onClick={() => { setPendingSubcategory(null); void saveWithSubcategory(m.subcategoryQ!.category, m.subcategoryQ!.merchantName, null); }} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', color:'#475569', cursor:'pointer' }}>Skip {'\u2192'}</button>
                     </div>
                   )}
                   {m.followupMerchants && i === localMessages.length - 1 && (
