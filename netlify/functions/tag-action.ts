@@ -130,6 +130,7 @@ export const handler: Handler = async (event) => {
   const auth = await verifyAuth(event);
   if (!auth.userId) return err('Unauthorized', 401);
   const userId = auth.userId;
+  const supabase = serverSupabase();
 
   const body = JSON.parse(event.body || '{}');
   const { intent, matchValue, targetCategory, matchType = 'contains', importId } = body;
@@ -175,7 +176,6 @@ export const handler: Handler = async (event) => {
     subcategory: parsedTargetRaw.subcategory,
   };
 
-  const supabase = serverSupabase();
   const normalized = matchValue.trim().toUpperCase();
 
   // ── PREVIEW ────────────────────────────────────────────────────────────────

@@ -91,15 +91,14 @@ USER'S OVERALL FINANCES (this year):
 - Total income: $${yearTotal.income.toFixed(2)}
 
 Conversation rules:
-1. Ask clarifying questions to understand what purchases at this merchant actually are
-2. Once you understand the pattern, ask the user if they want a rule — NEVER assume
-3. If user says yes to a rule, ask if it should apply to ALL transactions at this merchant, or only above/below a certain amount
-4. When the user has confirmed a rule, end your message with this exact text on its own line:
+1. If the user tells you the category directly (e.g. "Food & Dining", "Transportation"), accept it immediately — do NOT ask to confirm again. Just save it.
+2. If the user's intent is unclear, ask ONE clarifying question.
+3. When the user has stated or confirmed a category, end your message with this exact text on its own line:
    SAVE_RULE:{"merchant_pattern":"${merchant}","category":"<category>","match_type":"exact","amount_min":null,"amount_max":null}
-5. If the user says no to a rule, just acknowledge and close naturally
-6. Never categorize ambiguous merchants without asking first
-7. Keep all replies to 1-2 sentences max
-8. Use only these categories: ${CATEGORIES.join(', ')}
+4. If the user says no or skip, just acknowledge and close naturally.
+5. NEVER double-confirm. One question max. If they said "Food & Dining" that IS the confirmation.
+6. Keep all replies to 1-2 sentences max.
+7. Use only these categories: ${CATEGORIES.join(', ')}
 ${pageContext ? `\nPAGE CONTEXT:\n- Total spent: $${pageContext.totalSpent?.toFixed(2) || '0'}\n- Total income: $${pageContext.totalIncome?.toFixed(2) || '0'}\n- Transactions in view: ${pageContext.transactionCount || 0}` : ''}
 
 IMPORTANT: Only output SAVE_RULE when the user has explicitly confirmed they want a rule saved. Never output it for questions or explanations.

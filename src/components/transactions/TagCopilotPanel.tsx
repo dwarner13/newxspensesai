@@ -127,7 +127,12 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
     }
   }, [transaction?.id]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [localMessages]);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [localMessages]);
 
   // Pick up injected messages from parent
   useEffect(() => {
@@ -308,7 +313,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
           </div>
         )}
         {/* MESSAGES */}
-        <div style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+        <div ref={messagesContainerRef} style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:12 }}>
           {localMessages.map((m, i) => {
             const isLastTag = m.role === 'tag' && i === lastTagIndex;
             const displayText = isLastTag ? typewriterText : m.text;
@@ -318,7 +323,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
                   <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>T</div>
                 )}
                 <div>
-                  <div style={{ maxWidth:'80%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7 }}>
+                  <div style={{ maxWidth:'85%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7, wordBreak:'break-word', overflowWrap:'break-word', whiteSpace:'pre-wrap' }}>
                     {(displayText ?? '').split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
                   </div>
                   {m.merchantQ && i === localMessages.length - 1 && (
