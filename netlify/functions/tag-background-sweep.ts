@@ -184,6 +184,17 @@ export const handler: Handler = async (event) => {
       });
     } catch { /* non-blocking */ }
 
+    // Trigger Prime briefing (fire and forget)
+    try {
+      const baseUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'http://localhost:8888';
+      const authHeader = event.headers?.authorization || event.headers?.Authorization || '';
+      fetch(`${baseUrl}/.netlify/functions/prime-briefing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ importId }),
+      }).catch(() => {});
+    } catch { /* non-fatal */ }
+
     return {
       statusCode: 200,
       headers,

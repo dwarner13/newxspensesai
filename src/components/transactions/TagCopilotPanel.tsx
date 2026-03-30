@@ -88,15 +88,42 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   const lastTagText = lastTagIndex >= 0 ? localMessages[lastTagIndex]?.text ?? '' : '';
   const [typewriterText, typewriterDone] = useTypewriter(lastTagText ?? '', 18, 150);
 
+  const fetchProactiveGreeting = useCallback(async () => {
+    const hi = firstName ? `Hey ${firstName}` : 'Hey';
+    try {
+      const sb = getSupabase(); if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+      const res = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const unresolved = data.unresolved ?? [];
+      const unresolvedCount = unresolved.length;
+      const totalTxsNR = unresolved.reduce((s: number, m: any) => s + m.transaction_count, 0);
+      const totalAmtNR = unresolved.reduce((s: number, m: any) => s + m.total_amount, 0);
+
+      if (unresolvedCount > 0) {
+        const topM = unresolved.slice(0, 3).map((m: any) => `\u2022 **${m.merchant_name}** \u00d7${m.transaction_count}`).join('\n');
+        setLocalMessages([{
+          role: 'tag', text: `${hi} \u2014 you've got **${totalTxsNR} transactions** across ${unresolvedCount} merchants in Needs Review ($${totalAmtNR.toFixed(2)}).\n\nBiggest:\n${topM}\n\nWant to work through them now?`,
+          followupMerchants: unresolved,
+        }]);
+      } else {
+        const count = totalCount ?? 0;
+        setLocalMessages([{ role: 'tag', text: `${hi} \u2014 your books are looking clean \u2713 All ${count} transactions categorized. Ask me anything about your spending.` }]);
+      }
+    } catch {
+      const count = totalCount ?? 0;
+      setLocalMessages([{ role: 'tag', text: `${hi ?? 'Hey'} \u2014 ${count} transactions in view. Tap any row and I'll tell you why I categorized it that way.` }]);
+    }
+  }, [firstName, totalCount]);
+
   useEffect(() => {
-    const hi = firstName ? `Hey ${firstName}, ` : '';
     if (transaction) {
       const merchant = transaction.merchant_name || 'This transaction';
       const cat = transaction.category || 'Uncategorized';
-      setLocalMessages([{ role: 'tag', text: `**${merchant}** — I put this in **${cat}** because of how it's described. Want to move it somewhere else?` }]);
+      setLocalMessages([{ role: 'tag', text: `**${merchant}** \u2014 I put this in **${cat}** because of how it's described. Want to move it somewhere else?` }]);
     } else if (localMessages.length === 0) {
-      const count = totalCount ?? 0;
-      setLocalMessages([{ role: 'tag', text: `${hi}${count} transactions in view. Tap any row and I'll tell you exactly why I categorized it that way — or change it on the spot.` }]);
+      void fetchProactiveGreeting();
     }
   }, [transaction?.id]);
 
@@ -207,7 +234,21 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
             <div style={{ fontSize:11, color:'#22d3ee' }}>Your categorization assistant</div>
           </div>
           {onToggleActivity && <button onClick={onToggleActivity} title="Tag Activity" style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#475569', fontSize:14, padding:'2px 6px' }}>{'\uD83D\uDCCB'}</button>}
-          <button onClick={() => { localStorage.removeItem('tag_chat_history'); const hi = firstName ? `Hey ${firstName}, ` : ''; const count = totalCount ?? 0; setLocalMessages([{ role: 'tag', text: `${hi}${count} transactions in view. Tap any row and I'll tell you exactly why I categorized it that way — or change it on the spot.` }]); }} style={{ marginLeft: onToggleActivity ? undefined : 'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', fontSize:12, display:'flex', alignItems:'center', gap:4, padding:'4px 8px', borderRadius:6 }}><Trash2 size={13} /> Clear</button>
+          <button onClick={async () => {
+            localStorage.removeItem('tag_chat_history');
+            setLocalMessages([]);
+            setMerchantQueue([]);
+            setMqIndex(0);
+            // Clear Supabase page conversation
+            try {
+              const sb = getSupabase(); if (sb) {
+                const { data: { user } } = await sb.auth.getUser();
+                if (user) await sb.from('tag_conversations').delete().eq('user_id', user.id).eq('merchant_name', '__page__');
+              }
+            } catch { /* silent */ }
+            // Re-run proactive greeting
+            void fetchProactiveGreeting();
+          }} style={{ marginLeft: onToggleActivity ? undefined : 'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', fontSize:12, display:'flex', alignItems:'center', gap:4, padding:'4px 8px', borderRadius:6 }}><Trash2 size={13} /> Clear</button>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#c8d0e0', padding:4, display:'flex' }}><X style={{ width:18, height:18 }} /></button>
         </div>
         {/* ACTIVE TRANSACTION PILL */}

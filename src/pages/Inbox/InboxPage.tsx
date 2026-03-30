@@ -13,6 +13,7 @@ const T = {
 
 const AGENT_MAP: Record<string, { name: string; role: string; color: string; initial: string }> = {
   "prime-boss": { name: "Prime", role: "Your Financial Advisor", color: T.gold, initial: "\u265B" },
+  "prime": { name: "Prime", role: "Your Financial Advisor", color: T.gold, initial: "\u265B" },
   "byte-docs":  { name: "Byte",  role: "Statement Processor", color: T.green, initial: "B" },
   "byte":       { name: "Byte",  role: "Statement Processor", color: T.green, initial: "B" },
   "tag-ai":     { name: "Tag",   role: "Categorization Agent", color: T.cyan, initial: "T" },
@@ -117,10 +118,13 @@ export default function InboxPage() {
       if (!sb) { setNotifications(DEMO_MESSAGES); setLoading(false); return; }
       const { data: { user } } = await sb.auth.getUser();
       if (!user) { setNotifications(DEMO_MESSAGES); setLoading(false); return; }
-      const { data } = await sb
-        .from("notifications").select("*").eq("user_id", user.id)
-        .order("created_at", { ascending: false }).limit(50);
-      setNotifications(data && data.length > 0 ? data : DEMO_MESSAGES);
+      // Fetch from both notification tables
+      const [{ data: notifs }, { data: userNotifs }] = await Promise.all([
+        sb.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
+        sb.from("user_notifications").select("id, user_id, employee_slug, type, title, message as description, priority, payload, read_at, sent_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20).then(r => ({ data: (r.data ?? []).map((n: any) => ({ ...n, read: !!n.read_at, href: null })) })).catch(() => ({ data: [] })),
+      ]);
+      const combined = [...(notifs ?? []), ...(userNotifs ?? [])].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 50);
+      setNotifications(combined.length > 0 ? combined : DEMO_MESSAGES);
     } catch { setNotifications(DEMO_MESSAGES); }
     setLoading(false);
   }, []);
@@ -131,7 +135,10 @@ export default function InboxPage() {
     if (n.read) return;
     if (!n.id.startsWith("demo-")) {
       const sb = getSupabase();
-      if (sb) await sb.from("notifications").update({ read: true }).eq("id", n.id);
+      if (sb) {
+        await sb.from("notifications").update({ read: true }).eq("id", n.id);
+        await sb.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("id", n.id);
+      }
     }
     setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
   }, []);

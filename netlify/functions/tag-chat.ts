@@ -118,6 +118,7 @@ export const handler: Handler = async (event) => {
 
   const supabase = serverSupabase();
   const isQuickChange = message === '__system_category_changed__' && bodyContext === 'quick_change';
+  const isPageContext = bodyContext === 'page';
 
   // 1. Resolve merchant name
   let merchantName = bodyMerchant || '';
@@ -133,14 +134,15 @@ export const handler: Handler = async (event) => {
   }
 
   // 2. Load conversation history from tag_conversations
+  const conversationKey = merchantName || (isPageContext ? '__page__' : '');
   let persistedHistory: Array<{ role: string; content: string; ts: number }> = [];
-  if (merchantName) {
+  if (conversationKey) {
     try {
       const { data: conv } = await supabase
         .from('tag_conversations')
         .select('messages')
         .eq('user_id', auth.userId)
-        .eq('merchant_name', merchantName)
+        .eq('merchant_name', conversationKey)
         .maybeSingle();
       persistedHistory = conv?.messages ?? [];
     } catch { /* table may not exist */ }
@@ -318,7 +320,7 @@ export const handler: Handler = async (event) => {
   }
 
   // 9. Save conversation to tag_conversations
-  if (merchantName) {
+  if (conversationKey) {
     try {
       const newMessages = [
         ...persistedHistory,
@@ -328,7 +330,7 @@ export const handler: Handler = async (event) => {
 
       await supabase.from('tag_conversations').upsert({
         user_id: auth.userId,
-        merchant_name: merchantName,
+        merchant_name: conversationKey,
         messages: newMessages,
         last_active: new Date().toISOString(),
       }, { onConflict: 'user_id,merchant_name' });

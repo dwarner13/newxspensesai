@@ -246,6 +246,23 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
     }
 
     setMessages([{ id: 'greeting-' + Date.now(), role: 'assistant', content: greeting }]);
+
+    // Check for recent Prime briefing (< 24h old)
+    (async () => {
+      try {
+        const sb = getSupabase(); if (!sb) return;
+        const { data: { user } } = await sb.auth.getUser(); if (!user) return;
+        const { data: briefingNotif } = await sb.from('user_notifications').select('message, created_at')
+          .eq('user_id', user.id).eq('employee_slug', 'prime').eq('type', 'daily_briefing')
+          .is('read_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (briefingNotif?.message) {
+          const age = Date.now() - new Date(briefingNotif.created_at).getTime();
+          if (age < 24 * 60 * 60 * 1000) {
+            setMessages(prev => [...prev, { id: 'briefing-' + Date.now(), role: 'assistant', content: briefingNotif.message }]);
+          }
+        }
+      } catch { /* silent */ }
+    })();
   }, [primeSnapshot]);
 
   // Re-brief when page changes while Prime is open
