@@ -283,7 +283,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
 
   return (
     <>
-      <div className="fixed inset-0 z-[70]" onClick={onClose} />
+      
       <div style={{ position:'fixed', bottom:0, right:0, top:0, width:520, background:'#080f1e', borderLeft:'1px solid rgba(34,211,153,0.15)', zIndex:71, display:'flex', flexDirection:'column', fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:'-8px 0 40px rgba(0,0,0,0.5)' }}>
         {/* HEADER */}
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
