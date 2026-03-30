@@ -67,7 +67,10 @@ Rules:
 - When user types just a merchant name with no other context, treat it as a FILTER
 - For reclassify: never ask what category — Tag figures it out
 
-IMPORTANT: Only output action JSON for actionable commands, never for questions about amounts or spending patterns.`;
+IMPORTANT: Only output action JSON for actionable commands, never for questions about amounts or spending patterns.
+
+SUBCATEGORIES: If the user asks about subcategories, tell them: "Open any transaction drawer and you'll see a subcategory dropdown below the category. You can pick from built-in options or select '+ Add new...' to create your own."`;
+
   }
 
   if (isQuickChange) {
@@ -99,7 +102,10 @@ Conversation rules:
 8. Use only these categories: ${CATEGORIES.join(', ')}
 ${pageContext ? `\nPAGE CONTEXT:\n- Total spent: $${pageContext.totalSpent?.toFixed(2) || '0'}\n- Total income: $${pageContext.totalIncome?.toFixed(2) || '0'}\n- Transactions in view: ${pageContext.transactionCount || 0}` : ''}
 
-IMPORTANT: Only output SAVE_RULE when the user has explicitly confirmed they want a rule saved. Never output it for questions or explanations.`;
+IMPORTANT: Only output SAVE_RULE when the user has explicitly confirmed they want a rule saved. Never output it for questions or explanations.
+
+SUBCATEGORIES: If the user asks about subcategories, tell them: "Open any transaction drawer and you'll see a subcategory dropdown below the category. You can pick from built-in options or select '+ Add new...' to create your own."`;
+
 }
 
 export const handler: Handler = async (event) => {

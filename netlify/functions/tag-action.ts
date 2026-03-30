@@ -301,12 +301,13 @@ export const handler: Handler = async (event) => {
   // ── SAVE_RULE ──────────────────────────────────────────────────────────────
   if (intent === 'save_rule') {
     try {
-      // Upsert into category_rules
+      // Upsert into category_rules — write both column names for compatibility
       await supabase.from('category_rules').upsert(
         {
           user_id: userId,
           match_type: matchType,
           match_value: normalized,
+          merchant_pattern: normalized,
           category: encodeRuleCategory(parsedTarget.category, parsedTarget.subcategory),
           is_active: true,
           updated_at: new Date().toISOString(),

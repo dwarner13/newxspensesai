@@ -160,15 +160,63 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
 
   const handleMerchantPick = async (category: string, merchantName: string) => {
     setLocalMessages(m => [...m, { role: 'user' as const, text: category }]);
-    onMerchantCategorize?.(merchantName, category);
-    setLocalMessages(m => [...m, { role: 'tag' as const, text: `\u2713 ${merchantName} \u2192 **${category}**. Rule saved.` }]);
-    // Next
+
+    // Actually save to DB — don't rely on parent callback alone
+    try {
+      const sb = getSupabase();
+      if (!sb) throw new Error('No Supabase');
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error('No session');
+      const token = session.access_token;
+
+      // Step 1: Find matching Needs Review transactions
+      const { data: matchingTxs } = await sb
+        .from('transactions').select('id')
+        .ilike('merchant_name', `%${merchantName}%`)
+        .or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
+      const ids = matchingTxs?.map(t => t.id) ?? [];
+
+      // Step 2: Bulk apply
+      if (ids.length > 0) {
+        const applyRes = await fetch('/.netlify/functions/tag-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category }] }),
+        });
+        const applyData = await applyRes.json();
+        if (!applyData.ok) console.error('[Tag] bulk_apply failed:', applyData);
+      }
+
+      // Step 3: Save rule
+      const ruleRes = await fetch('/.netlify/functions/tag-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ intent: 'save_rule', matchValue: merchantName, targetCategory: category, matchType: 'contains' }),
+      });
+      const ruleData = await ruleRes.json();
+      if (!ruleData.ok) console.error('[Tag] save_rule failed:', ruleData);
+
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: `\u2713 ${ids.length > 0 ? `${ids.length} ` : ''}${merchantName} \u2192 **${category}**. Rule saved.` }]);
+
+      // Also notify parent for refresh
+      onMerchantCategorize?.(merchantName, category);
+      onCategoryUpdated?.();
+    } catch (err) {
+      console.error('[Tag] handleMerchantPick error:', err);
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: `Had trouble saving that \u2014 ${err instanceof Error ? err.message : 'try again'}.` }]);
+      return; // Don't auto-continue on error
+    }
+
+    // Auto-continue to next merchant
     const next = mqIndex + 1;
     setMqIndex(next);
     if (next < merchantQueue.length) {
-      setTimeout(() => askAboutMerchant(merchantQueue[next], next), 600);
+      setTimeout(() => askAboutMerchant(merchantQueue[next], next), 1000);
     } else {
-      setTimeout(() => setLocalMessages(m => [...m, { role: 'tag' as const, text: 'All done! Every merchant in the queue has been handled. Your books are looking clean \u2713' }]), 600);
+      setTimeout(() => {
+        setLocalMessages(m => [...m, { role: 'tag' as const, text: 'All done! Every merchant in the queue has been handled. Your books are looking clean \u2713' }]);
+        setMerchantQueue([]);
+      }, 1000);
     }
   };
 
@@ -300,13 +348,14 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
           <div ref={bottomRef} />
         </div>
         {/* INPUT */}
-        <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:8 }}>
-          <input
+        <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:8, alignItems:'flex-end' }}>
+          <textarea
+            rows={2}
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && void send()}
-            placeholder="Ask Tag about this transaction…"
-            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:8, padding:'8px 12px', fontSize:14, color:'#e8ecf4', outline:'none', fontFamily:'inherit' }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
+            placeholder="Ask Tag anything..."
+            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.5 }}
           />
           <button
             onClick={() => void send()}
