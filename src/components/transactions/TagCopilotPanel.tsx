@@ -234,6 +234,12 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   const send = async () => {
     const text = input.trim();
     if (!text || busy) return;
+    // If merchant queue is active, treat typed input as category pick
+    if (merchantQueue.length > 0 && mqIndex < merchantQueue.length) {
+      setInput('');
+      void handleMerchantPick(text, merchantQueue[mqIndex].merchant_name);
+      return;
+    }
     const txId = transaction?.id ?? null;
     setInput('');
     setLocalMessages(m => [...m, { role: 'user' as const, text }]);
@@ -278,7 +284,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   return (
     <>
       <div className="fixed inset-0 z-[70]" onClick={onClose} />
-      <div style={{ position:'fixed', bottom:0, right:0, top:0, width:380, background:'#080f1e', borderLeft:'1px solid rgba(34,211,153,0.15)', zIndex:71, display:'flex', flexDirection:'column', fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:'-8px 0 40px rgba(0,0,0,0.5)' }}>
+      <div style={{ position:'fixed', bottom:0, right:0, top:0, width:520, background:'#080f1e', borderLeft:'1px solid rgba(34,211,153,0.15)', zIndex:71, display:'flex', flexDirection:'column', fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:'-8px 0 40px rgba(0,0,0,0.5)' }}>
         {/* HEADER */}
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ width:36, height:36, borderRadius:'50%', background:'rgba(34,211,153,0.15)', border:'1px solid rgba(34,211,153,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>T</div>
