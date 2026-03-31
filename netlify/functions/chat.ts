@@ -516,7 +516,7 @@ function applyPrimeChatStyleModelConfig(
   const isPrime = slug === 'prime-boss' || slug === 'prime';
   if (!isPrime) return config;
   const next = { ...config };
-  const preferredModel = String(process.env.PRIME_PRIMARY_MODEL || process.env.OPENAI_PRIME_CHAT_MODEL || '').trim();
+  const preferredModel = String(process.env.OPENAI_PRIME_CHAT_MODEL || '').trim();
   if (preferredModel) {
     next.model = preferredModel;
   } else if (/mini/i.test(String(next.model || ''))) {
