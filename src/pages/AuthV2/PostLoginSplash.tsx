@@ -42,9 +42,9 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
     <div onClick={skipToEnd} style={{
       minHeight: "100dvh", width: "100vw",
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "24px 24px 0px",
+      padding: "clamp(40px, 10vh, 100px) 24px 0px",
       overflowY: "auto", paddingBottom: "max(32px, env(safe-area-inset-bottom, 32px))",
       cursor: showButtons ? "default" : "pointer",
     }}>
@@ -132,5 +132,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
     </div>
   );
 }
+
+
 
 
