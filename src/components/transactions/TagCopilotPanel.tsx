@@ -33,7 +33,7 @@ interface TagCopilotPanelProps {
 }
 
 function parseTagAction(reply: string): { cleanReply: string; action: TagAction | null } {
-  const filterMatch = reply.match(/FILTER:(\{[^\}]+\})/s);
+  const filterMatch = reply.match(/FILTER:\s*({[^}]*})/s);
   const bulkMatch = reply.match(/BULK_CHANGE:(\{[^}]*\})/);
   const undoMatch = reply.match(/UNDO:(\{[^}]*\})/);
   let action: TagAction | null = null;
@@ -86,12 +86,110 @@ function suggestCats(name: string): string[] {
   return SUGGEST_CATS.default;
 }
 
+// -- Category validation ------------------------------------------------------
+// Prevents free-text sentences from being saved as category names.
+const CANONICAL_CATEGORIES = [
+  'Income', 'Groceries', 'Food & Dining', 'Transportation', 'Housing', 'Utilities',
+  'Shopping', 'Subscriptions', 'Entertainment', 'Healthcare', 'Insurance', 'Education',
+  'Travel', 'Transfers', 'Bank Fees', 'Business', 'Personal Care', 'Home & Garden',
+  'Savings', 'Debt Payments', 'Cash & ATM', 'Health & Fitness', 'Dining',
+  'Business Meals', 'Business Travel', 'Business Supplies', 'Other', 'Uncategorized',
+] as const;
+
+const CATEGORY_ALIASES: Record<string, string> = {
+  'dining': 'Food & Dining',
+  'food': 'Food & Dining',
+  'food and dining': 'Food & Dining',
+  'gas': 'Transportation',
+  'fuel': 'Transportation',
+  'petro': 'Transportation',
+  'health': 'Healthcare',
+  'medical': 'Healthcare',
+  'dental': 'Healthcare',
+  'fees': 'Bank Fees',
+  'bank fee': 'Bank Fees',
+  'coffee': 'Food & Dining',
+  'restaurant': 'Food & Dining',
+  'fast food': 'Food & Dining',
+  'grocery': 'Groceries',
+  'supermarket': 'Groceries',
+  'streaming': 'Subscriptions',
+  'software': 'Subscriptions',
+  'gym': 'Health & Fitness',
+  'fitness': 'Health & Fitness',
+  'parking': 'Transportation',
+  'transit': 'Transportation',
+  'rideshare': 'Transportation',
+  'uber': 'Transportation',
+  'transfer': 'Transfers',
+  'etransfer': 'Transfers',
+  'e-transfer': 'Transfers',
+  'savings': 'Savings',
+  'debt': 'Debt Payments',
+  'loan': 'Debt Payments',
+  'credit card': 'Debt Payments',
+  'entertainment': 'Entertainment',
+  'golf': 'Entertainment',
+  'personal care': 'Personal Care',
+  'hair': 'Personal Care',
+  'salon': 'Personal Care',
+  'business': 'Business',
+  'housing': 'Housing',
+  'rent': 'Housing',
+  'mortgage': 'Housing',
+  'utilities': 'Utilities',
+  'hydro': 'Utilities',
+  'internet': 'Utilities',
+  'phone': 'Utilities',
+  'insurance': 'Insurance',
+  'travel': 'Travel',
+  'hotel': 'Travel',
+  'airfare': 'Travel',
+  'education': 'Education',
+  'tuition': 'Education',
+  'income': 'Income',
+  'payroll': 'Income',
+  'salary': 'Income',
+  'deposit': 'Income',
+  'other': 'Other',
+};
+
+/**
+ * Returns the canonical category name if input matches, otherwise null.
+ * Prevents raw sentences from being written as category names.
+ */
+function resolveCategory(input: string): string | null {
+  const trimmed = input.trim();
+  const lower = trimmed.toLowerCase();
+  // Direct canonical match (case-insensitive)
+  const direct = CANONICAL_CATEGORIES.find(c => c.toLowerCase() === lower);
+  if (direct) return direct;
+  // Alias match
+  return CATEGORY_ALIASES[lower] ?? null;
+}
+
 export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTagAction, onToggleActivity, injectedMessage, injectedFollowupMerchants, onMerchantCategorize, totalCount, firstName, totalSpent, totalIncome, netFlow }: TagCopilotPanelProps) {
   const [localMessages, setLocalMessages] = useState<ChatMsg[]>(() => {
     if (transaction) return [];
     try {
       const saved = localStorage.getItem('tag_chat_history');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const ts = localStorage.getItem('tag_chat_history_ts');
+      const age = ts ? Date.now() - Number(ts) : Infinity;
+      if (age > 2 * 60 * 60 * 1000) {
+        localStorage.removeItem('tag_chat_history');
+        localStorage.removeItem('tag_chat_history_ts');
+        return [];
+      }
+      const parsed = JSON.parse(saved);
+      // Normalize both formats: Categories uses {role:'assistant'|'user', content}
+      // Transactions uses {role:'tag'|'user', text}
+      return parsed
+        .map((m: any) => ({
+          role: (m.role === 'assistant' ? 'tag' : m.role === 'user' ? 'user' : m.role) as 'tag' | 'user',
+          text: String(m.text || m.content || '').trim(),
+        }))
+        .filter((m: any) => m.text.length > 0);
     } catch { return []; }
   });
   const [input, setInput] = useState('');
@@ -105,11 +203,12 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
     return -1;
   }, [localMessages]);
 
-  const lastTagText = lastTagIndex >= 0 ? localMessages[lastTagIndex]?.text ?? '' : '';
-  const [typewriterText, typewriterDone] = useTypewriter(lastTagText ?? '', 18, 150);
+  
 
   const fetchProactiveGreeting = useCallback(async () => {
     const hi = firstName ? `Hey ${firstName}` : 'Hey';
+    // Show instant placeholder so there is no blank gap while fetch runs
+    setLocalMessages([{ role: 'tag' as const, text: `${hi} — checking your transactions...` }]);
     try {
       const sb = getSupabase(); if (!sb) return;
       const { data: { session } } = await sb.auth.getSession(); if (!session) return;
@@ -185,25 +284,34 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   };
 
   const handleMerchantPick = async (category: string, merchantName: string) => {
-    // If text looks like a command/question, send to LLM instead of treating as category
+    // Guard 1: command/question keywords ? route to LLM chat
     if (/\b(show|bring|find|search|can you|what|how|why|filter|list|pull up|undo|categorize|help)\b/i.test(category)) {
       setInput(category);
       setTimeout(() => void send(), 50);
       return;
     }
-    setLocalMessages(m => [...m, { role: 'user' as const, text: category }]);
+    // Guard 2: validate against canonical categories � reject free-text sentences
+    const resolved = resolveCategory(category);
+    if (!resolved) {
+      // Not a valid category � treat as a chat message to Tag, don't advance queue
+      void sendAsChatMessage(category);
+      return;
+    }
+    // Use the normalized canonical form
+    const canonicalCategory = resolved;
+    setLocalMessages(m => [...m, { role: 'user' as const, text: canonicalCategory }]);
     // Check if subcategories exist for this category
-    const subcats = SUBCATEGORY_OPTIONS[category];
+    const subcats = SUBCATEGORY_OPTIONS[canonicalCategory];
     if (subcats && subcats.length > 0) {
-      setPendingSubcategory({ merchantName, category });
+      setPendingSubcategory({ merchantName, category: canonicalCategory });
       setLocalMessages(m => [...m, {
         role: 'tag' as const,
-        text: `Got it \u2014 **${category}**. What type?`,
-        subcategoryQ: { merchantName, category, options: subcats },
+        text: `Got it \u2014 **${canonicalCategory}**. What type?`,
+        subcategoryQ: { merchantName, category: canonicalCategory, options: subcats },
       }]);
       return;
     }
-    await saveWithSubcategory(category, merchantName, null);
+    await saveWithSubcategory(canonicalCategory, merchantName, null);
   };
 
   const handleSubcategoryPick = async (subcategory: string) => {
@@ -269,8 +377,41 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   useEffect(() => {
     if (!transaction && localMessages.length > 0) {
       localStorage.setItem('tag_chat_history', JSON.stringify(localMessages.slice(-20)));
+      localStorage.setItem('tag_chat_history_ts', String(Date.now()));
     }
   }, [localMessages, transaction]);
+
+  // Called when user types non-category text during merchant queue
+  // Routes to Tag chat WITHOUT advancing the queue
+  const sendAsChatMessage = async (text: string) => {
+    setLocalMessages(m => [...m, { role: 'user' as const, text }]);
+    setBusy(true);
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
+      const currentMerchant = merchantQueue[mqIndex]?.merchant_name;
+      const res = await fetch('/.netlify/functions/tag-chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          message: text,
+          merchant: currentMerchant,
+          context: 'page',
+          pageContext: { totalSpent: totalSpent ?? 0, totalIncome: totalIncome ?? 0, transactionCount: totalCount ?? 0 },
+          history: localMessages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const { cleanReply, action: tagAction } = parseTagAction(data.reply);
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
+      if (tagAction && onTagAction) onTagAction(tagAction);
+    } catch {
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Something went wrong � try again.' }]);
+    }
+    setBusy(false);
+  };
 
   const send = async () => {
     const text = input.trim();
@@ -338,6 +479,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
           {onToggleActivity && <button onClick={onToggleActivity} title="Tag Activity" style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#475569', fontSize:14, padding:'2px 6px' }}>{'\uD83D\uDCCB'}</button>}
           <button onClick={async () => {
             localStorage.removeItem('tag_chat_history');
+            localStorage.removeItem('tag_chat_history_ts');
             setLocalMessages([]);
             setMerchantQueue([]);
             setMqIndex(0);
@@ -365,15 +507,15 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
         <div ref={messagesContainerRef} style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:12 }}>
           {localMessages.map((m, i) => {
             const isLastTag = m.role === 'tag' && i === lastTagIndex;
-            const displayText = isLastTag ? typewriterText : m.text;
             return (
-              <div key={i} style={{ display:'flex', gap:8, justifyContent: m.role==='user' ? 'flex-end' : 'flex-start' }}>
+              <div key={i} style={{ display:'flex', gap:8, justifyContent: m.role==='user' ? 'flex-end' : 'flex-start', animation: isLastTag ? 'tagMsgIn 0.18s ease forwards' : 'none' }}>
+              <style>{'@keyframes tagMsgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}'}</style>
                 {m.role==='tag' && (
                   <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>T</div>
                 )}
                 <div>
-                  <div style={{ maxWidth:'85%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7, wordBreak:'break-word', overflowWrap:'break-word', whiteSpace:'pre-wrap' }}>
-                    {(displayText ?? '').split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
+                  <div style={{ maxWidth:'85%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7, animation:'chatMsgIn 0.18s ease forwards', wordBreak:'break-word', overflowWrap:'break-word', whiteSpace:'pre-wrap' }}>
+                    {(m.text ?? '').split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
                   </div>
                   {m.merchantQ && i === localMessages.length - 1 && (
                     <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', gap:5 }}>
@@ -401,7 +543,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
               </div>
             );
           })}
-          {busy && typewriterDone && (
+          {busy && (
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee' }}>T</div>
               <div style={{ fontSize:13, color:'#e8ecf4' }}>Thinking…</div>
@@ -412,17 +554,17 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
         {/* INPUT */}
         <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:8, alignItems:'flex-end' }}>
           <textarea
-            rows={2}
+            rows={3}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
             placeholder="Ask Tag anything..."
-            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.5 }}
+            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'12px 14px', fontSize:14, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.6, minHeight:52 }}
           />
           <button
             onClick={() => void send()}
             disabled={busy || !input.trim()}
-            style={{ width:36, height:36, borderRadius:8, background: busy ? 'rgba(34,211,153,0.1)' : 'rgba(34,211,153,0.2)', border:'1px solid rgba(34,211,153,0.3)', display:'flex', alignItems:'center', justifyContent:'center', cursor: busy ? 'default' : 'pointer', color:'#22d3ee', flexShrink:0 }}
+            style={{ width:38, height:38, borderRadius:10, background: busy ? 'rgba(34,211,153,0.1)' : 'rgba(34,211,153,0.2)', border:'1px solid rgba(34,211,153,0.3)', display:'flex', alignItems:'center', justifyContent:'center', cursor: busy ? 'default' : 'pointer', color:'#22d3ee', flexShrink:0 }}
           >
             <Send style={{ width:16, height:16 }} />
           </button>

@@ -295,7 +295,7 @@ export default function UploadPageV2() {
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-      <div style={{ fontFamily: "'Plus Jakarta Sans'", color: T.text, padding: "28px 36px", maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ fontFamily: "'Plus Jakarta Sans'", color: T.text, padding: "28px 36px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))", maxWidth: 900, margin: "0 auto" }}>
         {/* Header */}
         <Reveal delay={0}>
           <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0, color: "white" }}>Bulk Upload</h1>

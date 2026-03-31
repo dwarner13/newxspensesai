@@ -16,7 +16,7 @@ export function StatCard({ label, value, color, icon }: StatCardProps) {
       boxShadow: `0 4px 20px ${color}10`,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700 }}>{label}</span>
+        <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1.4, color: "#94a3b8", fontWeight: 700 }}>{label}</span>
         <div style={{
           width: 28, height: 28, borderRadius: 8, background: `${color}15`,
           display: "flex", alignItems: "center", justifyContent: "center", color,

@@ -66,7 +66,7 @@ export default function CategoriesPageV2() {
 
   if (data.loading) {
     return (
-      <div style={{ fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 1100, margin: "0 auto", padding: isMobile ? "20px 16px" : "32px 24px" }}>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 1100, margin: "0 auto", padding: isMobile ? "20px 16px" : "32px 24px", paddingRight: copilotOpen && !isMobile ? 544 : isMobile ? 16 : 24, transition: "padding-right 0.35s cubic-bezier(0.16,1,0.3,1)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, color: THEME.textMuted }}>
           <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid #334155", borderTopColor: "#94a3b8", animation: "spin 1s linear infinite" }} />
           Loading categories...
@@ -86,7 +86,7 @@ export default function CategoriesPageV2() {
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: isMobile ? 12 : 0 }}>
             <div>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: "white", margin: 0, letterSpacing: -0.3 }}>Categories</h1>
-              <p style={{ fontSize: 12, color: THEME.textDim, marginTop: 4 }}>
+              <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
                 {data.categoryCount} categories &middot; {totalTxCount} transactions
                 {selectedPeriod && <span style={{ color: CYAN }}> &middot; {formatPeriod(selectedPeriod)}</span>}
               </p>
@@ -119,22 +119,22 @@ export default function CategoriesPageV2() {
 
               {/* Income */}
               <div>
-                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 6 }}>Income</div>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>Income</div>
                 <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 800, color: THEME.green }}>${fmt(data.totalIncome)}</div>
-                <div style={{ fontSize: 11, color: THEME.textDim, marginTop: 2 }}>{selectedPeriod ? formatPeriod(selectedPeriod) : "All time"}</div>
+                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{selectedPeriod ? formatPeriod(selectedPeriod) : "All time"}</div>
               </div>
 
               {/* Expenses */}
               <div>
-                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 6 }}>Expenses</div>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>Expenses</div>
                 <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 800, color: THEME.red }}>${fmt(data.totalSpent)}</div>
-                <div style={{ fontSize: 11, color: THEME.textDim, marginTop: 2 }}>excl. transfers</div>
+                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>excl. transfers</div>
               </div>
 
               {/* Net � desktop only */}
               {!isMobile && (
                 <div>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 6 }}>Net</div>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>Net</div>
                   <div style={{ fontSize: 26, fontWeight: 800, color: net >= 0 ? THEME.green : THEME.red }}>
                     {net >= 0 ? "+$" : "-$"}{fmt(Math.abs(net))}
                   </div>
@@ -238,7 +238,7 @@ export default function CategoriesPageV2() {
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: THEME.blue }} />
                 <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: THEME.blue }}>Money Movement</span>
                 <div style={{ flex: 1, height: 1, background: THEME.border }} />
-                <span style={{ fontSize: 11, color: THEME.textDim }}>Not counted in expenses</span>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>Not counted in expenses</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
                 <CategoryCard category={transfersCategory} onClick={() => { setSubcategoryFilter(null); setSelectedCategory(transfersCategory); }} onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(transfersCategory); }} />
@@ -258,8 +258,8 @@ export default function CategoriesPageV2() {
 
       {/* Tag Copilot Panel */}
       {copilotOpen && (
-        <TagCopilotPanel initialMessage={copilotInitialMessage}
-          onClose={() => setCopilotOpen(false)}
+        <TagCopilotPanel key="tag-copilot-stable" initialMessage={copilotInitialMessage}
+          onClose={() => { setCopilotOpen(false); setTimeout(() => setCopilotInitialMessage(""), 300); }}
           firstName={firstName}
           flaggedCount={data.uncategorizedCount}
           categorizedCount={totalTxCount - data.uncategorizedCount}
@@ -286,6 +286,7 @@ export default function CategoriesPageV2() {
         category={selectedCategory}
         onClose={() => { setSelectedCategory(null); setSubcategoryFilter(null); }}
         subcategoryFilter={subcategoryFilter}
+        isTagOpen={copilotOpen}
         onAskTag={(question) => { setCopilotInitialMessage(question); setCopilotOpen(true); }}
       />
     </>

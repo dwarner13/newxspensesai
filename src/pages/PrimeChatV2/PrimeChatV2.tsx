@@ -95,10 +95,59 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     isStreaming,
   } = useUnifiedChatEngine({
     employeeSlug: "prime-boss",
-    additionalPrimeContext: teamActivity.summaryText ? { teamActivitySummary: teamActivity.summaryText } : undefined,
+    additionalPrimeContext: data.loading ? undefined : {
+      // Real financial snapshot from usePrimeBriefingData
+      financialSnapshot: {
+        hasTransactions: data.transactionCount > 0,
+        uncategorizedCount: data.uncategorizedCount,
+        monthlySpend: data.totalSpent,
+        topCategories: data.categoryBreakdown.slice(0, 6).map(c => ({
+          name: c.label,
+          amount: c.amount,
+        })),
+        hasDebt: data.categoryBreakdown.some(c =>
+          c.label.toLowerCase().includes('debt') || c.label.toLowerCase().includes('loan')
+        ),
+      },
+      // Real income/expense summary
+      totalIncome: data.totalIncome,
+      totalSpent: data.totalSpent,
+      statementCount: data.statementCount,
+      transactionCount: data.transactionCount,
+      uncategorizedCount: data.uncategorizedCount,
+      categorySummary: data.categorySummary,
+      topMerchant: data.topMerchant?.name ?? null,
+      pendingImports: data.pendingImports,
+      // Team agent activity
+      teamActivitySummary: teamActivity.summaryText || undefined,
+    },
   });
 
   const [isDragging, setIsDragging] = useState(false);
+  const autoGreetFired = { current: false };
+
+  // Auto-greeting: fires once when financial data loads
+  // Sends a hidden message so only Prime's response shows
+  useEffect(() => {
+    if (autoGreetFired.current) return;
+    if (data.loading) return;
+    if (data.transactionCount === 0) return;
+    autoGreetFired.current = true;
+
+    const topCat = data.categoryBreakdown[0];
+    const uncatNote = data.uncategorizedCount > 0
+      ? `${data.uncategorizedCount} transactions still need a category.`
+      : 'All transactions are categorized.';
+    const topNote = topCat
+      ? `${topCat.label} is the biggest spend at ${topCat.amount.toLocaleString('en-CA', { maximumFractionDigits: 0 })}.`
+      : '';
+
+    const prompt = `[PRIME_GREETING] Talk to Darrell like his CFO \u2014 2 sentences on his finances then ONE question. No lists. Finances: ${data.transactionCount} transactions across ${data.statementCount} statements, spent ${data.totalSpent.toLocaleString('en-CA', {maximumFractionDigits:0})}, income ${data.totalIncome.toLocaleString('en-CA', {maximumFractionDigits:0})}. ${topNote} ${uncatNote}`;
+
+    setTimeout(() => {
+      void sendMessage(prompt, { hidden: true });
+    }, 800);
+  }, [data.loading, data.transactionCount]);
   const [promptsUsed, setPromptsUsed] = useState(false);
   const [briefingCollapsed, setBriefingCollapsed] = useState(false);
   const [uploadMessages, setUploadMessages] = useState<{ id: string; text: string; type: "info" | "success" | "error" }[]>([]);

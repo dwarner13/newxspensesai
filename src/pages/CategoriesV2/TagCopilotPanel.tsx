@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Trash2 } from "lucide-react";
 import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
-import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "./useCategoriesData";
 
@@ -103,18 +102,21 @@ export function TagCopilotPanel({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(initialMessage || "");
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+  const normalizeStoredMessages = (): ChatMessage[] => {
     try {
       const saved = localStorage.getItem('tag_chat_history');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const raw = JSON.parse(saved);
+      return raw
+        .map((m: any) => ({
+          role: (m.role === 'tag' ? 'assistant' : m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+          content: String(m.content || m.text || '').trim(),
+        }))
+        .filter((m: ChatMessage) => m.content.length > 0);
     } catch { return []; }
-  });
-  const [hasRestoredHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('tag_chat_history');
-      return saved ? JSON.parse(saved).length > 0 : false;
-    } catch { return false; }
-  });
+  };
+  const [messages, setMessages] = useState<ChatMessage[]>(normalizeStoredMessages);
+  const [hasRestoredHistory] = useState(() => normalizeStoredMessages().length > 0);
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -122,13 +124,15 @@ export function TagCopilotPanel({
     requestAnimationFrame(() => setOpen(true));
   }, []);
 
-  // Auto-send initialMessage after panel opens (skip if history was rehydrated)
+  // Auto-send initialMessage when it changes (stable component, no remount)
+  const lastSentMsg = { current: '' };
   useEffect(() => {
-    if (initialMessage && initialMessage.trim() && messages.length === 0) {
-      const timer = setTimeout(() => handleSend(initialMessage.trim()), 800);
+    if (initialMessage && initialMessage.trim() && initialMessage !== lastSentMsg.current) {
+      lastSentMsg.current = initialMessage;
+      const timer = setTimeout(() => handleSend(initialMessage.trim()), 400);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [initialMessage]);
   // Fetch real learned rules from vendor_category_memory
   useEffect(() => {
     (async () => {
@@ -188,7 +192,7 @@ export function TagCopilotPanel({
         body: JSON.stringify({
           message: text,
           history: updatedMessages.slice(0, -1),
-          systemPromptOverride: "You are Tag -- XspensesAI's categorization expert on the CATEGORIES PAGE.\n\nUSER'S FINANCIAL DATA (real, current):\n- Total spent: " + (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) + " CAD\n- Total transactions: " + (txCount || 0) + "\n- Spending categories:\n" + (topCategories || []).map(c => {
+          systemPromptOverride: "STRICT CHAT RULES — violating these breaks the experience:\n1. Max 2 sentences. Hard limit. No exceptions.\n2. Ask ONE question then STOP. Never ask multiple questions.\n3. Zero bullet points. Zero numbered lists. Zero headers. Plain conversational sentences only.\n4. Never write analysis, breakdowns, or math. Just talk.\n5. You already have the financial data — reference it naturally, don't explain it back.\n\nYou are Tag — XspensesAI's categorization expert. You're having a focused chat, not writing a report.\n\nUSER'S FINANCIAL DATA:\n- Total spent: " + (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) + " CAD\n- Total transactions: " + (txCount || 0) + "\n- Spending categories:\n" + (topCategories || []).map(c => {
             let line = "  - " + c.category + ": $" + c.total.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " spent";
             if (c.budget && c.budget > 0) {
               line += " / $" + c.budget + " budget";
@@ -219,27 +223,44 @@ export function TagCopilotPanel({
     }
   };
 
-  const statusText = (() => {
-    const isNewUser = totalCount === 0;
-    const hasUncategorized = flaggedCount > 0;
-    const name = firstName || '';
-    const hi = name ? `Hey ${name}! ` : 'Hey! ';
-
-    if (isNewUser) {
-      return `${hi}I'm Tag \u2014 I handle your categories. Upload a statement and I'll start making sense of your spending. What kind of expenses do you track most?`;
-    }
-    if (hasUncategorized) {
-      return `${hi}${flaggedCount} transaction${flaggedCount > 1 ? 's' : ''} need a category \u2014 want me to sort those out now? I've got ${categorizedCount} of ${totalCount} organized so far.`;
-    }
+  // Compute once when real data arrives — prevents typewriter restart mid-type
+  // Compute once when real data arrives — prevents typewriter restart mid-type
+  // Greeting computed once when data arrives - stable, no restarts
+  const [greetingText, setGreetingText] = useState('');
+  useEffect(() => {
+    if (greetingText) return; // already set — don't restart
+    const count = txCount || totalCount || 0;
+    if (count === 0 && (topCategories || []).length === 0) return; // wait for data
+    const hi = firstName ? `Hey ${firstName}` : 'Hey';
     const sorted = [...(topCategories || [])].sort((a, b) => b.total - a.total);
-    if (sorted.length > 0 && totalSpent && totalSpent > 0) {
+    const overBudget = (topCategories || []).filter(c => c.budget && c.budget > 0 && c.total > c.budget);
+    const flagged = flaggedCount || 0;
+    let text = '';
+
+    if (overBudget.length > 0) {
+      // Budget alert takes priority
+      const worst = overBudget.sort((a, b) => (b.total - b.budget!) - (a.total - a.budget!))[0];
+      const pct = Math.round((worst.total / (worst.budget || 1)) * 100);
+      text = `${hi} — ${overBudget.length} categor${overBudget.length > 1 ? 'ies are' : 'y is'} over budget. **${worst.category}** is at ${pct}% of budget (${worst.total.toLocaleString('en-CA', {maximumFractionDigits:0})} / ${worst.budget?.toLocaleString('en-CA', {maximumFractionDigits:0})}). Want me to break that down?`;
+    } else if (flagged > 0) {
+      text = `${hi} — ${flagged} transaction${flagged > 1 ? 's' : ''} still need a category. Want me to sort those out?`;
+    } else if (sorted.length > 0 && totalSpent && totalSpent > 0) {
       const top = sorted[0];
+      const second = sorted[1];
       const pct = Math.round((top.total / totalSpent) * 100);
-      return `${hi}Your categories are looking clean. ${top.category} is your biggest bucket at ${pct}% \u2014 is that typical for your business?`;
+      const tip = top.category === 'Transfers' && second
+        ? `**${second.category}** is your biggest real expense at ${Math.round((second.total / totalSpent) * 100)}% — typical for your business?`
+        : `**${top.category}** is ${pct}% of total spend. Is that expected for your work?`;
+      text = `${hi} — books look clean ✓ ${tip}`;
+    } else {
+      text = `${hi} — all ${count} transactions categorized. Ask me anything about your categories, budgets, or what's deductible.`;
     }
-    return `${hi}All ${totalCount} transactions categorized and looking clean. What do you want to dig into?`;
-  })();
-  const [typed, typeDone] = useTypewriter(statusText, 14, 500, !hasRestoredHistory);
+    setGreetingText(text);
+  }, [txCount, totalCount, topCategories, totalSpent, flaggedCount]);
+
+
+
+  // greetingReady no longer needed - using stable greetingText state instead
 
   // Typewriter for chat replies — track last assistant message
   const lastAssistantIdx = useMemo(() => {
@@ -248,12 +269,17 @@ export function TagCopilotPanel({
     }
     return -1;
   }, [messages]);
-  const lastAssistantText = lastAssistantIdx >= 0 ? messages[lastAssistantIdx]?.content ?? '' : '';
-  const [replyTyped, replyDone] = useTypewriter(lastAssistantText ?? '', 18, 150);
+
+  // Scroll chat to bottom when messages change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isLoading]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [typed, typeDone, replyTyped]);
+  }, [messages]);
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -262,8 +288,8 @@ export function TagCopilotPanel({
 
   return (
     <>
-      <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", opacity: open ? 1 : 0, transition: "opacity 0.3s", zIndex: 998, backdropFilter: "blur(4px)" }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, background: THEME.bg, borderLeft: `1px solid ${THEME.border}`, transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column" }}>
+
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, background: THEME.bg, borderLeft: `1px solid ${THEME.border}`, transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overscrollBehavior: "contain" }}>
 
         {/* Header */}
         <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${THEME.border}`, display: "flex", alignItems: "center", gap: 12 }}>
@@ -281,24 +307,27 @@ export function TagCopilotPanel({
         </div>
 
         {/* Body */}
-        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px 24px 140px" }}>
+        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", padding: "20px 24px 140px" }}>
 
           {/* Typewriter greeting — only shown when no restored history */}
-          {!hasRestoredHistory && <div style={{ display: "flex", gap: 10, marginBottom: 6 }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: CYAN }}>Tag</span>
-                <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
-              </div>
-              <div style={{ fontSize: 14, color: THEME.text, lineHeight: 1.7, padding: "12px 14px", borderRadius: 14, background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44` }}>
-                {typed}<span style={{ opacity: !typeDone ? 1 : 0, transition: "opacity 0.3s", color: CYAN }}>{"\u2588"}</span>
+          {greetingText && messages.length === 0 && (
+            <div style={{ display: "flex", gap: 10, marginBottom: 6, animation: 'catMsgIn 0.2s ease forwards' }}>
+              <style>{'@keyframes catMsgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}'}</style>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: CYAN }}>Tag</span>
+                  <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+                </div>
+                <div style={{ fontSize: 15, color: THEME.text, lineHeight: 1.7, padding: "12px 14px", borderRadius: 14, background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44` }}>
+                  {greetingText}
+                </div>
               </div>
             </div>
-          </div>}
+          )}
 
           {/* Details toggle */}
-          {!hasRestoredHistory && typeDone && (
+          {!hasRestoredHistory && greetingText && (
             <div style={{ marginLeft: 38, marginTop: 12, marginBottom: detailsOpen ? 8 : 16 }}>
               <button type="button" onClick={() => setDetailsOpen(!detailsOpen)} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0, fontSize: 11, fontWeight: 600, color: CYAN }}>
                 <span style={{ transition: "transform 0.2s", transform: detailsOpen ? "rotate(90deg)" : "rotate(0)" }}>{"\u25B6"}</span>
@@ -308,7 +337,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Stats */}
-          {typeDone && detailsOpen && (
+          {greetingText && detailsOpen && (
             <Reveal delay={0} style={{ marginLeft: 38, marginTop: 8, marginBottom: 24 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 {[
@@ -327,7 +356,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Real flagged transactions */}
-          {typeDone && detailsOpen && flaggedTransactions.length > 0 && (
+          {greetingText && detailsOpen && flaggedTransactions.length > 0 && (
             <Reveal delay={200} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: "#fb923c" }} />
@@ -351,7 +380,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Real subcategory suggestions */}
-          {typeDone && detailsOpen && subcategorySuggestions.length > 0 && (
+          {greetingText && detailsOpen && subcategorySuggestions.length > 0 && (
             <Reveal delay={400} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: "#a78bfa" }} />
@@ -384,7 +413,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Real learned rules */}
-          {typeDone && detailsOpen && learnedRules.length > 0 && (
+          {greetingText && detailsOpen && learnedRules.length > 0 && (
             <Reveal delay={600} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: THEME.green }} />
@@ -405,7 +434,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Tag recommendation */}
-          {typeDone && detailsOpen && messages.length === 0 && (
+          {greetingText && detailsOpen && messages.length === 0 && (
             <Reveal delay={800} style={{ marginLeft: 38 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: CYAN }} />
@@ -426,9 +455,9 @@ export function TagCopilotPanel({
           {/* Inline conversation thread */}
           {messages.map((msg, i) => {
             const isLastAssistant = msg.role === 'assistant' && i === lastAssistantIdx;
-            const displayContent = isLastAssistant ? replyTyped : msg.content;
             return (
-              <div key={i} style={{ display: "flex", gap: 10, marginTop: 16, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
+              <div key={i} style={{ display: "flex", gap: 10, marginTop: 16, flexDirection: msg.role === "user" ? "row-reverse" : "row", animation: isLastAssistant ? 'catMsgIn 0.18s ease forwards' : 'none' }}>
+              <style>{'@keyframes catMsgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}'}</style>
                 {msg.role === "assistant" && (
                   <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
                 )}
@@ -436,17 +465,15 @@ export function TagCopilotPanel({
                   maxWidth: "78%",
                   padding: "10px 14px",
                   borderRadius: 14,
-                  fontSize: 13,
-                  lineHeight: 1.6,
+                  fontSize: 15,
+                  lineHeight: 1.7,
                   ...(msg.role === "user"
                     ? { background: `${CYAN}14`, border: `1px solid ${CYAN}28`, color: THEME.text, borderBottomRightRadius: 4 }
                     : { background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44`, color: THEME.textMuted, borderBottomLeftRadius: 4 }
                   ),
                 }}>
-                  {msg.role === "assistant" ? renderMarkdown(displayContent ?? '') : msg.content}
-                  {isLastAssistant && !replyDone && (
-                    <span style={{ color: CYAN, marginLeft: 2 }}>{"\u2588"}</span>
-                  )}
+                  {msg.role === "assistant" ? renderMarkdown(msg.content ?? '') : msg.content}
+
                 </div>
               </div>
             );
@@ -467,19 +494,19 @@ export function TagCopilotPanel({
 
         {/* Input � wired directly to tag-chat API */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${THEME.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: THEME.surface, borderRadius: 14, border: `1px solid ${THEME.border}`, padding: "4px 6px 4px 16px" }}>
-            <input
-              type="text"
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, background: THEME.surface, borderRadius: 14, border: `1px solid ${THEME.border}`, padding: "8px 8px 8px 16px" }}>
+            <textarea
+              rows={3}
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSend()}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               placeholder="Ask Tag anything about categories..."
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: THEME.text, fontSize: 13, padding: "10px 0", fontFamily: "inherit" }}
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: THEME.text, fontSize: 14, padding: "10px 0", fontFamily: "inherit", resize: "none", lineHeight: 1.6, minHeight: 52 }}
             />
             <button
               onClick={() => handleSend()}
               disabled={!inputValue.trim() || isLoading}
-              style={{ width: 34, height: 34, borderRadius: 10, background: inputValue.trim() && !isLoading ? `linear-gradient(135deg, ${CYAN}, #0891b2)` : THEME.surface, border: `1px solid ${inputValue.trim() && !isLoading ? "transparent" : THEME.border}`, cursor: inputValue.trim() && !isLoading ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: inputValue.trim() && !isLoading ? `0 2px 12px ${CYAN}33` : "none" }}
+              style={{ width: 38, height: 38, borderRadius: 10, background: inputValue.trim() && !isLoading ? `linear-gradient(135deg, ${CYAN}, #0891b2)` : THEME.surface, border: `1px solid ${inputValue.trim() && !isLoading ? "transparent" : THEME.border}`, cursor: inputValue.trim() && !isLoading ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: inputValue.trim() && !isLoading ? `0 2px 12px ${CYAN}33` : "none" }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                 <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill={inputValue.trim() && !isLoading ? "#0b1220" : THEME.textDim} />

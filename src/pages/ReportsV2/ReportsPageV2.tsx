@@ -70,13 +70,13 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
       {open && (
         <div style={{ borderTop: "1px solid " + T.border }}>
           {/* Column headers — desktop only */}
-          <div className="reports-row-header hidden md:grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "8px 18px", fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div className="reports-row-header" style={{ display: window.innerWidth >= 768 ? "grid" : "none" }} style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "8px 18px", fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: 1 }}>
             <span>Statement Period</span><span>Transactions</span><span>Spent</span><span>Income</span><span />
           </div>
           {group.statements.map(s => (
             <div key={s.importId} style={{ borderTop: "1px solid " + T.border }}>
               {/* Desktop row */}
-              <div className="hidden md:grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "10px 18px", alignItems: "center", fontSize: 12 }}>
+              <div className="reports-desktop-row" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "10px 18px", alignItems: "center", fontSize: 12, display: window.innerWidth >= 768 ? "grid" : "none" }}>
                 <span style={{ color: T.text }}>{s.earliestDate && s.latestDate ? fmtDate(s.earliestDate) + " – " + fmtDateFull(s.latestDate) : "Imported " + fmtDateFull(s.createdAt)}</span>
                 <span style={{ color: T.muted }}>{s.txCount}</span>
                 <span style={{ color: T.red, fontWeight: 600 }}>{fmtCAD(s.totalSpent)}</span>
@@ -84,7 +84,7 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
                 <button onClick={() => navigate("/dashboard/transactions?importId=" + s.importId)} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: T.gold + "12", border: "1px solid " + T.gold + "28", color: T.gold, cursor: "pointer" }}>View →</button>
               </div>
               {/* Mobile card */}
-              <div className="md:hidden" style={{ display: "flex", alignItems: "center", padding: "10px 18px", gap: 10 }}>
+              <div style={{ display: window.innerWidth < 768 ? "flex" : "none", alignItems: "center", padding: "10px 18px", gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: T.text, fontWeight: 600, fontSize: 13 }}>{s.earliestDate && s.latestDate ? fmtDate(s.earliestDate) + " – " + fmtDateFull(s.latestDate) : "Imported " + fmtDateFull(s.createdAt)}</div>
                   <div style={{ color: T.muted, fontSize: 12, marginTop: 2 }}>{s.txCount} transactions · {fmtCAD(s.totalSpent)} spent</div>

@@ -516,11 +516,10 @@ function applyPrimeChatStyleModelConfig(
   const isPrime = slug === 'prime-boss' || slug === 'prime';
   if (!isPrime) return config;
   const next = { ...config };
-  const preferredModel = String(process.env.OPENAI_PRIME_CHAT_MODEL || '').trim();
+  const preferredModel = String(process.env.PRIME_PRIMARY_MODEL || process.env.OPENAI_PRIME_CHAT_MODEL || '').trim();
   if (preferredModel) {
     next.model = preferredModel;
   } else if (/mini/i.test(String(next.model || ''))) {
-    // Prime quality mode should avoid lightweight "mini" models by default.
     next.model = 'gpt-4o';
   }
   next.temperature = Math.min(Number(next.temperature || 0.3), 0.35);
@@ -796,6 +795,13 @@ function getClarificationDecision(
     /\bbetween\b.+\band\b/i.test(text) ||
     /\bfrom\b.+\bto\b/i.test(text);
   const asksSnapshotStyle = /\b(current|latest|snapshot|overview|right now)\b/i.test(text);
+  // If Prime has real transaction data loaded, skip timeframe clarification
+  // and answer from what we have — asking for clarification when data exists
+  // is the #1 reason Prime feels dumb to users
+  const hasRealDataLoaded = Boolean(primeContext?.financialSnapshot?.hasTransactions);
+  if (hasRealDataLoaded && asksSpendOrCategory && !hasTimeframe) {
+    return null;
+  }
   if (asksSpendOrCategory && !hasTimeframe && !asksSnapshotStyle && !asksAboutSpecificUploadedStatement) {
     return {
       reason: 'missing_timeframe',
@@ -1606,6 +1612,7 @@ function isStatementBreakdownIntent(message: string): boolean {
 }
 
 function isStatementQaIntent(message: string): boolean {
+  if (message.startsWith('[PRIME_GREETING]')) return false;
   const text = String(message || '').toLowerCase();
   if (!text.trim()) return false;
   const monthMentioned = /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|sept|october|oct|november|nov|december|dec|last month|this month)\b/.test(text);
@@ -8863,6 +8870,149 @@ export const handler: Handler = async (event, context) => {
         }
       } catch { /* non-blocking */ }
 
+      // ── Full Team Intelligence Feed ─────────────────────────────────────────
+      // Prime is CEO — he needs to know everything every agent has done
+
+      // 1. Category rules Tag has saved
+      try {
+        const { data: rules } = await sb
+          .from('category_rules')
+          .select('merchant_pattern, category, subcategory, match_type, is_active, updated_at')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .order('updated_at', { ascending: false })
+          .limit(20);
+        if (rules && rules.length > 0) {
+          primeContextMessage += '\nTag\'s saved category rules (most recent first):\n' +
+            rules.map((r: any) =>
+              `- "${r.merchant_pattern}" → ${r.category}${r.subcategory ? ' / ' + r.subcategory : ''}`
+            ).join('\n') + '\n';
+        }
+      } catch { /* non-blocking */ }
+
+      // 2. Tag conversations — what merchants were discussed and last outcome
+      try {
+        const { data: tagConvs } = await sb
+          .from('tag_conversations')
+          .select('merchant_name, messages, last_active')
+          .eq('user_id', userId)
+          .order('last_active', { ascending: false })
+          .limit(10);
+        if (tagConvs && tagConvs.length > 0) {
+          primeContextMessage += '\nTag\'s recent merchant conversations:\n';
+          for (const conv of tagConvs) {
+            const msgs = Array.isArray(conv.messages) ? conv.messages : [];
+            const lastAssistant = [...msgs].reverse().find((m: any) => m.role === 'assistant' || m.role === 'tag');
+            if (lastAssistant) {
+              const preview = String(lastAssistant.content || lastAssistant.text || '').slice(0, 100);
+              primeContextMessage += `- ${conv.merchant_name}: "${preview}"
+`;
+            }
+          }
+        }
+      } catch { /* non-blocking */ }
+
+      // 3. Import history — all statements Byte processed
+      try {
+        const { data: imports } = await sb
+          .from('imports')
+          .select('id, file_url, status, created_at, issuer')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        if (imports && imports.length > 0) {
+          primeContextMessage += '\nStatements Byte has processed:\n';
+          for (const imp of imports) {
+            const filename = String(imp.file_url || '').split('/').pop() || 'Unknown';
+            const date = imp.created_at ? new Date(imp.created_at).toLocaleDateString('en-CA') : '?';
+            const { count } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('import_id', imp.id);
+            primeContextMessage += `- ${decodeURIComponent(filename)} (${date}) — ${imp.status}, ${count || 0} transactions\n`;
+          }
+        }
+      } catch { /* non-blocking */ }
+
+      // 4. Full category breakdown from real transaction data
+      try {
+        const { data: txCats } = await sb
+          .from('transactions')
+          .select('category, subcategory, amount, type')
+          .eq('user_id', userId)
+          .limit(2000);
+        if (txCats && txCats.length > 0) {
+          const catMap: Record<string, number> = {};
+          let totalInc = 0, totalExp = 0, uncatCount = 0;
+          for (const tx of txCats) {
+            const amt = Math.abs(Number(tx.amount || 0));
+            const isInc = tx.type === 'Credit' || (tx.category || '').toLowerCase() === 'income';
+            if (isInc) { totalInc += amt; continue; }
+            if (!tx.category || tx.category === 'Needs Review' || tx.category === 'Uncategorized') { uncatCount++; continue; }
+            if (tx.category === 'Transfers') continue;
+            catMap[tx.category] = (catMap[tx.category] || 0) + amt;
+            totalExp += amt;
+          }
+          const sorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
+          primeContextMessage += `\nReal-time financial summary:\n`;
+          primeContextMessage += `- Total income: ${totalInc.toLocaleString('en-CA', {maximumFractionDigits:0})}\n`;
+          primeContextMessage += `- Total expenses: ${totalExp.toLocaleString('en-CA', {maximumFractionDigits:0})}\n`;
+          primeContextMessage += `- Net flow: ${(totalInc - totalExp).toLocaleString('en-CA', {maximumFractionDigits:0})}\n`;
+          primeContextMessage += `- Uncategorized: ${uncatCount}\n`;
+          primeContextMessage += `- Category breakdown:\n` + sorted.map(([cat, amt]) =>
+            `  • ${cat}: ${amt.toLocaleString('en-CA', {maximumFractionDigits:0})}`
+          ).join('\n') + '\n';
+        }
+      } catch { /* non-blocking */ }
+
+      // 5. Recent Prime notifications sent to Inbox
+      try {
+        const { data: notifs } = await sb
+          .from('user_notifications')
+          .select('title, message, type, created_at, employee_slug')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (notifs && notifs.length > 0) {
+          primeContextMessage += '\nRecent agent notifications sent to Inbox:\n' +
+            notifs.map((n: any) =>
+              `- [${n.employee_slug}] ${n.title}: "${String(n.message || '').slice(0, 80)}"`
+            ).join('\n') + '\n';
+        }
+      } catch { /* non-blocking */ }
+
+      // CEO PERSONA INJECTION
+      primeContextMessage += `
+PRIME CEO PERSONA — CRITICAL RULES:
+You are Prime, the lead financial AI and CEO of the XspensesAI agent team.
+Your team: Byte (OCR/imports), Tag (categorization), Crystal (analytics), Goalie (goals), Ledger (tax).
+You have full visibility of everything they have done — shown above.
+
+RESPONSE RULES (non-negotiable):
+1. Always end with ONE specific question — never more, never zero.
+2. Reference real numbers from the data above — never invent figures.
+3. Max 3 sentences before your question. After 3 sentences you are rambling.
+4. Be direct: "You overspent on Food & Dining by $340" not "it looks like spending may be elevated."
+5. If an agent did something, you know about it — own the team output.
+6. Never use bullet points for conversational replies. Bullets for breakdowns only.
+
+ERROR RECOGNITION — name the real problem, never say "I hit a delay":
+- Uncategorized count jumped → "Your uncategorized count jumped to X — Tag's sweep likely didn't run on the last import. Want me to trigger it?"
+- Import stalled → "Byte processed [file] but nothing committed — import is in [status] state. Want me to check what's blocking it?"
+- Rules saved but not applied → "Tag saved [N] rules but the sweep predates them — those transactions are still miscategorized. Want me to run a backfill?"
+- Missing data → "I don't have [specific thing] loaded — that comes from [source]. Want me to pull it?"
+
+CLARIFICATION — do NOT ask for clarification when:
+- User asks about "this month" or "last month" → use most recent statement data, just answer
+- User asks "how am I doing" → give net flow + top 2 categories + one question
+- User uploads a statement → give headline numbers, ask what they want to know
+- User asks about a category → answer from real totals you have
+
+HANDOFF — never hand off without context:
+- To Tag: "I'll ask Tag to handle that — [one sentence of context]."
+- To Byte: "Byte needs to look at that — [one sentence about the issue]."
+
+PRIORITIZE IN THIS ORDER: uncategorized transactions → income gaps → budget overruns → deductibles.
+TONE: CFO giving a Monday morning briefing — direct, warm, data-first. Not a chatbot.
+`;
+
       // Prepend Prime context BEFORE orchestration rule (so orchestration can reference context)
       systemMessages.push({ role: 'system', content: primeContextMessage });
       
@@ -10421,6 +10571,30 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         orchCtx.timeout_label = streamingError.timeoutLabel || orchCtx.timeout_label;
         orchCtx.timeout_ms = Number(streamingError.timeoutMs || orchCtx.timeout_ms || resolveOpenAiTimeoutMs());
       }
+      // Retry once with gpt-4o fallback on timeout (non-streaming to maximize reliability)
+      if (isTimeout && openai && !assistantContent) {
+        try {
+          console.log('[Chat] Primary model timed out, retrying with gpt-4o fallback (non-streaming)');
+          const fallbackModel = process.env.PRIME_FALLBACK_MODEL || 'gpt-4o';
+          const retryCompletion = await openai.chat.completions.create({
+            model: fallbackModel,
+            messages: messages as any,
+            temperature: modelConfig.temperature,
+            max_tokens: modelConfig.maxTokens,
+            stream: false,
+          });
+          const retryContent = retryCompletion.choices?.[0]?.message?.content || '';
+          if (retryContent) {
+            assistantContent = retryContent;
+            writeRaw(`data: ${JSON.stringify({ role: 'assistant', content: retryContent })}\n\n`);
+            writeRaw(`data: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`);
+            console.log('[Chat] gpt-4o fallback succeeded, delivered', retryContent.length, 'chars');
+            return;
+          }
+        } catch (retryErr: any) {
+          console.warn('[Chat] gpt-4o fallback also failed:', retryErr?.message);
+        }
+      }
       setStage('respond');
       const fallbackMessage = ensureAssistantContent(buildSafeFallbackResponse(orchestrationStage, orchCtx), orchestrationStage, orchCtx);
       fallbackUsed = true;
@@ -11049,8 +11223,34 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           orchCtx.timeout_label = nonStreamingError.timeoutLabel || orchCtx.timeout_label;
           orchCtx.timeout_ms = Number(nonStreamingError.timeoutMs || orchCtx.timeout_ms || resolveOpenAiTimeoutMs());
         }
-        setStage('respond');
-        const fallbackContent = ensureAssistantContent(buildSafeFallbackResponse(orchestrationStage, orchCtx), orchestrationStage, orchCtx);
+        // Retry with gpt-4o fallback on timeout
+        if (isTimeout && openai) {
+          try {
+            console.log('[Chat] Non-streaming primary timed out, retrying with gpt-4o');
+            const fallbackModel = process.env.PRIME_FALLBACK_MODEL || 'gpt-4o';
+            const retryCompletion = await openai.chat.completions.create({
+              model: fallbackModel,
+              messages: messages as any,
+              temperature: modelConfig.temperature,
+              max_tokens: modelConfig.maxTokens,
+              stream: false,
+            });
+            const retryContent = retryCompletion.choices?.[0]?.message?.content || '';
+            if (retryContent) {
+              assistantContent = retryContent;
+              console.log('[Chat] gpt-4o non-streaming fallback succeeded');
+            }
+          } catch (retryErr: any) {
+            console.warn('[Chat] gpt-4o non-streaming fallback failed:', retryErr?.message);
+          }
+        }
+        if (assistantContent) {
+          // Retry succeeded — return the content
+          setStage('respond');
+        } else {
+          setStage('respond');
+        }
+        const fallbackContent = assistantContent || ensureAssistantContent(buildSafeFallbackResponse(orchestrationStage, orchCtx), orchestrationStage, orchCtx);
         fallbackUsed = true;
         // Return graceful error in JSON format
         const headers = buildResponseHeaders({

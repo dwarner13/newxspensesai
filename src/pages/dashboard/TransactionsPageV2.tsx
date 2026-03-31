@@ -56,6 +56,8 @@ export default function TransactionsPageV2() {
   const listRef = useRef<HTMLDivElement>(null);
   const [statementFilter, setStatementFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [tagFilterLabel, setTagFilterLabel] = useState('');
+  const txListRef = (typeof window !== 'undefined') ? { current: null } : { current: null };
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
   const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string } | null>(null);
   const [tagInsightLoading, setTagInsightLoading] = useState(false);
@@ -475,8 +477,22 @@ export default function TransactionsPageV2() {
           {/* Search */}
           <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-800/60">
             <Search className="h-4 w-4 text-slate-500 shrink-0" />
-            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search merchants, categories, amounts..." className="flex-1 bg-transparent text-[14px] text-slate-200 placeholder:text-slate-600 outline-none" />
+            <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) setTagFilterLabel(''); }} placeholder="Search merchants, categories, amounts..." className="flex-1 bg-transparent text-[14px] text-slate-200 placeholder:text-slate-600 outline-none" />
           </div>
+
+          {/* Tag filter chip */}
+          <div id="tx-list-anchor" />
+          {tagFilterLabel && searchQuery === tagFilterLabel && (
+            <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-800/60 bg-cyan-500/5">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30">
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#22d3ee', letterSpacing: '0.1em', textTransform: 'uppercase' }}>TAG</span>
+                <span style={{ fontSize: 12, color: '#e8ecf4', fontWeight: 600 }}>{tagFilterLabel}</span>
+                <button onClick={() => { setSearchQuery(''); setTagFilterLabel(''); }}
+                  style={{ marginLeft: 2, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
+              </div>
+              <span style={{ fontSize: 11, color: '#475569' }}>Tag filtered your results</span>
+            </div>
+          )}
 
           {/* Review banner */}
           {uncategorizedCount > 0 && (
@@ -712,7 +728,7 @@ export default function TransactionsPageV2() {
           void refetch(); void fetchTagInbox();
         } catch { /* silent */ }
       }} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
-        if (action.type === 'filter') { setSearchQuery(action.search || ''); }
+        if (action.type === 'filter') { const q = action.search || ''; setSearchQuery(q); setTagFilterLabel(q); setTimeout(() => { document.getElementById('tx-list-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100); }
         else if (action.type === 'bulk_change' && action.merchant && !action.confirm) {
           try {
             const sb = getSupabase(); if (!sb) return;
