@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 const C = {
   bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
@@ -44,8 +44,8 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "0px 24px 20px",
-      overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 24px)",
+      padding: "24px 24px 0px",
+      overflowY: "auto", paddingBottom: "max(32px, env(safe-area-inset-bottom, 32px))",
       cursor: showButtons ? "default" : "pointer",
     }}>
       {/* Crown */}
@@ -132,3 +132,5 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
     </div>
   );
 }
+
+

@@ -142,7 +142,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
     <style>{`@keyframes glowPulse { 0%,100% { box-shadow: 0 0 8px rgba(200,166,78,0.1); } 50% { box-shadow: 0 0 16px rgba(200,166,78,0.25); } }`}</style>
     <aside
       data-testid="desktop-sidebar"
-      className="hidden md:flex flex-col h-screen relative z-[100] transition-all duration-300"
+      className="hidden md:flex flex-col h-[100dvh] relative z-[100] transition-all duration-300"
       style={{
         width: isCollapsed ? 72 : 240,
         background: '#0b1220',
@@ -330,3 +330,4 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
     </>
   );
 }
+
