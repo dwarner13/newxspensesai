@@ -6203,11 +6203,11 @@ export const handler: Handler = async (event, context) => {
     // PRIME_GREETING messages must skip ALL deterministic paths — they should always
     // reach the LLM with full context so Prime generates a real greeting, not a canned response.
     // Also strip from masked so intent detectors don't match keywords in the instruction text.
+    // NOTE: systemMessages is declared later (~line 8682), so we defer the push.
     const isPrimeGreetingMessage = masked.startsWith('[PRIME_GREETING]');
+    let deferredGreetingSystemMessage: string | null = null;
     if (isPrimeGreetingMessage) {
-      // Move instruction to system message, replace user message with clean text
-      const greetingInstruction = masked.replace('[PRIME_GREETING]', '').trim();
-      systemMessages.push({ role: 'system', content: `GREETING INSTRUCTION (respond to this, do not echo it): ${greetingInstruction}` });
+      deferredGreetingSystemMessage = masked.replace('[PRIME_GREETING]', '').trim();
       masked = 'Generate my personalized financial greeting.';
     }
 
@@ -8680,6 +8680,10 @@ export const handler: Handler = async (event, context) => {
     // Build system messages array (separate messages for each rule)
     // ORDER: Global fluency rule → Merged user context → Prime rule → Employee-specific prompts
     const systemMessages: Array<{ role: 'system'; content: string }> = [];
+    // Push deferred greeting instruction (set early before deterministic paths, but systemMessages wasn't initialized yet)
+    if (deferredGreetingSystemMessage) {
+      systemMessages.push({ role: 'system', content: `GREETING INSTRUCTION (respond to this, do not echo it): ${deferredGreetingSystemMessage}` });
+    }
     const isPrime = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
     const isPrimeBoss = finalEmployeeSlug === 'prime-boss';
     if (!(isPrimeBoss)) {

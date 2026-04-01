@@ -169,9 +169,16 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const chatMessages = messages.filter(m => {
     if (m.role === 'user' && m.meta?.hidden) return false;
     if (m.role === 'user' && String(m.content || '').startsWith('[PRIME_GREETING]')) return false;
-    if (m.role === 'assistant' && m.meta?.isGreeting) return false;
     return true;
   });
+
+  // Debug: log message state (remove after confirming fix)
+  useEffect(() => {
+    if (messages.length > 0) {
+      console.log('[PrimeChatV2] messages total:', messages.length, 'visible:', chatMessages.length);
+      messages.forEach((m, i) => console.log(`  [${i}] role=${m.role} hidden=${m.meta?.hidden} isGreeting=${m.meta?.isGreeting} content=${String(m.content || '').slice(0, 60)}...`));
+    }
+  }, [messages.length]);
 
   // Auto-scroll on new content — but respect user scroll-up intent
   useEffect(() => {
