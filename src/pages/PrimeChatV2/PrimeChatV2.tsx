@@ -165,9 +165,13 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
-  // Filter to only messages created during this panel session (skip history greeting etc.)
-  // Show messages that are user-initiated or responses to them
-  const chatMessages = messages.filter(m => m.role === "user" || (m.role === "assistant" && !m.meta?.isGreeting));
+  // Filter to only visible messages — skip hidden/system messages and greeting prompts
+  const chatMessages = messages.filter(m => {
+    if (m.meta?.hidden) return false;
+    if (m.role === 'user' && String(m.content || '').startsWith('[PRIME_GREETING]')) return false;
+    if (m.role === 'assistant' && m.meta?.isGreeting) return false;
+    return true;
+  });
 
   // Auto-scroll on new content — but respect user scroll-up intent
   useEffect(() => {
