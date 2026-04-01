@@ -9161,7 +9161,15 @@ CUSTODIAN CONTEXT (Account Security & Settings):
 
     // Combine user message with attachment context
     let userMessageContent = masked;
-    if (attachmentContext) {
+    // Strip [PRIME_GREETING] instruction from user message → move to system prompt
+    // so the model never echoes "It is evening. Use the real financial data..." in the response
+    const isGreetingMessage = userMessageContent.startsWith('[PRIME_GREETING]');
+    if (isGreetingMessage) {
+      const greetingInstruction = userMessageContent.replace('[PRIME_GREETING]', '').trim();
+      systemMessages.push({ role: 'system', content: `GREETING INSTRUCTION (respond to this, do not echo it): ${greetingInstruction}` });
+      userMessageContent = 'Generate my personalized financial greeting.';
+    }
+    if (attachmentContext && !isGreetingMessage) {
       userMessageContent = `${masked}${attachmentContext}`;
     }
     if (ocrText && ocrText.trim().length > 0) {
