@@ -122,8 +122,8 @@ export function useStoryData(): StoryData {
     });
 
     // Deductions
-    const deductLabels = ["Home Office", "Vehicle", "Supplies", "Business Meals"];
-    const deductColors: Record<string, string> = { "Home Office": "#fb923c", Vehicle: "#60a5fa", Supplies: "#a78bfa", "Business Meals": "#34d399" };
+    const deductLabels = ["Transportation", "Subscriptions", "Bank Fees", "Food & Dining"];
+    const deductColors: Record<string, string> = { "Transportation": "#22d3ee", "Subscriptions": "#60a5fa", "Bank Fees": "#94a3b8", "Food & Dining": "#f87171" };
     const deductionBreakdown = deductLabels
       .filter(l => catMap[l] && catMap[l] > 0)
       .map(l => ({ label: l, amount: Math.round(catMap[l]), color: deductColors[l] || "#4a5a75" }));
@@ -158,3 +158,5 @@ export function useStoryData(): StoryData {
 export function buildCrystalIntro(d: StoryData): string {
   return `Here's your financial story for the past ${d.periodMonths} month${d.periodMonths !== 1 ? "s" : ""}. I've analyzed ${d.statementCount} statement${d.statementCount !== 1 ? "s" : ""} and ${d.transactionCount} transaction${d.transactionCount !== 1 ? "s" : ""} to build this picture. Your spending patterns show some clear trends \u2014 let me walk you through what I found.`;
 }
+
+
