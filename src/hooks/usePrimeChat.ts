@@ -1804,8 +1804,11 @@ export function usePrimeChat(
         streamingMsgByRequestRef.current.delete(requestId);
         
         // CRITICAL: Clear streaming state after successful stream completion
-        setIsStreaming(false);
-        abortRef.current = null;
+        // Only if this is still the active request (prevents clobbering a newer request's streaming state)
+        if (activeRequestIdRef.current === requestId || activeRequestIdRef.current === null) {
+          setIsStreaming(false);
+          abortRef.current = null;
+        }
         } catch (err: any) {
           if (err.name === 'AbortError' && !streamTimedOut) {
             // User aborted, don't retry
