@@ -44,7 +44,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      padding: "clamp(40px, 10vh, 100px) 24px 0px",
+      paddingTop: "80px", paddingLeft: "24px", paddingRight: "24px",
       overflowY: "auto", paddingBottom: "max(32px, env(safe-area-inset-bottom, 32px))",
       cursor: showButtons ? "default" : "pointer",
     }}>
@@ -132,6 +132,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
     </div>
   );
 }
+
 
 
 
