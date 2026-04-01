@@ -12,6 +12,7 @@ import { TransactionInsightDrawer } from '@/components/transactions/TransactionI
 import type { CommittedTransaction } from '@/types/transactions';
 import { getSupabase } from '@/lib/supabase';
 import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
+import { AgentFloatingBubble } from '@/components/ui/AgentFloatingBubble';
 import { useProfile } from '@/hooks/useProfile';
 
 const CAT_COLORS: Record<string, string> = {
@@ -554,20 +555,9 @@ export default function TransactionsPageV2() {
         </div>
       </div>
 
-      {/* Byte copilot bubble */}
-
+      {/* Tag floating bubble */}
       {!tagPanelOpen && !selectedTx && !(/\/(categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
-        <div style={{ position: "fixed", bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 24, zIndex: 50 }}>
-          <button onClick={() => setTagPanelOpen(true)} style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", background: "linear-gradient(135deg, #22d3ee, #22d3eecc)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: tagBadgeCount > 0 || badgePulse ? "0 0 0 0 rgba(34,211,238,0.4)" : "0 4px 20px rgba(34,211,238,0.4)", fontSize: 20, fontWeight: 800, color: "#fff", border: "none", transition: "transform 0.15s", animation: tagBadgeCount > 0 || badgePulse ? "tagPulse 2s ease-in-out" : "none" }} className="hover:scale-105 active:scale-95">
-            T
-            {tagBadgeCount > 0 && (
-              <div style={{ position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 9, background: "#ef4444", color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px", border: "2px solid #0b1220", pointerEvents: "none" }}>
-                {tagBadgeCount}
-              </div>
-            )}
-          </button>
-          <style>{`@keyframes tagPulse { 0% { box-shadow: 0 0 0 0 rgba(34,211,238,0.4); } 70% { box-shadow: 0 0 0 12px rgba(34,211,238,0); } 100% { box-shadow: 0 0 0 0 rgba(34,211,238,0); } }`}</style>
-        </div>
+        <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setTagPanelOpen(true)} label="Open Tag Copilot" badgeCount={tagBadgeCount} pulse={badgePulse} />
       )}
 
       {/* Tag Activity Panel */}

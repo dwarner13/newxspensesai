@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
+import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME } from "./categoryConfig";
 import { useCategoriesData } from "./useCategoriesData";
 import { useProfile } from "@/hooks/useProfile";
@@ -248,13 +249,8 @@ export default function CategoriesPageV2() {
         )}
       </div>
 
-      {/* Floating T bubble � only when copilot closed */}
-      {!copilotOpen && (
-        <button onClick={() => setCopilotOpen(true)} aria-label="Open Tag Copilot"
-          className="fixed z-40 transition-all hover:scale-105 active:scale-95"
-          style={{ bottom: "calc(80px + env(safe-area-inset-bottom, 0px))", right: 16, width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${CYAN}, #0891b2)`, boxShadow: `0 4px 20px ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", fontSize: 18, fontWeight: 700, color: "#0b1220" }}
-        >T</button>
-      )}
+      {/* Floating T bubble */}
+      {!copilotOpen && <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setCopilotOpen(true)} label="Open Tag Copilot" badgeCount={data.uncategorizedCount} pulse={data.uncategorizedCount > 0} />}
 
       {/* Tag Copilot Panel */}
       {copilotOpen && (

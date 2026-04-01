@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME } from "./storyConfig";
 import { useStoryData, buildCrystalIntro } from "./useStoryData";
 import { HealthRing } from "./HealthRing";
@@ -230,21 +231,12 @@ export default function MyFinancialStoryV2() {
         </div>
       </div>
 
-      {/* Crystal floating bubble */}
-      <div onClick={() => setCopilotOpen(!copilotOpen)} style={{
-        position: "fixed", bottom: typeof window !== "undefined" && window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52,
-        borderRadius: "50%", background: "linear-gradient(135deg, #a78bfa, #7c3aed)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: "pointer", boxShadow: "0 4px 20px rgba(167,139,250,0.44)",
-        fontSize: 20, fontWeight: 800, color: "#fff",
-        transition: "transform 0.15s", zIndex: 100,
-      }}
-      onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => e.currentTarget.style.transform = "scale(1.1)"}
-      onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => e.currentTarget.style.transform = "scale(1)"}
-      >C</div>
+      <AgentFloatingBubble letter="C" color="#a78bfa" colorTo="#7c3aed" onClick={() => setCopilotOpen(!copilotOpen)} label="Open Crystal Copilot" />
 
       {/* Crystal Copilot Panel */}
       {copilotOpen && <CrystalCopilotPanel onClose={() => setCopilotOpen(false)} data={data} />}
     </div>
   );
 }
+
+

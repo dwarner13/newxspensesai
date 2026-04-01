@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME, GOALIE_COLOR } from "./goalsConfig";
 import { useGoalsData, buildGoalieIntro } from "./useGoalsData";
 import { GoalCard } from "./GoalCard";
@@ -159,17 +160,7 @@ export default function GoalsDebtPageV2() {
       {tab === "learn" && <MoneyLessons lessons={data.lessons} />}
 
       {/* Goalie floating bubble */}
-      <div style={{
-        position: "fixed", bottom: typeof window !== "undefined" && window.innerWidth <= 768 ? 80 : 24, right: 24, width: 52, height: 52,
-        borderRadius: "50%", background: `linear-gradient(135deg, ${GOALIE_COLOR}, #d4a017)`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: "pointer", boxShadow: `0 4px 20px ${GOALIE_COLOR}44`,
-        fontSize: 20, fontWeight: 800, color: "#0b1220",
-        transition: "transform 0.15s", zIndex: 100,
-      }}
-      onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => e.currentTarget.style.transform = "scale(1.1)"}
-      onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => e.currentTarget.style.transform = "scale(1)"}
-      >G</div>
+      <AgentFloatingBubble letter="G" color="#fbbf24" colorTo="#d97706" onClick={() => setCopilotOpen(!copilotOpen)} label="Open Goalie Copilot" />
 
       {/* Goalie Copilot Panel */}
       {copilotOpen && <GoalieCopilotPanel onClose={() => setCopilotOpen(false)} data={data} />}
