@@ -763,6 +763,10 @@ function getClarificationDecision(
   primeContext: ChatRequest['prime_context'],
   employeeSlug: string | null | undefined
 ): ClarificationDecision | null {
+  // Never intercept Prime greeting with clarification logic
+  if (String(message || '').startsWith('[PRIME_GREETING]')) {
+    return null;
+  }
   const slug = String(employeeSlug || '').toLowerCase();
   const isPrime = slug === 'prime-boss' || slug === 'prime';
   if (!isPrime) return null;
@@ -7748,7 +7752,7 @@ export const handler: Handler = async (event, context) => {
 
     const groundedFactsIntent = detectGroundedFactsIntent(masked);
     const isPrimeEmployeeForGroundedFacts = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments) {
+    if (!masked.startsWith('[PRIME_GREETING]') && groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildGroundedFactsResponse(groundedFactsIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -9011,6 +9015,7 @@ HANDOFF — never hand off without context:
 
 PRIORITIZE IN THIS ORDER: uncategorized transactions → income gaps → budget overruns → deductibles.
 TONE: CFO giving a Monday morning briefing — direct, warm, data-first. Not a chatbot.
+GREETING RULE: When responding to [PRIME_GREETING], never start with "Good morning/afternoon/evening". Use varied openers like "Darrell —", "Here's where things stand —", "Quick read on your books —", "Your numbers right now —". Always lead with a real number from the data.
 `;
 
       // Prepend Prime context BEFORE orchestration rule (so orchestration can reference context)
@@ -9693,7 +9698,6 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             max_tokens: modelConfig.maxTokens,
             stream: true,
             tools: openaiTools, // Add tools if available
-            ...(streamAbortController ? { signal: streamAbortController.signal } : {}),
           } as any),
           resolveOpenAiTimeoutMs(),
           'model_streaming_primary',
@@ -10174,7 +10178,6 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               max_tokens: modelConfigAfterHandoff.maxTokens,
               stream: true,
               tools: openaiToolsAfterHandoff,
-              ...(secondStreamAbortController ? { signal: secondStreamAbortController.signal } : {}),
             } as any),
             resolveOpenAiTimeoutMs(),
             'model_streaming_tool_followup',

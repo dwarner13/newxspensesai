@@ -142,7 +142,9 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       ? `${topCat.label} is the biggest spend at ${topCat.amount.toLocaleString('en-CA', { maximumFractionDigits: 0 })}.`
       : '';
 
-    const prompt = `[PRIME_GREETING] Talk to Darrell like his CFO \u2014 2 sentences on his finances then ONE question. No lists. Finances: ${data.transactionCount} transactions across ${data.statementCount} statements, spent ${data.totalSpent.toLocaleString('en-CA', {maximumFractionDigits:0})}, income ${data.totalIncome.toLocaleString('en-CA', {maximumFractionDigits:0})}. ${topNote} ${uncatNote}`;
+    const hour = new Date().getHours();
+    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
+    const prompt = `[PRIME_GREETING] Generate a personalized greeting for Darrell. It is ${timeOfDay}. Use the real financial data and agent activity you have loaded \u2014 do not make up numbers. Include exactly one specific financial observation (net flow, top expense category with amount, or uncategorized transaction count). If Tag or Byte did something recently, mention it in one clause. End with exactly one specific actionable question based on what you see in the data. Keep the entire greeting to 2-3 sentences. Do not start with "Good ${timeOfDay}" \u2014 vary the opening each time. Never repeat the same greeting twice in a row.`;
 
     setTimeout(() => {
       void sendMessage(prompt, { hidden: true });
