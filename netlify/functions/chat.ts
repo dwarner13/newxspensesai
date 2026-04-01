@@ -6200,6 +6200,17 @@ export const handler: Handler = async (event, context) => {
     // This keeps simple utility requests fast and reliable.
     setStage('deterministic_brains');
 
+    // PRIME_GREETING messages must skip ALL deterministic paths — they should always
+    // reach the LLM with full context so Prime generates a real greeting, not a canned response.
+    // Also strip from masked so intent detectors don't match keywords in the instruction text.
+    const isPrimeGreetingMessage = masked.startsWith('[PRIME_GREETING]');
+    if (isPrimeGreetingMessage) {
+      // Move instruction to system message, replace user message with clean text
+      const greetingInstruction = masked.replace('[PRIME_GREETING]', '').trim();
+      systemMessages.push({ role: 'system', content: `GREETING INSTRUCTION (respond to this, do not echo it): ${greetingInstruction}` });
+      masked = 'Generate my personalized financial greeting.';
+    }
+
     // System-generated summary requests must skip ALL deterministic paths
     // and flow through to OpenAI so Prime can use the PRIME DOCUMENT SUMMARY TEMPLATE.
     const isPrimeSummaryRequest = isPrimeSummarySystemPrompt(masked);

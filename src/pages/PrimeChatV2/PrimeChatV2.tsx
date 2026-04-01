@@ -165,9 +165,9 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
-  // Filter to only visible messages — skip hidden/system messages and greeting prompts
+  // Filter to only visible messages — skip hidden user prompts and greeting instructions
   const chatMessages = messages.filter(m => {
-    if (m.meta?.hidden) return false;
+    if (m.role === 'user' && m.meta?.hidden) return false;
     if (m.role === 'user' && String(m.content || '').startsWith('[PRIME_GREETING]')) return false;
     if (m.role === 'assistant' && m.meta?.isGreeting) return false;
     return true;
