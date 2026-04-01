@@ -31,11 +31,11 @@ interface SectionDef {
 
 const SECTIONS: SectionDef[] = [
   { id: "income", icon: "\uD83D\uDCB0", title: "Income", matchFn: (tx) => tx.type === "income" },
-  { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Car & Truck Expenses" },
+  { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" },
   { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => tx.category === "Rent or Lease" },
-  { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Meals & Entertainment" },
-  { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Advertising" || tx.category === "Other Expenses" || tx.category === "Professional Services" || tx.category === "Employee Benefits" },
-  { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal" },
+  { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Food & Dining" || tx.category === "Entertainment" },
+  { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" },
+  { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal Care" || tx.category === "Groceries" || tx.category === "Debt Payments" || tx.category === "Transfers" || tx.category === "Shopping" || tx.category === "Healthcare" || tx.category === "Needs Review" },
 ];
 
 /* ── Subcategory bucket definitions per section ── */
@@ -568,3 +568,7 @@ function SubcategoryTable({ rows, color, isMobile, isIncome }: { rows: SubRow[];
 const COL_HDR: React.CSSProperties = {
   fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700,
 };
+
+
+
+
