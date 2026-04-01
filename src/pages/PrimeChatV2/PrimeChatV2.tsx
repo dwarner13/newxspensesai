@@ -154,6 +154,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [briefingCollapsed, setBriefingCollapsed] = useState(false);
   const [uploadMessages, setUploadMessages] = useState<{ id: string; text: string; type: "info" | "success" | "error" }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef(false);
   const dragCountRef = useRef(0);
   const typedIdsRef = useRef<Set<string>>(new Set());
 
@@ -167,10 +169,24 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // Show messages that are user-initiated or responses to them
   const chatMessages = messages.filter(m => m.role === "user" || (m.role === "assistant" && !m.meta?.isGreeting));
 
-  // Auto-scroll on new content
+  // Auto-scroll on new content — but respect user scroll-up intent
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [chatMessages.length, isStreaming, uploadMessages.length]);
+    if (!userScrolledUpRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages.length, uploadMessages.length]);
+
+  // Detect user scroll-up to pause auto-scroll
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      userScrolledUpRef.current = !atBottom;
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Send through the real chat engine — no openChat(), stays in-panel
   const handleSend = useCallback(async (message: string) => {
@@ -622,6 +638,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             })}
           </div>
         )}
+        <div ref={bottomRef} />
       </div>
 
       {/* BOTTOM INPUT BAR — flex child, not absolute */}
