@@ -304,6 +304,8 @@ export const handler: Handler = async (event) => {
   if (intent === 'save_rule') {
     try {
       const ruleSubcategory = body.targetSubcategory ?? body.subcategory ?? parsedTarget.subcategory ?? null;
+      const ruleAmountMin = body.amount_min ?? null;
+      const ruleAmountMax = body.amount_max ?? null;
       // Upsert into category_rules — write both column names for compatibility
       await supabase.from('category_rules').upsert(
         {
@@ -313,6 +315,8 @@ export const handler: Handler = async (event) => {
           merchant_pattern: normalized,
           category: parsedTarget.category,
           subcategory: ruleSubcategory,
+          ...(ruleAmountMin != null ? { amount_min: ruleAmountMin } : {}),
+          ...(ruleAmountMax != null ? { amount_max: ruleAmountMax } : {}),
           is_active: true,
           updated_at: new Date().toISOString(),
         },

@@ -60,7 +60,7 @@ function parseTagAction(reply: string): { cleanReply: string; action: TagAction 
   return { cleanReply, action };
 }
 
-type ChatMsg = { role: 'tag' | 'user'; text: string; merchantQ?: { name: string; count: number; amount: number; options: string[] }; subcategoryQ?: { merchantName: string; category: string; options: string[] }; followupMerchants?: any[] };
+type ChatMsg = { role: 'tag' | 'user'; text: string; merchantQ?: { name: string; count: number; amount: number; options: string[]; interacAmounts?: Array<{ amount: number; count: number }> }; subcategoryQ?: { merchantName: string; category: string; options: string[] }; followupMerchants?: any[] };
 
 const SUBCATEGORY_OPTIONS: Record<string, string[]> = {
   'Transportation': ['Gas & Fuel', 'Parking', 'Transit', 'Vehicle Insurance', 'Vehicle Services', 'Rideshare'],
@@ -275,7 +275,45 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
     if (merchants[0]) askAboutMerchant(merchants[0], 0);
   };
 
-  const askAboutMerchant = (merchant: any, idx: number) => {
+  const askAboutMerchant = async (merchant: any, idx: number) => {
+    const isInterac = /interac|e.?transfer/i.test(merchant.merchant_name);
+
+    if (isInterac && merchant.transaction_count >= 2) {
+      // Fetch actual amounts to detect recurring patterns
+      try {
+        const sb = getSupabase();
+        if (sb) {
+          const { data: txs } = await sb.from('transactions').select('amount')
+            .ilike('merchant_name', `%${merchant.merchant_name}%`)
+            .or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null')
+            .limit(50);
+          if (txs && txs.length >= 2) {
+            // Group by amount to find recurring
+            const amtMap: Record<string, number> = {};
+            for (const tx of txs) {
+              const key = Math.abs(Number(tx.amount)).toFixed(2);
+              amtMap[key] = (amtMap[key] || 0) + 1;
+            }
+            const recurring = Object.entries(amtMap).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
+
+            if (recurring.length > 0) {
+              const recLines = recurring.slice(0, 3).map(([amt, c]) => `$${amt} \u00d7${c}`).join(', ');
+              setLocalMessages(m => [...m, {
+                role: 'tag' as const,
+                text: `${idx > 0 ? 'Next up \u2014 ' : ''}**${merchant.merchant_name}** \u00d7${merchant.transaction_count} ($${merchant.total_amount.toFixed(2)}).\n\nI see recurring amounts: ${recLines}. These look like regular payments \u2014 what are they?`,
+                merchantQ: {
+                  name: merchant.merchant_name, count: merchant.transaction_count, amount: merchant.total_amount,
+                  options: ['Income', 'Transfers', 'Housing'],
+                  interacAmounts: recurring.map(([amt, c]) => ({ amount: Number(amt), count: c })),
+                },
+              }]);
+              return;
+            }
+          }
+        }
+      } catch { /* fall through to default */ }
+    }
+
     setLocalMessages(m => [...m, {
       role: 'tag' as const,
       text: `${idx > 0 ? 'Next up \u2014 ' : ''}**${merchant.merchant_name}** \u00d7${merchant.transaction_count} ($${merchant.total_amount.toFixed(2)}). What are these usually?`,
@@ -322,7 +360,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
     await saveWithSubcategory(category, merchantName, subcategory);
   };
 
-  const saveWithSubcategory = async (category: string, merchantName: string, subcategory: string | null) => {
+  const saveWithSubcategory = async (category: string, merchantName: string, subcategory: string | null, amountRange?: { min?: number; max?: number }) => {
     try {
       const sb = getSupabase();
       if (!sb) throw new Error('No Supabase');
@@ -330,11 +368,23 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
       if (!session) throw new Error('No session');
       const token = session.access_token;
 
-      const { data: matchingTxs } = await sb
-        .from('transactions').select('id')
+      let query = sb.from('transactions').select('id, amount')
         .ilike('merchant_name', `%${merchantName}%`)
         .or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
-      const ids = matchingTxs?.map(t => t.id) ?? [];
+      const { data: matchingTxs } = await query;
+
+      // Filter by amount range if provided (for INTERAC recurring rules)
+      let ids: string[];
+      if (amountRange && (amountRange.min != null || amountRange.max != null)) {
+        ids = (matchingTxs ?? []).filter(t => {
+          const amt = Math.abs(Number(t.amount || 0));
+          if (amountRange.min != null && amt < amountRange.min - 0.01) return false;
+          if (amountRange.max != null && amt > amountRange.max + 0.01) return false;
+          return true;
+        }).map(t => t.id);
+      } else {
+        ids = (matchingTxs ?? []).map(t => t.id);
+      }
 
       if (ids.length > 0) {
         await fetch('/.netlify/functions/tag-action', {
@@ -347,7 +397,12 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
       await fetch('/.netlify/functions/tag-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ intent: 'save_rule', matchValue: merchantName, targetCategory: category, targetSubcategory: subcategory, matchType: 'contains' }),
+        body: JSON.stringify({
+          intent: 'save_rule', matchValue: merchantName, targetCategory: category,
+          targetSubcategory: subcategory, matchType: 'contains',
+          ...(amountRange?.min != null ? { amount_min: amountRange.min } : {}),
+          ...(amountRange?.max != null ? { amount_max: amountRange.max } : {}),
+        }),
       });
 
       const confirmText = subcategory
@@ -518,11 +573,35 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
                     {(m.text ?? '').split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
                   </div>
                   {m.merchantQ && i === localMessages.length - 1 && (
-                    <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', gap:5 }}>
-                      {m.merchantQ.options.map(cat => (
-                        <button key={cat} onClick={() => void handleMerchantPick(cat, m.merchantQ!.name)} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#cbd5e1', cursor:'pointer' }}>{cat}</button>
-                      ))}
-                      <button onClick={() => { setLocalMessages(ms => [...ms, { role:'tag', text:`Skipping ${m.merchantQ!.name}.` }]); const next = mqIndex + 1; setMqIndex(next); if (next < merchantQueue.length) setTimeout(() => askAboutMerchant(merchantQueue[next], next), 400); }} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', color:'#475569', cursor:'pointer' }}>Skip {'\u2192'}</button>
+                    <div style={{ marginTop:8 }}>
+                      {m.merchantQ.interacAmounts && m.merchantQ.interacAmounts.length > 0 ? (
+                        <>
+                          <div style={{ fontSize:10, color:'#475569', marginBottom:6, fontWeight:600 }}>Categorize by amount:</div>
+                          {m.merchantQ.interacAmounts.map(ia => (
+                            <div key={ia.amount} style={{ display:'flex', gap:5, marginBottom:4, alignItems:'center' }}>
+                              <span style={{ fontSize:11, color:'#94a3b8', width:80, flexShrink:0 }}>${ia.amount.toFixed(2)} \u00d7{ia.count}</span>
+                              {['Income', 'Transfers', 'Housing'].map(cat => (
+                                <button key={cat} onClick={async () => {
+                                  setLocalMessages(ms => [...ms, { role:'user' as const, text: `$${ia.amount} \u2192 ${cat}` }]);
+                                  await saveWithSubcategory(cat, m.merchantQ!.name, cat === 'Income' ? 'Employment' : cat === 'Transfers' ? 'e-Transfer' : 'Rent or Mortgage', { min: ia.amount - 0.01, max: ia.amount + 0.01 });
+                                }} style={{ padding:'3px 9px', borderRadius:12, fontSize:10, fontWeight:600, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#cbd5e1', cursor:'pointer' }}>{cat}</button>
+                              ))}
+                            </div>
+                          ))}
+                          <div style={{ display:'flex', gap:5, marginTop:6 }}>
+                            {m.merchantQ.options.map(cat => (
+                              <button key={cat} onClick={() => void handleMerchantPick(cat, m.merchantQ!.name)} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#cbd5e1', cursor:'pointer' }}>All \u2192 {cat}</button>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                          {m.merchantQ.options.map(cat => (
+                            <button key={cat} onClick={() => void handleMerchantPick(cat, m.merchantQ!.name)} style={{ padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#cbd5e1', cursor:'pointer' }}>{cat}</button>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={() => { setLocalMessages(ms => [...ms, { role:'tag', text:`Skipping ${m.merchantQ!.name}.` }]); const next = mqIndex + 1; setMqIndex(next); if (next < merchantQueue.length) setTimeout(() => askAboutMerchant(merchantQueue[next], next), 400); }} style={{ marginTop:4, padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', color:'#475569', cursor:'pointer' }}>Skip {'\u2192'}</button>
                     </div>
                   )}
                   {m.subcategoryQ && i === localMessages.length - 1 && (
