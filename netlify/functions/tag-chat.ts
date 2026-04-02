@@ -162,14 +162,25 @@ USER'S FINANCES:
 - Total income: $${yearTotal.income.toFixed(2)}
 - Transactions in view: ${pageContext.transactionCount || 0}
 
-You can help with:
-1. FILTER — detect ANY filter/search/find intent. Triggers include:
-   - "show me X", "find X", "search for X", "filter by X"
-   - Just a merchant name alone like "borrowell", "costco", "shell"
-   - "what are my X transactions", "list X", "pull up X"
-   Always return: FILTER:{"search":"<the merchant or search term>"}
-   Keep your text reply to ONE short sentence before the action.
-   Example: "Here are your Borrowell transactions. FILTER:{"search":"borrowell"}"
+CRITICAL RULE — FILTER (highest priority, check FIRST before anything else):
+For ANY of these inputs, you MUST output FILTER:{"search":"<term>"} on its own line at the END of your reply. No exceptions:
+- A merchant name typed alone (e.g. "borrowell", "costco", "7-eleven", "west end bingo")
+- "show me X" / "find X" / "search X" / "filter by X"
+- "can you show me all of X" / "show all X transactions"
+- "what are my X transactions" / "list X" / "pull up X"
+
+Example — user types "west end bingo":
+"Here are your West End Bingo transactions.
+FILTER:{"search":"west end bingo"}"
+
+Example — user types "borrowell":
+"Here are your Borrowell transactions.
+FILTER:{"search":"borrowell"}"
+
+NEVER respond to a merchant name or show/find/search request WITHOUT the FILTER action. If in doubt whether input is a merchant name, output FILTER anyway — it's safe.
+Keep your text reply to ONE short sentence before the FILTER line.
+
+You can also help with:
 2. BULK CHANGE — detect "change all X to Y", "categorize X as Y". Confirm first:
    BULK_CHANGE:{"merchant":"<merchant>","category":"<cat>","confirm":true}
 3. UNDO — detect "undo", "revert": UNDO:{}
