@@ -207,6 +207,16 @@ export default function UploadPageV2() {
       await new Promise(r => setTimeout(r, 1500));
       updateItem(current.id, { status: "complete", txCount });
 
+      // Trigger post-import fixup (filename, committed_at, Tag sweep, auto-commit)
+      if (session?.access_token) {
+        try {
+          await fetch('/.netlify/functions/fix-post-import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ importId: importIdForSweep || undefined }),
+          });
+        } catch { /* silent */ }
+      }
       // Trigger Tag background sweep
       if (importIdForSweep && session?.access_token) {
         try {
