@@ -299,6 +299,7 @@ export const handler: Handler = async (event) => {
         };
         if (Object.prototype.hasOwnProperty.call(u, 'subcategory')) {
           payload.subcategory = u.subcategory ?? null;
+          if (u.subcategory) payload.subcategory_source = u.source;
         }
         return supabase
           .from('transactions')
@@ -314,9 +315,43 @@ export const handler: Handler = async (event) => {
 
   safeLog('info', `[tag-categorize-committed] Updated ${updated}/${txs.length}`, { userId });
 
+  // Second pass: reclassify any remaining "Other" using merchant map
+  let reclassified = 0;
+  try {
+    const { data: otherTxs } = await supabase
+      .from('transactions')
+      .select('id, merchant_name')
+      .eq('user_id', userId)
+      .eq('category', 'Other')
+      .limit(500);
+    if (otherTxs && otherTxs.length > 0) {
+      for (const tx of otherTxs) {
+        const mapMatch = matchMerchantMap(tx.merchant_name || '');
+        if (mapMatch) {
+          const payload: Record<string, unknown> = {
+            category: mapMatch.category,
+            category_source: 'tag_rule',
+            updated_at: new Date().toISOString(),
+          };
+          if (mapMatch.subcategory) {
+            payload.subcategory = mapMatch.subcategory;
+            payload.subcategory_source = 'tag_rule';
+          }
+          await supabase.from('transactions').update(payload).eq('id', tx.id).eq('user_id', userId);
+          reclassified++;
+        } else {
+          await supabase.from('transactions').update({
+            category: 'Needs Review', category_source: 'needs_review', updated_at: new Date().toISOString(),
+          }).eq('id', tx.id).eq('user_id', userId);
+        }
+      }
+      if (reclassified > 0) safeLog('info', `[tag-categorize-committed] Reclassified ${reclassified} Other → real categories`, { userId });
+    }
+  } catch { /* non-blocking */ }
+
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({ ok: true, updated, total: txs.length }),
+    body: JSON.stringify({ ok: true, updated, reclassified, total: txs.length }),
   };
 };
