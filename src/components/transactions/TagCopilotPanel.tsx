@@ -33,14 +33,16 @@ interface TagCopilotPanelProps {
 }
 
 function parseTagAction(reply: string): { cleanReply: string; action: TagAction | null } {
-  const filterMatch = reply.match(/FILTER:\s*({[^}]*})/s);
+  const filterMatch = reply.match(/FILTER:([^\n]+)/);
   const bulkMatch = reply.match(/BULK_CHANGE:(\{[^}]*\})/);
   const undoMatch = reply.match(/UNDO:(\{[^}]*\})/);
   let action: TagAction | null = null;
   let cleanReply = reply;
   if (filterMatch) {
-    try { action = { type: 'filter', ...JSON.parse(filterMatch[1]) }; } catch {}
-    cleanReply = reply.replace(/FILTER:\{[^}]*\}/g, '').trim();
+    const raw = filterMatch[1].trim();
+    // Support both JSON format {"search":"x"} and plain text format
+    try { const parsed = JSON.parse(raw); action = { type: 'filter', search: parsed.search }; } catch { action = { type: 'filter', search: raw }; }
+    cleanReply = reply.replace(/FILTER:[^\n]+/g, '').trim();
   } else if (bulkMatch) {
     try { action = { type: 'bulk_change', ...JSON.parse(bulkMatch[1]) }; } catch {}
     cleanReply = reply.replace(/BULK_CHANGE:\{[^}]*\}/g, '').trim();

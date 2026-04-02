@@ -163,7 +163,7 @@ USER'S FINANCES:
 - Transactions in view: ${pageContext.transactionCount || 0}
 
 CRITICAL RULE — FILTER (highest priority, check FIRST before anything else):
-For ANY of these inputs, you MUST output FILTER:{"search":"<term>"} on its own line at the END of your reply. No exceptions:
+For ANY of these inputs, you MUST output FILTER:<term> on its own line at the END of your reply. No exceptions:
 - A merchant name typed alone (e.g. "borrowell", "costco", "7-eleven", "west end bingo")
 - "show me X" / "find X" / "search X" / "filter by X"
 - "can you show me all of X" / "show all X transactions"
@@ -171,11 +171,11 @@ For ANY of these inputs, you MUST output FILTER:{"search":"<term>"} on its own l
 
 Example — user types "west end bingo":
 "Here are your West End Bingo transactions.
-FILTER:{"search":"west end bingo"}"
+FILTER:west end bingo"
 
 Example — user types "borrowell":
 "Here are your Borrowell transactions.
-FILTER:{"search":"borrowell"}"
+FILTER:borrowell"
 
 NEVER respond to a merchant name or show/find/search request WITHOUT the FILTER action. If in doubt whether input is a merchant name, output FILTER anyway — it's safe.
 Keep your text reply to ONE short sentence before the FILTER line.
@@ -402,7 +402,7 @@ export const handler: Handler = async (event) => {
   const completion = await callWithRetry(() => openai.chat.completions.create({
     model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
     temperature: 0.4,
-    max_tokens: 350,
+    max_tokens: 500,
     messages: [
       { role: 'system', content: systemPrompt },
       ...effectiveHistory.map((m: { role: string; content: string }) => ({
@@ -414,6 +414,22 @@ export const handler: Handler = async (event) => {
   }));
 
   let reply = completion.choices?.[0]?.message?.content || 'Sorry, I could not process that.';
+  console.log('[tag-chat] RAW REPLY:', JSON.stringify(reply));
+
+  // Server-side FILTER injection — don't trust LLM to output it
+  const isPageLevel = isPageContext || (!transactionId && !isQuickChange);
+  const looksLikeSearch = isPageLevel && (
+    /^[a-z0-9 &'-]{2,40}$/i.test(userMessage.trim()) ||
+    /^(show|find|search|filter|get|pull up|display)\s+/i.test(userMessage.trim()) ||
+    /^can you show/i.test(userMessage.trim())
+  );
+  if (isPageLevel && looksLikeSearch && !reply.includes('FILTER:')) {
+    const searchTerm = userMessage.trim()
+      .replace(/^(show me all of|show me|find|search for|filter by|get|pull up|display|can you show me all of|can you show me)\s+/i, '')
+      .trim();
+    reply = reply + `\nFILTER:${searchTerm}`;
+    console.log('[tag-chat] Server injected FILTER:', searchTerm);
+  }
 
   // Handle correction intent — user told Tag a merchant is miscategorized
   const correction = parseCorrection(reply);
