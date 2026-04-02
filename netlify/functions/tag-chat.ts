@@ -13,8 +13,60 @@ const headers = {
 const CATEGORIES = [
   'Income','Groceries','Food & Dining','Transportation','Housing','Utilities',
   'Shopping','Subscriptions','Healthcare','Bank Fees','Transfers','Personal Care',
-  'Savings','Debt Payments','Insurance','Education','Travel','Other',
+  'Savings','Debt Payments','Insurance','Education','Travel','Entertainment',
+  'Business Expenses','Needs Review',
 ];
+
+// Normalize LLM-generated category names to canonical names
+const CATEGORY_ALIASES: Record<string, string> = {
+  'health & wellness': 'Healthcare',
+  'medical': 'Healthcare',
+  'health': 'Healthcare',
+  'food': 'Food & Dining',
+  'dining': 'Food & Dining',
+  'restaurants': 'Food & Dining',
+  'auto': 'Transportation',
+  'automotive': 'Transportation',
+  'car': 'Transportation',
+  'vehicle': 'Transportation',
+  'transit': 'Transportation',
+  'rent': 'Housing',
+  'home': 'Housing',
+  'accommodation': 'Housing',
+  'banking': 'Bank Fees',
+  'finance charges': 'Bank Fees',
+  'loan': 'Debt Payments',
+  'debt': 'Debt Payments',
+  'liabilities': 'Debt Payments',
+  'business': 'Business Expenses',
+  'office': 'Business Expenses',
+  'salary': 'Income',
+  'employment income': 'Income',
+  'revenue': 'Income',
+  'earnings': 'Income',
+  'freelance': 'Income',
+  'self employment': 'Income',
+  'business income': 'Income',
+  'transfer': 'Transfers',
+  'moving money': 'Transfers',
+  'unknown': 'Needs Review',
+  'uncategorized': 'Needs Review',
+  'other': 'Needs Review',
+  'fun': 'Entertainment',
+  'leisure': 'Entertainment',
+  'retail': 'Shopping',
+  'purchases': 'Shopping',
+  'bills': 'Utilities',
+  'services': 'Utilities',
+  'grocery': 'Groceries',
+  'supermarket': 'Groceries',
+};
+
+function normalizeCategory(raw: string): string {
+  const trimmed = (raw || '').trim();
+  const lower = trimmed.toLowerCase();
+  return CATEGORY_ALIASES[lower] || trimmed;
+}
 
 async function enforceType(sb: any, userId: string, category: string, transactionId?: string): Promise<void> {
   try {
@@ -26,12 +78,39 @@ async function enforceType(sb: any, userId: string, category: string, transactio
   } catch { /* non-blocking */ }
 }
 
-async function enforceTypeBulk(sb: any, userId: string, category: string, merchantPattern: string): Promise<void> {
+async function enforceTypeBulk(sb: any, userId: string, category: string, merchantPattern: string): Promise<string | null> {
   try {
     const { data: typeRule } = await sb.from('category_type_rules').select('forced_type').eq('category', category).single();
-    if (!typeRule) return;
+    if (!typeRule) return null;
     await sb.from('transactions').update({ type: typeRule.forced_type }).eq('user_id', userId).ilike('merchant_name', `%${merchantPattern}%`);
-  } catch { /* non-blocking */ }
+    return typeRule.forced_type;
+  } catch { return null; }
+}
+
+async function callWithRetry(fn: () => Promise<any>, retries = 2): Promise<any> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await Promise.race([
+        fn(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 25000)),
+      ]);
+    } catch (err: any) {
+      if (i === retries) throw err;
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+}
+
+async function getNextNeedsReview(sb: any, userId: string) {
+  const { data } = await sb.from('transactions')
+    .select('id, merchant_name, amount, date, posted_at')
+    .eq('user_id', userId).eq('category', 'Needs Review')
+    .order('amount', { ascending: false }).limit(1).maybeSingle();
+  return data;
+}
+
+function parseNeedsReviewQueue(text: string): boolean {
+  return /<needs_review_queue\s*\/?>/.test(text);
 }
 
 function parseDeleteRule(text: string): { merchant_pattern: string } | null {
@@ -61,8 +140,10 @@ function buildSystemPrompt(
   amount: number | null,
   merchantHistory: { count: number; totalSpent: number; categories: string[] },
   yearTotal: { spent: number; income: number },
-  pageContext?: any
+  pageContext?: any,
+  userName?: string | null
 ): string {
+  const userLine = userName ? `The user's name is ${userName}. Use it occasionally but naturally.\n` : '';
   const merchantBlock = merchant ? `
 MERCHANT IN FOCUS: ${merchant}
 ${merchantHistory.count > 0 ? `- Seen ${merchantHistory.count} times, total $${merchantHistory.totalSpent.toFixed(2)}` : '- First time seeing this merchant'}
@@ -73,7 +154,7 @@ ${amount != null ? `- Transaction amount: $${Math.abs(amount).toFixed(2)}` : ''}
 
   if (!merchant && pageContext) {
     // Page-level operator mode
-    return `You are Tag — XspensesAI's categorization agent operating at the page level.
+    return `${userLine}You are Tag — XspensesAI's categorization agent operating at the page level.
 The user is on the Transactions page talking to you directly.
 
 USER'S FINANCES:
@@ -128,7 +209,7 @@ Rules:
 - Always confirm before bulk changes
 - Keep replies to 1-2 sentences max
 - Be direct and action-oriented
-- Use only these categories: ${CATEGORIES.join(', ')}
+- Use ONLY these exact category names: ${CATEGORIES.join(', ')}. NEVER invent category names not on this list. If unsure, use "Needs Review".
 - When user types just a merchant name with no other context, treat it as a FILTER
 - When user says "put X into Y" or "X is Y", use CATEGORIZE with the alias mapping
 - For reclassify: never ask what category — Tag figures it out
@@ -147,13 +228,16 @@ RULE MANAGEMENT: You can manage category rules.
 - When asked to list/show rules: output <list_rules/> then say "Let me pull up your rules."
 - When asked to delete a rule: output <delete_rule>{"merchant_pattern":"X"}</delete_rule> then confirm deletion.
 - When asked to update a rule: output a <correction> block as normal.
-Always confirm the action taken.`;
+
+NEEDS REVIEW QUEUE: When user says "what needs review", "show uncategorized", "start queue", or "next": output <needs_review_queue/> and the server will fetch the next transaction for you to ask about.
+
+Always confirm actions taken.`;
 
 
   }
 
   if (isQuickChange) {
-    return `You are Tag, XspensesAI's categorization agent.
+    return `${userLine}You are Tag, XspensesAI's categorization agent.
 
 The user just changed merchant "${merchant}" (${amount != null ? '$' + Math.abs(amount).toFixed(2) : 'unknown amount'}) to category "${category}".
 Do NOT just confirm the change. Ask ONE short question to understand what this purchase actually was, so you can help build a smart rule. Examples:
@@ -163,7 +247,7 @@ Do NOT just confirm the change. Ask ONE short question to understand what this p
 Be casual, 1 sentence max. Do not offer to save a rule yet.`;
   }
 
-  return `You are Tag, XspensesAI's categorization agent. You are having a conversation about merchant "${merchant}".
+  return `${userLine}You are Tag, XspensesAI's categorization agent. You are having a conversation about merchant "${merchant}".
 ${merchantBlock}
 USER'S OVERALL FINANCES (this year):
 - Total spent: $${yearTotal.spent.toFixed(2)}
@@ -177,7 +261,7 @@ Conversation rules:
 4. If the user says no or skip, just acknowledge and close naturally.
 5. NEVER double-confirm. One question max. If they said "Food & Dining" that IS the confirmation.
 6. Keep all replies to 1-2 sentences max.
-7. Use only these categories: ${CATEGORIES.join(', ')}
+7. Use ONLY these exact category names: ${CATEGORIES.join(', ')}. NEVER invent names not on this list.
 ${pageContext ? `\nPAGE CONTEXT:\n- Total spent: $${pageContext.totalSpent?.toFixed(2) || '0'}\n- Total income: $${pageContext.totalIncome?.toFixed(2) || '0'}\n- Transactions in view: ${pageContext.transactionCount || 0}` : ''}
 
 IMPORTANT: Only output SAVE_RULE when the user has explicitly confirmed they want a rule saved. Never output it for questions or explanations.
@@ -194,7 +278,10 @@ RULE MANAGEMENT: You can manage category rules.
 - When asked to list/show rules: output <list_rules/> then say "Let me pull up your rules."
 - When asked to delete a rule: output <delete_rule>{"merchant_pattern":"X"}</delete_rule> then confirm deletion.
 - When asked to update a rule: output a <correction> block as normal.
-Always confirm the action taken.`;
+
+NEEDS REVIEW QUEUE: When user says "what needs review", "show uncategorized", "start queue", or "next": output <needs_review_queue/> and the server will fetch the next transaction for you to ask about.
+
+Always confirm actions taken.`;
 
 }
 
@@ -204,6 +291,8 @@ export const handler: Handler = async (event) => {
 
   const auth = await verifyAuth(event);
   if (auth.error || !auth.userId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+
+  try {
 
   const body = JSON.parse(event.body || '{}');
   const { transactionId, message, history = [], pageContext, merchant: bodyMerchant, category: bodyCategory, amount: bodyAmount, context: bodyContext } = body;
@@ -215,6 +304,13 @@ export const handler: Handler = async (event) => {
   const supabase = serverSupabase();
   const isQuickChange = message === '__system_category_changed__' && bodyContext === 'quick_change';
   const isPageContext = bodyContext === 'page';
+
+  // Fetch user name for personalized responses
+  let userName: string | null = null;
+  try {
+    const { data: profile } = await supabase.from('profiles').select('full_name, first_name').eq('id', auth.userId).single();
+    userName = profile?.first_name || profile?.full_name?.split(' ')[0] || null;
+  } catch { /* non-blocking */ }
 
   // 1. Resolve merchant name
   let merchantName = bodyMerchant || '';
@@ -287,12 +383,12 @@ export const handler: Handler = async (event) => {
   const systemPrompt = buildSystemPrompt(
     merchantName, isQuickChange, bodyCategory || (tx as any)?.category || null,
     bodyAmount ?? (tx as any)?.amount ?? null,
-    merchantHistory, { spent: yearSpent, income: yearIncome }, pageContext
+    merchantHistory, { spent: yearSpent, income: yearIncome }, pageContext, userName
   );
 
   // 6. Call OpenAI
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const completion = await openai.chat.completions.create({
+  const completion = await callWithRetry(() => openai.chat.completions.create({
     model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
     temperature: 0.4,
     max_tokens: 350,
@@ -304,14 +400,16 @@ export const handler: Handler = async (event) => {
       })),
       { role: 'user', content: userMessage },
     ],
-  });
+  }));
 
   let reply = completion.choices?.[0]?.message?.content || 'Sorry, I could not process that.';
 
   // Handle correction intent — user told Tag a merchant is miscategorized
   const correction = parseCorrection(reply);
   if (correction) {
-    const { merchant_pattern, category, subcategory, min_amount, max_amount } = correction;
+    const { merchant_pattern, min_amount, max_amount } = correction;
+    const category = normalizeCategory(correction.category);
+    const subcategory = correction.subcategory?.trim() || null;
     try {
       // Upsert into category_rules (amount-specific rules use INSERT to avoid conflict with no-amount rules)
       const rulePayload: Record<string, any> = {
@@ -416,6 +514,19 @@ export const handler: Handler = async (event) => {
     }
   }
 
+  // Handle needs_review_queue intent
+  if (parseNeedsReviewQueue(reply)) {
+    const next = await getNextNeedsReview(supabase, auth.userId);
+    reply = reply.replace(/<needs_review_queue\s*\/?>/g, '').trim();
+    if (next) {
+      const amt = Math.abs(Number(next.amount || 0)).toFixed(2);
+      const date = next.date || next.posted_at?.split('T')[0] || 'unknown date';
+      reply = `Next up: **${next.merchant_name}** — $${amt} on ${date}. What category should this be?`;
+    } else {
+      reply = 'All transactions are categorized! Nothing left in the queue.';
+    }
+  }
+
   /*
    * SQL RPC required for staging backfill — run in Supabase SQL editor:
    *
@@ -449,6 +560,7 @@ export const handler: Handler = async (event) => {
   if (ruleMatch) {
     try {
       const ruleData = JSON.parse(ruleMatch[1]);
+      ruleData.category = normalizeCategory(ruleData.category || '');
       const pattern = String(ruleData.merchant_pattern || merchantName).toUpperCase();
 
       // 7a. Save rule (INSERT for amount-specific, upsert for generic)
@@ -522,7 +634,7 @@ export const handler: Handler = async (event) => {
   let action: { action: string; category: string } | null = null;
   const actionMatch = reply.match(/\{"action"\s*:\s*"recategorize"\s*,\s*"category"\s*:\s*"([^"]+)"\}/);
   if (actionMatch) {
-    const category = actionMatch[1];
+    const category = normalizeCategory(actionMatch[1]);
     action = { action: 'recategorize', category };
     if (transactionId) {
       await supabase.from('transactions').update({
@@ -557,4 +669,13 @@ export const handler: Handler = async (event) => {
     headers,
     body: JSON.stringify({ reply, action, rule_saved: ruleSaved, backfill_count: backfillCount, history: persistedHistory }),
   };
+
+  } catch (handlerErr: any) {
+    console.error('[tag-chat] Handler error:', handlerErr.message);
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ reply: "Sorry, I'm having trouble right now. Try again in a moment.", action: null, rule_saved: false, backfill_count: 0 }),
+    };
+  }
 };

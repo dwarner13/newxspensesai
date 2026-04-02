@@ -638,7 +638,7 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
             placeholder="Ask Tag anything..."
-            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'12px 14px', fontSize:14, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.6, minHeight:52 }}
+            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'12px 14px', fontSize:16, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.6, minHeight:52 }}
           />
           <button
             onClick={() => void send()}
