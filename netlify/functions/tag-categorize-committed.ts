@@ -176,7 +176,7 @@ export const handler: Handler = async (event) => {
   // 1. Fetch uncategorized committed transactions (newest first, large batch)
   const { data: rows, error } = await supabase
     .from('transactions')
-    .select('id, merchant_name, merchant')
+    .select('id, merchant_name, merchant, amount')
     .eq('user_id', userId)
     .or('category.is.null,category.eq.Uncategorized,category.eq.Other')
     .order('posted_at', { ascending: false })
@@ -213,12 +213,12 @@ export const handler: Handler = async (event) => {
   }
 
   // 3b. Fetch user-defined DB rules (exact → starts_with → contains → regex priority)
-  type DbRule = { match_type: string; match_value: string; category: string; subcategory?: string | null };
+  type DbRule = { match_type: string; match_value: string; category: string; subcategory?: string | null; min_amount?: number | null; max_amount?: number | null };
   let dbRules: DbRule[] = [];
   try {
     const { data: ruleRows } = await supabase
       .from('category_rules')
-      .select('match_type, match_value, category, subcategory')
+      .select('match_type, match_value, category, subcategory, min_amount, max_amount')
       .eq('user_id', userId)
       .eq('is_active', true);
     const TYPE_PRIORITY: Record<string, number> = { exact: 0, starts_with: 1, contains: 2, regex: 3 };
@@ -229,16 +229,32 @@ export const handler: Handler = async (event) => {
     /* table may not exist yet — skip */
   }
 
-  function applyDbRules(merchant: string): { category: string; subcategory: string | null } | null {
+  function applyDbRules(merchant: string, amount?: number): { category: string; subcategory: string | null } | null {
     const lower = merchant.toLowerCase();
-    for (const rule of dbRules) {
-      const val = rule.match_value.toLowerCase();
-      const matched = (rule.match_type === 'exact' && lower === val)
-        || (rule.match_type === 'starts_with' && lower.startsWith(val))
-        || (rule.match_type === 'contains' && lower.includes(val))
-        || (rule.match_type === 'regex' && (() => { try { return new RegExp(rule.match_value, 'i').test(merchant); } catch { return false; } })());
-      if (matched) {
-        // Prefer direct subcategory column over encoded format
+    // First pass: try amount-specific rules
+    // Second pass: try rules with no amount thresholds
+    for (const amountPass of [true, false]) {
+      for (const rule of dbRules) {
+        const hasAmountThreshold = rule.min_amount != null || rule.max_amount != null;
+        if (amountPass && !hasAmountThreshold) continue;
+        if (!amountPass && hasAmountThreshold) continue;
+
+        const val = rule.match_value.toLowerCase();
+        const nameMatched = (rule.match_type === 'exact' && lower === val)
+          || (rule.match_type === 'starts_with' && lower.startsWith(val))
+          || (rule.match_type === 'contains' && lower.includes(val))
+          || (rule.match_type === 'regex' && (() => { try { return new RegExp(rule.match_value, 'i').test(merchant); } catch { return false; } })());
+        if (!nameMatched) continue;
+
+        // Check amount threshold if rule has one
+        if (hasAmountThreshold && amount !== undefined) {
+          const absAmt = Math.abs(amount);
+          if (rule.min_amount != null && absAmt < rule.min_amount) continue;
+          if (rule.max_amount != null && absAmt >= rule.max_amount) continue;
+        } else if (hasAmountThreshold) {
+          continue; // Skip amount rules when no amount provided
+        }
+
         if (rule.subcategory) return { category: normalizeCanonicalCategory(rule.category), subcategory: rule.subcategory };
         return parseRuleCategory(rule.category);
       }
@@ -259,7 +275,8 @@ export const handler: Handler = async (event) => {
     }
 
     const merchant = tx.merchant_name || tx.merchant || '';
-    const dbRuleMatch = applyDbRules(merchant);
+    const txAmount = Number(tx.amount || 0);
+    const dbRuleMatch = applyDbRules(merchant, txAmount);
     if (dbRuleMatch) {
       updates.push({
         id: tx.id,
@@ -349,9 +366,28 @@ export const handler: Handler = async (event) => {
     }
   } catch { /* non-blocking */ }
 
+  // Third pass: enforce type from category_type_rules
+  let typeEnforced = 0;
+  try {
+    const { data: typeRules } = await supabase.from('category_type_rules').select('category, forced_type');
+    if (typeRules && typeRules.length > 0) {
+      for (const rule of typeRules) {
+        const { count } = await supabase
+          .from('transactions')
+          .update({ type: rule.forced_type })
+          .eq('user_id', userId)
+          .eq('category', rule.category)
+          .neq('type', rule.forced_type)
+          .select('id', { count: 'exact', head: true });
+        typeEnforced += count || 0;
+      }
+    }
+    if (typeEnforced > 0) safeLog('info', `[tag-categorize-committed] Type enforced on ${typeEnforced} transactions`, { userId });
+  } catch { /* non-blocking */ }
+
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({ ok: true, updated, reclassified, total: txs.length }),
+    body: JSON.stringify({ ok: true, updated, reclassified, typeEnforced, total: txs.length }),
   };
 };

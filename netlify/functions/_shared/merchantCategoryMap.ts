@@ -181,6 +181,22 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
   "cda carbon rebate": { category: "Income", subcategory: "Government Rebate" },
   "cdacarbonrebate": { category: "Income", subcategory: "Government Rebate" },
   "manulife": { category: "Income", subcategory: "Investment" },
+
+  // ── ADDITIONAL VARIANTS (OCR spelling) ─────────────────────
+  "b/m pay": { category: "Housing", subcategory: "Rent or Mortgage" },
+  "ls alberta beach golf": { category: "Entertainment", subcategory: "Golf" },
+  "alberta beach golf": { category: "Entertainment", subcategory: "Golf" },
+  "twin willows golf": { category: "Entertainment", subcategory: "Golf" },
+  "eclipse restaurant": { category: "Food & Dining", subcategory: "Restaurants" },
+  "rollz ice cream": { category: "Food & Dining", subcategory: "Fast Food" },
+  "meat barbecue": { category: "Food & Dining", subcategory: "Restaurants" },
+  "kaiming": { category: "Food & Dining", subcategory: "Restaurants" },
+  "lend direct": { category: "Debt Payments", subcategory: "Loan Payment" },
+  "northstar financial": { category: "Debt Payments", subcategory: "Loan Payment" },
+  "mobile cheque deposit": { category: "Income", subcategory: "Employment" },
+  "cheque deposit": { category: "Income", subcategory: "Employment" },
+  "shadi fied": { category: "Personal Care", subcategory: "Hair & Beauty" },
+  "ind all saving": { category: "Savings" },
 };
 
 export function matchMerchantMap(merchantName: string): { category: string; subcategory?: string } | null {
