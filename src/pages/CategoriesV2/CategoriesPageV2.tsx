@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME } from "./categoryConfig";
@@ -22,6 +23,7 @@ function formatPeriod(p: string): string {
 }
 
 export default function CategoriesPageV2() {
+  const navigate = useNavigate();
   const { fullName } = useProfile();
   const firstName = fullName?.split(' ')[0] || '';
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
@@ -94,9 +96,14 @@ export default function CategoriesPageV2() {
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {!isMobile && (
+                <>
+                <button onClick={() => navigate('/dashboard/categories/rules')} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: `${CYAN}10`, border: `1px solid ${CYAN}30`, borderRadius: 10, color: CYAN, cursor: "pointer" }}>
+                  Tag Rules
+                </button>
                 <button onClick={handleExport} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 10, color: THEME.textMuted, cursor: "pointer" }}>
                   Export
                 </button>
+                </>
               )}
               <button onClick={() => setCopilotOpen(true)}
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: `${CYAN}12`, border: `1px solid ${CYAN}28`, borderRadius: 10, color: CYAN, cursor: "pointer" }}

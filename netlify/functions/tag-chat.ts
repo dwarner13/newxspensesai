@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import OpenAI from 'openai';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { getLearnedCategoryForTransaction } from './_shared/tag-learning.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -113,6 +114,84 @@ function parseNeedsReviewQueue(text: string): boolean {
   return /<needs_review_queue\s*\/?>/.test(text);
 }
 
+function parseMerchantSweep(text: string): boolean {
+  return /<merchant_sweep\s*\/?>/.test(text);
+}
+
+function parseSessionClose(text: string): boolean {
+  return /SESSION_CLOSE/i.test(text);
+}
+
+function extractSearchIntent(message: string): {
+  isSearch: boolean;
+  merchant?: string;
+  category?: string;
+  type?: 'expense' | 'income' | 'all';
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
+} {
+  const msg = message.toLowerCase().trim();
+  const isSearch = (
+    /^(show|find|search|filter|get|pull up|display|list|look up)[\s\w]/i.test(message) ||
+    /\b(transactions|charges|purchases|expenses|spending)\b/i.test(message) ||
+    /^[a-z0-9 &'.-]{2,35}$/i.test(message.trim())
+  ) && !/\b(change|move|update|fix|set|categorize|bulk|undo|revert|rule|save)\b/i.test(msg);
+
+  if (!isSearch) return { isSearch: false };
+
+  const merchantMatch = message.match(
+    /(?:show|find|search|filter|get|list)?\s*(?:me\s+)?(?:my\s+)?(?:all\s+)?([a-z0-9 &'.-]+?)(?:\s+transactions?|\s+charges?|\s+purchases?)?$/i
+  );
+  const rawMerchant = merchantMatch?.[1]?.trim() || '';
+
+  const CATEGORY_TERMS: Record<string, string> = {
+    'groceries': 'Groceries', 'grocery': 'Groceries', 'food': 'Food & Dining',
+    'dining': 'Food & Dining', 'transportation': 'Transportation', 'transport': 'Transportation',
+    'personal care': 'Personal Care', 'healthcare': 'Healthcare', 'shopping': 'Shopping',
+    'subscriptions': 'Subscriptions', 'entertainment': 'Entertainment', 'housing': 'Housing',
+    'utilities': 'Utilities', 'insurance': 'Insurance', 'travel': 'Travel',
+    'education': 'Education', 'bank fees': 'Bank Fees', 'income': 'Income',
+    'uncategorized': 'Uncategorized', 'needs review': 'Needs Review',
+  };
+
+  const categoryHit = CATEGORY_TERMS[rawMerchant.toLowerCase()];
+
+  const type: 'expense' | 'income' | 'all' =
+    /\bincome\b/i.test(message) ? 'income' :
+    /\bexpense|spending|charges|purchases\b/i.test(message) ? 'expense' : 'all';
+
+  const overMatch = message.match(/over\s+\$?(\d+(?:\.\d+)?)/i);
+  const underMatch = message.match(/under\s+\$?(\d+(?:\.\d+)?)/i);
+
+  const monthNames: Record<string, string> = {
+    january:'01', february:'02', march:'03', april:'04', may:'05', june:'06',
+    july:'07', august:'08', september:'09', october:'10', november:'11', december:'12'
+  };
+  let startDate: string | undefined;
+  let endDate: string | undefined;
+  const monthMatch = message.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i);
+  if (monthMatch) {
+    const year = new Date().getFullYear();
+    const mo = monthNames[monthMatch[1].toLowerCase()];
+    const lastDay = new Date(year, Number(mo), 0).getDate();
+    startDate = `${year}-${mo}-01`;
+    endDate = `${year}-${mo}-${lastDay}`;
+  }
+
+  return {
+    isSearch: true,
+    merchant: categoryHit ? undefined : rawMerchant || undefined,
+    category: categoryHit || undefined,
+    type,
+    startDate,
+    endDate,
+    minAmount: overMatch ? Number(overMatch[1]) : undefined,
+    maxAmount: underMatch ? Number(underMatch[1]) : undefined,
+  };
+}
+
 function parseDeleteRule(text: string): { merchant_pattern: string } | null {
   const match = text.match(/<delete_rule>([\s\S]*?)<\/delete_rule>/);
   if (!match) return null;
@@ -141,7 +220,9 @@ function buildSystemPrompt(
   merchantHistory: { count: number; totalSpent: number; categories: string[] },
   yearTotal: { spent: number; income: number },
   pageContext?: any,
-  userName?: string | null
+  userName?: string | null,
+  selectedTx?: any,
+  learnedCategory?: string | null
 ): string {
   const userLine = userName ? `The user's name is ${userName}. Use it occasionally but naturally.\n` : '';
   const merchantBlock = merchant ? `
@@ -150,6 +231,7 @@ ${merchantHistory.count > 0 ? `- Seen ${merchantHistory.count} times, total $${m
 ${merchantHistory.categories.length > 0 ? `- Previously categorized as: ${[...new Set(merchantHistory.categories)].join(', ')}` : ''}
 ${category ? `- Currently categorized as: ${category}` : ''}
 ${amount != null ? `- Transaction amount: $${Math.abs(amount).toFixed(2)}` : ''}
+${learnedCategory ? `- Tag has learned: usually "${learnedCategory}" for this merchant` : ''}
 ` : '';
 
   if (!merchant && pageContext) {
@@ -162,23 +244,49 @@ USER'S FINANCES:
 - Total income: $${yearTotal.income.toFixed(2)}
 - Transactions in view: ${pageContext.transactionCount || 0}
 
-CRITICAL RULE — FILTER (highest priority, check FIRST before anything else):
-For ANY of these inputs, you MUST output FILTER:<term> on its own line at the END of your reply. No exceptions:
-- A merchant name typed alone (e.g. "borrowell", "costco", "7-eleven", "west end bingo")
-- "show me X" / "find X" / "search X" / "filter by X"
-- "can you show me all of X" / "show all X transactions"
-- "what are my X transactions" / "list X" / "pull up X"
+FILTER intent — triggers on ANY of these patterns:
+- A merchant name typed alone e.g. "borrowell" or "7-eleven" or "petro"
+- "show me X" / "find X" / "search X" / "filter by X" / "look up X"
+- "what are my X transactions" / "X purchases" / "X charges"
+- A category name e.g. "transportation" / "personal care" / "groceries"
+- A subcategory alias e.g. "massage" / "fuel" / "restaurants" / "golf"
 
-Example — user types "west end bingo":
-"Here are your West End Bingo transactions.
-FILTER:west end bingo"
+FILTER JSON format: FILTER:{"search":"<merchant or empty>","category":"<category or empty>","subcategory":"<subcategory or empty>"}
+- For merchant lookups: set "search" to the merchant, leave category/subcategory empty
+  Example: "borrowell" → FILTER:{"search":"borrowell","category":"","subcategory":""}
+- For category/subcategory lookups: set "search" to empty, set category and/or subcategory
+  Example: "show me massage" → FILTER:{"search":"","category":"Personal Care","subcategory":"Massage & Wellness"}
+  Example: "show me fuel" → FILTER:{"search":"","category":"Transportation","subcategory":"Gas & Fuel"}
+  Example: "show me groceries" → FILTER:{"search":"","category":"Groceries","subcategory":""}
+  Example: "transportation" → FILTER:{"search":"","category":"Transportation","subcategory":""}
 
-Example — user types "borrowell":
-"Here are your Borrowell transactions.
-FILTER:borrowell"
+Category/subcategory mappings (use these EXACT strings):
+- "massage"/"spa" → Personal Care / Massage & Wellness
+- "fuel"/"gas"/"petro"/"esso"/"gas station" → Transportation / Gas & Fuel
+- "parking" → Transportation / Parking
+- "oil change"/"repairs"/"maintenance" → Transportation / Vehicle Maintenance
+- "transit"/"bus"/"train" → Transportation / Transit
+- "uber"/"lyft"/"rideshare" → Transportation / Rideshare
+- "groceries"/"supermarket" → Groceries
+- "coffee"/"tim hortons"/"starbucks" → Food & Dining / Coffee & Drinks
+- "restaurant"/"dining"/"lunch"/"dinner" → Food & Dining / Restaurants
+- "fast food"/"takeout" → Food & Dining / Fast Food
+- "haircut"/"salon"/"barber" → Personal Care / Hair & Beauty
+- "gym"/"fitness" → Personal Care / Gym & Fitness
+- "dentist"/"dental" → Healthcare / Dental
+- "pharmacy"/"shoppers" → Healthcare / Pharmacy
+- "golf" → Entertainment / Golf
+- "casino"/"bingo" → Entertainment / Gaming & Lottery
+- "netflix"/"spotify"/"streaming" → Subscriptions / Streaming
+- "bank fee"/"service charge" → Bank Fees / Banking
+- "loan payment" → Debt Payments / Loan Payment
+- "income"/"paycheck" → Income / Employment
 
-NEVER respond to a merchant name or show/find/search request WITHOUT the FILTER action. If in doubt whether input is a merchant name, output FILTER anyway — it's safe.
-Keep your text reply to ONE short sentence before the FILTER line.
+Reply with ONE short sentence then the action on the same line.
+CRITICAL: FILTER:{} must ALWAYS be on a single line, no line breaks inside the JSON.
+ALWAYS include FILTER:{} for any merchant or category lookup, even a single word.
+Never wrap FILTER JSON in markdown or backticks.
+NEVER respond to a merchant/category request WITHOUT the FILTER action.
 
 You can also help with:
 2. BULK CHANGE — detect "change all X to Y", "categorize X as Y". Confirm first:
@@ -192,30 +300,6 @@ You can also help with:
    Example: "put shell into fuel" → CATEGORIZE:{"merchant":"shell","category":"Transportation","subcategory":"Gas & Fuel"}
 6. QUESTIONS — answer naturally about spending, no action JSON
 
-NATURAL LANGUAGE ALIASES — map these words to category/subcategory:
-"fuel"/"gas"/"petro"/"esso"/"gas station" → Transportation / Gas & Fuel
-"parking" → Transportation / Parking
-"transit"/"bus"/"train" → Transportation / Transit
-"uber"/"lyft"/"rideshare" → Transportation / Rideshare
-"groceries"/"supermarket" → Groceries
-"coffee"/"tim hortons"/"starbucks" → Food & Dining / Coffee & Drinks
-"restaurant"/"dining"/"lunch"/"dinner" → Food & Dining / Restaurants
-"fast food"/"takeout" → Food & Dining / Fast Food
-"haircut"/"salon"/"barber" → Personal Care / Hair & Beauty
-"massage"/"spa" → Personal Care / Massage & Wellness
-"gym"/"fitness" → Personal Care / Gym & Fitness
-"dentist"/"dental" → Healthcare / Dental
-"chiro" → Healthcare / Chiropractic
-"pharmacy"/"shoppers" → Healthcare / Pharmacy
-"netflix"/"spotify"/"streaming" → Subscriptions / Streaming
-"software"/"cursor"/"openai" → Subscriptions / Software & AI
-"bank fee"/"service charge" → Bank Fees / Banking
-"loan payment" → Debt Payments / Loan Payment
-"golf" → Entertainment / Golf
-"casino"/"bingo" → Entertainment / Gaming & Lottery
-"income"/"paycheck"/"deposit" → Income / Employment
-"government"/"cra"/"rebate" → Income / Government Rebate
-
 Rules:
 - Always confirm before bulk changes
 - Keep replies to 1-2 sentences max
@@ -225,6 +309,26 @@ Rules:
 - When user says "put X into Y" or "X is Y", use CATEGORIZE with the alias mapping
 - For reclassify: never ask what category — Tag figures it out
 
+${selectedTx ? `
+SELECTED TRANSACTION (user has this transaction open in the drawer):
+- ID: ${selectedTx.id}
+- Merchant: ${selectedTx.merchant || 'Unknown'}
+- Amount: $${Math.abs(Number(selectedTx.amount || 0)).toFixed(2)}
+- Date: ${selectedTx.date || 'unknown'}
+- Current category: ${selectedTx.category || 'Uncategorized'}
+- Description: ${selectedTx.description || '(none)'}
+
+UPDATE_TRANSACTION intent — triggers when user says:
+"change this to X" / "this is wrong" / "recategorize as X" / "move this to X" / "this should be Y" / "wrong category"
+Reply naturally then append on same line:
+UPDATE_TRANSACTION:{"id":"${selectedTx.id}","category":"<new category>","subcategory":"<subcategory or null>","merchant":"<corrected merchant or null>"}
+Rules:
+- Map user words to canonical categories using the alias table above
+- If user says "expense" without specifying category, ask: "What type of expense? Food, Transportation, Personal Care...?"
+- If user says "income" → category: Income
+- Always confirm: "Got it — moved [merchant] to [category]."
+- If the merchant is known (not null), also append: SAVE_RULE:true
+` : ''}
 IMPORTANT: Only output action JSON for actionable commands, never for questions about amounts or spending patterns.
 
 CORRECTION HANDLING: When the user tells you a merchant is wrong, miscategorized, or gives you a correction (e.g. "TD LOAN is a car payment", "that should be Vehicle", "change X to Y", "7-ELEVEN over $30 is fuel"), respond with a <correction> JSON block BEFORE your natural language reply:
@@ -241,6 +345,56 @@ RULE MANAGEMENT: You can manage category rules.
 - When asked to update a rule: output a <correction> block as normal.
 
 NEEDS REVIEW QUEUE: When user says "what needs review", "show uncategorized", "start queue", or "next": output <needs_review_queue/> and the server will fetch the next transaction for you to ask about.
+
+UNKNOWN MERCHANT SWEEP: When user says "fix unknown transactions", "fix unknowns", "unknown merchants", "missing merchants", "what has no merchant", or "clean up unknowns": output <merchant_sweep/> and the server will find and flag transactions with missing merchant names.
+
+TRANSACTION SEARCH:
+When the user asks to find, show, list, filter, or search transactions — emit a FILTER action so the frontend can fetch and display them. Do NOT describe results you don't have. Do NOT hallucinate transaction data.
+
+Use this format:
+FILTER:{"search":"<merchant or empty>","category":"<category or empty>","subcategory":"<subcategory or empty>"}
+
+Then add ONE conversational line before the FILTER telling the user what you're doing. Example:
+"Pulling up your massage transactions now. FILTER:{"search":"massage","category":"","subcategory":""}"
+
+For category/subcategory searches use the alias mappings already defined above. For amount or date filters, tell the user those filters aren't available in the quick view and offer to check via a category search instead.
+
+TRANSACTION UPDATES (in-conversation):
+When the user refers to a transaction from earlier in the conversation ("change that one", "move the Jan 12 massage", "fix the second one") — use the transaction ID from the search results already in context. Do NOT ask the user to repeat the ID or find it themselves.
+
+Call tag_update_transaction_category with:
+- transactionId: from context
+- newCategory: the category the user specified
+- subcategory: the subcategory if the user specified one (e.g. "Office Supplies under Business" → category: "Business", subcategory: "Office Supplies")
+- merchantName: from context if available
+- oldCategory: from context if available
+
+After the update, confirm what changed in one line, then ask if the same rule should apply to all transactions from that merchant.
+
+HANDOFF — NEVER GET STUCK:
+You can hand off to any employee. When the user's question is outside your categorization expertise, hand off immediately. Never say "I can't help with that" without handing off.
+
+Emit on its own line:
+HANDOFF:{"to":"<slug>","reason":"<one sentence of what the user needs>"}
+
+Employee slugs and when to use them:
+- "prime-boss" — spending strategy, financial analysis, summaries, forecasts, budgeting advice, big picture questions, anything complex
+- "byte-docs" — upload questions, import status, OCR issues, statement processing, document questions
+- "goalie-goals" — savings goals, targets, milestones, goal tracking
+- "finley-forecasts" — debt payoff, loan calculations, projections
+- "crystal-analytics" — trends, pattern analysis, spending insights
+- "ledger-tax" — accountant reports, year-end summaries
+
+Always say one short sentence before the HANDOFF line acknowledging what the user asked. Keep it natural — Tag is handing off to a colleague, not abandoning the user.
+
+SESSION CLOSING:
+When the needs-review queue is empty, or the user says "done", "that's all", "finished", "I'm done for now", "wrap it up" — respond with a closing message then emit SESSION_CLOSE on its own line.
+
+The closing message should:
+- Lead with a one-line summary of what was accomplished if you have context (e.g. "Queue cleared — your books are cleaner than when you sat down.")
+- If no session context, keep it simple: "Good session. Your transactions are in better shape."
+- Add one forward nudge toward Prime: "Prime has a cleaner picture to work with now if you want the full breakdown."
+- End with SESSION_CLOSE on its own line (the server will strip it before sending to the user)
 
 Always confirm actions taken.`;
 
@@ -292,6 +446,8 @@ RULE MANAGEMENT: You can manage category rules.
 
 NEEDS REVIEW QUEUE: When user says "what needs review", "show uncategorized", "start queue", or "next": output <needs_review_queue/> and the server will fetch the next transaction for you to ask about.
 
+UNKNOWN MERCHANT SWEEP: When user says "fix unknown transactions", "fix unknowns", "unknown merchants", "missing merchants", "what has no merchant", or "clean up unknowns": output <merchant_sweep/> and the server will find and flag transactions with missing merchant names.
+
 Always confirm actions taken.`;
 
 }
@@ -306,15 +462,35 @@ export const handler: Handler = async (event) => {
   try {
 
   const body = JSON.parse(event.body || '{}');
-  const { transactionId, message, history = [], pageContext, merchant: bodyMerchant, category: bodyCategory, amount: bodyAmount, context: bodyContext } = body;
+  const { transactionId, message, history = [], pageContext, merchant: bodyMerchant, category: bodyCategory, amount: bodyAmount, context: bodyContext, selectedTransaction } = body;
+
+  const supabase = serverSupabase();
+  const isPageContext = bodyContext === 'page';
+
+  // Opening turn: empty message on page-level context with no history
+  if (!message && isPageContext && (!history || history.length === 0)) {
+    try {
+      const { count: uncatCount } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.userId)
+        .or('category.is.null,category.eq.Needs Review,category.eq.Uncategorized');
+
+      const openingReply = uncatCount && uncatCount > 0
+        ? `${uncatCount} transactions need categories. Want to start the queue, or is there something specific you're looking for?`
+        : `Books look clean — nothing uncategorized right now. What do you need?`;
+
+      return { statusCode: 200, headers, body: JSON.stringify({ reply: openingReply, action: null, sessionComplete: false }) };
+    } catch {
+      return { statusCode: 200, headers, body: JSON.stringify({ reply: "Hey — what can I help you categorize?", action: null, sessionComplete: false }) };
+    }
+  }
 
   if (!message) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
   }
 
-  const supabase = serverSupabase();
   const isQuickChange = message === '__system_category_changed__' && bodyContext === 'quick_change';
-  const isPageContext = bodyContext === 'page';
 
   // Fetch user name for personalized responses
   let userName: string | null = null;
@@ -372,6 +548,19 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  // 3.5 Check learned category from user correction history
+  let learnedCategory: string | null = null;
+  if (merchantName) {
+    try {
+      const learned = await getLearnedCategoryForTransaction(
+        supabase, auth.userId, merchantName
+      );
+      if (learned && learned.count >= 1) {
+        learnedCategory = learned.category;
+      }
+    } catch { /* non-blocking */ }
+  }
+
   // 4. Year totals
   const yearStart = `${new Date().getFullYear()}-01-01`;
   const { data: allTxs } = await supabase
@@ -386,6 +575,56 @@ export const handler: Handler = async (event) => {
     if ((t.category || '').toLowerCase() === 'income') yearIncome += amt; else yearSpent += amt;
   }
 
+  // 4.5: Pre-fetch transaction data for search intents (page-level only)
+  let injectedTxContext: string | null = null;
+  if (isPageContext && message) {
+    const searchIntent = extractSearchIntent(message);
+    if (searchIntent.isSearch) {
+      try {
+        let q = supabase
+          .from('transactions')
+          .select('id, merchant_name, description, amount, date, posted_at, category, subcategory, type')
+          .eq('user_id', auth.userId)
+          .order('date', { ascending: false })
+          .limit(50);
+        if (searchIntent.merchant) q = q.ilike('merchant_name', `%${searchIntent.merchant}%`);
+        if (searchIntent.category) {
+          if (searchIntent.category === 'Uncategorized') {
+            q = q.or('category.is.null,category.eq.Uncategorized,category.eq.Needs Review');
+          } else {
+            q = q.eq('category', searchIntent.category);
+          }
+        }
+        if (searchIntent.type === 'income') q = q.eq('type', 'income');
+        else if (searchIntent.type === 'expense') q = q.neq('type', 'income');
+        if (searchIntent.startDate) q = q.gte('date', searchIntent.startDate);
+        if (searchIntent.endDate) q = q.lte('date', searchIntent.endDate);
+        if (searchIntent.minAmount) q = q.gte('amount', searchIntent.minAmount);
+        if (searchIntent.maxAmount) q = q.lte('amount', searchIntent.maxAmount);
+
+        const { data: txRows } = await q;
+        if (txRows && txRows.length > 0) {
+          const totalAmt = txRows.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0);
+          const lines = txRows.slice(0, 30).map((t: any, i: number) =>
+            `[${i + 1}] id:${t.id} | ${t.date || (t.posted_at || '').split('T')[0]} | ${t.merchant_name || t.description || 'Unknown'} | $${Math.abs(Number(t.amount)).toFixed(2)} | ${t.category || 'Uncategorized'}${t.subcategory ? ' / ' + t.subcategory : ''}`
+          );
+          injectedTxContext = [
+            `LIVE TRANSACTION DATA (${txRows.length} results, total $${totalAmt.toFixed(2)}):`,
+            ...lines,
+            txRows.length > 30 ? `... and ${txRows.length - 30} more` : '',
+            '',
+            'Use these exact IDs when the user asks to change or update a transaction.',
+          ].filter(Boolean).join('\n');
+          console.log(`[tag-chat] Injected ${txRows.length} transactions into context`);
+        } else {
+          injectedTxContext = 'LIVE TRANSACTION DATA: No transactions found matching this search.';
+        }
+      } catch (err: any) {
+        console.warn('[tag-chat] Pre-fetch failed (non-blocking):', err?.message);
+      }
+    }
+  }
+
   // 5. Build messages for LLM
   const userMessage = isQuickChange
     ? `I just changed ${merchantName} to ${bodyCategory}.`
@@ -394,7 +633,7 @@ export const handler: Handler = async (event) => {
   const systemPrompt = buildSystemPrompt(
     merchantName, isQuickChange, bodyCategory || (tx as any)?.category || null,
     bodyAmount ?? (tx as any)?.amount ?? null,
-    merchantHistory, { spent: yearSpent, income: yearIncome }, pageContext, userName
+    merchantHistory, { spent: yearSpent, income: yearIncome }, pageContext, userName, selectedTransaction || null, learnedCategory
   );
 
   // 6. Call OpenAI
@@ -405,6 +644,7 @@ export const handler: Handler = async (event) => {
     max_tokens: 500,
     messages: [
       { role: 'system', content: systemPrompt },
+      ...(injectedTxContext ? [{ role: 'system' as const, content: injectedTxContext }] : []),
       ...effectiveHistory.map((m: { role: string; content: string }) => ({
         role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
         content: m.content,
@@ -420,15 +660,94 @@ export const handler: Handler = async (event) => {
   const isPageLevel = isPageContext || (!transactionId && !isQuickChange);
   const looksLikeSearch = isPageLevel && (
     /^[a-z0-9 &'-]{2,40}$/i.test(userMessage.trim()) ||
-    /^(show|find|search|filter|get|pull up|display)\s+/i.test(userMessage.trim()) ||
-    /^can you show/i.test(userMessage.trim())
+    /^(show|find|search|filter|get|pull up|display|look up)\s+/i.test(userMessage.trim()) ||
+    /^can you show/i.test(userMessage.trim()) ||
+    /\b(purchases|charges|transactions)\s*$/i.test(userMessage.trim())
   );
-  if (isPageLevel && looksLikeSearch && !reply.includes('FILTER:')) {
+  // Category/subcategory alias map for server-side injection
+  const FILTER_CATEGORY_MAP: Record<string, { category: string; subcategory: string }> = {
+    'massage': { category: 'Personal Care', subcategory: 'Massage & Wellness' },
+    'spa': { category: 'Personal Care', subcategory: 'Massage & Wellness' },
+    'fuel': { category: 'Transportation', subcategory: 'Gas & Fuel' },
+    'gas': { category: 'Transportation', subcategory: 'Gas & Fuel' },
+    'parking': { category: 'Transportation', subcategory: 'Parking' },
+    'oil change': { category: 'Transportation', subcategory: 'Vehicle Maintenance' },
+    'transit': { category: 'Transportation', subcategory: 'Transit' },
+    'groceries': { category: 'Groceries', subcategory: '' },
+    'coffee': { category: 'Food & Dining', subcategory: 'Coffee & Drinks' },
+    'restaurant': { category: 'Food & Dining', subcategory: 'Restaurants' },
+    'restaurants': { category: 'Food & Dining', subcategory: 'Restaurants' },
+    'dining': { category: 'Food & Dining', subcategory: 'Restaurants' },
+    'haircut': { category: 'Personal Care', subcategory: 'Hair & Beauty' },
+    'salon': { category: 'Personal Care', subcategory: 'Hair & Beauty' },
+    'golf': { category: 'Entertainment', subcategory: 'Golf' },
+    'streaming': { category: 'Subscriptions', subcategory: 'Streaming' },
+    'transportation': { category: 'Transportation', subcategory: '' },
+    'personal care': { category: 'Personal Care', subcategory: '' },
+    'food & dining': { category: 'Food & Dining', subcategory: '' },
+    'entertainment': { category: 'Entertainment', subcategory: '' },
+    'healthcare': { category: 'Healthcare', subcategory: '' },
+    'shopping': { category: 'Shopping', subcategory: '' },
+    'subscriptions': { category: 'Subscriptions', subcategory: '' },
+    'bank fees': { category: 'Bank Fees', subcategory: '' },
+    'housing': { category: 'Housing', subcategory: '' },
+    'insurance': { category: 'Insurance', subcategory: '' },
+    'education': { category: 'Education', subcategory: '' },
+    'travel': { category: 'Travel', subcategory: '' },
+    'transfers': { category: 'Transfers', subcategory: '' },
+    'income': { category: 'Income', subcategory: '' },
+    'needs review': { category: 'Needs Review', subcategory: '' },
+  };
+
+  if (isPageLevel && looksLikeSearch && !reply.includes('FILTER:') && !injectedTxContext) {
     const searchTerm = userMessage.trim()
-      .replace(/^(show me all of|show me|find|search for|filter by|get|pull up|display|can you show me all of|can you show me)\s+/i, '')
+      .replace(/^(show me all of|show me|find|search for|filter by|get|pull up|display|look up|can you show me all of|can you show me)\s+/i, '')
+      .replace(/\s+(purchases|charges|transactions)\s*$/i, '')
       .trim();
-    reply = reply + `\nFILTER:${searchTerm}`;
-    console.log('[tag-chat] Server injected FILTER:', searchTerm);
+    if (searchTerm) {
+      const catMatch = FILTER_CATEGORY_MAP[searchTerm.toLowerCase()];
+      if (catMatch) {
+        reply = reply + ` FILTER:{"search":"","category":"${catMatch.category}","subcategory":"${catMatch.subcategory}"}`;
+        console.log('[tag-chat] Server injected category FILTER:', catMatch.category, catMatch.subcategory);
+      } else {
+        reply = reply + ` FILTER:{"search":"${searchTerm.replace(/"/g, '\\"')}","category":"","subcategory":""}`;
+        console.log('[tag-chat] Server injected search FILTER:', searchTerm);
+      }
+    }
+  }
+
+  // Server-side UPDATE_TRANSACTION injection for selected transaction corrections
+  if (selectedTransaction?.id && !reply.includes('UPDATE_TRANSACTION:')) {
+    const correctionPatterns = /\b(change|move|recategorize|switch|set|make|put)\s+(this|it)\s+(to|as|into)\s+/i;
+    const wrongPatterns = /\b(this is wrong|wrong category|miscategorized|should be|it'?s actually|it'?s an?\s)/i;
+    const directCategory = /\b(this is|it'?s)\s+(income|food|transportation|groceries|personal care|entertainment|shopping|healthcare|housing|utilities|subscriptions|transfers|bank fees|business|education|travel|insurance)\b/i;
+    const msgLower = userMessage.trim();
+    if (correctionPatterns.test(msgLower) || wrongPatterns.test(msgLower) || directCategory.test(msgLower)) {
+      // Try to extract the target category from the message
+      const catExtract = msgLower.match(/(?:to|as|into|be|is|it'?s)\s+(.+?)\.?\s*$/i);
+      if (catExtract) {
+        const rawCat = catExtract[1].trim();
+        const normalized = normalizeCategory(rawCat);
+        if (normalized && normalized !== rawCat) {
+          const subMatch = FILTER_CATEGORY_MAP[rawCat.toLowerCase()];
+          const sub = subMatch?.subcategory || '';
+          const merchantVal = selectedTransaction.merchant || null;
+          reply = reply + ` UPDATE_TRANSACTION:{"id":"${selectedTransaction.id}","category":"${normalized}","subcategory":"${sub}","merchant":${merchantVal ? `"${String(merchantVal).replace(/"/g, '\\"')}"` : 'null'}}`;
+          if (merchantVal) reply += ' SAVE_RULE:true';
+          console.log('[tag-chat] Server injected UPDATE_TRANSACTION for', selectedTransaction.id, '→', normalized);
+        }
+      }
+    }
+  }
+
+  // Parse HANDOFF signal
+  const handoffMatch = reply.match(/HANDOFF:\s*(\{[^}]+\})/);
+  let handoffPayload: { to: string; reason: string } | null = null;
+  if (handoffMatch) {
+    try {
+      handoffPayload = JSON.parse(handoffMatch[1]);
+    } catch { /* malformed JSON, ignore */ }
+    reply = reply.replace(/\s*HANDOFF:\s*\{[^}]+\}/g, '').trim();
   }
 
   // Handle correction intent — user told Tag a merchant is miscategorized
@@ -550,7 +869,58 @@ export const handler: Handler = async (event) => {
       const date = next.date || next.posted_at?.split('T')[0] || 'unknown date';
       reply = `Next up: **${next.merchant_name}** — $${amt} on ${date}. What category should this be?`;
     } else {
-      reply = 'All transactions are categorized! Nothing left in the queue.';
+      reply = 'Good session. Your transactions are in better shape. Prime has a cleaner picture to work with now if you want the full breakdown.\nSESSION_CLOSE';
+    }
+  }
+
+  // Handle merchant_sweep intent — find and flag unknown-merchant transactions
+  if (parseMerchantSweep(reply)) {
+    reply = reply.replace(/<merchant_sweep\s*\/?>/g, '').trim();
+    try {
+      const { data: unknowns } = await supabase
+        .from('transactions')
+        .select('id, description, amount, date, posted_at, category')
+        .eq('user_id', auth.userId)
+        .not('category', 'in', '("Transfers","Income")')
+        .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
+        .not('subcategory', 'eq', 'Unknown Merchant - Verify')
+        .order('posted_at', { ascending: false })
+        .limit(10);
+
+      if (unknowns && unknowns.length > 0) {
+        // Mark them for review
+        for (const tx of unknowns) {
+          await supabase.from('transactions').update({
+            category: 'Needs Review',
+            subcategory: 'Unknown Merchant - Verify',
+            category_source: 'merchant_sweep',
+            updated_at: new Date().toISOString(),
+          }).eq('id', tx.id).eq('user_id', auth.userId);
+        }
+
+        // Get total remaining
+        const { count: remaining } = await supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', auth.userId)
+          .not('category', 'in', '("Transfers","Income")')
+          .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
+          .not('subcategory', 'eq', 'Unknown Merchant - Verify');
+
+        const lines = unknowns.slice(0, 5).map(tx => {
+          const amt = Math.abs(Number(tx.amount || 0)).toFixed(2);
+          const d = tx.date || tx.posted_at?.split('T')[0] || '?';
+          const desc = tx.description || '(no description)';
+          return `- **$${amt}** on ${d} — "${desc}"`;
+        }).join('\n');
+
+        reply = `Found ${unknowns.length} transactions with no merchant name. I've flagged them for review.\n\n${lines}${unknowns.length > 5 ? `\n- ... and ${unknowns.length - 5} more` : ''}${(remaining || 0) > 0 ? `\n\n${remaining} more still unflagged — say "fix unknowns" again for the next batch.` : ''}\n\nOpen any of these in the transaction drawer to add the merchant name and category. I'll learn from your corrections.`;
+      } else {
+        reply = 'All your transactions have merchant names — nothing to fix here!';
+      }
+    } catch (err: any) {
+      console.error('[tag-chat] merchant_sweep error:', err.message);
+      reply = 'I had trouble scanning for unknown merchants. Try again in a moment.';
     }
   }
 
@@ -691,10 +1061,17 @@ export const handler: Handler = async (event) => {
     } catch { /* table may not exist */ }
   }
 
+  // Handle SESSION_CLOSE signal
+  let sessionComplete = false;
+  if (parseSessionClose(reply)) {
+    sessionComplete = true;
+    reply = reply.replace(/\s*SESSION_CLOSE\s*/gi, '').trim();
+  }
+
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({ reply, action, rule_saved: ruleSaved, backfill_count: backfillCount, history: persistedHistory }),
+    body: JSON.stringify({ reply, action, rule_saved: ruleSaved, backfill_count: backfillCount, history: persistedHistory, sessionComplete, handoff: handoffPayload }),
   };
 
   } catch (handlerErr: any) {

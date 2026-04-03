@@ -176,7 +176,7 @@ export const handler: Handler = async (event) => {
   // 1. Fetch uncategorized committed transactions (newest first, large batch)
   const { data: rows, error } = await supabase
     .from('transactions')
-    .select('id, merchant_name, merchant, amount')
+    .select('id, merchant_name, merchant, amount, description')
     .eq('user_id', userId)
     .or('category.is.null,category.eq.Uncategorized,category.eq.Other')
     .order('posted_at', { ascending: false })
@@ -194,7 +194,7 @@ export const handler: Handler = async (event) => {
 
   // 2. Build vendor keys for memory lookup
   const vendorKeys = txs.map((tx) =>
-    normalizeVendorKey(tx.merchant_name || tx.merchant || '')
+    normalizeVendorKey(tx.merchant_name || tx.merchant || tx.description || '')
   );
   const uniqueKeys = [...new Set(vendorKeys.filter(Boolean))];
 
@@ -274,7 +274,7 @@ export const handler: Handler = async (event) => {
       continue;
     }
 
-    const merchant = tx.merchant_name || tx.merchant || '';
+    const merchant = tx.merchant_name || tx.merchant || tx.description || '';
     const txAmount = Number(tx.amount || 0);
     const dbRuleMatch = applyDbRules(merchant, txAmount);
     if (dbRuleMatch) {
@@ -337,13 +337,13 @@ export const handler: Handler = async (event) => {
   try {
     const { data: otherTxs } = await supabase
       .from('transactions')
-      .select('id, merchant_name')
+      .select('id, merchant_name, description')
       .eq('user_id', userId)
       .eq('category', 'Other')
       .limit(500);
     if (otherTxs && otherTxs.length > 0) {
       for (const tx of otherTxs) {
-        const mapMatch = matchMerchantMap(tx.merchant_name || '');
+        const mapMatch = matchMerchantMap(tx.merchant_name || tx.description || '');
         if (mapMatch) {
           const payload: Record<string, unknown> = {
             category: mapMatch.category,

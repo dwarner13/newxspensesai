@@ -9,6 +9,7 @@ export const inputSchema = z.object({
   merchantName: z.string().optional(), // Optional merchant name for learning
   oldCategory: z.string().optional(), // Optional old category (will be fetched if not provided)
   newCategory: z.string().min(1, 'New category is required'),
+  subcategory: z.string().optional(),
   reason: z.string().optional(),
 });
 
@@ -18,6 +19,7 @@ export const outputSchema = z.object({
   merchantName: z.string().nullable(),
   oldCategory: z.string().nullable(),
   newCategory: z.string(),
+  subcategory: z.string().nullable(),
   learningSaved: z.boolean(),
   message: z.string(),
 });
@@ -33,7 +35,7 @@ export type Output = z.infer<typeof outputSchema>;
  */
 export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
   try {
-    const { transactionId, merchantName, oldCategory: providedOldCategory, newCategory, reason } = input;
+    const { transactionId, merchantName, oldCategory: providedOldCategory, newCategory, subcategory, reason } = input;
     const { userId } = ctx;
 
     // Log tool invocation (dev only)
@@ -64,6 +66,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       .from('transactions')
       .update({
         category: newCategory,
+        subcategory: subcategory || null,
         category_source: 'manual', // Mark as user correction
         updated_at: new Date().toISOString(),
       })
@@ -105,9 +108,10 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
     }
 
     // Step 4: Build success message
+    const categoryLabel = subcategory ? `${newCategory} \u203A ${subcategory}` : newCategory;
     const message = reason
-      ? `Successfully updated transaction "${existingTx.description || transactionId}" from "${oldCategory || 'Uncategorized'}" to "${newCategory}". Reason: ${reason}${learningSaved ? ' Tag has learned from this correction.' : ''}`
-      : `Successfully updated transaction "${existingTx.description || transactionId}" from "${oldCategory || 'Uncategorized'}" to "${newCategory}".${learningSaved ? ' Tag has learned from this correction.' : ''}`;
+      ? `Successfully updated transaction "${existingTx.description || transactionId}" from "${oldCategory || 'Uncategorized'}" to "${categoryLabel}". Reason: ${reason}${learningSaved ? ' Tag has learned from this correction.' : ''}`
+      : `Successfully updated transaction "${existingTx.description || transactionId}" from "${oldCategory || 'Uncategorized'}" to "${categoryLabel}".${learningSaved ? ' Tag has learned from this correction.' : ''}`;
 
     return Ok({
       success: true,
@@ -115,6 +119,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       merchantName: merchant,
       oldCategory,
       newCategory,
+      subcategory: subcategory || null,
       learningSaved,
       message,
     });

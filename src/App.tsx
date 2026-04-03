@@ -82,6 +82,7 @@ const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage')
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const SmartCategoriesPage = lazy(() => import('./pages/dashboard/SmartCategoriesPage'));
 const CategoriesPageV2 = lazy(() => import('./pages/CategoriesV2/CategoriesPageV2'));
+const CategoryRulesPage = lazy(() => import('./pages/CategoriesV2/CategoryRulesPage'));
 const DashboardHomeV2 = lazy(() => import('./pages/DashboardV2/DashboardHomeV2'));
 const MyFinancialStoryV2 = lazy(() => import('./pages/MyStoryV2/MyFinancialStoryV2'));
 const ReportsPageV2 = lazy(() => import('./pages/ReportsV2/ReportsPageV2'));
@@ -498,7 +499,7 @@ function App() {
                       <Route path="entertainment" element={<EntertainmentPage />} />
                       <Route path="reports" element={<ReportsPageV2 />} />
                       <Route path="xspense-score" element={<XspenseScorePage />} />
-                      <Route path="upload" element={<UploadPageV2 />} />
+                      <Route path="upload" element={<Navigate to="/dashboard/bulk-upload" replace />} />
                       <Route path="settings" element={<SettingsPageV2 />} />
                       <Route path="settings/profile" element={<Suspense fallback={<LoadingSpinner />}><ProfilePage /></Suspense>} />
                       <Route path="settings/preferences" element={<Suspense fallback={<LoadingSpinner />}><PreferencesPage /></Suspense>} />
@@ -517,6 +518,7 @@ function App() {
                       <Route path="ai-financial-assistant" element={<AIChatAssistantPage />} />
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-chat-assistant" replace />} />
                       <Route path="categories" element={<CategoriesPageV2 />} />
+                      <Route path="categories/rules" element={<Suspense fallback={<LoadingSpinner />}><CategoryRulesPage /></Suspense>} />
                       <Route path="smart-categories" element={<Suspense fallback={<LoadingSpinner />}><SmartCategoriesPage /></Suspense>} />
                       <Route path="my-story" element={<MyFinancialStoryV2 />} />
                       <Route path="ai-results" element={<MyFinancialStoryV2 />} />

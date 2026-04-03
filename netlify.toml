@@ -17,7 +17,6 @@ external_node_modules = ["undici", "jsdom", "@mozilla/readability", "pdf-lib", "
   # NOTE: Environment variables are configured in Netlify Dashboard
   # VITE_ prefixed vars are automatically excluded from functions (frontend-only)
   # To avoid AWS Lambda 4KB env var limit, ensure only necessary vars are set in dashboard
-
 [dev]
   framework = "vite"
   command = "vite --port 5174 --host --strictPort"

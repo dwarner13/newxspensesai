@@ -233,7 +233,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                       className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-orange-500 focus:outline-none"
                     />
                   ) : (
-                    <div className="text-white">{transaction.vendor || 'N/A'}</div>
+                    <div className="text-white">{(!transaction.vendor || transaction.vendor === 'null') ? 'Unknown Merchant' : transaction.vendor}</div>
                   )}
                 </div>
 

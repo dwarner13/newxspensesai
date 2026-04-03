@@ -283,8 +283,110 @@ Return ONLY a valid JSON object matching the format specified in the system prom
   }
 }
 
+/**
+ * Parse bank statement PDF using Claude Vision (base64 path).
+ * Used as a fallback when OCR + normalization yields 0 transactions.
+ * Uses claude-sonnet-4-20250514 for speed/cost on fallback.
+ */
+export async function visionStatementParserBase64(
+  userId: string,
+  pdfBase64: string,
+  options: { filename?: string; mimeType?: string } = {}
+): Promise<VisionParseResult> {
+  const Anthropic = (await import('@anthropic-ai/sdk')).default;
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  const prompt = `You are parsing a Canadian bank statement PDF.
+Extract ALL transactions into a JSON array.
+Return ONLY valid JSON, no markdown, no explanation.
+Format: { "summary": { "institution": "string or null", "account_type": "string or null", "statement_period_start": "YYYY-MM-DD or null", "statement_period_end": "YYYY-MM-DD or null", "previous_balance": null, "new_balance": null, "credit_limit": null }, "transactions": [ { "transaction_date": "YYYY-MM-DD", "posting_date": "YYYY-MM-DD or null", "description": "string", "merchant_guess": "string or null", "amount": number, "currency": "CAD", "raw_row_text": "string or null" } ] }
+Amounts: positive for purchases/charges/debits, negative for payments/credits/refunds.
+For BMO statements: the "Withdrawals" column is debit (positive), "Deposits" column is credit (negative).
+Never include running balance as an amount.
+Convert all dates to YYYY-MM-DD format.`;
 
+  console.log(`[Vision Parser Base64] Starting Claude Vision parse for user ${userId}, file: ${options.filename || 'unknown'}`);
 
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4096,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: 'application/pdf',
+            data: pdfBase64,
+          },
+        },
+        {
+          type: 'text',
+          text: prompt,
+        },
+      ],
+    }],
+  });
+
+  const textBlock = response.content.find((b: any) => b.type === 'text');
+  const raw = textBlock && 'text' in textBlock ? textBlock.text : '';
+
+  if (!raw) {
+    throw new Error('Claude Vision returned empty response');
+  }
+
+  // Strip markdown fences if present
+  const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e: any) {
+    console.error('[Vision Parser Base64] JSON parse error:', e.message, 'Raw:', raw.slice(0, 200));
+    throw new Error(`Claude Vision returned invalid JSON: ${e.message}`);
+  }
+
+  if (!parsed.transactions || !Array.isArray(parsed.transactions)) {
+    throw new Error('Response does not contain transactions array');
+  }
+
+  const errors: string[] = [];
+  const normalizedTransactions = parsed.transactions.map((tx: any, index: number) => {
+    if (!tx.description || typeof tx.amount !== 'number') {
+      errors.push(`Transaction ${index + 1}: Missing description or invalid amount`);
+      return null;
+    }
+    return {
+      transaction_date: tx.transaction_date || tx.date || null,
+      posting_date: tx.posting_date || null,
+      description: String(tx.description || tx.merchant || '').trim(),
+      merchant_guess: tx.merchant_guess || tx.merchant || null,
+      amount: tx.amount,
+      currency: tx.currency || 'CAD',
+      raw_row_text: tx.raw_row_text || null,
+    };
+  }).filter((tx: any) => tx !== null);
+
+  const summary = {
+    institution: parsed.summary?.institution || null,
+    account_type: parsed.summary?.account_type || null,
+    statement_period_start: parsed.summary?.statement_period_start || null,
+    statement_period_end: parsed.summary?.statement_period_end || null,
+    previous_balance: parsed.summary?.previous_balance || null,
+    new_balance: parsed.summary?.new_balance || null,
+    credit_limit: parsed.summary?.credit_limit || null,
+  };
+
+  console.log(`[Vision Parser Base64] Extracted ${normalizedTransactions.length} transactions for user ${userId}`);
+
+  return {
+    parsed: {
+      summary,
+      transactions: normalizedTransactions,
+    },
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
 
 

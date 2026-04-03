@@ -47,8 +47,10 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, isSelect
                 </div>
               )}
             </div>
-            <p className="text-sm text-white/70 mb-1">{transaction.category}</p>
-            {transaction.merchant && (
+            <p className="text-sm text-white/70 mb-1">
+              {transaction.category}{(transaction as any).subcategory ? <span className="text-white/50"> · {(transaction as any).subcategory}</span> : null}
+            </p>
+            {transaction.merchant && transaction.merchant !== 'null' && (
               <p className="text-xs text-white/50">{transaction.merchant}</p>
             )}
           </div>

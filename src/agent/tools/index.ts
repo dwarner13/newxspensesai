@@ -55,6 +55,7 @@ import * as txSearch from './impl/tx_search';
 import * as txGet from './impl/tx_get';
 import * as txUpdateCategory from './impl/tx_update_category';
 import * as summarizeImport from './impl/summarize_import';
+import * as byteRenameImport from './impl/byte_rename_import';
 import { OpenAIToolDef } from '../../server/ai/openai';
 
 export interface ToolModule {
@@ -208,6 +209,18 @@ const toolModules: Map<string, ToolModule> = new Map([
     run: summarizeImport.execute,
     meta: {
       rateLimit: { perMinute: 10 },
+    },
+  }],
+  ['byte_rename_import', {
+    id: 'byte_rename_import',
+    description: 'Rename a statement import display name. Use when user says "rename this to X", "call this BMO January 2025", "change the name of this statement", or "label this as X". Confirm the import and new name before calling.',
+    inputSchema: byteRenameImport.inputSchema,
+    outputSchema: byteRenameImport.outputSchema,
+    run: byteRenameImport.execute,
+    meta: {
+      mutates: true,
+      timeout: 10000,
+      rateLimit: { perMinute: 20 },
     },
   }],
   ['search_docs', {

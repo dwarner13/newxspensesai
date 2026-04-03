@@ -143,6 +143,23 @@ export const handler: Handler = async (event) => {
       } catch { /* non-blocking */ }
     }
 
+    // Bug 5: Trigger merchant sweep for unknown-merchant transactions
+    try {
+      const baseUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'http://localhost:8888';
+      const authHeader = event.headers?.authorization || event.headers?.Authorization || '';
+      const sweepRes = await fetch(`${baseUrl}/.netlify/functions/tag-merchant-sweep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: '{}',
+      });
+      if (sweepRes.ok) {
+        const sweepData = await sweepRes.json();
+        fixes.push(`merchant sweep: ${sweepData.queued || 0} unknown-merchant txs flagged`);
+      }
+    } catch (e: any) {
+      fixes.push(`merchant sweep error: ${e.message}`);
+    }
+
     return {
       statusCode: 200,
       headers,

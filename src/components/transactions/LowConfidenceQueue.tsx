@@ -51,7 +51,7 @@ export default function LowConfidenceQueue({
             return (
               <div key={tx.id} className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
                 <div className="mb-1 flex items-center justify-between">
-                  <div className="text-white">{tx.merchant_name}</div>
+                  <div className="text-white">{(!tx.merchant_name || tx.merchant_name === 'null') ? 'Unknown Merchant' : tx.merchant_name}</div>
                   <div className="text-xs text-gray-300">${Number(tx.amount).toFixed(2)}</div>
                 </div>
                 <div className="mb-2 text-xs text-gray-400">Date: {tx.posted_at?.slice(0,10) ?? "-"}</div>

@@ -5,16 +5,21 @@ import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 import type { CommittedTransaction } from '@/types/transactions';
 
 interface TagAction {
-  type: 'filter' | 'bulk_change' | 'undo' | 'reclassify_preview' | 'categorize';
+  type: 'filter' | 'bulk_change' | 'undo' | 'reclassify_preview' | 'categorize' | 'update_transaction' | 'handoff';
   search?: string;
   category?: string;
   subcategory?: string;
   merchant?: string;
   confirm?: boolean;
+  id?: string;
+  saveRule?: boolean;
+  to?: string;
+  reason?: string;
 }
 
 interface TagCopilotPanelProps {
   transaction?: CommittedTransaction | null;
+  selectedTransaction?: CommittedTransaction | null;
   onClose: () => void;
   onCategoryUpdated?: () => void;
   onTagAction?: (action: TagAction) => void;
@@ -33,16 +38,16 @@ interface TagCopilotPanelProps {
 }
 
 function parseTagAction(reply: string): { cleanReply: string; action: TagAction | null } {
-  const filterMatch = reply.match(/FILTER:([^\n]+)/);
+  const filterMatch = reply.match(/FILTER:\s*(\{[^}]+\}|[^\n{]+)/);
   const bulkMatch = reply.match(/BULK_CHANGE:(\{[^}]*\})/);
   const undoMatch = reply.match(/UNDO:(\{[^}]*\})/);
   let action: TagAction | null = null;
   let cleanReply = reply;
   if (filterMatch) {
     const raw = filterMatch[1].trim();
-    // Support both JSON format {"search":"x"} and plain text format
-    try { const parsed = JSON.parse(raw); action = { type: 'filter', search: parsed.search }; } catch { action = { type: 'filter', search: raw }; }
-    cleanReply = reply.replace(/FILTER:[^\n]+/g, '').trim();
+    // Support both JSON format {"search":"x","category":"y","subcategory":"z"} and plain text format
+    try { const parsed = JSON.parse(raw); action = { type: 'filter', search: parsed.search || '', category: parsed.category || undefined, subcategory: parsed.subcategory || undefined }; } catch { action = { type: 'filter', search: raw }; }
+    cleanReply = reply.replace(/\s*FILTER:\s*(?:\{[^}]+\}|[^\n]+)/g, '').trim();
   } else if (bulkMatch) {
     try { action = { type: 'bulk_change', ...JSON.parse(bulkMatch[1]) }; } catch {}
     cleanReply = reply.replace(/BULK_CHANGE:\{[^}]*\}/g, '').trim();
@@ -53,8 +58,15 @@ function parseTagAction(reply: string): { cleanReply: string; action: TagAction 
     action = { type: 'reclassify_preview' };
     cleanReply = reply.replace(/RECLASSIFY_PREVIEW:\{\}/g, '').trim();
   } else {
+    const updateMatch = reply.match(/UPDATE_TRANSACTION:\s*(\{[^{}]+\})/);
     const catMatch = reply.match(/CATEGORIZE:(\{[^}]+\})/);
-    if (catMatch) {
+    if (updateMatch) {
+      try {
+        const parsed = JSON.parse(updateMatch[1]);
+        action = { type: 'update_transaction', id: parsed.id, category: parsed.category, subcategory: parsed.subcategory || undefined, merchant: parsed.merchant || undefined, saveRule: /SAVE_RULE:true/i.test(reply) };
+      } catch {}
+      cleanReply = reply.replace(/\s*UPDATE_TRANSACTION:\s*\{[^{}]+\}/g, '').replace(/\s*SAVE_RULE:true/gi, '').trim();
+    } else if (catMatch) {
       try { action = { type: 'categorize', ...JSON.parse(catMatch[1]) }; } catch {}
       cleanReply = reply.replace(/CATEGORIZE:\{[^}]+\}/g, '').trim();
     }
@@ -62,7 +74,7 @@ function parseTagAction(reply: string): { cleanReply: string; action: TagAction 
   return { cleanReply, action };
 }
 
-type ChatMsg = { role: 'tag' | 'user'; text: string; merchantQ?: { name: string; count: number; amount: number; options: string[]; interacAmounts?: Array<{ amount: number; count: number }> }; subcategoryQ?: { merchantName: string; category: string; options: string[] }; followupMerchants?: any[] };
+type ChatMsg = { role: 'tag' | 'user'; text: string; merchantQ?: { name: string; count: number; amount: number; options: string[]; interacAmounts?: Array<{ amount: number; count: number }> }; subcategoryQ?: { merchantName: string; category: string; options: string[] }; followupMerchants?: any[]; txResults?: CommittedTransaction[]; queryKeyword?: string };
 
 const SUBCATEGORY_OPTIONS: Record<string, string[]> = {
   'Transportation': ['Gas & Fuel', 'Parking', 'Transit', 'Vehicle Insurance', 'Vehicle Services', 'Rideshare'],
@@ -170,7 +182,25 @@ function resolveCategory(input: string): string | null {
   return CATEGORY_ALIASES[lower] ?? null;
 }
 
-export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTagAction, onToggleActivity, injectedMessage, injectedFollowupMerchants, onMerchantCategorize, totalCount, firstName, totalSpent, totalIncome, netFlow }: TagCopilotPanelProps) {
+function detectQueryKeyword(text: string): string | null {
+  const t = text.trim();
+  // "show me all massage transactions" — transactions word is optional, handles typos
+  const queryMatch = t.match(
+    /\b(?:how many|show (?:me )?(?:all )?(?:my )?|find|list(?: all)?(?:\s+my)?|pull up|search for|look up|display|get me|what are my|all my)\s+(?:my\s+)?(.+?)(?:\s+transac\w*|\s+expenses?|\s+purchases?|\s+charges?)?\s*[?!]?\s*$/i
+  );
+  if (queryMatch?.[1]) {
+    const kw = queryMatch[1].trim();
+    // Ignore if the captured keyword is too vague or a stop word
+    if (kw.length < 2 || /^(all|my|the|a|an|some)$/i.test(kw)) return null;
+    return kw;
+  }
+  // "transactions for/from/at X" or "spending on X"
+  const forMatch = t.match(/\b(?:transac\w*|spending|expenses?|charges?)\s+(?:for|on|from|at|with)\s+(.+)/i);
+  if (forMatch?.[1]) return forMatch[1].replace(/[?!.]+$/, '').trim();
+  return null;
+}
+
+export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onCategoryUpdated, onTagAction, onToggleActivity, injectedMessage, injectedFollowupMerchants, onMerchantCategorize, totalCount, firstName, totalSpent, totalIncome, netFlow }: TagCopilotPanelProps) {
   const [localMessages, setLocalMessages] = useState<ChatMsg[]>(() => {
     if (transaction) return [];
     try {
@@ -196,6 +226,25 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
   });
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editingTxId, setEditingTxId] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState('');
+
+  const fetchTxResults = useCallback(async (keyword: string): Promise<CommittedTransaction[]> => {
+    try {
+      const sb = getSupabase(); if (!sb) return [];
+      const { data: { user } } = await sb.auth.getUser(); if (!user) return [];
+      const kw = keyword.replace(/'/g, "''");
+      const { data } = await sb
+        .from('transactions')
+        .select('id, merchant_name, amount, date, posted_at, type, category, subcategory, description, user_id')
+        .eq('user_id', user.id)
+        .or(`merchant_name.ilike.%${kw}%,category.ilike.%${kw}%,description.ilike.%${kw}%`)
+        .order('date', { ascending: false })
+        .limit(25);
+      return (data ?? []) as CommittedTransaction[];
+    } catch { return []; }
+  }, []);
+
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const lastTagIndex = useMemo(() => {
@@ -462,10 +511,17 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       const { cleanReply, action: tagAction } = parseTagAction(data.reply);
+      // Handle handoff from server
+      if (data.handoff?.to && onTagAction) {
+        setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
+        setBusy(false);
+        onTagAction({ type: 'handoff', to: data.handoff.to, reason: data.handoff.reason || '' });
+        return;
+      }
       setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
       if (tagAction && onTagAction) onTagAction(tagAction);
     } catch {
-      setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Something went wrong � try again.' }]);
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Something went wrong \u2014 try again.' }]);
     }
     setBusy(false);
   };
@@ -478,6 +534,25 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
     const tagIsAskingMerchant = lastMsg?.role === 'tag' && lastMsg?.merchantQ;
     if (merchantQueue.length > 0 && mqIndex < merchantQueue.length && tagIsAskingMerchant) {
       setInput('');
+      // If user is asking to SEE the transaction rather than categorize it, fetch and show it
+      const isShowRequest = /\b(show|see|view|what|which|specific|detail|look|display)\b/i.test(text);
+      if (isShowRequest) {
+        const currentMerchant = merchantQueue[mqIndex];
+        setLocalMessages(m => [...m, { role: 'user' as const, text }]);
+        // Fetch actual transactions for this merchant
+        const txs = await fetchTxResults(currentMerchant.merchant_name);
+        if (txs.length > 0) {
+          setLocalMessages(m => [...m, {
+            role: 'tag' as const,
+            text: `Here's what I have for **${currentMerchant.merchant_name}**:`,
+            txResults: txs,
+            queryKeyword: currentMerchant.merchant_name,
+          }]);
+        } else {
+          setLocalMessages(m => [...m, { role: 'tag' as const, text: `I couldn't pull up the details for **${currentMerchant.merchant_name}** right now.` }]);
+        }
+        return;
+      }
       void handleMerchantPick(text, merchantQueue[mqIndex].merchant_name);
       return;
     }
@@ -506,15 +581,39 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
             netFlow: netFlow ?? 0,
             transactionCount: totalCount ?? 0,
           },
+          selectedTransaction: selectedTransaction ? {
+            id: selectedTransaction.id,
+            merchant: selectedTransaction.merchant_name || (selectedTransaction as any).merchant || null,
+            amount: selectedTransaction.amount,
+            date: selectedTransaction.date || selectedTransaction.posted_at,
+            category: selectedTransaction.category,
+            subcategory: selectedTransaction.subcategory,
+            description: (selectedTransaction as any).description || null,
+          } : null,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       const { cleanReply, action: tagAction } = parseTagAction(data.reply);
+      // Handle handoff from server — short-circuit before other processing
+      if (data.handoff?.to && onTagAction) {
+        setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
+        setBusy(false);
+        onTagAction({ type: 'handoff', to: data.handoff.to, reason: data.handoff.reason });
+        return;
+      }
       setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
-      if (tagAction && onTagAction) onTagAction(tagAction);
+      // Detect query keyword — if user asked to see transactions, fetch inline results
+      const queryKw = detectQueryKeyword(text);
+      if (tagAction && onTagAction && !queryKw) onTagAction(tagAction);
       if (data.action?.action && data.action?.category) {
         onCategoryUpdated?.();
+      }
+      if (queryKw) {
+        const txs = await fetchTxResults(queryKw);
+        if (txs.length > 0) {
+          setLocalMessages(m => [...m, { role: 'tag' as const, text: '', txResults: txs, queryKeyword: queryKw }]);
+        }
       }
     } catch {
       setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Something went wrong — try again.' }]);
@@ -570,8 +669,8 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
                 {m.role==='tag' && (
                   <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>T</div>
                 )}
-                <div>
-                  <div style={{ maxWidth:'85%', padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7, animation:'chatMsgIn 0.18s ease forwards', wordBreak:'break-word', overflowWrap:'break-word', whiteSpace:'pre-wrap' }}>
+                <div style={{ maxWidth:'85%', minWidth: m.role==='user' ? 120 : undefined }}>
+                  <div style={{ padding:'10px 14px', borderRadius: m.role==='user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role==='user' ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${m.role==='user' ? 'rgba(34,211,153,0.25)' : 'rgba(255,255,255,0.06)'}`, fontSize:15, color:'#e8ecf4', lineHeight:1.7, animation:'chatMsgIn 0.18s ease forwards', wordBreak:'break-word', overflowWrap:'break-word', whiteSpace:'pre-wrap' }}>
                     {(m.text ?? '').split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{color:'#22d3ee'}}>{part}</strong> : <span key={j}>{part}</span>)}
                   </div>
                   {m.merchantQ && i === localMessages.length - 1 && (
@@ -620,6 +719,91 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
                       <button onClick={() => setLocalMessages(ms => [...ms, { role:'tag', text:"No problem \u2014 I'll be here. Check Activity anytime." }])} style={{ padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:600, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', color:'#475569', cursor:'pointer' }}>Later</button>
                     </div>
                   )}
+                  {m.txResults && m.txResults.length > 0 && (
+                    <div style={{ marginTop: m.text ? 10 : 0 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                        <div style={{ height:1, flex:1, background:'rgba(34,211,238,0.15)' }} />
+                        <span style={{ fontSize:10, fontWeight:700, color:'#22d3ee', letterSpacing:'0.08em', textTransform:'uppercase', whiteSpace:'nowrap' }}>
+                          {m.txResults.length} result{m.txResults.length !== 1 ? 's' : ''}{m.queryKeyword ? ` \u00b7 "${m.queryKeyword}"` : ''}
+                        </span>
+                        <div style={{ height:1, flex:1, background:'rgba(34,211,238,0.15)' }} />
+                      </div>
+                      <div style={{ marginBottom:8, padding:'5px 10px', borderRadius:8, background:'rgba(34,211,238,0.06)', border:'1px solid rgba(34,211,238,0.12)', fontSize:11, color:'#94a3b8', display:'flex', justifyContent:'space-between' }}>
+                        <span>Total spent</span>
+                        <span style={{ color:'#e8ecf4', fontWeight:700 }}>
+                          ${m.txResults.filter(t => (t as any).type !== 'income').reduce((s, t) => s + Math.abs(Number(t.amount)), 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                        {m.txResults.map(tx => {
+                          const isEditing = editingTxId === tx.id;
+                          const txDate = (tx.date || (tx as any).posted_at || '').split('T')[0];
+                          return (
+                            <div key={tx.id} style={{ borderRadius:10, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', overflow:'hidden' }}>
+                              <div style={{ padding:'10px 12px', display:'flex', gap:10, alignItems:'flex-start' }}>
+                                <div style={{ flexShrink:0, padding:'4px 0', textAlign:'center', minWidth:58 }}>
+                                  <div style={{ fontSize:13, fontWeight:800, color: (tx as any).type === 'income' ? '#4ade80' : '#f87171', lineHeight:1 }}>
+                                    {(tx as any).type === 'income' ? '+' : '-'}${Math.abs(Number(tx.amount)).toFixed(2)}
+                                  </div>
+                                  <div style={{ fontSize:9, color:'#475569', marginTop:2 }}>{txDate}</div>
+                                </div>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ fontSize:12, fontWeight:700, color:'#e8ecf4', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                    {tx.merchant_name || (tx as any).description || 'Unknown'}
+                                  </div>
+                                  <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:3 }}>
+                                    <span style={{ fontSize:9, fontWeight:700, color:'#22d3ee', background:'rgba(34,211,238,0.1)', border:'1px solid rgba(34,211,238,0.2)', borderRadius:6, padding:'1px 6px', whiteSpace:'nowrap' }}>
+                                      {tx.category || 'Uncategorized'}
+                                    </span>
+                                    {(tx as any).subcategory && (
+                                      <span style={{ fontSize:9, color:'#475569', whiteSpace:'nowrap' }}>{'\u00b7'} {(tx as any).subcategory}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ display:'flex', gap:4, flexShrink:0, alignItems:'center' }}>
+                                  <button
+                                    onClick={() => { setEditingTxId(isEditing ? null : tx.id); setEditingCategory(tx.category || ''); }}
+                                    style={{ fontSize:9, fontWeight:700, padding:'3px 7px', borderRadius:6, background: isEditing ? 'rgba(34,211,238,0.2)' : 'rgba(255,255,255,0.05)', border:`1px solid ${isEditing ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.1)'}`, color: isEditing ? '#22d3ee' : '#94a3b8', cursor:'pointer' }}
+                                  >{isEditing ? 'Cancel' : 'Change'}</button>
+                                  <button
+                                    onClick={async () => {
+                                      const merchantName = tx.merchant_name; if (!merchantName) return;
+                                      try {
+                                        const sb = getSupabase(); if (!sb) return;
+                                        const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+                                        await fetch('/.netlify/functions/tag-action', { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${session.access_token}`}, body: JSON.stringify({ intent:'save_rule', matchValue: merchantName, targetCategory: tx.category, targetSubcategory: (tx as any).subcategory || null, matchType:'contains' }) });
+                                        setLocalMessages(ms => [...ms, { role:'tag' as const, text:`\u2713 Rule saved: **${merchantName}** \u2192 **${tx.category}** from now on.` }]);
+                                      } catch { setLocalMessages(ms => [...ms, { role:'tag' as const, text:'Could not save rule \u2014 try again.' }]); }
+                                    }}
+                                    style={{ fontSize:9, fontWeight:700, padding:'3px 7px', borderRadius:6, background:'rgba(200,166,78,0.08)', border:'1px solid rgba(200,166,78,0.2)', color:'#c8a64e', cursor:'pointer' }}
+                                  >Rule {'\u2726'}</button>
+                                </div>
+                              </div>
+                              {isEditing && (
+                                <div style={{ padding:'8px 12px 10px', borderTop:'1px solid rgba(34,211,238,0.1)', background:'rgba(34,211,238,0.03)' }}>
+                                  <div style={{ fontSize:9, fontWeight:700, color:'#475569', letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:6 }}>Move to category</div>
+                                  <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                                    {CANONICAL_CATEGORIES.filter(c => c !== 'Uncategorized').map(cat => (
+                                      <button key={cat} onClick={async () => {
+                                        try {
+                                          const sb = getSupabase(); if (!sb) return;
+                                          await sb.from('transactions').update({ category: cat, subcategory: null }).eq('id', tx.id);
+                                          setLocalMessages(ms => ms.map(msg => msg.txResults ? { ...msg, txResults: msg.txResults.map(t => t.id === tx.id ? { ...t, category: cat, subcategory: undefined } : t) } : msg));
+                                          setEditingTxId(null);
+                                          setLocalMessages(ms => [...ms, { role:'tag' as const, text:`\u2713 **${tx.merchant_name}** moved to **${cat}**.` }]);
+                                          onCategoryUpdated?.();
+                                        } catch { setLocalMessages(ms => [...ms, { role:'tag' as const, text:'Update failed \u2014 try again.' }]); }
+                                      }} style={{ fontSize:9, fontWeight:600, padding:'3px 8px', borderRadius:6, background: cat === tx.category ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${cat === tx.category ? 'rgba(34,211,238,0.3)' : 'rgba(255,255,255,0.08)'}`, color: cat === tx.category ? '#22d3ee' : '#94a3b8', cursor:'pointer' }}>{cat}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -632,6 +816,16 @@ export function TagCopilotPanel({ transaction, onClose, onCategoryUpdated, onTag
           )}
           <div ref={bottomRef} />
         </div>
+        {/* SELECTED TX CONTEXT */}
+        {selectedTransaction && (
+          <div style={{ padding:'8px 16px', borderTop:'1px solid rgba(34,211,238,0.15)', background:'rgba(34,211,238,0.04)', display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ fontSize:12 }}>{'\uD83D\uDCCC'}</span>
+            <span style={{ fontSize:11, color:'#22d3ee', fontWeight:600, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {selectedTransaction.merchant_name || 'Unknown'} — ${Math.abs(selectedTransaction.amount).toFixed(2)} on {selectedTransaction.date || selectedTransaction.posted_at?.split('T')[0] || '?'}
+            </span>
+            <span style={{ fontSize:10, color:'#475569' }}>Say "change this to..." to recategorize</span>
+          </div>
+        )}
         {/* INPUT */}
         <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:8, alignItems:'flex-end' }}>
           <textarea

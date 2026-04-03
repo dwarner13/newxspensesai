@@ -42,7 +42,9 @@ export function TransactionRow({
 
   const normalizeText = (value: unknown): string => {
     if (typeof value !== 'string') return '';
-    return value.trim();
+    const trimmed = value.trim();
+    if (trimmed === 'null' || trimmed === 'undefined') return '';
+    return trimmed;
   };
 
   const isGenericMerchantLabel = (value: string): boolean => {
@@ -172,6 +174,7 @@ export function TransactionRow({
   const displayCategory = isCommitted
     ? transaction?.category || 'Uncategorized'
     : pendingCategory || 'Uncategorized';
+  const displaySubcategory = isCommitted ? transaction?.subcategory : undefined;
 
   const INCOME_PATTERNS_TR = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
   const txMerchantUpper = String(
@@ -250,7 +253,9 @@ export function TransactionRow({
       <div className="min-w-0 flex-1">
         <div className="text-base font-semibold leading-tight text-slate-100 truncate">{renderMerchantDisplay()}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-[14px] text-slate-500 truncate max-w-full">{displayCategory}</span>
+          <span className="text-[14px] text-slate-500 truncate max-w-full">
+            {displayCategory}{displaySubcategory ? <span className="text-slate-600"> · {displaySubcategory}</span> : null}
+          </span>
           {showLowConfidenceHint ? (
             <span title="Tag assigned this category with lower confidence" className="inline-flex text-amber-400">
               <HelpCircle className="h-3.5 w-3.5" strokeWidth={2} />

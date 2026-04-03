@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { THEME } from "../PrimeChatV2/agentConfig";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -200,8 +201,10 @@ function exportCSV(
 
 export default function TaxWorkspacePage() {
   const { userId } = useAuth();
+  const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(false);
   const [year, setYear] = useState(2025);
+  const [needsReviewCount, setNeedsReviewCount] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -235,6 +238,9 @@ export default function TaxWorkspacePage() {
         if (error) console.error("[TaxWorkspace] fetch error:", error);
         setTransactions((data as Transaction[]) || []);
         setLoading(false);
+        // Count Needs Review transactions for the banner
+        const nrCount = (data || []).filter((t: any) => t.category === 'Needs Review').length;
+        setNeedsReviewCount(nrCount);
       }
     })();
     return () => { cancelled = true; };
@@ -387,6 +393,32 @@ export default function TaxWorkspacePage() {
           </button>
         </div>
       </div>
+
+      {/* ══════ NEEDS REVIEW BANNER ══════ */}
+      {needsReviewCount > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: isMobile ? "12px 14px" : "14px 20px", marginBottom: 20, borderRadius: 14,
+          background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+            <span style={{ fontSize: 18 }}>{"\u26A0\uFE0F"}</span>
+            <span style={{ fontSize: 13, color: "#fbbf24", fontWeight: 600 }}>
+              {needsReviewCount} transaction{needsReviewCount !== 1 ? 's' : ''} need{needsReviewCount === 1 ? 's' : ''} your attention before these totals are accurate.
+            </span>
+          </div>
+          <button
+            onClick={() => navigate("/dashboard/transactions?category=Needs+Review")}
+            style={{
+              padding: "7px 16px", borderRadius: 10, fontSize: 12, fontWeight: 700,
+              background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.35)",
+              color: "#fbbf24", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+            }}
+          >
+            Review with Tag {"\u2192"}
+          </button>
+        </div>
+      )}
 
       {/* ══════ SUMMARY CARDS ══════ */}
       <div style={{

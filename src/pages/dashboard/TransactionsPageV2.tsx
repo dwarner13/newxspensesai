@@ -58,13 +58,15 @@ export default function TransactionsPageV2() {
   const [statementFilter, setStatementFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [tagFilterLabel, setTagFilterLabel] = useState('');
+  const [tagCategoryFilter, setTagCategoryFilter] = useState('');
+  const [tagSubcategoryFilter, setTagSubcategoryFilter] = useState('');
   const txListRef = (typeof window !== 'undefined') ? { current: null } : { current: null };
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
   const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string } | null>(null);
   const [tagInsightLoading, setTagInsightLoading] = useState(false);
   const [tagPanelOpen, setTagPanelOpen] = useState(false);
   const [tagPanelTx, setTagPanelTx] = useState<CommittedTransaction | null>(null);
-  const [visibleCount, setVisibleCount] = useState(30);
+  const [visibleCount, setVisibleCount] = useState(100);
   const [tagBadgeCount, setTagBadgeCount] = useState(0);
   const [tagInboxData, setTagInboxData] = useState<any>(null);
   const [tagActivityOpen, setTagActivityOpen] = useState(false);
@@ -93,6 +95,10 @@ export default function TransactionsPageV2() {
     }
     const searchParam = searchParams.get("search");
     if (searchParam) setSearchQuery(searchParam);
+    const importIdParam = searchParams.get("importId");
+    if (importIdParam) { setStatementFilter(importIdParam); setSearchParams(p => { p.delete("importId"); return p; }, { replace: true }); }
+    const categoryParam = searchParams.get("category");
+    if (categoryParam) { setTagCategoryFilter(categoryParam); setTagFilterLabel(categoryParam); }
   }, []);
   useEffect(() => { const id = setInterval(() => { refetch(); }, 10000); return () => clearInterval(id); }, [refetch]);
 
@@ -220,14 +226,25 @@ export default function TransactionsPageV2() {
     if (filter === 'expenses') list = list.filter(t => !isIncomeTx(t));
     else if (filter === 'income') list = list.filter(t => isIncomeTx(t));
     if (statementFilter !== 'all') list = list.filter(t => t.import_id === statementFilter);
+    if (tagCategoryFilter) {
+      list = list.filter(t => (t.category || '').toLowerCase() === tagCategoryFilter.toLowerCase());
+    }
+    if (tagSubcategoryFilter) {
+      list = list.filter(t => (t.subcategory || '').toLowerCase().includes(tagSubcategoryFilter.toLowerCase()));
+    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(t => (t.merchant_name || '').toLowerCase().includes(q)
-        || (t.category || '').toLowerCase().includes(q)
-        || String(t.amount).includes(q));
+      list = list.filter(t => {
+        const tx = t as Record<string, unknown>;
+        return (t.merchant_name || '').toLowerCase().includes(q)
+          || String(tx.merchant || '').toLowerCase().includes(q)
+          || String(tx.description || '').toLowerCase().includes(q)
+          || (t.category || '').toLowerCase().includes(q)
+          || String(t.amount).includes(q);
+      });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [transactions, filter, statementFilter, searchQuery]);
+  }, [transactions, filter, statementFilter, searchQuery, tagCategoryFilter, tagSubcategoryFilter]);
 
   const handleExport = useCallback(() => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -478,17 +495,17 @@ export default function TransactionsPageV2() {
           {/* Search */}
           <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-800/60">
             <Search className="h-4 w-4 text-slate-500 shrink-0" />
-            <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) setTagFilterLabel(''); }} placeholder="Search merchants, categories, amounts..." className="flex-1 bg-transparent text-[14px] text-slate-200 placeholder:text-slate-600 outline-none" />
+            <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) { setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); } }} placeholder="Search merchants, categories, amounts..." className="flex-1 bg-transparent text-[14px] text-slate-200 placeholder:text-slate-600 outline-none" />
           </div>
 
           {/* Tag filter chip */}
           <div id="tx-list-anchor" />
-          {tagFilterLabel && searchQuery === tagFilterLabel && (
+          {tagFilterLabel && (searchQuery === tagFilterLabel || tagCategoryFilter || tagSubcategoryFilter) && (
             <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-800/60 bg-cyan-500/5">
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30">
                 <span style={{ fontSize: 9, fontWeight: 700, color: '#22d3ee', letterSpacing: '0.1em', textTransform: 'uppercase' }}>TAG</span>
                 <span style={{ fontSize: 12, color: '#e8ecf4', fontWeight: 600 }}>{tagFilterLabel}</span>
-                <button onClick={() => { setSearchQuery(''); setTagFilterLabel(''); }}
+                <button onClick={() => { setSearchQuery(''); setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); }}
                   style={{ marginLeft: 2, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
               </div>
               <span style={{ fontSize: 11, color: '#475569' }}>Tag filtered your results</span>
@@ -705,7 +722,7 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
-      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
+      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} selectedTransaction={selectedTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
         try {
           const sb = getSupabase(); if (!sb) return;
           const { data: { session } } = await sb.auth.getSession(); if (!session) return;
@@ -718,7 +735,82 @@ export default function TransactionsPageV2() {
           void refetch(); void fetchTagInbox();
         } catch { /* silent */ }
       }} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
-        if (action.type === 'filter') { const q = action.search || ''; setSearchQuery(q); setTagFilterLabel(q); setTimeout(() => { document.getElementById('tx-list-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100); }
+        if (action.type === 'handoff') {
+          const slugMap: Record<string, string> = {
+            'prime-boss': 'prime-boss', 'prime': 'prime-boss',
+            'byte-docs': 'byte-docs', 'byte': 'byte-docs',
+            'goalie-goals': 'goalie-goals', 'goalie': 'goalie-goals',
+            'finley-forecasts': 'finley-forecasts', 'finley': 'finley-forecasts',
+            'crystal-analytics': 'crystal-analytics', 'crystal': 'crystal-analytics',
+            'ledger-tax': 'ledger-tax', 'ledger': 'ledger-tax',
+            'tag-ai': 'tag-ai', 'tag': 'tag-ai',
+          };
+          const targetSlug = slugMap[action.to || ''] || 'prime-boss';
+          setTagPanelOpen(false);
+          setTagPanelTx(null);
+          setTimeout(() => {
+            openChat({
+              initialEmployeeSlug: targetSlug,
+              initialQuestion: action.reason || undefined,
+              force: true,
+            });
+          }, 300);
+          return;
+        }
+        else if (action.type === 'filter') {
+          console.log('[onTagAction] filter fired:', action);
+          // Strip conversational noise from search term
+          const rawQ = (action.search || '').trim();
+          const cleanQ = rawQ.replace(/^(show me all of the|show me all of|show me all|show me|find me all|find all|all the|all)\s+/i, '').replace(/\s+(transactions?|purchases?|charges?)\s*$/i, '').trim();
+          // Only apply if it looks like a real merchant/category (not a question/sentence)
+          const questionWords = /^(how|can|what|where|when|why|who|is|are|do|does|show|find|get|them|there|all|my)\b/i;
+          if (cleanQ.length > 40 || questionWords.test(cleanQ) || cleanQ.split(' ').length > 3) return;
+          setStatementFilter('all');
+          setFilter('all');
+          const sp = new URLSearchParams(window.location.search);
+          if (sp.has('importId') || sp.has('category') || sp.has('filter')) {
+            sp.delete('importId'); sp.delete('category'); sp.delete('filter');
+            const clean = sp.toString();
+            window.history.replaceState({}, '', clean ? `?${clean}` : window.location.pathname);
+          }
+          setTimeout(() => setSearchQuery(cleanQ), 50);
+          // Auto-close Tag panel then scroll to results
+          setTimeout(() => { setTagPanelOpen(false); setTagPanelTx(null); }, 800);
+          setTimeout(() => { document.getElementById('tx-list-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 1000);
+          setTagCategoryFilter(action.category || '');
+          setTagSubcategoryFilter(action.subcategory || '');
+          const label = action.category || action.subcategory || cleanQ;
+          setTagFilterLabel(label);
+          setTimeout(() => { document.getElementById('tx-list-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+        }
+        else if (action.type === 'update_transaction' && action.id && action.category) {
+          try {
+            const sb = getSupabase(); if (!sb) return;
+            const { data: { session: s } } = await sb.auth.getSession(); if (!s) return;
+            const payload: Record<string, unknown> = { category: action.category, category_source: 'user_chat', updated_at: new Date().toISOString() };
+            if (action.subcategory) payload.subcategory = action.subcategory;
+            if (action.merchant) { payload.merchant_name = action.merchant; payload.merchant = action.merchant; }
+            await sb.from('transactions').update(payload).eq('id', action.id).eq('user_id', s.user.id);
+            // Save rule if merchant is known
+            if (action.saveRule && (action.merchant || selectedTx?.merchant_name)) {
+              const pattern = (action.merchant || selectedTx?.merchant_name || '').toUpperCase();
+              if (pattern) {
+                await sb.from('category_rules').upsert({
+                  user_id: s.user.id, match_value: pattern, merchant_pattern: pattern, match_type: 'contains',
+                  category: action.category, subcategory: action.subcategory || null, is_active: true, updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id,match_type,match_value' }).catch(() => {});
+              }
+            }
+            // Flash the row briefly
+            const el = document.getElementById(`tx-row-${action.id}`);
+            if (el) { el.style.transition = 'background 0.3s'; el.style.background = 'rgba(34,211,238,0.12)'; setTimeout(() => { el.style.background = ''; }, 1500); }
+            void refetch(); void fetchTagInbox();
+            // Update selectedTx in drawer if it matches
+            if (selectedTx?.id === action.id) {
+              setSelectedTx(prev => prev ? { ...prev, category: action.category, subcategory: action.subcategory || prev.subcategory, merchant_name: action.merchant || prev.merchant_name } : null);
+            }
+          } catch { /* silent */ }
+        }
         else if (action.type === 'bulk_change' && action.merchant && !action.confirm) {
           try {
             const sb = getSupabase(); if (!sb) return;

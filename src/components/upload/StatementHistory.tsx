@@ -52,10 +52,10 @@ export function StatementHistory(){
     async function load(){
       try{
         const sb=getSupabase();if(!sb)return;
-        const{data:imports}=await sb.from('imports').select('id,file_url,status,created_at').order('created_at',{ascending:false}).limit(50);
+        const{data:imports}=await sb.from('imports').select('id,filename,file_url,status,created_at').order('created_at',{ascending:false}).limit(50);
         if(!imports||imports.length===0){setLoading(false);return;}
         const results:StatementRow[]=await Promise.all(imports.map(async(imp:any)=>{
-          const filename=(imp.file_url||'').split('/').pop()||'Unknown';
+          const filename=imp.filename||decodeURIComponent((imp.file_url||'').split('/').pop()||'')||'Unknown';
           const{count,data:txData}=await sb.from('transactions').select('date',{count:'exact'}).eq('import_id',imp.id).order('date',{ascending:true});
           const dates=(txData||[]).map((t:any)=>t.date).filter(Boolean).sort();
           return{id:imp.id,filename:decodeURIComponent(filename),status:imp.status||'unknown',txn_count:count||0,earliest:dates[0]||null,latest:dates[dates.length-1]||null,uploaded_at:imp.created_at};
@@ -68,10 +68,16 @@ export function StatementHistory(){
 
   async function handleDelete(id:string){
     const sb=getSupabase();if(!sb)return;
+    // Grab the linked document_id before deleting the import
+    const{data:imp}=await sb.from('imports').select('document_id').eq('id',id).maybeSingle();
     await sb.from('transactions').delete().eq('import_id',id);
-    await sb.from('imports').delete().eq('id',id);
     await sb.from('transactions_staging').delete().eq('import_id',id);
     await sb.from('import_summaries').delete().eq('import_id',id);
+    await sb.from('imports').delete().eq('id',id);
+    // Cascade to user_documents (linked via imports.document_id)
+    if(imp?.document_id){
+      await sb.from('user_documents').delete().eq('id',imp.document_id);
+    }
     setRows(rows.filter(r=>r.id!==id));
   }
 

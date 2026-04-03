@@ -52,6 +52,17 @@ async function storeFileHash(userId: string, fileName: string, hash: string): Pr
     .limit(1);
 }
 
+async function getCommittedTxCount(importId: string, userId: string): Promise<number> {
+  const supabase = getSupabase();
+  if (!supabase || !importId) return 0;
+  const { count } = await supabase
+    .from('transactions')
+    .select('*', { count: 'exact', head: true })
+    .eq('import_id', importId)
+    .eq('user_id', userId);
+  return count || 0;
+}
+
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171" };
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,.xlsx,.xls,image/*";
 
@@ -181,13 +192,10 @@ export default function UploadPageV2() {
         return;
       }
 
-      let txCount = 0;
-
       let importIdForSweep = '';
       if (isSpreadsheetFile(current.file.name)) {
         // ── XLSX/CSV path — use dedicated spreadsheet processor ──
         const xlResult = await handleSpreadsheetUpload(current.file, userId, session?.access_token, fileHash);
-        txCount = xlResult.transaction_count || 0;
         importIdForSweep = xlResult.import_id || '';
       } else {
         // ── PDF/image path — use existing OCR pipeline ──
@@ -196,7 +204,6 @@ export default function UploadPageV2() {
           mimeType: current.file.type || "application/octet-stream",
           fileSize: current.file.size, source: "upload", authToken: session?.access_token,
         });
-        txCount = result?.stats?.transactionCount || result?.transactionCount || 0;
         importIdForSweep = result?.importId || '';
       }
 
@@ -205,6 +212,8 @@ export default function UploadPageV2() {
 
       updateItem(current.id, { status: "categorizing" });
       await new Promise(r => setTimeout(r, 1500));
+      // Query the real committed count from transactions table
+      const txCount = await getCommittedTxCount(importIdForSweep, userId);
       updateItem(current.id, { status: "complete", txCount });
 
       // Trigger post-import fixup (filename, committed_at, Tag sweep, auto-commit)
@@ -259,14 +268,14 @@ export default function UploadPageV2() {
           return;
         }
 
-        let txCount = 0;
+        let importId = '';
 
         if (isSpreadsheetFile(next.file.name)) {
           const xlResult = await handleSpreadsheetUpload(next.file, userId, session?.access_token, fileHash);
-          txCount = xlResult.transaction_count || 0;
+          importId = xlResult.import_id || '';
         } else {
           const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token });
-          txCount = result?.stats?.transactionCount || result?.transactionCount || 0;
+          importId = result?.importId || '';
         }
 
         // Store hash for future duplicate detection
@@ -274,6 +283,8 @@ export default function UploadPageV2() {
 
         updateItem(next.id, { status: "categorizing" });
         await new Promise(r => setTimeout(r, 1200));
+        // Query the real committed count from transactions table
+        const txCount = await getCommittedTxCount(importId, userId);
         updateItem(next.id, { status: "complete", txCount });
       } catch (err: unknown) {
         updateItem(next.id, { status: "failed", error: err instanceof Error ? err.message : "Failed" });

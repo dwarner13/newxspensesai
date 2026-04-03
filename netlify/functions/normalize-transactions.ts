@@ -904,44 +904,52 @@ async function processNormalizationInBackground(
       });
     }
 
-    // If OCR parsing found 0 transactions AND this is an image, try Vision parser as fallback
-    const shouldTryVision = isImage && openaiClient && 
-      (!hasOcrText || !normalizedTransactions || normalizedTransactions.length === 0);
+    // If normalization found 0 transactions, try Vision parser as fallback (images or PDFs)
+    const isPdf = doc.mime_type === 'application/pdf' || doc.original_name?.toLowerCase().endsWith('.pdf');
+    const hasNoTransactions = !normalizedTransactions || normalizedTransactions.length === 0;
+    const shouldTryVision = openaiClient && hasNoTransactions && (isImage || (isPdf && pdfBase64ForVision));
 
     if (shouldTryVision) {
-      console.log(`[normalize-transactions] OCR found 0 transactions for image ${documentId}, trying Vision parser`);
-      
       try {
-        const { data: publicUrlData, error: urlError } = await sb.storage
-          .from('docs')
-          .createSignedUrl(doc.storage_path, 600);
+        console.log(`[normalize-transactions] 0 transactions after normalization for ${documentId}, trying Vision fallback (isPdf=${isPdf})`);
 
-        if (!urlError && publicUrlData) {
-          const visionResult = await visionStatementParser(
-            userIdText,
-            documentId,
-            publicUrlData.signedUrl,
-            doc.mime_type || 'image/png'
-          );
+        let visionResult: any = null;
 
-          if (visionResult.parsed.transactions && visionResult.parsed.transactions.length > 0) {
-            normalizedTransactions = visionResult.parsed.transactions.map(tx => ({
-              userId: userIdText,
-              kind: 'bank' as const,
-              date: tx.transaction_date || tx.posting_date || undefined,
-              merchant: tx.merchant_guess || undefined,
-              amount: tx.amount,
-              currency: tx.currency || 'CAD',
-              docId: documentId,
-              description: tx.description,
-            }));
-
-            viaMethod = 'vision-parse';
-            console.log(`[normalize-transactions] Vision parser extracted ${normalizedTransactions.length} transactions`);
+        if (isPdf && pdfBase64ForVision) {
+          // PDF path: send raw base64 to Claude Vision directly
+          const { visionStatementParserBase64 } = await import('./_shared/visionStatementParser.js');
+          visionResult = await visionStatementParserBase64(userIdText, pdfBase64ForVision, {
+            filename: doc.original_name || 'statement.pdf',
+            mimeType: 'application/pdf',
+          });
+        } else if (isImage) {
+          // Existing image path: use signed URL
+          const { data: publicUrlData, error: urlError } = admin()
+            .storage.from('docs')
+            .createSignedUrl(doc.storage_path!, 600);
+          if (!urlError && publicUrlData) {
+            visionResult = await visionStatementParser(
+              userIdText,
+              documentId,
+              publicUrlData.signedUrl,
+              doc.mime_type || 'image/png'
+            );
           }
         }
+
+        if (visionResult?.parsed?.transactions?.length > 0) {
+          normalizedTransactions = visionResult.parsed.transactions.map((tx: any) => ({
+            ...tx,
+            import_id: importId,
+            user_id: userIdText,
+          }));
+          viaMethod = 'vision-parse';
+          console.log(`[normalize-transactions] Vision fallback extracted ${normalizedTransactions.length} transactions`);
+        } else {
+          console.warn(`[normalize-transactions] Vision fallback also returned 0 transactions for ${documentId}`);
+        }
       } catch (visionError: any) {
-        console.error('[normalize-transactions] Vision parser failed:', visionError);
+        console.error('[normalize-transactions] Vision fallback failed:', visionError?.message);
       }
     }
 
