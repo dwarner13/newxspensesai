@@ -390,7 +390,7 @@ export function TransactionInsightDrawer({
               {formattedDate && (
                 <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{formattedDate}</span>
               )}
-              {statementLabel && (
+              {statementLabel && !/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(statementLabel) && statementLabel !== formattedDate && (
                 <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{statementLabel}</span>
               )}
               {merchantMonthSpend > 0 && (
@@ -527,8 +527,8 @@ export function TransactionInsightDrawer({
               {chatHistory.map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                   {m.role === 'assistant' && <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0, marginTop: 2 }}>T</div>}
-                  <div>
-                    <div style={{ maxWidth: '82%', padding: '8px 11px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? 'rgba(34,211,153,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${m.role === 'user' ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.06)'}`, fontSize: 12, color: '#e8ecf4', lineHeight: 1.5 }}>
+                  <div style={{ maxWidth: '75%' }}>
+                    <div style={{ padding: '8px 11px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? 'rgba(34,211,153,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${m.role === 'user' ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.06)'}`, fontSize: 12, color: '#e8ecf4', lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                       {m.content.replace('__rule_saved__', '')}
                     </div>
                     {m.content.includes('__rule_saved__') && (

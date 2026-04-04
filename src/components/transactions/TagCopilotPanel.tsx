@@ -228,6 +228,18 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
   const [busy, setBusy] = useState(false);
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState('');
+  const [needsReviewCount, setNeedsReviewCount] = useState<number | null>(null);
+
+  const fetchNeedsReviewCount = useCallback(async () => {
+    try {
+      const sb = getSupabase(); if (!sb) return;
+      const { data: { user } } = await sb.auth.getUser(); if (!user) return;
+      const { count } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('category', 'Needs Review');
+      setNeedsReviewCount(count || 0);
+    } catch { /* non-blocking */ }
+  }, []);
+
+  useEffect(() => { fetchNeedsReviewCount(); }, [fetchNeedsReviewCount]);
 
   const fetchTxResults = useCallback(async (keyword: string): Promise<CommittedTransaction[]> => {
     try {
@@ -461,7 +473,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
         : `\u2713 ${ids.length > 0 ? `${ids.length} ` : ''}${merchantName} \u2192 **${category}**. Rule saved.`;
       setLocalMessages(m => [...m, { role: 'tag' as const, text: confirmText }]);
       onMerchantCategorize?.(merchantName, category);
-      onCategoryUpdated?.();
+      onCategoryUpdated?.(); void fetchNeedsReviewCount();
     } catch (err) {
       console.error('[Tag] saveWithSubcategory error:', err);
       setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Had trouble saving \u2014 try again.' }]);
@@ -604,10 +616,12 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
       }
       setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
       // Detect query keyword — if user asked to see transactions, fetch inline results
-      const queryKw = detectQueryKeyword(text);
+      // Skip client-side query detection — backend now handles search
+      // via injectedTxContext (real Supabase data injected before model call)
+      const queryKw = null;
       if (tagAction && onTagAction && !queryKw) onTagAction(tagAction);
       if (data.action?.action && data.action?.category) {
-        onCategoryUpdated?.();
+        onCategoryUpdated?.(); void fetchNeedsReviewCount();
       }
       if (queryKw) {
         const txs = await fetchTxResults(queryKw);
@@ -624,13 +638,22 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
   return (
     <>
       
-      <div style={{ position:'fixed', bottom:0, right:0, top:0, width:520, background:'#080f1e', borderLeft:'1px solid rgba(34,211,153,0.15)', zIndex:71, display:'flex', flexDirection:'column', fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:'-8px 0 40px rgba(0,0,0,0.5)' }}>
+      <div style={{ position:'fixed', bottom:0, right:0, top:0, width:520, background:'#0b1220', borderLeft:'1px solid rgba(34,211,153,0.15)', zIndex:71, display:'flex', flexDirection:'column', overflow:'hidden', fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:'-8px 0 40px rgba(0,0,0,0.5)' }}>
         {/* HEADER */}
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
           <div style={{ width:36, height:36, borderRadius:'50%', background:'rgba(34,211,153,0.15)', border:'1px solid rgba(34,211,153,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>T</div>
           <div>
-            <div style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#c8d0e0', fontWeight:400 }}>Copilot</span></div>
-            <div style={{ fontSize:11, color:'#22d3ee' }}>Your categorization assistant</div>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#c8d0e0', fontWeight:400 }}>Copilot</span></span>
+              <span style={{ fontSize:8, fontWeight:700, padding:'2px 6px', borderRadius:6, background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', color:'#22c55e', letterSpacing:'0.05em' }}>SECURED</span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontSize:11, color:'#22d3ee' }}>Your categorization assistant</span>
+              {needsReviewCount !== null && (needsReviewCount > 0
+                ? <span style={{ fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:8, background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', color:'#f59e0b' }}>{needsReviewCount} need review</span>
+                : <span style={{ fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:8, background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', color:'#22c55e' }}>All clear</span>
+              )}
+            </div>
           </div>
           {onToggleActivity && <button onClick={onToggleActivity} title="Tag Activity" style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#475569', fontSize:14, padding:'2px 6px' }}>{'\uD83D\uDCCB'}</button>}
           <button onClick={async () => {
@@ -791,7 +814,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
                                           setLocalMessages(ms => ms.map(msg => msg.txResults ? { ...msg, txResults: msg.txResults.map(t => t.id === tx.id ? { ...t, category: cat, subcategory: undefined } : t) } : msg));
                                           setEditingTxId(null);
                                           setLocalMessages(ms => [...ms, { role:'tag' as const, text:`\u2713 **${tx.merchant_name}** moved to **${cat}**.` }]);
-                                          onCategoryUpdated?.();
+                                          onCategoryUpdated?.(); void fetchNeedsReviewCount();
                                         } catch { setLocalMessages(ms => [...ms, { role:'tag' as const, text:'Update failed \u2014 try again.' }]); }
                                       }} style={{ fontSize:9, fontWeight:600, padding:'3px 8px', borderRadius:6, background: cat === tx.category ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${cat === tx.category ? 'rgba(34,211,238,0.3)' : 'rgba(255,255,255,0.08)'}`, color: cat === tx.category ? '#22d3ee' : '#94a3b8', cursor:'pointer' }}>{cat}</button>
                                     ))}
@@ -827,7 +850,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           </div>
         )}
         {/* INPUT */}
-        <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:8, alignItems:'flex-end' }}>
+        <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:8, alignItems:'flex-end', flexShrink:0 }}>
           <textarea
             rows={3}
             value={input}
@@ -843,6 +866,10 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           >
             <Send style={{ width:16, height:16 }} />
           </button>
+        </div>
+        {/* Guardrails footer */}
+        <div style={{ padding:'6px 16px', borderTop:'1px solid rgba(255,255,255,0.04)', flexShrink:0, textAlign:'center' }}>
+          <span style={{ fontSize:9, color:'#475569', letterSpacing:'0.03em' }}>{'\u2022'} Tag AI {'\u2022'} Categorization engine active {'\u2022'} PII protection on</span>
         </div>
       </div>
     </>

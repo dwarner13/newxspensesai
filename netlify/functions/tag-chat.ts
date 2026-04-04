@@ -349,15 +349,39 @@ NEEDS REVIEW QUEUE: When user says "what needs review", "show uncategorized", "s
 UNKNOWN MERCHANT SWEEP: When user says "fix unknown transactions", "fix unknowns", "unknown merchants", "missing merchants", "what has no merchant", or "clean up unknowns": output <merchant_sweep/> and the server will find and flag transactions with missing merchant names.
 
 TRANSACTION SEARCH:
-When the user asks to find, show, list, filter, or search transactions — emit a FILTER action so the frontend can fetch and display them. Do NOT describe results you don't have. Do NOT hallucinate transaction data.
+When the user asks to find, show, list, filter, or search transactions:
 
-Use this format:
+CRITICAL: When LIVE TRANSACTION DATA is provided in your context, respond in Tag's voice — sharp, direct, human. Structure it like this:
+
+1. ONE punchy opening line with the count and total.
+   Example: "Found 19 grocery transactions — $3,457 total."
+
+2. A clean grouped list. Group by merchant if there are repeats. Show the most recent date and total per merchant, not every row.
+   Format: \u2022 [Merchant] — [X visits, $total]
+   Example: \u2022 Save On Foods — 8 visits, $1,204.38
+            \u2022 Sobeys Hollick Kenyon — 4 visits, $889.43
+            \u2022 Colton's No Frills — 2 visits, $22.19
+
+3. ONE short observation if something stands out.
+   Example: "Save On Foods is your main grocery spot by a wide margin."
+
+4. ONE clear offer to act.
+   Example: "Want me to set a rule for any of these, or dig into a specific merchant?"
+
+Rules:
+- Never list every individual row. Group by merchant.
+- Never exceed 15 merchant groups. If more, show top 10 and say "+ [N] more merchants."
+- Never hallucinate — only use data from LIVE TRANSACTION DATA.
+- Keep it under 300 words total.
+
+If LIVE TRANSACTION DATA shows 0 results, say:
+"No [type] transactions found in your records. Want to try a different search?"
+
+If NO LIVE TRANSACTION DATA is in your context (no injected data), fall back to emitting a FILTER action:
 FILTER:{"search":"<merchant or empty>","category":"<category or empty>","subcategory":"<subcategory or empty>"}
+With ONE conversational line before the FILTER.
 
-Then add ONE conversational line before the FILTER telling the user what you're doing. Example:
-"Pulling up your massage transactions now. FILTER:{"search":"massage","category":"","subcategory":""}"
-
-For category/subcategory searches use the alias mappings already defined above. For amount or date filters, tell the user those filters aren't available in the quick view and offer to check via a category search instead.
+For amount or date filters without injected data, tell the user those filters aren't available in the quick view and offer a category search instead.
 
 TRANSACTION UPDATES (in-conversation):
 When the user refers to a transaction from earlier in the conversation ("change that one", "move the Jan 12 massage", "fix the second one") — use the transaction ID from the search results already in context. Do NOT ask the user to repeat the ID or find it themselves.
@@ -386,6 +410,25 @@ Employee slugs and when to use them:
 - "ledger-tax" — accountant reports, year-end summaries
 
 Always say one short sentence before the HANDOFF line acknowledging what the user asked. Keep it natural — Tag is handing off to a colleague, not abandoning the user.
+
+MERCHANT SPLIT RULES - INCOME vs EXPENSE:
+When a merchant appears with both income and expense transactions (e.g. 'GORDON FOODS' as a $62 grocery purchase AND 'GORDON FOODS ER' as a $2900 payroll deposit), you MUST handle them as two separate rules. Never create one blanket rule that would match both.
+
+When you detect mixed transaction types for a merchant:
+1. Tell the user you see both income and expense transactions under similar names
+2. Propose two separate rules and ask the user to confirm each one
+3. For the expense variant: use match_type 'contains' with amount_max set to a threshold (e.g. 200)
+4. For the income/payroll variant: use match_type 'exact' for the specific suffix variant (e.g. 'GORDON FOODS ER') with amount_min set above the threshold
+
+Example flow:
+User: "Gordon Foods is groceries"
+Tag: "I see GORDON FOODS charges under $200 (groceries) AND GORDON FOODS ER deposits around $2,900 (looks like payroll). Want me to set two rules?
+1. GORDON FOODS under $200 → Groceries
+2. GORDON FOODS ER over $200 → Income"
+
+If the user confirms, output two SAVE_RULE lines:
+SAVE_RULE:{"merchant_pattern":"GORDON FOODS","category":"Groceries","match_type":"contains","amount_min":null,"amount_max":200}
+SAVE_RULE:{"merchant_pattern":"GORDON FOODS ER","category":"Income","match_type":"exact","amount_min":200,"amount_max":null}
 
 SESSION CLOSING:
 When the needs-review queue is empty, or the user says "done", "that's all", "finished", "I'm done for now", "wrap it up" — respond with a closing message then emit SESSION_CLOSE on its own line.
@@ -699,7 +742,14 @@ export const handler: Handler = async (event) => {
     'needs review': { category: 'Needs Review', subcategory: '' },
   };
 
-  if (isPageLevel && looksLikeSearch && !reply.includes('FILTER:') && !injectedTxContext) {
+  // When real transaction data was injected, strip any FILTER the LLM emitted —
+  // the model already responded with real data, no client-side filter needed.
+  if (injectedTxContext && reply.includes('FILTER:')) {
+    reply = reply.replace(/\s*FILTER:\s*(?:\{[^}]+\}|[^\n]+)/g, '').trim();
+  }
+
+  const searchWasAttempted = isPageContext && extractSearchIntent(message || '').isSearch;
+  if (isPageLevel && looksLikeSearch && !reply.includes('FILTER:') && !injectedTxContext && !searchWasAttempted) {
     const searchTerm = userMessage.trim()
       .replace(/^(show me all of|show me|find|search for|filter by|get|pull up|display|look up|can you show me all of|can you show me)\s+/i, '')
       .replace(/\s+(purchases|charges|transactions)\s*$/i, '')

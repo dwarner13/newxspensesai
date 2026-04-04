@@ -1,12 +1,15 @@
 import { useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { X, Send } from "lucide-react";
 import { StatementHistory } from '../../components/upload/StatementHistory';
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
+import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 
 function detectIssuer(filename: string): string {
   const f = (filename || '').toLowerCase();
@@ -138,11 +141,14 @@ interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: num
 
 export default function UploadPageV2() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userId, session } = useAuth();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [allDone, setAllDone] = useState(false);
   const [sweepSuggestion, setSweepSuggestion] = useState<any>(null);
+  const [bytePanelOpen, setBytePanelOpen] = useState(false);
+  const [byteInput, setByteInput] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
@@ -504,6 +510,105 @@ export default function UploadPageV2() {
       {/* Statement History */}
       <StatementHistory />
       <style>{`@keyframes uploadPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }`}</style>
+
+      {/* Byte floating bubble */}
+      {!bytePanelOpen && location.pathname.includes('/upload') && createPortal(
+        <AgentFloatingBubble
+          letter="B"
+          color="#22d3ee"
+          label="Byte — Upload Assistant"
+          pulse={stats.processing > 0}
+          onClick={() => setBytePanelOpen(true)}
+        />,
+        document.body
+      )}
+
+      {/* Byte status drawer */}
+      {bytePanelOpen && (
+        <>
+          <div onClick={() => setBytePanelOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 70 }} />
+          <aside style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0, width: 360, maxWidth: '100vw',
+            background: '#0b1220', borderLeft: '1px solid rgba(34,211,238,0.15)',
+            zIndex: 71, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+            boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
+            animation: 'byteDrawerIn 0.2s ease forwards',
+          }}>
+            <style>{`@keyframes byteDrawerIn { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 18px', borderBottom: '1px solid rgba(34,211,238,0.1)', flexShrink: 0 }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(34,211,238,0.12)', border: '1px solid rgba(34,211,238,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#22d3ee' }}>B</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#e8ecf4' }}>Byte <span style={{ fontWeight: 400, color: '#94a3b8' }}>Upload Assistant</span></span>
+                  <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 6, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e', letterSpacing: '0.05em' }}>SECURED</span>
+                </div>
+                <div style={{ fontSize: 11, color: '#22d3ee' }}>{byteStatus}</div>
+              </div>
+              <button onClick={() => setBytePanelOpen(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4 }}>
+                <X size={18} />
+              </button>
+            </div>
+            {/* Status cards */}
+            <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12, flex: 1, overflowY: 'auto' }}>
+              {[
+                { letter: 'B', name: 'Byte', color: '#22d3ee', status: byteStatus },
+                { letter: 'T', name: 'Tag', color: '#22d3ee', status: tagStatus },
+                { letter: '\u2655', name: 'Prime', color: '#c8a64e', status: allDone ? 'Ready for briefing' : stats.processing > 0 ? 'Waiting...' : 'Standing by' },
+              ].map(a => (
+                <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${a.color}15`, border: `1.5px solid ${a.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: a.color }}>{a.letter}</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: a.color }}>{a.name}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>{a.status}</div>
+                  </div>
+                </div>
+              ))}
+              {/* Queue summary */}
+              {stats.total > 0 && (
+                <div style={{ marginTop: 8, padding: '12px 14px', borderRadius: 12, background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.1)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Queue</div>
+                  <div style={{ fontSize: 12, color: '#c8d0e0', lineHeight: 1.8 }}>
+                    {stats.complete > 0 && <div>{'\u2713'} {stats.complete} complete</div>}
+                    {stats.processing > 0 && <div>{'\u25CB'} {stats.processing} processing</div>}
+                    {stats.queued > 0 && <div>{'\u2022'} {stats.queued} queued</div>}
+                    {stats.failed > 0 && <div style={{ color: '#f87171' }}>{'\u2717'} {stats.failed} failed</div>}
+                    {stats.totalTx > 0 && <div style={{ marginTop: 6, fontWeight: 700, color: '#22d3ee' }}>{stats.totalTx} transactions extracted</div>}
+                  </div>
+                </div>
+              )}
+              {stats.total === 0 && (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#475569', fontSize: 13 }}>
+                  Drop files on the upload zone to get started.
+                </div>
+              )}
+            </div>
+            {/* Input */}
+            <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(34,211,238,0.1)', display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
+              <textarea
+                rows={2}
+                value={byteInput}
+                onChange={e => setByteInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (byteInput.trim()) { console.log('[Byte input]', byteInput.trim()); setByteInput(''); } } }}
+                placeholder="Tell Byte something..."
+                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#e8ecf4', outline: 'none', fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, minHeight: 42 }}
+              />
+              <button
+                onClick={() => { if (byteInput.trim()) { console.log('[Byte input]', byteInput.trim()); setByteInput(''); } }}
+                disabled={!byteInput.trim()}
+                style={{ width: 36, height: 36, borderRadius: 10, background: byteInput.trim() ? 'rgba(34,211,238,0.2)' : 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: byteInput.trim() ? 'pointer' : 'default', color: '#22d3ee', flexShrink: 0 }}
+              >
+                <Send style={{ width: 15, height: 15 }} />
+              </button>
+            </div>
+            {/* Guardrails footer */}
+            <div style={{ padding: '6px 16px', borderTop: '1px solid rgba(34,211,238,0.06)', flexShrink: 0, textAlign: 'center' }}>
+              <span style={{ fontSize: 9, color: '#475569', letterSpacing: '0.03em' }}>{'\u2022'} Byte AI {'\u2022'} Import engine active {'\u2022'} PII protection on</span>
+            </div>
+          </aside>
+        </>
+      )}
     </>
   );
 }

@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 import { THEME } from "../PrimeChatV2/agentConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useAuth } from "@/contexts/AuthContext";
+import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
+import { useUnifiedChatLauncher } from "@/hooks/useUnifiedChatLauncher";
 
 const NAV_ITEMS = [
   { id: "account", label: "Account", icon: "\uD83D\uDC64" },
@@ -24,6 +28,8 @@ const AGENTS_CONFIG = [
 
 export default function SettingsPageV2() {
   const { userId, signOut } = useAuth();
+  const location = useLocation();
+  const { openChat } = useUnifiedChatLauncher();
   const [activeSection, setActiveSection] = useState("account");
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -57,6 +63,7 @@ export default function SettingsPageV2() {
   );
 
   return (
+    <>
     <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", padding: "28px 36px" }}>
       <Reveal delay={0}>
         <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0, marginBottom: 4 }}>Settings</h1>
@@ -191,7 +198,7 @@ export default function SettingsPageV2() {
                       const supabase = getSupabase();
                       if (!supabase || !userId) { toast.error("Not authenticated"); return; }
                       const uid = userId;
-                      // Delete in dependency order — children before parents
+                      // Delete in dependency order ï¿½ children before parents
                       const tables = [
                         "chat_messages", "chat_sessions", "chat_threads",
                         "score_history", "goals", "debts",
@@ -222,5 +229,10 @@ export default function SettingsPageV2() {
         </div>
       </div>
     </div>
+    {location.pathname.includes('/settings') && createPortal(
+      <AgentFloatingBubble letter={'\uD83D\uDEE1\uFE0F'} color="#7c3aed" colorTo="#6d28d9" onClick={() => openChat({ initialEmployeeSlug: 'custodian', force: true })} label="Open Custodian" />,
+      document.body
+    )}
+    </>
   );
 }

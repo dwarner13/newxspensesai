@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useLocation } from "react-router-dom";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME } from "./storyConfig";
 import { useStoryData, buildCrystalIntro } from "./useStoryData";
@@ -12,6 +14,7 @@ import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { CrystalCopilotPanel } from "./CrystalCopilotPanel";
 
 export default function MyFinancialStoryV2() {
+  const location = useLocation();
   const data = useStoryData();
   const [loaded, setLoaded] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
@@ -231,10 +234,13 @@ export default function MyFinancialStoryV2() {
         </div>
       </div>
 
-      <AgentFloatingBubble letter="C" color="#a78bfa" colorTo="#7c3aed" onClick={() => setCopilotOpen(!copilotOpen)} label="Open Crystal Copilot" />
+      {!copilotOpen && location.pathname.includes('/my-story') && createPortal(
+        <AgentFloatingBubble letter="C" color="#a78bfa" colorTo="#7c3aed" onClick={() => setCopilotOpen(true)} label="Open Crystal Copilot" />,
+        document.body
+      )}
 
       {/* Crystal Copilot Panel */}
-      {copilotOpen && <CrystalCopilotPanel onClose={() => setCopilotOpen(false)} data={data} />}
+      {copilotOpen && createPortal(<CrystalCopilotPanel onClose={() => setCopilotOpen(false)} data={data} />, document.body)}
     </div>
   );
 }

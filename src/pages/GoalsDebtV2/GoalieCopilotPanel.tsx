@@ -28,10 +28,10 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
   return (
     <>
       <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", opacity: open ? 1 : 0, transition: "opacity 0.3s", zIndex: 998, backdropFilter: "blur(4px)" }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, background: T.bg, borderLeft: `1px solid ${T.border}`, transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, background: T.bg, borderLeft: "1px solid rgba(245,158,11,0.2)", transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
         <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${YELLOW}20`, border: `1.5px solid ${YELLOW}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: YELLOW, boxShadow: `0 0 16px ${YELLOW}33` }}>G</div>
-          <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Goalie <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></div><div style={{ fontSize: 11, color: T.dim }}>Goals & Debt Coach</div></div>
+          <div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Goalie <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></span><span style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", letterSpacing: "0.05em" }}>SECURED</span></div><div style={{ fontSize: 11, color: T.dim }}>Goals & Debt Coach</div></div>
           <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
@@ -99,6 +99,9 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="#0b1220" /></svg>
             </button>
           </div>
+        </div>
+        <div style={{ padding: "6px 16px", borderTop: `1px solid ${T.border}`, flexShrink: 0, textAlign: "center" }}>
+          <span style={{ fontSize: 9, color: "#475569", letterSpacing: "0.03em" }}>{"\u2022"} Goalie AI {"\u2022"} Goals & debt engine active {"\u2022"} PII protection on</span>
         </div>
       </div>
     </>

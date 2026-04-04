@@ -96,7 +96,7 @@ export function useDashboardData(): DashboardData {
     const deductions = deductLabels.reduce((s, l) => s + (catMap[l] || 0), 0);
 
     // Uncategorized
-    const uncategorizedCount = transactions.filter(t => !t.category || t.category === "Uncategorized").length;
+    const uncategorizedCount = transactions.filter(t => !t.category || t.category === "Uncategorized" || t.category === "Needs Review").length;
     const pendingImports = imports.filter(i => i.status === "parsed" || i.status === "pending").length;
 
     // Trend alert: 3 months increasing

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useSetAtom } from "jotai";
 import { THEME } from "./dashboardConfig";
 import { useDashboardData, buildRecapText } from "./useDashboardData";
@@ -11,6 +12,7 @@ import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPrimeBriefingOpenAtom } from "@/lib/uiStore";
+import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { CompactScoreRing } from "../XspenseScore/ScoreRing";
 import { useXspenseScore } from "../XspenseScore/useXspenseScore";
 import toast from "react-hot-toast";
@@ -18,6 +20,7 @@ import toast from "react-hot-toast";
 export default function DashboardHomeV2() {
   const data = useDashboardData();
   const navigate = useNavigate();
+  const location = useLocation();
   const { firstName } = useAuth();
   const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
   const scoreData = useXspenseScore();
@@ -263,6 +266,10 @@ export default function DashboardHomeV2() {
           </Reveal>
         </div>
       </div>
+      {location.pathname === '/dashboard' && createPortal(
+        <AgentFloatingBubble letter={'\u2655'} color="#c8a64e" colorTo="#a08030" onClick={() => setIsPrimeBriefingOpen(true)} label="Open Prime" />,
+        document.body
+      )}
     </>
   );
 }

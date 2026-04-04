@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME } from "./categoryConfig";
@@ -24,6 +25,7 @@ function formatPeriod(p: string): string {
 
 export default function CategoriesPageV2() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { fullName } = useProfile();
   const firstName = fullName?.split(' ')[0] || '';
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
@@ -257,10 +259,13 @@ export default function CategoriesPageV2() {
       </div>
 
       {/* Floating T bubble */}
-      {!copilotOpen && <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setCopilotOpen(true)} label="Open Tag Copilot" badgeCount={data.uncategorizedCount} pulse={data.uncategorizedCount > 0} />}
+      {!copilotOpen && location.pathname.includes('/categories') && createPortal(
+        <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setCopilotOpen(true)} label="Open Tag Copilot" badgeCount={data.uncategorizedCount} pulse={data.uncategorizedCount > 0} />,
+        document.body
+      )}
 
       {/* Tag Copilot Panel */}
-      {copilotOpen && (
+      {copilotOpen && createPortal(
         <TagCopilotPanel key="tag-copilot-stable" initialMessage={copilotInitialMessage}
           onClose={() => { setCopilotOpen(false); setTimeout(() => setCopilotInitialMessage(""), 300); }}
           firstName={firstName}
@@ -281,7 +286,8 @@ export default function CategoriesPageV2() {
             budget: c.budget,
             topMerchant: c.topMerchant,
           }))}
-        />
+        />,
+        document.body
       )}
 
       {/* Category detail drawer */}

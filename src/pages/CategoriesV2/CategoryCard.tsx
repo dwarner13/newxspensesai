@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+import { CheckCircle } from "lucide-react";
 import { THEME, type CategoryData } from "./categoryConfig";
 import { AnimatedBar } from "./AnimatedBar";
 
@@ -8,11 +10,49 @@ interface CategoryCardProps {
 }
 
 export function CategoryCard({ category, onClick, onSubcategoryClick }: CategoryCardProps) {
-  const pct = category.budget > 0 ? Math.round((category.spent / category.budget) * 100) : 0;
+  const navigate = useNavigate();
+  const isNeedsReviewClean = category.name === 'Needs Review' && category.transactionCount === 0;
+  const avg = category.budget; // budget now holds avg monthly spend
+  const pct = avg > 0 ? Math.round((category.spent / avg) * 100) : 0;
   const isOver = pct > 100;
-  const barColor = isOver ? THEME.red : pct >= 80 ? THEME.amber : category.color;
+  const barColor = isOver ? '#f59e0b' : '#22c55e';
   const trendDir = category.trend > 0 ? "\u2191" : category.trend < 0 ? "\u2193" : "";
   const trendColor = category.trend > 10 ? THEME.red : category.trend < -5 ? THEME.green : THEME.textDim;
+
+  if (isNeedsReviewClean) {
+    return (
+      <button
+        onClick={onClick}
+        style={{
+          background: THEME.surface, border: `1px solid #22c55e33`, borderRadius: 14,
+          padding: "16px 18px", textAlign: "left", cursor: "pointer", transition: "all 0.2s",
+          width: "100%", boxShadow: "0 2px 12px rgba(34,197,94,0.08)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#22c55e18", border: "1px solid #22c55e30", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <CheckCircle size={18} style={{ color: '#22c55e' }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: THEME.text, marginBottom: 2 }}>Needs Review</div>
+            <div style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>All clear</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e', marginBottom: 6 }}>$0</div>
+        <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 12 }}>Books are clean — ready for Tax Summary</div>
+        <button
+          onClick={e => { e.stopPropagation(); navigate('/dashboard/tax-summary'); }}
+          style={{
+            padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+            background: '#22c55e18', border: '1px solid #22c55e30', color: '#22c55e',
+            cursor: 'pointer',
+          }}
+        >
+          View Tax Summary {'\u2192'}
+        </button>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -41,18 +81,18 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
         )}
       </div>
 
-      {/* Spend + budget */}
+      {/* Spend + average */}
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 18, fontWeight: 800, color: isOver ? THEME.red : THEME.text }}>
+        <span style={{ fontSize: 18, fontWeight: 800, color: isOver ? '#f59e0b' : THEME.text }}>
           ${category.spent.toLocaleString()}
         </span>
-        {category.budget > 0 && (
-          <span style={{ fontSize: 12, color: THEME.textDim }}>/ ${category.budget.toLocaleString()}</span>
+        {avg > 0 && (
+          <span style={{ fontSize: 12, color: THEME.textDim }}>avg ${avg.toLocaleString()}/mo</span>
         )}
       </div>
 
       {/* Progress bar */}
-      {category.budget > 0 && <AnimatedBar pct={pct} color={barColor} />}
+      {avg > 0 && <AnimatedBar pct={Math.min(pct, 150)} color={barColor} />}
 
       {/* Subcategory chips */}
       {category.subcategories && category.subcategories.length > 0 && (

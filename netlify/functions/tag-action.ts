@@ -323,6 +323,35 @@ export const handler: Handler = async (event) => {
         { onConflict: 'user_id,match_type,match_value' }
       );
 
+      // Backfill existing committed transactions matching this rule
+      let backfillCount = 0;
+      try {
+        const updatePayload: Record<string, unknown> = {
+          category: parsedTarget.category,
+          category_source: 'tag_rule',
+          updated_at: new Date().toISOString(),
+        };
+        if (ruleSubcategory) {
+          updatePayload.subcategory = ruleSubcategory;
+          updatePayload.subcategory_source = 'tag_rule';
+        }
+        let bq = supabase
+          .from('transactions')
+          .update(updatePayload)
+          .eq('user_id', userId);
+        if (matchType === 'exact') {
+          bq = bq.eq('merchant_name', normalized);
+        } else {
+          bq = bq.ilike('merchant_name', `%${normalized}%`);
+        }
+        if (ruleAmountMin != null) bq = bq.gte('amount', ruleAmountMin);
+        if (ruleAmountMax != null) bq = bq.lt('amount', ruleAmountMax);
+        const { count } = await bq.select('id', { count: 'exact', head: true });
+        backfillCount = count || 0;
+      } catch (bfErr: any) {
+        console.warn('[tag-action] Backfill error (non-blocking):', bfErr?.message);
+      }
+
       // Also write vendor memory
       await supabase.from('vendor_category_memory').upsert(
         {
@@ -340,7 +369,7 @@ export const handler: Handler = async (event) => {
 
       safeLog('tag-action.save_rule', { userId, matchValue: normalized, targetCategory: parsedTarget.category, matchType });
 
-      return ok({ ok: true, intent: 'save_rule', rule: { merchant: normalized, category: parsedTarget.category } });
+      return ok({ ok: true, intent: 'save_rule', rule: { merchant: normalized, category: parsedTarget.category }, backfill_count: backfillCount });
     } catch (e: any) {
       return err(e.message, 500);
     }

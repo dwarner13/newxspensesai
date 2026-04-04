@@ -499,7 +499,7 @@ function App() {
                       <Route path="entertainment" element={<EntertainmentPage />} />
                       <Route path="reports" element={<ReportsPageV2 />} />
                       <Route path="xspense-score" element={<XspenseScorePage />} />
-                      <Route path="upload" element={<Navigate to="/dashboard/bulk-upload" replace />} />
+                      <Route path="upload" element={<Suspense fallback={<LoadingSpinner />}><UploadPageV2 /></Suspense>} />
                       <Route path="settings" element={<SettingsPageV2 />} />
                       <Route path="settings/profile" element={<Suspense fallback={<LoadingSpinner />}><ProfilePage /></Suspense>} />
                       <Route path="settings/preferences" element={<Suspense fallback={<LoadingSpinner />}><PreferencesPage /></Suspense>} />

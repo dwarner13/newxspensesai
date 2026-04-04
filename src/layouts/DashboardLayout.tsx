@@ -1087,17 +1087,6 @@ export default function DashboardLayout() {
               <Outlet />
             </div>
         </main>
-        {/* Prime Floating Bubble � mobile */}
-        {!isPrimeBriefingOpen && !(/\/(transactions|categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
-          <button
-            onClick={() => setIsPrimeBriefingOpen(true)}
-            style={{ position: "fixed", bottom: 80, right: 16, width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg, #c8a64e, #a08030)", boxShadow: "0 4px 20px rgba(200,166,78,0.4)", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", zIndex: 40 }}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-            <span style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: "#34d399", border: "2px solid #0b1220" }} />
-          </button>
-        )}
-
         {/* Mobile Bottom Navigation */}
         <MobileBottomNav />
         
@@ -1210,28 +1199,7 @@ export default function DashboardLayout() {
 
       {/* Desktop Side Chat Tab removed — agents accessed via Prime briefing panel and Dashboard V2 */}
 
-      {/* Prime Floating Bubble — opens PrimeChatV2 briefing panel */}
-      {/* Hidden on pages with specialist copilot bubbles */}
-      {!isPrimeBriefingOpen && !(/\/(transactions|categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
-        <button
-          onClick={() => setIsPrimeBriefingOpen(true)}
-          aria-label="Open Prime Briefing"
-          className="fixed z-40 transition-all hover:scale-105 active:scale-95"
-          style={{
-            bottom: isMobile ? 80 : 24, right: 24, width: 56, height: 56, borderRadius: 18,
-            background: 'linear-gradient(135deg, #c8a64e, #a08030)',
-            boxShadow: '0 4px 20px rgba(200,166,78,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: 'none', cursor: 'pointer',
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-          <span style={{
-            position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: '50%',
-            background: '#34d399', border: '2px solid #0b1220', boxShadow: '0 0 8px rgba(52,211,153,0.5)',
-          }} />
-        </button>
-      )}
+      {/* Prime Floating Bubble removed — each page renders its own agent bubble */}
 
       {/* Control Center Drawer DISABLED — replaced by Settings V2 page */}
       {/* <ControlCenterDrawer /> */}

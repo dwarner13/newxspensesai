@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useLocation } from "react-router-dom";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME, GOALIE_COLOR } from "./goalsConfig";
 import { useGoalsData, buildGoalieIntro } from "./useGoalsData";
@@ -11,6 +13,7 @@ import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { GoalieCopilotPanel } from "./GoalieCopilotPanel";
 
 export default function GoalsDebtPageV2() {
+  const location = useLocation();
   const data = useGoalsData();
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<"goals" | "debt" | "learn">("goals");
@@ -160,10 +163,13 @@ export default function GoalsDebtPageV2() {
       {tab === "learn" && <MoneyLessons lessons={data.lessons} />}
 
       {/* Goalie floating bubble */}
-      <AgentFloatingBubble letter="G" color="#fbbf24" colorTo="#d97706" onClick={() => setCopilotOpen(!copilotOpen)} label="Open Goalie Copilot" />
+      {!copilotOpen && location.pathname.includes('/goal-concierge') && createPortal(
+        <AgentFloatingBubble letter="G" color="#fbbf24" colorTo="#d97706" onClick={() => setCopilotOpen(true)} label="Open Goalie Copilot" />,
+        document.body
+      )}
 
       {/* Goalie Copilot Panel */}
-      {copilotOpen && <GoalieCopilotPanel onClose={() => setCopilotOpen(false)} data={data} />}
+      {copilotOpen && createPortal(<GoalieCopilotPanel onClose={() => setCopilotOpen(false)} data={data} />, document.body)}
     </div>
   );
 }

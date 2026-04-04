@@ -545,7 +545,7 @@ export default function TransactionsPageV2() {
                     <div className="flex-1 min-w-0">
                       <div className="text-[15px] font-semibold text-slate-100 truncate">{t.merchant_name || 'Unknown'}</div>
                       {isUncat ? <div className="text-[12px] text-amber-400 flex items-center gap-1"><span className="relative flex h-1.5 w-1.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-1.5 w-1.5 rounded-full bg-amber-400" /></span>Needs category</div>
-                        : <div className="text-[12px] text-slate-500">{cat}</div>}
+                        : <div className="text-[12px] text-slate-500">{cat}{t.subcategory ? ` \u00b7 ${t.subcategory}` : ''}</div>}
                     </div>
                     <div className="text-right shrink-0">
                       <div className={`text-[16px] font-bold tabular-nums ${isIncome ? 'text-emerald-400' : 'text-slate-200'}`}>{isIncome ? '+' : '-'}${fmt(Math.abs(t.amount))}</div>
@@ -573,8 +573,9 @@ export default function TransactionsPageV2() {
       </div>
 
       {/* Tag floating bubble */}
-      {!tagPanelOpen && !selectedTx && !(/\/(categories|my-story|goal-concierge|tax-business)/.test(location.pathname)) && (
-        <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setTagPanelOpen(true)} label="Open Tag Copilot" badgeCount={tagBadgeCount} pulse={badgePulse} />
+      {!tagPanelOpen && !selectedTx && location.pathname.includes('/transactions') && createPortal(
+        <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setTagPanelOpen(true)} label="Open Tag Copilot" badgeCount={tagBadgeCount} pulse={badgePulse} />,
+        document.body
       )}
 
       {/* Tag Activity Panel */}
@@ -722,7 +723,7 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
-      {tagPanelOpen && <TagCopilotPanel transaction={tagPanelTx} selectedTransaction={selectedTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
+      {tagPanelOpen && createPortal(<TagCopilotPanel transaction={tagPanelTx} selectedTransaction={selectedTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
         try {
           const sb = getSupabase(); if (!sb) return;
           const { data: { session } } = await sb.auth.getSession(); if (!session) return;
@@ -853,7 +854,7 @@ export default function TransactionsPageV2() {
             void refetch(); void fetchTagInbox();
           } catch { /* silent */ }
         }
-      }} />}
+      }} />, document.body)}
 
       {/* Drawer � portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(

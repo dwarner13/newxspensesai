@@ -71,6 +71,7 @@ YOUR CAPABILITIES ï¿½ you can take these actions when the user asks:
 1. SET A RULE for a merchant (e.g. "always categorize Shell as Transportation"):
    End your reply with: {"action":"set_rule","vendor":"shell","category":"Transportation","applyToExisting":true}
    This writes the rule AND updates all existing transactions for that merchant.
+   IMPORTANT: Always ask the user to confirm before emitting the set_rule action JSON. Say what you plan to do, then wait for the user to say yes or confirm before outputting the JSON.
 
 2. BULK RECATEGORIZE a whole category (e.g. "move all Other transactions to Food & Dining"):
    End your reply with: {"action":"bulk_recategorize","from":"Other","to":"Food & Dining"}
@@ -192,6 +193,13 @@ export const handler: Handler = async (event) => {
     const actionMatch = reply.match(/\{[^{}]*"action"\s*:\s*"[^"]+?"[^{}]*\}/);
 
     if (actionMatch) {
+      // Capture pre-action Needs Review count for completion check
+      let preActionNRCount = Infinity;
+      try {
+        const { count: nrc } = await supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', auth.userId).eq('category', 'Needs Review');
+        preActionNRCount = nrc || 0;
+      } catch { /* non-blocking */ }
+
       try {
         action = JSON.parse(actionMatch[0]);
 
@@ -213,6 +221,18 @@ export const handler: Handler = async (event) => {
               updated_at: new Date().toISOString(),
             }, { onConflict: 'user_id,vendor_key' });
           }
+          // Write category_rules with subcategory
+          try {
+            await supabase.from('category_rules').upsert({
+              user_id: auth.userId,
+              merchant_pattern: vendor.toUpperCase(),
+              match_type: 'contains',
+              category: category || undefined,
+              subcategory,
+              is_active: true,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,merchant_pattern', ignoreDuplicates: false });
+          } catch { /* non-blocking */ }
           action.applied = true;
         }
 
@@ -221,13 +241,40 @@ export const handler: Handler = async (event) => {
           const category = String(action.category || '');
           const applyToExisting = action.applyToExisting !== false;
 
-          // Write rule
+          // Check for existing rule (duplicate detection)
+          try {
+            const { data: existingRule } = await supabase
+              .from('category_rules')
+              .select('category')
+              .eq('user_id', auth.userId)
+              .ilike('merchant_pattern', vendor.toUpperCase())
+              .limit(1)
+              .maybeSingle();
+            if (existingRule) {
+              action.duplicateWarning = true;
+              action.existingCategory = existingRule.category;
+            }
+          } catch { /* non-blocking */ }
+
+          // Write vendor memory
           await supabase.from('vendor_category_memory').upsert({
             user_id: auth.userId,
             vendor_key: vendor.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
             category,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,vendor_key' });
+
+          // Write category_rules
+          try {
+            await supabase.from('category_rules').upsert({
+              user_id: auth.userId,
+              merchant_pattern: vendor.toUpperCase(),
+              match_type: 'contains',
+              category,
+              is_active: true,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,merchant_pattern' });
+          } catch { /* non-blocking — table may not have all columns */ }
 
           // Apply to existing transactions
           if (applyToExisting) {
@@ -257,6 +304,30 @@ export const handler: Handler = async (event) => {
       } catch {
         action = null;
       }
+    }
+
+    // Completion check — notify Prime when Needs Review is almost clear
+    if (action?.applied) {
+      try {
+        const { count: postNRCount } = await supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', auth.userId).eq('category', 'Needs Review');
+        const nr = postNRCount || 0;
+        if (nr < 5 && nr < preActionNRCount) {
+          const baseUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'http://localhost:8888';
+          const authHeader = event.headers['authorization'] || event.headers['Authorization'] || '';
+          fetch(`${baseUrl}/.netlify/functions/prime-inbox-writer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+            body: JSON.stringify({
+              title: 'Your books are clean \u265B',
+              message: `Needs Review is down to ${nr} transaction${nr !== 1 ? 's' : ''}. Ready to generate your Tax Summary?`,
+              ctaButtons: [
+                { label: 'View Tax Summary', route: '/dashboard/tax-summary' },
+                { label: 'Generate Report', route: '/dashboard/reports' },
+              ],
+            }),
+          }).catch(() => {});
+        }
+      } catch { /* fire and forget */ }
     }
 
     // Log successful actions to activity feed

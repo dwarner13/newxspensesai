@@ -137,6 +137,18 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
       catMap[cat].merchants[m] = (catMap[cat].merchants[m] || 0) + amt;
     });
 
+    // Compute average monthly spend per category from all months
+    const numMonths = sortedMonths.length || 1;
+    const avgMonthlyByCategory: Record<string, number> = {};
+    for (const [, monthData] of Object.entries(monthBuckets)) {
+      for (const [cat, amt] of Object.entries(monthData)) {
+        avgMonthlyByCategory[cat] = (avgMonthlyByCategory[cat] || 0) + amt;
+      }
+    }
+    for (const cat of Object.keys(avgMonthlyByCategory)) {
+      avgMonthlyByCategory[cat] = Math.round(avgMonthlyByCategory[cat] / numMonths);
+    }
+
     const categories: CategoryData[] = Object.entries(catMap)
       .sort((a, b) => b[1].spent - a[1].spent)
       .map(([name, data]) => {
@@ -148,7 +160,7 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
         return {
           name,
           spent: Math.round(data.spent),
-          budget: meta.budget,
+          budget: avgMonthlyByCategory[name] || 0,
           color: meta.color,
           icon: meta.icon,
           trend,

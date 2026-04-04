@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Plus, ChevronLeft, Search, FlaskConical } from "lucide-react";
+import { Trash2, Plus, ChevronLeft, ChevronDown, ChevronRight, Search, FlaskConical } from "lucide-react";
 import toast from "react-hot-toast";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,17 +16,14 @@ const CATEGORIES = [
 
 interface Rule {
   id: string;
-  match_value: string;
   merchant_pattern: string;
-  match_type: string;
   category: string;
   subcategory: string | null;
-  min_amount: number | null;
-  max_amount: number | null;
+  match_type: string;
+  amount_min: number | null;
+  amount_max: number | null;
   is_active: boolean;
-  times_applied: number;
   created_at: string;
-  updated_at: string;
 }
 
 function fmt(d: string) {
@@ -42,6 +39,9 @@ export default function CategoryRulesPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   // Add form state
   const [newMerchant, setNewMerchant] = useState('');
@@ -62,11 +62,12 @@ export default function CategoryRulesPage() {
     setLoading(true);
     const { data, error } = await sb
       .from('category_rules')
-      .select('*')
+      .select('id, merchant_pattern, category, subcategory, match_type, amount_min, amount_max, is_active, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
     if (error) { console.error('Failed to load rules:', error); toast.error('Failed to load rules'); }
     setRules((data || []) as Rule[]);
+    setSelectedIds(new Set());
     setLoading(false);
   }, [userId]);
 
@@ -76,24 +77,62 @@ export default function CategoryRulesPage() {
     if (!search) return rules;
     const q = search.toLowerCase();
     return rules.filter(r =>
-      (r.merchant_pattern || r.match_value || '').toLowerCase().includes(q)
+      (r.merchant_pattern || '').toLowerCase().includes(q)
       || r.category.toLowerCase().includes(q)
       || (r.subcategory || '').toLowerCase().includes(q)
     );
   }, [rules, search]);
+
+  // Group filtered rules by category
+  const grouped = useMemo(() => {
+    const map = new Map<string, Rule[]>();
+    for (const r of filtered) {
+      const cat = r.category || 'Uncategorized';
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(r);
+    }
+    // Sort rules within each group alphabetically by merchant_pattern
+    for (const [, group] of map) {
+      group.sort((a, b) => (a.merchant_pattern || '').localeCompare(b.merchant_pattern || ''));
+    }
+    // Sort categories alphabetically
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
+
+  const toggleCategory = (cat: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(r => r.id)));
+    }
+  };
 
   const handleAdd = async () => {
     if (!newMerchant.trim()) { toast.error('Enter a merchant pattern'); return; }
     const sb = getSupabase(); if (!sb || !userId) return;
     const { error } = await sb.from('category_rules').upsert({
       user_id: userId,
-      match_value: newMerchant.trim().toUpperCase(),
       merchant_pattern: newMerchant.trim().toUpperCase(),
       match_type: newMatchType,
       category: newCategory,
       subcategory: newSubcategory.trim() || null,
       is_active: true,
-      updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,match_type,match_value' });
     if (error) { toast.error(error.message); return; }
     toast.success(`Rule saved for "${newMerchant.trim()}"`);
@@ -106,7 +145,6 @@ export default function CategoryRulesPage() {
     const { error } = await sb.from('category_rules').update({
       category: editCategory,
       subcategory: editSubcategory.trim() || null,
-      updated_at: new Date().toISOString(),
     }).eq('id', rule.id).eq('user_id', userId);
     if (error) { toast.error(error.message); return; }
     toast.success('Rule updated');
@@ -118,8 +156,18 @@ export default function CategoryRulesPage() {
     const sb = getSupabase(); if (!sb || !userId) return;
     const { error } = await sb.from('category_rules').delete().eq('id', rule.id).eq('user_id', userId);
     if (error) { toast.error(error.message); return; }
-    toast.success(`Deleted rule for "${rule.merchant_pattern || rule.match_value}"`);
+    toast.success(`Deleted rule for "${rule.merchant_pattern}"`);
     setDeleteConfirmId(null);
+    fetchRules();
+  };
+
+  const handleBulkDelete = async () => {
+    const sb = getSupabase(); if (!sb || !userId) return;
+    const ids = [...selectedIds];
+    const { error } = await sb.from('category_rules').delete().in('id', ids).eq('user_id', userId);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Deleted ${ids.length} rule${ids.length !== 1 ? 's' : ''}`);
+    setBulkDeleteConfirm(false);
     fetchRules();
   };
 
@@ -132,18 +180,17 @@ export default function CategoryRulesPage() {
   const handleTest = () => {
     if (!testQuery.trim()) { setTestResult(null); return; }
     const q = testQuery.trim().toLowerCase();
-    // Mirror the matching logic from tag-categorize-committed.ts
     const TYPE_PRIORITY: Record<string, number> = { exact: 0, starts_with: 1, contains: 2, regex: 3 };
     const sorted = [...rules].filter(r => r.is_active).sort(
       (a, b) => (TYPE_PRIORITY[a.match_type] ?? 9) - (TYPE_PRIORITY[b.match_type] ?? 9)
     );
     for (const rule of sorted) {
-      const val = (rule.match_value || rule.merchant_pattern || '').toLowerCase();
+      const val = (rule.merchant_pattern || '').toLowerCase();
       let matched = false;
       if (rule.match_type === 'exact') matched = q === val;
       else if (rule.match_type === 'starts_with') matched = q.startsWith(val);
       else if (rule.match_type === 'contains') matched = q.includes(val);
-      else if (rule.match_type === 'regex') { try { matched = new RegExp(rule.match_value, 'i').test(testQuery.trim()); } catch { /* skip */ } }
+      else if (rule.match_type === 'regex') { try { matched = new RegExp(rule.merchant_pattern, 'i').test(testQuery.trim()); } catch { /* skip */ } }
       if (matched) {
         setTestResult(`${rule.category}${rule.subcategory ? ' / ' + rule.subcategory : ''}`);
         return;
@@ -163,9 +210,28 @@ export default function CategoryRulesPage() {
         </button>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: 'white', margin: 0 }}>Tag Rules</h1>
-          <button onClick={() => setShowAddForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, background: THEME.cyan, border: 'none', color: '#0b1220', cursor: 'pointer' }}>
-            <Plus size={14} strokeWidth={3} /> Add Rule
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {selectedIds.size > 0 && (
+              bulkDeleteConfirm ? (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button onClick={handleBulkDelete} style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, background: `${THEME.red}20`, border: `1px solid ${THEME.red}40`, color: THEME.red, cursor: 'pointer' }}>
+                    Confirm delete {selectedIds.size}
+                  </button>
+                  <button onClick={() => setBulkDeleteConfirm(false)} style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600, background: 'none', border: `1px solid ${THEME.border}`, color: THEME.textDim, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setBulkDeleteConfirm(true)} style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, background: `${THEME.red}15`, border: `1px solid ${THEME.red}30`, color: THEME.red, cursor: 'pointer' }}>
+                  <Trash2 size={12} style={{ display: 'inline', verticalAlign: -1, marginRight: 4 }} />
+                  Delete selected ({selectedIds.size})
+                </button>
+              )
+            )}
+            <button onClick={() => setShowAddForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, background: THEME.cyan, border: 'none', color: '#0b1220', cursor: 'pointer' }}>
+              <Plus size={14} strokeWidth={3} /> Add Rule
+            </button>
+          </div>
         </div>
         <p style={{ fontSize: 13, color: THEME.textMuted, margin: '0 0 24px 0' }}>
           {ruleCount > 0 ? `Tag has learned ${ruleCount} rule${ruleCount !== 1 ? 's' : ''} for your transactions` : 'No rules yet — Tag learns as you categorize'}
@@ -229,7 +295,7 @@ export default function CategoryRulesPage() {
         </Reveal>
       )}
 
-      {/* Rules Table */}
+      {/* Rules — grouped by category */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: THEME.textDim, fontSize: 13 }}>Loading rules...</div>
       ) : filtered.length === 0 ? (
@@ -238,78 +304,104 @@ export default function CategoryRulesPage() {
         </div>
       ) : (
         <Reveal delay={100}>
-          <div style={{ borderRadius: 14, border: `1px solid ${THEME.border}`, overflow: 'hidden' }}>
-            {/* Table Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 80px 1.2fr 1fr 60px 90px auto', padding: '10px 16px', background: THEME.surface, borderBottom: `1px solid ${THEME.border}`, gap: 8 }}>
-              {['Merchant Pattern', 'Match', 'Category', 'Subcategory', 'Used', 'Created', ''].map(h => (
-                <div key={h} style={{ fontSize: 10, fontWeight: 700, color: THEME.textDim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{h}</div>
-              ))}
-            </div>
+          {/* Select all */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} style={{ accentColor: THEME.cyan }} />
+            <span style={{ fontSize: 11, color: THEME.textDim }}>Select all ({filtered.length})</span>
+          </div>
 
-            {/* Rows */}
-            {filtered.map((rule, i) => (
-              <div key={rule.id} style={{
-                display: 'grid', gridTemplateColumns: '2fr 80px 1.2fr 1fr 60px 90px auto',
-                padding: '11px 16px', gap: 8, alignItems: 'center',
-                background: i % 2 === 0 ? THEME.bg : `${THEME.surface}60`,
-                borderBottom: i === filtered.length - 1 ? 'none' : `1px solid ${THEME.border}`,
-              }}>
-                {/* Merchant Pattern */}
-                <div style={{ fontSize: 13, fontWeight: 600, color: THEME.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {rule.merchant_pattern || rule.match_value}
-                  {rule.min_amount != null && <span style={{ fontSize: 10, color: THEME.textDim, marginLeft: 4 }}>{`>=$${rule.min_amount}`}</span>}
-                  {rule.max_amount != null && <span style={{ fontSize: 10, color: THEME.textDim, marginLeft: 4 }}>{`<$${rule.max_amount}`}</span>}
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {grouped.map(([category, groupRules]) => {
+              const isCollapsed = collapsedCategories.has(category);
+              return (
+                <div key={category} style={{ borderRadius: 14, border: `1px solid ${THEME.border}`, overflow: 'hidden' }}>
+                  {/* Category header */}
+                  <div
+                    onClick={() => toggleCategory(category)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: THEME.surface, cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    {isCollapsed ? <ChevronRight size={14} style={{ color: THEME.textDim }} /> : <ChevronDown size={14} style={{ color: THEME.cyan }} />}
+                    <span style={{ fontSize: 13, fontWeight: 700, color: THEME.cyan }}>{category}</span>
+                    <span style={{ fontSize: 11, color: THEME.textDim, background: `${THEME.cyan}12`, border: `1px solid ${THEME.cyan}20`, borderRadius: 8, padding: '1px 8px', fontWeight: 600 }}>
+                      {groupRules.length} rule{groupRules.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
 
-                {/* Match Type */}
-                <div style={{ fontSize: 11, color: THEME.textDim }}>{rule.match_type}</div>
+                  {/* Rules within category */}
+                  {!isCollapsed && (
+                    <div>
+                      {/* Column headers */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '28px 2fr 80px 1fr 90px auto', padding: '6px 16px', borderTop: `1px solid ${THEME.border}`, borderBottom: `1px solid ${THEME.border}`, gap: 8, background: `${THEME.surface}80` }}>
+                        <div />
+                        {['Merchant', 'Match', 'Subcategory', 'Created', ''].map(h => (
+                          <div key={h} style={{ fontSize: 9, fontWeight: 700, color: THEME.textDim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{h}</div>
+                        ))}
+                      </div>
 
-                {/* Category */}
-                {editingId === rule.id ? (
-                  <select value={editCategory} onChange={e => setEditCategory(e.target.value)} style={{ padding: '4px 6px', borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.borderLight}`, color: THEME.text, fontSize: 12, outline: 'none' }}>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                ) : (
-                  <div style={{ fontSize: 12, color: THEME.cyan, fontWeight: 600, cursor: 'pointer' }} onClick={() => startEdit(rule)}>{rule.category}</div>
-                )}
+                      {groupRules.map((rule, i) => (
+                        <div key={rule.id} style={{
+                          display: 'grid', gridTemplateColumns: '28px 2fr 80px 1fr 90px auto',
+                          padding: '10px 16px', gap: 8, alignItems: 'center',
+                          background: i % 2 === 0 ? THEME.bg : `${THEME.surface}40`,
+                          borderBottom: i === groupRules.length - 1 ? 'none' : `1px solid ${THEME.border}22`,
+                        }}>
+                          {/* Checkbox */}
+                          <input type="checkbox" checked={selectedIds.has(rule.id)} onChange={() => toggleSelect(rule.id)} style={{ accentColor: THEME.cyan }} />
 
-                {/* Subcategory */}
-                {editingId === rule.id ? (
-                  <input value={editSubcategory} onChange={e => setEditSubcategory(e.target.value)} placeholder="(none)" style={{ padding: '4px 6px', borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.borderLight}`, color: THEME.text, fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                ) : (
-                  <div style={{ fontSize: 12, color: rule.subcategory ? THEME.textMuted : THEME.textDim, cursor: 'pointer' }} onClick={() => startEdit(rule)}>{rule.subcategory || '—'}</div>
-                )}
+                          {/* Merchant Pattern */}
+                          <div style={{ fontSize: 13, fontWeight: 600, color: THEME.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {rule.merchant_pattern}
+                            {rule.amount_min != null && <span style={{ fontSize: 10, color: THEME.textDim, marginLeft: 4 }}>{`>=$${rule.amount_min}`}</span>}
+                            {rule.amount_max != null && <span style={{ fontSize: 10, color: THEME.textDim, marginLeft: 4 }}>{`<$${rule.amount_max}`}</span>}
+                          </div>
 
-                {/* Times Applied */}
-                <div style={{ fontSize: 11, color: THEME.textDim, textAlign: 'center' }}>{rule.times_applied || 0}x</div>
+                          {/* Match Type */}
+                          <div style={{ fontSize: 11, color: THEME.textDim }}>{rule.match_type}</div>
 
-                {/* Date */}
-                <div style={{ fontSize: 11, color: THEME.textDim }}>{fmt(rule.created_at)}</div>
+                          {/* Subcategory (inline edit) */}
+                          {editingId === rule.id ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              <select value={editCategory} onChange={e => setEditCategory(e.target.value)} style={{ padding: '3px 6px', borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.borderLight}`, color: THEME.text, fontSize: 11, outline: 'none' }}>
+                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                              <input value={editSubcategory} onChange={e => setEditSubcategory(e.target.value)} placeholder="subcategory" style={{ padding: '3px 6px', borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.borderLight}`, color: THEME.text, fontSize: 11, outline: 'none', boxSizing: 'border-box' }} />
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12, color: rule.subcategory ? THEME.textMuted : THEME.textDim, cursor: 'pointer' }} onClick={() => startEdit(rule)}>{rule.subcategory || '—'}</div>
+                          )}
 
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                  {editingId === rule.id ? (
-                    <>
-                      <button onClick={() => handleEdit(rule)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${THEME.green}20`, border: `1px solid ${THEME.green}40`, color: THEME.green, cursor: 'pointer' }}>Save</button>
-                      <button onClick={() => setEditingId(null)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, background: 'none', border: `1px solid ${THEME.border}`, color: THEME.textDim, cursor: 'pointer' }}>Cancel</button>
-                    </>
-                  ) : deleteConfirmId === rule.id ? (
-                    <>
-                      <button onClick={() => handleDelete(rule)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${THEME.red}20`, border: `1px solid ${THEME.red}40`, color: THEME.red, cursor: 'pointer' }}>Delete</button>
-                      <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, background: 'none', border: `1px solid ${THEME.border}`, color: THEME.textDim, cursor: 'pointer' }}>Cancel</button>
-                    </>
-                  ) : (
-                    <button onClick={() => setDeleteConfirmId(rule.id)} style={{ background: 'none', border: 'none', color: THEME.textDim, cursor: 'pointer', padding: 4 }} title="Delete rule">
-                      <Trash2 size={13} />
-                    </button>
+                          {/* Date */}
+                          <div style={{ fontSize: 11, color: THEME.textDim }}>{fmt(rule.created_at)}</div>
+
+                          {/* Actions */}
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                            {editingId === rule.id ? (
+                              <>
+                                <button onClick={() => handleEdit(rule)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${THEME.green}20`, border: `1px solid ${THEME.green}40`, color: THEME.green, cursor: 'pointer' }}>Save</button>
+                                <button onClick={() => setEditingId(null)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, background: 'none', border: `1px solid ${THEME.border}`, color: THEME.textDim, cursor: 'pointer' }}>Cancel</button>
+                              </>
+                            ) : deleteConfirmId === rule.id ? (
+                              <>
+                                <button onClick={() => handleDelete(rule)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${THEME.red}20`, border: `1px solid ${THEME.red}40`, color: THEME.red, cursor: 'pointer' }}>Delete</button>
+                                <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, background: 'none', border: `1px solid ${THEME.border}`, color: THEME.textDim, cursor: 'pointer' }}>Cancel</button>
+                              </>
+                            ) : (
+                              <button onClick={() => setDeleteConfirmId(rule.id)} style={{ background: 'none', border: 'none', color: THEME.textDim, cursor: 'pointer', padding: 4 }} title="Delete rule">
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div style={{ marginTop: 12, fontSize: 11, color: THEME.textDim, textAlign: 'right' }}>
-            {filtered.length} rule{filtered.length !== 1 ? 's' : ''}{search ? ` matching "${search}"` : ''}
+            {filtered.length} rule{filtered.length !== 1 ? 's' : ''} in {grouped.length} categor{grouped.length !== 1 ? 'ies' : 'y'}{search ? ` matching "${search}"` : ''}
           </div>
         </Reveal>
       )}
