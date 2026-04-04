@@ -188,6 +188,7 @@ export default function LoginPageV2() {
 
         <label style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 6, display: "block" }}>Email address</label>
         <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') void handleEmailLogin(); }}
           onFocus={() => setFocusedField("email")} onBlur={() => setFocusedField(null)}
           placeholder="you@example.com"
           style={{
@@ -204,6 +205,7 @@ export default function LoginPageV2() {
           <button onClick={() => { const s = getSupabase(); if (s && email) { s.auth.resetPasswordForEmail(email); setError("Check your email for reset link"); } else { setError("Enter your email first"); } }} style={{ fontSize: 12, fontWeight: 600, color: C.accent, background: "none", border: "none", cursor: "pointer" }}>Forgot password?</button>
         </div>
         <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') void handleEmailLogin(); }}
           onFocus={() => setFocusedField("password")} onBlur={() => setFocusedField(null)}
           placeholder={"\u2022".repeat(10)}
           style={{

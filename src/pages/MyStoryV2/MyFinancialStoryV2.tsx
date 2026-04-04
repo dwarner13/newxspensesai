@@ -18,6 +18,7 @@ export default function MyFinancialStoryV2() {
   const data = useStoryData();
   const [loaded, setLoaded] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   useEffect(() => setLoaded(true), []);
 
   const crystalIntro = data.loading ? "" : buildCrystalIntro(data);
@@ -59,10 +60,10 @@ export default function MyFinancialStoryV2() {
                   <AgentDot agent="Crystal" size={20} />
                   Crystal Copilot
                 </button>
-                <button style={{
+                <button onClick={() => setReportOpen(v => !v)} style={{
                   padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600,
-                  background: THEME.surface, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer",
-                }}>Export Story</button>
+                  background: reportOpen ? 'transparent' : THEME.surface, border: `1px solid ${reportOpen ? THEME.accent : THEME.border}`, color: reportOpen ? THEME.accent : THEME.textMuted, cursor: "pointer",
+                }}>{reportOpen ? 'Hide Preview' : 'Report Preview'}</button>
                 <button style={{
                   padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600,
                   background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`,
@@ -226,12 +227,14 @@ export default function MyFinancialStoryV2() {
         </div>
 
         {/* REPORT PREVIEW SIDEBAR */}
-        <div style={{
-          width: 380, flexShrink: 0, padding: "28px 20px", borderLeft: `1px solid ${THEME.border}`,
-          overflowY: "auto", maxHeight: "100vh", position: "sticky", top: 0,
-        }}>
-          <ReportPreviewSidebar data={data} />
-        </div>
+        {reportOpen && (
+          <div style={{
+            width: 280, flexShrink: 0, padding: "28px 20px", borderLeft: `1px solid ${THEME.border}`,
+            overflowY: "auto", maxHeight: "100vh", position: "sticky", top: 0,
+          }}>
+            <ReportPreviewSidebar data={data} />
+          </div>
+        )}
       </div>
 
       {!copilotOpen && location.pathname.includes('/my-story') && createPortal(

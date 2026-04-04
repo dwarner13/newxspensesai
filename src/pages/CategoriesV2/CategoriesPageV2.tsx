@@ -10,7 +10,7 @@ import { StatCard } from "./StatCard";
 import { CategoryCard } from "./CategoryCard";
 import { CategoryDetailDrawer } from "./CategoryDetailDrawer";
 import { AgentInsightStrip } from "./AgentInsightStrip";
-import { TagCopilotPanel } from "./TagCopilotPanel";
+import { TagCopilotPanel } from "@/components/transactions/TagCopilotPanel";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import type { CategoryData } from "./categoryConfig";
 
@@ -266,26 +266,13 @@ export default function CategoriesPageV2() {
 
       {/* Tag Copilot Panel */}
       {copilotOpen && createPortal(
-        <TagCopilotPanel key="tag-copilot-stable" initialMessage={copilotInitialMessage}
+        <TagCopilotPanel
           onClose={() => { setCopilotOpen(false); setTimeout(() => setCopilotInitialMessage(""), 300); }}
           firstName={firstName}
-          flaggedCount={data.uncategorizedCount}
-          categorizedCount={totalTxCount - data.uncategorizedCount}
           totalCount={totalTxCount}
-          avgConfidence={data.uncategorizedCount === 0 ? 96 : Math.round((1 - data.uncategorizedCount / Math.max(totalTxCount, 1)) * 100)}
-          rulesCount={0}
-          flaggedTransactions={data.flaggedTransactions}
-          subcategorySuggestions={data.subcategorySuggestions}
           totalSpent={data.totalSpent}
           totalIncome={data.totalIncome}
-          txCount={totalTxCount}
-          topCategories={data.categories.map(c => ({
-            category: c.name,
-            total: c.spent,
-            transactionCount: c.transactionCount,
-            budget: c.budget,
-            topMerchant: c.topMerchant,
-          }))}
+          injectedMessage={copilotInitialMessage || undefined}
         />,
         document.body
       )}

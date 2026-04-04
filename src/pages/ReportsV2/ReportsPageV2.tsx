@@ -325,7 +325,7 @@ export default function ReportsPageV2() {
                 <strong style={{ color: T.gold }}>Ready to send to Tax Summary?</strong>{" "}
                 Prime has reviewed {data.issuerGroups.reduce((s, g) => s + g.statements.length, 0)} statements across {data.issuerGroups.length} issuers.
               </div>
-              <button onClick={() => navigate("/dashboard/tax-business")} style={{ padding: "7px 16px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", whiteSpace: "nowrap" }}>Send to Tax Summary →</button>
+              <button onClick={() => navigate("/dashboard/tax-summary")} style={{ padding: "7px 16px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", whiteSpace: "nowrap" }}>Send to Tax Summary →</button>
               <button onClick={dismissTaxBanner} style={{ background: "transparent", border: "none", color: T.dim, cursor: "pointer", fontSize: 16, padding: 4 }}>{"\u2715"}</button>
             </div>
           </Reveal>
@@ -540,7 +540,7 @@ export default function ReportsPageV2() {
         <Reveal delay={550}>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "16px 0", borderTop: "1px solid " + T.border, marginTop: 8 }}>
             <button onClick={exportCSV} style={{ padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: T.surface, border: "1px solid " + T.border, color: T.muted, cursor: "pointer" }}>⬇ Download CSV</button>
-            <button onClick={() => navigate("/dashboard/tax-business")} style={{ padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 16px " + T.gold + "35" }}>Send to Tax Summary →</button>
+            <button onClick={() => navigate("/dashboard/tax-summary")} style={{ padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 16px " + T.gold + "35" }}>Send to Tax Summary →</button>
           </div>
         </Reveal>
       </div>

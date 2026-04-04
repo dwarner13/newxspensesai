@@ -37,6 +37,7 @@ import { log, warn } from "../lib/logger";
 import { PrimeWelcomeOverlayCinematic } from "../components/onboarding/PrimeWelcomeOverlayCinematic";
 import { ChatErrorBoundary } from "../components/chat/ChatErrorBoundary";
 import { PostOnboardingChooser } from "../components/onboarding/PostOnboardingChooser";
+import { DashboardTourOverlay } from "../components/onboarding/DashboardTourOverlay";
 
 // DashboardHeaderWithBadges - Wrapper (now simplified, no custom badges)
 function DashboardHeaderWithBadges() {
@@ -417,6 +418,16 @@ export default function DashboardLayout() {
   
   // Post-onboarding chooser: show only immediately after onboarding completion (session-based)
   const [showPostOnboardingChooser, setShowPostOnboardingChooser] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+
+  // Dashboard tour for new users
+  useEffect(() => {
+    if (!userId) return;
+    if (!location.pathname.startsWith('/dashboard')) return;
+    if (localStorage.getItem('dashboard_tour_completed') === 'true') return;
+    const t = setTimeout(() => setShowTour(true), 1500);
+    return () => clearTimeout(t);
+  }, [userId, location.pathname]);
   
   useEffect(() => {
     // Check for sessionStorage flag and custodian_ready status on mount
@@ -1280,6 +1291,12 @@ export default function DashboardLayout() {
       )}
       
       </div>
+      {showTour && (
+        <DashboardTourOverlay
+          firstName={profile?.first_name || profile?.full_name?.split(' ')[0] || undefined}
+          onComplete={() => { setShowTour(false); localStorage.setItem('dashboard_tour_completed', 'true'); }}
+        />
+      )}
     </PrimeOverlayProvider>
   );
 }

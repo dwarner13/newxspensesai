@@ -224,7 +224,8 @@ function buildSystemPrompt(
   selectedTx?: any,
   learnedCategory?: string | null
 ): string {
-  const userLine = userName ? `The user's name is ${userName}. Use it occasionally but naturally.\n` : '';
+  const userLine = (userName ? `The user's name is ${userName}. Use it occasionally but naturally.\n` : '') +
+    `IMPORTANT: Never introduce yourself or say hello when the user has already started a conversation. If the conversation history exists, respond directly to what the user said. Never say "Hello! How can I assist you" or "Hi there" mid-conversation. Only greet on the very first message if history is empty.\n`;
   const merchantBlock = merchant ? `
 MERCHANT IN FOCUS: ${merchant}
 ${merchantHistory.count > 0 ? `- Seen ${merchantHistory.count} times, total $${merchantHistory.totalSpent.toFixed(2)}` : '- First time seeing this merchant'}

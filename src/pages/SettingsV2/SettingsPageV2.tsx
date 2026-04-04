@@ -6,7 +6,7 @@ import { THEME } from "../PrimeChatV2/agentConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useAuth } from "@/contexts/AuthContext";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
-import { useUnifiedChatLauncher } from "@/hooks/useUnifiedChatLauncher";
+import { CustodianPanel } from "@/components/onboarding/CustodianPanelChat";
 
 const NAV_ITEMS = [
   { id: "account", label: "Account", icon: "\uD83D\uDC64" },
@@ -29,8 +29,8 @@ const AGENTS_CONFIG = [
 export default function SettingsPageV2() {
   const { userId, signOut } = useAuth();
   const location = useLocation();
-  const { openChat } = useUnifiedChatLauncher();
   const [activeSection, setActiveSection] = useState("account");
+  const [custodianOpen, setCustodianOpen] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [dataStats, setDataStats] = useState("Loading...");
@@ -229,8 +229,12 @@ export default function SettingsPageV2() {
         </div>
       </div>
     </div>
-    {location.pathname.includes('/settings') && createPortal(
-      <AgentFloatingBubble letter={'\uD83D\uDEE1\uFE0F'} color="#7c3aed" colorTo="#6d28d9" onClick={() => openChat({ initialEmployeeSlug: 'custodian', force: true })} label="Open Custodian" />,
+    {!custodianOpen && location.pathname.includes('/settings') && createPortal(
+      <AgentFloatingBubble letter={'\uD83D\uDEE1\uFE0F'} color="#7c3aed" colorTo="#6d28d9" onClick={() => setCustodianOpen(true)} label="Open Custodian" />,
+      document.body
+    )}
+    {custodianOpen && createPortal(
+      <CustodianPanel onClose={() => setCustodianOpen(false)} />,
       document.body
     )}
     </>

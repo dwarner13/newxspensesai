@@ -524,7 +524,7 @@ export default function UploadPageV2() {
       )}
 
       {/* Byte status drawer */}
-      {bytePanelOpen && (
+      {bytePanelOpen && createPortal(
         <>
           <div onClick={() => setBytePanelOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 70 }} />
           <aside style={{
@@ -607,7 +607,8 @@ export default function UploadPageV2() {
               <span style={{ fontSize: 9, color: '#475569', letterSpacing: '0.03em' }}>{'\u2022'} Byte AI {'\u2022'} Import engine active {'\u2022'} PII protection on</span>
             </div>
           </aside>
-        </>
+        </>,
+        document.body
       )}
     </>
   );

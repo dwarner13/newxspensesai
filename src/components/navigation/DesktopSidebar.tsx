@@ -4,7 +4,7 @@ import NAV_ITEMS from '../../navigation/nav-registry';
 import type { NavItem } from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreHorizontal, Upload } from 'lucide-react';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 // AccountCenterPanel removed — using Settings V2 page instead
 import { useProfile } from '../../hooks/useProfile';
@@ -19,13 +19,6 @@ interface DesktopSidebarProps {
   collapsed?: boolean;
   onToggleCollapse?: (collapsed: boolean) => void;
 }
-
-const AGENT_DOTS = [
-  { letter: 'P', bg: 'bg-amber-500/25', border: 'border-amber-500/40', text: 'text-amber-400' },
-  { letter: 'T', bg: 'bg-cyan-500/25', border: 'border-cyan-500/40', text: 'text-cyan-400' },
-  { letter: 'C', bg: 'bg-purple-500/25', border: 'border-purple-500/40', text: 'text-purple-400' },
-  { letter: 'B', bg: 'bg-emerald-500/25', border: 'border-emerald-500/40', text: 'text-emerald-400' },
-];
 
 export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: DesktopSidebarProps) {
   const location = useLocation();
@@ -174,91 +167,53 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
           {primaryItems.map(item => renderItem(item))}
         </div>
 
-        {/* Upload CTA */}
-        {!isCollapsed && (
-          <div className="px-3 mt-4">
-            <button
-              type="button"
-              onClick={triggerUpload}
-              className="w-full rounded-xl p-3 text-left transition-all"
-              style={{
-                border: '1.5px dashed rgba(200,166,78,0.35)',
-                background: 'rgba(200,166,78,0.04)',
-                animation: 'glowPulse 3s ease-in-out infinite',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.6)'; e.currentTarget.style.background = 'rgba(200,166,78,0.08)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.35)'; e.currentTarget.style.background = 'rgba(200,166,78,0.04)'; }}
-            >
-              <div className="flex items-center gap-2 text-[13px] font-bold" style={{ color: '#c8a64e' }}>
-                <Upload className="w-4 h-4" />
-                Upload Statement
-              </div>
-              <div className="mt-1 text-[11px]" style={{ color: '#9ba8bc' }}>Byte processes instantly</div>
-            </button>
-          </div>
-        )}
-        {/* More toggle */}
-        <button
-          type="button"
-          onClick={() => setMoreOpen(v => !v)}
-          className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer transition-all rounded-lg mx-1.5 mt-2 w-[calc(100%-12px)]"
-          style={{ color: '#9ba8bc', borderLeft: '2px solid transparent' }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#c8d0e0'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#9ba8bc'; e.currentTarget.style.background = 'transparent'; }}
-        >
-          <MoreHorizontal className="w-5 h-5 shrink-0" />
-          {!isCollapsed && (
-            <>
-              <span className="text-[13px] font-semibold">More</span>
-              <ChevronDown className={`w-3 h-3 ml-auto transition-transform duration-200 ${moreOpen ? 'rotate-180' : ''}`} />
-            </>
-          )}
-        </button>
-
-        {/* More items */}
-        {!isCollapsed && (
-          <div className={`overflow-hidden transition-all duration-300 ${moreOpen ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
-            <div className="space-y-0.5 pt-1">
-              {moreItems.map(item => renderItem(item, true))}
-            </div>
-          </div>
-        )}
-
-        {isCollapsed && (
-          <div className="px-2 mt-3">
-            <TooltipProvider>
-              <Tooltip delayDuration={120}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={triggerUpload}
-                    className="w-full flex items-center justify-center rounded-lg py-2"
-                    style={{ color: '#c8a64e' }}
-                  >
-                    <Upload className="w-4 h-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">Upload Statement</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        )}
+        {/* Divider before secondary items */}
+        <div style={{ height: 1, background: '#1e2d4a', margin: '8px 16px' }} />
+        <div className="space-y-0.5">
+          {moreItems.map(item => renderItem(item, true))}
+        </div>
       </div>
 
-      {/* SCORE + AI STATUS */}
+      {/* Upload CTA — always visible, never scrolls away */}
       {!isCollapsed && (
         <div className="px-3 py-2" style={{ borderTop: '1px solid #1e2d4a' }}>
-          <div className="flex items-center gap-2">
-            <div className="w-[5px] h-[5px] rounded-full" style={{ background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)' }} />
-            <span className="text-[12px] font-semibold" style={{ color: '#9ba8bc' }}>4 AI Agents Active</span>
-            <div className="flex ml-auto -space-x-1.5">
-              {AGENT_DOTS.map(a => (
-                <div key={a.letter} className={`w-6 h-6 rounded-full text-[9px] font-bold border flex items-center justify-center ${a.bg} ${a.border} ${a.text}`} style={{ zIndex: 1 }}>
-                  {a.letter}
-                </div>
-              ))}
+          <button
+            type="button"
+            onClick={triggerUpload}
+            className="w-full rounded-xl p-3 text-left transition-all"
+            style={{
+              border: '1.5px dashed rgba(200,166,78,0.35)',
+              background: 'rgba(200,166,78,0.04)',
+              animation: 'glowPulse 3s ease-in-out infinite',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.6)'; e.currentTarget.style.background = 'rgba(200,166,78,0.08)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.35)'; e.currentTarget.style.background = 'rgba(200,166,78,0.04)'; }}
+          >
+            <div className="flex items-center gap-2 text-[13px] font-bold" style={{ color: '#c8a64e' }}>
+              <Upload className="w-4 h-4" />
+              Upload Statement
             </div>
-          </div>
+            <div className="mt-1 text-[11px]" style={{ color: '#9ba8bc' }}>Byte processes instantly</div>
+          </button>
+        </div>
+      )}
+      {isCollapsed && (
+        <div className="px-2 py-2" style={{ borderTop: '1px solid #1e2d4a' }}>
+          <TooltipProvider>
+            <Tooltip delayDuration={120}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={triggerUpload}
+                  className="w-full flex items-center justify-center rounded-lg py-2"
+                  style={{ color: '#c8a64e' }}
+                >
+                  <Upload className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">Upload Statement</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       )}
 

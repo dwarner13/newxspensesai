@@ -93,7 +93,14 @@ export function TransactionInsightDrawer({
   const [subcategoryOptions, setSubcategoryOptions] = useState<string[]>([]);
   const [addingSubcategory, setAddingSubcategory] = useState(false);
   const [newSubcategoryText, setNewSubcategoryText] = useState('');
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
 
   // Reset on transaction change
   useEffect(() => {
@@ -378,13 +385,31 @@ export function TransactionInsightDrawer({
   return (
     <>
       <button type="button" aria-label="Close" style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(11,18,32,0.7)', backdropFilter: 'blur(4px)', border: 'none', cursor: 'pointer' }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 201, width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', background: '#080f1e', borderLeft: '1px solid rgba(255,255,255,0.08)', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '-8px 0 60px rgba(0,0,0,0.5)' }}>
+      <div style={isMobile ? {
+        position: 'fixed', left: 0, right: 0, bottom: 0, top: 'auto',
+        zIndex: 201, width: '100%', maxHeight: '88vh',
+        display: 'flex', flexDirection: 'column', background: '#080f1e',
+        borderRadius: '20px 20px 0 0', borderTop: '1px solid rgba(255,255,255,0.08)',
+        fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 -8px 60px rgba(0,0,0,0.6)',
+      } : {
+        position: 'fixed', top: 0, right: 0, bottom: 0,
+        zIndex: 201, width: '100%', maxWidth: 420,
+        display: 'flex', flexDirection: 'column', background: '#080f1e',
+        borderLeft: '1px solid rgba(255,255,255,0.08)',
+        fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '-8px 0 60px rgba(0,0,0,0.5)',
+      }}>
 
+        {/* Mobile drag handle */}
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px', flexShrink: 0 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+          </div>
+        )}
         {/* HEADER */}
         <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
-            <div style={{ fontSize: 32, fontWeight: 800, color: amountColor, marginTop: 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+            <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
+            <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 800, color: amountColor, marginTop: 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
             {/* Meta row */}
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {formattedDate && (
@@ -404,7 +429,7 @@ export function TransactionInsightDrawer({
         </div>
 
         {/* SCROLLABLE BODY */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* TAG CHANGED BANNER */}
           {row.kind === 'committed' && (row.transaction as any).category_source === 'user_chat' && (
@@ -502,6 +527,14 @@ export function TransactionInsightDrawer({
               </div>
             )}
           </div>
+
+          {/* Empty state when no chat yet */}
+          {chatHistory.length === 0 && !chatReply && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 0', opacity: 0.4 }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(34,211,153,0.12)', border: '1px solid rgba(34,211,153,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#22d3ee', marginBottom: 8 }}>T</div>
+              <div style={{ fontSize: 11, color: '#475569', textAlign: 'center' }}>Ask Tag anything about this transaction</div>
+            </div>
+          )}
 
           {/* TAG REPLY + RULE PROMPT */}
           {chatReply && (

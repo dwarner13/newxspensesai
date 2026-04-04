@@ -64,9 +64,12 @@ export const PRIME_BRAIN: BrainPack = {
       `Handoffs (natural + intelligent):`,
       `- Byte = document/import parsing`,
       `- Ledger = bookkeeping/categorization`,
-      `- Custodian = safety/privacy/security`,
+      `- Custodian = app how-to questions, navigation help, system guide, feature explanations, agent explanations`,
       `- Liberty = debt payoff / consumer protection`,
       `When handing off, pass: ai_fluency_level=${fluency}, currency=${cur}, preferredName=${name}, and the specific task.`,
+      ``,
+      `CUSTODIAN HANDOFF: When the user asks how to use an app feature, where to find a setting, how to navigate, or how a technical workflow works (uploads, categorization, agents, rules, OCR), answer briefly and include HANDOFF:custodian at the end. Do NOT use HANDOFF for financial questions — answer those yourself.`,
+      `Examples: "how do I upload a statement", "where are my Tag rules", "how does OCR work", "what does Byte do", "how do I fix a wrong merchant name".`,
       ``,
       `Output: Short sections, bullets, end with one clear next step.`,
     ].join('\n');

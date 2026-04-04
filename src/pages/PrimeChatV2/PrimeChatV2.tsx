@@ -124,32 +124,18 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   });
 
   const [isDragging, setIsDragging] = useState(false);
-  const autoGreetFired = { current: false };
+  const [revealStep, setRevealStep] = useState(0);
+  const revealStarted = useRef(false);
 
-  // Auto-greeting: fires once when financial data loads
-  // Sends a hidden message so only Prime's response shows
+  // Sequential reveal — each step unlocks the next briefing section
   useEffect(() => {
-    if (autoGreetFired.current) return;
-    if (data.loading) return;
-    if (data.transactionCount === 0) return;
-    autoGreetFired.current = true;
-
-    const topCat = data.categoryBreakdown[0];
-    const uncatNote = data.uncategorizedCount > 0
-      ? `${data.uncategorizedCount} transactions still need a category.`
-      : 'All transactions are categorized.';
-    const topNote = topCat
-      ? `${topCat.label} is the biggest spend at ${topCat.amount.toLocaleString('en-CA', { maximumFractionDigits: 0 })}.`
-      : '';
-
-    const hour = new Date().getHours();
-    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
-    const prompt = `[PRIME_GREETING] Generate a personalized greeting for Darrell. It is ${timeOfDay}. Use the real financial data and agent activity you have loaded \u2014 do not make up numbers. Include exactly one specific financial observation (net flow, top expense category with amount, or uncategorized transaction count). If Tag or Byte did something recently, mention it in one clause. End with exactly one specific actionable question based on what you see in the data. Keep the entire greeting to 2-3 sentences. Do not start with "Good ${timeOfDay}" \u2014 vary the opening each time. Never repeat the same greeting twice in a row.`;
-
-    setTimeout(() => {
-      void sendMessage(prompt, { hidden: true });
-    }, 800);
+    if (data.loading || data.transactionCount === 0) return;
+    if (revealStarted.current) return;
+    revealStarted.current = true;
+    const steps = [300, 1000, 2800, 4200, 4900, 5600, 6800, 8400];
+    steps.forEach((delay, i) => { setTimeout(() => setRevealStep(i + 1), delay); });
   }, [data.loading, data.transactionCount]);
+
   const [promptsUsed, setPromptsUsed] = useState(false);
   const [briefingCollapsed, setBriefingCollapsed] = useState(false);
   const [uploadMessages, setUploadMessages] = useState<{ id: string; text: string; type: "info" | "success" | "error" }[]>([]);
@@ -171,14 +157,6 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     if (m.role === 'user' && String(m.content || '').startsWith('[PRIME_GREETING]')) return false;
     return true;
   });
-
-  // Debug: log message state (remove after confirming fix)
-  useEffect(() => {
-    if (messages.length > 0) {
-      console.log('[PrimeChatV2] messages total:', messages.length, 'visible:', chatMessages.length);
-      messages.forEach((m, i) => console.log(`  [${i}] role=${m.role} hidden=${m.meta?.hidden} isGreeting=${m.meta?.isGreeting} content=${String(m.content || '').slice(0, 60)}...`));
-    }
-  }, [messages.length]);
 
   // Auto-scroll on new content — but respect user scroll-up intent
   useEffect(() => {
@@ -379,6 +357,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       </div>
 
       {/* SCROLLABLE BODY */}
+      <style>{`
+        @keyframes primeReveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes primeDot { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; } 40% { transform: scale(1); opacity: 0.8; } }
+      `}</style>
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 16px 16px", minHeight: 0 }}>
 
         {/* ══════════ BRIEFING SECTION ══════════ */}
@@ -413,39 +395,50 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             </svg>
           </button>
         ) : (
-          /* ── Full briefing (static) ── */
+          /* ── Full briefing (sequential reveal) ── */
           <>
-            {/* Prime greeting + summary */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
-              <AgentDot agent="Prime" size={28} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
-                  <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text, marginBottom: 8 }}>
-                  {greeting}, {firstName}. Here&apos;s your briefing.
-                </div>
-                <div style={{
-                  fontSize: 15, color: THEME.textMuted, lineHeight: 1.7,
-                  padding: "12px 14px", borderRadius: 12,
-                  background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}55`,
-                }}>
-                  {summaryText}
+            {/* STEP 1 — Greeting */}
+            {revealStep >= 1 && (
+              <div style={{ display: "flex", gap: 10, marginBottom: 4, animation: 'primeReveal 0.4s ease forwards' }}>
+                <AgentDot agent="Prime" size={28} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
+                    <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text }}>
+                    {greeting}, {firstName}. Here&apos;s your briefing.
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Top transactions */}
-            {data.topTransactions.length > 0 && (
-              <div style={{ marginLeft: 38, marginTop: 14, marginBottom: 18, display: "flex", justifyContent: "center" }}>
+            {/* STEP 2 — Summary (types in) */}
+            {revealStep >= 2 && (
+              <div style={{ marginLeft: 38, marginBottom: 8, animation: 'primeReveal 0.4s ease forwards' }}>
+                <div style={{ fontSize: 15, color: THEME.textMuted, lineHeight: 1.7, padding: "12px 14px", borderRadius: 12, background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}55` }}>
+                  <TypingMessage content={summaryText} messageId="prime-summary" isStreaming={false} isTyped={typedIdsRef.current.has('prime-summary')} onTyped={(id) => typedIdsRef.current.add(id)} charDelay={10} maxDuration={2200} />
+                </div>
+              </div>
+            )}
+            {/* Typing dots between summary and transactions */}
+            {revealStep >= 2 && revealStep < 3 && (
+              <div style={{ marginLeft: 38, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {[0, 0.2, 0.4].map((delay, i) => (
+                    <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: THEME.accent, animation: `primeDot 1.4s ease-in-out ${delay}s infinite`, display: 'inline-block' }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3 — Top transactions */}
+            {revealStep >= 3 && data.topTransactions.length > 0 && (
+              <div style={{ marginLeft: 38, marginTop: 4, marginBottom: 18, animation: 'primeReveal 0.4s ease forwards' }}>
                 <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "14px 16px", width: "100%" }}>
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700, marginBottom: 12, textAlign: "center" }}>Top Transactions — Latest Statement</div>
                   {data.topTransactions.slice(0, 5).map((tx, i, arr) => (
-                    <div key={i} style={{
-                      display: "grid", gridTemplateColumns: "1fr 60px 100px 90px", gap: 8, alignItems: "center",
-                      padding: "7px 0", borderBottom: i < arr.length - 1 ? `1px solid ${THEME.border}44` : "none",
-                    }}>
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 100px 90px", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: i < arr.length - 1 ? `1px solid ${THEME.border}44` : "none" }}>
                       <div style={{ minWidth: 0, fontSize: 12.5, fontWeight: 600, color: THEME.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant}</div>
                       <div style={{ fontSize: 10.5, color: THEME.textDim, textAlign: "center" }}>{tx.date}</div>
                       <div style={{ fontSize: 12.5, fontWeight: 700, color: tx.isIncome ? "#34d399" : THEME.text, textAlign: "right" }}>{tx.isIncome ? "+" : "-"}${tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
@@ -459,109 +452,68 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               </div>
             )}
 
-            {/* Agent callouts */}
-            <div style={{ marginLeft: 38, marginBottom: 6 }}>
-              <div style={{ fontSize: 14, color: THEME.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
-                Here&apos;s what the team flagged for you:
+            {/* STEP 4 — Tag callout */}
+            {revealStep >= 4 && (
+              <div style={{ marginLeft: 38, animation: 'primeReveal 0.4s ease forwards' }}>
+                <div style={{ fontSize: 14, color: THEME.textMuted, marginBottom: 12, lineHeight: 1.5 }}>Here&apos;s what the team flagged for you:</div>
               </div>
-            </div>
-
-            <div style={{ marginLeft: 38, marginBottom: 6 }}>
-              <AgentCallout
-                agent="Tag"
-                text={data.uncategorizedCount > 0
-                  ? `Found ${data.uncategorizedCount} transactions that need your call \u2014 some look like duplicates, others are uncategorized.`
-                  : "All clear \u2014 every transaction is categorized. Nice work."}
-                cta="Review with Tag"
-                onCtaClick={() => { onClose?.(); navigate("/dashboard/smart-categories"); }}
-              />
-            </div>
-
-            <div style={{ marginLeft: 38, marginBottom: 6 }}>
-              <AgentCallout
-                agent="Byte"
-                text={data.pendingImports > 0
-                  ? `${data.pendingImports} statement${data.pendingImports > 1 ? "s" : ""} ready to import. Detected transactions awaiting your approval.`
-                  : "No pending imports \u2014 all statements have been processed."}
-                cta={data.pendingImports > 0 ? "Import now" : "Upload new"}
-                onCtaClick={() => {
-                  onClose?.();
-                  window.dispatchEvent(new CustomEvent("prime:open-upload", { detail: { source: "prime-briefing" } }));
-                  window.setTimeout(() => {
-                    const inputs = Array.from(
-                      document.querySelectorAll('input[type="file"][accept*=".pdf"][accept*=".csv"]')
-                    ) as HTMLInputElement[];
-                    inputs.find(i => !i.disabled)?.click();
-                  }, 120);
-                }}
-              />
-            </div>
-
-            <div style={{ marginLeft: 38, marginBottom: 6 }}>
-              <AgentCallout
-                agent="Crystal"
-                text={data.trendAlert
-                  ? `${data.trendAlert.category} has ${data.trendAlert.direction === "up" ? "increased" : "decreased"} ${data.trendAlert.months.length} months straight: ${data.trendAlert.months.map((m) => "$" + m.toLocaleString()).join(" \u2192 ")}.`
-                  : data.categoryBreakdown.length > 0
-                    ? `Your top category is ${data.categoryBreakdown[0].label} at $${data.categoryBreakdown[0].amount.toLocaleString()}. No unusual trends detected.`
-                    : "Not enough data yet to spot trends. Upload more statements to unlock insights."}
-                cta="See trend analysis"
-                onCtaClick={() => { onClose?.(); navigate("/dashboard/analytics-ai"); }}
-              />
-            </div>
-
-            {/* Tax deductions */}
-            {data.deductions.total > 0 && (
-              <div style={{ marginLeft: 38, marginTop: 14, marginBottom: 18 }}>
-                <TaxDeductionsCard total={data.deductions.total} categories={data.deductions.categories} />
+            )}
+            {revealStep >= 4 && (
+              <div style={{ marginLeft: 38, marginBottom: 6, animation: 'primeReveal 0.4s ease forwards' }}>
+                <AgentCallout agent="Tag" text={data.uncategorizedCount > 0 ? `Found ${data.uncategorizedCount} transactions that need your call \u2014 some look like duplicates, others are uncategorized.` : "All clear \u2014 every transaction is categorized. Nice work."} cta="Review with Tag" onCtaClick={() => { onClose?.(); navigate("/dashboard/smart-categories"); }} />
               </div>
             )}
 
-            {/* Prime's Take */}
-            <div style={{ marginLeft: 38, marginBottom: 18 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <div style={{ width: 18, height: 2, borderRadius: 1, background: THEME.accent }} />
-                  <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.8, fontWeight: 700, color: THEME.accent }}>
-                    Prime&apos;s Take
-                  </span>
-                  <div style={{ flex: 1, height: 1, background: THEME.border }} />
-                </div>
-                <div style={{
-                  fontSize: 15, color: THEME.textMuted, lineHeight: 1.7,
-                  padding: "14px 16px", borderRadius: 14,
-                  background: `linear-gradient(135deg, ${THEME.accent}08, transparent)`,
-                  border: `1px solid ${THEME.accent}15`,
-                }}>
-                  {thoughtsText}
+            {/* STEP 5 — Byte callout */}
+            {revealStep >= 5 && (
+              <div style={{ marginLeft: 38, marginBottom: 6, animation: 'primeReveal 0.4s ease forwards' }}>
+                <AgentCallout agent="Byte" text={data.pendingImports > 0 ? `${data.pendingImports} statement${data.pendingImports > 1 ? "s" : ""} ready to import.` : "No pending imports \u2014 all statements processed."} cta={data.pendingImports > 0 ? "Import now" : "Upload new"} onCtaClick={() => { onClose?.(); navigate("/dashboard/upload"); }} />
+              </div>
+            )}
+
+            {/* STEP 6 — Crystal callout */}
+            {revealStep >= 6 && (
+              <div style={{ marginLeft: 38, marginBottom: 6, animation: 'primeReveal 0.4s ease forwards' }}>
+                <AgentCallout agent="Crystal" text={data.trendAlert ? `${data.trendAlert.category} has ${data.trendAlert.direction === "up" ? "increased" : "decreased"} ${data.trendAlert.months.length} months straight: ${data.trendAlert.months.map((m) => "$" + m.toLocaleString()).join(" \u2192 ")}.` : data.categoryBreakdown.length > 0 ? `Your top category is ${data.categoryBreakdown[0].label} at $${data.categoryBreakdown[0].amount.toLocaleString()}. No unusual trends detected.` : "Not enough data yet to spot trends."} cta="See trend analysis" onCtaClick={() => { onClose?.(); navigate("/dashboard/my-story"); }} />
+              </div>
+            )}
+            {/* Typing dots before Prime's Take */}
+            {revealStep >= 6 && revealStep < 7 && (
+              <div style={{ marginLeft: 38, marginTop: 8, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {[0, 0.2, 0.4].map((delay, i) => (
+                    <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: THEME.accent, animation: `primeDot 1.4s ease-in-out ${delay}s infinite`, display: 'inline-block' }} />
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Follow-up prompts — hidden after first use */}
-            {!promptsUsed && (
-              <div style={{ marginLeft: 38 }}>
-                <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>
-                  Want me to dig into any of this?
+            {/* STEP 7 — Tax deductions + Prime's Take */}
+            {revealStep >= 7 && data.deductions.total > 0 && (
+              <div style={{ marginLeft: 38, marginTop: 14, marginBottom: 18, animation: 'primeReveal 0.4s ease forwards' }}>
+                <TaxDeductionsCard total={data.deductions.total} categories={data.deductions.categories} />
+              </div>
+            )}
+            {revealStep >= 7 && (
+              <div style={{ marginLeft: 38, marginBottom: 18, animation: 'primeReveal 0.4s ease forwards' }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 18, height: 2, borderRadius: 1, background: THEME.accent }} />
+                  <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.8, fontWeight: 700, color: THEME.accent }}>Prime&apos;s Take</span>
+                  <div style={{ flex: 1, height: 1, background: THEME.border }} />
                 </div>
+                <div style={{ fontSize: 15, color: THEME.textMuted, lineHeight: 1.7, padding: "14px 16px", borderRadius: 14, background: `linear-gradient(135deg, ${THEME.accent}08, transparent)`, border: `1px solid ${THEME.accent}15` }}>
+                  <TypingMessage content={thoughtsText} messageId="prime-thoughts" isStreaming={false} isTyped={typedIdsRef.current.has('prime-thoughts')} onTyped={(id) => typedIdsRef.current.add(id)} charDelay={10} maxDuration={2500} />
+                </div>
+              </div>
+            )}
+
+            {/* STEP 8 — Follow-up chips */}
+            {revealStep >= 8 && !promptsUsed && (
+              <div style={{ marginLeft: 38, animation: 'primeReveal 0.4s ease forwards' }}>
+                <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>Want me to dig into any of this?</div>
                 <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
-                  {[
-                    "Break down the dining spend",
-                    "Show me deduction details",
-                    ...(data.uncategorizedCount > 0 ? [`Categorize the ${data.uncategorizedCount} flagged`] : []),
-                    "Compare to last quarter",
-                  ].map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => handleSend(q)}
-                      style={{
-                        padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500,
-                        background: THEME.surface, border: `1px solid ${THEME.border}`,
-                        color: THEME.text, cursor: "pointer", transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = THEME.accent; e.currentTarget.style.background = THEME.accentGlow; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.background = THEME.surface; }}
-                    >
+                  {["Break down the dining spend", "Show me deduction details", ...(data.uncategorizedCount > 0 ? [`Categorize the ${data.uncategorizedCount} flagged`] : []), "Compare to last quarter"].map((q) => (
+                    <button key={q} onClick={() => handleSend(q)} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500, background: THEME.surface, border: `1px solid ${THEME.border}`, color: THEME.text, cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = THEME.accent; e.currentTarget.style.background = THEME.accentGlow; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.background = THEME.surface; }}>
                       {q}
                     </button>
                   ))}

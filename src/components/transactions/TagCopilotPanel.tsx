@@ -641,21 +641,14 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
       <div style={{ position:'fixed', bottom:0, right:0, top:0, width:520, background:'#0b1220', borderLeft:'1px solid rgba(34,211,153,0.15)', zIndex:71, display:'flex', flexDirection:'column', overflow:'hidden', fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:'-8px 0 40px rgba(0,0,0,0.5)' }}>
         {/* HEADER */}
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
-          <div style={{ width:36, height:36, borderRadius:'50%', background:'rgba(34,211,153,0.15)', border:'1px solid rgba(34,211,153,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>T</div>
+          <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(34,211,153,0.15)', border:'1px solid rgba(34,211,153,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>T</div>
           <div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <span style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#c8d0e0', fontWeight:400 }}>Copilot</span></span>
-              <span style={{ fontSize:8, fontWeight:700, padding:'2px 6px', borderRadius:6, background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', color:'#22c55e', letterSpacing:'0.05em' }}>SECURED</span>
+              <span style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#7b8ba5', fontWeight:400 }}>Copilot</span></span>
+              {needsReviewCount !== null && needsReviewCount > 0 && <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:8, background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.3)', color:'#34d399', letterSpacing:'0.04em' }}>{needsReviewCount} to review</span>}
             </div>
-            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <span style={{ fontSize:11, color:'#22d3ee' }}>Your categorization assistant</span>
-              {needsReviewCount !== null && (needsReviewCount > 0
-                ? <span style={{ fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:8, background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', color:'#f59e0b' }}>{needsReviewCount} need review</span>
-                : <span style={{ fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:8, background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', color:'#22c55e' }}>All clear</span>
-              )}
-            </div>
+            <div style={{ fontSize:11, color:'#7b8ba5' }}>Categorization assistant</div>
           </div>
-          {onToggleActivity && <button onClick={onToggleActivity} title="Tag Activity" style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#475569', fontSize:14, padding:'2px 6px' }}>{'\uD83D\uDCCB'}</button>}
           <button onClick={async () => {
             localStorage.removeItem('tag_chat_history');
             localStorage.removeItem('tag_chat_history_ts');
@@ -671,7 +664,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
             } catch { /* silent */ }
             // Re-run proactive greeting
             void fetchProactiveGreeting();
-          }} style={{ marginLeft: onToggleActivity ? undefined : 'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', fontSize:12, display:'flex', alignItems:'center', gap:4, padding:'4px 8px', borderRadius:6 }}><Trash2 size={13} /> Clear</button>
+          }} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', fontSize:12, display:'flex', alignItems:'center', gap:4, padding:'4px 8px', borderRadius:6 }}><Trash2 size={13} /> Clear</button>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#c8d0e0', padding:4, display:'flex' }}><X style={{ width:18, height:18 }} /></button>
         </div>
         {/* ACTIVE TRANSACTION PILL */}
@@ -852,12 +845,12 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
         {/* INPUT */}
         <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:8, alignItems:'flex-end', flexShrink:0 }}>
           <textarea
-            rows={3}
+            rows={2}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
             placeholder="Ask Tag anything..."
-            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'12px 14px', fontSize:16, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.6, minHeight:52 }}
+            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'8px 12px', fontSize:13, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.5, minHeight:38 }}
           />
           <button
             onClick={() => void send()}

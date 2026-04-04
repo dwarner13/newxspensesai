@@ -496,12 +496,12 @@ export function TagCopilotPanel({
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${THEME.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10, background: THEME.surface, borderRadius: 14, border: `1px solid ${THEME.border}`, padding: "8px 8px 8px 16px" }}>
             <textarea
-              rows={3}
+              rows={2}
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               placeholder="Ask Tag anything about categories..."
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: THEME.text, fontSize: 14, padding: "10px 0", fontFamily: "inherit", resize: "none", lineHeight: 1.6, minHeight: 52 }}
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: THEME.text, fontSize: 13, padding: "8px 0", fontFamily: "inherit", resize: "none", lineHeight: 1.5, minHeight: 38 }}
             />
             <button
               onClick={() => handleSend()}

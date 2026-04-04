@@ -123,16 +123,19 @@ export default function SignupPageV2() {
 
         <label style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 6, display: "block" }}>Full name</label>
         <input type="text" value={name} onChange={e => setName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { document.querySelector<HTMLInputElement>('input[type="email"]')?.focus(); } }}
           onFocus={() => setFocusedField("name")} onBlur={() => setFocusedField(null)}
           placeholder="Your name" style={inputStyle("name")} />
 
         <label style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 6, display: "block" }}>Email address</label>
         <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { document.querySelector<HTMLInputElement>('input[type="password"]')?.focus(); } }}
           onFocus={() => setFocusedField("email")} onBlur={() => setFocusedField(null)}
           placeholder="you@example.com" style={inputStyle("email")} />
 
         <label style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 6, display: "block" }}>Password</label>
         <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') void handleSignup(); }}
           onFocus={() => setFocusedField("password")} onBlur={() => setFocusedField(null)}
           placeholder="Min 8 characters" style={inputStyle("password")} />
 
