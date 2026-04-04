@@ -232,7 +232,21 @@ export default function InboxPage() {
               </button>
             );
           })}
-        </div>
+        </div>}
+
+        {/* Mobile folder tabs */}
+        {isMobile && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, marginBottom: 8, scrollbarWidth: 'none' as any, flexShrink: 0, width: '100%' }}>
+            {FOLDERS.map(f => {
+              const active = folder === f.key;
+              return (
+                <button key={f.key} onClick={() => setFolder(f.key as any)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 20, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', background: active ? (f.color || T.gold) + '18' : 'transparent', border: `1px solid ${active ? (f.color || T.gold) : T.border}`, color: active ? (f.color || T.gold) : T.dim, whiteSpace: 'nowrap' as const }}>
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ═══ CENTER: MESSAGE LIST ═══ */}
         <div style={{ flex: 1, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", minWidth: 0, display: "flex", flexDirection: "column" }}>
@@ -262,7 +276,7 @@ export default function InboxPage() {
                     onMouseLeave={() => setHovered(null)}
                     style={{
                       display: "flex", alignItems: "center", gap: 12, padding: "0 18px",
-                      height: 56, cursor: "pointer", width: "100%", overflow: "hidden",
+                      height: isMobile ? 64 : 56, cursor: "pointer", width: "100%", overflow: "hidden",
                       borderBottom: `1px solid ${T.border}`,
                       borderLeft: isUnread ? `3px solid ${T.gold}` : "3px solid transparent",
                       background: isSelected ? T.cyan + "0a" : isHovered ? T.surfaceHover : isUnread ? T.surfaceLight : "transparent",
@@ -291,7 +305,7 @@ export default function InboxPage() {
                       fontSize: 13, fontWeight: 800, color: agent.color,
                     }}>{agent.initial}</div>
                     {/* Agent name */}
-                    <span style={{ width: 72, flexShrink: 0, fontSize: 12, fontWeight: 700, color: agent.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ width: isMobile ? 52 : 72, flexShrink: 0, fontSize: 12, fontWeight: 700, color: agent.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {agent.name}
                     </span>
                     {/* Subject + priority + preview */}
