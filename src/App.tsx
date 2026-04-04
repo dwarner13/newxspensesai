@@ -86,6 +86,7 @@ const CategoryRulesPage = lazy(() => import('./pages/CategoriesV2/CategoryRulesP
 const DashboardHomeV2 = lazy(() => import('./pages/DashboardV2/DashboardHomeV2'));
 const MyFinancialStoryV2 = lazy(() => import('./pages/MyStoryV2/MyFinancialStoryV2'));
 const ReportsPageV2 = lazy(() => import('./pages/ReportsV2/ReportsPageV2'));
+const ReceiptsPage = lazy(() => import('./pages/ReceiptsPage'));
 const InboxPage = lazy(() => import('./pages/Inbox/InboxPage'));
 const GoalsDebtPageV2 = lazy(() => import('./pages/GoalsDebtV2/GoalsDebtPageV2'));
 const MonthlyRecapPageV2 = lazy(() => import('./pages/MonthlyRecapV2/MonthlyRecapPageV2'));
@@ -529,6 +530,7 @@ function App() {
                       {/* Planning & Analysis */}
                       <Route path="transactions" element={<TransactionsPageV2 />} />
                       <Route path="inbox" element={<Suspense fallback={<LoadingSpinner />}><InboxPage /></Suspense>} />
+                      <Route path="receipts" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />
                       <Route path="bank-accounts" element={<Suspense fallback={<LoadingSpinner />}><BankAccountsPage /></Suspense>} />
                       <Route path="goal-concierge" element={<GoalsDebtPageV2 />} />
                       <Route path="smart-automation" element={<Suspense fallback={<LoadingSpinner />}><SmartAutomation /></Suspense>} />
@@ -546,6 +548,7 @@ function App() {
                       
                       {/* Business & Tax */}
                       <Route path="tax-workspace" element={<Suspense fallback={<LoadingSpinner />}><TaxWorkspacePage /></Suspense>} />
+                      <Route path="tax-summary" element={<Navigate to="/dashboard/tax-workspace" replace />} />
                       <Route path="tax-business" element={<TaxBusinessPageV2 />} />
                       <Route path="tax-assistant" element={<Navigate to="/dashboard/tax-business" replace />} />
                       <Route path="business-intelligence" element={<Suspense fallback={<LoadingSpinner />}><BusinessIntelligencePage /></Suspense>} />

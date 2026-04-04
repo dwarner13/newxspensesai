@@ -94,6 +94,7 @@ export function TransactionInsightDrawer({
   const [addingSubcategory, setAddingSubcategory] = useState(false);
   const [newSubcategoryText, setNewSubcategoryText] = useState('');
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  const [linkedReceipt, setLinkedReceipt] = useState<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -120,6 +121,22 @@ export function TransactionInsightDrawer({
       setLocalCategory(String(row.transaction.tag_category || dj.category || 'Uncategorized'));
       setLocalSubcategory(String((dj as any).subcategory || ''));
     }
+  }, [row?.kind === 'committed' ? (row as any).transaction.id : null]);
+
+  // Fetch linked receipt
+  useEffect(() => {
+    setLinkedReceipt(null);
+    if (!row || row.kind !== 'committed') return;
+    const tx = row.transaction as any;
+    if (!tx.has_receipt && !tx.receipt_id) return;
+    (async () => {
+      try {
+        const { getSupabase } = await import('../../lib/supabase');
+        const sb = getSupabase(); if (!sb) return;
+        const { data } = await sb.from('receipts').select('id, file_url, image_url, merchant_name, amount, receipt_date, suggested_category, match_status').eq('transaction_id', tx.id).maybeSingle();
+        setLinkedReceipt(data);
+      } catch { /* silent */ }
+    })();
   }, [row?.kind === 'committed' ? (row as any).transaction.id : null]);
 
   // Fetch subcategory options when category changes
@@ -444,6 +461,42 @@ export function TransactionInsightDrawer({
           {row.kind === 'committed' && ['tag_rule', 'user_rule', 'rule'].includes((row.transaction as any).category_source) && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 12, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)', fontSize: 10, fontWeight: 700, color: '#22d3ee', width: 'fit-content' }}>
               {'\u26A1'} Tag rule
+            </div>
+          )}
+
+          {/* RECEIPT ATTACHED */}
+          {linkedReceipt && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)' }}>
+              <span style={{ fontSize: 18 }}>{'\uD83E\uDDFE'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#34d399' }}>Receipt attached</div>
+                <div style={{ fontSize: 11, color: '#475569' }}>{linkedReceipt.merchant_name}{linkedReceipt.amount ? ` \u00b7 $${Number(linkedReceipt.amount).toFixed(2)}` : ''}</div>
+              </div>
+              <button onClick={() => window.open(linkedReceipt.file_url || linkedReceipt.image_url, '_blank')} style={{ fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' as const }}>View {'\uD83E\uDDFE'}</button>
+            </div>
+          )}
+          {/* ATTACH RECEIPT */}
+          {!linkedReceipt && row?.kind === 'committed' && (
+            <div>
+              <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} id={`receipt-attach-${(row.transaction as any).id}`} onChange={async (e) => {
+                const file = e.target.files?.[0]; if (!file) return;
+                const txId = (row.transaction as any).id;
+                try {
+                  const { getSupabase } = await import('../../lib/supabase');
+                  const sb = getSupabase(); if (!sb) return;
+                  const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+                  const reader = new FileReader();
+                  reader.onload = async () => {
+                    const base64 = (reader.result as string).split(',')[1];
+                    const res = await fetch('/.netlify/functions/receipt-upload', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name, transaction_id: txId }) });
+                    const data = await res.json();
+                    if (data.ok) { setLinkedReceipt({ id: data.receipt_id, merchant_name: data.merchant_name, amount: data.amount, file_url: data.file_url, match_status: 'matched' }); }
+                  };
+                  reader.readAsDataURL(file);
+                } catch { /* silent */ }
+                e.target.value = '';
+              }} />
+              <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#475569', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>{'\uD83E\uDDFE'} Attach Receipt</label>
             </div>
           )}
 

@@ -59,8 +59,8 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid #1e2d4a', flexShrink: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{'\uD83D\uDEE1\uFE0F'}</div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#e8ecf4' }}>Custodian</div>
-            <div style={{ fontSize: 11, color: '#7b8ba5' }}>IT Manager</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#e8ecf4' }}>Custodian</div>
+            <div style={{ fontSize: 13, color: '#7b8ba5' }}>IT Manager</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#c8d0e0', padding: 4, display: 'flex' }}>
             <X style={{ width: 18, height: 18 }} />
@@ -73,7 +73,7 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
             <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
               <div style={{ maxWidth: '85%' }}>
                 <div style={{
-                  padding: '10px 14px', borderRadius: 12, fontSize: 13, color: '#e8ecf4', lineHeight: 1.6,
+                  padding: '10px 14px', borderRadius: 12, fontSize: 15, color: '#e8ecf4', lineHeight: 1.6,
                   wordBreak: 'break-word', overflowWrap: 'break-word',
                   ...(m.role === 'custodian'
                     ? { background: 'rgba(167,139,250,0.06)', borderLeft: '3px solid rgba(167,139,250,0.4)' }
@@ -109,7 +109,7 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void send(); } }}
             placeholder="Ask Custodian anything..."
-            style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#e8ecf4', outline: 'none', fontFamily: 'inherit' }}
+            style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#e8ecf4', outline: 'none', fontFamily: 'inherit' }}
           />
           <button onClick={() => void send()} disabled={busy || !input.trim()}
             style={{ width: 36, height: 36, borderRadius: 10, background: busy ? 'rgba(167,139,250,0.08)' : 'rgba(167,139,250,0.2)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: busy ? 'default' : 'pointer', color: '#a78bfa', flexShrink: 0 }}>
@@ -119,7 +119,7 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
 
         {/* Guardrails footer */}
         <div style={{ padding: '6px 16px', borderTop: '1px solid rgba(255,255,255,0.04)', textAlign: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 9, color: '#475569' }}>{'\u2022'} Custodian AI {'\u2022'} System guide {'\u2022'} Not financial advice</span>
+          <span style={{ fontSize: 10, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} /> Custodian AI {'\u2022'} System guide {'\u2022'} Not financial advice</span>
         </div>
       </div>
     </>

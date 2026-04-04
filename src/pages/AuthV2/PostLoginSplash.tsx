@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getSupabase } from "@/lib/supabase";
 
 const C = {
   bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
@@ -15,11 +16,36 @@ interface PostLoginSplashProps {
 export default function PostLoginSplash({ userName = "there", onContinue, onOpenPrime }: PostLoginSplashProps) {
   const [visibleLines, setVisibleLines] = useState(0);
   const [showButtons, setShowButtons] = useState(false);
+  const [splashData, setSplashData] = useState({
+    statementCount: 0, transactionCount: 0, uncategorizedCount: 0,
+    categorizedPct: 0, deductionsTotal: 0, xspenseScore: 0, loaded: false,
+  });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const sb = getSupabase(); if (!sb) return;
+        const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+        const uid = session.user.id;
+        const { count: txCount } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', uid);
+        const { count: uncatCount } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', uid).or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
+        const { count: stmtCount } = await sb.from('imports').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'committed');
+        const DEDUCTIBLE = ['Transportation', 'Housing', 'Utilities', 'Healthcare', 'Education', 'Insurance', 'Subscriptions', 'Bank Fees', 'Business'];
+        const { data: deductTxs } = await sb.from('transactions').select('amount').eq('user_id', uid).in('category', DEDUCTIBLE);
+        const deductionsTotal = Math.round((deductTxs ?? []).reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0));
+        const total = txCount || 0;
+        const uncat = uncatCount || 0;
+        const categorizedPct = total > 0 ? Math.round(((total - uncat) / total) * 100) : 0;
+        const xspenseScore = Math.min(100, Math.round(40 + categorizedPct * 0.5 + (stmtCount || 0) * 2));
+        setSplashData({ statementCount: stmtCount || 0, transactionCount: total, uncategorizedCount: uncat, categorizedPct, deductionsTotal, xspenseScore, loaded: true });
+      } catch { /* silent */ }
+    })();
+  }, []);
 
   const agents = [
-    { name: "Byte", color: C.green, letter: "B", line: "2 new statements imported \u2014 24 transactions extracted and staged." },
-    { name: "Tag", color: C.cyan, letter: "T", line: "All 24 categorized with 96% confidence. 3 flagged for your review." },
-    { name: "Prime", color: C.accent, letter: "\u2655", line: "$420 in new tax deductions identified. Your Xspense Score is 62." },
+    { name: "Byte", color: C.green, letter: "B", line: splashData.loaded ? (splashData.statementCount > 0 ? `${splashData.statementCount} statement${splashData.statementCount !== 1 ? 's' : ''} processed \u2014 ${splashData.transactionCount.toLocaleString()} transactions in your books.` : "Ready to process your first statement. Drop a PDF and I'll go to work.") : "Checking your imports..." },
+    { name: "Tag", color: C.cyan, letter: "T", line: splashData.loaded ? (splashData.transactionCount > 0 ? `${splashData.categorizedPct}% categorized${splashData.uncategorizedCount > 0 ? ` \u2014 ${splashData.uncategorizedCount} still need your input.` : '. All transactions clean.'}` : "Standing by \u2014 upload a statement and I'll categorize everything automatically.") : "Checking categories..." },
+    { name: "Prime", color: C.accent, letter: "\u2655", line: splashData.loaded ? (splashData.deductionsTotal > 0 ? `$${splashData.deductionsTotal.toLocaleString()} in potential tax deductions identified. Your Xspense Score is ${splashData.xspenseScore}.` : splashData.transactionCount > 0 ? `Your Xspense Score is ${splashData.xspenseScore}. Upload more statements to unlock deeper insights.` : "Ready to brief you. Upload your first statement to get started.") : "Preparing your briefing..." },
   ];
 
   useEffect(() => {
@@ -63,7 +89,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       <div style={{
         fontSize: 10, textTransform: "uppercase", letterSpacing: 3,
         color: C.accent, fontWeight: 700, marginBottom: 10,
-      }}>Previously On XspensesAI</div>
+      }}>{splashData.loaded && splashData.transactionCount === 0 ? 'Your AI Finance Team' : 'Previously On XspensesAI'}</div>
 
       <h1 style={{
         fontSize: "clamp(26px, 4vw, 38px)", fontWeight: 800, letterSpacing: -1,
@@ -71,7 +97,9 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       }}>Welcome Back, {userName}</h1>
 
       <p style={{ fontSize: 15, color: C.dim, marginBottom: 16, textAlign: "center" }}>
-        Here&apos;s what your AI team did while you were away.
+        {splashData.loaded && splashData.transactionCount === 0
+          ? "Your AI team is ready. Let's get started."
+          : "Here's what your AI team did while you were away."}
       </p>
 
       {/* Agent lines */}

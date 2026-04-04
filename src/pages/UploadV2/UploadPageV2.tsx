@@ -66,7 +66,7 @@ async function getCommittedTxCount(importId: string, userId: string): Promise<nu
   return count || 0;
 }
 
-const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171" };
+const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24" };
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,.xlsx,.xls,image/*";
 
 function isSpreadsheetFile(name: string): boolean {
@@ -149,12 +149,50 @@ export default function UploadPageV2() {
   const [sweepSuggestion, setSweepSuggestion] = useState<any>(null);
   const [bytePanelOpen, setBytePanelOpen] = useState(false);
   const [byteInput, setByteInput] = useState('');
+  const [uploadMode, setUploadMode] = useState<'statement' | 'receipt'>('statement');
+  const [byteReceiptMsg, setByteReceiptMsg] = useState<string | null>(null);
+  const [recentReceipts, setRecentReceipts] = useState<any[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const receiptFileRef = useRef<HTMLInputElement>(null);
+  const receiptCameraRef = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
   const processingRef = useRef(false);
   const queueRef = useRef<QueueItem[]>([]);
   queueRef.current = queue;
+
+  // Fetch recent receipts when receipt mode is active
+  useEffect(() => {
+    if (uploadMode !== 'receipt' || !userId) return;
+    (async () => {
+      const sb = getSupabase(); if (!sb) return;
+      const { data } = await sb.from('receipts').select('id, merchant_name, amount, match_status, file_url, image_url, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(5);
+      setRecentReceipts(data || []);
+    })();
+  }, [uploadMode, userId]);
+
+  const handleReceiptUpload = async (file: File) => {
+    setByteReceiptMsg('Reading receipt...');
+    try {
+      const authToken = session?.access_token;
+      if (!authToken || !userId) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        const res = await fetch('/.netlify/functions/receipt-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name }),
+        });
+        const data = await res.json();
+        setByteReceiptMsg(data.reply || 'Receipt processed.');
+        const sb = getSupabase(); if (!sb) return;
+        const { data: recent } = await sb.from('receipts').select('id, merchant_name, amount, match_status').eq('user_id', userId).order('created_at', { ascending: false }).limit(5);
+        setRecentReceipts(recent || []);
+      };
+      reader.readAsDataURL(file);
+    } catch { setByteReceiptMsg('Upload failed — try again.'); }
+  };
 
   const introText = "Drop as many statements as you want. I'll work through them one at a time \u2014 extract transactions, hand each off to Tag for categorization, then Prime reviews.";
   const [typed, typeDone] = useTypewriter(introText, 14, 400);
@@ -325,10 +363,19 @@ export default function UploadPageV2() {
       <div style={{ fontFamily: "'Plus Jakarta Sans'", color: T.text, padding: "28px 36px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))", maxWidth: 900, margin: "0 auto" }}>
         {/* Header */}
         <Reveal delay={0}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0, color: "white" }}>Bulk Upload</h1>
-          <p style={{ fontSize: 13, color: T.muted, marginTop: 4, marginBottom: 20 }}>Drop all your statements. Byte processes them one at a time.</p>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0, color: "white" }}>Upload</h1>
+          <p style={{ fontSize: 13, color: T.muted, marginTop: 4, marginBottom: 16 }}>Byte processes statements and receipts automatically.</p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            {[{ id: 'statement' as const, label: '\uD83D\uDCC4 Statements', desc: 'Bank & credit card statements' }, { id: 'receipt' as const, label: '\uD83E\uDDFE Receipts', desc: 'Proof of purchase documents' }].map(tab => (
+              <button key={tab.id} onClick={() => setUploadMode(tab.id)} style={{ flex: 1, padding: '12px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left' as const, background: uploadMode === tab.id ? `${T.accent}12` : T.surface, border: `1px solid ${uploadMode === tab.id ? T.accent : T.border}`, color: uploadMode === tab.id ? T.accent : T.muted, fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}>
+                <div>{tab.label}</div>
+                <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2, color: uploadMode === tab.id ? T.accent : T.dim }}>{tab.desc}</div>
+              </button>
+            ))}
+          </div>
         </Reveal>
 
+        {uploadMode === 'statement' && (<>
         {/* Byte intro */}
         <Reveal delay={100}>
           <div style={{ display: "flex", gap: 10, padding: "14px 18px", borderRadius: 14, background: `${T.green}06`, border: `1px solid ${T.green}15`, marginBottom: 24 }}>
@@ -505,10 +552,49 @@ export default function UploadPageV2() {
             </div>
           </Reveal>
         )}
-      </div>
-
       {/* Statement History */}
       <StatementHistory />
+      </>)}
+
+      {/* ── RECEIPT MODE ── */}
+      {uploadMode === 'receipt' && (
+        <div>
+          <input ref={receiptCameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={async e => { if (e.target.files?.[0]) await handleReceiptUpload(e.target.files[0]); e.target.value = ''; }} />
+          <input ref={receiptFileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={async e => { if (e.target.files?.[0]) await handleReceiptUpload(e.target.files[0]); e.target.value = ''; }} />
+          <div onClick={() => receiptFileRef.current?.click()} style={{ border: `2px dashed ${T.green}44`, borderRadius: 20, padding: '48px 24px', textAlign: 'center' as const, cursor: 'pointer', background: `${T.green}04`, marginBottom: 24 }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>{'\uD83E\uDDFE'}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6 }}>Drop receipts here</div>
+            <div style={{ fontSize: 13, color: T.muted }}>Photos, PDFs, screenshots — Byte will read them</div>
+          </div>
+          <button onClick={() => receiptCameraRef.current?.click()} style={{ padding: '12px 24px', borderRadius: 12, fontSize: 13, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, margin: '0 auto 24px' }}>{'\uD83D\uDCF7'} Take Photo</button>
+          {byteReceiptMsg && (
+            <div style={{ display: 'flex', gap: 10, padding: '14px 18px', borderRadius: 14, background: `${T.green}06`, border: `1px solid ${T.green}18`, marginBottom: 20 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${T.green}20`, border: `1px solid ${T.green}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: T.green, flexShrink: 0 }}>B</div>
+              <div style={{ flex: 1, fontSize: 14, color: T.muted, lineHeight: 1.6 }}>
+                {byteReceiptMsg.split('**').map((part: string, j: number) => j % 2 === 1 ? <strong key={j} style={{ color: T.green }}>{part}</strong> : <span key={j}>{part}</span>)}
+              </div>
+            </div>
+          )}
+          {recentReceipts.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: 12 }}>Recent Receipts</div>
+              {recentReceipts.map(r => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, marginBottom: 6 }}>
+                  <span style={{ fontSize: 20 }}>{'\uD83E\uDDFE'}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{r.merchant_name || 'Unknown merchant'}</div>
+                    <div style={{ fontSize: 11, color: T.dim }}>{r.amount ? `$${Number(r.amount).toFixed(2)}` : ''}</div>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: r.match_status === 'matched' ? `${T.green}12` : `${T.amber}12`, color: r.match_status === 'matched' ? T.green : T.amber }}>{r.match_status === 'matched' ? '\u2713 Matched' : '\u23F3 Pending'}</span>
+                </div>
+              ))}
+              <button onClick={() => navigate('/dashboard/receipts')} style={{ fontSize: 12, color: T.accent, background: 'none', border: 'none', cursor: 'pointer', marginTop: 8 }}>View all receipts {'\u2192'}</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      </div>
       <style>{`@keyframes uploadPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }`}</style>
 
       {/* Byte floating bubble */}

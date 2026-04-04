@@ -1,558 +1,171 @@
-import { useEffect, useState } from 'react';
-import { 
-  Receipt, 
-  Camera, 
-  Calendar, 
-  DollarSign,
-  Eye,
-  Trash2,
-  Download,
-  Star,
-  Zap,
-  Filter
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-import XPDisplay from '../components/gamification/XPDisplay';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getSupabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
-import PageHeader from '../components/layout/PageHeader';
+import { Reveal } from './PrimeChatV2/Reveal';
 
-interface ReceiptRecord {
-  id: string;
-  image_url: string;
-  original_filename: string;
-  upload_date: string;
-  processing_status: 'pending' | 'processing' | 'completed' | 'failed';
-  extracted_data: any;
-  transaction_id: string | null;
-  created_at: string;
-}
+const T = { bg:'#0b1220', surface:'#111a2e', border:'#1e2d4a', text:'#e8ecf4', muted:'#7b8ba5', dim:'#475569', accent:'#c8a64e', green:'#34d399', cyan:'#22d3ee', red:'#f87171', amber:'#fbbf24' };
 
-const ReceiptsPage = () => {
-  const { user } = useAuth();
-  const [receipts, setReceipts] = useState<ReceiptRecord[]>([]);
+export default function ReceiptsPage() {
+  const navigate = useNavigate();
+  const { userId } = useAuth();
+  const [receipts, setReceipts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRecord | null>(null);
-  const [filter, setFilter] = useState<'all' | 'completed' | 'pending' | 'failed'>('all');
+  const [filter, setFilter] = useState<'all' | 'matched' | 'pending' | 'no_match'>('all');
+  const [byteMessage, setByteMessage] = useState<string | null>(null);
+  const [matching, setMatching] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (user) {
-      fetchReceipts();
-    }
-  }, [user, filter]);
+  const fetchReceipts = useCallback(async () => {
+    const sb = getSupabase(); if (!sb || !userId) return;
+    setLoading(true);
+    let q = sb.from('receipts').select('*').eq('user_id', userId);
+    if (filter !== 'all') q = q.eq('match_status', filter);
+    const { data } = await q.order('created_at', { ascending: false }).limit(50);
+    setReceipts(data || []);
+    setLoading(false);
+  }, [userId, filter]);
 
-  const fetchReceipts = async () => {
+  useEffect(() => { void fetchReceipts(); }, [fetchReceipts]);
+
+  const handleUpload = async (file: File) => {
+    setByteMessage('Reading receipt...');
     try {
-      setLoading(true);
-      
-      // Check if we're in development/mock mode
-      if (user?.id === 'dev-user-123' || !user?.id) {
-        // Return mock data for development
-        setReceipts([]);
-        setLoading(false);
-        return;
-      }
-      
-      let query = supabase
-        .from('receipts')
-        .select('*')
-        .eq('user_id', user?.id as any)
-        .order('upload_date', { ascending: false});
-
-      if (filter !== 'all') {
-        query = query.eq('processing_status', filter as any);
-      }
-
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error('Supabase error:', error);
-        // If table doesn't exist or other error, just return empty array
-        setReceipts([]);
-        return;
-      }
-      
-      setReceipts((data as unknown as ReceiptRecord[]) || []);
-    } catch (error) {
-      console.error('Error fetching receipts:', error);
-      // Don't show error toast for development/mock mode
-      if (user?.id !== 'dev-user-123') {
-        toast.error('Failed to load receipts');
-      }
-      setReceipts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteReceipt = async (receipt: ReceiptRecord) => {
-    if (!confirm('Are you sure you want to delete this receipt?')) return;
-
-    try {
-      // Check if we're in development/mock mode
-      if (user?.id === 'dev-user-123' || !user?.id) {
-        // Mock delete for development
-        setReceipts(receipts.filter(r => r.id !== receipt.id));
-        toast.success('Receipt deleted successfully');
-        return;
-      }
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from('receipts')
-        .delete()
-        .eq('id', receipt.id as any);
-
-      if (dbError) {
-        console.error('Database error:', dbError);
-        toast.error('Failed to delete receipt');
-        return;
-      }
-
-      // Delete from storage
-      const filePath = receipt.image_url.split('/').pop();
-      if (filePath) {
-        try {
-          await supabase.storage
-            .from('receipts')
-            .remove([`${user?.id}/${filePath}`]);
-        } catch (storageError) {
-          console.error('Storage error:', storageError);
-          // Don't fail the whole operation if storage delete fails
-        }
-      }
-
-      setReceipts(receipts.filter(r => r.id !== receipt.id));
-      toast.success('Receipt deleted successfully');
-    } catch (error) {
-      console.error('Error deleting receipt:', error);
-      toast.error('Failed to delete receipt');
-    }
-  };
-
-  const handleDownloadReceipt = async (receipt: ReceiptRecord) => {
-    try {
-      const response = await fetch(receipt.image_url);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = receipt.original_filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('Receipt downloaded');
-    } catch (error) {
-      console.error('Error downloading receipt:', error);
-      toast.error('Failed to download receipt');
-    }
-  };
-
-  const createTransactionFromReceipt = async (receipt: ReceiptRecord) => {
-    if (!receipt.extracted_data) return;
-
-    try {
-      // Check if we're in development/mock mode
-      if (user?.id === 'dev-user-123' || !user?.id) {
-        // Mock transaction creation for development
-        toast.success('Transaction created from receipt!');
-        return;
-      }
-
-      const extractedData = receipt.extracted_data;
-      
-      const transaction = {
-        user_id: user?.id,
-        date: extractedData.date || new Date().toISOString().split('T')[0],
-        description: extractedData.vendor || 'Receipt Purchase',
-        amount: extractedData.total || 0,
-        type: 'Debit' as const,
-        category: extractedData.category || 'Uncategorized',
-        subcategory: null,
-        file_name: 'Receipt Scan',
-        hash_id: `receipt-${receipt.id}`,
-        categorization_source: 'ai' as const
+      const sb = getSupabase(); if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        const res = await fetch('/.netlify/functions/receipt-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name }),
+        });
+        const data = await res.json();
+        setByteMessage(data.ok ? data.reply : 'Something went wrong — try again.');
+        void fetchReceipts();
       };
-
-      const { error } = await supabase
-        .from('transactions')
-        .insert([transaction as any]);
-
-      if (error) {
-        console.error('Transaction insert error:', error);
-        toast.error('Failed to create transaction from receipt');
-        return;
-      }
-
-      // Update receipt with transaction reference
-      try {
-        await supabase
-          .from('receipts')
-          .update({ transaction_id: transaction.hash_id } as any)
-          .eq('id', receipt.id as any);
-      } catch (updateError) {
-        console.error('Receipt update error:', updateError);
-        // Don't fail the whole operation if receipt update fails
-      }
-
-      toast.success('Transaction created from receipt!');
-      fetchReceipts(); // Refresh to show updated status
-    } catch (error) {
-      console.error('Error creating transaction:', error);
-      toast.error('Failed to create transaction from receipt');
-    }
+      reader.readAsDataURL(file);
+    } catch { setByteMessage('Upload failed — try again.'); }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+  const handleMatchAll = async () => {
+    setMatching(true);
+    try {
+      const sb = getSupabase(); if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+      const res = await fetch('/.netlify/functions/receipt-match', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: '{"scan_all":true}' });
+      const data = await res.json();
+      if (data.ok) { toast.success(`Matched ${data.matched} receipt${data.matched !== 1 ? 's' : ''}`); void fetchReceipts(); }
+    } catch { toast.error('Match scan failed'); }
+    finally { setMatching(false); }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-success-100 text-success-800';
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'failed':
-        return 'bg-error-100 text-error-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const handleDelete = async (r: any) => {
+    if (!window.confirm('Delete this receipt?')) return;
+    const sb = getSupabase(); if (!sb) return;
+    await sb.from('receipts').delete().eq('id', r.id);
+    if (r.transaction_id) await sb.from('transactions').update({ receipt_id: null, has_receipt: false }).eq('id', r.transaction_id);
+    void fetchReceipts(); toast.success('Receipt deleted');
   };
 
-  const completedReceipts = receipts.filter(r => r.processing_status === 'completed');
-  const totalXPEarned = completedReceipts.length * 10; // 10 XP per receipt
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-      </div>
-    );
-  }
+  const matchedCount = receipts.filter(r => r.match_status === 'matched').length;
+  const pendingCount = receipts.filter(r => r.match_status === 'pending').length;
+  const isImg = (url: string) => /\.(jpg|jpeg|png|webp)$/i.test(url || '');
 
   return (
-    <>
-      <PageHeader />
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1
-            className="text-2xl font-bold flex items-center"
-          >
-            <Receipt size={32} className="mr-3 text-primary-600" />
-            Receipt History
-          </h1>
-          
-          <div
-            className="flex flex-wrap gap-3"
-          >
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value as any)}
-              className="input max-w-xs"
-            >
-              <option value="all">All Receipts</option>
-              <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
-            </select>
-            
-            <Link to="/scan-receipt" className="btn-primary flex items-center">
-              <Camera size={16} className="mr-2" />
-              Scan New Receipt
-            </Link>
+    <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", maxWidth: 1100, margin: '0 auto', padding: '28px 24px', color: T.text }}>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) void handleUpload(e.target.files[0]); e.target.value = ''; }} />
+      <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) void handleUpload(e.target.files[0]); e.target.value = ''; }} />
+
+      <Reveal delay={0}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap' as const, gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: 'white' }}>Receipts</h1>
+            <p style={{ fontSize: 14, color: T.muted, marginTop: 4 }}>Byte reads your receipts and links them to transactions automatically</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleMatchAll} disabled={matching} style={{ padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: matching ? T.dim : T.muted, cursor: matching ? 'default' : 'pointer' }}>{'\uD83D\uDD04'} {matching ? 'Scanning...' : 'Match All'}</button>
+            <button onClick={() => cameraRef.current?.click()} style={{ padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: 'pointer' }}>{'\uD83D\uDCF7'} Photo</button>
+            <button onClick={() => fileRef.current?.click()} style={{ padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: 'none', color: '#0b1220', cursor: 'pointer' }}>+ Add Receipt</button>
           </div>
         </div>
+      </Reveal>
 
-        {/* XP Display */}
-        <div
-        >
-          <XPDisplay showDetails={false} />
+      {byteMessage && (
+        <div style={{ display: 'flex', gap: 10, padding: '14px 18px', borderRadius: 14, background: `${T.green}06`, border: `1px solid ${T.green}18`, marginBottom: 20 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${T.green}15`, border: `1px solid ${T.green}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: T.green, flexShrink: 0 }}>B</div>
+          <div style={{ flex: 1, fontSize: 14, color: '#c8d0e0', lineHeight: 1.6 }}>
+            {byteMessage.split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{ color: T.green }}>{part}</strong> : <span key={j}>{part}</span>)}
+          </div>
+          <button onClick={() => setByteMessage(null)} style={{ background: 'none', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 16, alignSelf: 'flex-start' }}>{'\u00d7'}</button>
         </div>
+      )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div
-            className="card bg-gradient-to-br from-primary-50 to-primary-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-primary-700">Total Receipts</p>
-                <p className="text-2xl font-bold text-primary-900">{receipts.length}</p>
-              </div>
-              <Receipt size={24} className="text-primary-600" />
+      <Reveal delay={50}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+          {[{ label: 'Total', value: receipts.length, color: T.text }, { label: 'Matched', value: matchedCount, color: T.green }, { label: 'Pending', value: pendingCount, color: T.amber }].map(s => (
+            <div key={s.label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 20px' }}>
+              <div style={{ fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 1.4, color: T.dim, fontWeight: 700, marginBottom: 6 }}>{s.label}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
             </div>
-          </div>
-
-          <div
-            className="card bg-gradient-to-br from-success-50 to-success-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-success-700">Processed</p>
-                <p className="text-2xl font-bold text-success-900">{completedReceipts.length}</p>
-              </div>
-              <Zap size={24} className="text-success-600" />
-            </div>
-          </div>
-
-          <div
-            className="card bg-gradient-to-br from-yellow-50 to-yellow-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-yellow-700">XP Earned</p>
-                <p className="text-2xl font-bold text-yellow-900">{totalXPEarned}</p>
-              </div>
-              <Star size={24} className="text-yellow-600" />
-            </div>
-          </div>
-
-          <div
-            className="card bg-gradient-to-br from-secondary-50 to-secondary-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-secondary-700">Total Value</p>
-                <p className="text-2xl font-bold text-secondary-900">
-                  {formatCurrency(
-                    completedReceipts.reduce((sum, r) => 
-                      sum + (r.extracted_data?.total || 0), 0
-                    )
-                  )}
-                </p>
-              </div>
-              <DollarSign size={24} className="text-secondary-600" />
-            </div>
-          </div>
+          ))}
         </div>
+      </Reveal>
 
-        {/* Receipts Grid */}
-        {receipts.length > 0 ? (
-          <div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {receipts.map((receipt) => (
-              <div
-                key={receipt.id}
-                whileHover={{ scale: 1.02 }}
-                className="card overflow-hidden"
-              >
-                {/* Receipt Image */}
-                <div className="relative">
-                  <img
-                    src={receipt.image_url}
-                    alt={receipt.original_filename}
-                    className="w-full h-48 object-cover cursor-pointer"
-                    onClick={() => setSelectedReceipt(receipt)}
-                  />
-                  <div className="absolute top-2 right-2">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(receipt.processing_status)}`}>
-                      {receipt.processing_status}
-                    </span>
-                  </div>
-                  {receipt.processing_status === 'completed' && (
-                    <div className="absolute top-2 left-2">
-                      <div className="bg-success-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center">
-                        <Star size={12} className="mr-1" />
-                        +10 XP
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Receipt Details */}
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-gray-900 truncate">
-                      {receipt.extracted_data?.vendor || receipt.original_filename}
-                    </h3>
-                    <div className="flex space-x-1">
-                      <button
-                        onClick={() => setSelectedReceipt(receipt)}
-                        className="p-1 text-gray-400 hover:text-gray-600"
-                        title="View details"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDownloadReceipt(receipt)}
-                        className="p-1 text-gray-400 hover:text-gray-600"
-                        title="Download"
-                      >
-                        <Download size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteReceipt(receipt)}
-                        className="p-1 text-gray-400 hover:text-error-600"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div className="flex items-center justify-between">
-                      <span>Date:</span>
-                      <span>{new Date(receipt.upload_date).toLocaleDateString()}</span>
-                    </div>
-                    
-                    {receipt.extracted_data?.total && (
-                      <div className="flex items-center justify-between">
-                        <span>Amount:</span>
-                        <span className="font-medium text-gray-900">
-                          {formatCurrency(receipt.extracted_data.total)}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {receipt.extracted_data?.category && (
-                      <div className="flex items-center justify-between">
-                        <span>Category:</span>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-primary-100 text-primary-700">
-                          {receipt.extracted_data.category}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  {receipt.processing_status === 'completed' && !receipt.transaction_id && (
-                    <button
-                      onClick={() => createTransactionFromReceipt(receipt)}
-                      className="w-full mt-3 btn-primary text-sm flex items-center justify-center"
-                    >
-                      <Zap size={14} className="mr-1" />
-                      Create Transaction
-                    </button>
-                  )}
-
-                  {receipt.transaction_id && (
-                    <div className="mt-3 text-xs text-success-600 bg-success-50 p-2 rounded">
-                      ✅ Transaction created
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <div className="flex justify-center mb-4">
-              <Receipt className="h-12 w-12 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No receipts yet</h3>
-            <p className="text-gray-500 mb-6">
-              Start scanning receipts to earn XP and track your expenses automatically.
-            </p>
-            <Link to="/scan-receipt" className="btn-primary inline-flex items-center">
-              <Camera size={16} className="mr-2" />
-              Scan Your First Receipt
-            </Link>
-          </div>
-        )}
-
-        {/* Receipt Detail Modal */}
-        {selectedReceipt && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div
-              className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Receipt Details</h3>
-                  <button
-                    onClick={() => setSelectedReceipt(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <img
-                    src={selectedReceipt.image_url}
-                    alt={selectedReceipt.original_filename}
-                    className="w-full max-h-64 object-contain rounded-lg border"
-                  />
-
-                  {selectedReceipt.extracted_data && (
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-medium mb-3">Extracted Data</h4>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Vendor:</span>
-                          <p className="font-medium">{selectedReceipt.extracted_data.vendor}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Date:</span>
-                          <p className="font-medium">{selectedReceipt.extracted_data.date}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Total:</span>
-                          <p className="font-medium text-lg">
-                            {formatCurrency(selectedReceipt.extracted_data.total)}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Category:</span>
-                          <p className="font-medium">{selectedReceipt.extracted_data.category}</p>
-                        </div>
-                      </div>
-
-                      {selectedReceipt.extracted_data.items && (
-                        <div className="mt-4">
-                          <h5 className="font-medium mb-2">Items</h5>
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {selectedReceipt.extracted_data.items.map((item: any, index: number) => (
-                              <div key={index} className="flex justify-between text-sm">
-                                <span>{item.description}</span>
-                                <span>{formatCurrency(item.amount)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => handleDownloadReceipt(selectedReceipt)}
-                      className="btn-outline flex-1"
-                    >
-                      Download
-                    </button>
-                    {selectedReceipt.processing_status === 'completed' && !selectedReceipt.transaction_id && (
-                      <button
-                        onClick={() => {
-                          createTransactionFromReceipt(selectedReceipt);
-                          setSelectedReceipt(null);
-                        }}
-                        className="btn-primary flex-1"
-                      >
-                        Create Transaction
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+        {([['all', 'All'], ['matched', '\u2713 Matched'], ['pending', '\u23F3 Pending'], ['no_match', '\u26A0 No Match']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setFilter(id)} style={{ padding: '7px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: filter === id ? `${T.accent}15` : T.surface, border: `1px solid ${filter === id ? T.accent : T.border}`, color: filter === id ? T.accent : T.muted, cursor: 'pointer' }}>{label}</button>
+        ))}
       </div>
-    </>
-  );
-};
 
-export default ReceiptsPage;
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: T.dim }}>Loading receipts...</div>
+      ) : receipts.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>{'\uD83E\uDDFE'}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 8 }}>No receipts yet</div>
+          <div style={{ fontSize: 14, color: T.muted, lineHeight: 1.6, maxWidth: 360, margin: '0 auto 24px' }}>Upload receipts to attach proof to your transactions. Byte reads them and matches automatically.</div>
+          <button onClick={() => fileRef.current?.click()} style={{ padding: '12px 28px', borderRadius: 12, fontSize: 14, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: 'none', color: '#0b1220', cursor: 'pointer' }}>{'\uD83D\uDCF7'} Add Your First Receipt</button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          {receipts.map(r => (
+            <div key={r.id} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+              {isImg(r.file_url || r.image_url) ? (
+                <img src={r.file_url || r.image_url} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+              ) : (
+                <div style={{ height: 140, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', background: `${T.border}33` }}>
+                  <span style={{ fontSize: 32 }}>{'\uD83D\uDCC4'}</span>
+                  <span style={{ fontSize: 10, color: T.dim, marginTop: 4 }}>{r.original_filename || 'Document'}</span>
+                </div>
+              )}
+              <div style={{ position: 'absolute', top: 8, right: 8, padding: '3px 8px', borderRadius: 6, fontSize: 9, fontWeight: 700, background: r.match_status === 'matched' ? `${T.green}20` : r.match_status === 'pending' ? `${T.amber}20` : `${T.red}20`, color: r.match_status === 'matched' ? T.green : r.match_status === 'pending' ? T.amber : T.red, border: `1px solid ${(r.match_status === 'matched' ? T.green : r.match_status === 'pending' ? T.amber : T.red) + '33'}` }}>
+                {r.match_status === 'matched' ? '\u2713 Matched' : r.match_status === 'pending' ? '\u23F3 Pending' : '\u26A0 No Match'}
+              </div>
+              <div style={{ padding: 14 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}>{r.merchant_name || 'Unknown merchant'}</div>
+                {r.amount && <div style={{ fontSize: 20, fontWeight: 800, color: T.accent, marginBottom: 4 }}>${Number(r.amount).toFixed(2)}</div>}
+                {r.receipt_date && <div style={{ fontSize: 12, color: T.muted, marginBottom: 6 }}>{r.receipt_date}</div>}
+                {r.suggested_category && <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: `${T.cyan}12`, border: `1px solid ${T.cyan}20`, color: T.cyan }}>{r.suggested_category}</span>}
+                {r.match_status === 'matched' && r.transaction_id && (
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: T.green }}>{'\u2713'} Linked</span>
+                    <button onClick={() => navigate('/dashboard/transactions')} style={{ fontSize: 11, fontWeight: 600, color: T.cyan, background: 'none', border: 'none', cursor: 'pointer' }}>View {'\u2192'}</button>
+                  </div>
+                )}
+                {r.match_status === 'pending' && <div style={{ marginTop: 8, fontSize: 11, color: T.amber }}>Waiting for matching statement</div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+                  <button onClick={() => handleDelete(r)} style={{ fontSize: 11, color: T.dim, background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
+                  {(r.file_url || r.image_url) && <button onClick={() => window.open(r.file_url || r.image_url, '_blank')} style={{ fontSize: 11, fontWeight: 600, color: T.cyan, background: 'none', border: 'none', cursor: 'pointer' }}>View file {'\u2192'}</button>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
