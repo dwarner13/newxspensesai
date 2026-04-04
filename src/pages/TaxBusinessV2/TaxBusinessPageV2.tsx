@@ -20,8 +20,9 @@ const features = [
 ];
 
 export default function TaxBusinessPageV2() {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 24px", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div style={{ maxWidth: 800, margin: "0 auto", padding: isMobile ? "20px 16px" : "40px 24px", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {/* Header */}
       <div style={{ marginBottom: 40 }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 12px", borderRadius: 20, background: `${T.accent}15`, border: `1px solid ${T.accent}30`, marginBottom: 16 }}>

@@ -1,6 +1,13 @@
 export type EmployeeKey =
   | 'prime'
+  | 'prime-boss'
   | 'byte'
+  | 'byte-docs'
+  | 'crystal'
+  | 'crystal-analytics'
+  | 'goalie'
+  | 'goalie-goals'
+  | 'goalie-ai'
   | 'ledger'
   | 'custodian'
   | 'liberty'
