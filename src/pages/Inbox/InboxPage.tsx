@@ -111,6 +111,8 @@ export default function InboxPage() {
   const [starred, setStarred] = useState<Set<string>>(new Set());
   const [composeOpen, setComposeOpen] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => { const h = () => setIsMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -159,12 +161,12 @@ export default function InboxPage() {
   const starredCount = starred.size;
 
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", maxWidth: 1280, margin: "0 auto", padding: "28px 20px", minHeight: "80vh" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", maxWidth: 1280, margin: "0 auto", padding: isMobile ? "16px 16px" : "28px 20px", minHeight: "80vh" }}>
 
       {/* ═══ HEADER ═══ */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <h1 style={{ fontSize: 32, fontWeight: 800, color: T.text, letterSpacing: -0.5, margin: 0 }}>Inbox</h1>
+          <h1 style={{ fontSize: isMobile ? 22 : 32, fontWeight: 800, color: T.text, letterSpacing: -0.5, margin: 0 }}>Inbox</h1>
           {unreadCount > 0 && (
             <span style={{ fontSize: 12, fontWeight: 700, color: T.cyan, background: T.cyan + "18", padding: "3px 10px", borderRadius: 20 }}>
               {unreadCount} unread
@@ -174,10 +176,10 @@ export default function InboxPage() {
         <div style={{ height: 2, marginTop: 14, borderRadius: 1, background: `linear-gradient(90deg, ${T.gold}44, ${T.cyan}22, transparent 70%)` }} />
       </div>
 
-      <div style={{ display: "flex", gap: 16, minHeight: 0 }}>
+      <div style={{ display: "flex", gap: 16, minHeight: 0, flexDirection: "row" }}>
 
         {/* ═══ LEFT SIDEBAR ═══ */}
-        <div style={{ width: 200, flexShrink: 0 }}>
+        {!isMobile && <div style={{ width: 200, flexShrink: 0 }}>
           {/* Compose */}
           <button onClick={() => setComposeOpen(true)} style={{
             width: "100%", padding: "13px 18px", borderRadius: 14, marginBottom: 6, border: "none", cursor: "pointer",

@@ -394,6 +394,12 @@ export default function TaxWorkspacePage() {
         </div>
       </div>
 
+      {/* ══════ DISCLAIMER ══════ */}
+      <div style={{ padding: '10px 16px', borderRadius: 10, marginBottom: 20, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <span style={{ fontSize: 14, flexShrink: 0 }}>{"\u26A0\uFE0F"}</span>
+        <span style={{ fontSize: 12, color: '#7b8ba5', lineHeight: 1.5 }}>XspensesAI organizes your financial data to help you work with your accountant more efficiently. We are not accountants, financial advisors, or tax professionals. Nothing in this app constitutes financial, tax, or legal advice.</span>
+      </div>
+
       {/* ══════ NEEDS REVIEW BANNER ══════ */}
       {needsReviewCount > 0 && (
         <div style={{

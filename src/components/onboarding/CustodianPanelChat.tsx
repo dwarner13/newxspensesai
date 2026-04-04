@@ -119,7 +119,13 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
 
         {/* Guardrails footer */}
         <div style={{ padding: '6px 16px', borderTop: '1px solid rgba(255,255,255,0.04)', textAlign: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 10, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} /> Custodian AI {'\u2022'} System guide {'\u2022'} Not financial advice</span>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 4 }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)', flexShrink: 0 }} />
+              <span style={{ fontSize: 10, color: '#475569', letterSpacing: '0.03em' }}>Custodian AI {'\u2022'} Guardrails + PII protection active</span>
+            </div>
+            <div style={{ fontSize: 9, color: '#334155', lineHeight: 1.4, maxWidth: 320, margin: '0 auto' }}>Not financial, tax, or legal advice. Consult your accountant for professional guidance.</div>
+          </div>
         </div>
       </div>
     </>

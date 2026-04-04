@@ -75,7 +75,13 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
           </div>
         </div>
         <div style={{ padding: "6px 16px", borderTop: `1px solid ${T.border}`, flexShrink: 0, textAlign: "center" }}>
-          <span style={{ fontSize: 9, color: "#475569", letterSpacing: "0.03em" }}>{"\u2022"} Crystal AI {"\u2022"} Analytics engine active {"\u2022"} PII protection on</span>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 4 }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#34d399", boxShadow: "0 0 6px rgba(52,211,153,0.5)", flexShrink: 0 }} />
+              <span style={{ fontSize: 10, color: "#475569", letterSpacing: "0.03em" }}>Crystal AI {"\u2022"} Guardrails + PII protection active</span>
+            </div>
+            <div style={{ fontSize: 9, color: "#334155", lineHeight: 1.4, maxWidth: 320, margin: "0 auto" }}>Not financial, tax, or legal advice. Consult your accountant for professional guidance.</div>
+          </div>
         </div>
       </div>
     </>
