@@ -1,6 +1,8 @@
 import type { BrainPack } from './types';
 import { PRIME_BRAIN } from './prime';
 import { BYTE_BRAIN } from './byte';
+import { CRYSTAL_BRAIN } from './crystal';
+import { GOALIE_BRAIN } from './goalie';
 import { GLOBAL_BRAIN_RULES, PRIME_WATCHER_INTELLIGENCE_MODE } from '../systemPrompts';
 
 const FALLBACK_BRAIN: BrainPack = {
@@ -44,11 +46,17 @@ const FALLBACK_BRAIN: BrainPack = {
 
 const REGISTRY: Record<string, BrainPack> = {
   prime: PRIME_BRAIN,
+  'prime-boss': PRIME_BRAIN,
   'byte-docs': BYTE_BRAIN,
   byte: BYTE_BRAIN,
-  // custodian: CUSTODIAN_BRAIN (later)
-  // ledger: LEDGER_BRAIN (later)
-  // liberty: LIBERTY_BRAIN (later)
+  'crystal-analytics': CRYSTAL_BRAIN,
+  crystal: CRYSTAL_BRAIN,
+  'goalie-goals': GOALIE_BRAIN,
+  'goalie-ai': GOALIE_BRAIN,
+  goalie: GOALIE_BRAIN,
+  // custodian: handled by custodian-chat.ts function directly
+  // ledger: LEDGER_BRAIN (coming soon)
+  // liberty: LIBERTY_BRAIN (coming soon)
 };
 
 export function getBrainPack(employee_key: string | null | undefined): BrainPack {

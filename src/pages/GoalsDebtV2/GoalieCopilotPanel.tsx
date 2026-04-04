@@ -28,14 +28,14 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
   return (
     <>
       <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", opacity: open ? 1 : 0, transition: "opacity 0.3s", zIndex: 998, backdropFilter: "blur(4px)" }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, background: T.bg, borderLeft: "1px solid rgba(245,158,11,0.2)", transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, background: T.bg, borderLeft: "1px solid rgba(245,158,11,0.2)", transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
         <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${YELLOW}20`, border: `1.5px solid ${YELLOW}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: YELLOW, boxShadow: `0 0 16px ${YELLOW}33` }}>G</div>
           <div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Goalie <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></span><span style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", letterSpacing: "0.05em" }}>SECURED</span></div><div style={{ fontSize: 11, color: T.dim }}>Goals & Debt Coach</div></div>
           <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
-        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px 24px 140px" }}>
+        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "20px 24px 140px" }}>
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${YELLOW}20`, border: `1.5px solid ${YELLOW}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: YELLOW }}>G</div>
             <div style={{ flex: 1, fontSize: 13, color: T.muted, lineHeight: 1.6, padding: "12px 14px", borderRadius: 14, background: `${YELLOW}06`, borderLeft: `3px solid ${YELLOW}44` }}>
@@ -101,7 +101,10 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
           </div>
         </div>
         <div style={{ padding: "6px 16px", borderTop: `1px solid ${T.border}`, flexShrink: 0, textAlign: "center" }}>
-          <span style={{ fontSize: 9, color: "#475569", letterSpacing: "0.03em" }}>{"\u2022"} Goalie AI {"\u2022"} Goals & debt engine active {"\u2022"} PII protection on</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)', flexShrink: 0 }} />
+            <span style={{ fontSize: 10, color: '#475569', letterSpacing: '0.03em' }}>Goalie AI {'\u2022'} Goals & debt engine active {'\u2022'} PII protection on</span>
+          </div>
         </div>
       </div>
     </>

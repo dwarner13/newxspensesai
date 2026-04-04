@@ -1,13 +1,14 @@
 ﻿import { useState, useEffect } from "react";
-import { THEME, getScoreColor } from "./scoreConfig";
+import toast from "react-hot-toast";
+import { THEME, getScoreColor, getScoreGrade, getScoreLabel } from "./scoreConfig";
 import { useXspenseScore } from "./useXspenseScore";
 import { ScoreRing } from "./ScoreRing";
 import { PillarBreakdown } from "./PillarBreakdown";
 import { Reveal } from "../PrimeChatV2/Reveal";
 
-// TODO: import { useNavigate } from "react-router-dom";
-
 export default function XspenseScorePage() {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
+  useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
   const data = useXspenseScore();
   const [loaded, setLoaded] = useState(false);
   useEffect(() => setLoaded(true), []);
@@ -37,7 +38,7 @@ export default function XspenseScorePage() {
   ).join(" ");
 
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", padding: "28px 36px" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", padding: isMobile ? "20px 16px" : "28px 36px" }}>
 
       {/* Header */}
       <Reveal delay={0}>
@@ -46,7 +47,13 @@ export default function XspenseScorePage() {
             <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>Xspense Score</h1>
             <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>Your comprehensive financial health score {"\u2022"} Updated in real-time</p>
           </div>
-          <button style={{
+          <button onClick={() => {
+            const grade = getScoreGrade(data.overallScore);
+            const label = getScoreLabel(data.overallScore);
+            const text = `My XspensesAI Xspense Score is ${data.overallScore}/100 — ${grade} grade (${label}). Track your financial health at xspensesai.com`;
+            if (navigator.share) { navigator.share({ title: 'My Xspense Score', text }).catch(() => {}); }
+            else { navigator.clipboard.writeText(text).then(() => toast.success('Score copied to clipboard')); }
+          }} style={{
             padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600,
             background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`,
             border: "none", color: "#0b1220", cursor: "pointer",
@@ -55,7 +62,7 @@ export default function XspenseScorePage() {
         </div>
       </Reveal>
 
-      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "340px 1fr", gap: 24 }}>
 
         {/* LEFT COLUMN */}
         <div>
