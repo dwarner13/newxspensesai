@@ -115,7 +115,7 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: Pr
             border: "none",
             outline: "none",
             color: THEME.text,
-            fontSize: 14,
+            fontSize: 16,
             padding: "12px 4px 12px 16px",
             minHeight: 48,
             fontFamily: "inherit",

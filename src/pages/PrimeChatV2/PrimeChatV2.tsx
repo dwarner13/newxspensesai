@@ -557,7 +557,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                       maxWidth: "80%", padding: "10px 14px", borderRadius: 14,
                       borderBottomRightRadius: 4,
                       background: THEME.surfaceLight, border: `1px solid ${THEME.borderLight}`,
-                      fontSize: 13, color: THEME.text, lineHeight: 1.55,
+                      fontSize: 15, color: THEME.text, lineHeight: 1.55,
                     }}>
                       {msg.content}
                     </div>
@@ -574,7 +574,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                     maxWidth: "85%", padding: "10px 14px", borderRadius: 14,
                     borderBottomLeftRadius: 4,
                     background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}44`,
-                    fontSize: 13, color: THEME.textMuted, lineHeight: 1.6, minWidth: 40,
+                    fontSize: 15, color: THEME.textMuted, lineHeight: 1.6, minWidth: 40,
                   }}>
                     {isThisStreaming && isEmpty ? (
                       // Typing indicator while waiting for first token
@@ -611,7 +611,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         padding: "10px 16px 12px",
         background: THEME.bg,
       }}>
-        <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}>
+        <div style={{ marginBottom: 8, display: "flex", justifyContent: "center", overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" as any }}>
           <QuickActionChips chips={[
             { icon: "\uD83D\uDCCA", label: "Categories", action: () => { onClose?.(); navigate("/dashboard/smart-categories"); } },
             { icon: "\uD83E\uDDFE", label: "Tax summary", action: () => { onClose?.(); navigate("/dashboard/tax-assistant"); } },

@@ -30,6 +30,7 @@ export function PrimeBriefingPanel() {
         className="fixed top-0 right-0 z-[51] h-full w-full md:w-[560px] shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
         style={{
           animation: "primePanelSlideIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards",
+          paddingTop: "env(safe-area-inset-top, 0px)",
         }}
         onKeyDown={stopKeyPropagation}
         onKeyUp={stopKeyPropagation}
