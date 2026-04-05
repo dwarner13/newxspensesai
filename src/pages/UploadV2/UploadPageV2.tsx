@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Send } from "lucide-react";
 import { StatementHistory } from '../../components/upload/StatementHistory';

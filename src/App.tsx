@@ -531,6 +531,7 @@ function App() {
                       <Route path="transactions" element={<TransactionsPageV2 />} />
                       <Route path="inbox" element={<Suspense fallback={<LoadingSpinner />}><InboxPage /></Suspense>} />
                       <Route path="receipts" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />
+                      <Route path="scan-receipt" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />
                       <Route path="bank-accounts" element={<Suspense fallback={<LoadingSpinner />}><BankAccountsPage /></Suspense>} />
                       <Route path="goal-concierge" element={<GoalsDebtPageV2 />} />
                       <Route path="smart-automation" element={<Suspense fallback={<LoadingSpinner />}><SmartAutomation /></Suspense>} />

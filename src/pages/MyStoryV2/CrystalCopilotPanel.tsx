@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
+import { PANEL } from "../PrimeChatV2/panelConfig";
 import type { StoryData } from "./useStoryData";
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#7b8ba5", dim: "#4a5a75" };
@@ -22,13 +23,16 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
   const statusText = `I've been tracking your spending patterns across ${data.categoryBreakdown.length} categories. ${topCat ? `${topCat.cat} is your top spend at ${topCat.pct}%.` : ""} ${data.trends.filter(t => t.trend === "up").length > 0 ? `I spotted ${data.trends.filter(t => t.trend === "up").length} accelerating trend${data.trends.filter(t => t.trend === "up").length !== 1 ? "s" : ""}.` : "No concerning trends detected."}`;
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => { const h = () => setIsMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
+
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [typed, messages.length]);
   const chatMsgs = messages.filter(m => m.role === "user" || (m.role === "assistant" && !m.meta?.isGreeting));
 
   return (
     <>
       <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", opacity: open ? 1 : 0, transition: "opacity 0.3s", zIndex: 998, backdropFilter: "blur(4px)" }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, background: T.bg, borderLeft: "1px solid rgba(167,139,250,0.2)", transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+      <div style={{ position: "fixed", top: isMobile ? "auto" : 0, bottom: 0, right: 0, left: isMobile ? 0 : "auto", width: isMobile ? "100%" : 520, height: isMobile ? "90vh" : "100%", borderRadius: isMobile ? "20px 20px 0 0" : 0, borderLeft: isMobile ? "none" : "1px solid rgba(167,139,250,0.2)", borderTop: isMobile ? "1px solid rgba(167,139,250,0.2)" : "none", background: T.bg, transform: open ? "translateX(0)" : (isMobile ? "translateY(100%)" : "translateX(100%)"), transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
         <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${PURPLE}20`, border: `1.5px solid ${PURPLE}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: PURPLE, boxShadow: `0 0 16px ${PURPLE}33` }}>C</div>
           <div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Crystal <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></span><span style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", letterSpacing: "0.05em" }}>SECURED</span></div><div style={{ fontSize: 11, color: T.dim }}>Analytics & Trends</div></div>
@@ -38,7 +42,7 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px 24px 140px" }}>
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${PURPLE}20`, border: `1.5px solid ${PURPLE}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: PURPLE }}>C</div>
-            <div style={{ flex: 1, fontSize: 13, color: T.muted, lineHeight: 1.6, padding: "12px 14px", borderRadius: 14, background: `${PURPLE}06`, borderLeft: `3px solid ${PURPLE}44` }}>
+            <div style={{ flex: 1, fontSize: PANEL.messageFontSize, color: T.muted, lineHeight: 1.6, padding: "12px 14px", borderRadius: 14, background: `${PURPLE}06`, borderLeft: `3px solid ${PURPLE}44` }}>
               {typed}<span style={{ opacity: !typeDone ? 1 : 0, color: PURPLE }}>{"\u2588"}</span>
             </div>
           </div>
@@ -59,7 +63,7 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
             <div style={{ marginTop: 24, borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
               {chatMsgs.map(m => (
                 <div key={m.id} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 10 }}>
-                  <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: 12, background: m.role === "user" ? T.surface : `${PURPLE}06`, borderLeft: m.role === "assistant" ? `3px solid ${PURPLE}44` : "none", fontSize: 13, color: T.muted, lineHeight: 1.5 }}>{m.content}</div>
+                  <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: 12, background: m.role === "user" ? T.surface : `${PURPLE}06`, borderLeft: m.role === "assistant" ? `3px solid ${PURPLE}44` : "none", fontSize: PANEL.messageFontSize, color: T.muted, lineHeight: 1.5 }}>{m.content}</div>
                 </div>
               ))}
             </div>
@@ -68,7 +72,7 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
 
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${T.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: "4px 6px 4px 16px" }}>
-            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Crystal about trends..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: 13, padding: "10px 0", fontFamily: "inherit" }} />
+            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Crystal about trends..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: PANEL.inputFontSize, padding: "10px 0", fontFamily: "inherit" }} />
             <button onClick={() => { if (input.trim()) { sendMessage(input.trim()); setInput(""); } }} style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${PURPLE}, #7c3aed)`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="#0b1220" /></svg>
             </button>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { X, Home, Receipt, Tags, Brain, FileText, Star, Target, Mic, Briefcase, Settings, Upload } from 'lucide-react';
+import { X, Home, Receipt, Tags, Brain, FileText, Star, Target, Mic, Briefcase, Settings, Upload, Mail, BookOpen } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface MobileSidebarProps { open: boolean; onClose: () => void; }
@@ -13,7 +13,9 @@ const NAV = [
   { label: "Categories", to: "/dashboard/categories", icon: Tags, group: "primary" },
   { label: "My Story", to: "/dashboard/my-story", icon: Brain, group: "primary", badge: "New" },
   { label: "Reports", to: "/dashboard/reports", icon: FileText, group: "primary" },
+  { label: "Inbox", to: "/dashboard/inbox", icon: Mail, group: "primary" },
   { label: "Xspense Score", to: "/dashboard/xspense-score", icon: Star, group: "primary" },
+  { label: "Tax Summary", to: "/dashboard/tax-workspace", icon: BookOpen, group: "primary" },
   { label: "Goals & Debt", to: "/dashboard/goal-concierge", icon: Target, group: "more" },
   { label: "Monthly Recap", to: "/dashboard/monthly-recap", icon: Mic, group: "more" },
   { label: "Tax & Business", to: "/dashboard/tax-business", icon: Briefcase, group: "more" },
@@ -85,7 +87,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
         </div>
 
         {/* User section */}
-        <div style={{ padding: "16px 20px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ padding: "16px 20px", paddingBottom: "max(16px, env(safe-area-inset-bottom, 16px))", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${C.accent}20`, border: `1px solid ${C.accent}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.accent }}>
             {(firstName || "D").charAt(0).toUpperCase()}
           </div>

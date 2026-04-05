@@ -3,6 +3,7 @@ import { X, Send, Trash2 } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 import type { CommittedTransaction } from '@/types/transactions';
+import { PANEL } from '../../pages/PrimeChatV2/panelConfig';
 
 interface TagAction {
   type: 'filter' | 'bulk_change' | 'undo' | 'reclassify_preview' | 'categorize' | 'update_transaction' | 'handoff';
@@ -226,6 +227,18 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
   });
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [smartReview, setSmartReview] = useState<{ issues: Array<{ id: string; merchant: string; currentCategory: string; suggestedCategory: string; suggestedSubcategory: string | null; reason: string; count: number; totalAmount: number; ids: string[] }>; summary: string } | null>(null);
+  const [smartReviewLoading, setSmartReviewLoading] = useState(false);
+  const [smartReviewApproved, setSmartReviewApproved] = useState<Set<string>>(new Set());
+  const [smartReviewRejected, setSmartReviewRejected] = useState<Set<string>>(new Set());
+  const [smartReviewCommitting, setSmartReviewCommitting] = useState(false);
+  const [smartReviewDone, setSmartReviewDone] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'activity' | 'rules'>('chat');
+  const [activityLog, setActivityLog] = useState<any[]>([]);
+  const [activityMonths, setActivityMonths] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityMonth, setActivityMonth] = useState('');
+  const [learnedRules, setLearnedRules] = useState<any[]>([]);
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState('');
   const [needsReviewCount, setNeedsReviewCount] = useState<number | null>(null);
@@ -635,6 +648,82 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
     setBusy(false);
   };
 
+  const fetchActivityLog = async (month?: string) => {
+    setActivityLoading(true);
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token;
+      const url = month ? `/.netlify/functions/tag-activity-log?month=${month}` : '/.netlify/functions/tag-activity-log';
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.ok) { setActivityLog(data.entries || []); setActivityMonths(data.monthlySummary || []); }
+    } catch { /* silent */ }
+    finally { setActivityLoading(false); }
+  };
+
+  const fetchRules = async () => {
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      if (!session) return;
+      const { data } = await supabase!.from('category_rules').select('id, merchant_pattern, category, subcategory, match_type, is_active, created_at').eq('user_id', session.user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(50);
+      setLearnedRules(data || []);
+    } catch { /* silent */ }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'activity') void fetchActivityLog(activityMonth || undefined);
+    if (activeTab === 'rules') void fetchRules();
+  }, [activeTab, activityMonth]);
+
+  const runSmartReview = async () => {
+    setSmartReviewLoading(true);
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch('/.netlify/functions/tag-smart-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: '{}',
+      });
+      const data = await res.json();
+      if (data.ok && data.issues?.length > 0) {
+        const mapped = data.issues.map((i: any) => ({ ...i, ids: i.transactionIds || i.ids || [] }));
+        setSmartReview({ issues: mapped, summary: `Found ${data.issueCount} issues across ${data.totalAffected} transactions` });
+        setSmartReviewApproved(new Set(mapped.map((i: any) => i.id)));
+      } else {
+        setSmartReview({ issues: [], summary: 'No issues found — your categorizations look clean!' });
+      }
+    } catch { /* silent */ }
+    finally { setSmartReviewLoading(false); }
+  };
+
+  const commitSmartReview = async () => {
+    if (!smartReview) return;
+    setSmartReviewCommitting(true);
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token;
+      const approved = smartReview.issues.filter(i => smartReviewApproved.has(i.id));
+      for (const issue of approved) {
+        await fetch('/.netlify/functions/tag-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ intent: 'commit', matchValue: issue.merchant, targetCategory: issue.suggestedCategory, matchType: 'contains', affectedIds: issue.ids }),
+        });
+      }
+      setSmartReviewDone(true);
+      const totalFixed = approved.reduce((s, i) => s + i.count, 0);
+      setLocalMessages(prev => [...prev, { role: 'tag' as const, text: `Done \u2713 Fixed **${totalFixed} transactions** across **${approved.length} merchants**. Rules saved \u2014 Tag will remember these for future imports.` }]);
+      setSmartReview(null);
+      onCategoryUpdated?.(); void fetchNeedsReviewCount();
+    } catch { /* silent */ }
+    finally { setSmartReviewCommitting(false); }
+  };
+
   return (
     <>
       
@@ -645,7 +734,17 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           <div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               <span style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#7b8ba5', fontWeight:400 }}>Copilot</span></span>
-              {needsReviewCount !== null && needsReviewCount > 0 && <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:8, background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.3)', color:'#34d399', letterSpacing:'0.04em' }}>{needsReviewCount} to review</span>}
+              {needsReviewCount !== null && needsReviewCount > 0 ? (
+                <div style={{ padding:'6px 14px', borderRadius:20, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.4)', display:'flex', alignItems:'center', gap:6 }}>
+                  <div style={{ width:6, height:6, borderRadius:'50%', background:'#fbbf24', boxShadow:'0 0 8px rgba(251,191,36,0.8)' }} />
+                  <span style={{ fontSize:13, fontWeight:800, color:'#fbbf24' }}>{needsReviewCount} to review</span>
+                </div>
+              ) : needsReviewCount !== null ? (
+                <div style={{ padding:'4px 10px', borderRadius:20, background:'rgba(34,211,153,0.08)', border:'1px solid rgba(34,211,153,0.22)', display:'flex', alignItems:'center', gap:5 }}>
+                  <div style={{ width:5, height:5, borderRadius:'50%', background:'#34d399' }} />
+                  <span style={{ fontSize:10, fontWeight:600, color:'#34d399' }}>Online</span>
+                </div>
+              ) : null}
             </div>
             <div style={{ fontSize:11, color:'#7b8ba5' }}>Categorization assistant</div>
           </div>
@@ -667,6 +766,14 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           }} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#9ba8bc', fontSize:12, display:'flex', alignItems:'center', gap:4, padding:'4px 8px', borderRadius:6 }}><Trash2 size={13} /> Clear</button>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#c8d0e0', padding:4, display:'flex' }}><X style={{ width:18, height:18 }} /></button>
         </div>
+        {/* TAB BAR */}
+        <div style={{ display:'flex', gap:4, padding:'8px 20px 0', borderBottom:'1px solid #1e2d4a', flexShrink:0 }}>
+          {([{ id:'chat' as const, label:'\uD83D\uDCAC Chat' }, { id:'activity' as const, label:'\uD83D\uDCCB Activity' }, { id:'rules' as const, label:'\u26A1 Rules' }]).map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding:'7px 14px', borderRadius:'8px 8px 0 0', fontSize:12, fontWeight:600, background:activeTab === tab.id ? '#111a2e' : 'transparent', border:`1px solid ${activeTab === tab.id ? '#1e2d4a' : 'transparent'}`, borderBottom:activeTab === tab.id ? '1px solid #111a2e' : 'none', color:activeTab === tab.id ? '#22d3ee' : '#7b8ba5', cursor:'pointer', marginBottom:-1, fontFamily:'inherit' }}>{tab.label}</button>
+          ))}
+        </div>
+        {/* ── CHAT TAB ── */}
+        {activeTab === 'chat' && (<>
         {/* ACTIVE TRANSACTION PILL */}
         {transaction && (
           <div style={{ margin:'12px 16px 0', padding:'10px 14px', borderRadius:8, background:'rgba(34,211,153,0.06)', border:'1px solid rgba(34,211,153,0.12)', fontSize:13, color:'#c8d0e0' }}>
@@ -824,6 +931,64 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
               </div>
             );
           })}
+
+          {/* Smart Review trigger */}
+          {localMessages.length > 0 && needsReviewCount !== null && needsReviewCount > 0 && !smartReview && !smartReviewLoading && !smartReviewDone && (
+            <div style={{ marginBottom: 12 }}>
+              <button onClick={runSmartReview} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 12, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+                <span style={{ fontSize: 16 }}>{'\uD83D\uDD0D'}</span>
+                <div style={{ textAlign: 'left' as const }}>
+                  <div>Run Smart Review</div>
+                  <div style={{ fontSize: 11, fontWeight: 400, color: 'rgba(251,191,36,0.7)' }}>Tag scans all transactions for errors</div>
+                </div>
+              </button>
+            </div>
+          )}
+          {smartReviewLoading && (
+            <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, color: '#fbbf24', fontSize: 13 }}>
+              <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(251,191,36,0.3)', borderTopColor: '#fbbf24', animation: 'spin 1s linear infinite' }} />
+              Scanning your transactions...
+              <style>{'@keyframes spin{to{transform:rotate(360deg)}}'}</style>
+            </div>
+          )}
+          {smartReview && smartReview.issues.length > 0 && !smartReviewDone && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 10, textTransform: 'uppercase' as const, letterSpacing: 1 }}>{'\uD83D\uDD0D'} Tag found {smartReview.issues.length} issues</div>
+              <div style={{ fontSize: 12, color: '#7b8ba5', marginBottom: 12 }}>{smartReview.summary}</div>
+              {smartReview.issues.map(issue => (
+                <div key={issue.id} style={{ padding: '12px 14px', borderRadius: 12, background: smartReviewApproved.has(issue.id) ? 'rgba(34,211,153,0.06)' : smartReviewRejected.has(issue.id) ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.04)', border: `1px solid ${smartReviewApproved.has(issue.id) ? 'rgba(34,211,153,0.2)' : smartReviewRejected.has(issue.id) ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)'}`, marginBottom: 8, opacity: smartReviewRejected.has(issue.id) ? 0.5 : 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#e8ecf4', marginBottom: 2 }}>{issue.merchant}</div>
+                      <div style={{ fontSize: 11, color: '#7b8ba5' }}>{issue.reason}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' as const }}>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>{issue.currentCategory}</span>
+                        <span style={{ fontSize: 11, color: '#475569' }}>{'\u2192'}</span>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(34,211,153,0.1)', border: '1px solid rgba(34,211,153,0.2)', color: '#34d399' }}>{issue.suggestedCategory}</span>
+                        <span style={{ fontSize: 10, color: '#475569' }}>{issue.count} txns {'\u00b7'} ${issue.totalAmount.toLocaleString('en-CA', { maximumFractionDigits: 0 })}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, marginLeft: 8, flexShrink: 0 }}>
+                      <button onClick={() => { setSmartReviewApproved(prev => { const n = new Set(prev); n.add(issue.id); return n; }); setSmartReviewRejected(prev => { const n = new Set(prev); n.delete(issue.id); return n; }); }} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: smartReviewApproved.has(issue.id) ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.06)', color: smartReviewApproved.has(issue.id) ? '#34d399' : '#475569', cursor: 'pointer', fontSize: 14 }}>{'\u2713'}</button>
+                      <button onClick={() => { setSmartReviewRejected(prev => { const n = new Set(prev); n.add(issue.id); return n; }); setSmartReviewApproved(prev => { const n = new Set(prev); n.delete(issue.id); return n; }); }} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: smartReviewRejected.has(issue.id) ? 'rgba(248,113,113,0.2)' : 'rgba(255,255,255,0.06)', color: smartReviewRejected.has(issue.id) ? '#f87171' : '#475569', cursor: 'pointer', fontSize: 14 }}>{'\u2717'}</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button onClick={commitSmartReview} disabled={smartReviewCommitting || smartReviewApproved.size === 0} style={{ flex: 1, padding: '11px', borderRadius: 10, background: 'linear-gradient(135deg, #22d3ee, #0891b2)', border: 'none', color: '#0b1220', fontWeight: 700, fontSize: 13, cursor: smartReviewApproved.size === 0 ? 'default' : 'pointer', opacity: smartReviewApproved.size === 0 ? 0.5 : 1, fontFamily: 'inherit' }}>
+                  {smartReviewCommitting ? 'Fixing...' : `Fix ${smartReviewApproved.size} issue${smartReviewApproved.size !== 1 ? 's' : ''} \u26A1`}
+                </button>
+                <button onClick={() => setSmartReview(null)} style={{ padding: '11px 16px', borderRadius: 10, background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Skip</button>
+              </div>
+            </div>
+          )}
+          {smartReview && smartReview.issues.length === 0 && (
+            <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(34,211,153,0.06)', border: '1px solid rgba(34,211,153,0.2)', fontSize: 13, color: '#34d399' }}>
+              {'\u2713'} {smartReview.summary}
+            </div>
+          )}
+
           {busy && (
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee' }}>T</div>
@@ -860,6 +1025,68 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
             <Send style={{ width:16, height:16 }} />
           </button>
         </div>
+        </>)}
+        {/* ── ACTIVITY TAB ── */}
+        {activeTab === 'activity' && (
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'16px 20px' }}>
+            <div style={{ display:'flex', gap:6, marginBottom:16, overflowX:'auto', scrollbarWidth:'none' as any }}>
+              <button onClick={() => setActivityMonth('')} style={{ padding:'5px 12px', borderRadius:20, fontSize:11, fontWeight:600, background:!activityMonth ? 'rgba(34,211,238,0.12)' : '#111a2e', border:`1px solid ${!activityMonth ? '#22d3ee' : '#1e2d4a'}`, color:!activityMonth ? '#22d3ee' : '#7b8ba5', cursor:'pointer', flexShrink:0, fontFamily:'inherit' }}>All time</button>
+              {activityMonths.map(m => (
+                <button key={m.month} onClick={() => setActivityMonth(m.month)} style={{ padding:'5px 12px', borderRadius:20, fontSize:11, fontWeight:600, background:activityMonth === m.month ? 'rgba(34,211,238,0.12)' : '#111a2e', border:`1px solid ${activityMonth === m.month ? '#22d3ee' : '#1e2d4a'}`, color:activityMonth === m.month ? '#22d3ee' : '#7b8ba5', cursor:'pointer', flexShrink:0, fontFamily:'inherit' }}>
+                  {new Date(m.month + '-01').toLocaleDateString('en-CA', { month:'short', year:'numeric' })} ({m.changes})
+                </button>
+              ))}
+            </div>
+            {activityLoading && <div style={{ display:'flex', alignItems:'center', gap:10, color:'#7b8ba5', fontSize:13 }}><div style={{ width:16, height:16, borderRadius:'50%', border:'2px solid #1e2d4a', borderTopColor:'#22d3ee', animation:'spin 1s linear infinite' }} />Loading...</div>}
+            {!activityLoading && activityLog.length === 0 && <div style={{ textAlign:'center', padding:'40px 0', color:'#7b8ba5', fontSize:13 }}>No activity yet — changes by Tag will appear here.</div>}
+            {!activityLoading && (() => {
+              const groups: Record<string, any[]> = {};
+              activityLog.forEach(log => { const d = new Date(log.created_at).toLocaleDateString('en-CA', { weekday:'long', month:'long', day:'numeric' }); if (!groups[d]) groups[d] = []; groups[d].push(log); });
+              return Object.entries(groups).map(([date, logs]) => (
+                <div key={date} style={{ marginBottom:20 }}>
+                  <div style={{ fontSize:10, textTransform:'uppercase' as const, letterSpacing:1.4, color:'#475569', fontWeight:700, marginBottom:8 }}>{date}</div>
+                  {logs.map((log: any, li: number) => (
+                    <div key={log.id || li} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 12px', borderRadius:10, background:'#111a2e', border:'1px solid #1e2d4a', marginBottom:6 }}>
+                      <div style={{ width:24, height:24, borderRadius:'50%', flexShrink:0, background:'rgba(34,211,238,0.12)', border:'1px solid rgba(34,211,238,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:'#22d3ee' }}>T</div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between' }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:'#e8ecf4' }}>{log.merchant_name || 'Unknown'}</div>
+                          {log.transaction_amount && <div style={{ fontSize:12, fontWeight:700, color:'#7b8ba5', flexShrink:0 }}>${Math.abs(Number(log.transaction_amount)).toFixed(2)}</div>}
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4, flexWrap:'wrap' as const }}>
+                          {log.previous_category && <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:'rgba(248,113,113,0.1)', color:'#f87171' }}>{log.previous_category}</span>}
+                          {log.previous_category && <span style={{ fontSize:10, color:'#475569' }}>{'\u2192'}</span>}
+                          <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:'rgba(34,211,153,0.1)', color:'#34d399' }}>{log.new_category}{log.new_subcategory ? ` \u00b7 ${log.new_subcategory}` : ''}</span>
+                          <span style={{ fontSize:9, padding:'1px 6px', borderRadius:4, background:'#0b1220', border:'1px solid #1e2d4a', color:'#475569' }}>{log.change_source === 'smart_review' ? '\uD83D\uDD0D Review' : log.change_source === 'tag_rule' ? '\u26A1 Rule' : log.change_source === 'tag_chat' ? '\uD83D\uDCAC Chat' : '\u270F\uFE0F Manual'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ));
+            })()}
+          </div>
+        )}
+        {/* ── RULES TAB ── */}
+        {activeTab === 'rules' && (
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'16px 20px' }}>
+            {learnedRules.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'40px 0', color:'#7b8ba5', fontSize:13 }}>No rules saved yet — Tag saves rules when you fix a merchant.</div>
+            ) : learnedRules.map((rule: any) => (
+              <div key={rule.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:10, background:'#111a2e', border:'1px solid #1e2d4a', marginBottom:6 }}>
+                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(34,211,238,0.12)', border:'1px solid rgba(34,211,238,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>{'\u26A1'}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'#e8ecf4', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' as const }}>{rule.merchant_pattern}</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+                    <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:'rgba(34,211,153,0.1)', color:'#34d399' }}>{rule.category}{rule.subcategory ? ` \u00b7 ${rule.subcategory}` : ''}</span>
+                    <span style={{ fontSize:9, color:'#475569' }}>{rule.match_type}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={() => window.location.href = '/dashboard/categories/rules'} style={{ marginTop:12, fontSize:12, color:'#22d3ee', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>View all rules {'\u2192'}</button>
+          </div>
+        )}
         {/* Guardrails footer */}
         <div style={{ padding:'6px 16px', borderTop:'1px solid rgba(255,255,255,0.04)', flexShrink:0, textAlign:'center' }}>
           <div style={{ textAlign:'center' }}>

@@ -11,9 +11,11 @@ interface PostLoginSplashProps {
   userName?: string;
   onContinue: () => void;
   onOpenPrime?: () => void;
+  onUploadStatement?: () => void;
+  onScanReceipt?: () => void;
 }
 
-export default function PostLoginSplash({ userName = "there", onContinue, onOpenPrime }: PostLoginSplashProps) {
+export default function PostLoginSplash({ userName = "there", onContinue, onUploadStatement, onScanReceipt }: PostLoginSplashProps) {
   const [visibleLines, setVisibleLines] = useState(0);
   const [showButtons, setShowButtons] = useState(false);
   const [splashData, setSplashData] = useState({
@@ -66,21 +68,25 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
   return (
     <div onClick={skipToEnd} style={{
-      minHeight: "100dvh", width: "100vw",
+      position: "relative",
+      minHeight: "100vh",
+      // @ts-ignore — Safari needs -webkit-fill-available for proper vh
+      WebkitMinHeight: "-webkit-fill-available",
+      width: "100%",
       background: `radial-gradient(ellipse at 50% 30%, rgba(200,166,78,0.04) 0%, ${C.bg} 70%)`,
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      paddingTop: "80px", paddingLeft: "24px", paddingRight: "24px",
-      overflowY: "auto", paddingBottom: "max(32px, env(safe-area-inset-bottom, 32px))",
+      paddingTop: "env(safe-area-inset-top, 24px)", paddingLeft: "24px", paddingRight: "24px",
+      overflowY: "auto", paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))",
       cursor: showButtons ? "default" : "pointer",
     }}>
       {/* Crown */}
       <div style={{
-        width: 64, height: 64, borderRadius: "50%",
-        background: `linear-gradient(135deg, ${C.accent}25, ${C.accent}08)`,
+        width: 52, height: 52, borderRadius: "50%",
+        background: "#1e2d4a",
         border: `2px solid ${C.accent}33`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 24, marginBottom: 8, marginTop: 20,
+        fontSize: 20, marginBottom: 4,
         boxShadow: `0 0 40px ${C.accent}15, 0 0 80px ${C.accent}08`,
         animation: "crownFloat 3s ease-in-out infinite",
         flexShrink: 0,
@@ -88,26 +94,26 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
       <div style={{
         fontSize: 10, textTransform: "uppercase", letterSpacing: 3,
-        color: C.accent, fontWeight: 700, marginBottom: 10,
+        color: C.accent, fontWeight: 700, marginBottom: 6,
       }}>{splashData.loaded && splashData.transactionCount === 0 ? 'Your AI Finance Team' : 'Previously On XspensesAI'}</div>
 
       <h1 style={{
-        fontSize: "clamp(26px, 4vw, 38px)", fontWeight: 800, letterSpacing: -1,
-        color: C.text, marginBottom: 4, textAlign: "center",
+        fontSize: "clamp(22px, 3vw, 32px)", fontWeight: 800, letterSpacing: -1,
+        color: C.text, marginBottom: 2, textAlign: "center",
       }}>Welcome Back, {userName}</h1>
 
-      <p style={{ fontSize: 15, color: C.dim, marginBottom: 16, textAlign: "center" }}>
+      <p style={{ fontSize: 15, color: C.dim, marginBottom: 10, textAlign: "center" }}>
         {splashData.loaded && splashData.transactionCount === 0
           ? "Your AI team is ready. Let's get started."
           : "Here's what your AI team did while you were away."}
       </p>
 
       {/* Agent lines */}
-      <div style={{ maxWidth: 480, width: "100%", marginBottom: 16 }}>
+      <div style={{ maxWidth: 480, width: "100%", marginBottom: 12 }}>
         {agents.map((agent, i) => (
           <div key={agent.name} style={{
             display: "flex", alignItems: "flex-start", gap: 12,
-            padding: "10px 14px", marginBottom: 6,
+            padding: "8px 12px", marginBottom: 4,
             background: visibleLines > i ? `${agent.color}06` : "transparent",
             border: `1px solid ${visibleLines > i ? agent.color + "18" : "transparent"}`,
             borderRadius: 14,
@@ -131,24 +137,83 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         ))}
       </div>
 
-      {/* Buttons */}
+      {/* CTA block */}
       <div style={{
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+        maxWidth: 480, width: "100%",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
         opacity: showButtons ? 1 : 0,
         transform: showButtons ? "translateY(0)" : "translateY(16px)",
         transition: "all 0.6s cubic-bezier(0.16,1,0.3,1)",
       }}>
-        <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{
-          padding: "14px 40px", borderRadius: 12, fontSize: 15, fontWeight: 700,
-          background: `linear-gradient(135deg, ${C.accent}, #a08030)`,
-          border: "none", color: "#0b1220", cursor: "pointer",
-          boxShadow: `0 4px 24px ${C.accent}44`,
-          transition: "all 0.2s", minWidth: 260,
-        }}>Continue to Dashboard {"\u2192"}</button>
+        {/* Action tiles */}
+        <div style={{ maxWidth: 480, width: "100%" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, width: "100%", marginBottom: 8 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onUploadStatement ? onUploadStatement() : onContinue(); }}
+            style={{
+              background: `${C.cyan}0d`, border: `1.5px solid ${C.cyan}55`,
+              borderRadius: 14, padding: "14px 12px", minHeight: 90, cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = `${C.cyan}1a`)}
+            onMouseLeave={e => (e.currentTarget.style.background = `${C.cyan}0d`)}
+          >
+            <span style={{ fontSize: 22 }}>{"\uD83D\uDCC4"}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.cyan }}>Upload Statement</span>
+            <span style={{ fontSize: 10, color: `${C.cyan}88` }}>Bank {"\u00b7"} Credit card</span>
+          </button>
 
-        <div style={{ fontSize: 10, color: C.dim, marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.green, boxShadow: `0 0 6px ${C.green}44` }} />
-          Secure session restored {"\u2022"} Guardrails active
+          <button
+            onClick={(e) => { e.stopPropagation(); onScanReceipt ? onScanReceipt() : onContinue(); }}
+            style={{
+              background: `${C.green}0d`, border: `1.5px solid ${C.green}55`,
+              borderRadius: 14, padding: "14px 12px", minHeight: 90, cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = `${C.green}1a`)}
+            onMouseLeave={e => (e.currentTarget.style.background = `${C.green}0d`)}
+          >
+            <span style={{ fontSize: 22 }}>{"\uD83E\uDDFE"}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>Scan a Receipt</span>
+            <span style={{ fontSize: 10, color: `${C.green}88` }}>Photo {"\u00b7"} PDF</span>
+          </button>
+        </div>
+        </div>
+
+        {/* Primary CTA */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onContinue(); }}
+          style={{
+            width: "100%", padding: "14px 40px", borderRadius: 12, fontSize: 15, fontWeight: 700,
+            background: `linear-gradient(135deg, ${C.accent}, #a08030)`,
+            border: "none", color: "#0b1220", cursor: "pointer",
+            boxShadow: `0 4px 24px ${C.accent}44`,
+            transition: "all 0.2s",
+          }}
+        >
+          Continue to Dashboard {"\u2192"}
+        </button>
+
+        {/* Status pills */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: `${C.green}12`, border: `1px solid ${C.green}44`,
+            borderRadius: 20, padding: "5px 12px",
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.green, display: "inline-block", boxShadow: `0 0 6px ${C.green}88` }} />
+            <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>Guardrails active</span>
+          </div>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.35)",
+            borderRadius: 20, padding: "5px 12px",
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3b82f6", display: "inline-block" }} />
+            <span style={{ fontSize: 11, color: "#60a5fa", fontWeight: 500 }}>Session secured</span>
+          </div>
         </div>
       </div>
 
@@ -160,8 +225,3 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
     </div>
   );
 }
-
-
-
-
-

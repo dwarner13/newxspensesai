@@ -11,6 +11,7 @@ import { CategoryCard } from "./CategoryCard";
 import { CategoryDetailDrawer } from "./CategoryDetailDrawer";
 import { AgentInsightStrip } from "./AgentInsightStrip";
 import { TagCopilotPanel } from "@/components/transactions/TagCopilotPanel";
+import { getSupabase } from "@/lib/supabase";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import type { CategoryData } from "./categoryConfig";
 
@@ -36,6 +37,10 @@ export default function CategoriesPageV2() {
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [copilotInitialMessage, setCopilotInitialMessage] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [budgetModal, setBudgetModal] = useState(false);
+  const [budgetCategory, setBudgetCategory] = useState("");
+  const [budgetAmount, setBudgetAmount] = useState("");
+  const [budgetSaving, setBudgetSaving] = useState(false);
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth <= 768);
@@ -81,6 +86,39 @@ export default function CategoriesPageV2() {
     );
   }
 
+  const saveBudget = async () => {
+    if (!budgetCategory || !budgetAmount) return;
+    setBudgetSaving(true);
+    try {
+      const sb = getSupabase();
+      if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { toast.error("Not logged in"); return; }
+      const limit = parseFloat(budgetAmount);
+      const { error } = await sb.from('category_budgets').upsert(
+        { user_id: session.user.id, category: budgetCategory, monthly_limit: limit },
+        { onConflict: 'user_id,category' }
+      );
+      if (error) throw error;
+      await sb.from('user_notifications').insert({
+        user_id: session.user.id,
+        employee_slug: 'goalie-goals',
+        type: 'budget_set',
+        title: `Budget set \u2014 ${budgetCategory}`,
+        message: `$${limit.toLocaleString()}/month limit locked in for ${budgetCategory}. I'll flag you when you hit 80%.`,
+        priority: 'info',
+        sent_at: new Date().toISOString(),
+      }).catch(() => {});
+      toast.success(`Goalie locked in $${limit}/mo for ${budgetCategory}`);
+      setBudgetModal(false);
+      setBudgetAmount("");
+    } catch {
+      toast.error("Failed to save budget");
+    } finally {
+      setBudgetSaving(false);
+    }
+  };
+
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -115,8 +153,8 @@ export default function CategoriesPageV2() {
                 <span style={{ width: 20, height: 20, borderRadius: "50%", fontSize: 9, fontWeight: 700, background: `${CYAN}25`, border: `1px solid ${CYAN}44`, color: CYAN, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>T</span>
                 Tag Copilot
               </button>
-              <button onClick={() => toast("Budget setting coming soon")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`, border: "none", borderRadius: 10, color: "#0b1220", cursor: "pointer", boxShadow: `0 4px 16px rgba(200,166,78,0.35)` }}>
-                + Set Budget
+              <button onClick={() => { setBudgetCategory(filtered[0]?.name || ""); setBudgetModal(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: "linear-gradient(135deg, #fbbf24, #d97706)", border: "none", borderRadius: 10, color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 16px rgba(251,191,36,0.35)" }}>
+                {'\u26A1'} Goalie: Set Budget
               </button>
             </div>
           </div>
@@ -285,6 +323,33 @@ export default function CategoriesPageV2() {
         isTagOpen={copilotOpen}
         onAskTag={(question) => { setCopilotInitialMessage(question); setCopilotOpen(true); }}
       />
+
+      {/* Budget modal */}
+      {budgetModal && createPortal(
+        <div onClick={() => setBudgetModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#111a2e", border: "1px solid #1e2d4a", borderRadius: 16, padding: 24, width: "100%", maxWidth: 400 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#fbbf2420", border: "1.5px solid #fbbf2444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fbbf24", flexShrink: 0 }}>G</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#fbbf24" }}>Goalie</div>
+                <div style={{ fontSize: 11, color: "#9ba8bc" }}>Budget manager</div>
+              </div>
+            </div>
+            <p style={{ color: "#c8d0e0", fontSize: 13, marginBottom: 20, lineHeight: 1.5 }}>Set a monthly spending limit. I'll track your progress and flag you at 80% so you never get surprised.</p>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#9ba8bc", textTransform: "uppercase" as const, letterSpacing: 1, display: "block", marginBottom: 6 }}>Category</label>
+            <select value={budgetCategory} onChange={e => setBudgetCategory(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "#0b1220", border: "1px solid #1e2d4a", color: "#e8ecf4", fontSize: 13, marginBottom: 16, boxSizing: "border-box" as const, fontFamily: "inherit" }}>
+              {mainCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+            </select>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#9ba8bc", textTransform: "uppercase" as const, letterSpacing: 1, display: "block", marginBottom: 6 }}>Monthly Limit (CAD $)</label>
+            <input type="number" placeholder="e.g. 500" value={budgetAmount} onChange={e => setBudgetAmount(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void saveBudget(); }} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "#0b1220", border: "1px solid #fbbf2433", color: "#e8ecf4", fontSize: 13, marginBottom: 20, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setBudgetModal(false)} style={{ flex: 1, padding: 12, borderRadius: 10, background: "transparent", border: "1px solid #1e2d4a", color: "#9ba8bc", cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={() => void saveBudget()} disabled={budgetSaving || !budgetCategory || !budgetAmount} style={{ flex: 1, padding: 12, borderRadius: 10, background: "linear-gradient(135deg, #fbbf24, #d97706)", border: "none", color: "#0b1220", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: budgetSaving ? 0.7 : 1, fontFamily: "inherit" }}>{budgetSaving ? "Saving..." : "Lock It In"}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

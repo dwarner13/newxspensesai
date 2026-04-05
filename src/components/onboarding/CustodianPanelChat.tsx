@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Send } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
+import { PANEL } from '../../pages/PrimeChatV2/panelConfig';
 
 interface ChatMsg {
   role: 'user' | 'custodian';
@@ -16,7 +17,9 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   const bottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { const h = () => setIsMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -49,8 +52,17 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 70 }} />
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 520,
-        background: '#0b1220', borderLeft: '1px solid rgba(167,139,250,0.2)',
+        position: 'fixed',
+        top: isMobile ? 'auto' : 0,
+        bottom: 0, right: 0,
+        left: isMobile ? 0 : 'auto',
+        width: isMobile ? '100%' : PANEL.panelWidthDesktop,
+        height: isMobile ? PANEL.panelHeightMobile : '100%',
+        borderRadius: isMobile ? '20px 20px 0 0' : 0,
+        paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : 0,
+        background: '#0b1220',
+        borderLeft: isMobile ? 'none' : '1px solid rgba(167,139,250,0.2)',
+        borderTop: isMobile ? '1px solid rgba(167,139,250,0.2)' : 'none',
         zIndex: 71, display: 'flex', flexDirection: 'column', overflow: 'hidden',
         fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
         boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',

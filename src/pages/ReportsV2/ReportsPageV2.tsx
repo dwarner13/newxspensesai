@@ -70,7 +70,7 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
       {open && (
         <div style={{ borderTop: "1px solid " + T.border }}>
           {/* Column headers — desktop only */}
-          <div className="reports-row-header" style={{ display: window.innerWidth >= 768 ? "grid" : "none" }} style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "8px 18px", fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: 1 }}>
+          <div className="reports-row-header" style={{ display: window.innerWidth >= 768 ? "grid" : "none", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "8px 18px", fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: 1 }}>
             <span>Statement Period</span><span>Transactions</span><span>Spent</span><span>Income</span><span />
           </div>
           {group.statements.map(s => (
@@ -319,14 +319,16 @@ export default function ReportsPageV2() {
         {/* ═══ B. Tax Summary Banner ═══ */}
         {!taxBannerDismissed && data.issuerGroups.length > 0 && (
           <Reveal delay={50}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderRadius: 14, background: "linear-gradient(135deg, #1a1200, " + T.surface + ")", borderLeft: "3px solid " + T.gold, marginBottom: 20 }}>
-              <span style={{ fontSize: 18, color: T.gold }}>{"\u265B"}</span>
-              <div style={{ flex: 1, fontSize: 12.5, color: T.muted }}>
-                <strong style={{ color: T.gold }}>Ready to send to Tax Summary?</strong>{" "}
-                Prime has reviewed {data.issuerGroups.reduce((s, g) => s + g.statements.length, 0)} statements across {data.issuerGroups.length} issuers.
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 18px", borderRadius: 14, background: "linear-gradient(135deg, #1a1200, " + T.surface + ")", borderLeft: "3px solid " + T.gold, marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ fontSize: 18, color: T.gold, flexShrink: 0 }}>{"\u265B"}</span>
+                <div style={{ flex: 1, fontSize: 12.5, color: T.muted, lineHeight: 1.5 }}>
+                  <strong style={{ color: T.gold }}>Ready to send to Tax Summary?</strong>{" "}
+                  Prime has reviewed {data.issuerGroups.reduce((s, g) => s + g.statements.length, 0)} statements across {data.issuerGroups.length} issuers.
+                </div>
+                <button onClick={dismissTaxBanner} style={{ background: "transparent", border: "none", color: T.dim, cursor: "pointer", fontSize: 16, padding: 4, flexShrink: 0 }}>{"\u2715"}</button>
               </div>
-              <button onClick={() => navigate("/dashboard/tax-summary")} style={{ padding: "7px 16px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", whiteSpace: "nowrap" }}>Send to Tax Summary →</button>
-              <button onClick={dismissTaxBanner} style={{ background: "transparent", border: "none", color: T.dim, cursor: "pointer", fontSize: 16, padding: 4 }}>{"\u2715"}</button>
+              <button onClick={() => navigate("/dashboard/tax-summary")} style={{ padding: "9px 18px", borderRadius: 10, fontSize: 12, fontWeight: 700, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", alignSelf: "flex-start" }}>Send to Tax Summary {"\u2192"}</button>
             </div>
           </Reveal>
         )}

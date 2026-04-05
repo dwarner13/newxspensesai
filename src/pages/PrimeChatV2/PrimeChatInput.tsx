@@ -1,5 +1,6 @@
 import { useState, useRef, type KeyboardEvent } from "react";
 import { THEME } from "./agentConfig";
+import { PANEL } from "./panelConfig";
 import { ChatAttachmentButton } from "@/components/chat/ChatAttachmentButton";
 
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,application/pdf,text/csv,image/jpeg,image/png,image/webp";
@@ -115,7 +116,7 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: Pr
             border: "none",
             outline: "none",
             color: THEME.text,
-            fontSize: 16,
+            fontSize: PANEL.inputFontSize,
             padding: "12px 4px 12px 16px",
             minHeight: 48,
             fontFamily: "inherit",

@@ -20,7 +20,9 @@ export default function MyFinancialStoryV2() {
   const [loaded, setLoaded] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   useEffect(() => setLoaded(true), []);
+  useEffect(() => { const h = () => setIsMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
 
   const crystalIntro = data.loading ? "" : buildCrystalIntro(data);
   const [introTyped, introDone] = useTypewriter(crystalIntro, 14, 600, !data.loading);
@@ -41,22 +43,23 @@ export default function MyFinancialStoryV2() {
     <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh" }}>
       <div style={{ display: "flex" }}>
         {/* MAIN CONTENT */}
-        <div style={{ flex: 1, padding: "28px 36px" }}>
+        <div style={{ flex: 1, padding: isMobile ? "16px 14px" : "28px 36px", minWidth: 0, overflow: "hidden" }}>
 
           {/* Header */}
           <Reveal delay={0}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexDirection: isMobile ? "column" as const : "row" as const, gap: isMobile ? 12 : 0 }}>
               <div>
                 <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>My Financial Story</h1>
                 <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>
-                  Narrated by Crystal \u2022 {data.statementCount} statements \u2022 {data.transactionCount} transactions \u2022 {data.periodStart} \u2013 {data.periodEnd}
+                  Narrated by Crystal {"\u2022"} {data.statementCount} statements {"\u2022"} {data.transactionCount} transactions {"\u2022"} {data.periodStart} {"\u2013"} {data.periodEnd}
                 </p>
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, flexDirection: isMobile ? "column" as const : "row" as const }}>
                 <button onClick={() => setCopilotOpen(!copilotOpen)} style={{
                   padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600,
                   background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.2)",
                   color: "#a78bfa", cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                  width: isMobile ? "100%" : "auto",
                 }}>
                   <AgentDot agent="Crystal" size={20} />
                   Crystal Copilot
@@ -64,12 +67,14 @@ export default function MyFinancialStoryV2() {
                 <button onClick={() => setReportOpen(v => !v)} style={{
                   padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600,
                   background: reportOpen ? 'transparent' : THEME.surface, border: `1px solid ${reportOpen ? THEME.accent : THEME.border}`, color: reportOpen ? THEME.accent : THEME.textMuted, cursor: "pointer",
+                  width: isMobile ? "100%" : "auto",
                 }}>{reportOpen ? 'Hide Preview' : 'Report Preview'}</button>
                 <button style={{
                   padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600,
                   background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`,
                   border: "none", color: "#0b1220", cursor: "pointer",
                   boxShadow: `0 4px 16px ${THEME.accent}35`,
+                  width: isMobile ? "100%" : "auto",
                   }} onClick={() => toast('Coming soon — accountant sharing via Inbox')}>{"\uD83D\uDCE7"} Send to Accountant</button>
               </div>
             </div>
@@ -101,8 +106,8 @@ export default function MyFinancialStoryV2() {
           </Reveal>
 
           {/* Health + Stats */}
-          <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
-            <Reveal delay={300} style={{ flex: "0 0 200px" }}>
+          <div style={{ display: "flex", gap: 16, marginBottom: 24, flexDirection: isMobile ? "column" as const : "row" as const }}>
+            <Reveal delay={300} style={{ flex: isMobile ? "0 0 auto" : "0 0 200px", width: isMobile ? "100%" : "auto" }}>
               <div style={{
                 background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 18,
                 padding: "24px", display: "flex", flexDirection: "column", alignItems: "center",
@@ -113,7 +118,7 @@ export default function MyFinancialStoryV2() {
               </div>
             </Reveal>
 
-            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
               {[
                 { label: "Total Income", value: `$${data.income.toLocaleString()}`, color: "#34d399", sub: `${data.periodMonths} months` },
                 { label: "Total Expenses", value: `$${data.expenses.toLocaleString()}`, color: "#f87171", sub: `+${data.expenseTrendPct}% MoM` },

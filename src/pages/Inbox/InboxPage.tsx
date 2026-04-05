@@ -123,7 +123,7 @@ export default function InboxPage() {
       // Fetch from both notification tables
       const [{ data: notifs }, { data: userNotifs }] = await Promise.all([
         sb.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
-        sb.from("user_notifications").select("id, user_id, employee_slug, type, title, message as description, priority, payload, read_at, sent_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20).then(r => ({ data: (r.data ?? []).map((n: any) => ({ ...n, read: !!n.read_at, href: null })) })).catch(() => ({ data: [] })),
+        sb.from("user_notifications").select("id, user_id, employee_slug, type, title, message, priority, payload, read_at, sent_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20).then(r => ({ data: (r.data ?? []).map((n: any) => ({ ...n, description: n.message, read: !!n.read_at, href: null })) })).catch(() => ({ data: [] })),
       ]);
       const combined = [...(notifs ?? []), ...(userNotifs ?? [])].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 50);
       setNotifications(combined.length > 0 ? combined : DEMO_MESSAGES);
@@ -309,7 +309,7 @@ export default function InboxPage() {
                       {agent.name}
                     </span>
                     {/* Subject + priority + preview */}
-                    <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, overflow: "hidden", minWidth: 0 }}>
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
                       <span style={{ fontSize: 14, fontWeight: isUnread ? 700 : 400, color: isUnread ? T.text : T.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "60%", flexShrink: 1, minWidth: 0 }}>
                         {n.title}
                       </span>

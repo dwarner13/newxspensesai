@@ -27,21 +27,21 @@ interface TransactionInsightDrawerProps {
 }
 
 const TAX_INFO: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  Transportation:  { label: '? Deductible � CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Housing:         { label: '? Deductible � home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Utilities:       { label: '? Deductible � business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Healthcare:      { label: '? Deductible � medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Education:       { label: '? Deductible � training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Insurance:       { label: '? Deductible � business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Subscriptions:   { label: '? Likely deductible � if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  'Bank Fees':     { label: '? Deductible � bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Travel:          { label: '~ Partially deductible � business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  'Food & Dining': { label: '~ 50% deductible � meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Shopping:        { label: '~ May be deductible � business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Income:          { label: '� Taxable income � report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
-  Transfers:       { label: '� Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  Savings:         { label: '� Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  'Debt Payments': { label: '� Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
+  Transportation:  { label: '\u2713 Deductible \u2014 CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Housing:         { label: '\u2713 Deductible \u2014 home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Utilities:       { label: '\u2713 Deductible \u2014 business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Healthcare:      { label: '\u2713 Deductible \u2014 medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Education:       { label: '\u2713 Deductible \u2014 training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Insurance:       { label: '\u2713 Deductible \u2014 business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Subscriptions:   { label: '\u2713 Likely deductible \u2014 if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  'Bank Fees':     { label: '\u2713 Deductible \u2014 bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Travel:          { label: '~ Partially deductible \u2014 business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  'Food & Dining': { label: '~ 50% deductible \u2014 meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  Shopping:        { label: '~ May be deductible \u2014 business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  Income:          { label: '\u2192 Taxable income \u2014 report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
+  Transfers:       { label: '\u2717 Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
+  Savings:         { label: '\u2717 Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
+  'Debt Payments': { label: '\u2192 Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
 };
 const QUICK_CATS = [
   { label: 'Gas', category: 'Transportation', emoji: '?' },
@@ -206,7 +206,7 @@ export function TransactionInsightDrawer({
           }
         }
       } catch { /* ignore */ }
-      setStatementLabel(`Statement �${importId.slice(-6)}`);
+      setStatementLabel(`Statement #${importId.slice(-6)}`);
     })();
   }, [row]);
 
@@ -432,7 +432,7 @@ export function TransactionInsightDrawer({
               {formattedDate && (
                 <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{formattedDate}</span>
               )}
-              {statementLabel && !/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(statementLabel) && statementLabel !== formattedDate && (
+              {statementLabel && statementLabel !== formattedDate && !statementLabel.includes('2024') && !statementLabel.includes('2025') && !statementLabel.includes('2026') && (
                 <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{statementLabel}</span>
               )}
               {merchantMonthSpend > 0 && (
@@ -496,8 +496,14 @@ export function TransactionInsightDrawer({
                 } catch { /* silent */ }
                 e.target.value = '';
               }} />
-              <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#475569', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>{'\uD83E\uDDFE'} Attach Receipt</label>
+              <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>{'\uD83E\uDDFE'} Attach Receipt</label>
             </div>
+          )}
+          {/* VIEW STATEMENT */}
+          {row?.kind === 'committed' && (row.transaction as any).import_id && (
+            <button onClick={() => { window.location.href = '/dashboard/reports'; }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#60a5fa', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>
+              {'\uD83D\uDCC4'} View Statement
+            </button>
           )}
 
           {/* TAG VERDICT */}
@@ -540,10 +546,10 @@ export function TransactionInsightDrawer({
           {localCategory && localCategory !== 'Uncategorized' && subcategoryOptions.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ fontSize: 11, color: '#475569', width: 80, flexShrink: 0 }}>Subcategory</div>
-              <select value={localSubcategory} onChange={e => void handleSubcategoryChange(e.target.value)} style={{ flex: 1, padding: '4px 8px', borderRadius: 8, background: '#0b1220', border: '1px solid #1e2d4a', color: localSubcategory ? '#f1f5f9' : '#475569', fontSize: 12, fontFamily: 'inherit' }}>
-                <option value="">-- select --</option>
-                {subcategoryOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                <option value="__add_new__">+ Add new...</option>
+              <select value={localSubcategory} onChange={e => void handleSubcategoryChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 10, background: '#0b1220', border: '1px solid #1e2d4a', color: '#e8ecf4', fontSize: 13, cursor: 'pointer', appearance: 'auto' as any, fontFamily: 'inherit' }}>
+                <option value="" style={{ background: '#111a2e', color: '#e8ecf4' }}>-- select --</option>
+                {subcategoryOptions.map(s => <option key={s} value={s} style={{ background: '#111a2e', color: '#e8ecf4' }}>{s}</option>)}
+                <option value="__add_new__" style={{ background: '#111a2e', color: '#22d3ee' }}>+ Add new...</option>
               </select>
             </div>
           )}

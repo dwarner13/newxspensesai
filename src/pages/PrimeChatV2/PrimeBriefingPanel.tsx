@@ -1,5 +1,5 @@
 import { useAtom } from "jotai";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { isPrimeBriefingOpenAtom } from "@/lib/uiStore";
 import { PrimeChatV2Content } from "./PrimeChatV2";
@@ -13,6 +13,23 @@ export function PrimeBriefingPanel() {
   const stopKeyPropagation = useCallback((e: React.KeyboardEvent) => {
     e.stopPropagation();
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflowY = 'scroll';
+      return () => {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflowY = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

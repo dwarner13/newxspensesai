@@ -1001,9 +1001,8 @@ export default function DashboardLayout() {
         top: 0, left: 0, right: 0, bottom: 0,
         zIndex: 99999,
         background: "#0b1220",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch" as any,
       }}>
         <PostLoginSplash
           userName={(() => { const raw = profile?.display_name || profile?.first_name || profile?.full_name || "there"; return raw.charAt(0).toUpperCase() + raw.slice(1); })()}
@@ -1015,6 +1014,16 @@ export default function DashboardLayout() {
             sessionStorage.setItem("xai_splash_date", new Date().toDateString());
             setShowSplash(false);
             setIsPrimeBriefingOpen(true);
+          }}
+          onUploadStatement={() => {
+            sessionStorage.setItem("xai_splash_date", new Date().toDateString());
+            setShowSplash(false);
+            navigate("/dashboard/upload");
+          }}
+          onScanReceipt={() => {
+            sessionStorage.setItem("xai_splash_date", new Date().toDateString());
+            setShowSplash(false);
+            navigate("/dashboard/receipts");
           }}
         />
       </div>
