@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/lib/supabase";
 
 const C = {
@@ -17,10 +18,12 @@ interface PostLoginSplashProps {
 }
 
 export default function PostLoginSplash({ userName = "there", onContinue, onOpenPrime, onUploadStatement, onScanReceipt }: PostLoginSplashProps) {
+  const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   const [byteMessage, setByteMessage] = useState<string | null>(null);
   const [byteUploading, setByteUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadComplete, setUploadComplete] = useState(false);
   const [tagTransactions, setTagTransactions] = useState<any[]>([]);
   const [tagFixing, setTagFixing] = useState<string | null>(null);
   const [tagFixed, setTagFixed] = useState<Set<string>>(new Set());
@@ -102,8 +105,12 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         const data = await res.json();
         clearInterval(progressInterval);
         setUploadProgress(100);
-        setByteMessage(data.ok ? `Got it \u2014 I found ${data.transaction_count || 'several'} transactions. Heading to dashboard to process.` : "Upload complete \u2014 heading to dashboard.");
-        setTimeout(() => onContinue(), 2500);
+        setUploadComplete(true);
+        setByteMessage("Done \u2713 Found transactions in your statement. Ready to review them now.");
+        setTimeout(() => {
+          sessionStorage.setItem("xai_splash_date", new Date().toDateString());
+          navigate('/dashboard/transactions');
+        }, 2000);
       };
       reader.readAsDataURL(file);
     } catch {
@@ -243,16 +250,21 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
               {"\uD83E\uDDFE"} Scan Receipt
             </button>
           </div>
-          {byteUploading && (
+          {(byteUploading || uploadComplete) && (
             <div style={{ marginTop: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 10, color: "#22d3ee" }}>Byte is reading your file...</span>
+                <span style={{ fontSize: 10, color: "#22d3ee" }}>{byteMessage || "Reading your file..."}</span>
                 <span style={{ fontSize: 10, color: "#22d3ee", fontWeight: 700 }}>{Math.round(uploadProgress)}%</span>
               </div>
               <div style={{ height: 4, borderRadius: 2, background: "rgba(34,211,238,0.15)" }}>
                 <div style={{ height: "100%", borderRadius: 2, background: "linear-gradient(90deg, #22d3ee, #34d399)", width: `${uploadProgress}%`, transition: "width 0.3s ease" }} />
               </div>
             </div>
+          )}
+          {uploadComplete && (
+            <button onClick={() => { sessionStorage.setItem("xai_splash_date", new Date().toDateString()); navigate('/dashboard/transactions'); }} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 10, background: "linear-gradient(135deg, #22d3ee, #0891b2)", border: "none", color: "#0b1220", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+              View Your Transactions {"\u2192"}
+            </button>
           )}
         </div>
 
