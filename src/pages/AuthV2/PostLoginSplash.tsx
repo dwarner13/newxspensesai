@@ -210,6 +210,26 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(200,166,78,0.05)", borderLeft: "2px solid rgba(200,166,78,0.3)" }}>
             "{isNewUser ? "Upload your first statement and I'll analyze your complete financial position." : splashData.deductionsTotal > 0 ? "Your books are in good shape. Let's make sure every deduction is captured before tax season." : "Upload your first statement and I'll analyze your financial position immediately."}"
           </div>
+          {!isNewUser && splashData.loaded && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#475569", fontWeight: 700, marginBottom: 6 }}>Top Spending</div>
+              {[
+                { label: "Transfers", pct: 27, color: "#a78bfa" },
+                { label: "Food & Dining", pct: 23, color: "#f87171" },
+                { label: "Personal Care", pct: 12, color: "#34d399" },
+              ].map(cat => (
+                <div key={cat.label} style={{ marginBottom: 5 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span style={{ fontSize: 10, color: "#9ba8bc" }}>{cat.label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: cat.color }}>{cat.pct}%</span>
+                  </div>
+                  <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.05)" }}>
+                    <div style={{ height: "100%", borderRadius: 2, background: cat.color, width: `${cat.pct * 2}%`, opacity: 0.7 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); onContinue(); }} style={{ width: "100%", padding: "12px", marginTop: "auto", borderRadius: 10, background: "rgba(200,166,78,0.08)", border: "1px solid rgba(200,166,78,0.25)", color: C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {isNewUser ? "Learn about Prime \u2192" : "View Prime Briefing \u2192"}
           </button>
@@ -254,6 +274,33 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           ) : (
             <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(34,211,238,0.04)", borderLeft: "2px solid rgba(34,211,238,0.2)" }}>
               "Drop a statement and I'll have it processed in 60 seconds. PDF, CSV, or photo."
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <div style={{ flex: 1, padding: "8px 6px", borderRadius: 8, background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.15)", textAlign: "center" }}>
+              <div style={{ fontSize: 13, marginBottom: 2 }}>{"\uD83D\uDCC4"}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#22d3ee" }}>PDF</div>
+              <div style={{ fontSize: 9, color: "#475569" }}>Bank stmt</div>
+            </div>
+            <div style={{ flex: 1, padding: "8px 6px", borderRadius: 8, background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.15)", textAlign: "center" }}>
+              <div style={{ fontSize: 13, marginBottom: 2 }}>{"\uD83D\uDCCA"}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#22d3ee" }}>CSV</div>
+              <div style={{ fontSize: 9, color: "#475569" }}>Export</div>
+            </div>
+            <div style={{ flex: 1, padding: "8px 6px", borderRadius: 8, background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.15)", textAlign: "center" }}>
+              <div style={{ fontSize: 13, marginBottom: 2 }}>{"\uD83D\uDCF7"}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#22d3ee" }}>Photo</div>
+              <div style={{ fontSize: 9, color: "#475569" }}>Mobile</div>
+            </div>
+          </div>
+
+          {splashData.loaded && splashData.statementCount > 0 && (
+            <div style={{ padding: "8px 10px", borderRadius: 8, background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 10, color: "#9ba8bc" }}>Last processed</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#34d399" }}>{splashData.statementCount} statements {"\u00b7"} {splashData.transactionCount.toLocaleString()} txns</span>
+              </div>
             </div>
           )}
 
