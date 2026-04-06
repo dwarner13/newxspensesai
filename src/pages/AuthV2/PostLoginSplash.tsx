@@ -254,16 +254,6 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
               </div>
             </div>
           )}
-          <div style={{ flex: 1 }} />
-          <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 10, background: "rgba(34,211,238,0.05)", border: "1px solid rgba(34,211,238,0.1)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#34d399", display: "inline-block" }} />
-              <span style={{ fontSize: 10, color: "#34d399", fontWeight: 500 }}>Guardrails active</span>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#3b82f6", display: "inline-block", marginLeft: 6 }} />
-              <span style={{ fontSize: 10, color: "#3b82f6", fontWeight: 500 }}>Session secured</span>
-            </div>
-            <div style={{ fontSize: 10, color: "#475569" }}>PII protected {"\u00b7"} AI guardrails enforced</div>
-          </div>
         </div>
 
         {/* CARD 3 — TAG */}
@@ -335,7 +325,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       {/* Bottom CTA */}
       <div style={{ width: "100%", maxWidth: 1100, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
         <div style={{ textAlign: "center", marginBottom: 8 }}>
-          <span style={{ fontSize: 12, color: "#475569" }}>That's a preview {"\u2014"} your full financial picture is inside</span>
+          <span style={{ fontSize: 12, color: "#9ba8bc" }}>That's a preview {"\u2014"} your full financial picture is inside</span>
         </div>
         <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, padding: "16px", borderRadius: 14, fontSize: 15, fontWeight: 800, background: `linear-gradient(135deg, ${C.accent}, #a08030)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 24px rgba(200,166,78,0.4)", letterSpacing: 0.3 }}>
           Continue to Dashboard {"\u2192"}
