@@ -200,10 +200,9 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(200,166,78,0.05)", borderLeft: "2px solid rgba(200,166,78,0.3)" }}>
             "{isNewUser ? "Upload your first statement and I'll analyze your complete financial position." : splashData.deductionsTotal > 0 ? "Your books are in good shape. Let's make sure every deduction is captured before tax season." : "Upload your first statement and I'll analyze your financial position immediately."}"
           </div>
-          <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); onContinue(); }} style={{ width: "100%", padding: "10px", borderRadius: 10, background: "rgba(200,166,78,0.12)", border: "1px solid rgba(200,166,78,0.3)", color: C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); onContinue(); }} style={{ width: "100%", padding: "10px", borderRadius: 10, background: "rgba(200,166,78,0.12)", border: "1px solid rgba(200,166,78,0.3)", color: C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer", marginTop: "auto" }}>
             {isNewUser ? "Learn about Prime \u2192" : "View Prime Briefing \u2192"}
           </button>
-          <div style={{ flex: 1 }} />
           <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 10, background: "rgba(200,166,78,0.06)", border: "1px solid rgba(200,166,78,0.15)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 11, color: "#9ba8bc" }}>Ready to dive in?</span>
             <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{ fontSize: 11, fontWeight: 700, color: "#c8a64e", background: "none", border: "none", cursor: "pointer" }}>Dashboard {"\u2192"}</button>
@@ -242,16 +241,8 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <button onClick={() => fileRef.current?.click()} disabled={byteUploading} style={{ padding: "10px 8px", borderRadius: 10, background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.3)", color: C.cyan, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-              {"\uD83D\uDCC4"} {byteUploading ? "Processing..." : "Upload Statement"}
-            </button>
-            <button onClick={() => cameraRef.current?.click()} disabled={byteUploading} style={{ padding: "10px 8px", borderRadius: 10, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: C.green, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-              {"\uD83E\uDDFE"} Scan Receipt
-            </button>
-          </div>
           {(byteUploading || uploadComplete) && (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                 <span style={{ fontSize: 10, color: "#22d3ee" }}>{byteMessage || "Reading your file..."}</span>
                 <span style={{ fontSize: 10, color: "#22d3ee", fontWeight: 700 }}>{Math.round(uploadProgress)}%</span>
@@ -261,6 +252,17 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
               </div>
             </div>
           )}
+
+          <div style={{ flex: 1 }} />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: "auto" }}>
+            <button onClick={() => fileRef.current?.click()} disabled={byteUploading} style={{ padding: "10px 8px", borderRadius: 10, background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.3)", color: C.cyan, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+              {"\uD83D\uDCC4"} {byteUploading ? "Processing..." : "Upload Statement"}
+            </button>
+            <button onClick={() => cameraRef.current?.click()} disabled={byteUploading} style={{ padding: "10px 8px", borderRadius: 10, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: C.green, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+              {"\uD83E\uDDFE"} Scan Receipt
+            </button>
+          </div>
           {uploadComplete && (
             <button onClick={() => { sessionStorage.setItem("xai_splash_date", new Date().toDateString()); navigate('/dashboard/transactions'); }} style={{ width: "100%", marginTop: 10, padding: "12px", borderRadius: 10, background: "linear-gradient(135deg, #22d3ee, #0891b2)", border: "none", color: "#0b1220", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
               View Your Transactions {"\u2192"}
@@ -328,7 +330,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             </div>
           )}
 
-          <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{ width: "100%", padding: "10px", borderRadius: 10, background: splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.12)" : "rgba(34,211,238,0.1)", border: `1px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.3)" : "rgba(34,211,238,0.25)"}`, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{ width: "100%", padding: "10px", borderRadius: 10, background: splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.12)" : "rgba(34,211,238,0.1)", border: `1px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.3)" : "rgba(34,211,238,0.25)"}`, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, fontSize: 12, fontWeight: 700, cursor: "pointer", marginTop: "auto" }}>
             {splashData.uncategorizedCount > 0 ? `Open Tag \u2014 Fix ${splashData.uncategorizedCount} transactions \u2192` : "All clean \u2014 View Categories \u2192"}
           </button>
         </div>
