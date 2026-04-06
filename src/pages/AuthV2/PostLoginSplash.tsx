@@ -177,6 +177,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           borderTop: "3px solid #c8a64e",
           borderRadius: 20, padding: "14px 16px", position: "relative",
           display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
+          minHeight: isMobile ? "auto" : 380,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(200,166,78,0.06)", lineHeight: 1, userSelect: "none" }}>1</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -188,13 +189,22 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{"\u25CF"} Live</div>
           </div>
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: C.accent, letterSpacing: -1 }}>{isNewUser ? "Ready" : `$${splashData.deductionsTotal.toLocaleString()}`}</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "your AI CFO advisor" : "in potential tax deductions identified"}</div>
-            {!isNewUser && (
-              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(200,166,78,0.1)", border: "1px solid rgba(200,166,78,0.2)", color: C.accent }}>Score: {splashData.xspenseScore}</span>
-                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{splashData.categorizedPct}% organized</span>
-              </div>
+            {splashData.loaded ? (
+              <>
+                <div style={{ fontSize: isMobile ? 24 : 26, fontWeight: 800, color: C.accent, letterSpacing: -1 }}>{isNewUser ? "Ready" : `$${splashData.deductionsTotal.toLocaleString()}`}</div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "your AI CFO advisor" : "in potential tax deductions identified"}</div>
+                {!isNewUser && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(200,166,78,0.1)", border: "1px solid rgba(200,166,78,0.2)", color: C.accent }}>Score: {splashData.xspenseScore}</span>
+                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{splashData.categorizedPct}% organized</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div style={{ height: 36, width: 120, borderRadius: 8, background: "rgba(200,166,78,0.1)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                <div style={{ height: 14, width: 180, borderRadius: 6, background: "rgba(255,255,255,0.05)", marginTop: 8, animation: "pulse 1.5s ease-in-out infinite" }} />
+              </>
             )}
           </div>
           <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(200,166,78,0.05)", borderLeft: "2px solid rgba(200,166,78,0.3)" }}>
@@ -212,6 +222,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           borderTop: "3px solid #22d3ee",
           borderRadius: 20, padding: "14px 16px", position: "relative",
           display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
+          minHeight: isMobile ? "auto" : 380,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(34,211,238,0.05)", lineHeight: 1, userSelect: "none" }}>2</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -223,8 +234,17 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{"\u25CF"} Ready</div>
           </div>
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: C.cyan, letterSpacing: -1 }}>{splashData.statementCount}</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "statements \u2014 let's change that" : `statements processed ${"\u00b7"} ${splashData.transactionCount.toLocaleString()} transactions`}</div>
+            {splashData.loaded ? (
+              <>
+                <div style={{ fontSize: isMobile ? 24 : 26, fontWeight: 800, color: C.cyan, letterSpacing: -1 }}>{splashData.statementCount}</div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "statements \u2014 let's change that" : `statements processed ${"\u00b7"} ${splashData.transactionCount.toLocaleString()} transactions`}</div>
+              </>
+            ) : (
+              <>
+                <div style={{ height: 36, width: 60, borderRadius: 8, background: "rgba(34,211,238,0.1)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                <div style={{ height: 14, width: 220, borderRadius: 6, background: "rgba(255,255,255,0.05)", marginTop: 8, animation: "pulse 1.5s ease-in-out infinite" }} />
+              </>
+            )}
           </div>
 
           {byteMessage ? (
@@ -270,6 +290,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           borderTop: `3px solid ${splashData.uncategorizedCount > 0 ? "#fbbf24" : "#22d3ee"}`,
           borderRadius: 20, padding: "14px 16px", position: "relative",
           display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
+          minHeight: isMobile ? "auto" : 380,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(34,211,238,0.05)", lineHeight: 1, userSelect: "none" }}>3</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -283,8 +304,17 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             )}
           </div>
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, letterSpacing: -1 }}>{splashData.categorizedPct}%</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>categorized {"\u00b7"} {splashData.uncategorizedCount} need your input</div>
+            {splashData.loaded ? (
+              <>
+                <div style={{ fontSize: isMobile ? 24 : 26, fontWeight: 800, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, letterSpacing: -1 }}>{splashData.categorizedPct}%</div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>categorized {"\u00b7"} {splashData.uncategorizedCount} need your input</div>
+              </>
+            ) : (
+              <>
+                <div style={{ height: 36, width: 80, borderRadius: 8, background: "rgba(34,211,238,0.1)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                <div style={{ height: 14, width: 200, borderRadius: 6, background: "rgba(255,255,255,0.05)", marginTop: 8, animation: "pulse 1.5s ease-in-out infinite" }} />
+              </>
+            )}
           </div>
 
           {/* Live transactions to fix */}
@@ -347,7 +377,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             <span style={{ fontSize: 11, color: "#60a5fa", fontWeight: 500 }}>Session secured</span>
           </div>
         </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes crownFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
+        <style>{`@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 0.8; } } @keyframes spin { to { transform: rotate(360deg); } } @keyframes crownFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
       </div>
     </div>
   );
