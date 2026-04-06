@@ -179,30 +179,28 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(200,166,78,0.06)", lineHeight: 1, userSelect: "none" }}>1</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(200,166,78,0.2)", border: "1.5px solid rgba(200,166,78,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.accent, boxShadow: "0 0 20px rgba(200,166,78,0.2)" }}>{"\u2655"}</div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>Prime</div>
-                <div style={{ fontSize: 10, color: C.dim }}>Your CFO Advisor</div>
-              </div>
-              <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{"\u25CF"} Live</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(200,166,78,0.2)", border: "1.5px solid rgba(200,166,78,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.accent, boxShadow: "0 0 20px rgba(200,166,78,0.2)" }}>{"\u2655"}</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>Prime</div>
+              <div style={{ fontSize: 10, color: C.dim }}>Your CFO Advisor</div>
             </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: C.accent, letterSpacing: -1 }}>{isNewUser ? "Ready" : `$${splashData.deductionsTotal.toLocaleString()}`}</div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "your AI CFO advisor" : "in potential tax deductions identified"}</div>
-              {!isNewUser && (
-                <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(200,166,78,0.1)", border: "1px solid rgba(200,166,78,0.2)", color: C.accent }}>Score: {splashData.xspenseScore}</span>
-                  <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{splashData.categorizedPct}% organized</span>
-                </div>
-              )}
-            </div>
-            <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(200,166,78,0.05)", borderLeft: "2px solid rgba(200,166,78,0.3)" }}>
-              "{isNewUser ? "Upload your first statement and I'll analyze your complete financial position." : splashData.deductionsTotal > 0 ? "Your books are in good shape. Let's make sure every deduction is captured before tax season." : "Upload your first statement and I'll analyze your financial position immediately."}"
-            </div>
+            <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{"\u25CF"} Live</div>
           </div>
-          <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); onContinue(); }} style={{ width: "100%", padding: "12px", marginTop: 12, borderRadius: 10, background: "rgba(200,166,78,0.08)", border: "1px solid rgba(200,166,78,0.25)", color: C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: C.accent, letterSpacing: -1 }}>{isNewUser ? "Ready" : `$${splashData.deductionsTotal.toLocaleString()}`}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "your AI CFO advisor" : "in potential tax deductions identified"}</div>
+            {!isNewUser && (
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(200,166,78,0.1)", border: "1px solid rgba(200,166,78,0.2)", color: C.accent }}>Score: {splashData.xspenseScore}</span>
+                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{splashData.categorizedPct}% organized</span>
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(200,166,78,0.05)", borderLeft: "2px solid rgba(200,166,78,0.3)" }}>
+            "{isNewUser ? "Upload your first statement and I'll analyze your complete financial position." : splashData.deductionsTotal > 0 ? "Your books are in good shape. Let's make sure every deduction is captured before tax season." : "Upload your first statement and I'll analyze your financial position immediately."}"
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); onContinue(); }} style={{ width: "100%", padding: "12px", marginTop: "auto", borderRadius: 10, background: "rgba(200,166,78,0.08)", border: "1px solid rgba(200,166,78,0.25)", color: C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {isNewUser ? "Learn about Prime \u2192" : "View Prime Briefing \u2192"}
           </button>
         </div>
@@ -216,43 +214,41 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(34,211,238,0.05)", lineHeight: 1, userSelect: "none" }}>2</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(34,211,238,0.15)", border: "1.5px solid rgba(34,211,238,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.cyan, boxShadow: "0 0 20px rgba(34,211,238,0.15)" }}>B</div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>Byte</div>
-                <div style={{ fontSize: 10, color: C.dim }}>Document Processor</div>
-              </div>
-              <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{"\u25CF"} Ready</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(34,211,238,0.15)", border: "1.5px solid rgba(34,211,238,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.cyan, boxShadow: "0 0 20px rgba(34,211,238,0.15)" }}>B</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>Byte</div>
+              <div style={{ fontSize: 10, color: C.dim }}>Document Processor</div>
             </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: C.cyan, letterSpacing: -1 }}>{splashData.statementCount}</div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "statements \u2014 let's change that" : `statements processed ${"\u00b7"} ${splashData.transactionCount.toLocaleString()} transactions`}</div>
-            </div>
-
-            {byteMessage ? (
-              <div style={{ fontSize: 11, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
-                "{byteMessage}"
-              </div>
-            ) : (
-              <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(34,211,238,0.04)", borderLeft: "2px solid rgba(34,211,238,0.2)" }}>
-                "Drop a statement and I'll have it processed in 60 seconds. PDF, CSV, or photo."
-              </div>
-            )}
-
-            {(byteUploading || uploadComplete) && (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 10, color: "#22d3ee" }}>{byteMessage || "Reading your file..."}</span>
-                  <span style={{ fontSize: 10, color: "#22d3ee", fontWeight: 700 }}>{Math.round(uploadProgress)}%</span>
-                </div>
-                <div style={{ height: 4, borderRadius: 2, background: "rgba(34,211,238,0.15)" }}>
-                  <div style={{ height: "100%", borderRadius: 2, background: "linear-gradient(90deg, #22d3ee, #34d399)", width: `${uploadProgress}%`, transition: "width 0.3s ease" }} />
-                </div>
-              </div>
-            )}
+            <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{"\u25CF"} Ready</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: C.cyan, letterSpacing: -1 }}>{splashData.statementCount}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "statements \u2014 let's change that" : `statements processed ${"\u00b7"} ${splashData.transactionCount.toLocaleString()} transactions`}</div>
+          </div>
+
+          {byteMessage ? (
+            <div style={{ fontSize: 11, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
+              "{byteMessage}"
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(34,211,238,0.04)", borderLeft: "2px solid rgba(34,211,238,0.2)" }}>
+              "Drop a statement and I'll have it processed in 60 seconds. PDF, CSV, or photo."
+            </div>
+          )}
+
+          {(byteUploading || uploadComplete) && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 10, color: "#22d3ee" }}>{byteMessage || "Reading your file..."}</span>
+                <span style={{ fontSize: 10, color: "#22d3ee", fontWeight: 700 }}>{Math.round(uploadProgress)}%</span>
+              </div>
+              <div style={{ height: 4, borderRadius: 2, background: "rgba(34,211,238,0.15)" }}>
+                <div style={{ height: "100%", borderRadius: 2, background: "linear-gradient(90deg, #22d3ee, #34d399)", width: `${uploadProgress}%`, transition: "width 0.3s ease" }} />
+              </div>
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: "auto" }}>
             <button onClick={() => fileRef.current?.click()} disabled={byteUploading} style={{ padding: "10px 8px", borderRadius: 10, background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.3)", color: C.cyan, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
               {"\uD83D\uDCC4"} {byteUploading ? "Processing..." : "Upload Statement"}
             </button>
@@ -276,60 +272,58 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(34,211,238,0.05)", lineHeight: 1, userSelect: "none" }}>3</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.15)" : "rgba(34,211,238,0.15)", border: `1.5px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.4)" : "rgba(34,211,238,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan }}>T</div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan }}>Tag</div>
-                <div style={{ fontSize: 10, color: C.dim }}>Categorization Expert</div>
-              </div>
-              {splashData.uncategorizedCount > 0 && (
-                <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: C.amber, fontWeight: 700 }}>{splashData.uncategorizedCount} to review</div>
-              )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.15)" : "rgba(34,211,238,0.15)", border: `1.5px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.4)" : "rgba(34,211,238,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan }}>T</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan }}>Tag</div>
+              <div style={{ fontSize: 10, color: C.dim }}>Categorization Expert</div>
             </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, letterSpacing: -1 }}>{splashData.categorizedPct}%</div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>categorized {"\u00b7"} {splashData.uncategorizedCount} need your input</div>
-            </div>
-
-            {/* Live transactions to fix */}
-            {tagTransactions.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: C.dim, fontWeight: 700, marginBottom: 8 }}>Fix these now:</div>
-                {tagTransactions.map(tx => (
-                  <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: tagFixed.has(tx.id) ? "rgba(52,211,153,0.08)" : "rgba(255,255,255,0.03)", border: `1px solid ${tagFixed.has(tx.id) ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.06)"}`, marginBottom: 4, opacity: tagFixed.has(tx.id) ? 0.7 : 1 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant_name || "Unknown"}</div>
-                      <div style={{ fontSize: 10, color: C.dim }}>${Math.abs(Number(tx.amount)).toFixed(2)}</div>
-                    </div>
-                    {tagFixing === tx.id ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(34,211,238,0.3)", borderTopColor: "#22d3ee", animation: "spin 1s linear infinite" }} />
-                        <span style={{ fontSize: 10, color: "#22d3ee" }}>Saving...</span>
-                      </div>
-                    ) : tagFixed.has(tx.id) ? (
-                      <span style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>{"\u2713"} Fixed</span>
-                    ) : (
-                      <select onChange={e => { if (e.target.value) void handleTagFix(tx.id, e.target.value); }} defaultValue="" style={{ fontSize: 10, padding: "3px 6px", borderRadius: 6, background: "#0b1220", border: "1px solid #1e2d4a", color: C.text, cursor: "pointer" }}>
-                        <option value="" disabled>Categorize...</option>
-                        {["Income", "Groceries", "Food & Dining", "Transportation", "Housing", "Utilities", "Shopping", "Subscriptions", "Entertainment", "Healthcare", "Bank Fees", "Transfers", "Debt Payments", "Personal Care", "Business"].map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {tagTransactions.length === 0 && splashData.loaded && (
-              <div style={{ fontSize: 11, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
-                "All transactions categorized. Books are clean {"\u2713"}"
-              </div>
+            {splashData.uncategorizedCount > 0 && (
+              <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: C.amber, fontWeight: 700 }}>{splashData.uncategorizedCount} to review</div>
             )}
           </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, letterSpacing: -1 }}>{splashData.categorizedPct}%</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>categorized {"\u00b7"} {splashData.uncategorizedCount} need your input</div>
+          </div>
 
-          <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{ width: "100%", padding: "10px", marginTop: 12, borderRadius: 10, background: splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.12)" : "rgba(34,211,238,0.1)", border: `1px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.3)" : "rgba(34,211,238,0.25)"}`, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          {/* Live transactions to fix */}
+          {tagTransactions.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: C.dim, fontWeight: 700, marginBottom: 8 }}>Fix these now:</div>
+              {tagTransactions.map(tx => (
+                <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: tagFixed.has(tx.id) ? "rgba(52,211,153,0.08)" : "rgba(255,255,255,0.03)", border: `1px solid ${tagFixed.has(tx.id) ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.06)"}`, marginBottom: 4, opacity: tagFixed.has(tx.id) ? 0.7 : 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant_name || "Unknown"}</div>
+                    <div style={{ fontSize: 10, color: C.dim }}>${Math.abs(Number(tx.amount)).toFixed(2)}</div>
+                  </div>
+                  {tagFixing === tx.id ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(34,211,238,0.3)", borderTopColor: "#22d3ee", animation: "spin 1s linear infinite" }} />
+                      <span style={{ fontSize: 10, color: "#22d3ee" }}>Saving...</span>
+                    </div>
+                  ) : tagFixed.has(tx.id) ? (
+                    <span style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>{"\u2713"} Fixed</span>
+                  ) : (
+                    <select onChange={e => { if (e.target.value) void handleTagFix(tx.id, e.target.value); }} defaultValue="" style={{ fontSize: 10, padding: "3px 6px", borderRadius: 6, background: "#0b1220", border: "1px solid #1e2d4a", color: C.text, cursor: "pointer" }}>
+                      <option value="" disabled>Categorize...</option>
+                      {["Income", "Groceries", "Food & Dining", "Transportation", "Housing", "Utilities", "Shopping", "Subscriptions", "Entertainment", "Healthcare", "Bank Fees", "Transfers", "Debt Payments", "Personal Care", "Business"].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tagTransactions.length === 0 && splashData.loaded && (
+            <div style={{ fontSize: 11, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
+              "All transactions categorized. Books are clean {"\u2713"}"
+            </div>
+          )}
+
+          <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{ width: "100%", padding: "10px", marginTop: "auto", borderRadius: 10, background: splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.12)" : "rgba(34,211,238,0.1)", border: `1px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.3)" : "rgba(34,211,238,0.25)"}`, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {splashData.uncategorizedCount > 0 ? `Open Tag \u2014 Fix ${splashData.uncategorizedCount} transactions \u2192` : "All clean \u2014 View Categories \u2192"}
           </button>
         </div>
