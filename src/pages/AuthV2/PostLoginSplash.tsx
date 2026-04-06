@@ -138,16 +138,17 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
   return (
     <div style={{
-      height: "100vh",
+      minHeight: "100vh",
+      // @ts-ignore — Safari needs -webkit-fill-available
+      WebkitMinHeight: "-webkit-fill-available",
       width: "100%",
-      display: "grid",
-      gridTemplateRows: "auto auto 1fr auto",
-      alignItems: "start", justifyItems: "center",
+      display: "flex", flexDirection: "column", alignItems: "center",
+      overflowY: "auto",
       padding: isMobile ? "16px" : "16px 24px",
+      paddingBottom: "24px",
       background: "#0b1220",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
       boxSizing: "border-box" as const,
-      overflowY: isMobile ? "auto" : "hidden",
     }}>
 
       {/* Header */}
@@ -166,8 +167,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         display: "grid",
         gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",
         gap: 10, width: "100%", maxWidth: 1100,
-        height: isMobile ? "auto" : "calc(100vh - 220px)",
-        marginBottom: 10, alignSelf: "stretch",
+        marginBottom: 10, alignItems: "stretch",
       }}>
 
         {/* CARD 1 — PRIME */}
