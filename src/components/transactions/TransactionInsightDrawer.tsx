@@ -500,7 +500,6 @@ export function TransactionInsightDrawer({
               <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>{'\uD83E\uDDFE'} Attach Receipt</label>
             </div>
           )}
-          )}
 
           {/* TAG VERDICT */}
           <div style={{ borderRadius: 14, background: 'rgba(34,211,153,0.05)', border: '1px solid rgba(34,211,153,0.15)' }}>
