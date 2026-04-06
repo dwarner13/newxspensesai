@@ -25,7 +25,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
   const navigate = useNavigate();
   const [internalCollapsed, setInternalCollapsed] = useState(collapsed);
   const [moreOpen, setMoreOpen] = useState(false);
-  const { signOut, profile: authProfile } = useAuth();
+  const { signOut } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const profile = useProfile();
   const tagStats = useSmartCategoriesStats();
@@ -172,15 +172,6 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
         <div className="space-y-0.5">
           {moreItems.map(item => renderItem(item, true))}
         </div>
-        {(authProfile as any)?.is_admin && (
-          <>
-            <div style={{ height: 1, background: '#1e2d4a', margin: '8px 16px' }} />
-            <NavLink to="/dashboard/admin" className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer transition-all rounded-lg mx-1.5 w-[calc(100%-12px)]" style={({ isActive }: any) => isActive ? { borderLeft: '3px solid #c8a64e', background: 'rgba(200,166,78,0.08)', color: '#c8a64e' } : { borderLeft: '3px solid transparent', color: '#9ba8bc' }}>
-              <span className="w-5 h-5 shrink-0 flex items-center justify-center">{'\u2699\uFE0F'}</span>
-              {!isCollapsed && <span className="text-[13px] font-semibold">Admin Console</span>}
-            </NavLink>
-          </>
-        )}
       </div>
 
       {/* Upload CTA — always visible, never scrolls away */}

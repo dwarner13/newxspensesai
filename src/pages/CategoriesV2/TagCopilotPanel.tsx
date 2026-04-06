@@ -133,6 +133,7 @@ export function TagCopilotPanel({
       return () => clearTimeout(timer);
     }
   }, [initialMessage]);
+
   // Fetch real learned rules from vendor_category_memory
   useEffect(() => {
     (async () => {
@@ -192,7 +193,7 @@ export function TagCopilotPanel({
         body: JSON.stringify({
           message: text,
           history: updatedMessages.slice(0, -1),
-          systemPromptOverride: "STRICT CHAT RULES — violating these breaks the experience:\n1. Max 2 sentences. Hard limit. No exceptions.\n2. Ask ONE question then STOP. Never ask multiple questions.\n3. Zero bullet points. Zero numbered lists. Zero headers. Plain conversational sentences only.\n4. Never write analysis, breakdowns, or math. Just talk.\n5. You already have the financial data — reference it naturally, don't explain it back.\n\nYou are Tag — XspensesAI's categorization expert. You're having a focused chat, not writing a report.\n\nUSER'S FINANCIAL DATA:\n- Total spent: " + (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) + " CAD\n- Total transactions: " + (txCount || 0) + "\n- Spending categories:\n" + (topCategories || []).map(c => {
+          systemPromptOverride: "STRICT CHAT RULES \u2014 violating these breaks the experience:\n1. Max 2 sentences. Hard limit. No exceptions.\n2. Ask ONE question then STOP. Never ask multiple questions.\n3. Zero bullet points. Zero numbered lists. Zero headers. Plain conversational sentences only.\n4. Never write analysis, breakdowns, or math. Just talk.\n5. You already have the financial data \u2014 reference it naturally, don't explain it back.\n\nYou are Tag \u2014 XspensesAI's categorization expert. You're having a focused chat, not writing a report.\n\nUSER'S FINANCIAL DATA:\n- Total spent: " + (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) + " CAD\n- Total transactions: " + (txCount || 0) + "\n- Spending categories:\n" + (topCategories || []).map(c => {
             let line = "  - " + c.category + ": $" + c.total.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " spent";
             if (c.budget && c.budget > 0) {
               line += " / $" + c.budget + " budget";
@@ -223,8 +224,6 @@ export function TagCopilotPanel({
     }
   };
 
-  // Compute once when real data arrives — prevents typewriter restart mid-type
-  // Compute once when real data arrives — prevents typewriter restart mid-type
   // Greeting computed once when data arrives - stable, no restarts
   const [greetingText, setGreetingText] = useState('');
   useEffect(() => {
@@ -241,26 +240,22 @@ export function TagCopilotPanel({
       // Budget alert takes priority
       const worst = overBudget.sort((a, b) => (b.total - b.budget!) - (a.total - a.budget!))[0];
       const pct = Math.round((worst.total / (worst.budget || 1)) * 100);
-      text = `${hi} — ${overBudget.length} categor${overBudget.length > 1 ? 'ies are' : 'y is'} over budget. **${worst.category}** is at ${pct}% of budget (${worst.total.toLocaleString('en-CA', {maximumFractionDigits:0})} / ${worst.budget?.toLocaleString('en-CA', {maximumFractionDigits:0})}). Want me to break that down?`;
+      text = `${hi} \u2014 ${overBudget.length} categor${overBudget.length > 1 ? 'ies are' : 'y is'} over budget. **${worst.category}** is at ${pct}% of budget (${worst.total.toLocaleString('en-CA', {maximumFractionDigits:0})} / ${worst.budget?.toLocaleString('en-CA', {maximumFractionDigits:0})}). Want me to break that down?`;
     } else if (flagged > 0) {
-      text = `${hi} — ${flagged} transaction${flagged > 1 ? 's' : ''} still need a category. Want me to sort those out?`;
+      text = `${hi} \u2014 ${flagged} transaction${flagged > 1 ? 's' : ''} still need a category. Want me to sort those out?`;
     } else if (sorted.length > 0 && totalSpent && totalSpent > 0) {
       const top = sorted[0];
       const second = sorted[1];
       const pct = Math.round((top.total / totalSpent) * 100);
       const tip = top.category === 'Transfers' && second
-        ? `**${second.category}** is your biggest real expense at ${Math.round((second.total / totalSpent) * 100)}% — typical for your business?`
+        ? `**${second.category}** is your biggest real expense at ${Math.round((second.total / totalSpent) * 100)}% \u2014 typical for your business?`
         : `**${top.category}** is ${pct}% of total spend. Is that expected for your work?`;
-      text = `${hi} — books look clean ✓ ${tip}`;
+      text = `${hi} \u2014 books look clean \u2713 ${tip}`;
     } else {
-      text = `${hi} — all ${count} transactions categorized. Ask me anything about your categories, budgets, or what's deductible.`;
+      text = `${hi} \u2014 all ${count} transactions categorized. Ask me anything about your categories, budgets, or what's deductible.`;
     }
     setGreetingText(text);
   }, [txCount, totalCount, topCategories, totalSpent, flaggedCount]);
-
-
-
-  // greetingReady no longer needed - using stable greetingText state instead
 
   // Typewriter for chat replies — track last assistant message
   const lastAssistantIdx = useMemo(() => {
@@ -278,17 +273,12 @@ export function TagCopilotPanel({
   }, [messages, isLoading]);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
-
-  useEffect(() => {
     if (messages.length === 0) return;
     localStorage.setItem('tag_chat_history', JSON.stringify(messages.slice(-20)));
   }, [messages]);
 
   return (
     <>
-
       <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, background: THEME.bg, borderLeft: `1px solid ${THEME.border}`, transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overscrollBehavior: "contain" }}>
 
         {/* Header */}
@@ -296,7 +286,7 @@ export function TagCopilotPanel({
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: `linear-gradient(135deg, ${CYAN}30, ${CYAN}10)`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: CYAN, boxShadow: `0 0 16px ${CYAN}33` }}>T</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: THEME.text }}>Tag <span style={{ fontWeight: 400, color: THEME.textMuted }}>Copilot</span></div>
-            <div style={{ fontSize: 11, color: THEME.textDim }}>Your categorization assistant</div>
+            <div style={{ fontSize: 13, color: THEME.textDim }}>Your categorization assistant</div>
           </div>
           <div style={{ padding: "4px 10px", borderRadius: 20, background: `${THEME.green}0e`, border: `1px solid ${THEME.green}22`, display: "flex", alignItems: "center", gap: 5 }}>
             <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green, boxShadow: `0 0 8px ${THEME.green}66` }} />
@@ -316,8 +306,8 @@ export function TagCopilotPanel({
               <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: CYAN }}>Tag</span>
-                  <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: CYAN }}>Tag</span>
+                  <span style={{ fontSize: 12, color: THEME.textDim }}>just now</span>
                 </div>
                 <div style={{ fontSize: 15, color: THEME.text, lineHeight: 1.7, padding: "12px 14px", borderRadius: 14, background: `${CYAN}06`, borderLeft: `3px solid ${CYAN}44` }}>
                   {greetingText}
@@ -329,7 +319,7 @@ export function TagCopilotPanel({
           {/* Details toggle */}
           {!hasRestoredHistory && greetingText && (
             <div style={{ marginLeft: 38, marginTop: 12, marginBottom: detailsOpen ? 8 : 16 }}>
-              <button type="button" onClick={() => setDetailsOpen(!detailsOpen)} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0, fontSize: 11, fontWeight: 600, color: CYAN }}>
+              <button type="button" onClick={() => setDetailsOpen(!detailsOpen)} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0, fontSize: 13, fontWeight: 600, color: CYAN }}>
                 <span style={{ transition: "transform 0.2s", transform: detailsOpen ? "rotate(90deg)" : "rotate(0)" }}>{"\u25B6"}</span>
                 {detailsOpen ? "Hide details" : "Show stats, flagged & rules"}
               </button>
@@ -347,7 +337,7 @@ export function TagCopilotPanel({
                   { label: "Rules", value: `${learnedRules.length || rulesCount}`, color: "#a78bfa" },
                 ].map(s => (
                   <div key={s.label} style={{ flex: 1, padding: "10px 12px", borderRadius: 12, background: THEME.surface, border: `1px solid ${THEME.border}`, textAlign: "center" }}>
-                    <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: THEME.textDim, fontWeight: 700, marginBottom: 4 }}>{s.label}</div>
+                    <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: THEME.textDim, fontWeight: 700, marginBottom: 4 }}>{s.label}</div>
                     <div style={{ fontSize: 16, fontWeight: 800, color: s.color }}>{s.value}</div>
                   </div>
                 ))}
@@ -360,19 +350,19 @@ export function TagCopilotPanel({
             <Reveal delay={200} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: "#fb923c" }} />
-                <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: "#fb923c" }}>Needs Your Review</span>
+                <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: "#fb923c" }}>Needs Your Review</span>
                 <div style={{ flex: 1, height: 1, background: THEME.border }} />
               </div>
               {flaggedTransactions.map((f, i) => (
                 <div key={f.id || i} style={{ padding: "14px 16px", borderRadius: 14, background: THEME.surface, border: `1px solid ${THEME.border}`, marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: THEME.text }}>{f.merchant}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: THEME.text }}>{f.amount}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: THEME.text }}>{f.merchant}</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: THEME.text }}>{f.amount}</span>
                   </div>
-                  <div style={{ fontSize: 13, color: THEME.text, marginBottom: 10 }}>{f.issue}</div>
+                  <div style={{ fontSize: 14, color: THEME.text, marginBottom: 10 }}>{f.issue}</div>
                   <button
                     onClick={() => handleSend(`Help me categorize ${f.merchant} ${f.amount}`)}
-                    style={{ padding: "6px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: `${CYAN}12`, border: `1px solid ${CYAN}28`, color: CYAN, cursor: "pointer" }}
+                    style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: `${CYAN}12`, border: `1px solid ${CYAN}28`, color: CYAN, cursor: "pointer" }}
                   >Ask Tag {"\u2192"}</button>
                 </div>
               ))}
@@ -384,20 +374,20 @@ export function TagCopilotPanel({
             <Reveal delay={400} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: "#a78bfa" }} />
-                <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: "#a78bfa" }}>Subcategory Splits Detected</span>
+                <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: "#a78bfa" }}>Subcategory Splits Detected</span>
                 <div style={{ flex: 1, height: 1, background: THEME.border }} />
               </div>
               {subcategorySuggestions.map((sg, idx) => (
                 <div key={idx} style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(167,139,250,0.04)", border: "1px solid rgba(167,139,250,0.1)", marginBottom: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: THEME.text, marginBottom: 4 }}>Split "{sg.parentCategory}" into {sg.subcategories.length} subcategories</div>
-                  <div style={{ fontSize: 13, color: THEME.text, marginBottom: 12 }}>Distinct spending patterns detected:</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: THEME.text, marginBottom: 4 }}>Split "{sg.parentCategory}" into {sg.subcategories.length} subcategories</div>
+                  <div style={{ fontSize: 14, color: THEME.text, marginBottom: 12 }}>Distinct spending patterns detected:</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
                     {sg.subcategories.map(s => (
                       <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: THEME.surface, border: `1px solid ${THEME.border}` }}>
                         <div style={{ width: 8, height: 8, borderRadius: 2, background: sg.parentColor }} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12.5, fontWeight: 600, color: THEME.text }}>{s.name}</div>
-                          <div style={{ fontSize: 10.5, color: THEME.textDim }}>{s.count} txns � Top: {s.topMerchant}</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: THEME.text }}>{s.name}</div>
+                          <div style={{ fontSize: 13, color: THEME.textDim }}>{s.count} txns {"\u00b7"} Top: {s.topMerchant}</div>
                         </div>
                         <span style={{ fontSize: 13, fontWeight: 700, color: THEME.text }}>{s.amount}</span>
                       </div>
@@ -405,7 +395,7 @@ export function TagCopilotPanel({
                   </div>
                   <button
                     onClick={() => handleSend(`Split my ${sg.parentCategory} category into subcategories: ${sg.subcategories.map(s => s.name).join(", ")}`)}
-                    style={{ width: "100%", padding: "9px 16px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: `linear-gradient(135deg, ${CYAN}, #0891b2)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: `0 2px 12px ${CYAN}33` }}
+                    style={{ width: "100%", padding: "9px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600, background: `linear-gradient(135deg, ${CYAN}, #0891b2)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: `0 2px 12px ${CYAN}33` }}
                   >Ask Tag to Apply Split</button>
                 </div>
               ))}
@@ -417,16 +407,16 @@ export function TagCopilotPanel({
             <Reveal delay={600} style={{ marginLeft: 38, marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: THEME.green }} />
-                <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: THEME.green }}>Rules I Have Learned</span>
+                <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: THEME.green }}>Rules I Have Learned</span>
                 <div style={{ flex: 1, height: 1, background: THEME.border }} />
               </div>
               <div style={{ padding: "14px 16px", borderRadius: 14, background: THEME.surface, border: `1px solid ${THEME.border}` }}>
                 {learnedRules.map((r, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < learnedRules.length - 1 ? `1px solid ${THEME.border}` : "none" }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 600, color: THEME.text, flex: 1, fontFamily: "monospace" }}>{r.merchant}</span>
-                    <span style={{ fontSize: 12, color: THEME.textMuted }}>{"\u2192"}</span>
-                    <span style={{ fontSize: 11.5, fontWeight: 600, color: CYAN, minWidth: 100 }}>{r.category}</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>{r.confidence}%</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: THEME.text, flex: 1, fontFamily: "monospace" }}>{r.merchant}</span>
+                    <span style={{ fontSize: 13, color: THEME.textMuted }}>{"\u2192"}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: CYAN, minWidth: 100 }}>{r.category}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: THEME.green }}>{r.confidence}%</span>
                   </div>
                 ))}
               </div>
@@ -438,10 +428,10 @@ export function TagCopilotPanel({
             <Reveal delay={800} style={{ marginLeft: 38 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <div style={{ width: 14, height: 2, borderRadius: 1, background: CYAN }} />
-                <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: CYAN }}>Tag Recommends</span>
+                <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: CYAN }}>Tag Recommends</span>
                 <div style={{ flex: 1, height: 1, background: THEME.border }} />
               </div>
-              <div style={{ fontSize: 14, color: THEME.text, lineHeight: 1.7, padding: "14px 16px", borderRadius: 14, background: `linear-gradient(135deg, ${CYAN}08, transparent)`, border: `1px solid ${CYAN}15` }}>
+              <div style={{ fontSize: 15, color: THEME.text, lineHeight: 1.7, padding: "14px 16px", borderRadius: 14, background: `linear-gradient(135deg, ${CYAN}08, transparent)`, border: `1px solid ${CYAN}15` }}>
                 {flaggedCount > 0
                   ? `Start with the ${flaggedCount} flagged transaction${flaggedCount !== 1 ? "s" : ""} \u2014 once those are categorized, your spending totals will be accurate and Prime can give you a better summary.`
                   : subcategorySuggestions.length > 0
@@ -457,7 +447,7 @@ export function TagCopilotPanel({
             const isLastAssistant = msg.role === 'assistant' && i === lastAssistantIdx;
             return (
               <div key={i} style={{ display: "flex", gap: 10, marginTop: 16, flexDirection: msg.role === "user" ? "row-reverse" : "row", animation: isLastAssistant ? 'catMsgIn 0.18s ease forwards' : 'none' }}>
-              <style>{'@keyframes catMsgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}'}</style>
+                <style>{'@keyframes catMsgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}'}</style>
                 {msg.role === "assistant" && (
                   <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CYAN }}>T</div>
                 )}
@@ -473,7 +463,6 @@ export function TagCopilotPanel({
                   ),
                 }}>
                   {msg.role === "assistant" ? renderMarkdown(msg.content ?? '') : msg.content}
-
                 </div>
               </div>
             );
@@ -492,7 +481,7 @@ export function TagCopilotPanel({
           )}
         </div>
 
-        {/* Input � wired directly to tag-chat API */}
+        {/* Input — wired directly to tag-chat API */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${THEME.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10, background: THEME.surface, borderRadius: 14, border: `1px solid ${THEME.border}`, padding: "8px 8px 8px 16px" }}>
             <textarea
@@ -501,7 +490,7 @@ export function TagCopilotPanel({
               onChange={e => setInputValue(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               placeholder="Ask Tag anything about categories..."
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: THEME.text, fontSize: 13, padding: "8px 0", fontFamily: "inherit", resize: "none", lineHeight: 1.5, minHeight: 38 }}
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: THEME.text, fontSize: 15, padding: "8px 0", fontFamily: "inherit", resize: "none", lineHeight: 1.5, minHeight: 38 }}
             />
             <button
               onClick={() => handleSend()}
@@ -515,7 +504,7 @@ export function TagCopilotPanel({
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 8 }}>
             <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green, boxShadow: `0 0 8px ${THEME.green}66` }} />
-            <span style={{ fontSize: 10, color: THEME.textDim }}>Tag Copilot � Powered by AI categorization engine</span>
+            <span style={{ fontSize: 10, color: THEME.textDim }}>Tag Copilot {"\u00b7"} Powered by AI categorization engine</span>
           </div>
         </div>
       </div>
