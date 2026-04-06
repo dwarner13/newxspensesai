@@ -138,23 +138,23 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
   return (
     <div style={{
-      height: isMobile ? "auto" : "100vh",
-      minHeight: isMobile ? "100vh" : undefined,
+      height: "100vh",
       width: "100%",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
-      overflowY: isMobile ? "auto" : "hidden",
-      padding: isMobile ? "24px 16px 32px" : "20px 24px 16px",
+      display: "grid",
+      gridTemplateRows: "auto auto 1fr auto",
+      alignItems: "start", justifyItems: "center",
+      padding: isMobile ? "16px" : "16px 24px",
       background: "#0b1220",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
       boxSizing: "border-box" as const,
+      overflowY: isMobile ? "auto" : "hidden",
     }}>
-
-      {/* Hidden file inputs */}
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) void handleByteUpload(e.target.files[0]); e.target.value = ''; }} />
-      <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) void handleByteUpload(e.target.files[0]); e.target.value = ''; }} />
 
       {/* Header */}
       <div style={{ textAlign: "center", marginBottom: isMobile ? 16 : 12 }}>
+        {/* Hidden file inputs */}
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) void handleByteUpload(e.target.files[0]); e.target.value = ''; }} />
+        <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) void handleByteUpload(e.target.files[0]); e.target.value = ''; }} />
         <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(200,166,78,0.15)", border: "2px solid rgba(200,166,78,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, margin: "0 auto 6px", animation: "crownFloat 3s ease-in-out infinite" }}>{"\uD83D\uDC51"}</div>
         <div style={{ fontSize: 10, letterSpacing: 3, color: C.accent, fontWeight: 700, textTransform: "uppercase", marginBottom: 8 }}>Previously on XspensesAI</div>
         <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color: C.text, margin: 0, letterSpacing: -0.5 }}>Welcome Back, {userName}</h1>
@@ -165,9 +165,9 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       <div style={{
         display: "grid",
         gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",
-        gap: 12, width: "100%", maxWidth: 1100, alignItems: "stretch",
-        flex: isMobile ? "none" : "1 1 0",
-        minHeight: 0, marginBottom: isMobile ? 16 : 12,
+        gap: 10, width: "100%", maxWidth: 1100,
+        height: isMobile ? "auto" : "calc(100vh - 220px)",
+        marginBottom: 10, alignSelf: "stretch",
       }}>
 
         {/* CARD 1 — PRIME */}
@@ -175,8 +175,8 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           background: "linear-gradient(135deg, rgba(200,166,78,0.08), rgba(17,26,46,0.9))",
           border: "1px solid rgba(200,166,78,0.2)",
           borderTop: "3px solid #c8a64e",
-          borderRadius: 20, padding: "14px 16px", position: "relative", overflow: "hidden",
-          display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box" as const,
+          borderRadius: 20, padding: "14px 16px", position: "relative",
+          display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(200,166,78,0.06)", lineHeight: 1, userSelect: "none" }}>1</div>
           <div style={{ flex: 1 }}>
@@ -212,8 +212,8 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           background: "linear-gradient(135deg, rgba(34,211,238,0.06), rgba(17,26,46,0.9))",
           border: "1px solid rgba(34,211,238,0.2)",
           borderTop: "3px solid #22d3ee",
-          borderRadius: 20, padding: "14px 16px", position: "relative", overflow: "hidden",
-          display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box" as const,
+          borderRadius: 20, padding: "14px 16px", position: "relative",
+          display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(34,211,238,0.05)", lineHeight: 1, userSelect: "none" }}>2</div>
           <div style={{ flex: 1 }}>
@@ -272,8 +272,8 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           background: "linear-gradient(135deg, rgba(34,211,238,0.05), rgba(17,26,46,0.9))",
           border: `1px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.3)" : "rgba(34,211,238,0.2)"}`,
           borderTop: `3px solid ${splashData.uncategorizedCount > 0 ? "#fbbf24" : "#22d3ee"}`,
-          borderRadius: 20, padding: "14px 16px", position: "relative", overflow: "hidden",
-          display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box" as const,
+          borderRadius: 20, padding: "14px 16px", position: "relative",
+          display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(34,211,238,0.05)", lineHeight: 1, userSelect: "none" }}>3</div>
           <div style={{ flex: 1 }}>
@@ -353,9 +353,8 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             <span style={{ fontSize: 11, color: "#60a5fa", fontWeight: 500 }}>Session secured</span>
           </div>
         </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes crownFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
       </div>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes crownFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
     </div>
   );
 }
