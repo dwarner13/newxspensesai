@@ -25,7 +25,7 @@ const NAV = [
 export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { firstName, signOut } = useAuth();
+  const { firstName, signOut, profile: authProfile } = useAuth();
 
   if (!open) return null;
 
@@ -72,6 +72,18 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               </NavLink>
             );
           })}
+
+          {/* Admin link */}
+          {(authProfile as any)?.is_admin && (
+            <NavLink to="/dashboard/admin" onClick={onClose} style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "12px 16px", borderRadius: 10, marginTop: 8,
+              background: location.pathname.includes('/admin') ? `${C.accent}12` : "transparent",
+              borderLeft: location.pathname.includes('/admin') ? `3px solid ${C.accent}` : "3px solid transparent",
+              color: location.pathname.includes('/admin') ? C.accent : C.text,
+              textDecoration: "none", fontSize: 16, fontWeight: location.pathname.includes('/admin') ? 700 : 500,
+            }}>{'\u2699\uFE0F'} Admin Console</NavLink>
+          )}
 
           {/* Upload CTA */}
           <button onClick={() => { onClose(); navigate("/dashboard/upload"); }} style={{

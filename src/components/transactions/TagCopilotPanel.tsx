@@ -965,8 +965,9 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
                         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>{issue.currentCategory}</span>
                         <span style={{ fontSize: 11, color: '#475569' }}>{'\u2192'}</span>
                         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(34,211,153,0.1)', border: '1px solid rgba(34,211,153,0.2)', color: '#34d399' }}>{issue.suggestedCategory}</span>
-                        <span style={{ fontSize: 10, color: '#475569' }}>{issue.count} txns {'\u00b7'} ${issue.totalAmount.toLocaleString('en-CA', { maximumFractionDigits: 0 })}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#e8ecf4' }}>{issue.count} transactions {'\u00b7'} <span style={{ color: '#c8a64e' }}>${issue.totalAmount.toLocaleString('en-CA', { maximumFractionDigits: 0 })}</span></span>
                       </div>
+                      <button onClick={() => { window.location.href = `/dashboard/transactions?search=${encodeURIComponent(issue.merchant)}`; }} style={{ marginTop: 8, fontSize: 11, fontWeight: 600, color: '#22d3ee', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' as const, fontFamily: 'inherit' }}>View transactions {'\u2192'}</button>
                     </div>
                     <div style={{ display: 'flex', gap: 4, marginLeft: 8, flexShrink: 0 }}>
                       <button onClick={() => { setSmartReviewApproved(prev => { const n = new Set(prev); n.add(issue.id); return n; }); setSmartReviewRejected(prev => { const n = new Set(prev); n.delete(issue.id); return n; }); }} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: smartReviewApproved.has(issue.id) ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.06)', color: smartReviewApproved.has(issue.id) ? '#34d399' : '#475569', cursor: 'pointer', fontSize: 14 }}>{'\u2713'}</button>

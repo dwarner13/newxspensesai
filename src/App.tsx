@@ -10,6 +10,7 @@ import MarketingLayout from './layouts/MarketingLayout';
 import AuthLayout from './layouts/AuthLayout';
 import { ErrorBoundary } from './components/util/ErrorBoundary';
 import { DelayedLoadingSpinner } from './components/ui/DelayedLoadingSpinner';
+import { AdminGuard } from './components/admin/AdminGuard';
 
 import { AudioProvider } from './contexts/AudioContext';
 import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
@@ -87,6 +88,7 @@ const DashboardHomeV2 = lazy(() => import('./pages/DashboardV2/DashboardHomeV2')
 const MyFinancialStoryV2 = lazy(() => import('./pages/MyStoryV2/MyFinancialStoryV2'));
 const ReportsPageV2 = lazy(() => import('./pages/ReportsV2/ReportsPageV2'));
 const ReceiptsPage = lazy(() => import('./pages/ReceiptsPage'));
+const AdminDashboard = lazy(() => import('./pages/Admin/AdminDashboard'));
 const InboxPage = lazy(() => import('./pages/Inbox/InboxPage'));
 const GoalsDebtPageV2 = lazy(() => import('./pages/GoalsDebtV2/GoalsDebtPageV2'));
 const MonthlyRecapPageV2 = lazy(() => import('./pages/MonthlyRecapV2/MonthlyRecapPageV2'));
@@ -532,6 +534,7 @@ function App() {
                       <Route path="inbox" element={<Suspense fallback={<LoadingSpinner />}><InboxPage /></Suspense>} />
                       <Route path="receipts" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />
                       <Route path="scan-receipt" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />
+                      <Route path="admin" element={<AdminGuard><Suspense fallback={<LoadingSpinner />}><AdminDashboard /></Suspense></AdminGuard>} />
                       <Route path="bank-accounts" element={<Suspense fallback={<LoadingSpinner />}><BankAccountsPage /></Suspense>} />
                       <Route path="goal-concierge" element={<GoalsDebtPageV2 />} />
                       <Route path="smart-automation" element={<Suspense fallback={<LoadingSpinner />}><SmartAutomation /></Suspense>} />
