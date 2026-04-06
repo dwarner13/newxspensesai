@@ -4,6 +4,7 @@ import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "./useCategoriesData";
+import { MerchantTransactionSheet } from "@/components/transactions/MerchantTransactionSheet";
 
 const CYAN = "#22d3ee";
 
@@ -102,6 +103,9 @@ export function TagCopilotPanel({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(initialMessage || "");
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
+  // Merchant sheet state
+  const [sheetMerchant, setSheetMerchant] = useState<string | null>(null);
+  const reviewScrollSnap = useRef<number>(0);
   const normalizeStoredMessages = (): ChatMessage[] => {
     try {
       const saved = localStorage.getItem('tag_chat_history');
@@ -360,10 +364,19 @@ export function TagCopilotPanel({
                     <span style={{ fontSize: 15, fontWeight: 700, color: THEME.text }}>{f.amount}</span>
                   </div>
                   <div style={{ fontSize: 14, color: THEME.text, marginBottom: 10 }}>{f.issue}</div>
+                  <div style={{ display: "flex", gap: 8 }}>
                   <button
                     onClick={() => handleSend(`Help me categorize ${f.merchant} ${f.amount}`)}
                     style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: `${CYAN}12`, border: `1px solid ${CYAN}28`, color: CYAN, cursor: "pointer" }}
                   >Ask Tag {"\u2192"}</button>
+                  <button
+                    onClick={() => {
+                      reviewScrollSnap.current = scrollRef.current?.scrollTop ?? 0;
+                      setSheetMerchant(f.merchant);
+                    }}
+                    style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: "transparent", border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}
+                  >View transactions {"\u2192"}</button>
+                  </div>
                 </div>
               ))}
             </Reveal>
@@ -508,6 +521,18 @@ export function TagCopilotPanel({
           </div>
         </div>
       </div>
+
+      {/* Merchant transaction sheet */}
+      {sheetMerchant && (
+        <MerchantTransactionSheet
+          merchant={sheetMerchant}
+          onClose={() => setSheetMerchant(null)}
+          reviewScrollTop={reviewScrollSnap.current}
+          onRestoreScroll={(px) => {
+            if (scrollRef.current) scrollRef.current.scrollTop = px;
+          }}
+        />
+      )}
     </>
   );
 }

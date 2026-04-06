@@ -20,6 +20,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   const [byteMessage, setByteMessage] = useState<string | null>(null);
   const [byteUploading, setByteUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [tagTransactions, setTagTransactions] = useState<any[]>([]);
   const [tagFixing, setTagFixing] = useState<string | null>(null);
   const [tagFixed, setTagFixed] = useState<Set<string>>(new Set());
@@ -79,7 +80,14 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
   // Byte upload handler
   const handleByteUpload = async (file: File) => {
     setByteUploading(true);
+    setUploadProgress(0);
     setByteMessage("Reading your statement...");
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) { clearInterval(progressInterval); return 90; }
+        return prev + Math.random() * 15;
+      });
+    }, 300);
     try {
       const sb = getSupabase(); if (!sb) return;
       const { data: { session } } = await sb.auth.getSession(); if (!session) return;
@@ -92,11 +100,15 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name }),
         });
         const data = await res.json();
+        clearInterval(progressInterval);
+        setUploadProgress(100);
         setByteMessage(data.ok ? `Got it \u2014 I found ${data.transaction_count || 'several'} transactions. Heading to dashboard to process.` : "Upload complete \u2014 heading to dashboard.");
         setTimeout(() => onContinue(), 2500);
       };
       reader.readAsDataURL(file);
     } catch {
+      clearInterval(progressInterval);
+      setUploadProgress(0);
       setByteMessage("Upload failed \u2014 try again.");
       setByteUploading(false);
     }
@@ -115,15 +127,19 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
     finally { setTagFixing(null); }
   };
 
+  const isNewUser = splashData.loaded && splashData.transactionCount === 0;
+
   return (
     <div style={{
-      minHeight: "100vh",
-      // @ts-ignore — Safari needs -webkit-fill-available
-      WebkitMinHeight: "-webkit-fill-available",
-      width: "100%", background: C.bg, overflowY: "auto",
+      height: isMobile ? "auto" : "100vh",
+      minHeight: isMobile ? "100vh" : undefined,
+      width: "100%",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
+      overflowY: isMobile ? "auto" : "hidden",
+      padding: isMobile ? "24px 16px 32px" : "20px 24px 16px",
+      background: "#0b1220",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-      display: "flex", flexDirection: "column", alignItems: "center",
-      padding: isMobile ? "24px 16px 32px" : "32px 32px",
+      boxSizing: "border-box" as const,
     }}>
 
       {/* Hidden file inputs */}
@@ -131,18 +147,20 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) void handleByteUpload(e.target.files[0]); e.target.value = ''; }} />
 
       {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: isMobile ? 16 : 24 }}>
-        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(200,166,78,0.15)", border: "2px solid rgba(200,166,78,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, margin: "0 auto 8px", animation: "crownFloat 3s ease-in-out infinite" }}>{"\uD83D\uDC51"}</div>
+      <div style={{ textAlign: "center", marginBottom: isMobile ? 16 : 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(200,166,78,0.15)", border: "2px solid rgba(200,166,78,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, margin: "0 auto 6px", animation: "crownFloat 3s ease-in-out infinite" }}>{"\uD83D\uDC51"}</div>
         <div style={{ fontSize: 10, letterSpacing: 3, color: C.accent, fontWeight: 700, textTransform: "uppercase", marginBottom: 8 }}>Previously on XspensesAI</div>
-        <h1 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: C.text, margin: 0, letterSpacing: -0.5 }}>Welcome Back, {userName}</h1>
-        <p style={{ fontSize: 13, color: C.dim, marginTop: 4 }}>Your AI team has been working. Here's the situation.</p>
+        <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color: C.text, margin: 0, letterSpacing: -0.5 }}>Welcome Back, {userName}</h1>
+        <p style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>{isNewUser ? "Meet your AI finance team. Let's get started." : "Your AI team has been working. Here's the situation."}</p>
       </div>
 
       {/* Three agent cards */}
       <div style={{
         display: "grid",
         gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",
-        gap: 16, width: "100%", maxWidth: 1100, marginBottom: 16,
+        gap: 12, width: "100%", maxWidth: 1100,
+        flex: isMobile ? "none" : "1 1 0",
+        minHeight: 0, marginBottom: isMobile ? 16 : 12,
       }}>
 
         {/* CARD 1 — PRIME */}
@@ -150,31 +168,39 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           background: "linear-gradient(135deg, rgba(200,166,78,0.08), rgba(17,26,46,0.9))",
           border: "1px solid rgba(200,166,78,0.2)",
           borderTop: "3px solid #c8a64e",
-          borderRadius: 20, padding: "18px 20px", position: "relative", overflow: "hidden",
+          borderRadius: 20, padding: "14px 16px", position: "relative", overflow: "hidden",
+          display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(200,166,78,0.06)", lineHeight: 1, userSelect: "none" }}>1</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(200,166,78,0.2)", border: "1.5px solid rgba(200,166,78,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: C.accent, boxShadow: "0 0 20px rgba(200,166,78,0.2)" }}>{"\u2655"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(200,166,78,0.2)", border: "1.5px solid rgba(200,166,78,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.accent, boxShadow: "0 0 20px rgba(200,166,78,0.2)" }}>{"\u2655"}</div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>Prime</div>
               <div style={{ fontSize: 10, color: C.dim }}>Your CFO Advisor</div>
             </div>
             <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{"\u25CF"} Live</div>
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 800, color: C.accent, letterSpacing: -1 }}>${splashData.deductionsTotal.toLocaleString()}</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>in potential tax deductions identified</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(200,166,78,0.1)", border: "1px solid rgba(200,166,78,0.2)", color: C.accent }}>Score: {splashData.xspenseScore}</span>
-              <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{splashData.categorizedPct}% organized</span>
-            </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: C.accent, letterSpacing: -1 }}>{isNewUser ? "Ready" : `$${splashData.deductionsTotal.toLocaleString()}`}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "your AI CFO advisor" : "in potential tax deductions identified"}</div>
+            {!isNewUser && (
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(200,166,78,0.1)", border: "1px solid rgba(200,166,78,0.2)", color: C.accent }}>Score: {splashData.xspenseScore}</span>
+                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{splashData.categorizedPct}% organized</span>
+              </div>
+            )}
           </div>
-          <div style={{ fontSize: 12, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 10, padding: "8px 10px", borderRadius: 10, background: "rgba(200,166,78,0.05)", borderLeft: "2px solid rgba(200,166,78,0.3)" }}>
-            "{splashData.deductionsTotal > 0 ? "Your books are in good shape. Let's make sure every deduction is captured before tax season." : "Upload your first statement and I'll analyze your financial position immediately."}"
+          <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(200,166,78,0.05)", borderLeft: "2px solid rgba(200,166,78,0.3)" }}>
+            "{isNewUser ? "Upload your first statement and I'll analyze your complete financial position." : splashData.deductionsTotal > 0 ? "Your books are in good shape. Let's make sure every deduction is captured before tax season." : "Upload your first statement and I'll analyze your financial position immediately."}"
           </div>
           <button onClick={(e) => { e.stopPropagation(); onOpenPrime?.(); onContinue(); }} style={{ width: "100%", padding: "10px", borderRadius: 10, background: "rgba(200,166,78,0.12)", border: "1px solid rgba(200,166,78,0.3)", color: C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-            View Prime Briefing {"\u2192"}
+            {isNewUser ? "Learn about Prime \u2192" : "View Prime Briefing \u2192"}
           </button>
+          <div style={{ flex: 1 }} />
+          <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 10, background: "rgba(200,166,78,0.06)", border: "1px solid rgba(200,166,78,0.15)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, color: "#9ba8bc" }}>Ready to dive in?</span>
+            <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{ fontSize: 11, fontWeight: 700, color: "#c8a64e", background: "none", border: "none", cursor: "pointer" }}>Dashboard {"\u2192"}</button>
+          </div>
         </div>
 
         {/* CARD 2 — BYTE */}
@@ -182,28 +208,29 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           background: "linear-gradient(135deg, rgba(34,211,238,0.06), rgba(17,26,46,0.9))",
           border: "1px solid rgba(34,211,238,0.2)",
           borderTop: "3px solid #22d3ee",
-          borderRadius: 20, padding: "18px 20px", position: "relative", overflow: "hidden",
+          borderRadius: 20, padding: "14px 16px", position: "relative", overflow: "hidden",
+          display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(34,211,238,0.05)", lineHeight: 1, userSelect: "none" }}>2</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(34,211,238,0.15)", border: "1.5px solid rgba(34,211,238,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: C.cyan, boxShadow: "0 0 20px rgba(34,211,238,0.15)" }}>B</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(34,211,238,0.15)", border: "1.5px solid rgba(34,211,238,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.cyan, boxShadow: "0 0 20px rgba(34,211,238,0.15)" }}>B</div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>Byte</div>
               <div style={{ fontSize: 10, color: C.dim }}>Document Processor</div>
             </div>
             <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: C.green }}>{"\u25CF"} Ready</div>
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 800, color: C.cyan, letterSpacing: -1 }}>{splashData.statementCount}</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>statements processed {"\u00b7"} {splashData.transactionCount.toLocaleString()} transactions</div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: C.cyan, letterSpacing: -1 }}>{splashData.statementCount}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isNewUser ? "statements \u2014 let's change that" : `statements processed ${"\u00b7"} ${splashData.transactionCount.toLocaleString()} transactions`}</div>
           </div>
 
           {byteMessage ? (
-            <div style={{ fontSize: 12, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 10, padding: "8px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
+            <div style={{ fontSize: 11, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
               "{byteMessage}"
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 10, padding: "8px 10px", borderRadius: 10, background: "rgba(34,211,238,0.04)", borderLeft: "2px solid rgba(34,211,238,0.2)" }}>
+            <div style={{ fontSize: 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(34,211,238,0.04)", borderLeft: "2px solid rgba(34,211,238,0.2)" }}>
               "Drop a statement and I'll have it processed in 60 seconds. PDF, CSV, or photo."
             </div>
           )}
@@ -216,6 +243,27 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
               {"\uD83E\uDDFE"} Scan Receipt
             </button>
           </div>
+          {byteUploading && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 10, color: "#22d3ee" }}>Byte is reading your file...</span>
+                <span style={{ fontSize: 10, color: "#22d3ee", fontWeight: 700 }}>{Math.round(uploadProgress)}%</span>
+              </div>
+              <div style={{ height: 4, borderRadius: 2, background: "rgba(34,211,238,0.15)" }}>
+                <div style={{ height: "100%", borderRadius: 2, background: "linear-gradient(90deg, #22d3ee, #34d399)", width: `${uploadProgress}%`, transition: "width 0.3s ease" }} />
+              </div>
+            </div>
+          )}
+          <div style={{ flex: 1 }} />
+          <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 10, background: "rgba(34,211,238,0.05)", border: "1px solid rgba(34,211,238,0.1)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#34d399", display: "inline-block" }} />
+              <span style={{ fontSize: 10, color: "#34d399", fontWeight: 500 }}>Guardrails active</span>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#3b82f6", display: "inline-block", marginLeft: 6 }} />
+              <span style={{ fontSize: 10, color: "#3b82f6", fontWeight: 500 }}>Session secured</span>
+            </div>
+            <div style={{ fontSize: 10, color: "#475569" }}>PII protected {"\u00b7"} AI guardrails enforced</div>
+          </div>
         </div>
 
         {/* CARD 3 — TAG */}
@@ -223,11 +271,12 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           background: "linear-gradient(135deg, rgba(34,211,238,0.05), rgba(17,26,46,0.9))",
           border: `1px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.3)" : "rgba(34,211,238,0.2)"}`,
           borderTop: `3px solid ${splashData.uncategorizedCount > 0 ? "#fbbf24" : "#22d3ee"}`,
-          borderRadius: 20, padding: "18px 20px", position: "relative", overflow: "hidden",
+          borderRadius: 20, padding: "14px 16px", position: "relative", overflow: "hidden",
+          display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box" as const,
         }}>
           <div style={{ position: "absolute", bottom: -10, right: 12, fontSize: 96, fontWeight: 900, color: "rgba(34,211,238,0.05)", lineHeight: 1, userSelect: "none" }}>3</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.15)" : "rgba(34,211,238,0.15)", border: `1.5px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.4)" : "rgba(34,211,238,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan }}>T</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.15)" : "rgba(34,211,238,0.15)", border: `1.5px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.4)" : "rgba(34,211,238,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan }}>T</div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan }}>Tag</div>
               <div style={{ fontSize: 10, color: C.dim }}>Categorization Expert</div>
@@ -236,8 +285,8 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
               <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: C.amber, fontWeight: 700 }}>{splashData.uncategorizedCount} to review</div>
             )}
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 800, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, letterSpacing: -1 }}>{splashData.categorizedPct}%</div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: splashData.uncategorizedCount > 0 ? C.amber : C.cyan, letterSpacing: -1 }}>{splashData.categorizedPct}%</div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>categorized {"\u00b7"} {splashData.uncategorizedCount} need your input</div>
           </div>
 
@@ -251,10 +300,15 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
                     <div style={{ fontSize: 11, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant_name || "Unknown"}</div>
                     <div style={{ fontSize: 10, color: C.dim }}>${Math.abs(Number(tx.amount)).toFixed(2)}</div>
                   </div>
-                  {tagFixed.has(tx.id) ? (
+                  {tagFixing === tx.id ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(34,211,238,0.3)", borderTopColor: "#22d3ee", animation: "spin 1s linear infinite" }} />
+                      <span style={{ fontSize: 10, color: "#22d3ee" }}>Saving...</span>
+                    </div>
+                  ) : tagFixed.has(tx.id) ? (
                     <span style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>{"\u2713"} Fixed</span>
                   ) : (
-                    <select onChange={e => { if (e.target.value) void handleTagFix(tx.id, e.target.value); }} defaultValue="" disabled={tagFixing === tx.id} style={{ fontSize: 10, padding: "3px 6px", borderRadius: 6, background: "#0b1220", border: "1px solid #1e2d4a", color: C.text, cursor: "pointer" }}>
+                    <select onChange={e => { if (e.target.value) void handleTagFix(tx.id, e.target.value); }} defaultValue="" style={{ fontSize: 10, padding: "3px 6px", borderRadius: 6, background: "#0b1220", border: "1px solid #1e2d4a", color: C.text, cursor: "pointer" }}>
                       <option value="" disabled>Categorize...</option>
                       {["Income", "Groceries", "Food & Dining", "Transportation", "Housing", "Utilities", "Shopping", "Subscriptions", "Entertainment", "Healthcare", "Bank Fees", "Transfers", "Debt Payments", "Personal Care", "Business"].map(c => (
                         <option key={c} value={c}>{c}</option>
@@ -267,7 +321,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           )}
 
           {tagTransactions.length === 0 && splashData.loaded && (
-            <div style={{ fontSize: 12, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 10, padding: "8px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
+            <div style={{ fontSize: 11, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
               "All transactions categorized. Books are clean {"\u2713"}"
             </div>
           )}
@@ -280,6 +334,9 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
       {/* Bottom CTA */}
       <div style={{ width: "100%", maxWidth: 1100, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+        <div style={{ textAlign: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: "#475569" }}>That's a preview {"\u2014"} your full financial picture is inside</span>
+        </div>
         <button onClick={(e) => { e.stopPropagation(); onContinue(); }} style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, padding: "16px", borderRadius: 14, fontSize: 15, fontWeight: 800, background: `linear-gradient(135deg, ${C.accent}, #a08030)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 24px rgba(200,166,78,0.4)", letterSpacing: 0.3 }}>
           Continue to Dashboard {"\u2192"}
         </button>
@@ -295,7 +352,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         </div>
       </div>
 
-      <style>{`@keyframes crownFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes crownFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
     </div>
   );
 }
