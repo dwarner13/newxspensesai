@@ -10,7 +10,8 @@ import MarketingLayout from './layouts/MarketingLayout';
 import AuthLayout from './layouts/AuthLayout';
 import { ErrorBoundary } from './components/util/ErrorBoundary';
 import { DelayedLoadingSpinner } from './components/ui/DelayedLoadingSpinner';
-import { AdminGuard } from './components/admin/AdminGuard';
+import AdminLoginPage from './pages/Admin/AdminLoginPage';
+import AdminResetPasswordPage from './pages/Admin/AdminResetPasswordPage';
 
 import { AudioProvider } from './contexts/AudioContext';
 import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
@@ -88,7 +89,7 @@ const DashboardHomeV2 = lazy(() => import('./pages/DashboardV2/DashboardHomeV2')
 const MyFinancialStoryV2 = lazy(() => import('./pages/MyStoryV2/MyFinancialStoryV2'));
 const ReportsPageV2 = lazy(() => import('./pages/ReportsV2/ReportsPageV2'));
 const ReceiptsPage = lazy(() => import('./pages/ReceiptsPage'));
-const AdminDashboard = lazy(() => import('./pages/Admin/AdminDashboard'));
+import AdminDashboard from './pages/Admin/AdminDashboard';
 const InboxPage = lazy(() => import('./pages/Inbox/InboxPage'));
 const GoalsDebtPageV2 = lazy(() => import('./pages/GoalsDebtV2/GoalsDebtPageV2'));
 const MonthlyRecapPageV2 = lazy(() => import('./pages/MonthlyRecapV2/MonthlyRecapPageV2'));
@@ -455,6 +456,11 @@ function App() {
                       } />
                     </Route>
                     
+                    {/* Admin Console — standalone, no sidebar, no auth guard */}
+                    <Route path="/xai-admin" element={<AdminLoginPage />} />
+                    <Route path="/xai-admin/dashboard" element={<AdminDashboard />} />
+                    <Route path="/xai-admin/reset-password" element={<AdminResetPasswordPage />} />
+
                     {/* Dashboard routes with persistent layout - Each route shows its specific page */}
                     <Route path="/dashboard" element={
                       <PrimeProvider>
@@ -534,7 +540,6 @@ function App() {
                       <Route path="inbox" element={<Suspense fallback={<LoadingSpinner />}><InboxPage /></Suspense>} />
                       <Route path="receipts" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />
                       <Route path="scan-receipt" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />
-                      <Route path="admin" element={<AdminGuard><Suspense fallback={<LoadingSpinner />}><AdminDashboard /></Suspense></AdminGuard>} />
                       <Route path="bank-accounts" element={<Suspense fallback={<LoadingSpinner />}><BankAccountsPage /></Suspense>} />
                       <Route path="goal-concierge" element={<GoalsDebtPageV2 />} />
                       <Route path="smart-automation" element={<Suspense fallback={<LoadingSpinner />}><SmartAutomation /></Suspense>} />

@@ -1,269 +1,188 @@
-import { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
-import { getSupabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 
-const T = { bg:'#0b1220', surface:'#111a2e', border:'#1e2d4a', text:'#e8ecf4', muted:'#7b8ba5', dim:'#475569', accent:'#c8a64e', green:'#34d399', cyan:'#22d3ee', red:'#f87171', purple:'#a78bfa', blue:'#3b82f6', amber:'#fbbf24' };
-const AGENT_COLORS: Record<string, string> = { prime: T.accent, 'prime-boss': T.accent, tag: T.cyan, 'tag-ai': T.cyan, byte: T.green, 'byte-docs': T.green, crystal: T.purple, goalie: T.amber, ledger: T.green };
+interface AdminUser {
+  email: string;
+  role: string;
+  last_admin_login: string | null;
+}
 
-function timeAgo(d: string) {
-  const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
-  if (s < 60) return 'just now'; if (s < 3600) return `${Math.floor(s/60)}m ago`; if (s < 86400) return `${Math.floor(s/3600)}h ago`; return `${Math.floor(s/86400)}d ago`;
+interface Stats {
+  totalUsers: number;
+  totalTransactions: number;
+  totalImports: number;
+  activeAdmins: number;
 }
 
 export default function AdminDashboard() {
-  const { profile } = useAuth();
-  const [tab, setTab] = useState<'overview'|'users'|'activity'|'errors'|'system'>('overview');
+  const navigate = useNavigate();
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [overview, setOverview] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [activity, setActivity] = useState<any[]>([]);
-  const [errors, setErrors] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
-  const [lastUpdated, setLastUpdated] = useState('');
 
-  useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
+  useEffect(() => {
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { navigate('/xai-admin'); return; }
 
-  const fetchData = useCallback(async (section: string, extra?: object) => {
-    const sb = getSupabase(); if (!sb) return null;
-    const { data: { session } } = await sb.auth.getSession();
-    const res = await fetch('/.netlify/functions/admin-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ section, ...extra }),
-    });
-    return res.json();
-  }, []);
+      // Verify admin role
+      const { data: adminRecord } = await supabase
+        .from('admin_users')
+        .select('email, role, last_admin_login, is_active')
+        .eq('user_id', session.user.id)
+        .single();
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (tab === 'overview' || !overview) { const d = await fetchData('overview'); if (d?.ok) { setOverview(d.overview); setActivity(d.overview.recentActivity || []); } }
-      if (tab === 'users') { const d = await fetchData('users'); if (d?.ok) setUsers(d.users || []); }
-      if (tab === 'errors') { const d = await fetchData('errors'); if (d?.ok) setErrors(d.errors || []); }
-      setLastUpdated(new Date().toLocaleTimeString());
-    } catch { /* silent */ }
-    finally { setLoading(false); }
-  }, [tab, fetchData, overview]);
+      if (!adminRecord?.is_active) { navigate('/xai-admin'); return; }
+      setAdminUser(adminRecord);
 
-  useEffect(() => { void refresh(); }, [tab]);
+      // Fetch basic platform stats
+      const [usersRes, txRes, importsRes, adminsRes] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }),
+        supabase.from('transactions').select('id', { count: 'exact', head: true }),
+        supabase.from('imports').select('id', { count: 'exact', head: true }),
+        supabase.from('admin_users').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      ]);
 
-  const StatCard = ({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: string }) => (
-    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: '18px 20px', flex: isMobile ? '1 1 calc(50% - 6px)' : 1 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 16 }}>{icon}</span>
-        <span style={{ fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 1.2, color: T.dim, fontWeight: 700 }}>{label}</span>
+      setStats({
+        totalUsers: usersRes.count ?? 0,
+        totalTransactions: txRes.count ?? 0,
+        totalImports: importsRes.count ?? 0,
+        activeAdmins: adminsRes.count ?? 0,
+      });
+
+      setLoading(false);
+    };
+    init();
+  }, [navigate]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/xai-admin');
+  };
+
+  if (loading) {
+    return (
+      <div style={{ ...styles.root, alignItems: 'center', justifyContent: 'center' }}>
+        <div style={styles.loadingSpinner} />
       </div>
-      <div style={{ fontSize: 28, fontWeight: 800, color }}>{typeof value === 'number' ? value.toLocaleString() : value}</div>
-    </div>
-  );
+    );
+  }
+
+  const statCards = [
+    { label: 'TOTAL USERS', value: stats?.totalUsers ?? '\u2014', icon: '\uD83D\uDC64', color: '#c8a64e' },
+    { label: 'TRANSACTIONS', value: stats?.totalTransactions ?? '\u2014', icon: '\uD83D\uDCCA', color: '#22d3ee' },
+    { label: 'IMPORTS', value: stats?.totalImports ?? '\u2014', icon: '\uD83D\uDCC1', color: '#34d399' },
+    { label: 'ACTIVE ADMINS', value: stats?.activeAdmins ?? '\u2014', icon: '\uD83D\uDEE1', color: '#a78bfa' },
+  ];
 
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: T.bg, color: T.text, minHeight: '100vh' }}>
-      {/* Header */}
-      <div style={{ background: '#080f1e', borderBottom: `1px solid ${T.border}`, padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(200,166,78,0.2)', border: '1px solid rgba(200,166,78,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'\u2699\uFE0F'}</div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>XspensesAI Admin</div>
-            <div style={{ fontSize: 11, color: T.dim }}>Command Center</div>
-          </div>
+    <div style={styles.root}>
+      {/* Top nav */}
+      <header style={styles.navbar}>
+        <div style={styles.navLeft}>
+          <span style={styles.navCrown}>{'\u2655'}</span>
+          <span style={styles.navBrand}>XspensesAI</span>
+          <span style={styles.navSep}>/</span>
+          <span style={styles.navLabel}>Admin Console</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {lastUpdated && <span style={{ fontSize: 10, color: T.dim }}>Updated {lastUpdated}</span>}
-          <button onClick={() => void refresh()} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: 'pointer', fontFamily: 'inherit' }}>{'\uD83D\uDD04'} Refresh</button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.green, boxShadow: `0 0 8px ${T.green}88` }} />
-            <span style={{ fontSize: 11, color: T.green, fontWeight: 600 }}>Live</span>
+        <div style={styles.navRight}>
+          <div style={styles.roleBadge}>
+            <span style={styles.roleDot} />
+            {adminUser?.role?.replace('_', ' ').toUpperCase()}
           </div>
+          <span style={styles.navEmail}>{adminUser?.email}</span>
+          <button onClick={handleSignOut} style={styles.signOutBtn}>Sign Out</button>
         </div>
-      </div>
+      </header>
 
-      {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${T.border}`, overflowX: 'auto', scrollbarWidth: 'none' as any, background: '#080f1e' }}>
-        {([['overview','\uD83C\uDFE0 Overview'],['users','\uD83D\uDC65 Users'],['activity','\uD83D\uDCCA Activity'],['errors','\uD83D\uDEA8 Errors'],['system','\u2699\uFE0F System']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id as any)} style={{ padding: '12px 20px', fontSize: 12, fontWeight: 600, color: tab === id ? T.accent : T.dim, borderBottom: tab === id ? `2px solid ${T.accent}` : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>{label}</button>
-        ))}
-      </div>
+      <main style={styles.main}>
+        {/* Page header */}
+        <div style={styles.pageHeader}>
+          <h1 style={styles.pageTitle}>Platform Overview</h1>
+          <p style={styles.pageSubtitle}>
+            Last admin login: {adminUser?.last_admin_login
+              ? new Date(adminUser.last_admin_login).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })
+              : 'First login'}
+          </p>
+        </div>
 
-      <div style={{ padding: isMobile ? '16px' : '24px', maxWidth: 1200, margin: '0 auto' }}>
-
-        {/* ── OVERVIEW ── */}
-        {tab === 'overview' && overview && (<>
-          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 12, marginBottom: 24 }}>
-            <StatCard icon={'\uD83D\uDC65'} label="Total Users" value={overview.totalUsers} color={T.blue} />
-            <StatCard icon={'\u2705'} label="Active Today" value={overview.activeToday} color={T.green} />
-            <StatCard icon={'\uD83D\uDCC4'} label="Statements" value={overview.totalImports} color={T.cyan} />
-            <StatCard icon={'\uD83D\uDCB3'} label="Transactions" value={overview.totalTransactions} color={T.purple} />
-          </div>
-
-          {/* Plan breakdown */}
-          {overview.planBreakdown && (
-            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' as const }}>
-              {Object.entries(overview.planBreakdown).map(([plan, count]) => (
-                <div key={plan} style={{ padding: '6px 14px', borderRadius: 20, background: plan === 'pro' ? `${T.accent}15` : plan === 'business' ? `${T.cyan}15` : `${T.dim}15`, border: `1px solid ${plan === 'pro' ? T.accent : plan === 'business' ? T.cyan : T.dim}33`, color: plan === 'pro' ? T.accent : plan === 'business' ? T.cyan : T.muted, fontSize: 12, fontWeight: 600 }}>
-                  {plan || 'free'}: {count as number}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Charts */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
-            <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 16 }}>Statement Uploads — Last 30 Days</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={overview.importsTimeline || []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: T.dim }} tickFormatter={(v: string) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 9, fill: T.dim }} />
-                  <Tooltip contentStyle={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12 }} />
-                  <Line type="monotone" dataKey="count" stroke={T.cyan} strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 16 }}>Transactions — Last 30 Days</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={overview.transactionsTimeline || []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: T.dim }} tickFormatter={(v: string) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 9, fill: T.dim }} />
-                  <Tooltip contentStyle={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12 }} />
-                  <Line type="monotone" dataKey="count" stroke={T.purple} strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 12 }}>Recent Activity</div>
-            {(overview.recentActivity || []).slice(0, 20).map((e: any, i: number) => {
-              const agentColor = AGENT_COLORS[e.employee_id] || T.dim;
-              return (
-                <div key={e.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${T.border}22` }}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: `${agentColor}20`, border: `1px solid ${agentColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: agentColor, flexShrink: 0 }}>{(e.employee_id || '?')[0].toUpperCase()}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{e.description || e.action_type || 'Event'}</div>
-                    <div style={{ fontSize: 10, color: T.dim }}>{e.user_name || e.user_email || 'System'}</div>
-                  </div>
-                  <span style={{ fontSize: 10, color: T.dim, flexShrink: 0 }}>{timeAgo(e.created_at)}</span>
-                </div>
-              );
-            })}
-          </div>
-        </>)}
-
-        {/* ── USERS ── */}
-        {tab === 'users' && (
-          <div>
-            {users.map(u => (
-              <div key={u.id} onClick={() => setSelectedUser(selectedUser?.id === u.id ? null : u)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: selectedUser?.id === u.id ? `${T.accent}08` : T.surface, border: `1px solid ${selectedUser?.id === u.id ? T.accent + '33' : T.border}`, borderRadius: 12, marginBottom: 6, cursor: 'pointer' }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${T.accent}20`, border: `1px solid ${T.accent}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: T.accent, flexShrink: 0 }}>{(u.display_name || u.email || '?')[0].toUpperCase()}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{u.display_name || u.first_name || u.full_name || 'No name'}</div>
-                  <div style={{ fontSize: 11, color: T.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{u.email}</div>
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: u.plan === 'pro' ? `${T.accent}15` : u.plan === 'business' ? `${T.cyan}15` : `${T.dim}15`, color: u.plan === 'pro' ? T.accent : u.plan === 'business' ? T.cyan : T.muted }}>{u.plan || 'free'}</span>
-                <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: T.muted }}>{u.transactionCount} txns</div>
-                  <div style={{ fontSize: 10, color: T.dim }}>{u.importCount} imports</div>
-                </div>
+        {/* Stat cards */}
+        <div style={styles.statsGrid}>
+          {statCards.map(card => (
+            <div key={card.label} style={styles.statCard}>
+              <div style={styles.statTop}>
+                <span style={styles.statLabel}>{card.label}</span>
+                <span style={styles.statIcon}>{card.icon}</span>
               </div>
-            ))}
-            {users.length === 0 && !loading && <div style={{ textAlign: 'center', padding: 40, color: T.dim }}>No users found</div>}
-          </div>
-        )}
-
-        {/* ── ACTIVITY ── */}
-        {tab === 'activity' && (
-          <div>
-            {(overview?.recentActivity || activity).length === 0 && !loading && <div style={{ textAlign: 'center', padding: 40, color: T.dim }}>No activity yet</div>}
-            {(overview?.recentActivity || activity).map((e: any, i: number) => {
-              const agentColor = AGENT_COLORS[e.employee_id] || T.dim;
-              return (
-                <div key={e.id || i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 6 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${agentColor}20`, border: `1px solid ${agentColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: agentColor, flexShrink: 0 }}>{(e.employee_id || '?')[0].toUpperCase()}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{e.description || e.action_type}</div>
-                    <div style={{ fontSize: 11, color: T.dim }}>{e.user_name || e.user_email || 'System'} {'\u00b7'} {timeAgo(e.created_at)}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── ERRORS ── */}
-        {tab === 'errors' && (
-          <div>
-            {errors.length === 0 && !loading && (
-              <div style={{ textAlign: 'center', padding: '60px 0' }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>{'\u2705'}</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.green }}>No errors in last 24 hours</div>
-                <div style={{ fontSize: 13, color: T.dim, marginTop: 4 }}>All systems operational</div>
+              <div style={{ ...styles.statValue, color: card.color }}>
+                {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
               </div>
-            )}
-            {errors.map((e: any, i: number) => (
-              <div key={e.id || i} style={{ padding: '12px 14px', borderLeft: `3px solid ${T.red}`, background: T.surface, border: `1px solid ${T.border}`, borderRadius: '0 10px 10px 0', marginBottom: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: T.red }}>{e.function_name || 'Unknown function'}</span>
-                  <span style={{ fontSize: 10, color: T.dim }}>{e.created_at ? timeAgo(e.created_at) : ''}</span>
-                </div>
-                <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5 }}>{e.error_message || e.message || JSON.stringify(e).slice(0, 200)}</div>
+              <div style={{ ...styles.statBar, background: card.color + '33' }}>
+                <div style={{ ...styles.statBarFill, background: card.color, width: '100%' }} />
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── SYSTEM ── */}
-        {tab === 'system' && (
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.muted, marginBottom: 16 }}>System Health</div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
-              {[
-                { label: 'Supabase', status: 'ok', detail: 'Connected' },
-                { label: 'Tag Agent', status: 'ok', detail: 'Active' },
-                { label: 'Byte Agent', status: 'ok', detail: 'Active' },
-                { label: 'Prime Agent', status: 'ok', detail: 'Active' },
-                { label: 'Error Rate', status: (overview?.errorsLast24h || 0) > 10 ? 'warn' : 'ok', detail: `${overview?.errorsLast24h || 0} in 24h` },
-                { label: 'Database', status: 'ok', detail: `${(overview?.totalTransactions || 0).toLocaleString()} rows` },
-              ].map(h => (
-                <div key={h.label} style={{ padding: '16px 18px', borderRadius: 12, background: T.surface, border: `1px solid ${T.border}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 14 }}>{h.status === 'ok' ? '\u2705' : h.status === 'warn' ? '\u26A0\uFE0F' : '\u274C'}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{h.label}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: h.status === 'ok' ? T.green : h.status === 'warn' ? T.amber : T.red }}>{h.detail}</div>
-                </div>
-              ))}
             </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.muted, marginBottom: 12 }}>Database Stats</div>
-            <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16 }}>
-              {[
-                { table: 'profiles', count: overview?.totalUsers || '—' },
-                { table: 'transactions', count: overview?.totalTransactions || '—' },
-                { table: 'imports', count: overview?.totalImports || '—' },
-              ].map(r => (
-                <div key={r.table} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${T.border}22` }}>
-                  <span style={{ fontSize: 13, color: T.muted }}>{r.table}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{typeof r.count === 'number' ? r.count.toLocaleString() : r.count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          ))}
+        </div>
 
-        {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60, color: T.dim }}>
-            <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.accent, animation: 'spin 1s linear infinite', marginRight: 12 }} />
-            Loading...
-            <style>{'@keyframes spin{to{transform:rotate(360deg)}}'}</style>
-          </div>
-        )}
-      </div>
+        {/* Coming soon sections */}
+        <div style={styles.sectionGrid}>
+          {['User Management', 'Import Logs', 'Agent Activity', 'System Health'].map(section => (
+            <div key={section} style={styles.sectionCard}>
+              <div style={styles.sectionHeader}>
+                <span style={styles.sectionTitle}>{section}</span>
+                <span style={styles.comingSoon}>Coming Soon</span>
+              </div>
+              <div style={styles.sectionBody}>
+                <div style={styles.placeholder} />
+                <div style={{ ...styles.placeholder, width: '70%' }} />
+                <div style={{ ...styles.placeholder, width: '50%' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes shimmer { 0%,100% { opacity: 0.4; } 50% { opacity: 0.7; } }
+      `}</style>
     </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  root: { minHeight: '100vh', background: '#0b1220', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', flexDirection: 'column' },
+  loadingSpinner: { width: 32, height: 32, border: '3px solid #1e2d4a', borderTopColor: '#c8a64e', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
+  navbar: { background: '#111a2e', borderBottom: '1px solid #1e2d4a', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 },
+  navLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  navCrown: { fontSize: 18, color: '#c8a64e', lineHeight: 1 },
+  navBrand: { fontSize: 15, fontWeight: 700, color: '#e8ecf4' },
+  navSep: { color: '#2a3a5a', fontSize: 16 },
+  navLabel: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: '#6b7fa3', letterSpacing: '0.08em' },
+  navRight: { display: 'flex', alignItems: 'center', gap: 16 },
+  roleBadge: { display: 'flex', alignItems: 'center', gap: 6, background: '#c8a64e15', border: '1px solid #c8a64e33', borderRadius: 4, padding: '3px 8px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, color: '#c8a64e', letterSpacing: '0.1em' },
+  roleDot: { display: 'inline-block', width: 6, height: 6, background: '#c8a64e', borderRadius: '50%' },
+  navEmail: { fontSize: 12, color: '#6b7fa3' },
+  signOutBtn: { background: 'none', border: '1px solid #1e2d4a', borderRadius: 4, color: '#8899bb', fontSize: 12, padding: '5px 12px', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" },
+  main: { flex: 1, padding: '32px 24px', maxWidth: 1100, width: '100%', margin: '0 auto' },
+  pageHeader: { marginBottom: 32 },
+  pageTitle: { fontSize: 24, fontWeight: 700, color: '#e8ecf4', margin: '0 0 6px' },
+  pageSubtitle: { fontSize: 13, color: '#6b7fa3', margin: 0, fontFamily: "'IBM Plex Mono', monospace" },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 },
+  statCard: { background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 6, padding: '20px 20px 16px' },
+  statTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  statLabel: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, letterSpacing: '0.15em', color: '#6b7fa3' },
+  statIcon: { fontSize: 18 },
+  statValue: { fontSize: 32, fontWeight: 700, letterSpacing: '-1px', marginBottom: 12, lineHeight: 1 },
+  statBar: { height: 3, borderRadius: 2, overflow: 'hidden' },
+  statBarFill: { height: '100%', borderRadius: 2, opacity: 0.7 },
+  sectionGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 },
+  sectionCard: { background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 6, padding: 20 },
+  sectionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 14, fontWeight: 600, color: '#e8ecf4' },
+  comingSoon: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: '0.12em', color: '#2a3a5a', background: '#1e2d4a', borderRadius: 3, padding: '3px 7px' },
+  sectionBody: { display: 'flex', flexDirection: 'column', gap: 10 },
+  placeholder: { height: 10, background: '#1e2d4a', borderRadius: 3, width: '90%', animation: 'shimmer 2s ease infinite' },
+};
