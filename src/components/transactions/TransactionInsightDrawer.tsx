@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
+// StatementPdfViewer deferred — import removed for now
 
 type DrawerTransaction =
   | { kind: 'committed'; transaction: CommittedTransaction }
@@ -499,11 +500,6 @@ export function TransactionInsightDrawer({
               <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>{'\uD83E\uDDFE'} Attach Receipt</label>
             </div>
           )}
-          {/* VIEW STATEMENT */}
-          {row?.kind === 'committed' && (row.transaction as any).import_id && (
-            <button onClick={() => { window.location.href = '/dashboard/reports'; }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#60a5fa', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>
-              {'\uD83D\uDCC4'} View Statement
-            </button>
           )}
 
           {/* TAG VERDICT */}
@@ -711,6 +707,7 @@ export function TransactionInsightDrawer({
           )}
         </div>
       </div>
+
     </>
   );
 }
