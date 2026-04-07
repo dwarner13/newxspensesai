@@ -354,7 +354,14 @@ export default function UploadPageV2() {
           importId = xlResult.import_id || '';
         } else {
           const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token });
-          importId = result?.importId || '';
+          console.log('[UploadV2] pipeline result:', result);
+          importId = String(
+            (result as any)?.importId ||
+            (result as any)?.import_id ||
+            (result as any)?.importIds?.[0] ||
+            ''
+          );
+          console.log('[UploadV2] resolved importId:', importId);
         }
 
         // Store hash for future duplicate detection
