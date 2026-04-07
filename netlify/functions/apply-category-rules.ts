@@ -328,6 +328,13 @@ export const handler: Handler = async (event) => {
   const maxAttempts = importId ? 5 : 3;
   const delayMs = importId ? 2000 : 3000;
 
+  // JS-side filter — guarantees no .or() syntax issues block matching
+  const NEEDS_CATEGORIZATION = new Set(['', 'other', 'uncategorized', 'needs review']);
+  const needsCategorization = (cat: unknown): boolean => {
+    if (cat == null) return true;
+    return NEEDS_CATEGORIZATION.has(String(cat).trim().toLowerCase());
+  };
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let query = supabase
       .from('transactions')
@@ -338,10 +345,8 @@ export const handler: Handler = async (event) => {
 
     if (importId) {
       query = query.eq('import_id', importId);
-    } else {
-      // Catch null, empty string, and case-insensitive 'other' / known placeholders
-      query = query.or('category.eq.Other,category.is.null,category.eq.Uncategorized,category.eq.Needs Review,category.eq.');
     }
+    // No category filter — filter in JS below
 
     const { data: rows, error } = await query;
 
@@ -351,8 +356,9 @@ export const handler: Handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: error.message }) };
     }
 
-    txs = rows || [];
-    console.log('[apply-category-rules] FETCHED', { userId, importId, attempt, count: txs.length, sampleIds: txs.slice(0, 3).map((t: any) => t.id) });
+    const allRows = rows || [];
+    txs = importId ? allRows : allRows.filter(r => needsCategorization(r.category));
+    console.log('[apply-category-rules] FETCHED', { userId, importId, attempt, fetched: allRows.length, afterFilter: txs.length, sampleIds: txs.slice(0, 3).map((t: any) => t.id) });
 
     if (txs.length > 0) break;
 
@@ -371,14 +377,14 @@ export const handler: Handler = async (event) => {
       .from('transactions')
       .select('id, merchant_name, merchant, amount, description, category')
       .eq('user_id', userId)
-      .or('category.eq.Other,category.is.null,category.eq.Uncategorized,category.eq.Needs Review,category.eq.')
       .order('posted_at', { ascending: false })
       .limit(limit);
     if (fallbackErr) {
       console.error('[apply-category-rules] FALLBACK FETCH ERROR', { userId, error: fallbackErr.message });
     } else {
-      txs = fallbackRows || [];
-      console.log('[apply-category-rules] FALLBACK FETCHED', { userId, count: txs.length });
+      const all = fallbackRows || [];
+      txs = all.filter(r => needsCategorization(r.category));
+      console.log('[apply-category-rules] FALLBACK FETCHED', { userId, fetched: all.length, afterFilter: txs.length });
     }
   }
 
