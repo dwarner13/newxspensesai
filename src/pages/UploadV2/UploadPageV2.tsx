@@ -349,6 +349,7 @@ export default function UploadPageV2() {
 
         let importId = '';
         let pipelineError: unknown = null;
+        const uploadStartedAt = new Date().toISOString();
 
         if (isSpreadsheetFile(next.file.name)) {
           try {
@@ -382,13 +383,38 @@ export default function UploadPageV2() {
         clearInterval(progressInterval);
         updateItem(next.id, { status: "categorizing", progress: 90 });
 
+        // ── Poll imports table for the real committed import_id ──
+        // Replaces fixed 5s sleep. Polls every 3s up to 10 attempts (30s max),
+        // waiting for a row with status='committed' created after uploadStartedAt.
+        if (!importId && session?.access_token) {
+          const sb = getSupabase();
+          if (sb) {
+            for (let attempt = 1; attempt <= 10; attempt++) {
+              await new Promise(r => setTimeout(r, 3000));
+              const { data: rows, error: pollErr } = await sb
+                .from('imports')
+                .select('id, status, created_at')
+                .eq('user_id', userId)
+                .eq('status', 'committed')
+                .gte('created_at', uploadStartedAt)
+                .order('created_at', { ascending: false })
+                .limit(1);
+              console.log('[UploadV2] poll imports attempt', attempt, { rows, pollErr });
+              if (rows && rows.length > 0) {
+                importId = rows[0].id;
+                console.log('[UploadV2] resolved importId via poll:', importId);
+                break;
+              }
+            }
+            if (!importId) console.warn('[UploadV2] poll timed out — no committed import found after 30s');
+          }
+        }
+
         // ── Apply category rules to all uncategorized transactions ──
         // ALWAYS runs, even if pipeline threw — general cleanup mode will still
         // catch rows that landed in the transactions table from a partial commit.
         console.log('[UploadV2] apply-category-rules gate:', { hasToken: !!session?.access_token, importId, pipelineError: !!pipelineError });
         if (session?.access_token) {
-          console.log('[UploadV2] Waiting 5s for pipeline to commit before applying rules...');
-          await new Promise(resolve => setTimeout(resolve, 5000));
           const rulesBody: Record<string, unknown> = { limit: 500 };
           if (importId) rulesBody.import_id = importId;
           console.log('[UploadV2] Calling apply-category-rules', rulesBody);
