@@ -284,6 +284,18 @@ export const handler: Handler = async (event) => {
     table: 'transactions',
   });
   try {
+    // Unfiltered count: every transaction this user owns, regardless of category
+    const { count: unfilteredCount, error: unfilteredErr } = await supabase
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    console.log('[apply-category-rules] DEBUG unfiltered count', {
+      userId,
+      unfilteredCount,
+      error: unfilteredErr?.message,
+      errorCode: (unfilteredErr as any)?.code,
+    });
+
     const { data: debugData, error: debugError, count: debugCount } = await supabase
       .from('transactions')
       .select('id, merchant_name, category, category_source, import_id', { count: 'exact' })
@@ -326,7 +338,16 @@ export const handler: Handler = async (event) => {
     if (importId) {
       query = query.eq('import_id', importId);
     } else {
-      query = query.or('category.is.null,category.eq.Uncategorized,category.eq.Other,category.eq.Needs Review');
+      // Catch null, empty string, and case-insensitive 'other' / known placeholders
+      query = query.or(
+        [
+          'category.is.null',
+          'category.eq.',
+          'category.ilike.other',
+          'category.ilike.uncategorized',
+          'category.ilike.needs review',
+        ].join(',')
+      );
     }
 
     const { data: rows, error } = await query;
