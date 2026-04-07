@@ -364,13 +364,12 @@ export default function UploadPageV2() {
         updateItem(next.id, { status: "categorizing", progress: 90 });
 
         // ── Apply category rules to all uncategorized transactions ──
-        // CRITICAL: NO importId passed — runSmartImportPipeline may return a staging
-        // ID that doesn't match the committed transactions.import_id, so we run in
-        // general cleanup mode which catches all Other/Uncategorized/null rows.
         if (session?.access_token) {
           console.log('[UploadV2] Waiting 5s for pipeline to commit before applying rules...');
           await new Promise(resolve => setTimeout(resolve, 5000));
-          console.log('[UploadV2] Calling apply-category-rules (general cleanup)');
+          const rulesBody: Record<string, unknown> = { limit: 500 };
+          if (importId) rulesBody.import_id = importId;
+          console.log('[UploadV2] Calling apply-category-rules', rulesBody);
           try {
             const rulesRes = await fetch('/.netlify/functions/apply-category-rules', {
               method: 'POST',
@@ -379,7 +378,7 @@ export default function UploadPageV2() {
                 'x-user-id': userId,
                 Authorization: `Bearer ${session.access_token}`,
               },
-              body: JSON.stringify({ limit: 500 }),
+              body: JSON.stringify(rulesBody),
             });
             const rulesData = await rulesRes.json().catch(() => ({}));
             if (!rulesRes.ok) {
