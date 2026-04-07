@@ -2615,8 +2615,13 @@ function removeDuplicates(
   const unique: typeof transactions = [];
   
   for (const tx of transactions) {
-    // Create a key from date, merchant, and amount
-    const key = `${tx.date || ''}|${tx.merchant || ''}|${tx.amount}`;
+    // Create a key from date, normalized merchant, and absolute amount
+    // Aggressive normalization catches "7-Eleven" vs "7-ELEVEN STORE #1234" duplicates
+    const normMerch = (tx.merchant || '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '') // strip all non-alphanumeric
+      .slice(0, 12); // first 12 chars — enough to identify, ignores suffix variations
+    const key = `${tx.date || ''}|${normMerch}|${Math.abs(tx.amount)}`;
     
     if (!seen.has(key)) {
       seen.add(key);

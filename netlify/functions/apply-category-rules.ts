@@ -199,8 +199,10 @@ async function deduplicateImport(
 
   const groups = new Map<string, string[]>();
   for (const tx of txs) {
+    // Aggressive normalization: uppercase, strip non-alphanumeric, first 12 chars
+    // Catches "7-Eleven" vs "7-ELEVEN STORE #1234" duplicates
     const key = [
-      (tx.merchant_name || '').toLowerCase().replace(/\s+/g, ' ').trim(),
+      (tx.merchant_name || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12),
       String(Math.abs(Number(tx.amount || 0))),
       tx.date || tx.posted_at?.split('T')[0] || '',
     ].join('|');
@@ -257,6 +259,8 @@ export const handler: Handler = async (event) => {
   const requestedLimit = Number(body.limit);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(1000, Math.floor(requestedLimit))) : 500;
 
+  // Diagnostic logging — visible in Netlify function logs
+  console.log('[apply-category-rules] CALLED', { userId, importId, limit, timestamp: new Date().toISOString() });
   safeLog('info', '[apply-category-rules] Starting', { userId, importId, limit });
 
   // ── Step 0: Deduplicate if scoped to an import ──

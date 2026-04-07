@@ -366,24 +366,11 @@ export const handler: Handler = async (event) => {
     }
   } catch { /* non-blocking */ }
 
-  // Third pass: enforce type from category_type_rules
-  let typeEnforced = 0;
-  try {
-    const { data: typeRules } = await supabase.from('category_type_rules').select('category, forced_type');
-    if (typeRules && typeRules.length > 0) {
-      for (const rule of typeRules) {
-        const { count } = await supabase
-          .from('transactions')
-          .update({ type: rule.forced_type })
-          .eq('user_id', userId)
-          .eq('category', rule.category)
-          .neq('type', rule.forced_type)
-          .select('id', { count: 'exact', head: true });
-        typeEnforced += count || 0;
-      }
-    }
-    if (typeEnforced > 0) safeLog('info', `[tag-categorize-committed] Type enforced on ${typeEnforced} transactions`, { userId });
-  } catch { /* non-blocking */ }
+  // Third pass: type enforcement REMOVED
+  // The type field is owned by the parser (set during OCR/commit based on
+  // debit vs credit column). Overriding it from category_type_rules was
+  // corrupting expense transactions into income and vice versa.
+  // Type must only be set by the parser, never by post-commit categorization.
 
   return {
     statusCode: 200,
