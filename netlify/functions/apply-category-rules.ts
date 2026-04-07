@@ -340,15 +340,7 @@ export const handler: Handler = async (event) => {
       query = query.eq('import_id', importId);
     } else {
       // Catch null, empty string, and case-insensitive 'other' / known placeholders
-      query = query.or(
-        [
-          'category.is.null',
-          'category.eq.',
-          'category.ilike.other',
-          'category.ilike.uncategorized',
-          'category.ilike.needs review',
-        ].join(',')
-      );
+      query = query.or('category.eq.Other,category.is.null,category.eq.Uncategorized,category.eq.Needs Review,category.eq.');
     }
 
     const { data: rows, error } = await query;
@@ -379,13 +371,7 @@ export const handler: Handler = async (event) => {
       .from('transactions')
       .select('id, merchant_name, merchant, amount, description, category')
       .eq('user_id', userId)
-      .or([
-        'category.is.null',
-        'category.eq.',
-        'category.ilike.other',
-        'category.ilike.uncategorized',
-        'category.ilike.needs review',
-      ].join(','))
+      .or('category.eq.Other,category.is.null,category.eq.Uncategorized,category.eq.Needs Review,category.eq.')
       .order('posted_at', { ascending: false })
       .limit(limit);
     if (fallbackErr) {
