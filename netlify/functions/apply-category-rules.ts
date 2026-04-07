@@ -239,7 +239,8 @@ async function deduplicateImport(
 
 // ─── Handler ───────────────────────────────────────────────────────────────
 export const handler: Handler = async (event) => {
-  console.log('[apply-category-rules] function invoked', {
+  // redeploy marker: post service_role GRANT SELECT,UPDATE on transactions
+  console.log('[apply-category-rules v2] function invoked', {
     method: event.httpMethod,
     hasBody: !!event.body,
   });
