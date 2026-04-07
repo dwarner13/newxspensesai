@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, RefreshCw } from "lucide-react";
 import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
@@ -142,7 +142,7 @@ interface TagCopilotPanelProps {
   totalSpent?: number; totalIncome?: number; txCount?: number;
   topCategories?: { category: string; total: number; transactionCount: number; budget?: number; topMerchant?: string }[];
 }
-interface LearnedRule { merchant: string; category: string; confidence: number }
+interface LearnedRule { merchant: string; category: string; confidence: number; createdAt?: string }
 interface ChatMessage { role: "user" | "assistant"; content: string }
 
 export function TagCopilotPanel({
@@ -156,6 +156,51 @@ export function TagCopilotPanel({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(initialMessage || "");
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
+  const [rulesRefreshing, setRulesRefreshing] = useState(false);
+
+  const fetchLearnedRules = async () => {
+    try {
+      setRulesRefreshing(true);
+      const supabase = getSupabase();
+      if (!supabase) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      // Prefer category_rules (user-defined conversational rules)
+      const { data: crData } = await supabase
+        .from("category_rules")
+        .select("match_value, category, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (crData?.length) {
+        setLearnedRules(crData.map((r: any) => ({
+          merchant: String(r.match_value || "").toUpperCase(),
+          category: r.category,
+          confidence: 100,
+          createdAt: r.created_at,
+        })));
+        return;
+      }
+      // Fallback: vendor_category_memory
+      const { data } = await supabase
+        .from("vendor_category_memory")
+        .select("vendor_key, category, updated_at")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(8);
+      if (data?.length) {
+        setLearnedRules(data.map((r: any) => ({
+          merchant: String(r.vendor_key || "").toUpperCase(),
+          category: r.category,
+          confidence: 100,
+          createdAt: r.updated_at,
+        })));
+      } else {
+        setLearnedRules([]);
+      }
+    } catch { /* silent */ }
+    finally { setRulesRefreshing(false); }
+  };
 
   const normalizeStoredMessages = (): ChatMessage[] => {
     try {
@@ -188,27 +233,7 @@ export function TagCopilotPanel({
     }
   }, [initialMessage]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const supabase = getSupabase();
-        if (!supabase) return;
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data } = await supabase
-          .from("vendor_category_memory")
-          .select("vendor_key, category")
-          .eq("user_id", user.id)
-          .order("updated_at", { ascending: false })
-          .limit(8);
-        if (data?.length) {
-          setLearnedRules(data.map(r => ({
-            merchant: r.vendor_key.toUpperCase(), category: r.category, confidence: 100,
-          })));
-        }
-      } catch { /* silent */ }
-    })();
-  }, []);
+  useEffect(() => { fetchLearnedRules(); }, []);
 
   const handleClose = () => { setOpen(false); setTimeout(onClose, 320); };
 
@@ -517,7 +542,29 @@ export function TagCopilotPanel({
           {/* Learned rules */}
           {greetingText && detailsOpen && learnedRules.length > 0 && (
             <Reveal delay={600} style={{ marginLeft: 38, marginBottom: 22 }}>
-              <SectionRule color={T.green} label="Rules I've Learned" />
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <SectionRule color={T.green} label="Rules I've Learned" />
+                </div>
+                <button
+                  onClick={fetchLearnedRules}
+                  disabled={rulesRefreshing}
+                  title="Refresh rules"
+                  style={{
+                    background: "transparent",
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 6,
+                    padding: "4px 6px",
+                    color: T.green,
+                    cursor: rulesRefreshing ? "default" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    marginBottom: 14,
+                  }}
+                >
+                  <RefreshCw size={12} style={{ animation: rulesRefreshing ? "tagSpin 0.9s linear infinite" : "none" }} />
+                </button>
+              </div>
               <div style={{
                 padding: "4px 0", borderRadius: 14,
                 background: T.surface, border: `1px solid ${T.border}`,
@@ -526,19 +573,26 @@ export function TagCopilotPanel({
               }}>
                 {learnedRules.map((r, i) => (
                   <div key={i} style={{
-                    display: "flex", alignItems: "center", gap: 10,
+                    display: "flex", flexDirection: "column", gap: 4,
                     padding: "10px 16px",
                     borderBottom: i < learnedRules.length - 1 ? `1px solid ${T.border}` : "none",
                   }}>
-                    <span style={{ fontSize: 11, fontWeight: 500, color: T.text, flex: 1, fontFamily: "'DM Mono',monospace", letterSpacing: 0.5 }}>{r.merchant}</span>
-                    <span style={{ fontSize: 11, color: T.textDim }}>{"\u2192"}</span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, color: "#ffffff",
-                      background: "rgba(34,211,238,0.12)",
-                      border: "1px solid rgba(34,211,238,0.22)",
-                      padding: "2px 9px", borderRadius: 6, minWidth: 90, textAlign: "center",
-                    }}>{r.category}</span>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, color: T.green, fontFamily: "'DM Mono',monospace" }}>{r.confidence}%</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: T.text, flex: 1, fontFamily: "'DM Mono',monospace", letterSpacing: 0.5 }}>{r.merchant}</span>
+                      <span style={{ fontSize: 11, color: T.textDim }}>{"\u2192"}</span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, color: "#ffffff",
+                        background: "rgba(34,211,238,0.12)",
+                        border: "1px solid rgba(34,211,238,0.22)",
+                        padding: "2px 9px", borderRadius: 6, minWidth: 90, textAlign: "center",
+                      }}>{r.category}</span>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, color: T.green, fontFamily: "'DM Mono',monospace" }}>{r.confidence}%</span>
+                    </div>
+                    {r.createdAt && (
+                      <div style={{ fontSize: 9.5, color: T.textDim, fontFamily: "'DM Mono',monospace", letterSpacing: 0.3 }}>
+                        Created {new Date(r.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

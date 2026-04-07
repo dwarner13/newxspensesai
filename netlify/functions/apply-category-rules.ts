@@ -238,6 +238,10 @@ async function deduplicateImport(
 
 // ─── Handler ───────────────────────────────────────────────────────────────
 export const handler: Handler = async (event) => {
+  console.log('[apply-category-rules] function invoked', {
+    method: event.httpMethod,
+    hasBody: !!event.body,
+  });
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ ok: false, error: 'Method not allowed' }) };
