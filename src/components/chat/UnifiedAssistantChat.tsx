@@ -4288,6 +4288,15 @@ export default function UnifiedAssistantChat({
         throw new Error(String(payload?.error || payload?.message || 'Batch commit failed'));
       }
 
+      // Apply category rules to all committed imports
+      for (const importId of uniqueImportIds) {
+        fetch('/.netlify/functions/apply-category-rules', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ import_id: importId, limit: 500 }),
+        }).catch(err => console.warn('apply-category-rules failed (non-blocking):', err));
+      }
+
       setInjectedMessages((prev) => [
         ...prev,
         {
