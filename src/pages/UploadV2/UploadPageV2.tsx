@@ -348,21 +348,33 @@ export default function UploadPageV2() {
         }
 
         let importId = '';
+        let pipelineError: unknown = null;
 
         if (isSpreadsheetFile(next.file.name)) {
-          const xlResult = await handleSpreadsheetUpload(next.file, userId, session?.access_token, fileHash);
-          importId = xlResult.import_id || '';
+          try {
+            const xlResult = await handleSpreadsheetUpload(next.file, userId, session?.access_token, fileHash);
+            console.log('[UploadV2] pipeline result:', JSON.stringify(xlResult));
+            importId = xlResult.import_id || '';
+          } catch (err) {
+            console.error('[UploadV2] spreadsheet pipeline threw:', err);
+            pipelineError = err;
+          }
         } else {
-          const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token });
-          console.log('[UploadV2] pipeline result:', result);
-          importId = String(
-            (result as any)?.importId ||
-            (result as any)?.import_id ||
-            (result as any)?.importIds?.[0] ||
-            ''
-          );
-          console.log('[UploadV2] resolved importId:', importId);
+          try {
+            const result = await runSmartImportPipeline({ userId, file: next.file, fileName: next.file.name, mimeType: next.file.type || "application/octet-stream", fileSize: next.file.size, source: "upload", authToken: session?.access_token });
+            console.log('[UploadV2] pipeline result:', JSON.stringify(result));
+            importId = String(
+              (result as any)?.importId ||
+              (result as any)?.import_id ||
+              (result as any)?.importIds?.[0] ||
+              ''
+            );
+          } catch (err) {
+            console.error('[UploadV2] runSmartImportPipeline threw:', err);
+            pipelineError = err;
+          }
         }
+        console.log('[UploadV2] resolved importId:', importId, 'pipelineError:', !!pipelineError);
 
         // Store hash for future duplicate detection
         void storeFileHash(userId, next.file.name, fileHash);
@@ -371,6 +383,9 @@ export default function UploadPageV2() {
         updateItem(next.id, { status: "categorizing", progress: 90 });
 
         // ── Apply category rules to all uncategorized transactions ──
+        // ALWAYS runs, even if pipeline threw — general cleanup mode will still
+        // catch rows that landed in the transactions table from a partial commit.
+        console.log('[UploadV2] apply-category-rules gate:', { hasToken: !!session?.access_token, importId, pipelineError: !!pipelineError });
         if (session?.access_token) {
           console.log('[UploadV2] Waiting 5s for pipeline to commit before applying rules...');
           await new Promise(resolve => setTimeout(resolve, 5000));
@@ -401,9 +416,13 @@ export default function UploadPageV2() {
         }
 
         await new Promise(r => setTimeout(r, 800));
-        // Query the real committed count from transactions table
-        const txCount = await getCommittedTxCount(importId, userId);
-        updateItem(next.id, { status: "complete", txCount, progress: 100 });
+        if (pipelineError) {
+          updateItem(next.id, { status: "failed", error: pipelineError instanceof Error ? pipelineError.message : "Pipeline failed" });
+        } else {
+          // Query the real committed count from transactions table
+          const txCount = await getCommittedTxCount(importId, userId);
+          updateItem(next.id, { status: "complete", txCount, progress: 100 });
+        }
       } catch (err: unknown) {
         clearInterval(progressInterval);
         updateItem(next.id, { status: "failed", error: err instanceof Error ? err.message : "Failed" });
