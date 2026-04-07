@@ -270,11 +270,13 @@ export const handler: Handler = async (event) => {
   }
 
   // ── Step 1: Fetch transactions to process (with retry for commit timing race) ──
-  // The frontend calls this immediately after runSmartImportPipeline, but commit-import
-  // may still be running. Retry up to 5 times with 2s delays when scoped to an importId.
+  // The frontend calls this after runSmartImportPipeline, but commit-import may
+  // still be inserting rows. Retry in both modes:
+  //   - importId mode: 5 attempts × 2s = 10s
+  //   - cleanup mode:  3 attempts × 3s =  9s
   let txs: any[] = [];
-  const maxAttempts = importId ? 5 : 1;
-  const delayMs = 2000;
+  const maxAttempts = importId ? 5 : 3;
+  const delayMs = importId ? 2000 : 3000;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let query = supabase

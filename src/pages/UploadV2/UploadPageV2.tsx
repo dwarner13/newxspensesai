@@ -368,6 +368,8 @@ export default function UploadPageV2() {
         // ID that doesn't match the committed transactions.import_id, so we run in
         // general cleanup mode which catches all Other/Uncategorized/null rows.
         if (session?.access_token) {
+          console.log('[UploadV2] Waiting 5s for pipeline to commit before applying rules...');
+          await new Promise(resolve => setTimeout(resolve, 5000));
           console.log('[UploadV2] Calling apply-category-rules (general cleanup)');
           try {
             const rulesRes = await fetch('/.netlify/functions/apply-category-rules', {
