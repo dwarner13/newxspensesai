@@ -269,6 +269,38 @@ export const handler: Handler = async (event) => {
     duplicatesRemoved = await deduplicateImport(supabase, userId, importId);
   }
 
+  // ── DIAGNOSTIC: Sample any transactions for this user ──
+  // Helps determine if the user has ANY transactions visible to the service-role
+  // client, regardless of category filter. If this returns 0, the issue is the
+  // user_id or table reference. If it returns rows, the issue is the category filter.
+  console.log('[apply-category-rules] DEBUG query', {
+    userId,
+    categoryFilter: ['Other', null, 'Uncategorized', 'Needs Review'],
+    table: 'transactions',
+  });
+  try {
+    const { data: debugData, error: debugError, count: debugCount } = await supabase
+      .from('transactions')
+      .select('id, merchant_name, category, category_source, import_id', { count: 'exact' })
+      .eq('user_id', userId)
+      .limit(5);
+    console.log('[apply-category-rules] DEBUG sample', {
+      error: debugError?.message,
+      errorCode: (debugError as any)?.code,
+      totalCount: debugCount,
+      sampleSize: debugData?.length || 0,
+      sample: debugData?.map((t: any) => ({
+        id: t.id,
+        category: t.category,
+        category_source: t.category_source,
+        import_id: t.import_id,
+        merchant: t.merchant_name,
+      })),
+    });
+  } catch (debugErr: any) {
+    console.error('[apply-category-rules] DEBUG query threw', debugErr?.message);
+  }
+
   // ── Step 1: Fetch transactions to process (with retry for commit timing race) ──
   // The frontend calls this after runSmartImportPipeline, but commit-import may
   // still be inserting rows. Retry in both modes:
