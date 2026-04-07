@@ -317,12 +317,29 @@ export default function UploadPageV2() {
       const next = currentQueue.find(q => q.status === "queued");
       if (!next) { setAllDone(true); return; }
       processingRef.current = true;
-      updateItem(next.id, { status: "processing" });
+      updateItem(next.id, { status: "processing", progress: 0 });
+
+      // Progress simulation — climbs to 85% during processing
+      const progressInterval = setInterval(() => {
+        const currentItem = queueRef.current.find(q => q.id === next.id);
+        if (!currentItem || currentItem.status !== 'processing') {
+          clearInterval(progressInterval);
+          return;
+        }
+        setQueue(prev => prev.map(item => {
+          if (item.id !== next.id || item.status !== 'processing') return item;
+          const currentProgress = item.progress || 0;
+          if (currentProgress >= 85) return item;
+          return { ...item, progress: Math.min(85, currentProgress + Math.random() * 12 + 3) };
+        }));
+      }, 800);
+
       try {
         // ── Duplicate file check ──
         const fileHash = await computeFileHash(next.file);
         const isDupe = await checkDuplicateHash(fileHash, userId);
         if (isDupe) {
+          clearInterval(progressInterval);
           toast.error(`This file has already been uploaded: ${next.file.name}`);
           updateItem(next.id, { status: "failed", error: "Duplicate file" });
           processingRef.current = false;
@@ -343,12 +360,14 @@ export default function UploadPageV2() {
         // Store hash for future duplicate detection
         void storeFileHash(userId, next.file.name, fileHash);
 
-        updateItem(next.id, { status: "categorizing" });
+        clearInterval(progressInterval);
+        updateItem(next.id, { status: "categorizing", progress: 90 });
         await new Promise(r => setTimeout(r, 1200));
         // Query the real committed count from transactions table
         const txCount = await getCommittedTxCount(importId, userId);
-        updateItem(next.id, { status: "complete", txCount });
+        updateItem(next.id, { status: "complete", txCount, progress: 100 });
       } catch (err: unknown) {
+        clearInterval(progressInterval);
         updateItem(next.id, { status: "failed", error: err instanceof Error ? err.message : "Failed" });
       }
       processingRef.current = false;
