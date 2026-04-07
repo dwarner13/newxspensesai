@@ -563,17 +563,29 @@ export default function UploadPageV2() {
               </div>
 
               {/* File info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.file.name}</div>
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 2 }}>{item.file.name}</div>
                 <div style={{ fontSize: 11, color: T.dim }}>
                   {(item.file.size / 1024).toFixed(0)} KB
                   {item.status === "queued" && ` \u2022 #${queue.filter(q => q.status === "queued").indexOf(item) + 1} in queue`}
-                  {item.status === "processing" && ` \u2022 Processing with Byte... ${item.progress || 0}%`}
-                  {item.status === "categorizing" && " \u2022 Categorizing with Tag..."}
                   {item.status === "complete" && ` \u2022 ${item.txCount || 0} transactions extracted`}
                   {item.status === "failed" && ` \u2022 ${item.error || "Failed"}`}
                 </div>
-              {(item.status === "processing" || item.status === "categorizing") && <div style={{ width: "100%", height: 3, borderRadius: 2, background: `${T.dim}22`, marginTop: 6, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: item.status === "categorizing" ? T.cyan : T.green, width: `${item.progress || 0}%`, transition: "width 0.5s ease" }} /></div>}
+                {item.status === "processing" && (
+                  <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
+                    Processing with Byte... {Math.round(item.progress || 0)}%
+                  </div>
+                )}
+                {item.status === "categorizing" && (
+                  <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
+                    Categorizing with Tag...
+                  </div>
+                )}
+                {(item.status === "processing" || item.status === "categorizing") && (
+                  <div style={{ width: "100%", height: 3, borderRadius: 2, background: `${T.dim}22`, marginTop: 6, overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 2, background: item.status === "categorizing" ? T.cyan : T.green, width: `${Math.round(item.progress || 0)}%`, transition: "width 0.5s ease" }} />
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
