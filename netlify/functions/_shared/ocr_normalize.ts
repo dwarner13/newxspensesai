@@ -1081,13 +1081,8 @@ function parseBmoEverydayStatement(text: string): Array<{
     const balance = parseAmount(amounts[amounts.length - 1]);
     if (!isFinite(amount) || !isFinite(balance)) return null;
 
-    // Validation: reject if amount > 50% of balance — likely misreading the balance column
-    // Real transactions at 7-Eleven are $1-$20, not $54.99 (which is trailing digits of $6,454.99)
-    if (balance > 0 && amount > balance * 0.5 && amount > 100) {
-      // This amount is suspiciously large relative to balance — skip this row
-      // (OCR likely extracted partial balance digits as the amount)
-      return null;
-    }
+    // Note: amount validation is now done at the caller via balance-delta comparison.
+    // The delta from previous balance is mathematically the source of truth.
 
     // Remove trailing amount columns from the description part.
     const description = body
@@ -1148,10 +1143,28 @@ function parseBmoEverydayStatement(text: string): Array<{
       ? Math.abs(parsed.amount)
       : -Math.abs(parsed.amount);
 
-    const signedAmount =
-      deltaBasedAmount !== null && deltaBasedAmount !== 0
-        ? (deltaBasedAmount > 0 ? Math.abs(parsed.amount) : -Math.abs(parsed.amount))
-        : signedAmountFromDesc;
+    // Balance-delta validation — the source of truth.
+    // If we have a previous balance, the delta MUST equal the transaction amount.
+    // If the parsed amount disagrees with the delta by more than $0.02, the OCR
+    // misread the amount column (likely picked up trailing digits of the balance).
+    // In that case, trust the delta — it's mathematically derived from the balances.
+    let signedAmount: number;
+    if (deltaBasedAmount !== null && deltaBasedAmount !== 0) {
+      const deltaAbs = Math.abs(deltaBasedAmount);
+      const parsedAbs = Math.abs(parsed.amount);
+      const diff = Math.abs(deltaAbs - parsedAbs);
+      if (diff > 0.02) {
+        // Parsed amount is wrong — use the delta instead
+        console.warn(`[BMO Parser] Amount mismatch: parsed=${parsedAbs} delta=${deltaAbs} on "${parsed.description.slice(0, 40)}" — using delta`);
+        signedAmount = deltaBasedAmount > 0 ? deltaAbs : -deltaAbs;
+      } else {
+        // Parsed amount agrees with delta — use parsed value with delta-derived sign
+        signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
+      }
+    } else {
+      // No previous balance available — fall back to description-based sign
+      signedAmount = signedAmountFromDesc;
+    }
 
     const cleanedDesc = cleanDescription(parsed.description);
     if (!cleanedDesc) continue;
