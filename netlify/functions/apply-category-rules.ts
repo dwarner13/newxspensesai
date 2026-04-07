@@ -254,6 +254,7 @@ export const handler: Handler = async (event) => {
   }
   const userId = auth.userId;
   const supabase = serverSupabase();
+  console.log('[apply-category-rules] supabase url:', process.env.SUPABASE_URL?.slice(0,30), 'key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0,20) ?? process.env.SUPABASE_SERVICE_ROLE?.slice(0,20));
 
   const body = (() => {
     try { return JSON.parse(event.body || '{}') as Record<string, unknown>; }
