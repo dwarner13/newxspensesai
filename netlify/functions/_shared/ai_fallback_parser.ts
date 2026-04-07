@@ -53,63 +53,40 @@ export async function aiFallbackParseTransactions(params: {
 
   try {
     // Build strict system prompt
-    const systemPrompt = `You are a bank/credit card statement parser.
+    const systemPrompt = `You are a bank statement transaction parser. Extract transactions from OCR text.
 
-Your task: Extract ONLY line-item transactions from OCR text.
+STEP 1 — DETECT LAYOUT
+Find the transaction table header to identify column order. For BMO statements the header is:
+"Amounts deducted from your account ($) | Amounts added to your account ($) | Balance ($)"
 
-CRITICAL RULES:
-1. Output ONLY a valid JSON array of transactions. No commentary, no explanations, no markdown.
-2. Each transaction must have:
-   - date: YYYY-MM-DD format (use TRANSACTION DATE if available, otherwise POSTING DATE)
-   - description: Full activity description line (merchant name + details)
-   - amount: Number (negative for purchases/charges/debits, positive for payments/credits/refunds)
-   - merchant: Merchant name extracted from description (first part, before location/ID codes)
+STEP 2 — PARSE RIGHT TO LEFT
+For each transaction row:
+- Rightmost number = running balance
+- Number immediately left of balance = transaction amount
+- Never swap these two
 
-3. IGNORE these sections completely:
-   - Summary blocks ("TOTAL ACCOUNT BALANCE", "NEW BALANCE", "PREVIOUS BALANCE")
-   - Interest rate tables
-   - Points summaries
-   - Address blocks
-   - Header/footer text
-   - Section headers ("TRANSACTIONS", "PAYMENTS", etc.)
+STEP 3 — COMMA RULE
+- Number WITH thousands comma (e.g. 6,030.39) = balance
+- Number WITHOUT comma (e.g. 11.85) = amount
+- Exception: if BOTH have commas, the larger is the balance
 
-4. For credit card statements:
-   - Purchases/charges = negative amounts
-   - Payments/credits = positive amounts
-   - Use TRANSACTION DATE column if present, otherwise POSTING DATE
+STEP 4 — BALANCE RECONCILIATION
+Verify: previous_balance - debit_amount = new_balance (or + for credits)
+If it doesn't reconcile, try the other number. Reject the row if neither reconciles.
 
-5. For bank statements:
-   - Debits/withdrawals = negative amounts
-   - Deposits/credits = positive amounts
-   - CRITICAL: Bank statements have MULTIPLE number columns. Typically: "Amounts Deducted", "Amounts Added", and "Balance".
-   - You MUST use the "Amounts Deducted" or "Amounts Added" column for the transaction amount.
-   - NEVER use the "Balance" column � it is the running account balance, NOT the transaction amount.
-   - The Balance column values are typically much larger numbers (e.g., 2,751.36 vs 6.74). If an amount seems unusually large for a convenience store or small purchase, you are likely reading the Balance column by mistake.
-   - For BMO statements specifically: columns are "Amounts deducted from your account ($)" and "Amounts added to your account ($)" and "Balance ($)". Only use the first two.
-   - A 7-Eleven purchase should be $1-60, not $500+. A gas station fill should be $40-80, not $800+. Use common sense as a sanity check.
-   - CRITICAL BMO OCR PATTERN: When OCR text concatenates numbers without spaces, like "SOBEYS155.722,818.25", the FIRST number (155.72) is the transaction amount and the SECOND number (2,818.25) is the running balance. The balance always has a comma for thousands. Split on this pattern: the amount comes BEFORE the comma-separated thousands number.
-   - Example: "7-ELEVENSTORE6.742,751.36" means amount=6.74, balance=2,751.36 � NOT amount=6,742,751.36
-   - Example: "PETRO-CANADA48.502,702.86" means amount=48.50, balance=2,702.86
-   - Example: "GORDONFOODSPAY/PAY1,818.194,406.69" means amount=1,818.19 (credit/deposit), balance=4,406.69. When BOTH numbers have commas, the first is the transaction amount and second is the balance.
-   - The balance column value changes with every row (goes up for credits, down for debits). The transaction amount is always the smaller, isolated number.
+OUTPUT FORMAT
+Return a JSON object: { "transactions": [ ... ] }
+Each transaction must have:
+- date: YYYY-MM-DD (use TRANSACTION DATE if available, else POSTING DATE)
+- description: Full activity line (merchant + details)
+- merchant: Merchant name (preserve spaces — "SAVE ON FOODS" not "SAVEONFOODS")
+- amount: Number (negative for debits/purchases, positive for credits/deposits)
 
-6. If you cannot find any real line-item transactions, output: { "transactions": [] }
-
-7. Currency: Assume CAD if not specified.
-
-8. Foreign currency transactions: When a transaction shows both a foreign currency amount (e.g., "USD 29.99") and a CAD converted amount, always use the CAD amount. The CAD amount is what was actually charged to the account.
-
-9. Institution detection: Look for bank/issuer name in headers, footers, or logos (e.g., BMO, TD, RBC). Include an "institution" field in the top-level JSON if found.
-
-10. Merchant name formatting: Preserve spaces in merchant names. Use "SAVE ON FOODS" not "SAVEONFOODS", "CANADIAN TIRE" not "CANADIANTIRE", "7-ELEVEN STORE" not "7-ELEVENSTORE".
-
-Example output format (JSON object with transactions array):
-{
-  "transactions": [
-    {"date": "2025-01-15", "description": "AMAZON.COM AMZN.COM/BILL WA", "merchant": "AMAZON.COM", "amount": -123.45},
-    {"date": "2025-01-16", "description": "PAYMENT RECEIVED", "merchant": "PAYMENT", "amount": 500.00}
-  ]
-}`;
+IGNORE: summary blocks, interest tables, points summaries, headers/footers, section titles.
+Currency: assume CAD unless specified. For foreign tx with CAD conversion, always use the CAD amount.
+Institution: include top-level "institution" field if bank/issuer (BMO, TD, RBC, etc.) is detected.
+If no line-item transactions are found, output: { "transactions": [] }
+No commentary, no markdown, no backticks — JSON only.`;
 
     const userPrompt = `Parse this ${statementType} statement OCR text and extract all line-item transactions:
 
@@ -120,7 +97,7 @@ Return a JSON object with a "transactions" array containing all extracted transa
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     let content: string | null = null;
-    // Try Claude first � use Vision (PDF direct) when available, text fallback otherwise
+    // Try Claude first � use Vision (PDF direct) when available, text fallback otherwise
     if (anthropicKey) {
       const useVision = Boolean(pdfBase64);
       const visionModel = useVision ? "claude-sonnet-4-20250514" : "claude-haiku-4-5-20251001";
