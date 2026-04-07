@@ -370,6 +370,32 @@ export const handler: Handler = async (event) => {
     }
   }
 
+  // Fallback: if scoped to importId but found zero rows, drop the import_id
+  // filter and run cleanup mode for the whole user (handles duplicate-hash case
+  // where commit lands under a different import_id than the one we were given).
+  if (txs.length === 0 && importId) {
+    console.warn('[apply-category-rules] importId returned 0 rows — falling back to user-wide cleanup', { userId, importId });
+    const { data: fallbackRows, error: fallbackErr } = await supabase
+      .from('transactions')
+      .select('id, merchant_name, merchant, amount, description, category')
+      .eq('user_id', userId)
+      .or([
+        'category.is.null',
+        'category.eq.',
+        'category.ilike.other',
+        'category.ilike.uncategorized',
+        'category.ilike.needs review',
+      ].join(','))
+      .order('posted_at', { ascending: false })
+      .limit(limit);
+    if (fallbackErr) {
+      console.error('[apply-category-rules] FALLBACK FETCH ERROR', { userId, error: fallbackErr.message });
+    } else {
+      txs = fallbackRows || [];
+      console.log('[apply-category-rules] FALLBACK FETCHED', { userId, count: txs.length });
+    }
+  }
+
   if (txs.length === 0) {
     console.warn('[apply-category-rules] ZERO ROWS after all retries — commit-import may have failed or importId mismatch', { userId, importId, attempts: maxAttempts });
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0, duplicatesRemoved, reason: 'no_rows_after_retries', attempts: maxAttempts }) };
