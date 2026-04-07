@@ -254,6 +254,12 @@ export const handler: Handler = async (event) => {
     return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: auth.error || 'Unauthorized' }) };
   }
   const userId = auth.userId;
+  console.log('[apply-category-rules] env check:', {
+    hasUrl: !!process.env.SUPABASE_URL,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasServiceRole: !!process.env.SUPABASE_SERVICE_ROLE,
+    keyLength: (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || '').length,
+  });
   const supabase = serverSupabase();
   console.log('[apply-category-rules] supabase url:', process.env.SUPABASE_URL?.slice(0,30), 'key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0,20) ?? process.env.SUPABASE_SERVICE_ROLE?.slice(0,20));
 
