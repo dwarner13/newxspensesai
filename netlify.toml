@@ -33,6 +33,9 @@ external_node_modules = ["undici", "jsdom", "@mozilla/readability", "pdf-lib", "
   format = "cjs"
   external = ["xhr-sync-worker.js", "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc"]
 
+[functions."apply-category-rules"]
+  timeout = 30
+
 [functions."prime-router"]
   timeout = 60
 
