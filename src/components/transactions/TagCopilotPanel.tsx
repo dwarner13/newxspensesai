@@ -733,7 +733,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(34,211,153,0.15)', border:'1px solid rgba(34,211,153,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>T</div>
           <div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <span style={{ fontSize:14, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#7b8ba5', fontWeight:400 }}>Copilot</span></span>
+              <span style={{ fontSize:15, fontWeight:700, color:'#e8ecf4' }}>Tag <span style={{ color:'#7b8ba5', fontWeight:400 }}>Copilot</span></span>
               {needsReviewCount !== null && needsReviewCount > 0 ? (
                 <div style={{ padding:'6px 14px', borderRadius:20, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.4)', display:'flex', alignItems:'center', gap:6 }}>
                   <div style={{ width:6, height:6, borderRadius:'50%', background:'#fbbf24', boxShadow:'0 0 8px rgba(251,191,36,0.8)' }} />
@@ -1016,7 +1016,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
             placeholder="Ask Tag anything..."
-            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'8px 12px', fontSize:13, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.5, minHeight:38 }}
+            style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'8px 12px', fontSize:14, color:'#e8ecf4', outline:'none', fontFamily:'inherit', resize:'none', lineHeight:1.5, minHeight:38 }}
           />
           <button
             onClick={() => void send()}
