@@ -56,6 +56,7 @@ export default function TransactionsPageV2() {
   const [filter, setFilter] = useState<'all' | 'expenses' | 'income'>('all');
   const listRef = useRef<HTMLDivElement>(null);
   const [statementFilter, setStatementFilter] = useState<string>('all');
+  const [accountFilter, setAccountFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [tagFilterLabel, setTagFilterLabel] = useState('');
   const [tagCategoryFilter, setTagCategoryFilter] = useState('');
@@ -226,6 +227,13 @@ export default function TransactionsPageV2() {
     if (filter === 'expenses') list = list.filter(t => !isIncomeTx(t));
     else if (filter === 'income') list = list.filter(t => isIncomeTx(t));
     if (statementFilter !== 'all') list = list.filter(t => t.import_id === statementFilter);
+    if (accountFilter !== 'all') {
+      const acct = accountsRef.current.find(a => a.id === accountFilter);
+      if (acct) {
+        const ids = new Set(acct.importIds);
+        list = list.filter(t => ids.has(t.import_id || ''));
+      }
+    }
     if (tagCategoryFilter) {
       list = list.filter(t => (t.category || '').toLowerCase() === tagCategoryFilter.toLowerCase());
     }
@@ -244,7 +252,7 @@ export default function TransactionsPageV2() {
       });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [transactions, filter, statementFilter, searchQuery, tagCategoryFilter, tagSubcategoryFilter]);
+  }, [transactions, filter, statementFilter, accountFilter, searchQuery, tagCategoryFilter, tagSubcategoryFilter]);
 
   const handleExport = useCallback(() => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -279,6 +287,84 @@ export default function TransactionsPageV2() {
   const catTotal = catData.reduce((s, d) => s + d.value, 0);
 
   // Statement options for dropdown (each individual import with filename)
+  // ── Account cards: group committed imports by detected issuer + type ──
+  type AccountCard = {
+    id: string;
+    name: string;
+    type: 'Credit Card' | 'Chequing';
+    statementCount: number;
+    importIds: string[];
+    totalSpent: number;
+    totalIncome: number;
+    uncategorizedCount: number;
+  };
+  const accounts: AccountCard[] = useMemo(() => {
+    const detectIssuer = (name: string): string => {
+      const n = (name || '').toUpperCase();
+      if (/\bBMO\b/.test(n)) return 'BMO';
+      if (/\bTD\b/.test(n)) return 'TD';
+      if (/\bRBC\b|ROYAL BANK/.test(n)) return 'RBC';
+      if (/\bCIBC\b/.test(n)) return 'CIBC';
+      if (/SCOTIA/.test(n)) return 'Scotiabank';
+      if (/TANGERINE/.test(n)) return 'Tangerine';
+      if (/AMEX|AMERICAN EXPRESS/.test(n)) return 'Amex';
+      if (/CANADIAN TIRE|TRIANGLE/.test(n)) return 'Canadian Tire';
+      if (/MBNA/.test(n)) return 'MBNA';
+      if (/CAPITAL ONE/.test(n)) return 'Capital One';
+      return 'Account';
+    };
+    const detectType = (name: string): 'Credit Card' | 'Chequing' => {
+      const n = (name || '').toLowerCase();
+      if (/credit|visa|mastercard|amex|mc\b|cc\b|triangle/.test(n)) return 'Credit Card';
+      return 'Chequing';
+    };
+    const groups = new Map<string, AccountCard>();
+    imports
+      .filter(i => i.status === 'committed')
+      .forEach(i => {
+        const raw = (i as any).docName || '';
+        const issuer = detectIssuer(raw);
+        const type = detectType(raw);
+        const key = `${issuer}|${type}`;
+        let g = groups.get(key);
+        if (!g) {
+          g = {
+            id: key,
+            name: `${issuer} ${type === 'Credit Card' ? 'Credit' : 'Chequing'}`,
+            type,
+            statementCount: 0,
+            importIds: [],
+            totalSpent: 0,
+            totalIncome: 0,
+            uncategorizedCount: 0,
+          };
+          groups.set(key, g);
+        }
+        g.statementCount += 1;
+        g.importIds.push(i.id);
+      });
+    // Aggregate tx stats per account
+    const byId = new Map<string, AccountCard>();
+    for (const a of groups.values()) {
+      for (const tid of a.importIds) byId.set(tid, a);
+    }
+    transactions.forEach(t => {
+      const a = byId.get(t.import_id || '');
+      if (!a) return;
+      if (isIncomeTx(t)) a.totalIncome += Math.abs(t.amount);
+      else a.totalSpent += Math.abs(t.amount);
+      if (!t.category || t.category === 'Uncategorized' || t.category === 'Other') {
+        a.uncategorizedCount += 1;
+      }
+    });
+    return Array.from(groups.values()).sort((a, b) => b.statementCount - a.statementCount);
+  }, [imports, transactions]);
+
+  // Ref so accountFilter logic inside filtered useMemo can read accounts
+  // without causing extra memo churn.
+  const accountsRef = useRef<AccountCard[]>([]);
+  accountsRef.current = accounts;
+
   const stmtOptions = useMemo(() => {
     return imports
       .filter(i => i.status === 'committed')
@@ -353,7 +439,85 @@ export default function TransactionsPageV2() {
             {statementFilter !== 'all' && (
               <p className="text-[13px] mt-0.5" style={{ color: '#c8a64e' }}>{stmtOptions.find(s => s.id === statementFilter)?.label || 'Statement'} &middot; {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}</p>
             )}
-            <p className="text-[13px] mt-1" style={{ color: '#c8d0e0' }}>{imports.length} statement{imports.length !== 1 ? 's' : ''} &middot; {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} &middot; Processed by Byte &middot; Categorized by Tag</p>
+            <style>{`.acct-scroll::-webkit-scrollbar{display:none}`}</style>
+            <div
+              className="acct-scroll mt-3 flex gap-3 overflow-x-auto pb-1"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {(() => {
+                const allSpent = accounts.reduce((s, a) => s + a.totalSpent, 0);
+                const allIncome = accounts.reduce((s, a) => s + a.totalIncome, 0);
+                const allStmts = accounts.reduce((s, a) => s + a.statementCount, 0);
+                const allUncat = accounts.reduce((s, a) => s + a.uncategorizedCount, 0);
+                const cards: Array<AccountCard | { id: 'all' | 'add'; kind: 'all' | 'add' }> = [
+                  { id: 'all', kind: 'all' } as any,
+                  ...accounts,
+                  { id: 'add', kind: 'add' } as any,
+                ];
+                return cards.map((c) => {
+                  const isAll = (c as any).kind === 'all';
+                  const isAdd = (c as any).kind === 'add';
+                  const active = accountFilter === (isAll ? 'all' : (c as AccountCard).id);
+                  if (isAdd) {
+                    return (
+                      <button
+                        key="add"
+                        onClick={handleUpload}
+                        className="shrink-0 rounded-xl border border-dashed text-left transition-colors"
+                        style={{
+                          width: 200,
+                          padding: '14px 16px',
+                          borderColor: '#334155',
+                          background: 'rgba(15,23,42,0.4)',
+                          color: '#94a3b8',
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>+ Add account</div>
+                        <div style={{ fontSize: 11, marginTop: 4 }}>Upload a statement</div>
+                      </button>
+                    );
+                  }
+                  const a = isAll
+                    ? { id: 'all', name: 'All accounts', type: '', statementCount: allStmts, totalSpent: allSpent, totalIncome: allIncome, uncategorizedCount: allUncat }
+                    : (c as AccountCard);
+                  const badge = a.uncategorizedCount > 0
+                    ? { text: `${a.uncategorizedCount} to review`, bg: 'rgba(251,191,36,0.15)', fg: '#fbbf24' }
+                    : { text: 'Books clean', bg: 'rgba(52,211,153,0.15)', fg: '#34d399' };
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => setAccountFilter(a.id)}
+                      className="shrink-0 rounded-xl text-left transition-colors"
+                      style={{
+                        width: 220,
+                        padding: '14px 16px',
+                        border: active ? '2px solid #22d3ee' : '1px solid rgba(148,163,184,0.2)',
+                        background: 'rgba(15,23,42,0.6)',
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#e8ecf4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                          {a.type && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>{a.type}</div>}
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 999, background: badge.bg, color: badge.fg, whiteSpace: 'nowrap' }}>{badge.text}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-3" style={{ fontSize: 11 }}>
+                        <div>
+                          <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Spent</div>
+                          <div style={{ color: '#f87171', fontWeight: 700 }}>${fmt(a.totalSpent)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Income</div>
+                          <div style={{ color: '#34d399', fontWeight: 700 }}>${fmt(a.totalIncome)}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 6 }}>{a.statementCount} statement{a.statementCount !== 1 ? 's' : ''}</div>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-colors"><Download className="h-4 w-4" />Export</button>
