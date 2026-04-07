@@ -269,34 +269,49 @@ export const handler: Handler = async (event) => {
     duplicatesRemoved = await deduplicateImport(supabase, userId, importId);
   }
 
-  // ── Step 1: Fetch transactions to process ──
-  let query = supabase
-    .from('transactions')
-    .select('id, merchant_name, merchant, amount, description, category')
-    .eq('user_id', userId)
-    .order('posted_at', { ascending: false })
-    .limit(limit);
+  // ── Step 1: Fetch transactions to process (with retry for commit timing race) ──
+  // The frontend calls this immediately after runSmartImportPipeline, but commit-import
+  // may still be running. Retry up to 5 times with 2s delays when scoped to an importId.
+  let txs: any[] = [];
+  const maxAttempts = importId ? 5 : 1;
+  const delayMs = 2000;
 
-  if (importId) {
-    query = query.eq('import_id', importId);
-  } else {
-    query = query.or('category.is.null,category.eq.Uncategorized,category.eq.Other,category.eq.Needs Review');
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let query = supabase
+      .from('transactions')
+      .select('id, merchant_name, merchant, amount, description, category')
+      .eq('user_id', userId)
+      .order('posted_at', { ascending: false })
+      .limit(limit);
+
+    if (importId) {
+      query = query.eq('import_id', importId);
+    } else {
+      query = query.or('category.is.null,category.eq.Uncategorized,category.eq.Other,category.eq.Needs Review');
+    }
+
+    const { data: rows, error } = await query;
+
+    if (error) {
+      console.error('[apply-category-rules] FETCH ERROR', { userId, importId, error: error.message, code: (error as any).code, attempt });
+      safeLog('error', '[apply-category-rules] Fetch error', { userId, error: error.message });
+      return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: error.message }) };
+    }
+
+    txs = rows || [];
+    console.log('[apply-category-rules] FETCHED', { userId, importId, attempt, count: txs.length, sampleIds: txs.slice(0, 3).map((t: any) => t.id) });
+
+    if (txs.length > 0) break;
+
+    if (attempt < maxAttempts) {
+      console.log(`[apply-category-rules] No rows yet — waiting ${delayMs}ms before retry ${attempt + 1}/${maxAttempts}`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
   }
-
-  const { data: rows, error } = await query;
-
-  if (error) {
-    console.error('[apply-category-rules] FETCH ERROR', { userId, importId, error: error.message, code: (error as any).code });
-    safeLog('error', '[apply-category-rules] Fetch error', { userId, error: error.message });
-    return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: error.message }) };
-  }
-
-  const txs = rows || [];
-  console.log('[apply-category-rules] FETCHED', { userId, importId, count: txs.length, sampleIds: txs.slice(0, 3).map((t: any) => t.id) });
 
   if (txs.length === 0) {
-    console.warn('[apply-category-rules] ZERO ROWS — check if importId matches transactions.import_id', { userId, importId });
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0, duplicatesRemoved, reason: 'no_rows_matched' }) };
+    console.warn('[apply-category-rules] ZERO ROWS after all retries — commit-import may have failed or importId mismatch', { userId, importId, attempts: maxAttempts });
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0, duplicatesRemoved, reason: 'no_rows_after_retries', attempts: maxAttempts }) };
   }
 
   // ── Step 2: Build vendor keys for memory lookup ──
