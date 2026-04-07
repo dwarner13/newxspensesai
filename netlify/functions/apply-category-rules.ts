@@ -286,13 +286,17 @@ export const handler: Handler = async (event) => {
   const { data: rows, error } = await query;
 
   if (error) {
+    console.error('[apply-category-rules] FETCH ERROR', { userId, importId, error: error.message, code: (error as any).code });
     safeLog('error', '[apply-category-rules] Fetch error', { userId, error: error.message });
     return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: error.message }) };
   }
 
   const txs = rows || [];
+  console.log('[apply-category-rules] FETCHED', { userId, importId, count: txs.length, sampleIds: txs.slice(0, 3).map((t: any) => t.id) });
+
   if (txs.length === 0) {
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0, duplicatesRemoved }) };
+    console.warn('[apply-category-rules] ZERO ROWS — check if importId matches transactions.import_id', { userId, importId });
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0, duplicatesRemoved, reason: 'no_rows_matched' }) };
   }
 
   // ── Step 2: Build vendor keys for memory lookup ──
@@ -391,7 +395,10 @@ export const handler: Handler = async (event) => {
   }
 
   // ── Step 6: Batch update — ONLY category fields, never type/amount/merchant ──
+  console.log('[apply-category-rules] PRE-UPDATE', { userId, importId, txsFetched: txs.length, updatesQueued: updates.length, skipped });
+
   let updated = 0;
+  let updateErrors: string[] = [];
   if (updates.length > 0) {
     const results = await Promise.allSettled(
       updates.map(u => {
@@ -412,9 +419,18 @@ export const handler: Handler = async (event) => {
           .eq('user_id', userId);
       })
     );
-    updated = results.filter(r => r.status === 'fulfilled' && !r.value.error).length;
+    for (const r of results) {
+      if (r.status === 'fulfilled' && !r.value.error) {
+        updated++;
+      } else if (r.status === 'fulfilled' && r.value.error) {
+        updateErrors.push(r.value.error.message);
+      } else if (r.status === 'rejected') {
+        updateErrors.push(String(r.reason));
+      }
+    }
   }
 
+  console.log('[apply-category-rules] DONE', { userId, importId, txsFetched: txs.length, updated, skipped, duplicatesRemoved, errorCount: updateErrors.length, sampleErrors: updateErrors.slice(0, 3) });
   safeLog('info', `[apply-category-rules] Done: ${updated}/${txs.length} updated, ${skipped} skipped, ${duplicatesRemoved} dupes removed`, { userId, importId });
 
   return {
