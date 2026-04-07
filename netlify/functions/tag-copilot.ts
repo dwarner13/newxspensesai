@@ -1,6 +1,6 @@
 ﻿import type { Handler } from '@netlify/functions';
 import Anthropic from '@anthropic-ai/sdk';
-import { serverSupabase } from './_shared/supabase.js';
+import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
 
@@ -117,7 +117,14 @@ export const handler: Handler = async (event) => {
   if (!message) return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
 
   try {
-    const supabase = serverSupabase();
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+        global: { headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}` } },
+      }
+    );
 
     // 1. Load learned rules
     const { data: rulesData } = await supabase

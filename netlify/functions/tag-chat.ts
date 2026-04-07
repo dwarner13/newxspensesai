@@ -1,6 +1,6 @@
 import type { Handler } from '@netlify/functions';
 import OpenAI from 'openai';
-import { serverSupabase } from './_shared/supabase.js';
+import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { getLearnedCategoryForTransaction } from './_shared/tag-learning.js';
 
@@ -508,7 +508,14 @@ export const handler: Handler = async (event) => {
   const body = JSON.parse(event.body || '{}');
   const { transactionId, message, history = [], pageContext, merchant: bodyMerchant, category: bodyCategory, amount: bodyAmount, context: bodyContext, selectedTransaction } = body;
 
-  const supabase = serverSupabase();
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+      global: { headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}` } },
+    }
+  );
   const isPageContext = bodyContext === 'page';
 
   // Opening turn: empty message on page-level context with no history

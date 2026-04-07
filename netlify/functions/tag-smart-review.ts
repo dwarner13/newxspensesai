@@ -4,7 +4,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
-import { serverSupabase } from './_shared/supabase.js';
+import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { randomUUID } from 'crypto';
 
@@ -59,7 +59,14 @@ export const handler: Handler = async (event) => {
   if (auth.error || !auth.userId) return err('Unauthorized', 401);
 
   const userId = auth.userId;
-  const sb = serverSupabase();
+  const sb = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+      global: { headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}` } },
+    }
+  );
 
   try {
     const { data: txs, error: fetchErr } = await sb
