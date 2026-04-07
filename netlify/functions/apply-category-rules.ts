@@ -164,6 +164,7 @@ function applyDbRules(
       const hasAmountThreshold = rule.min_amount != null || rule.max_amount != null;
       if (amountPass && !hasAmountThreshold) continue;
       if (!amountPass && hasAmountThreshold) continue;
+      if (!rule.match_value) continue;
       const val = rule.match_value.toLowerCase();
       const nameMatched =
         (rule.match_type === 'exact' && lower === val) ||
