@@ -363,12 +363,12 @@ export default function UploadPageV2() {
         clearInterval(progressInterval);
         updateItem(next.id, { status: "categorizing", progress: 90 });
 
-        // ── Apply category rules to the just-imported transactions ──
-        // CRITICAL: must run before getCommittedTxCount so the count reflects categorized rows.
-        // This is the ONLY place the PDF path calls apply-category-rules — runSmartImportPipeline
-        // (protected) does not invoke it.
-        if (importId && session?.access_token) {
-          console.log('[UploadV2] Calling apply-category-rules', { import_id: importId });
+        // ── Apply category rules to all uncategorized transactions ──
+        // CRITICAL: NO importId passed — runSmartImportPipeline may return a staging
+        // ID that doesn't match the committed transactions.import_id, so we run in
+        // general cleanup mode which catches all Other/Uncategorized/null rows.
+        if (session?.access_token) {
+          console.log('[UploadV2] Calling apply-category-rules (general cleanup)');
           try {
             const rulesRes = await fetch('/.netlify/functions/apply-category-rules', {
               method: 'POST',
@@ -377,7 +377,7 @@ export default function UploadPageV2() {
                 'x-user-id': userId,
                 Authorization: `Bearer ${session.access_token}`,
               },
-              body: JSON.stringify({ import_id: importId, limit: 500 }),
+              body: JSON.stringify({ limit: 500 }),
             });
             const rulesData = await rulesRes.json().catch(() => ({}));
             if (!rulesRes.ok) {
@@ -389,7 +389,7 @@ export default function UploadPageV2() {
             console.error('[UploadV2] apply-category-rules threw', err);
           }
         } else {
-          console.warn('[UploadV2] Skipping apply-category-rules — missing importId or token', { importId, hasToken: !!session?.access_token });
+          console.warn('[UploadV2] Skipping apply-category-rules — missing token');
         }
 
         await new Promise(r => setTimeout(r, 800));
