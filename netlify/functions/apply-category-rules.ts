@@ -256,6 +256,14 @@ export const handler: Handler = async (event) => {
   const supabase = serverSupabase();
   console.log('[apply-category-rules] supabase url:', process.env.SUPABASE_URL?.slice(0,30), 'key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0,20) ?? process.env.SUPABASE_SERVICE_ROLE?.slice(0,20));
 
+  {
+    const { data: testData, error: testError } = await supabase
+      .from('transactions')
+      .select('id, user_id, category')
+      .limit(3);
+    console.log('[apply-category-rules] RAW TEST (no filter):', { rows: testData?.length, error: testError?.message, sample: testData });
+  }
+
   const body = (() => {
     try { return JSON.parse(event.body || '{}') as Record<string, unknown>; }
     catch { return {}; }
