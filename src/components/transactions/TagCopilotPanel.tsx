@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Trash2 } from "lucide-react";
 import { THEME } from "./categoryConfig";
-import { Reveal } from "../PrimeChatV2/Reveal";
+import { Reveal } from "../../pages/PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "./useCategoriesData";
 
