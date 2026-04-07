@@ -124,12 +124,23 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
       data.transaction_count = commitData.committed;
     }
 
-    // Apply category rules to newly committed transactions
-    fetch('/.netlify/functions/apply-category-rules', {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify({ import_id: data.import_id, limit: 500 }),
-    }).catch(err => console.warn('apply-category-rules failed (non-blocking):', err));
+    // Apply category rules to newly committed transactions (awaited so we can see results)
+    console.log('[UploadV2] Calling apply-category-rules', { import_id: data.import_id });
+    try {
+      const rulesRes = await fetch('/.netlify/functions/apply-category-rules', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ import_id: data.import_id, limit: 500 }),
+      });
+      const rulesData = await rulesRes.json().catch(() => ({}));
+      if (!rulesRes.ok) {
+        console.error('[UploadV2] apply-category-rules failed', { status: rulesRes.status, body: rulesData });
+      } else {
+        console.log('[UploadV2] apply-category-rules result', rulesData);
+      }
+    } catch (err) {
+      console.error('[UploadV2] apply-category-rules threw', err);
+    }
 
     // Tag the import with detected issuer — non-blocking
     const issuer = detectIssuer(file.name);
