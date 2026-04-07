@@ -362,7 +362,37 @@ export default function UploadPageV2() {
 
         clearInterval(progressInterval);
         updateItem(next.id, { status: "categorizing", progress: 90 });
-        await new Promise(r => setTimeout(r, 1200));
+
+        // ── Apply category rules to the just-imported transactions ──
+        // CRITICAL: must run before getCommittedTxCount so the count reflects categorized rows.
+        // This is the ONLY place the PDF path calls apply-category-rules — runSmartImportPipeline
+        // (protected) does not invoke it.
+        if (importId && session?.access_token) {
+          console.log('[UploadV2] Calling apply-category-rules', { import_id: importId });
+          try {
+            const rulesRes = await fetch('/.netlify/functions/apply-category-rules', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-user-id': userId,
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ import_id: importId, limit: 500 }),
+            });
+            const rulesData = await rulesRes.json().catch(() => ({}));
+            if (!rulesRes.ok) {
+              console.error('[UploadV2] apply-category-rules failed', { status: rulesRes.status, body: rulesData });
+            } else {
+              console.log('[UploadV2] apply-category-rules result', rulesData);
+            }
+          } catch (err) {
+            console.error('[UploadV2] apply-category-rules threw', err);
+          }
+        } else {
+          console.warn('[UploadV2] Skipping apply-category-rules — missing importId or token', { importId, hasToken: !!session?.access_token });
+        }
+
+        await new Promise(r => setTimeout(r, 800));
         // Query the real committed count from transactions table
         const txCount = await getCommittedTxCount(importId, userId);
         updateItem(next.id, { status: "complete", txCount, progress: 100 });
