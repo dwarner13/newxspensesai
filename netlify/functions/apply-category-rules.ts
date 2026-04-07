@@ -13,7 +13,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
-import { serverSupabase } from './_shared/supabase.js';
+import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { safeLog } from './_shared/safeLog.js';
 import { normalizeMerchant } from './_shared/merchantUtils.js';
@@ -260,7 +260,14 @@ export const handler: Handler = async (event) => {
     hasServiceRole: !!process.env.SUPABASE_SERVICE_ROLE,
     keyLength: (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || '').length,
   });
-  const supabase = serverSupabase();
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+      global: { headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}` } },
+    }
+  );
   console.log('[apply-category-rules] supabase url:', process.env.SUPABASE_URL?.slice(0,30), 'key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0,20) ?? process.env.SUPABASE_SERVICE_ROLE?.slice(0,20));
 
   {
