@@ -239,8 +239,7 @@ async function deduplicateImport(
 
 // ─── Handler ───────────────────────────────────────────────────────────────
 export const handler: Handler = async (event) => {
-  // redeploy marker: post service_role GRANT SELECT,UPDATE on transactions
-  console.log('[apply-category-rules v4] function invoked', {
+  console.log('[apply-category-rules] function invoked', {
     method: event.httpMethod,
     hasBody: !!event.body,
   });
@@ -254,17 +253,6 @@ export const handler: Handler = async (event) => {
     return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: auth.error || 'Unauthorized' }) };
   }
   const userId = auth.userId;
-  console.log('[apply-category-rules] SUPABASE_URL:', process.env.SUPABASE_URL);
-  console.log('[apply-category-rules] key type:',
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.startsWith('sb_secret_') ? 'secret' :
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.startsWith('eyJ') ? 'legacy-jwt' : 'unknown'
-  );
-  console.log('[apply-category-rules] env check:', {
-    hasUrl: !!process.env.SUPABASE_URL,
-    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    hasServiceRole: !!process.env.SUPABASE_SERVICE_ROLE,
-    keyLength: (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || '').length,
-  });
   const supabase = createClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -273,22 +261,6 @@ export const handler: Handler = async (event) => {
       global: { headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}` } },
     }
   );
-  console.log('[apply-category-rules] supabase url:', process.env.SUPABASE_URL?.slice(0,30), 'key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0,20) ?? process.env.SUPABASE_SERVICE_ROLE?.slice(0,20));
-
-  {
-    const { data: testData, error: testError } = await supabase
-      .from('transactions')
-      .select('id, user_id, category')
-      .limit(3);
-    console.log('[apply-category-rules] RAW TEST (no filter):', { rows: testData?.length, error: testError?.message, sample: testData });
-
-    const { data: schemaData, error: schemaError } = await supabase
-      .schema('public')
-      .from('transactions')
-      .select('id')
-      .limit(3);
-    console.log('[apply-category-rules] schema public test:', { rows: schemaData?.length, error: schemaError?.message });
-  }
 
   const body = (() => {
     try { return JSON.parse(event.body || '{}') as Record<string, unknown>; }
