@@ -42,12 +42,12 @@ export const handler: Handler = async (event) => {
     try {
       const { data: rules } = await sb
         .from('category_rules')
-        .select('merchant_pattern, category, created_at')
+        .select('match_value, category, created_at')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(10);
-      resolved = (rules ?? []).map(r => ({
-        merchant_pattern: r.merchant_pattern,
+      resolved = (rules ?? []).map((r: any) => ({
+        merchant_pattern: r.match_value,
         category: r.category,
         created_at: r.created_at,
       }));

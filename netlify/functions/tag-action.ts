@@ -306,13 +306,12 @@ export const handler: Handler = async (event) => {
       const ruleSubcategory = body.targetSubcategory ?? body.subcategory ?? parsedTarget.subcategory ?? null;
       const ruleAmountMin = body.amount_min ?? null;
       const ruleAmountMax = body.amount_max ?? null;
-      // Upsert into category_rules — write both column names for compatibility
-      await supabase.from('category_rules').upsert(
+      // Upsert into category_rules — schema uses match_value, NOT merchant_pattern
+      const { error: ruleErr } = await supabase.from('category_rules').upsert(
         {
           user_id: userId,
           match_type: matchType,
           match_value: normalized,
-          merchant_pattern: normalized,
           category: parsedTarget.category,
           subcategory: ruleSubcategory,
           ...(ruleAmountMin != null ? { amount_min: ruleAmountMin } : {}),
@@ -322,6 +321,10 @@ export const handler: Handler = async (event) => {
         },
         { onConflict: 'user_id,match_type,match_value' }
       );
+      if (ruleErr) {
+        console.error('[tag-action] save_rule upsert failed', ruleErr.message);
+        return err(`Could not save rule: ${ruleErr.message}`, 500);
+      }
 
       // Backfill existing committed transactions matching this rule
       let backfillCount = 0;

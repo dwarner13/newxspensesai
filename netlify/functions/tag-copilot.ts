@@ -221,18 +221,24 @@ export const handler: Handler = async (event) => {
               updated_at: new Date().toISOString(),
             }, { onConflict: 'user_id,vendor_key' });
           }
-          // Write category_rules with subcategory
+          // Write category_rules with subcategory — schema uses match_value (not merchant_pattern)
           try {
-            await supabase.from('category_rules').upsert({
+            const ruleRow: Record<string, unknown> = {
               user_id: auth.userId,
-              merchant_pattern: vendor.toUpperCase(),
               match_type: 'contains',
+              match_value: vendor.toUpperCase(),
               category: category || undefined,
-              subcategory,
               is_active: true,
               updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id,merchant_pattern', ignoreDuplicates: false });
-          } catch { /* non-blocking */ }
+            };
+            if (subcategory) ruleRow.subcategory = subcategory;
+            const { error: ruleErr } = await supabase
+              .from('category_rules')
+              .upsert(ruleRow, { onConflict: 'user_id,match_type,match_value', ignoreDuplicates: false });
+            if (ruleErr) console.error('[tag-copilot] category_rules upsert (with subcat) failed', ruleErr.message);
+          } catch (e: any) {
+            console.error('[tag-copilot] category_rules upsert threw', e?.message);
+          }
           action.applied = true;
         }
 
@@ -241,13 +247,13 @@ export const handler: Handler = async (event) => {
           const category = String(action.category || '');
           const applyToExisting = action.applyToExisting !== false;
 
-          // Check for existing rule (duplicate detection)
+          // Check for existing rule (duplicate detection) — uses match_value
           try {
             const { data: existingRule } = await supabase
               .from('category_rules')
               .select('category')
               .eq('user_id', auth.userId)
-              .ilike('merchant_pattern', vendor.toUpperCase())
+              .ilike('match_value', vendor.toUpperCase())
               .limit(1)
               .maybeSingle();
             if (existingRule) {
@@ -264,17 +270,22 @@ export const handler: Handler = async (event) => {
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,vendor_key' });
 
-          // Write category_rules
+          // Write category_rules — schema uses match_value (not merchant_pattern)
           try {
-            await supabase.from('category_rules').upsert({
-              user_id: auth.userId,
-              merchant_pattern: vendor.toUpperCase(),
-              match_type: 'contains',
-              category,
-              is_active: true,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id,merchant_pattern' });
-          } catch { /* non-blocking — table may not have all columns */ }
+            const { error: ruleErr } = await supabase
+              .from('category_rules')
+              .upsert({
+                user_id: auth.userId,
+                match_type: 'contains',
+                match_value: vendor.toUpperCase(),
+                category,
+                is_active: true,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'user_id,match_type,match_value' });
+            if (ruleErr) console.error('[tag-copilot] category_rules upsert failed', ruleErr.message);
+          } catch (e: any) {
+            console.error('[tag-copilot] category_rules upsert threw', e?.message);
+          }
 
           // Apply to existing transactions
           if (applyToExisting) {

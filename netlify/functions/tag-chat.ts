@@ -808,10 +808,9 @@ export const handler: Handler = async (event) => {
     const category = normalizeCategory(correction.category);
     const subcategory = correction.subcategory?.trim() || null;
     try {
-      // Upsert into category_rules (amount-specific rules use INSERT to avoid conflict with no-amount rules)
+      // Upsert into category_rules — schema uses match_value, NOT merchant_pattern
       const rulePayload: Record<string, any> = {
         user_id: auth.userId,
-        merchant_pattern: merchant_pattern.toUpperCase(),
         match_value: merchant_pattern.toUpperCase(),
         category,
         subcategory: subcategory || null,
@@ -823,10 +822,11 @@ export const handler: Handler = async (event) => {
       if (max_amount != null) rulePayload.max_amount = max_amount;
 
       if (min_amount != null || max_amount != null) {
-        // Amount-specific rule — insert (may create a second rule for same merchant)
-        await supabase.from('category_rules').insert(rulePayload);
+        const { error: insErr } = await supabase.from('category_rules').insert(rulePayload);
+        if (insErr) console.error('[tag-chat] correction insert failed', insErr.message);
       } else {
-        await supabase.from('category_rules').upsert(rulePayload, { onConflict: 'user_id,match_type,match_value' });
+        const { error: upErr } = await supabase.from('category_rules').upsert(rulePayload, { onConflict: 'user_id,match_type,match_value' });
+        if (upErr) console.error('[tag-chat] correction upsert failed', upErr.message);
       }
       const amountNote = min_amount != null || max_amount != null ? ` (${min_amount != null ? '>=$' + min_amount : ''}${min_amount != null && max_amount != null ? ', ' : ''}${max_amount != null ? '<$' + max_amount : ''})` : '';
       console.log(`[tag-chat] Correction rule saved: ${merchant_pattern} → ${category}${subcategory ? ' / ' + subcategory : ''}${amountNote}`);
@@ -877,7 +877,7 @@ export const handler: Handler = async (event) => {
     try {
       await supabase.from('category_rules').delete()
         .eq('user_id', auth.userId)
-        .ilike('merchant_pattern', deletion.merchant_pattern);
+        .ilike('match_value', deletion.merchant_pattern);
       console.log(`[tag-chat] Deleted rules for: ${deletion.merchant_pattern}`);
     } catch (err: any) {
       console.error('[tag-chat] Delete rule error:', err.message);
@@ -889,13 +889,13 @@ export const handler: Handler = async (event) => {
   if (parseListRules(reply)) {
     try {
       const { data: rules } = await supabase.from('category_rules')
-        .select('merchant_pattern, category, subcategory, min_amount, max_amount')
+        .select('match_value, category, subcategory, min_amount, max_amount')
         .eq('user_id', auth.userId)
         .eq('is_active', true)
-        .order('merchant_pattern');
+        .order('match_value');
       if (rules && rules.length > 0) {
         const ruleList = rules.map((r: any) => {
-          let line = `${r.merchant_pattern} → ${r.category}${r.subcategory ? ' / ' + r.subcategory : ''}`;
+          let line = `${r.match_value} → ${r.category}${r.subcategory ? ' / ' + r.subcategory : ''}`;
           if (r.min_amount != null) line += ` (≥$${r.min_amount})`;
           if (r.max_amount != null) line += ` (<$${r.max_amount})`;
           return line;
