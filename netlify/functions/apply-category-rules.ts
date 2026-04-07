@@ -254,6 +254,11 @@ export const handler: Handler = async (event) => {
     return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: auth.error || 'Unauthorized' }) };
   }
   const userId = auth.userId;
+  console.log('[apply-category-rules] SUPABASE_URL:', process.env.SUPABASE_URL);
+  console.log('[apply-category-rules] key type:',
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.startsWith('sb_secret_') ? 'secret' :
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.startsWith('eyJ') ? 'legacy-jwt' : 'unknown'
+  );
   console.log('[apply-category-rules] env check:', {
     hasUrl: !!process.env.SUPABASE_URL,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -276,6 +281,13 @@ export const handler: Handler = async (event) => {
       .select('id, user_id, category')
       .limit(3);
     console.log('[apply-category-rules] RAW TEST (no filter):', { rows: testData?.length, error: testError?.message, sample: testData });
+
+    const { data: schemaData, error: schemaError } = await supabase
+      .schema('public')
+      .from('transactions')
+      .select('id')
+      .limit(3);
+    console.log('[apply-category-rules] schema public test:', { rows: schemaData?.length, error: schemaError?.message });
   }
 
   const body = (() => {
