@@ -83,6 +83,10 @@ export function TransactionInsightDrawer({
   const [localCategory, setLocalCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [statementLabel, setStatementLabel] = useState<string | null>(null);
+  const [editingAmount, setEditingAmount] = useState(false);
+  const [amountInput, setAmountInput] = useState('');
+  const [savingAmount, setSavingAmount] = useState(false);
+  const [localAmount, setLocalAmount] = useState<number | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
   const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
@@ -113,6 +117,8 @@ export function TransactionInsightDrawer({
     setSplitMode(false);
     setAddingSubcategory(false);
     setPendingRuleCategory(null);
+    setEditingAmount(false);
+    setLocalAmount(null);
     if (!row) { setLocalCategory(''); setLocalSubcategory(''); return; }
     if (row.kind === 'committed') {
       setLocalCategory(row.transaction.category || 'Uncategorized');
@@ -219,10 +225,11 @@ export function TransactionInsightDrawer({
   }, [row]);
 
   const amount = useMemo(() => {
+    if (localAmount !== null) return localAmount;
     if (!row) return 0;
     if (row.kind === 'committed') return Number(row.transaction.amount || 0);
     return Number((row.transaction.data_json as any)?.amount || 0);
-  }, [row]);
+  }, [row, localAmount]);
 
   const postedAt = useMemo(() => {
     if (!row) return '';
@@ -258,6 +265,35 @@ export function TransactionInsightDrawer({
 
   // Quick category tap
   const [pendingRuleCategory, setPendingRuleCategory] = useState<string | null>(null);
+
+  const saveAmount = async () => {
+    if (!row || row.kind !== 'committed') return;
+    const newAmt = parseFloat(amountInput);
+    if (!isFinite(newAmt) || newAmt <= 0) {
+      toast.error('Enter a valid positive amount');
+      return;
+    }
+    setSavingAmount(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) throw new Error('No supabase client');
+      // Preserve sign: if original was negative (expense), keep negative
+      const original = Number(row.transaction.amount || 0);
+      const signedAmount = original < 0 ? -newAmt : newAmt;
+      const { error } = await supabase
+        .from('transactions')
+        .update({ amount: signedAmount, updated_at: new Date().toISOString() })
+        .eq('id', row.transaction.id);
+      if (error) throw error;
+      setLocalAmount(signedAmount);
+      setEditingAmount(false);
+      toast.success('Amount updated');
+    } catch (err: any) {
+      toast.error(err.message || 'Could not update amount');
+    } finally {
+      setSavingAmount(false);
+    }
+  };
 
   const applyCategory = async (category: string) => {
     if (!row || row.kind !== 'committed') return;
@@ -427,7 +463,29 @@ export function TransactionInsightDrawer({
         <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
-            <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 800, color: amountColor, marginTop: 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+            {editingAmount ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: amountColor }}>{amountPrefix}$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  autoFocus
+                  value={amountInput}
+                  onChange={e => setAmountInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void saveAmount(); if (e.key === 'Escape') setEditingAmount(false); }}
+                  style={{ flex: 1, maxWidth: 140, fontSize: isMobile ? 22 : 26, fontWeight: 800, padding: '4px 10px', borderRadius: 8, background: '#0b1220', border: `1px solid ${amountColor}55`, color: amountColor, outline: 'none', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums' }}
+                />
+                <button onClick={() => void saveAmount()} disabled={savingAmount} style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingAmount ? '\u2026' : 'Save'}</button>
+                <button onClick={() => setEditingAmount(false)} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 800, color: amountColor, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+                {row.kind === 'committed' && (
+                  <button onClick={() => { setAmountInput(Math.abs(amount).toFixed(2)); setEditingAmount(true); }} style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }} title="Fix parser error">Edit</button>
+                )}
+              </div>
+            )}
             {/* Meta row */}
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {formattedDate && (

@@ -863,7 +863,12 @@ export default function TransactionsPageV2() {
           row={selectedTx ? { kind: 'committed', transaction: selectedTx } : null}
           allCommittedTransactions={transactions}
           onClose={() => setSelectedTx(null)}
-          onCommittedCategorySaved={() => { setSelectedTx(null); void refetch(); }}
+          onCommittedCategorySaved={(txId, category) => {
+            // Update the selected transaction in-place — don't close the drawer
+            // and don't refetch (which would trigger filter eviction).
+            // Realtime subscription will sync the list in background.
+            setSelectedTx(prev => prev && prev.id === txId ? { ...prev, category } as any : prev);
+          }}
           tagInsight={tagInsight}
           tagInsightLoading={tagInsightLoading}
           onAskTag={(row) => {
