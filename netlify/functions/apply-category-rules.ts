@@ -1,15 +1,15 @@
 /**
  * apply-category-rules
  *
- * Applies user-defined category_rules + vendor memory + merchant map
- * to committed transactions. Can scope to a specific import_id or
- * process all uncategorized transactions.
+ * Applies user-defined category_rules + vendor memory + hardcoded overrides
+ * + merchant map to committed transactions. Can scope to a specific import_id.
  *
  * POST { import_id?: string, limit?: number }
- * Returns { ok, updated, total, skipped }
+ * Returns { ok, updated, total, skipped, duplicatesRemoved }
  *
- * Called by the frontend after import commit to ensure rules are applied
- * reliably (not fire-and-forget).
+ * IMPORTANT: This function ONLY updates category, category_source, subcategory,
+ * subcategory_source, and updated_at. It NEVER changes type, amount, or
+ * merchant_name — those fields are owned by the parser.
  */
 
 import type { Handler } from '@netlify/functions';
@@ -26,7 +26,66 @@ const headers = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Canonical category normalization
+// ─── Hardcoded merchant overrides — these ALWAYS win ────────────────────────
+// Match by checking if merchant_name.toUpperCase() includes the key.
+// Order matters: more specific keys first (e.g. "POPEYE'S SUPPLEMENTS" before "POPEYES")
+const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: string }> = [
+  { key: "POPEYE'S SUPPLEMENTS", category: 'Healthcare', subcategory: 'Supplements' },
+  { key: 'LEWIS MASSAGE', category: 'Personal Care', subcategory: 'Massage' },
+  { key: "AD'S MASSAGE", category: 'Personal Care', subcategory: 'Massage' },
+  { key: 'SHADIFIED', category: 'Personal Care' },
+  { key: 'TULIP GARDEN', category: 'Personal Care' },
+  { key: 'BORROWELL', category: 'Bank Fees' },
+  { key: 'PREMIUM PLAN', category: 'Bank Fees' },
+  { key: 'MOBILE CHEQUE', category: 'Income', subcategory: 'Cheque Deposit' },
+  { key: 'INTERAC E-TRANSFER SENT', category: 'Transfers', subcategory: 'e-Transfer' },
+  { key: 'INTERAC E-TRANSFER RECEIVED', category: 'Transfers', subcategory: 'e-Transfer' },
+  { key: 'INTERAC E-TRANSFER', category: 'Transfers', subcategory: 'e-Transfer' },
+  { key: 'NORTHTOWN REGISTRY', category: 'Transportation', subcategory: 'Registration' },
+  { key: 'NORTHTOWN', category: 'Transportation' },
+  { key: 'CASH MONEY', category: 'Debt Payments', subcategory: 'Loan Payment' },
+  { key: 'EASYFINANCIAL', category: 'Debt Payments', subcategory: 'Loan Payment' },
+  { key: 'CELTIC GROUP', category: 'Debt Payments' },
+  { key: 'TD LOAN', category: 'Debt Payments', subcategory: 'Loan Payment' },
+  { key: 'BMO INV', category: 'Transfers' },
+  { key: 'B/M PAYT', category: 'Housing', subcategory: 'Mortgage' },
+  { key: 'NATIONAL MONEY', category: 'Debt Payments' },
+  { key: 'FLEXITI', category: 'Debt Payments', subcategory: 'Credit Card' },
+  { key: 'PETRO-CANADA', category: 'Transportation', subcategory: 'Gas & Fuel' },
+  { key: 'SHELL', category: 'Transportation', subcategory: 'Gas & Fuel' },
+  { key: 'ESSO', category: 'Transportation', subcategory: 'Gas & Fuel' },
+  { key: 'KOLLBROOK', category: 'Transportation', subcategory: 'Gas & Fuel' },
+  { key: 'SOBEYS', category: 'Groceries' },
+  { key: 'SAVE ON FOODS', category: 'Groceries' },
+  { key: 'LOBLAWS', category: 'Groceries' },
+  { key: 'SAFEWAY', category: 'Groceries' },
+  { key: 'COSTCO', category: 'Groceries' },
+  { key: 'WALMART', category: 'Shopping' },
+  { key: 'POPEYES', category: 'Food & Dining', subcategory: 'Fast Food' },
+  { key: 'TIM HORTONS', category: 'Food & Dining', subcategory: 'Coffee' },
+  { key: 'CDACARBONREBATE', category: 'Income', subcategory: 'Government Rebate' },
+  { key: 'CANADA RIT', category: 'Income', subcategory: 'Tax Refund' },
+  { key: 'MANULIFE', category: 'Income', subcategory: 'Insurance' },
+  { key: 'GORDON FOOD SER', category: 'Income', subcategory: 'Employment' },
+  { key: 'RIVER CREE', category: 'Entertainment', subcategory: 'Gaming' },
+  { key: 'BEAR HILLS CASINO', category: 'Entertainment', subcategory: 'Gaming' },
+  { key: 'SPECSAVERS', category: 'Healthcare', subcategory: 'Vision' },
+  { key: 'RIVERVIEW PH', category: 'Healthcare', subcategory: 'Pharmacy' },
+  { key: 'SHOPPERS DRUG', category: 'Healthcare', subcategory: 'Pharmacy' },
+  { key: 'LEWIS ESTATES', category: 'Entertainment', subcategory: 'Golf' },
+];
+
+function applyHardcodedOverride(merchant: string): { category: string; subcategory: string | null } | null {
+  const upper = merchant.toUpperCase();
+  for (const override of HARDCODED_OVERRIDES) {
+    if (upper.includes(override.key)) {
+      return { category: override.category, subcategory: override.subcategory || null };
+    }
+  }
+  return null;
+}
+
+// ─── Canonical category normalization ───────────────────────────────────────
 const CANONICAL: Record<string, string> = {
   'food': 'Food & Dining', 'food & drink': 'Food & Dining', 'restaurants': 'Food & Dining',
   'dining': 'Food & Dining', 'groceries': 'Groceries', 'grocery': 'Groceries',
@@ -46,6 +105,7 @@ const CANONICAL: Record<string, string> = {
   'personal': 'Personal Care', 'personal care': 'Personal Care',
   'business': 'Business', 'office': 'Business',
   'income': 'Income', 'salary': 'Income', 'deposit': 'Income',
+  'employment income': 'Income',
   'travel': 'Travel',
 };
 
@@ -56,19 +116,15 @@ function normalizeCanonicalCategory(cat: string): string {
 }
 
 function normalizeVendorKey(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return raw.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-// Inline rules for common Canadian merchants
+// ─── Inline rules for common Canadian merchants ────────────────────────────
 const RULES: Array<{ contains: string[]; category: string }> = [
   { contains: ['gordon food', 'gordon foods'], category: 'Income' },
-  { contains: ['celtic group'], category: 'Housing' },
+  { contains: ['celtic group'], category: 'Debt Payments' },
   { contains: ['b/m payt', 'b/m pay'], category: 'Housing' },
-  { contains: ['td loan'], category: 'Transportation' },
+  { contains: ['td loan'], category: 'Debt Payments' },
   { contains: ['capital one'], category: 'Transfers' },
   { contains: ['bmo invinc'], category: 'Transfers' },
   { contains: ['easyfinancial', 'national money', 'lenddirect'], category: 'Debt Payments' },
@@ -95,18 +151,12 @@ function applyInlineRules(merchant: string): string | null {
 }
 
 type DbRule = {
-  match_type: string;
-  match_value: string;
-  category: string;
-  subcategory?: string | null;
-  min_amount?: number | null;
-  max_amount?: number | null;
+  match_type: string; match_value: string; category: string;
+  subcategory?: string | null; min_amount?: number | null; max_amount?: number | null;
 };
 
 function applyDbRules(
-  dbRules: DbRule[],
-  merchant: string,
-  amount?: number
+  dbRules: DbRule[], merchant: string, amount?: number
 ): { category: string; subcategory: string | null } | null {
   const lower = merchant.toLowerCase();
   for (const amountPass of [true, false]) {
@@ -114,7 +164,6 @@ function applyDbRules(
       const hasAmountThreshold = rule.min_amount != null || rule.max_amount != null;
       if (amountPass && !hasAmountThreshold) continue;
       if (!amountPass && hasAmountThreshold) continue;
-
       const val = rule.match_value.toLowerCase();
       const nameMatched =
         (rule.match_type === 'exact' && lower === val) ||
@@ -122,24 +171,70 @@ function applyDbRules(
         (rule.match_type === 'contains' && lower.includes(val)) ||
         (rule.match_type === 'regex' && (() => { try { return new RegExp(rule.match_value, 'i').test(merchant); } catch { return false; } })());
       if (!nameMatched) continue;
-
       if (hasAmountThreshold && amount !== undefined) {
         const absAmt = Math.abs(amount);
         if (rule.min_amount != null && absAmt < rule.min_amount) continue;
         if (rule.max_amount != null && absAmt >= rule.max_amount) continue;
-      } else if (hasAmountThreshold) {
-        continue;
-      }
-
-      return {
-        category: normalizeCanonicalCategory(rule.category),
-        subcategory: rule.subcategory || null,
-      };
+      } else if (hasAmountThreshold) { continue; }
+      return { category: normalizeCanonicalCategory(rule.category), subcategory: rule.subcategory || null };
     }
   }
   return null;
 }
 
+// ─── Deduplication helper ──────────────────────────────────────────────────
+// Groups by normalized merchant + amount + date. For groups with count > 1,
+// keeps the record with the lowest id (first inserted), deletes the rest.
+async function deduplicateImport(
+  supabase: any, userId: string, importId: string
+): Promise<number> {
+  const { data: txs } = await supabase
+    .from('transactions')
+    .select('id, merchant_name, amount, date, posted_at')
+    .eq('user_id', userId)
+    .eq('import_id', importId)
+    .order('id', { ascending: true });
+
+  if (!txs || txs.length < 2) return 0;
+
+  const groups = new Map<string, string[]>();
+  for (const tx of txs) {
+    const key = [
+      (tx.merchant_name || '').toLowerCase().replace(/\s+/g, ' ').trim(),
+      String(Math.abs(Number(tx.amount || 0))),
+      tx.date || tx.posted_at?.split('T')[0] || '',
+    ].join('|');
+    const existing = groups.get(key) || [];
+    existing.push(tx.id);
+    groups.set(key, existing);
+  }
+
+  const toDelete: string[] = [];
+  for (const [, ids] of groups) {
+    if (ids.length > 1) {
+      // Keep first (lowest id), delete rest
+      toDelete.push(...ids.slice(1));
+    }
+  }
+
+  if (toDelete.length === 0) return 0;
+
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('user_id', userId)
+    .in('id', toDelete);
+
+  if (error) {
+    safeLog('error', '[apply-category-rules] Dedup delete error', { userId, error: error.message });
+    return 0;
+  }
+
+  safeLog('info', `[apply-category-rules] Deduped: removed ${toDelete.length} duplicate transactions`, { userId, importId });
+  return toDelete.length;
+}
+
+// ─── Handler ───────────────────────────────────────────────────────────────
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') {
@@ -164,7 +259,13 @@ export const handler: Handler = async (event) => {
 
   safeLog('info', '[apply-category-rules] Starting', { userId, importId, limit });
 
-  // 1. Fetch transactions to process
+  // ── Step 0: Deduplicate if scoped to an import ──
+  let duplicatesRemoved = 0;
+  if (importId) {
+    duplicatesRemoved = await deduplicateImport(supabase, userId, importId);
+  }
+
+  // ── Step 1: Fetch transactions to process ──
   let query = supabase
     .from('transactions')
     .select('id, merchant_name, merchant, amount, description, category')
@@ -173,11 +274,8 @@ export const handler: Handler = async (event) => {
     .limit(limit);
 
   if (importId) {
-    // Scope to specific import — apply to ALL transactions (not just uncategorized)
-    // because during import they may all be 'Other' from the default categorizer
     query = query.eq('import_id', importId);
   } else {
-    // General cleanup — only uncategorized
     query = query.or('category.is.null,category.eq.Uncategorized,category.eq.Other,category.eq.Needs Review');
   }
 
@@ -190,16 +288,16 @@ export const handler: Handler = async (event) => {
 
   const txs = rows || [];
   if (txs.length === 0) {
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0 }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0, duplicatesRemoved }) };
   }
 
-  // 2. Build vendor keys for memory lookup
+  // ── Step 2: Build vendor keys for memory lookup ──
   const vendorKeys = txs.map(tx =>
     normalizeVendorKey(tx.merchant_name || tx.merchant || tx.description || '')
   );
   const uniqueKeys = [...new Set(vendorKeys.filter(Boolean))];
 
-  // 3. Fetch vendor memory
+  // ── Step 3: Fetch vendor memory ──
   const memoryMap = new Map<string, string>();
   if (uniqueKeys.length > 0) {
     const { data: memoryRows } = await supabase
@@ -212,7 +310,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // 4. Fetch user-defined DB rules
+  // ── Step 4: Fetch user-defined DB rules ──
   let dbRules: DbRule[] = [];
   try {
     const { data: ruleRows } = await supabase
@@ -230,7 +328,8 @@ export const handler: Handler = async (event) => {
     userId, transactions: txs.length, vendorMemory: memoryMap.size, dbRules: dbRules.length,
   });
 
-  // 5. Apply: vendor memory → DB rules → merchant map → inline rules
+  // ── Step 5: Apply rules in priority order ──
+  // Priority: hardcoded overrides → vendor memory → DB rules → merchant map → inline rules
   const updates: Array<{ id: string; category: string; subcategory?: string | null; source: string }> = [];
   let skipped = 0;
 
@@ -240,11 +339,14 @@ export const handler: Handler = async (event) => {
     const merchant = tx.merchant_name || tx.merchant || tx.description || '';
     const txAmount = Number(tx.amount || 0);
     const currentCat = tx.category || '';
-
-    // Skip if already well-categorized (not Other/Uncategorized/Needs Review/null)
     const needsWork = !currentCat || ['Other', 'Uncategorized', 'Needs Review'].includes(currentCat);
-    if (!needsWork && !importId) {
-      skipped++;
+
+    if (!needsWork && !importId) { skipped++; continue; }
+
+    // Priority 0: Hardcoded overrides (always win)
+    const hardcoded = applyHardcodedOverride(merchant);
+    if (hardcoded) {
+      updates.push({ id: tx.id, category: hardcoded.category, subcategory: hardcoded.subcategory, source: 'hardcoded' });
       continue;
     }
 
@@ -258,12 +360,7 @@ export const handler: Handler = async (event) => {
     // Priority 2: User DB rules
     const dbRuleMatch = applyDbRules(dbRules, merchant, txAmount);
     if (dbRuleMatch) {
-      updates.push({
-        id: tx.id,
-        category: normalizeCanonicalCategory(dbRuleMatch.category),
-        subcategory: dbRuleMatch.subcategory,
-        source: 'tag_rule',
-      });
+      updates.push({ id: tx.id, category: normalizeCanonicalCategory(dbRuleMatch.category), subcategory: dbRuleMatch.subcategory, source: 'tag_rule' });
       continue;
     }
 
@@ -281,7 +378,7 @@ export const handler: Handler = async (event) => {
       continue;
     }
 
-    // No match — mark as Needs Review (better than Other)
+    // No match — mark as Needs Review
     if (needsWork) {
       updates.push({ id: tx.id, category: 'Needs Review', source: 'needs_review' });
     } else {
@@ -289,7 +386,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // 6. Batch update
+  // ── Step 6: Batch update — ONLY category fields, never type/amount/merchant ──
   let updated = 0;
   if (updates.length > 0) {
     const results = await Promise.allSettled(
@@ -303,6 +400,7 @@ export const handler: Handler = async (event) => {
           payload.subcategory = u.subcategory ?? null;
           if (u.subcategory) payload.subcategory_source = u.source;
         }
+        // NEVER include type, amount, or merchant_name — those are parser-owned
         return supabase
           .from('transactions')
           .update(payload)
@@ -313,11 +411,11 @@ export const handler: Handler = async (event) => {
     updated = results.filter(r => r.status === 'fulfilled' && !r.value.error).length;
   }
 
-  safeLog('info', `[apply-category-rules] Done: ${updated}/${txs.length} updated, ${skipped} skipped`, { userId, importId });
+  safeLog('info', `[apply-category-rules] Done: ${updated}/${txs.length} updated, ${skipped} skipped, ${duplicatesRemoved} dupes removed`, { userId, importId });
 
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({ ok: true, updated, total: txs.length, skipped }),
+    body: JSON.stringify({ ok: true, updated, total: txs.length, skipped, duplicatesRemoved }),
   };
 };

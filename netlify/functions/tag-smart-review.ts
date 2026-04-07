@@ -158,6 +158,36 @@ export const handler: Handler = async (event) => {
       }
     }
 
+    // RULE 11 — Duplicate transaction detection
+    // Group by date + normalized merchant + amount — flag groups with > 1 record
+    const dupGroups = new Map<string, Tx[]>();
+    for (const tx of allTxs) {
+      const dateStr = (tx.posted_at || '').split('T')[0] || '';
+      const merchNorm = (tx.merchant_name || '').toUpperCase().trim();
+      const amt = String(Math.abs(Number(tx.amount || 0)));
+      const key = `${dateStr}|${merchNorm}|${amt}`;
+      if (!dupGroups.has(key)) dupGroups.set(key, []);
+      dupGroups.get(key)!.push(tx);
+    }
+
+    for (const [key, group] of dupGroups) {
+      if (group.length <= 1) continue;
+      const [date, merchant, amount] = key.split('|');
+      const keepId = group[0].id; // oldest record
+      issues.push({
+        id: `dup-${keepId}`,
+        merchant: group[0].merchant_name || merchant,
+        currentCategory: group[0].category || 'Unknown',
+        suggestedCategory: group[0].category || 'Unknown',
+        suggestedSubcategory: null,
+        reason: `${group.length} identical transactions on ${date} for $${amount} \u2014 likely a parsing duplicate`,
+        transactionIds: group.map(t => t.id),
+        count: group.length,
+        totalAmount: parseFloat(amount) * group.length,
+        samples: group.slice(0, 3).map(t => ({ merchant_name: t.merchant_name, amount: Number(t.amount), posted_at: t.posted_at })),
+      });
+    }
+
     return ok({
       ok: true,
       totalScanned: allTxs.length,

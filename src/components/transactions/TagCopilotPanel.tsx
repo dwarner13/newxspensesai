@@ -709,11 +709,22 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
       const token = session?.access_token;
       const approved = smartReview.issues.filter(i => smartReviewApproved.has(i.id));
       for (const issue of approved) {
-        await fetch('/.netlify/functions/tag-action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ intent: 'commit', matchValue: issue.merchant, targetCategory: issue.suggestedCategory, matchType: 'contains', affectedIds: issue.ids }),
-        });
+        if (issue.id.startsWith('dup-')) {
+          // Duplicate fix: delete all records except the first (keepId)
+          const keepId = issue.transactionIds[0];
+          const toDelete = issue.transactionIds.filter((id: string) => id !== keepId);
+          if (toDelete.length > 0) {
+            for (const id of toDelete) {
+              await supabase!.from('transactions').delete().eq('id', id).eq('user_id', session!.user.id);
+            }
+          }
+        } else {
+          await fetch('/.netlify/functions/tag-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ intent: 'commit', matchValue: issue.merchant, targetCategory: issue.suggestedCategory, matchType: 'contains', affectedIds: issue.ids }),
+          });
+        }
       }
       setSmartReviewDone(true);
       const totalFixed = approved.reduce((s, i) => s + i.count, 0);

@@ -1074,9 +1074,20 @@ function parseBmoEverydayStatement(text: string): Array<{
     const amounts = body.match(amountRegex) || [];
     if (amounts.length < 2) return null;
 
+    // BMO has columns: Amounts deducted ($) | Amounts added ($) | Balance ($)
+    // When 3+ amounts present, first is deducted/added, last is balance
+    // When exactly 2, second-to-last is amount, last is balance
     const amount = parseAmount(amounts[amounts.length - 2]);
     const balance = parseAmount(amounts[amounts.length - 1]);
     if (!isFinite(amount) || !isFinite(balance)) return null;
+
+    // Validation: reject if amount > 50% of balance — likely misreading the balance column
+    // Real transactions at 7-Eleven are $1-$20, not $54.99 (which is trailing digits of $6,454.99)
+    if (balance > 0 && amount > balance * 0.5 && amount > 100) {
+      // This amount is suspiciously large relative to balance — skip this row
+      // (OCR likely extracted partial balance digits as the amount)
+      return null;
+    }
 
     // Remove trailing amount columns from the description part.
     const description = body
