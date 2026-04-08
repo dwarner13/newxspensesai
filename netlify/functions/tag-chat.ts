@@ -649,7 +649,13 @@ export const handler: Handler = async (event) => {
           `Biggest ones:\n${lines}\n\n` +
           `Want me to work through them now? I'll go one merchant at a time and ask you about each one.`;
       } else {
-        openingReply = `Books look clean - nothing needs attention right now. Ask me anything about your categories or spending.`;
+        // Plain ASCII only - no em dash, no special chars
+        const totalCat = await supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', auth.userId);
+        const totalN = totalCat.count ?? 0;
+        openingReply = `Hey ${firstName} - your books are looking clean (done) All ${totalN} transactions categorized. Ask me anything about your spending.`;
       }
 
       return { statusCode: 200, headers, body: JSON.stringify({ reply: openingReply, action: null, sessionComplete: false }) };

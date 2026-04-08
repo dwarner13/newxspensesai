@@ -444,6 +444,50 @@ export function TagCopilotPanel({
                 }}>
                   {renderMarkdown(greetingText)}
                 </div>
+
+                {/* Category intelligence summary card - shown alongside the greeting */}
+                {(topCategories || []).length > 0 && (() => {
+                  const sorted = [...(topCategories || [])].sort((a, b) => b.total - a.total).slice(0, 3);
+                  const fmtCad = (n: number) => n.toLocaleString("en-CA", { maximumFractionDigits: 0 });
+                  // Find a spike worth flagging - category with trend-like signal
+                  const spike = (topCategories || []).find(c => c.budget && c.budget > 0 && c.total > c.budget * 2);
+                  const insight = spike
+                    ? `${spike.category} is ${Math.round((spike.total / (spike.budget || 1)) * 100)}% of budget - want me to break that down?`
+                    : sorted[0]
+                    ? `${sorted[0].category} is your biggest category at $${fmtCad(sorted[0].total)}. Ask me anything about it.`
+                    : null;
+                  return (
+                    <div style={{
+                      marginTop: 12,
+                      padding: "14px 16px",
+                      borderRadius: 14,
+                      background: "linear-gradient(135deg, rgba(34,211,238,0.05) 0%, rgba(34,211,238,0.01) 100%)",
+                      border: "1px solid rgba(34,211,238,0.12)",
+                    }}>
+                      <div style={{ fontSize: 9.5, fontWeight: 700, color: T.cyan, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10, fontFamily: "'Syne',sans-serif" }}>
+                        Top Categories
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {sorted.map((c, i) => (
+                          <div key={c.category} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ fontSize: 10.5, fontWeight: 700, color: T.textDim, width: 14, fontFamily: "'DM Mono',monospace" }}>{i + 1}.</div>
+                            <div style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: T.text }}>{c.category}</div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: T.cyan, fontFamily: "'DM Mono',monospace" }}>${fmtCad(c.total)}</div>
+                            <div style={{ fontSize: 10, color: T.textDim, fontFamily: "'DM Mono',monospace", minWidth: 38, textAlign: "right" }}>{c.transactionCount} tx</div>
+                          </div>
+                        ))}
+                      </div>
+                      {insight && (
+                        <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(34,211,238,0.08)", fontSize: 11.5, color: T.textMuted, lineHeight: 1.5 }}>
+                          {insight}
+                        </div>
+                      )}
+                      <div style={{ marginTop: 10, fontSize: 10, color: T.textDim, fontStyle: "italic" }}>
+                        Ask about a category - "how much on groceries?" or "show me coffee"
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
