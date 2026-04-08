@@ -846,9 +846,13 @@ export const handler: Handler = async (event) => {
       if (atHit) return atHit;
       const tokenHit = message.match(/\b([a-z0-9][a-z0-9 &'.-]{2,30})\b/i)?.[1]?.toLowerCase();
       if (!tokenHit) return null;
-      if (MERCHANT_STOPWORDS.has(tokenHit.trim())) return null;
+      const trimmed = tokenHit.trim();
+      // Digit-leading tokens like "7 eleven", "7-11", "99 cents" are always
+      // real merchant names - never filter them as stopwords/pronouns.
+      if (/^[0-9]/.test(trimmed)) return tokenHit;
+      if (MERCHANT_STOPWORDS.has(trimmed)) return null;
       // Reject pure pronoun/filler single tokens
-      if (/^(the|you|me|my|this|that|it|is|was|were|and|or|but|so|do|does|did)$/i.test(tokenHit.trim())) return null;
+      if (/^(the|you|me|my|this|that|it|is|was|were|and|or|but|so|do|does|did)$/i.test(trimmed)) return null;
       return tokenHit;
     };
     const msgMerchant = searchIntent.merchant || extractFromFallback();
