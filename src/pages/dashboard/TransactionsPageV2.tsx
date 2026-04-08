@@ -356,15 +356,19 @@ export default function TransactionsPageV2() {
     URL.revokeObjectURL(url);
   }, [filtered]);
 
-  // Stats � computed from filtered list so they respond to statement/type filters
-  const totalSpent = useMemo(() => filtered.reduce((s, t) => !isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
-  const totalIncome = useMemo(() => filtered.reduce((s, t) => isIncomeTx(t) ? s + Math.abs(t.amount) : s, 0), [filtered]);
+  // Duplicate detector — any tx flagged by the drawer's "Mark Duplicate"
+  const isDuplicate = (t: CommittedTransaction): boolean =>
+    ((t as any).is_duplicate === true) || (t.category === 'Duplicate');
+
+  // Stats — computed from filtered list, duplicates excluded
+  const totalSpent = useMemo(() => filtered.reduce((s, t) => (!isIncomeTx(t) && !isDuplicate(t)) ? s + Math.abs(t.amount) : s, 0), [filtered]);
+  const totalIncome = useMemo(() => filtered.reduce((s, t) => (isIncomeTx(t) && !isDuplicate(t)) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const netFlow = totalIncome - totalSpent;
 
-  // Category data for donut � also from filtered
+  // Category data for donut — duplicates excluded
   const catData = useMemo(() => {
     const map: Record<string, number> = {};
-    filtered.forEach(t => { if (!isIncomeTx(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
+    filtered.forEach(t => { if (!isIncomeTx(t) && !isDuplicate(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
     return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
   }, [filtered]);
   const catTotal = catData.reduce((s, d) => s + d.value, 0);
@@ -716,20 +720,24 @@ export default function TransactionsPageV2() {
                 const cat = t.category || 'Uncategorized';
                 const isUncat = !t.category || t.category === 'Uncategorized';
                 const isIncome = isIncomeTx(t);
+                const isDupe = isDuplicate(t);
                 const c = colorFor(cat);
                 return (
-                  <button key={t.id} onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left">
+                  <button key={t.id} onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left" style={isDupe ? { background: 'rgba(248,113,113,0.08)', borderLeft: '3px solid rgba(248,113,113,0.55)' } : undefined}>
                     <div className="relative flex items-center justify-center h-[44px] w-[44px] rounded-xl shrink-0" style={{ background: c + '2e', border: `1px solid ${c}40` }}>
                       <span className="text-base">{iconFor(cat)}</span>
                       {isUncat && <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-2.5 w-2.5 rounded-full bg-amber-400" /></span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[15px] font-semibold text-slate-100 truncate">{t.merchant_name || 'Unknown'}</div>
+                      <div className="text-[15px] font-semibold text-slate-100 truncate flex items-center gap-2">
+                        <span className="truncate">{t.merchant_name || 'Unknown'}</span>
+                        {isDupe && <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'rgba(248,113,113,0.18)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171', letterSpacing: 0.5, flexShrink: 0 }}>DUPE</span>}
+                      </div>
                       {isUncat ? <div className="text-[12px] text-amber-400 flex items-center gap-1"><span className="relative flex h-1.5 w-1.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-1.5 w-1.5 rounded-full bg-amber-400" /></span>Needs category</div>
                         : <div className="text-[12px] text-slate-500">{cat}{t.subcategory ? ` \u00b7 ${t.subcategory}` : ''}</div>}
                     </div>
                     <div className="text-right shrink-0">
-                      <div className={`text-[16px] font-bold tabular-nums ${isIncome ? 'text-emerald-400' : 'text-slate-200'}`}>{isIncome ? '+' : '-'}${fmt(Math.abs(t.amount))}</div>
+                      <div className={`text-[16px] font-bold tabular-nums ${isDupe ? 'text-red-400 line-through opacity-60' : isIncome ? 'text-emerald-400' : 'text-slate-200'}`}>{isIncome ? '+' : '-'}${fmt(Math.abs(t.amount))}</div>
                       <div className="text-[11px] text-slate-500">{(t.date || t.posted_at || '').slice(0, 10)}</div>
                     </div>
                     {(t as any).category_source === 'user_chat' && (

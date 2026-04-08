@@ -618,6 +618,34 @@ export const handler: Handler = async (event) => {
         firstName = profile?.first_name || profile?.full_name?.split(' ')[0] || 'there';
       } catch { /* non-blocking */ }
 
+      // Duplicate detection - find (amount, date) pairs with count > 1
+      let dupeLine = '';
+      try {
+        const { data: dupeRows } = await supabase
+          .from('transactions')
+          .select('id, amount, date, posted_at, merchant_name, category')
+          .eq('user_id', auth.userId)
+          .limit(5000);
+        const seen = new Map<string, { count: number; total: number }>();
+        for (const r of dupeRows || []) {
+          if (r.category === 'Duplicate') continue; // already flagged
+          const d = String(r.date || (r.posted_at ? String(r.posted_at).slice(0, 10) : ''));
+          if (!d) continue;
+          const amt = Math.abs(Number(r.amount || 0));
+          const key = `${amt.toFixed(2)}|${d}`;
+          const e = seen.get(key) || { count: 0, total: 0 };
+          e.count += 1;
+          e.total = amt;
+          seen.set(key, e);
+        }
+        const dupeGroups = Array.from(seen.values()).filter(e => e.count > 1);
+        const dupeCount = dupeGroups.reduce((s, e) => s + (e.count - 1), 0);
+        const dupeTotal = dupeGroups.reduce((s, e) => s + e.total * (e.count - 1), 0);
+        if (dupeCount > 0) {
+          dupeLine = `\n\nHeads up - I found ${dupeCount} possible duplicate transaction${dupeCount > 1 ? 's' : ''} totaling $${dupeTotal.toFixed(2)}. Open any transaction and tap "Mark Duplicate" to flag it.`;
+        }
+      } catch { /* non-blocking */ }
+
       // Fetch all Needs Review transactions, group in JS
       const { data: needsReview } = await supabase
         .from('transactions')
@@ -647,15 +675,15 @@ export const handler: Handler = async (event) => {
         openingReply =
           `Hey ${firstName} - you've got ${uncatCount} transactions across ${merchantCount} merchants in Needs Review ($${totalAmt.toFixed(2)} total).\n\n` +
           `Biggest ones:\n${lines}\n\n` +
-          `Want me to work through them now? I'll go one merchant at a time and ask you about each one.`;
+          `Want me to work through them now? I'll go one merchant at a time and ask you about each one.` +
+          dupeLine;
       } else {
-        // Plain ASCII only - no em dash, no special chars
         const totalCat = await supabase
           .from('transactions')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', auth.userId);
         const totalN = totalCat.count ?? 0;
-        openingReply = `Hey ${firstName} - your books are looking clean (done) All ${totalN} transactions categorized. Ask me anything about your spending.`;
+        openingReply = `Hey ${firstName} - your books are looking clean (done) All ${totalN} transactions categorized. Ask me anything about your spending.` + dupeLine;
       }
 
       return { statusCode: 200, headers, body: JSON.stringify({ reply: openingReply, action: null, sessionComplete: false }) };

@@ -536,11 +536,12 @@ export function TransactionInsightDrawer({
             </div>
           )}
 
-          {/* ACTION ROW — Tag rule + Attach Receipt side by side */}
+          {/* ACTION ROW — Tag rule + Attach Receipt + Mark Duplicate */}
           {(() => {
             const showTagRule = row.kind === 'committed' && ['tag_rule', 'user_rule', 'rule'].includes((row.transaction as any).category_source);
             const showAttach = !linkedReceipt && row?.kind === 'committed';
-            if (!showTagRule && !showAttach) return null;
+            const showMarkDupe = row?.kind === 'committed' && (row.transaction as any).category !== 'Duplicate';
+            if (!showTagRule && !showAttach && !showMarkDupe) return null;
             const btnBase: React.CSSProperties = {
               flex: 1, height: 38, fontSize: 13, fontWeight: 700,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -578,6 +579,36 @@ export function TransactionInsightDrawer({
                       {'\uD83E\uDDFE'} Attach Receipt
                     </label>
                   </>
+                )}
+                {showMarkDupe && (
+                  <button
+                    onClick={async () => {
+                      const txId = (row.transaction as any).id;
+                      try {
+                        const { getSupabase } = await import('../../lib/supabase');
+                        const sb = getSupabase(); if (!sb) return;
+                        // Try is_duplicate column first, fall back to category-only
+                        const { error } = await sb
+                          .from('transactions')
+                          .update({ is_duplicate: true, category: 'Duplicate', category_source: 'user_mark' })
+                          .eq('id', txId);
+                        if (error && /column.*is_duplicate/i.test(error.message || '')) {
+                          await sb
+                            .from('transactions')
+                            .update({ category: 'Duplicate', category_source: 'user_mark' })
+                            .eq('id', txId);
+                        }
+                        toast.success('Marked as duplicate');
+                        if (onCommittedCategorySaved) onCommittedCategorySaved(txId, 'Duplicate');
+                        onClose();
+                      } catch (e: any) {
+                        toast.error('Failed to mark duplicate');
+                      }
+                    }}
+                    style={{ ...btnBase, color: '#f87171', border: '1px solid rgba(248,113,113,0.4)' }}
+                  >
+                    {'\u2716'} Mark Duplicate
+                  </button>
                 )}
               </div>
             );
