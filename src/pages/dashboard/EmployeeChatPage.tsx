@@ -1158,7 +1158,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
               {toolCalls.slice(-3).map((tc, idx) => (
                 <div key={idx} className="text-xs">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-yellow-400 font-mono">-></span>
+                    <span className="text-yellow-400 font-mono">{"->"}</span>
                     <span className="font-semibold text-yellow-200">{tc.tool}</span>
                     <span className="text-yellow-400/60 text-[10px]">
                       {new Date(tc.timestamp).toLocaleTimeString()}

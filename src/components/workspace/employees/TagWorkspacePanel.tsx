@@ -251,7 +251,7 @@ export function TagWorkspacePanel({
                     <span className="text-[11px] text-slate-300 font-medium truncate">
                       {rule.match_value}
                     </span>
-                    <span className="text-[11px] text-slate-500 shrink-0">-></span>
+                    <span className="text-[11px] text-slate-500 shrink-0">{"->"}</span>
                     <span className="text-[11px] text-slate-300 truncate">{rule.category}</span>
                   </div>
                 ))

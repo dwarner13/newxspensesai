@@ -393,7 +393,7 @@ export default function SecurityCenter() {
                 <ul className="space-y-2">
                   {data.recommendations.map((rec, i) => (
                     <li key={i} className="text-sm text-blue-800 flex items-start gap-2">
-                      <span className="flex-shrink-0 text-base">-></span>
+                      <span className="flex-shrink-0 text-base">{"->"}</span>
                       <span>{rec}</span>
                     </li>
                   ))}
