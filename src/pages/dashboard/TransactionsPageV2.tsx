@@ -321,6 +321,7 @@ export default function TransactionsPageV2() {
           || String(tx.merchant || '').toLowerCase().includes(q)
           || String(tx.description || '').toLowerCase().includes(q)
           || (t.category || '').toLowerCase().includes(q)
+          || String(t.subcategory || '').toLowerCase().includes(q)
           || String(t.amount).includes(q);
       });
     }
@@ -666,7 +667,7 @@ export default function TransactionsPageV2() {
           {/* Search */}
           <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-800/60">
             <Search className="h-4 w-4 text-slate-500 shrink-0" />
-            <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) { setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); } }} placeholder="Search merchants, categories, amounts..." className="flex-1 bg-transparent text-[14px] text-slate-200 placeholder:text-slate-600 outline-none" />
+            <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) { setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); } }} placeholder="Search merchants, categories..." className="flex-1 bg-transparent text-[14px] text-slate-200 placeholder:text-slate-600 outline-none" />
           </div>
 
           {/* Tag filter chip */}
