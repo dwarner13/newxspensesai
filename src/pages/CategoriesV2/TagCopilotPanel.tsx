@@ -272,7 +272,22 @@ export function TagCopilotPanel({
       });
       if (!res.ok) throw new Error(`tag-copilot ${res.status}`);
       const data = await res.json();
-      setMessages(prev => [...prev, { role: "assistant", content: data.reply || "I couldn't process that. Try again." }]);
+      let replyText: string = data.reply || "";
+      // Strip HANDOFF JSON if present; capture target for graceful message
+      let handoffTo: string | null = null;
+      const handoffMatch = replyText.match(/HANDOFF:\s*\{[^}]*"to"\s*:\s*"([^"]+)"[^}]*\}/);
+      if (handoffMatch) {
+        handoffTo = handoffMatch[1];
+        replyText = replyText.replace(/\s*HANDOFF:\s*\{[^}]+\}/g, "").trim();
+      }
+      if (!replyText) {
+        replyText = handoffTo
+          ? `Let me connect you to ${handoffTo.split("-")[0]} for this one…`
+          : "I couldn't process that. Try again.";
+      } else if (handoffTo) {
+        replyText += `\n\nConnecting you to ${handoffTo.split("-")[0]}…`;
+      }
+      setMessages(prev => [...prev, { role: "assistant", content: replyText }]);
     } catch {
       setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I ran into an issue. Try again in a moment." }]);
     } finally {
