@@ -741,91 +741,206 @@ export default function UploadPageV2() {
         document.body
       )}
 
-      {/* Byte status drawer */}
+      {/* Byte status drawer (redesigned) */}
       {bytePanelOpen && createPortal(
-        <>
-          <div onClick={() => setBytePanelOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 70 }} />
-          <aside style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, width: 360, maxWidth: '100vw',
-            background: '#0b1220', borderLeft: '1px solid rgba(34,211,238,0.15)',
-            zIndex: 71, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-            boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
-            animation: 'byteDrawerIn 0.2s ease forwards',
-          }}>
-            <style>{`@keyframes byteDrawerIn { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 18px', borderBottom: '1px solid rgba(34,211,238,0.1)', flexShrink: 0 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(34,211,238,0.12)', border: '1px solid rgba(34,211,238,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#22d3ee' }}>B</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#e8ecf4' }}>Byte <span style={{ fontWeight: 400, color: '#94a3b8' }}>Upload Assistant</span></span>
-                  <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 6, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e', letterSpacing: '0.05em' }}>SECURED</span>
+        (() => {
+          // Design tokens
+          const tok = {
+            bg: '#0b1220', surface: '#111a2e', border: '#1e2d4a',
+            green: '#34d399', cyan: '#22d3ee', gold: '#c8a64e',
+            muted: '#475569', text: '#e8ecf4', textMuted: '#94a3b8',
+          };
+          // Pipeline state
+          const active = stats.processing > 0;
+          const isCategorizing = queue.some(q => q.status === 'categorizing');
+          const step: 0 | 1 | 2 | 3 =
+            allDone ? 3 :
+            isCategorizing ? 2 :
+            active ? 1 :
+            0;
+          const stepState = (idx: 1 | 2 | 3): 'idle' | 'active' | 'done' =>
+            step === 0 ? 'idle' :
+            step > idx ? 'done' :
+            step === idx ? 'active' : 'idle';
+          const statusLine =
+            active ? `Processing ${stats.complete + 1} of ${stats.total}...` :
+            allDone ? 'All done' :
+            stats.total === 0 ? 'Idle - waiting for files' :
+            'Ready';
+
+          const steps: Array<{ letter: string; label: string; color: string; state: 'idle' | 'active' | 'done'; status: string }> = [
+            { letter: 'B', label: 'Extract', color: tok.green, state: stepState(1), status: stepState(1) === 'done' ? 'Complete' : stepState(1) === 'active' ? 'Processing' : 'Ready' },
+            { letter: 'T', label: 'Categorize', color: tok.cyan, state: stepState(2), status: stepState(2) === 'done' ? 'Complete' : stepState(2) === 'active' ? 'Processing' : 'Standing by' },
+            { letter: 'P', label: 'Review', color: tok.gold, state: stepState(3), status: stepState(3) === 'done' ? 'Complete' : stepState(3) === 'active' ? 'Processing' : 'Standing by' },
+          ];
+
+          return (
+            <>
+              <div onClick={() => setBytePanelOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(3px)', zIndex: 70 }} />
+              <aside style={{
+                position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, maxWidth: '100vw',
+                background: tok.bg, borderLeft: `1px solid ${tok.border}`,
+                zIndex: 71, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+                boxShadow: '-12px 0 48px rgba(0,0,0,0.55)',
+                animation: 'byteDrawerIn 0.22s ease forwards',
+              }}>
+                <style>{`
+                  @keyframes byteDrawerIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+                  @keyframes byteRingIdle { 0%,100% { box-shadow: 0 0 0 0 ${tok.green}33; } 50% { box-shadow: 0 0 0 6px ${tok.green}08; } }
+                  @keyframes byteRingActive { 0% { box-shadow: 0 0 0 0 ${tok.green}66; } 70% { box-shadow: 0 0 0 10px ${tok.green}00; } 100% { box-shadow: 0 0 0 0 ${tok.green}00; } }
+                  @keyframes byteFlow { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+                `}</style>
+
+                {/* HEADER */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px', borderBottom: `1px solid ${tok.border}`, flexShrink: 0, background: `radial-gradient(circle at 0% 0%, ${tok.green}10 0%, transparent 65%)` }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: `radial-gradient(circle at 35% 35%, ${tok.green}55 0%, ${tok.green}10 100%)`,
+                    border: `1.5px solid ${tok.green}55`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 15, fontWeight: 800, color: tok.green,
+                    animation: `${active ? 'byteRingActive 1.4s ease-out infinite' : 'byteRingIdle 2.8s ease-in-out infinite'}`,
+                  }}>B</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: tok.text, letterSpacing: -0.3 }}>Byte</span>
+                      <span style={{ fontSize: 12, color: tok.textMuted, fontWeight: 500 }}>Upload Assistant</span>
+                      <span style={{ fontSize: 8.5, fontWeight: 800, padding: '2px 7px', borderRadius: 6, background: `${tok.green}18`, border: `1px solid ${tok.green}35`, color: tok.green, letterSpacing: '0.08em' }}>SECURED</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: active ? tok.green : tok.textMuted, marginTop: 3, fontWeight: 600 }}>{statusLine}</div>
+                  </div>
+                  <button onClick={() => setBytePanelOpen(false)} style={{ background: 'none', border: 'none', color: tok.muted, cursor: 'pointer', padding: 4 }}>
+                    <X size={18} />
+                  </button>
                 </div>
-                <div style={{ fontSize: 11, color: '#22d3ee' }}>{byteStatus}</div>
-              </div>
-              <button onClick={() => setBytePanelOpen(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4 }}>
-                <X size={18} />
-              </button>
-            </div>
-            {/* Status cards */}
-            <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12, flex: 1, overflowY: 'auto' }}>
-              {[
-                { letter: 'B', name: 'Byte', color: '#22d3ee', status: byteStatus },
-                { letter: 'T', name: 'Tag', color: '#22d3ee', status: tagStatus },
-                { letter: '\u2655', name: 'Prime', color: '#c8a64e', status: allDone ? 'Ready for briefing' : stats.processing > 0 ? 'Waiting...' : 'Standing by' },
-              ].map(a => (
-                <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${a.color}15`, border: `1.5px solid ${a.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: a.color }}>{a.letter}</div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: a.color }}>{a.name}</div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>{a.status}</div>
+
+                {/* BODY */}
+                <div style={{ padding: '22px 20px', display: 'flex', flexDirection: 'column', gap: 18, flex: 1, overflowY: 'auto' }}>
+
+                  {/* PIPELINE VIZ */}
+                  <div style={{ padding: '18px 14px 14px', borderRadius: 14, background: tok.surface, border: `1px solid ${tok.border}` }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 700, color: tok.textMuted, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 14, textAlign: 'center' }}>Pipeline</div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative' }}>
+                      {steps.map((s, i) => (
+                        <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                          {/* Circle */}
+                          <div style={{
+                            width: 44, height: 44, borderRadius: '50%',
+                            background: s.state === 'idle'
+                              ? `${s.color}10`
+                              : `radial-gradient(circle at 35% 35%, ${s.color}66 0%, ${s.color}18 100%)`,
+                            border: `1.5px solid ${s.state === 'idle' ? s.color + '22' : s.color + '77'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 15, fontWeight: 800, color: s.color,
+                            opacity: s.state === 'idle' ? 0.35 : 1,
+                            boxShadow: s.state === 'active' ? `0 0 24px ${s.color}55` : 'none',
+                            animation: s.state === 'active' ? 'byteRingActive 1.4s ease-out infinite' : 'none',
+                            transition: 'all 0.3s ease',
+                          }}>
+                            {s.state === 'done' ? '\u2713' : s.letter}
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: s.state === 'idle' ? tok.muted : tok.text, marginTop: 8 }}>{s.label}</div>
+                          <div style={{ fontSize: 9.5, color: s.state === 'active' ? s.color : tok.muted, marginTop: 2, fontWeight: 600 }}>{s.status}</div>
+                          {/* Connecting line to next step */}
+                          {i < steps.length - 1 && (
+                            <div style={{
+                              position: 'absolute',
+                              top: 22, left: 'calc(50% + 22px)', right: 'calc(-50% + 22px)',
+                              height: 2, borderRadius: 1,
+                              background: (s.state === 'done' || (s.state === 'active' && steps[i+1].state !== 'idle'))
+                                ? `linear-gradient(90deg, ${s.color}, ${steps[i+1].color})`
+                                : s.state === 'active'
+                                ? `linear-gradient(90deg, ${s.color}, ${s.color}44, ${steps[i+1].color}22) 0% 50% / 200% 100%`
+                                : 'transparent',
+                              backgroundSize: s.state === 'active' ? '200% 100%' : undefined,
+                              animation: s.state === 'active' ? 'byteFlow 1.8s linear infinite' : undefined,
+                              borderTop: s.state === 'idle' ? `2px dashed ${tok.border}` : undefined,
+                              zIndex: 0,
+                            }} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* AGENT STATUS LIST */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                      { letter: 'B', name: 'Byte', color: tok.green, status: byteStatus, active: step === 1 },
+                      { letter: 'T', name: 'Tag', color: tok.cyan, status: tagStatus, active: step === 2 },
+                      { letter: 'P', name: 'Prime', color: tok.gold, status: primeStatus, active: step === 3 },
+                    ].map(a => (
+                      <div key={a.name} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '11px 13px', borderRadius: 11,
+                        background: tok.surface,
+                        border: `1px solid ${tok.border}`,
+                        borderLeft: a.active ? `3px solid ${tok.cyan}` : `1px solid ${tok.border}`,
+                        transition: 'all 0.2s',
+                      }}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: `${a.color}15`, border: `1px solid ${a.color}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: a.color, flexShrink: 0 }}>{a.letter}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: tok.text }}>{a.name}</div>
+                          <div style={{ fontSize: 11, color: tok.textMuted }}>{a.status}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* QUEUE STATS */}
+                  {stats.total > 0 && (
+                    <div style={{ padding: '12px 14px', borderRadius: 12, background: `${tok.cyan}06`, border: `1px solid ${tok.cyan}18` }}>
+                      <div style={{ fontSize: 9.5, fontWeight: 700, color: tok.textMuted, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 8 }}>Queue</div>
+                      <div style={{ fontSize: 12, color: '#c8d0e0', lineHeight: 1.8 }}>
+                        {stats.complete > 0 && <div>{'\u2713'} {stats.complete} complete</div>}
+                        {stats.processing > 0 && <div>{'\u25CB'} {stats.processing} processing</div>}
+                        {stats.queued > 0 && <div>- {stats.queued} queued</div>}
+                        {stats.failed > 0 && <div style={{ color: '#f87171' }}>{'\u2717'} {stats.failed} failed</div>}
+                        {stats.totalTx > 0 && <div style={{ marginTop: 6, fontWeight: 700, color: tok.cyan }}>{stats.totalTx} transactions extracted</div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SMART MESSAGE (always visible) */}
+                  <div style={{
+                    display: 'flex', gap: 10, padding: '12px 14px', borderRadius: 12,
+                    background: `linear-gradient(135deg, ${tok.green}08 0%, ${tok.green}02 100%)`,
+                    border: `1px solid ${tok.green}22`,
+                  }}>
+                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: `${tok.green}18`, border: `1px solid ${tok.green}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: tok.green, flexShrink: 0 }}>B</div>
+                    <div style={{ flex: 1, fontSize: 12, color: '#c8d0e0', lineHeight: 1.55 }}>
+                      Drop files on the upload zone to get started. I will extract every transaction, hand off to Tag for categorization, then Prime reviews the results.
+                    </div>
                   </div>
                 </div>
-              ))}
-              {/* Queue summary */}
-              {stats.total > 0 && (
-                <div style={{ marginTop: 8, padding: '12px 14px', borderRadius: 12, background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.1)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Queue</div>
-                  <div style={{ fontSize: 12, color: '#c8d0e0', lineHeight: 1.8 }}>
-                    {stats.complete > 0 && <div>{'\u2713'} {stats.complete} complete</div>}
-                    {stats.processing > 0 && <div>{'\u25CB'} {stats.processing} processing</div>}
-                    {stats.queued > 0 && <div>{'\u2022'} {stats.queued} queued</div>}
-                    {stats.failed > 0 && <div style={{ color: '#f87171' }}>{'\u2717'} {stats.failed} failed</div>}
-                    {stats.totalTx > 0 && <div style={{ marginTop: 6, fontWeight: 700, color: '#22d3ee' }}>{stats.totalTx} transactions extracted</div>}
-                  </div>
+
+                {/* Input */}
+                <div style={{ padding: '12px 16px', borderTop: `1px solid ${tok.border}`, display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
+                  <textarea
+                    rows={2}
+                    value={byteInput}
+                    onChange={e => setByteInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (byteInput.trim()) { console.log('[Byte input]', byteInput.trim()); setByteInput(''); } } }}
+                    placeholder="Tell Byte something..."
+                    style={{ flex: 1, background: tok.surface, border: `1px solid ${tok.border}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: tok.text, outline: 'none', fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, minHeight: 42 }}
+                  />
+                  <button
+                    onClick={() => { if (byteInput.trim()) { console.log('[Byte input]', byteInput.trim()); setByteInput(''); } }}
+                    disabled={!byteInput.trim()}
+                    style={{ width: 38, height: 38, borderRadius: 10, background: byteInput.trim() ? `${tok.green}25` : `${tok.green}08`, border: `1px solid ${tok.green}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: byteInput.trim() ? 'pointer' : 'default', color: tok.green, flexShrink: 0 }}
+                  >
+                    <Send style={{ width: 15, height: 15 }} />
+                  </button>
                 </div>
-              )}
-              {stats.total === 0 && (
-                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#475569', fontSize: 13 }}>
-                  Drop files on the upload zone to get started.
+                {/* Guardrails footer */}
+                <div style={{ padding: '8px 16px', borderTop: `1px solid ${tok.border}`, flexShrink: 0, textAlign: 'center' }}>
+                  <span style={{ fontSize: 9, color: tok.muted, letterSpacing: '0.05em' }}>- Byte AI - Import engine active - PII protection on</span>
                 </div>
-              )}
-            </div>
-            {/* Input */}
-            <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(34,211,238,0.1)', display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
-              <textarea
-                rows={2}
-                value={byteInput}
-                onChange={e => setByteInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (byteInput.trim()) { console.log('[Byte input]', byteInput.trim()); setByteInput(''); } } }}
-                placeholder="Tell Byte something..."
-                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#e8ecf4', outline: 'none', fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, minHeight: 42 }}
-              />
-              <button
-                onClick={() => { if (byteInput.trim()) { console.log('[Byte input]', byteInput.trim()); setByteInput(''); } }}
-                disabled={!byteInput.trim()}
-                style={{ width: 36, height: 36, borderRadius: 10, background: byteInput.trim() ? 'rgba(34,211,238,0.2)' : 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: byteInput.trim() ? 'pointer' : 'default', color: '#22d3ee', flexShrink: 0 }}
-              >
-                <Send style={{ width: 15, height: 15 }} />
-              </button>
-            </div>
-            {/* Guardrails footer */}
-            <div style={{ padding: '6px 16px', borderTop: '1px solid rgba(34,211,238,0.06)', flexShrink: 0, textAlign: 'center' }}>
-              <span style={{ fontSize: 9, color: '#475569', letterSpacing: '0.03em' }}>{'\u2022'} Byte AI {'\u2022'} Import engine active {'\u2022'} PII protection on</span>
-            </div>
-          </aside>
-        </>,
+              </aside>
+            </>
+          );
+        })(),
         document.body
       )}
     </>
