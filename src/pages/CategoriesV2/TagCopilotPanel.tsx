@@ -424,7 +424,7 @@ export function TagCopilotPanel({
         <div
           ref={scrollRef}
           className="tag-panel-scrollbar"
-          style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", padding: "24px 20px 148px" }}
+          style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", padding: "24px 20px 148px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}
         >
           {/* Greeting */}
           {greetingText && messages.length === 0 && (

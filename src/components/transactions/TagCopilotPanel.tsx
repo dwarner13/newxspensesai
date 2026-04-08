@@ -798,7 +798,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           </div>
         )}
         {/* MESSAGES */}
-        <div ref={messagesContainerRef} style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+        <div ref={messagesContainerRef} style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', justifyContent:'flex-start', gap:12 }}>
           {localMessages.map((m, i) => {
             const isLastTag = m.role === 'tag' && i === lastTagIndex;
             return (
