@@ -155,10 +155,37 @@ type DbRule = {
   subcategory?: string | null; min_amount?: number | null; max_amount?: number | null;
 };
 
+/**
+ * Normalize a merchant name or rule pattern for fuzzy comparison:
+ * - lowercase
+ * - strip trailing store codes / digits (e.g. "7-ELEVEN STORE 33535" -> "7-eleven store")
+ * - collapse runs of whitespace
+ * - remove hyphens so "7-eleven" matches "7 eleven"
+ * - trim
+ */
+function normalizeForRuleMatch(raw: string): string {
+  return String(raw || '')
+    .toLowerCase()
+    // Trailing store codes like " 33535", " #1234", " - 001"
+    .replace(/\s*[#-]?\s*\d{2,}\s*$/g, '')
+    // Trailing " store 33535" / " #01234"
+    .replace(/\s+(store|location|branch|\b#)\s*\d*\s*$/gi, '')
+    // Collapse hyphens
+    .replace(/-/g, ' ')
+    // Collapse whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function firstNWords(s: string, n: number): string {
+  return s.split(/\s+/).slice(0, n).join(' ');
+}
+
 function applyDbRules(
   dbRules: DbRule[], merchant: string, amount?: number
 ): { category: string; subcategory: string | null } | null {
   const lower = merchant.toLowerCase();
+  const normMerchant = normalizeForRuleMatch(merchant);
   for (const amountPass of [true, false]) {
     for (const rule of dbRules) {
       const hasAmountThreshold = rule.min_amount != null || rule.max_amount != null;
@@ -166,10 +193,20 @@ function applyDbRules(
       if (!amountPass && hasAmountThreshold) continue;
       if (!rule.match_value) continue;
       const val = rule.match_value.toLowerCase();
+      const normVal = normalizeForRuleMatch(rule.match_value);
+      // First-N-words matching: if the rule has K words, compare the
+      // first K words of the normalized merchant against the full
+      // normalized rule value. Catches "GORDON FOODS" -> "GORDON FOODS ERP".
+      const ruleWordCount = normVal.split(/\s+/).filter(Boolean).length;
+      const merchantHead = firstNWords(normMerchant, ruleWordCount);
       const nameMatched =
-        (rule.match_type === 'exact' && lower === val) ||
-        (rule.match_type === 'starts_with' && lower.startsWith(val)) ||
-        (rule.match_type === 'contains' && lower.includes(val)) ||
+        (rule.match_type === 'exact' && (lower === val || normMerchant === normVal)) ||
+        (rule.match_type === 'starts_with' && (lower.startsWith(val) || normMerchant.startsWith(normVal))) ||
+        (rule.match_type === 'contains' && (
+          lower.includes(val) ||
+          normMerchant.includes(normVal) ||
+          (ruleWordCount >= 2 && merchantHead === normVal)
+        )) ||
         (rule.match_type === 'regex' && (() => { try { return new RegExp(rule.match_value, 'i').test(merchant); } catch { return false; } })());
       if (!nameMatched) continue;
       if (hasAmountThreshold && amount !== undefined) {
