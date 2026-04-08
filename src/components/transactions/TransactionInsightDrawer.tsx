@@ -447,7 +447,7 @@ export function TransactionInsightDrawer({
         fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 -8px 60px rgba(0,0,0,0.6)',
       } : {
         position: 'fixed', top: 0, right: 0, bottom: 0,
-        zIndex: 201, width: '100%', maxWidth: 420,
+        zIndex: 201, width: 500, maxWidth: '100%',
         display: 'flex', flexDirection: 'column', background: '#080f1e',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
         fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '-8px 0 60px rgba(0,0,0,0.5)',
