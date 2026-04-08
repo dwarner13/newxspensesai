@@ -550,7 +550,7 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({ isOpen, onClose, onInco
                         onClick={() => setStep('manual')}
                         className="text-sm text-gray-600 hover:text-primary-600 transition-colors"
                       >
-                        Or enter manually ->
+                        Or enter manually {"->"}
                       </button>
                     </div>
                   </div>

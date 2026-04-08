@@ -65,7 +65,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, isSelect
           <p className="text-sm text-white/70">{transaction.date}</p>
           {transaction.receipt_url && (
             <p className="text-xs text-blue-400 mt-1 group-hover:text-blue-300">
-              Click to view document ->
+              Click to view document {"->"}
             </p>
           )}
         </div>

@@ -150,7 +150,7 @@ export default function AIAssistantPage() {
                 {insight.message}
               </p>
               <button className="text-xs text-white/80 hover:text-white font-medium">
-                See AI in Action ->
+                See AI in Action {"->"}
               </button>
             </div>
           ))}

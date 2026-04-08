@@ -185,7 +185,7 @@ const AICategorizerPage = () => {
             ← Back to Upload
           </Link>
           <Link to="/transactions" className="btn-primary">
-            View All Transactions ->
+            View All Transactions {"->"}
           </Link>
         </div>
       </div>

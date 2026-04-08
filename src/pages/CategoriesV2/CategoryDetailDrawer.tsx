@@ -243,7 +243,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
                     {onAskTag && (
                       <button onClick={() => { onAskTag(`Help me with ${t.merchant_name||'this transaction'} (${Math.abs(t.amount).toFixed(2)}) - currently in ${displayCat}${displaySub?' / '+displaySub:''}. Is this right for a self-employed Canadian?`); onClose(); }}
                         style={{ alignSelf:'flex-start', padding:'5px 12px', borderRadius:14, fontSize:11, fontWeight:700, background:CYAN+'12', border:'1px solid '+CYAN+'30', color:CYAN, cursor:'pointer' }}>
-                        Ask Tag ->
+                        Ask Tag {"->"}
                       </button>
                     )}
                   </div>

@@ -261,7 +261,7 @@ export function PlansAddonsEnhanced() {
             disabled={loading}
             className="text-blue-600 hover:text-blue-700 font-medium"
           >
-            Manage billing & invoices ->
+            Manage billing & invoices {"->"}
           </button>
         </div>
       )}

@@ -293,7 +293,7 @@ export default function PersonalPodcastPage() {
 
           <div className="text-center mt-8">
             <button className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-8 py-4 rounded-xl text-lg font-bold hover:shadow-xl transform hover:scale-105 transition-all duration-200">
-              JOIN THE CHAOS ->
+              JOIN THE CHAOS {"->"}
             </button>
           </div>
         </div>

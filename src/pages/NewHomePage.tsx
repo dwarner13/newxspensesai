@@ -504,7 +504,7 @@ const SmartImportAISection = () => (
           <p className="text-gray-600 mb-4">Organizes entire year of expenses in under 5 minutes. Creates audit-proof categorization for tax season.</p>
           <div className="power-example bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-3">
             <div className="text-sm text-gray-700">
-              <strong>Example:</strong> 47 bank statements -> Tax-ready in 3 minutes
+              <strong>Example:</strong> 47 bank statements {"->"} Tax-ready in 3 minutes
             </div>
           </div>
         </div>

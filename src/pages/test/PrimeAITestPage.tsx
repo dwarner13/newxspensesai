@@ -115,7 +115,7 @@ const PrimeAITestPage: React.FC = () => {
                 <div className="bg-gray-700 rounded-lg p-4">
                   <h3 className="font-medium text-white mb-2">📄 Document Upload Test</h3>
                   <p className="text-gray-300 text-sm mb-3">
-                    Test the document processing flow: Prime -> Byte -> Tag -> Crystal
+                    Test the document processing flow: Prime {"->"} Byte {"->"} Tag {"->"} Crystal
                   </p>
                   <div className="bg-gray-600 rounded p-3 text-sm font-mono text-gray-200">
                     "I have receipts to upload"
@@ -125,7 +125,7 @@ const PrimeAITestPage: React.FC = () => {
                 <div className="bg-gray-700 rounded-lg p-4">
                   <h3 className="font-medium text-white mb-2">📊 Tax Question Test</h3>
                   <p className="text-gray-300 text-sm mb-3">
-                    Test tax expertise routing: Prime -> Ledger -> Tag
+                    Test tax expertise routing: Prime {"->"} Ledger {"->"} Tag
                   </p>
                   <div className="bg-gray-600 rounded p-3 text-sm font-mono text-gray-200">
                     "What can I deduct for business expenses?"
@@ -135,7 +135,7 @@ const PrimeAITestPage: React.FC = () => {
                 <div className="bg-gray-700 rounded-lg p-4">
                   <h3 className="font-medium text-white mb-2">⚡ Debt Strategy Test</h3>
                   <p className="text-gray-300 text-sm mb-3">
-                    Test debt management: Prime -> Blitz -> Goalie -> Crystal
+                    Test debt management: Prime {"->"} Blitz {"->"} Goalie {"->"} Crystal
                   </p>
                   <div className="bg-gray-600 rounded p-3 text-sm font-mono text-gray-200">
                     "Help me create a debt payoff plan"

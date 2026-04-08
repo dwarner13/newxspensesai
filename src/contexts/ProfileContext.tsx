@@ -231,7 +231,7 @@ function computeUserIdentity(profile: Profile | null, displayName: string, isGue
     ? profile.metadata as Record<string, any>
     : null;
 
-  // Preferred name: display_name -> first_name -> full_name
+  // Preferred name: display_name {"->"} first_name {"->"} full_name
   const preferredName = profile.display_name || profile.first_name || profile.full_name || displayName;
 
   // Account type (account_type column)

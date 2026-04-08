@@ -6303,7 +6303,7 @@ export default function UnifiedAssistantChat({
   // ============================================================================
   // CANONICAL CHAT LAYOUT STRUCTURE
   // ============================================================================
-  // Structure: HEADER -> WELCOME REGION -> MESSAGES SCROLL AREA -> INPUT BAR
+  // Structure: HEADER {"->"} WELCOME REGION {"->"} MESSAGES SCROLL AREA {"->"} INPUT BAR
   // 
   // Layout breakdown:
   // 1. HEADER (shrink-0): Employee name, subtitle, status dot, close button

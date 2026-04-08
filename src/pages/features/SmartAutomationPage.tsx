@@ -16,7 +16,7 @@ const SmartAutomationPage = () => {
       setLearningDays(prev => {
         if (prev < 90) {
           const newDays = prev + 1;
-          // AI accuracy progression: 78% -> 94% -> 99.7%
+          // AI accuracy progression: 78% -> 94% {"->"} 99.7%
           if (newDays <= 30) {
             setAiAccuracy(78 + (newDays * 0.53)); // 78% to 94% over 30 days
           } else if (newDays <= 90) {
