@@ -171,8 +171,8 @@ const SmartAutomationPage = () => {
               <h3 className="text-lg font-bold text-gray-900 mb-4">Mind-Blowing AI Learning Examples</h3>
               <div className="space-y-4">
                 <div className="bg-white rounded-lg p-4">
-                  <div className="text-sm text-gray-500 mb-1">Day 1 -> Day 90</div>
-                  <div className="text-sm font-semibold">Basic categorization -> Predicts spending 6 months ahead with 99.7% accuracy</div>
+                  <div className="text-sm text-gray-500 mb-1">{"Day 1 -> Day 90"}</div>
+                  <div className="text-sm font-semibold">{"Basic categorization -> Predicts spending 6 months ahead with 99.7% accuracy"}</div>
                 </div>
                 <div className="bg-white rounded-lg p-4">
                   <div className="text-sm text-gray-500 mb-1">Emotion Recognition</div>
@@ -193,7 +193,7 @@ const SmartAutomationPage = () => {
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900">Day 1-30: Pattern Recognition</div>
-                    <div className="text-sm text-gray-600">AI observes and learns from every financial decision (78% -> 94% accuracy)</div>
+                    <div className="text-sm text-gray-600">{"AI observes and learns from every financial decision (78% -> 94% accuracy)"}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -202,7 +202,7 @@ const SmartAutomationPage = () => {
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900">Day 31-60: Predictive Intelligence</div>
-                    <div className="text-sm text-gray-600">Develops superhuman pattern recognition and predictive capabilities (94% -> 99.7%)</div>
+                    <div className="text-sm text-gray-600">{"Develops superhuman pattern recognition and predictive capabilities (94% -> 99.7%)"}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

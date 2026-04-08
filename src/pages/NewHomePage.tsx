@@ -291,7 +291,7 @@ const RevolutionaryFeatures = () => (
                 <li>- "Your November Financial Wins & December Goals"</li>
               </ul>
             </div>
-            <a href="/features/personal-podcast" className="feature-link text-purple-600 font-semibold hover:underline">Get My Personal Podcast -></a>
+            <a href="/features/personal-podcast" className="feature-link text-purple-600 font-semibold hover:underline">{"Get My Personal Podcast ->"}</a>
           </div>
         </div>
         
@@ -327,7 +327,7 @@ const RevolutionaryFeatures = () => (
                 <li>- 76% report better sleep during tax season</li>
               </ul>
             </div>
-            <a href="/features/ai-therapist" className="feature-link text-purple-600 font-semibold hover:underline">Start Healing Today -></a>
+            <a href="/features/ai-therapist" className="feature-link text-purple-600 font-semibold hover:underline">{"Start Healing Today ->"}</a>
           </div>
         </div>
         
@@ -374,7 +374,7 @@ const RevolutionaryFeatures = () => (
                 <li>- Calming sounds during financial therapy sessions</li>
               </ul>
             </div>
-            <a href="/features/spotify-integration" className="feature-link text-purple-600 font-semibold hover:underline">Connect Your Spotify -></a>
+            <a href="/features/spotify-integration" className="feature-link text-purple-600 font-semibold hover:underline">{"Connect Your Spotify ->"}</a>
           </div>
         </div>
       </div>
@@ -540,7 +540,7 @@ const SocialProofResults = () => (
         <div className="testimonials-grid grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="testimonial-card bg-white rounded-2xl p-8 shadow-lg border border-gray-100 flex flex-col items-center">
             <div className="testimonial-content text-gray-800 mb-4">
-              <p>"Uploaded 47 bank statements -> AI organized everything for taxes in 3 minutes. Found $3,400 in missed deductions! Tax season is now effortless."</p>
+              <p>{"\"Uploaded 47 bank statements -> AI organized everything for taxes in 3 minutes. Found $3,400 in missed deductions! Tax season is now effortless.\""}</p>
             </div>
             <div className="testimonial-author flex items-center gap-3">
               <img src="/api/placeholder/50/50" alt="Sarah M." className="rounded-full w-12 h-12 object-cover" />

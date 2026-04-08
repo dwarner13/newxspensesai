@@ -532,8 +532,8 @@ export default function SmartImportAI() {
                 </div>
 
             <div className="mt-4 flex gap-4">
-              <a href="/transactions" className="text-blue-600 hover:underline">-> View Transactions</a>
-              <a href="/insights" className="text-blue-600 hover:underline">-> View Insights</a>
+              <a href="/transactions" className="text-blue-600 hover:underline">{"-> View Transactions"}</a>
+              <a href="/insights" className="text-blue-600 hover:underline">{"-> View Insights"}</a>
             </div>
           </section>
         )}
