@@ -221,6 +221,79 @@ export default function TransactionsPageV2() {
     } catch { /* silent */ } finally { setTagInsightLoading(false); }
   }, []);
 
+  // Account membership: importId -> accountId (computed before `filtered`)
+  type AccountCard = {
+    id: string;
+    name: string;
+    type: 'Credit Card' | 'Chequing';
+    statementCount: number;
+    importIds: string[];
+    totalSpent: number;
+    totalIncome: number;
+    uncategorizedCount: number;
+  };
+  const accounts: AccountCard[] = useMemo(() => {
+    const detectIssuer = (imp: any): string => {
+      const fromCol = String(imp?.statement_issuer || '').trim();
+      if (fromCol) return fromCol;
+      const raw = String(imp?.docName || imp?.file_name || '').toUpperCase();
+      if (/\bBMO\b/.test(raw)) return 'BMO';
+      if (/\bTD\b/.test(raw)) return 'TD';
+      if (/\bRBC\b|ROYAL BANK/.test(raw)) return 'RBC';
+      if (/\bCIBC\b/.test(raw)) return 'CIBC';
+      if (/SCOTIA/.test(raw)) return 'Scotiabank';
+      if (/TANGERINE/.test(raw)) return 'Tangerine';
+      if (/AMEX|AMERICAN EXPRESS/.test(raw)) return 'Amex';
+      if (/CANADIAN TIRE|TRIANGLE/.test(raw)) return 'Canadian Tire';
+      if (/MBNA/.test(raw)) return 'MBNA';
+      if (/CAPITAL ONE/.test(raw)) return 'Capital One';
+      return 'BMO'; // default for current corpus
+    };
+    const detectType = (imp: any): 'Credit Card' | 'Chequing' => {
+      const raw = String(imp?.docName || imp?.file_name || '').toLowerCase();
+      if (/credit|visa|mastercard|amex|mc\b|cc\b|triangle/.test(raw)) return 'Credit Card';
+      return 'Chequing';
+    };
+    const groups = new Map<string, AccountCard>();
+    imports
+      .filter(i => i.status === 'committed')
+      .forEach(i => {
+        const issuer = detectIssuer(i);
+        const type = detectType(i);
+        const key = `${issuer}|${type}`;
+        let g = groups.get(key);
+        if (!g) {
+          g = {
+            id: key,
+            name: `${issuer} ${type === 'Credit Card' ? 'Credit' : 'Chequing'}`,
+            type,
+            statementCount: 0,
+            importIds: [],
+            totalSpent: 0,
+            totalIncome: 0,
+            uncategorizedCount: 0,
+          };
+          groups.set(key, g);
+        }
+        g.statementCount += 1;
+        g.importIds.push(i.id);
+      });
+    const byImportId = new Map<string, AccountCard>();
+    for (const a of groups.values()) {
+      for (const tid of a.importIds) byImportId.set(tid, a);
+    }
+    transactions.forEach(t => {
+      const a = byImportId.get(t.import_id || '');
+      if (!a) return;
+      if (isIncomeTx(t)) a.totalIncome += Math.abs(t.amount);
+      else a.totalSpent += Math.abs(t.amount);
+      if (!t.category || t.category === 'Uncategorized' || t.category === 'Other') {
+        a.uncategorizedCount += 1;
+      }
+    });
+    return Array.from(groups.values()).sort((a, b) => b.statementCount - a.statementCount);
+  }, [imports, transactions]);
+
   // Filtering
   const filtered = useMemo(() => {
     let list = transactions;
@@ -228,7 +301,7 @@ export default function TransactionsPageV2() {
     else if (filter === 'income') list = list.filter(t => isIncomeTx(t));
     if (statementFilter !== 'all') list = list.filter(t => t.import_id === statementFilter);
     if (accountFilter !== 'all') {
-      const acct = accountsRef.current.find(a => a.id === accountFilter);
+      const acct = accounts.find(a => a.id === accountFilter);
       if (acct) {
         const ids = new Set(acct.importIds);
         list = list.filter(t => ids.has(t.import_id || ''));
@@ -252,7 +325,7 @@ export default function TransactionsPageV2() {
       });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [transactions, filter, statementFilter, accountFilter, searchQuery, tagCategoryFilter, tagSubcategoryFilter]);
+  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter]);
 
   const handleExport = useCallback(() => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -287,84 +360,6 @@ export default function TransactionsPageV2() {
   const catTotal = catData.reduce((s, d) => s + d.value, 0);
 
   // Statement options for dropdown (each individual import with filename)
-  // ── Account cards: group committed imports by detected issuer + type ──
-  type AccountCard = {
-    id: string;
-    name: string;
-    type: 'Credit Card' | 'Chequing';
-    statementCount: number;
-    importIds: string[];
-    totalSpent: number;
-    totalIncome: number;
-    uncategorizedCount: number;
-  };
-  const accounts: AccountCard[] = useMemo(() => {
-    const detectIssuer = (name: string): string => {
-      const n = (name || '').toUpperCase();
-      if (/\bBMO\b/.test(n)) return 'BMO';
-      if (/\bTD\b/.test(n)) return 'TD';
-      if (/\bRBC\b|ROYAL BANK/.test(n)) return 'RBC';
-      if (/\bCIBC\b/.test(n)) return 'CIBC';
-      if (/SCOTIA/.test(n)) return 'Scotiabank';
-      if (/TANGERINE/.test(n)) return 'Tangerine';
-      if (/AMEX|AMERICAN EXPRESS/.test(n)) return 'Amex';
-      if (/CANADIAN TIRE|TRIANGLE/.test(n)) return 'Canadian Tire';
-      if (/MBNA/.test(n)) return 'MBNA';
-      if (/CAPITAL ONE/.test(n)) return 'Capital One';
-      return 'Account';
-    };
-    const detectType = (name: string): 'Credit Card' | 'Chequing' => {
-      const n = (name || '').toLowerCase();
-      if (/credit|visa|mastercard|amex|mc\b|cc\b|triangle/.test(n)) return 'Credit Card';
-      return 'Chequing';
-    };
-    const groups = new Map<string, AccountCard>();
-    imports
-      .filter(i => i.status === 'committed')
-      .forEach(i => {
-        const raw = (i as any).docName || '';
-        const issuer = detectIssuer(raw);
-        const type = detectType(raw);
-        const key = `${issuer}|${type}`;
-        let g = groups.get(key);
-        if (!g) {
-          g = {
-            id: key,
-            name: `${issuer} ${type === 'Credit Card' ? 'Credit' : 'Chequing'}`,
-            type,
-            statementCount: 0,
-            importIds: [],
-            totalSpent: 0,
-            totalIncome: 0,
-            uncategorizedCount: 0,
-          };
-          groups.set(key, g);
-        }
-        g.statementCount += 1;
-        g.importIds.push(i.id);
-      });
-    // Aggregate tx stats per account
-    const byId = new Map<string, AccountCard>();
-    for (const a of groups.values()) {
-      for (const tid of a.importIds) byId.set(tid, a);
-    }
-    transactions.forEach(t => {
-      const a = byId.get(t.import_id || '');
-      if (!a) return;
-      if (isIncomeTx(t)) a.totalIncome += Math.abs(t.amount);
-      else a.totalSpent += Math.abs(t.amount);
-      if (!t.category || t.category === 'Uncategorized' || t.category === 'Other') {
-        a.uncategorizedCount += 1;
-      }
-    });
-    return Array.from(groups.values()).sort((a, b) => b.statementCount - a.statementCount);
-  }, [imports, transactions]);
-
-  // Ref so accountFilter logic inside filtered useMemo can read accounts
-  // without causing extra memo churn.
-  const accountsRef = useRef<AccountCard[]>([]);
-  accountsRef.current = accounts;
-
   const stmtOptions = useMemo(() => {
     return imports
       .filter(i => i.status === 'committed')
@@ -441,8 +436,16 @@ export default function TransactionsPageV2() {
             )}
             <style>{`.acct-scroll::-webkit-scrollbar{display:none}`}</style>
             <div
-              className="acct-scroll mt-3 flex gap-3 overflow-x-auto pb-1"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              className="acct-scroll mt-3"
+              style={{
+                display: 'flex',
+                flexWrap: 'nowrap',
+                overflowX: 'auto',
+                gap: 12,
+                paddingBottom: 4,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
             >
               {(() => {
                 const allSpent = accounts.reduce((s, a) => s + a.totalSpent, 0);
@@ -463,10 +466,12 @@ export default function TransactionsPageV2() {
                       <button
                         key="add"
                         onClick={handleUpload}
-                        className="shrink-0 rounded-xl border border-dashed text-left transition-colors"
+                        className="rounded-xl border border-dashed text-left transition-colors"
                         style={{
-                          width: 200,
-                          padding: '14px 16px',
+                          flex: '0 0 160px',
+                          width: 160,
+                          flexShrink: 0,
+                          padding: '12px 14px',
                           borderColor: '#334155',
                           background: 'rgba(15,23,42,0.4)',
                           color: '#94a3b8',
@@ -487,10 +492,12 @@ export default function TransactionsPageV2() {
                     <button
                       key={a.id}
                       onClick={() => setAccountFilter(a.id)}
-                      className="shrink-0 rounded-xl text-left transition-colors"
+                      className="rounded-xl text-left transition-colors"
                       style={{
-                        width: 220,
-                        padding: '14px 16px',
+                        flex: '0 0 160px',
+                        width: 160,
+                        flexShrink: 0,
+                        padding: '12px 14px',
                         border: active ? '2px solid #22d3ee' : '1px solid rgba(148,163,184,0.2)',
                         background: 'rgba(15,23,42,0.6)',
                       }}
