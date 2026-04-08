@@ -97,7 +97,7 @@ export async function retrieveContext(params: {
     similarityThreshold = 0.70
   } = params;
 
-  console.log(`[Context Retrieval] Fetching context for user ${userId}`);
+  console.log(`[Context Retrieval] Fetching context for user ${String(userId).slice(0, 8)}...`);
 
   // ========================================================================
   // 1. PULL LONG-TERM FACTS (Recent First)

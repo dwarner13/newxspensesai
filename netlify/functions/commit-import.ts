@@ -32,12 +32,12 @@ import { getFirstMoney } from './_shared/money.js';
 const STAGED_ROWS_WAIT_MS = 12000;
 const STAGED_ROWS_POLL_MS = 750;
 const ISSUER_PATTERNS = [
-  { match: /triangle/i, name: 'Canadian Tire - Triangle Mastercard' },
-  { match: /canadian tire/i, name: 'Canadian Tire - Triangle Mastercard' },
-  { match: /ctfs/i, name: 'Canadian Tire - Triangle Mastercard' },
-  { match: /ct financial/i, name: 'Canadian Tire - Triangle Mastercard' },
-  { match: /canadian tire bank/i, name: 'Canadian Tire - Triangle Mastercard' },
-  { match: /world elite mastercard/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /triangle/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /canadian tire/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /ctfs/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /ct financial/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /canadian tire bank/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /world elite mastercard/i, name: 'Canadian Tire — Triangle Mastercard' },
   { match: /capital one/i, name: 'Capital One' },
   { match: /td bank|td canada trust/i, name: 'TD Bank' },
   { match: /rbc|royal bank of canada/i, name: 'RBC' },
@@ -308,7 +308,7 @@ async function persistStatementBreakdown(
     preCheckError: preCheckErr?.message ?? null,
   });
   if (!preCheck) {
-    // Row not found with this user_id - go straight to import_summaries fallback.
+    // Row not found with this user_id — go straight to import_summaries fallback.
     console.warn('[CommitImport] persistStatementBreakdown: import row not found for this user_id, skipping imports UPDATE', { importId });
     const { error: summaryError } = await sb
       .from('import_summaries')
@@ -322,7 +322,7 @@ async function persistStatementBreakdown(
   }
 
   // Strategy A1: dedicated JSONB column statement_breakdown_json on imports.
-  // Use .select('id') so we can detect 0-row updates - Supabase returns no error when WHERE matches nothing.
+  // Use .select('id') so we can detect 0-row updates — Supabase returns no error when WHERE matches nothing.
   let { data: a1Rows, error: updateError } = await sb
     .from('imports')
     .update({ statement_breakdown_json: breakdown })
@@ -335,9 +335,9 @@ async function persistStatementBreakdown(
   }
   if (!updateError && (!a1Rows || a1Rows.length === 0)) {
     // Pre-flight confirmed the row exists but update still matched 0 rows.
-    // This means statement_breakdown_json column is missing - run migration
+    // This means statement_breakdown_json column is missing — run migration
     // sql/migrations/20260301_imports_statement_breakdown.sql to add it.
-    console.warn('[CommitImport] persistStatementBreakdown A1: 0 rows updated - column likely missing. Run migration 20260301_imports_statement_breakdown.sql', { importId });
+    console.warn('[CommitImport] persistStatementBreakdown A1: 0 rows updated — column likely missing. Run migration 20260301_imports_statement_breakdown.sql', { importId });
   }
 
   // Strategy A2: alternate direct column name.
@@ -439,7 +439,7 @@ async function buildStatementBreakdown(args: {
 
   // Load account_summary (balances, due date, min payment) stored by normalize-transactions
   // in user_documents.metadata.statement_summary during the OCR/normalization phase.
-  // NOTE: imports.metadata column does not exist - user_documents.metadata is used instead.
+  // NOTE: imports.metadata column does not exist — user_documents.metadata is used instead.
   const toN = (v: unknown): number | null => { const n = Number(v); return Number.isFinite(n) ? n : null; };
   let accountSummary: StatementBreakdown['account_summary'] | undefined;
   if (documentId) {
@@ -1196,7 +1196,7 @@ export const handler: Handler = async (event, context) => {
         }
         
         // Preserve the sign set by ocr_normalize (negative = expense, positive = income).
-        // Do NOT call Math.abs() here - that was stripping all signs and making every
+        // Do NOT call Math.abs() here — that was stripping all signs and making every
         // transaction appear as income in the UI.
         const signedAmount = amount;
 
@@ -1617,7 +1617,7 @@ export const handler: Handler = async (event, context) => {
       console.log('[BREAKDOWN]', JSON.stringify(statementBreakdown, null, 2));
       const persisted = await persistStatementBreakdown(sb, importId, userIdText, statementBreakdown);
       if (!persisted) {
-        console.error('[CommitImport] ⚠ statement_breakdown_json NOT saved - run migration sql/migrations/20260301_imports_statement_breakdown.sql', { importId });
+        console.error('[CommitImport] ⚠ statement_breakdown_json NOT saved — run migration sql/migrations/20260301_imports_statement_breakdown.sql', { importId });
       }
     } catch (breakdownError: any) {
       console.warn('[CommitImport] Failed to build/persist statement breakdown', {

@@ -275,7 +275,7 @@ export async function runInputGuardrails(
   
   // Log successful guardrail pass
   if (events.length > 0) {
-    console.log(`[Guardrails] Guardrails passed for user ${userId}`, {
+    console.log(`[Guardrails] Guardrails passed for user ${String(userId).slice(0, 8)}...`, {
       employeeSlug,
       source,
       eventsCount: events.length,

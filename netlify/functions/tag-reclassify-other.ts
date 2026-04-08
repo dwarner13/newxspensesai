@@ -1,10 +1,10 @@
 /**
  * tag-reclassify-other - Backfill "Other" transactions using merchant map + rules.
  *
- * SQL migration (run manually in Supabase):
+ * SQL migration (run manually in Supabase, substitute $USER_ID):
  * UPDATE transactions
  * SET category = 'Needs Review', category_source = 'needs_review'
- * WHERE user_id = '938a2e17-0e49-45ff-bb98-810db46e5e65'
+ * WHERE user_id = '$USER_ID'
  *   AND category = 'Other';
  */
 

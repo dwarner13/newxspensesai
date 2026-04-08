@@ -305,7 +305,7 @@ For BMO statements: the "Withdrawals" column is debit (positive), "Deposits" col
 Never include running balance as an amount.
 Convert all dates to YYYY-MM-DD format.`;
 
-  console.log(`[Vision Parser Base64] Starting Claude Vision parse for user ${userId}, file: ${options.filename || 'unknown'}`);
+  console.log(`[Vision Parser Base64] Starting Claude Vision parse for user ${String(userId).slice(0, 8)}..., file: ${options.filename || 'unknown'}`);
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -378,7 +378,7 @@ Convert all dates to YYYY-MM-DD format.`;
     credit_limit: parsed.summary?.credit_limit || null,
   };
 
-  console.log(`[Vision Parser Base64] Extracted ${normalizedTransactions.length} transactions for user ${userId}`);
+  console.log(`[Vision Parser Base64] Extracted ${normalizedTransactions.length} transactions for user ${String(userId).slice(0, 8)}...`);
 
   return {
     parsed: {

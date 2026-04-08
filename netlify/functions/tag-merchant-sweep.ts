@@ -82,7 +82,7 @@ export const handler: Handler = async (event) => {
       .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
       .not('subcategory', 'eq', 'Unknown Merchant - Verify');
 
-    console.log(`[tag-merchant-sweep] Queued ${queued.length} unknown-merchant txs for user ${userId}, ${remaining || 0} remaining`);
+    console.log(`[tag-merchant-sweep] Queued ${queued.length} unknown-merchant txs for user ${String(userId).slice(0, 8)}..., ${remaining || 0} remaining`);
 
     return {
       statusCode: 200,

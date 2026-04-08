@@ -113,7 +113,7 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    console.log(`[tag-bulk-fix] Completed for user ${userId}: ${totalFixed} transactions fixed across ${FIXES.length} rules`);
+    console.log(`[tag-bulk-fix] Completed for user ${String(userId).slice(0, 8)}...: ${totalFixed} transactions fixed across ${FIXES.length} rules`);
 
     return {
       statusCode: 200,

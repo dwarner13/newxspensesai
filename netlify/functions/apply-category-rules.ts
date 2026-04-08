@@ -229,11 +229,11 @@ async function deduplicateImport(
     .in('id', toDelete);
 
   if (error) {
-    safeLog('error', '[apply-category-rules] Dedup delete error', { userId, error: error.message });
+    safeLog('error', '[apply-category-rules] Dedup delete error', { uidPrefix: String(userId).slice(0, 8) + '...', error: error.message });
     return 0;
   }
 
-  safeLog('info', `[apply-category-rules] Deduped: removed ${toDelete.length} duplicate transactions`, { userId, importId });
+  safeLog('info', `[apply-category-rules] Deduped: removed ${toDelete.length} duplicate transactions`, { uidPrefix: String(userId).slice(0, 8) + '...', importId });
   return toDelete.length;
 }
 
@@ -272,8 +272,9 @@ export const handler: Handler = async (event) => {
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(1000, Math.floor(requestedLimit))) : 500;
 
   // Diagnostic logging - visible in Netlify function logs
-  console.log('[apply-category-rules] CALLED', { userId, importId, limit, timestamp: new Date().toISOString() });
-  safeLog('info', '[apply-category-rules] Starting', { userId, importId, limit });
+  const uidPrefix = String(userId).slice(0, 8) + '...';
+  console.log('[apply-category-rules] CALLED', { uidPrefix, importId, limit, timestamp: new Date().toISOString() });
+  safeLog('info', '[apply-category-rules] Starting', { uidPrefix, importId, limit });
 
   // ── Step 0: Deduplicate if scoped to an import ──
   let duplicatesRemoved = 0;
@@ -357,14 +358,14 @@ export const handler: Handler = async (event) => {
     const { data: rows, error } = await query;
 
     if (error) {
-      console.error('[apply-category-rules] FETCH ERROR', { userId, importId, error: error.message, code: (error as any).code, attempt });
-      safeLog('error', '[apply-category-rules] Fetch error', { userId, error: error.message });
+      console.error('[apply-category-rules] FETCH ERROR', { uidPrefix, importId, error: error.message, code: (error as any).code, attempt });
+      safeLog('error', '[apply-category-rules] Fetch error', { uidPrefix, error: error.message });
       return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: error.message }) };
     }
 
     const allRows = rows || [];
     txs = importId ? allRows : allRows.filter(r => needsCategorization(r.category));
-    console.log('[apply-category-rules] FETCHED', { userId, importId, attempt, fetched: allRows.length, afterFilter: txs.length, sampleIds: txs.slice(0, 3).map((t: any) => t.id) });
+    console.log('[apply-category-rules] FETCHED', { uidPrefix, importId, attempt, fetched: allRows.length, afterFilter: txs.length });
 
     if (txs.length > 0) break;
 
@@ -378,7 +379,7 @@ export const handler: Handler = async (event) => {
   // filter and run cleanup mode for the whole user (handles duplicate-hash case
   // where commit lands under a different import_id than the one we were given).
   if (txs.length === 0 && importId) {
-    console.warn('[apply-category-rules] importId returned 0 rows - falling back to user-wide cleanup', { userId, importId });
+    console.warn('[apply-category-rules] importId returned 0 rows - falling back to user-wide cleanup', { uidPrefix, importId });
     const { data: fallbackRows, error: fallbackErr } = await supabase
       .from('transactions')
       .select('id, merchant_name, merchant, amount, description, category')
@@ -386,16 +387,16 @@ export const handler: Handler = async (event) => {
       .order('posted_at', { ascending: false })
       .limit(limit);
     if (fallbackErr) {
-      console.error('[apply-category-rules] FALLBACK FETCH ERROR', { userId, error: fallbackErr.message });
+      console.error('[apply-category-rules] FALLBACK FETCH ERROR', { uidPrefix, error: fallbackErr.message });
     } else {
       const all = fallbackRows || [];
       txs = all.filter(r => needsCategorization(r.category));
-      console.log('[apply-category-rules] FALLBACK FETCHED', { userId, fetched: all.length, afterFilter: txs.length });
+      console.log('[apply-category-rules] FALLBACK FETCHED', { uidPrefix, fetched: all.length, afterFilter: txs.length });
     }
   }
 
   if (txs.length === 0) {
-    console.warn('[apply-category-rules] ZERO ROWS after all retries - commit-import may have failed or importId mismatch', { userId, importId, attempts: maxAttempts });
+    console.warn('[apply-category-rules] ZERO ROWS after all retries - commit-import may have failed or importId mismatch', { uidPrefix, importId, attempts: maxAttempts });
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0, duplicatesRemoved, reason: 'no_rows_after_retries', attempts: maxAttempts }) };
   }
 
@@ -495,7 +496,7 @@ export const handler: Handler = async (event) => {
   }
 
   // ── Step 6: Batch update - ONLY category fields, never type/amount/merchant ──
-  console.log('[apply-category-rules] PRE-UPDATE', { userId, importId, txsFetched: txs.length, updatesQueued: updates.length, skipped });
+  console.log('[apply-category-rules] PRE-UPDATE', { uidPrefix, importId, txsFetched: txs.length, updatesQueued: updates.length, skipped });
 
   let updated = 0;
   let updateErrors: string[] = [];
@@ -530,8 +531,8 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  console.log('[apply-category-rules] DONE', { userId, importId, txsFetched: txs.length, updated, skipped, duplicatesRemoved, errorCount: updateErrors.length, sampleErrors: updateErrors.slice(0, 3) });
-  safeLog('info', `[apply-category-rules] Done: ${updated}/${txs.length} updated, ${skipped} skipped, ${duplicatesRemoved} dupes removed`, { userId, importId });
+  console.log('[apply-category-rules] DONE', { uidPrefix, importId, txsFetched: txs.length, updated, skipped, duplicatesRemoved, errorCount: updateErrors.length });
+  safeLog('info', `[apply-category-rules] Done: ${updated}/${txs.length} updated, ${skipped} skipped, ${duplicatesRemoved} dupes removed`, { uidPrefix, importId });
 
   return {
     statusCode: 200,

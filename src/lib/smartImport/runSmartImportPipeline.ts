@@ -236,7 +236,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
       if (statusRes.ok) {
         const statusPayload = await statusRes.json().catch(() => ({}));
         if (statusPayload?.terminal === true) {
-          console.warn('[client] Terminal OCR - skipping fallback', {
+          console.warn('[client] Terminal OCR — skipping fallback', {
             docId: documentId,
             importRunId: input.requestId || null,
             source: 'runViaPrimeRouter:no-import-status-poll',
@@ -262,7 +262,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
               error_code: item?.error_code,
               details: { items: [item] },
             });
-          console.warn('[client] Terminal OCR - skipping fallback', {
+          console.warn('[client] Terminal OCR — skipping fallback', {
             docId: documentId,
             importRunId: input.requestId || null,
             source: 'runViaPrimeRouter:no-import-status-item-error',
@@ -305,12 +305,12 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
     let syncPayload = syncRes.ok ? await syncRes.json().catch(() => ({})) : {};
     let syncedImportId = String(syncPayload?.importIds?.[0] || '').trim() || undefined;
 
-    // Retry sync if no imports found - AI fallback parser may still be running.
+    // Retry sync if no imports found — AI fallback parser may still be running.
     // This matches the retry logic already present in runWithInit (line ~675).
     if (!syncedImportId) {
       const maxRetries = 3;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        console.log(`[runViaPrimeRouter] sync retry ${attempt}/${maxRetries} - waiting for normalize to complete`, { documentId });
+        console.log(`[runViaPrimeRouter] sync retry ${attempt}/${maxRetries} — waiting for normalize to complete`, { documentId });
         await new Promise((r) => setTimeout(r, 5000));
         try {
           const retryRes = await fetch('/.netlify/functions/smart-import-sync', {
@@ -339,7 +339,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
             }
           }
         } catch {
-          // Best effort - continue retrying
+          // Best effort — continue retrying
         }
       }
     }
@@ -374,7 +374,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
     if (statusRes.ok) {
       const statusPayload = await statusRes.json().catch(() => ({}));
       if (statusPayload?.terminal === true) {
-        console.warn('[client] Terminal OCR - skipping fallback', {
+        console.warn('[client] Terminal OCR — skipping fallback', {
           docId: documentId,
           importId,
           importRunId: input.requestId || null,
@@ -394,7 +394,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
       if (status === 'error') {
         const reason = String(statusPayload?.error || statusPayload?.details?.error || 'OCR processing failed');
         const terminalLike = statusPayload?.terminal === true || isTerminalRouterOcrFailure(statusPayload);
-        console.warn('[client] Terminal OCR - skipping fallback', {
+        console.warn('[client] Terminal OCR — skipping fallback', {
           docId: documentId,
           importId,
           importRunId: input.requestId || null,
@@ -757,7 +757,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
           body: JSON.stringify({ importId, userId: input.userId }),
         });
       } catch {
-        // Best effort - sync autoCommit may have already handled this.
+        // Best effort — sync autoCommit may have already handled this.
       }
     }
   }

@@ -5460,7 +5460,7 @@ export const handler: Handler = async (event, context) => {
     
     // Log successful auth (dev only)
     if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-      console.log('[Chat] Auth successful:', { userId });
+      console.log('[Chat] Auth successful:', { uidPrefix: String(userId).slice(0, 8) + '...' });
     }
 
     // Parse request body (userId now comes from JWT, not body)
@@ -9602,7 +9602,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     if (stream) {
       setStage('model_streaming');
       // Streaming response (SSE) with tool support
-      console.log('[Chat] Streaming mode enabled for employee:', finalEmployeeSlug, 'userId:', userId);
+      console.log('[Chat] Streaming mode enabled for employee:', finalEmployeeSlug, 'uidPrefix:', String(userId).slice(0, 8) + '...');
       
       // Capture original employee slug before potential handoff
       const originalEmployeeSlug = finalEmployeeSlug;
@@ -9678,7 +9678,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         // (No need to resolve again - already available in scope)
         
         // Note: Netlify Functions streaming requires returning a promise that resolves to chunks
-        console.log('[Chat] OPENAI streaming call start', { employeeSlug: finalEmployeeSlug, userId });
+        console.log('[Chat] OPENAI streaming call start', { employeeSlug: finalEmployeeSlug, uidPrefix: String(userId).slice(0, 8) + '...' });
         
         // DEV: Log what's being sent to OpenAI
         if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
@@ -9871,7 +9871,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   
                   // Special debug logging for tag_category_brain
                   if (toolName === 'tag_category_brain') {
-                    console.log(`[Tag Category Brain] Category: "${args.category || 'unknown'}", Timeframe: "${args.timeframe || 'all'}", UserId: ${userId}`);
+                    console.log(`[Tag Category Brain] Category: "${args.category || 'unknown'}", Timeframe: "${args.timeframe || 'all'}", UserId: ${String(userId).slice(0, 8)}...`);
                   }
                   
                   // Warn if tag_explain_category is called with obviously invalid transaction IDs
@@ -10759,7 +10759,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             
             // Special debug logging for tag_category_brain
             if (toolName === 'tag_category_brain') {
-              console.log(`[Tag Category Brain] Category: "${args.category || 'unknown'}", Timeframe: "${args.timeframe || 'all'}", UserId: ${userId}`);
+              console.log(`[Tag Category Brain] Category: "${args.category || 'unknown'}", Timeframe: "${args.timeframe || 'all'}", UserId: ${String(userId).slice(0, 8)}...`);
             }
             
             // Warn if tag_explain_category is called with obviously invalid transaction IDs

@@ -73,11 +73,13 @@ export function ByteUnifiedCard({
 
     console.log('[ByteUnifiedCard] Opening chat with Byte...');
 
-    // ALWAYS clear old Byte thread so we start fresh
+    // ALWAYS clear old Byte thread so we start fresh (per-user key)
     try {
-      const threadKey = `chat_thread_938a2e17-0e49-45ff-bb98-810db46e5e65_byte-docs`;
-      localStorage.removeItem(threadKey);
-      console.log('[ByteUnifiedCard] Cleared old Byte thread from localStorage');
+      if (userId) {
+        const threadKey = `chat_thread_${userId}_byte-docs`;
+        localStorage.removeItem(threadKey);
+        console.log('[ByteUnifiedCard] Cleared old Byte thread from localStorage');
+      }
     } catch (e) {
       console.error('[ByteUnifiedCard] Failed to clear localStorage:', e);
     }

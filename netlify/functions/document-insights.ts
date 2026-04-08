@@ -111,7 +111,7 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    console.log('[DocumentInsights] Processing request:', { userId, docId, insightMode, hasQuestion: !!question });
+    console.log('[DocumentInsights] Processing request:', { uidPrefix: String(userId).slice(0, 8) + '...', docId, insightMode, hasQuestion: !!question });
 
     // Load document from Supabase
     const sb = admin();

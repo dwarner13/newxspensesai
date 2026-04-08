@@ -83,7 +83,7 @@ export const handler: Handler = async (event) => {
         continue;
       }
 
-      console.log('[APPROVAL] Import approved', { importId, userId });
+      console.log('[APPROVAL] Import approved', { importId, uidPrefix: String(userId).slice(0, 8) + '...' });
       approvedImportIds.push(importId);
     }
 

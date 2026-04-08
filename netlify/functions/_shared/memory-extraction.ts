@@ -115,7 +115,7 @@ export async function extractAndSaveMemories(params: {
 }) {
   const { userId, sessionId, redactedUserText, assistantResponse } = params;
 
-  console.log(`[Memory Extraction] Processing for user ${userId}`);
+  console.log(`[Memory Extraction] Processing for user ${String(userId).slice(0, 8)}...`);
 
   // ========================================================================
   // 1. EXTRACT CANDIDATE MEMORIES
@@ -327,7 +327,7 @@ Return ONLY the JSON object, no commentary.
           created_at: new Date().toISOString()
         });
 
-        console.log(`[Memory Extraction] Embedding saved for user ${userId}`);
+        console.log(`[Memory Extraction] Embedding saved for user ${String(userId).slice(0, 8)}...`);
       }
     }
   } catch (embedErr) {

@@ -4,8 +4,9 @@ import { getSupabase } from '../lib/supabase';
 import { warn } from '../lib/logger';
 import { QUIET_MODE } from '../lib/quietMode';
 
-// DEV-only override: Use this userId when actual userId is missing (for testing)
-const DEV_FORCE_USER_ID = '938a2e17-0e49-45ff-bb98-810db46e5e65';
+// DEV-only override: populated from VITE_DEV_FORCE_USER_ID env var when
+// running locally and no authenticated session exists. NEVER hardcoded.
+const DEV_FORCE_USER_ID = (import.meta.env.VITE_DEV_FORCE_USER_ID as string | undefined) || '';
 
 // Conditional logging: Only log if both DEV and VITE_DEBUG_ACTIVITY_FEED are true
 const shouldLog = import.meta.env.DEV && import.meta.env.VITE_DEBUG_ACTIVITY_FEED === 'true';
@@ -200,10 +201,10 @@ export function useActivityFeed(
       // Priority: session userId > hook userId > DEV_FORCE_USER_ID (DEV only)
       let effectiveUserId = userId;
       if (!effectiveUserId || (typeof effectiveUserId === 'string' && effectiveUserId.trim().length < 8)) {
-        if (import.meta.env.DEV) {
+        if (import.meta.env.DEV && DEV_FORCE_USER_ID) {
           effectiveUserId = DEV_FORCE_USER_ID;
           if (shouldLog) {
-            console.log('[useActivityFeed] DEV MODE: Using DEV_FORCE_USER_ID (hook userId missing):', effectiveUserId);
+            console.log('[useActivityFeed] DEV MODE: Using VITE_DEV_FORCE_USER_ID');
           }
         } else {
           // Production: skip if userId is invalid
@@ -217,10 +218,10 @@ export function useActivityFeed(
       let finalUserId: string | undefined = sessionUserId || effectiveUserId;
       
       // If no userId from session or hook, use DEV override (DEV only)
-      if ((!finalUserId || (typeof finalUserId === 'string' && finalUserId.trim().length < 8)) && import.meta.env.DEV) {
+      if ((!finalUserId || (typeof finalUserId === 'string' && finalUserId.trim().length < 8)) && import.meta.env.DEV && DEV_FORCE_USER_ID) {
         finalUserId = DEV_FORCE_USER_ID;
         if (shouldLog) {
-          console.log('[useActivityFeed] DEV MODE: Using DEV_FORCE_USER_ID:', finalUserId);
+          console.log('[useActivityFeed] DEV MODE: Using VITE_DEV_FORCE_USER_ID');
         }
       }
       

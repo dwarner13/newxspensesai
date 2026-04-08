@@ -58,7 +58,7 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    console.log(`[Sync Recurring] Starting sync for user: ${userId}`);
+    console.log(`[Sync Recurring] Starting sync for user: ${String(userId).slice(0, 8)}...`);
 
     const supabase = admin();
 
