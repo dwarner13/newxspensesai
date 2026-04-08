@@ -102,6 +102,8 @@ export default function TransactionsPageV2() {
     if (categoryParam) { setTagCategoryFilter(categoryParam); setTagFilterLabel(categoryParam); }
   }, []);
   useEffect(() => { const id = setInterval(() => { refetch(); }, 10000); return () => clearInterval(id); }, [refetch]);
+  // Tell badge consumers the data is live on mount
+  useEffect(() => { try { window.dispatchEvent(new Event('tag:stats-refresh')); } catch { /* noop */ } }, []);
 
   // Sweep apply/dismiss
   const applySweepFromChat = useCallback(async (payload: any) => {

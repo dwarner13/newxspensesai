@@ -11,6 +11,8 @@ import { getSupabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 export interface SmartCategoriesStats {
+  /** Re-run every stat query */
+  refetch: () => void;
   /** Transactions with a real category (not null, not 'Uncategorized') */
   itemsTagged: number | null;
   /**
@@ -105,14 +107,13 @@ export function useSmartCategoriesStats(): SmartCategoriesStats {
         if (!error && count !== null) setTaggedToday(count);
       })(),
 
-      // 4. Uncategorized count
+      // 4. Uncategorized count — live query, includes all 'needs attention' states
       (async () => {
-        // Supabase JS .or() filter for IS NULL | = 'Uncategorized'
         const { count, error } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userId)
-          .or('category.is.null,category.eq.Uncategorized');
+          .or('category.is.null,category.eq.Uncategorized,category.eq.Needs Review,category.eq.Other');
         if (!error && count !== null) setUncategorizedCount(count);
       })(),
 
@@ -142,7 +143,20 @@ export function useSmartCategoriesStats(): SmartCategoriesStats {
     void fetchStats();
   }, [fetchStats]);
 
+  // Refetch on window focus and on a custom 'tag:stats-refresh' event so Tag
+  // actions and transactions pages can trigger a live update.
+  useEffect(() => {
+    const handler = () => void fetchStats();
+    window.addEventListener('focus', handler);
+    window.addEventListener('tag:stats-refresh', handler);
+    return () => {
+      window.removeEventListener('focus', handler);
+      window.removeEventListener('tag:stats-refresh', handler);
+    };
+  }, [fetchStats]);
+
   return {
+    refetch: () => void fetchStats(),
     itemsTagged,
     autoTaggedPct,
     categoryCount,

@@ -482,6 +482,9 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
         }),
       });
 
+      // Trigger live badge refresh across all mounted SmartCategoriesStats consumers
+      try { window.dispatchEvent(new Event('tag:stats-refresh')); } catch { /* noop */ }
+
       const confirmText = subcategory
         ? `\u2713 ${ids.length > 0 ? `${ids.length} ` : ''}${merchantName} \u2192 **${category}** / **${subcategory}**. Rule saved.`
         : `\u2713 ${ids.length > 0 ? `${ids.length} ` : ''}${merchantName} \u2192 **${category}**. Rule saved.`;
