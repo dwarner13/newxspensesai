@@ -126,6 +126,7 @@ function extractSearchIntent(message: string): {
   isSearch: boolean;
   merchant?: string;
   category?: string;
+  subcategory?: string;
   type?: 'expense' | 'income' | 'all';
   startDate?: string;
   endDate?: string;
@@ -148,14 +149,62 @@ function extractSearchIntent(message: string): {
   );
   const rawMerchant = (atMerchantMatch?.[1] || merchantMatch?.[1] || '').trim();
 
-  const CATEGORY_TERMS: Record<string, string> = {
-    'groceries': 'Groceries', 'grocery': 'Groceries', 'food': 'Food & Dining',
-    'dining': 'Food & Dining', 'transportation': 'Transportation', 'transport': 'Transportation',
-    'personal care': 'Personal Care', 'healthcare': 'Healthcare', 'shopping': 'Shopping',
-    'subscriptions': 'Subscriptions', 'entertainment': 'Entertainment', 'housing': 'Housing',
-    'utilities': 'Utilities', 'insurance': 'Insurance', 'travel': 'Travel',
-    'education': 'Education', 'bank fees': 'Bank Fees', 'income': 'Income',
-    'uncategorized': 'Uncategorized', 'needs review': 'Needs Review',
+  // Category + subcategory alias map. Values: [category, subcategory?]
+  const CATEGORY_TERMS: Record<string, [string, string?]> = {
+    // Top-level categories
+    'groceries': ['Groceries'], 'grocery': ['Groceries'], 'supermarket': ['Groceries'],
+    'food': ['Food & Dining'], 'dining': ['Food & Dining'], 'restaurant': ['Food & Dining', 'Restaurants'],
+    'restaurants': ['Food & Dining', 'Restaurants'],
+    'transportation': ['Transportation'], 'transport': ['Transportation'],
+    'personal care': ['Personal Care'], 'healthcare': ['Healthcare'], 'shopping': ['Shopping'],
+    'subscriptions': ['Subscriptions'], 'entertainment': ['Entertainment'], 'housing': ['Housing'],
+    'utilities': ['Utilities'], 'insurance': ['Insurance'], 'travel': ['Travel'],
+    'education': ['Education'], 'bank fees': ['Bank Fees'], 'income': ['Income'],
+    'uncategorized': ['Uncategorized'], 'needs review': ['Needs Review'],
+    // Transportation subcategories
+    'gas & fuel': ['Transportation', 'Gas & Fuel'],
+    'gas and fuel': ['Transportation', 'Gas & Fuel'],
+    'fuel': ['Transportation', 'Gas & Fuel'],
+    'gas': ['Transportation', 'Gas & Fuel'],
+    'gas station': ['Transportation', 'Gas & Fuel'],
+    'parking': ['Transportation', 'Parking'],
+    'transit': ['Transportation', 'Transit'],
+    'bus': ['Transportation', 'Transit'],
+    'train': ['Transportation', 'Transit'],
+    'rideshare': ['Transportation', 'Rideshare'],
+    'uber': ['Transportation', 'Rideshare'],
+    'lyft': ['Transportation', 'Rideshare'],
+    'vehicle maintenance': ['Transportation', 'Vehicle Maintenance'],
+    'oil change': ['Transportation', 'Vehicle Maintenance'],
+    'car repair': ['Transportation', 'Vehicle Maintenance'],
+    'repairs': ['Transportation', 'Vehicle Maintenance'],
+    // Food & Dining subcategories
+    'coffee & drinks': ['Food & Dining', 'Coffee & Drinks'],
+    'coffee': ['Food & Dining', 'Coffee & Drinks'],
+    'fast food': ['Food & Dining', 'Fast Food'],
+    'takeout': ['Food & Dining', 'Fast Food'],
+    // Personal Care subcategories
+    'hair & beauty': ['Personal Care', 'Hair & Beauty'],
+    'haircut': ['Personal Care', 'Hair & Beauty'],
+    'salon': ['Personal Care', 'Hair & Beauty'],
+    'barber': ['Personal Care', 'Hair & Beauty'],
+    'gym & fitness': ['Personal Care', 'Gym & Fitness'],
+    'gym': ['Personal Care', 'Gym & Fitness'],
+    'fitness': ['Personal Care', 'Gym & Fitness'],
+    'massage & wellness': ['Personal Care', 'Massage & Wellness'],
+    'massage': ['Personal Care', 'Massage & Wellness'],
+    'spa': ['Personal Care', 'Massage & Wellness'],
+    // Healthcare subcategories
+    'dental': ['Healthcare', 'Dental'],
+    'dentist': ['Healthcare', 'Dental'],
+    'pharmacy': ['Healthcare', 'Pharmacy'],
+    'shoppers': ['Healthcare', 'Pharmacy'],
+    // Entertainment subcategories
+    'golf': ['Entertainment', 'Golf'],
+    // Subscriptions subcategories
+    'streaming': ['Subscriptions', 'Streaming'],
+    'netflix': ['Subscriptions', 'Streaming'],
+    'spotify': ['Subscriptions', 'Streaming'],
   };
 
   const categoryHit = CATEGORY_TERMS[rawMerchant.toLowerCase()];
@@ -185,7 +234,8 @@ function extractSearchIntent(message: string): {
   return {
     isSearch: true,
     merchant: categoryHit ? undefined : rawMerchant || undefined,
-    category: categoryHit || undefined,
+    category: categoryHit ? categoryHit[0] : undefined,
+    subcategory: categoryHit ? categoryHit[1] : undefined,
     type,
     startDate,
     endDate,
@@ -771,6 +821,7 @@ export const handler: Handler = async (event) => {
               q = q.eq('category', searchIntent.category);
             }
           }
+          if (searchIntent.subcategory) q = q.ilike('subcategory', `%${searchIntent.subcategory}%`);
           if (searchIntent.type === 'income') q = q.eq('type', 'income');
           else if (searchIntent.type === 'expense') q = q.neq('type', 'income');
           if (searchIntent.startDate) q = q.gte('date', searchIntent.startDate);
