@@ -447,7 +447,7 @@ export function TransactionInsightDrawer({
         fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 -8px 60px rgba(0,0,0,0.6)',
       } : {
         position: 'fixed', top: 0, right: 0, bottom: 0,
-        zIndex: 201, width: 500, maxWidth: '100%',
+        zIndex: 201, width: 520, maxWidth: '100%',
         display: 'flex', flexDirection: 'column', background: '#080f1e',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
         fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '-8px 0 60px rgba(0,0,0,0.5)',
@@ -459,13 +459,15 @@ export function TransactionInsightDrawer({
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
           </div>
         )}
-        {/* HEADER */}
-        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        {/* Accent bar */}
+        <div style={{ height: 3, background: `linear-gradient(90deg, ${amountColor} 0%, ${amountColor}44 100%)`, flexShrink: 0 }} />
+        {/* HERO HEADER */}
+        <div style={{ padding: '24px 24px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, background: `radial-gradient(circle at 0% 0%, ${amountColor}0d 0%, transparent 60%)` }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
+            <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
             {editingAmount ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                <span style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, color: amountColor }}>{amountPrefix}$</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                <span style={{ fontSize: isMobile ? 30 : 40, fontWeight: 800, color: amountColor }}>{amountPrefix}$</span>
                 <input
                   type="number"
                   step="0.01"
@@ -473,34 +475,40 @@ export function TransactionInsightDrawer({
                   value={amountInput}
                   onChange={e => setAmountInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') void saveAmount(); if (e.key === 'Escape') setEditingAmount(false); }}
-                  style={{ flex: 1, maxWidth: 140, fontSize: isMobile ? 22 : 26, fontWeight: 800, padding: '4px 10px', borderRadius: 8, background: '#0b1220', border: `1px solid ${amountColor}55`, color: amountColor, outline: 'none', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums' }}
+                  style={{ flex: 1, maxWidth: 180, fontSize: isMobile ? 30 : 40, fontWeight: 800, padding: '4px 10px', borderRadius: 8, background: '#0b1220', border: `1px solid ${amountColor}55`, color: amountColor, outline: 'none', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums' }}
                 />
-                <button onClick={() => void saveAmount()} disabled={savingAmount} style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingAmount ? '\u2026' : 'Save'}</button>
-                <button onClick={() => setEditingAmount(false)} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                <button onClick={() => void saveAmount()} disabled={savingAmount} style={{ padding: '8px 14px', borderRadius: 8, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingAmount ? '...' : 'Save'}</button>
+                <button onClick={() => setEditingAmount(false)} style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 800, color: amountColor, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
+                <div style={{ fontSize: isMobile ? 36 : 48, fontWeight: 800, color: amountColor, letterSpacing: -1.5, lineHeight: 1, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 30px ${amountColor}33` }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
                 {row.kind === 'committed' && (
-                  <button onClick={() => { setAmountInput(Math.abs(amount).toFixed(2)); setEditingAmount(true); }} style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }} title="Fix parser error">Edit</button>
+                  <button onClick={() => { setAmountInput(Math.abs(amount).toFixed(2)); setEditingAmount(true); }} style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginTop: 6 }} title="Fix parser error">Edit</button>
                 )}
               </div>
             )}
-            {/* Meta row */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            {/* Date + meta (muted, below amount) */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
               {formattedDate && (
-                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{formattedDate}</span>
+                <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>{formattedDate}</span>
               )}
               {statementLabel && statementLabel !== formattedDate && !statementLabel.includes('2024') && !statementLabel.includes('2025') && !statementLabel.includes('2026') && (
-                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{statementLabel}</span>
+                <>
+                  <span style={{ fontSize: 12, color: '#334155' }}>-</span>
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>{statementLabel}</span>
+                </>
               )}
               {merchantMonthSpend > 0 && (
-                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{fmt(merchantMonthSpend)} this month</span>
+                <>
+                  <span style={{ fontSize: 12, color: '#334155' }}>-</span>
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>${fmt(merchantMonthSpend)} this month</span>
+                </>
               )}
             </div>
           </div>
-          <button type="button" onClick={onClose} style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X style={{ width: 16, height: 16 }} />
+          <button type="button" onClick={onClose} style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+            <X style={{ width: 18, height: 18 }} />
           </button>
         </div>
 
@@ -559,28 +567,56 @@ export function TransactionInsightDrawer({
             </div>
           )}
 
-          {/* TAG VERDICT */}
-          <div style={{ borderRadius: 14, background: 'rgba(34,211,153,0.05)', border: '1px solid rgba(34,211,153,0.15)' }}>
+          {/* TAG INTELLIGENCE CARD */}
+          <div style={{ borderRadius: 14, background: 'linear-gradient(135deg, rgba(34,211,238,0.08) 0%, rgba(34,211,238,0.02) 100%)', border: '1px solid rgba(34,211,238,0.2)', borderLeft: '3px solid rgba(34,211,238,0.7)', boxShadow: '0 4px 20px rgba(34,211,238,0.08)' }}>
             {/* Verdict row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid rgba(34,211,153,0.08)' }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '16px 18px', borderBottom: '1px solid rgba(34,211,238,0.08)' }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.08) 100%)', border: '1px solid rgba(34,211,238,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#22d3ee', flexShrink: 0, boxShadow: '0 0 16px rgba(34,211,238,0.2)' }}>T</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{localCategory}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                  {tagInsightLoading ? 'Analyzing?' : [
-                    confidence != null && confidence > 0 && `${confidence}% confidence`,
-                    seenCount > 0 && `Seen ${seenCount}x`,
-                    tagInsight?.categorySource && tagInsight.categorySource !== 'unknown' && tagInsight.categorySource,
-                  ].filter(Boolean).join(' � ') || 'Current category'}
-                </div>
-                            {TAX_INFO[localCategory] && (
-                <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 10, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
-                  {TAX_INFO[localCategory].label}
-                </div>
-              )}
+                <div style={{ fontSize: 17, fontWeight: 800, color: '#f1f5f9', letterSpacing: -0.3 }}>{localCategory}</div>
+                {localSubcategory && (
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2, fontWeight: 500 }}>{localSubcategory}</div>
+                )}
+                {/* Confidence progress bar */}
+                {confidence != null && confidence > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#64748b', marginBottom: 4, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                      <span>Confidence</span>
+                      <span style={{ color: confidence >= 80 ? '#34d399' : confidence >= 60 ? '#fbbf24' : '#f87171' }}>{confidence}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: 5, borderRadius: 3, background: 'rgba(148,163,184,0.12)', overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${confidence}%`, height: '100%', borderRadius: 3,
+                        background: confidence >= 80
+                          ? 'linear-gradient(90deg, #22d3ee, #34d399)'
+                          : confidence >= 60
+                          ? 'linear-gradient(90deg, #22d3ee, #fbbf24)'
+                          : 'linear-gradient(90deg, #fbbf24, #f87171)',
+                        transition: 'width 0.4s ease',
+                      }} />
+                    </div>
+                  </div>
+                )}
+                {/* Seen/learned badge */}
+                {seenCount > 0 && (
+                  <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 999, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.22)', fontSize: 10, fontWeight: 700, color: '#22d3ee', letterSpacing: 0.3 }}>
+                    Seen {seenCount}x - learned
+                  </div>
+                )}
+                {/* Prominent deductible badge */}
+                {TAX_INFO[localCategory] && TAX_INFO[localCategory].label.includes('Deductible') && !TAX_INFO[localCategory].label.includes('Not') && (
+                  <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'linear-gradient(135deg, rgba(251,191,36,0.18) 0%, rgba(251,191,36,0.06) 100%)', border: '1px solid rgba(251,191,36,0.35)', fontSize: 11, fontWeight: 800, color: '#fbbf24', letterSpacing: 0.3, boxShadow: '0 2px 10px rgba(251,191,36,0.15)' }}>
+                    * Tax Deductible
+                  </div>
+                )}
+                {TAX_INFO[localCategory] && (
+                  <div style={{ marginTop: 8, fontSize: 10, color: TAX_INFO[localCategory].color, fontWeight: 600, letterSpacing: 0.2 }}>
+                    {TAX_INFO[localCategory].label}
+                  </div>
+                )}
               </div>
               {tagInsight?.isAmountAnomaly && (
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '2px 6px', flexShrink: 0 }}>?? Unusual</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '3px 8px', flexShrink: 0 }}>! Unusual</span>
               )}
             </div>
             {/* Tag message */}
