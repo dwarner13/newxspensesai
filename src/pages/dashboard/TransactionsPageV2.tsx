@@ -101,7 +101,14 @@ export default function TransactionsPageV2() {
     const categoryParam = searchParams.get("category");
     if (categoryParam) { setTagCategoryFilter(categoryParam); setTagFilterLabel(categoryParam); }
   }, []);
-  useEffect(() => { const id = setInterval(() => { refetch(); }, 10000); return () => clearInterval(id); }, [refetch]);
+  // Refetch only on window focus (NOT on a 10s timer — the timer was
+  // causing the transaction list to re-render and jump while the user
+  // was scrolling).
+  useEffect(() => {
+    const handler = () => { void refetch(); };
+    window.addEventListener('focus', handler);
+    return () => window.removeEventListener('focus', handler);
+  }, [refetch]);
   // Tell badge consumers the data is live on mount
   useEffect(() => { try { window.dispatchEvent(new Event('tag:stats-refresh')); } catch { /* noop */ } }, []);
 
