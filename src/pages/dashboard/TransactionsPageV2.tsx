@@ -468,8 +468,8 @@ export default function TransactionsPageV2() {
                         onClick={handleUpload}
                         className="rounded-xl border border-dashed text-left transition-colors"
                         style={{
-                          flex: '0 0 160px',
-                          width: 160,
+                          flex: '0 0 180px',
+                          width: 180,
                           flexShrink: 0,
                           padding: '12px 14px',
                           borderColor: '#334155',
@@ -494,8 +494,8 @@ export default function TransactionsPageV2() {
                       onClick={() => setAccountFilter(a.id)}
                       className="rounded-xl text-left transition-colors"
                       style={{
-                        flex: '0 0 160px',
-                        width: 160,
+                        flex: '0 0 180px',
+                        width: 180,
                         flexShrink: 0,
                         padding: '12px 14px',
                         border: active ? '2px solid #22d3ee' : '1px solid rgba(148,163,184,0.2)',
@@ -504,7 +504,7 @@ export default function TransactionsPageV2() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#e8ecf4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#e8ecf4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
                           {a.type && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>{a.type}</div>}
                         </div>
                         <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 999, background: badge.bg, color: badge.fg, whiteSpace: 'nowrap' }}>{badge.text}</span>
