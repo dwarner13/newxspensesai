@@ -143,7 +143,7 @@ interface TagCopilotPanelProps {
   totalSpent?: number; totalIncome?: number; txCount?: number;
   topCategories?: { category: string; total: number; transactionCount: number; budget?: number; topMerchant?: string }[];
 }
-interface LearnedRule { merchant: string; category: string; confidence: number; createdAt?: string; updatedAt?: string }
+interface LearnedRule { id?: string; source?: 'category_rules' | 'vendor_memory'; merchant: string; category: string; confidence: number; createdAt?: string; updatedAt?: string }
 interface ChatMessage { role: "user" | "assistant"; content: string }
 
 export function TagCopilotPanel({
@@ -159,6 +159,33 @@ export function TagCopilotPanel({
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
   const [rulesRefreshing, setRulesRefreshing] = useState(false);
   const [reapplying, setReapplying] = useState(false);
+
+  const handleDeleteRule = async (rule: LearnedRule) => {
+    if (!rule.id || rule.source !== 'category_rules') {
+      toast.error("Can't delete this rule type");
+      return;
+    }
+    if (!window.confirm(`Delete rule for ${rule.merchant}?`)) return;
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      const { error } = await supabase
+        .from("category_rules")
+        .delete()
+        .eq("id", rule.id);
+      if (error) throw error;
+      toast.success("Rule deleted");
+      // Optimistic local removal + refetch
+      setLearnedRules(prev => prev.filter(r => r.id !== rule.id));
+      void fetchLearnedRules();
+      try {
+        window.dispatchEvent(new Event("tag:stats-refresh"));
+        window.dispatchEvent(new Event("transactions:refresh"));
+      } catch { /* noop */ }
+    } catch (e: any) {
+      toast.error(e?.message || "Delete failed");
+    }
+  };
 
   const handleReapplyRules = async () => {
     if (reapplying) return;
@@ -177,7 +204,10 @@ export function TagCopilotPanel({
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
         toast.success(`Re-applied rules - ${data.updated || 0} updated`);
-        try { window.dispatchEvent(new Event("tag:stats-refresh")); } catch { /* noop */ }
+        try {
+          window.dispatchEvent(new Event("tag:stats-refresh"));
+          window.dispatchEvent(new Event("transactions:refresh"));
+        } catch { /* noop */ }
       } else {
         toast.error(data.error || "Re-apply failed");
       }
@@ -198,12 +228,14 @@ export function TagCopilotPanel({
       // Prefer category_rules (user-defined conversational rules)
       const { data: crData } = await supabase
         .from("category_rules")
-        .select("match_value, category, created_at, updated_at")
+        .select("id, match_value, category, created_at, updated_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20);
       if (crData?.length) {
         setLearnedRules(crData.map((r: any) => ({
+          id: r.id,
+          source: 'category_rules' as const,
           merchant: String(r.match_value || "").toUpperCase(),
           category: r.category,
           confidence: 100,
@@ -330,6 +362,15 @@ export function TagCopilotPanel({
         replyText += `\n\nConnecting you to ${handoffTo.split("-")[0]}...`;
       }
       setMessages(prev => [...prev, { role: "assistant", content: replyText }]);
+      // If Tag performed any write (rule saved, bulk apply, correction),
+      // tell the transactions list + badge to refresh.
+      if (data.rule_saved || data.action || (data.backfill_count || 0) > 0) {
+        try {
+          window.dispatchEvent(new Event("transactions:refresh"));
+          window.dispatchEvent(new Event("tag:stats-refresh"));
+        } catch { /* noop */ }
+        void fetchLearnedRules();
+      }
     } catch {
       setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I ran into an issue. Try again in a moment." }]);
     } finally {
@@ -717,6 +758,26 @@ export function TagCopilotPanel({
                         padding: "2px 9px", borderRadius: 6, minWidth: 90, textAlign: "center",
                       }}>{r.category}</span>
                       <span style={{ fontSize: 9.5, fontWeight: 700, color: T.green, fontFamily: "'DM Mono',monospace" }}>{r.confidence}%</span>
+                      {r.id && r.source === 'category_rules' && (
+                        <button
+                          onClick={() => handleDeleteRule(r)}
+                          title="Delete rule"
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#f87171",
+                            cursor: "pointer",
+                            padding: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            opacity: 0.7,
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+                          onMouseLeave={e => (e.currentTarget.style.opacity = "0.7")}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </div>
                     {(r.createdAt || r.updatedAt) && (() => {
                       const fmtD = (iso: string) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });

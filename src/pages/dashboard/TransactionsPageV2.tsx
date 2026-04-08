@@ -101,13 +101,17 @@ export default function TransactionsPageV2() {
     const categoryParam = searchParams.get("category");
     if (categoryParam) { setTagCategoryFilter(categoryParam); setTagFilterLabel(categoryParam); }
   }, []);
-  // Refetch only on window focus (NOT on a 10s timer — the timer was
-  // causing the transaction list to re-render and jump while the user
-  // was scrolling).
+  // Refetch on window focus AND on a 'transactions:refresh' custom event
+  // fired by Tag after any write (rule save, bulk apply, delete rule).
+  // NOT on a timer - polling was causing scroll jumps.
   useEffect(() => {
     const handler = () => { void refetch(); };
     window.addEventListener('focus', handler);
-    return () => window.removeEventListener('focus', handler);
+    window.addEventListener('transactions:refresh', handler);
+    return () => {
+      window.removeEventListener('focus', handler);
+      window.removeEventListener('transactions:refresh', handler);
+    };
   }, [refetch]);
   // Tell badge consumers the data is live on mount
   useEffect(() => { try { window.dispatchEvent(new Event('tag:stats-refresh')); } catch { /* noop */ } }, []);
