@@ -2,7 +2,7 @@
   "name": "XspensesAI",
   "short_name": "XspensesAI",
   "description": "The finance app that actually talks back.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
