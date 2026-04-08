@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBound
   
   render() {
     if (this.state.error) {
-      const isDev = import.meta.env.DEV;
+      const isDev = true; // TEMP: expose stack in prod for debugging
       return (
         <div className="p-6 bg-red-950/50 border border-red-500/30 rounded-lg">
           <h2 className="text-lg font-semibold text-red-400 mb-2">
