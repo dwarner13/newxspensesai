@@ -541,19 +541,50 @@ export const handler: Handler = async (event) => {
   // Opening turn: empty message on page-level context with no history
   if (!message && isPageContext && (!history || history.length === 0)) {
     try {
-      const { count: uncatCount } = await supabase
-        .from('transactions')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', auth.userId)
-        .or('category.is.null,category.eq.Needs Review,category.eq.Uncategorized');
+      // Fetch firstName for personalized greeting
+      let firstName = 'there';
+      try {
+        const { data: profile } = await supabase.from('profiles').select('first_name, full_name').eq('id', auth.userId).single();
+        firstName = profile?.first_name || profile?.full_name?.split(' ')[0] || 'there';
+      } catch { /* non-blocking */ }
 
-      const openingReply = uncatCount && uncatCount > 0
-        ? `${uncatCount} transactions need categories. Want to start the queue, or is there something specific you're looking for?`
-        : `Books look clean  - nothing uncategorized right now. What do you need?`;
+      // Fetch all Needs Review transactions, group in JS
+      const { data: needsReview } = await supabase
+        .from('transactions')
+        .select('merchant_name, amount')
+        .eq('user_id', auth.userId)
+        .eq('category', 'Needs Review');
+
+      const rows = needsReview || [];
+      const uncatCount = rows.length;
+      const totalAmt = rows.reduce((s, r) => s + Math.abs(Number(r.amount || 0)), 0);
+      const byMerchant = new Map<string, { cnt: number; total: number }>();
+      for (const r of rows) {
+        const m = String(r.merchant_name || 'Unknown');
+        const e = byMerchant.get(m) || { cnt: 0, total: 0 };
+        e.cnt += 1;
+        e.total += Math.abs(Number(r.amount || 0));
+        byMerchant.set(m, e);
+      }
+      const top = Array.from(byMerchant.entries())
+        .sort((a, b) => b[1].total - a[1].total)
+        .slice(0, 5);
+      const merchantCount = byMerchant.size;
+
+      let openingReply: string;
+      if (uncatCount > 0) {
+        const lines = top.map(([m, v]) => `- ${m} x${v.cnt} ($${v.total.toFixed(2)})`).join('\n');
+        openingReply =
+          `Hey ${firstName} - you've got ${uncatCount} transactions across ${merchantCount} merchants in Needs Review ($${totalAmt.toFixed(2)} total).\n\n` +
+          `Biggest ones:\n${lines}\n\n` +
+          `Want me to work through them now? I'll go one merchant at a time and ask you about each one.`;
+      } else {
+        openingReply = `Books look clean - nothing needs attention right now. Ask me anything about your categories or spending.`;
+      }
 
       return { statusCode: 200, headers, body: JSON.stringify({ reply: openingReply, action: null, sessionComplete: false }) };
     } catch {
-      return { statusCode: 200, headers, body: JSON.stringify({ reply: "Hey  - what can I help you categorize?", action: null, sessionComplete: false }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ reply: "Hey - what can I help you categorize?", action: null, sessionComplete: false }) };
     }
   }
 
