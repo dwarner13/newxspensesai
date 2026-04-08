@@ -524,14 +524,7 @@ export function TransactionInsightDrawer({
             </div>
           )}
 
-          {/* TAG RULE BADGE */}
-          {row.kind === 'committed' && ['tag_rule', 'user_rule', 'rule'].includes((row.transaction as any).category_source) && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 12, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)', fontSize: 10, fontWeight: 700, color: '#22d3ee', width: 'fit-content' }}>
-              {'\u26A1'} Tag rule
-            </div>
-          )}
-
-          {/* RECEIPT ATTACHED */}
+          {/* RECEIPT ATTACHED (stays full-width if a receipt exists) */}
           {linkedReceipt && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)' }}>
               <span style={{ fontSize: 18 }}>{'\uD83E\uDDFE'}</span>
@@ -542,33 +535,56 @@ export function TransactionInsightDrawer({
               <button onClick={() => window.open(linkedReceipt.file_url || linkedReceipt.image_url, '_blank')} style={{ fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' as const }}>View {'\uD83E\uDDFE'}</button>
             </div>
           )}
-          {/* ATTACH RECEIPT */}
-          {!linkedReceipt && row?.kind === 'committed' && (
-            <div>
-              <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} id={`receipt-attach-${(row.transaction as any).id}`} onChange={async (e) => {
-                const file = e.target.files?.[0]; if (!file) return;
-                const txId = (row.transaction as any).id;
-                try {
-                  const { getSupabase } = await import('../../lib/supabase');
-                  const sb = getSupabase(); if (!sb) return;
-                  const { data: { session } } = await sb.auth.getSession(); if (!session) return;
-                  const reader = new FileReader();
-                  reader.onload = async () => {
-                    const base64 = (reader.result as string).split(',')[1];
-                    const res = await fetch('/.netlify/functions/receipt-upload', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name, transaction_id: txId }) });
-                    const data = await res.json();
-                    if (data.ok) { setLinkedReceipt({ id: data.receipt_id, merchant_name: data.merchant_name, amount: data.amount, file_url: data.file_url, match_status: 'matched' }); }
-                  };
-                  reader.readAsDataURL(file);
-                } catch { /* silent */ }
-                e.target.value = '';
-              }} />
-              <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>{'\uD83E\uDDFE'} Attach Receipt</label>
-            </div>
-          )}
+
+          {/* ACTION ROW — Tag rule + Attach Receipt side by side */}
+          {(() => {
+            const showTagRule = row.kind === 'committed' && ['tag_rule', 'user_rule', 'rule'].includes((row.transaction as any).category_source);
+            const showAttach = !linkedReceipt && row?.kind === 'committed';
+            if (!showTagRule && !showAttach) return null;
+            const btnBase: React.CSSProperties = {
+              flex: 1, height: 38, fontSize: 13, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
+              background: 'rgba(15,23,42,0.5)',
+            };
+            return (
+              <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                {showTagRule && (
+                  <div style={{ ...btnBase, color: '#22d3ee', border: '1px solid rgba(34,211,238,0.35)' }}>
+                    {'\u26A1'} Tag rule active
+                  </div>
+                )}
+                {showAttach && (
+                  <>
+                    <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} id={`receipt-attach-${(row.transaction as any).id}`} onChange={async (e) => {
+                      const file = e.target.files?.[0]; if (!file) return;
+                      const txId = (row.transaction as any).id;
+                      try {
+                        const { getSupabase } = await import('../../lib/supabase');
+                        const sb = getSupabase(); if (!sb) return;
+                        const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+                        const reader = new FileReader();
+                        reader.onload = async () => {
+                          const base64 = (reader.result as string).split(',')[1];
+                          const res = await fetch('/.netlify/functions/receipt-upload', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name, transaction_id: txId }) });
+                          const data = await res.json();
+                          if (data.ok) { setLinkedReceipt({ id: data.receipt_id, merchant_name: data.merchant_name, amount: data.amount, file_url: data.file_url, match_status: 'matched' }); }
+                        };
+                        reader.readAsDataURL(file);
+                      } catch { /* silent */ }
+                      e.target.value = '';
+                    }} />
+                    <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ ...btnBase, color: '#34d399', border: '1px solid rgba(52,211,153,0.35)' }}>
+                      {'\uD83E\uDDFE'} Attach Receipt
+                    </label>
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           {/* TAG INTELLIGENCE CARD */}
-          <div style={{ borderRadius: 14, background: 'linear-gradient(135deg, rgba(34,211,238,0.08) 0%, rgba(34,211,238,0.02) 100%)', border: '1px solid rgba(34,211,238,0.2)', borderLeft: '3px solid rgba(34,211,238,0.7)', boxShadow: '0 4px 20px rgba(34,211,238,0.08)' }}>
+          <div style={{ borderRadius: 14, background: 'linear-gradient(135deg, rgba(34,211,238,0.08) 0%, rgba(34,211,238,0.02) 100%)', border: '1px solid rgba(34,211,238,0.2)', borderLeft: '3px solid rgba(34,211,238,0.7)', boxShadow: '0 4px 20px rgba(34,211,238,0.08)', overflow: 'visible' }}>
             {/* Verdict row */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '16px 18px', borderBottom: '1px solid rgba(34,211,238,0.08)' }}>
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.08) 100%)', border: '1px solid rgba(34,211,238,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#22d3ee', flexShrink: 0, boxShadow: '0 0 16px rgba(34,211,238,0.2)' }}>T</div>
@@ -621,14 +637,14 @@ export function TransactionInsightDrawer({
             </div>
             {/* Tag message */}
             {(tagInsightLoading || tagInsight?.message) && (
-              <div style={{ padding: '10px 14px', fontSize: 12, color: '#cbd5e1', lineHeight: 1.6 }}>
-                {tagInsightLoading ? 'Analyzing this transaction?' : tagInsight?.message}
+              <div style={{ padding: '14px 18px', fontSize: 12.5, color: '#cbd5e1', lineHeight: 1.65, overflow: 'visible', whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                {tagInsightLoading ? 'Analyzing this transaction...' : tagInsight?.message}
               </div>
             )}
             {/* Proactive insights */}
-            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[?���?]/g, "�"); return (
-              <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{cleanInsight}</div>
-            ); })}
+            {tagInsight?.proactiveInsights?.map((insight, i) => (
+              <div key={i} style={{ padding: '10px 18px', borderTop: '1px solid rgba(34,211,238,0.08)', fontSize: 11.5, color: '#94a3b8', lineHeight: 1.55, overflow: 'visible', whiteSpace: 'normal', wordBreak: 'break-word' }}>{insight}</div>
+            ))}
           </div>
 
           {/* SUBCATEGORY */}
