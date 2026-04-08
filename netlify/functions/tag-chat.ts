@@ -297,6 +297,17 @@ USER'S FINANCES:
 - Total income: $${yearTotal.income.toFixed(2)}
 - Transactions in view: ${pageContext.transactionCount || 0}
 
+INTENT UNDERSTANDING - CRITICAL:
+You must understand what the user MEANS, not just what they literally typed. Natural language in a finance app almost always maps to one of: (a) a count/total question answerable from the injected data or CATEGORY TOTALS, (b) a filter/search request for specific transactions, or (c) a categorization command. When in doubt, lean toward answering directly with numbers. Examples:
+- "how many shadified" = "How many Shadified transactions do I have?" - count them from the injected data and answer in one line.
+- "how much coffee" = "What did I spend on coffee year-to-date?" - read from CATEGORY TOTALS / SUBCATEGORY TOTALS and answer with the dollar figure.
+- "how often do I hit 7-eleven" = count of 7-Eleven transactions from injected data.
+- "any duplicates" = "Do I have duplicate transactions?" - acknowledge and tell the user to check the Needs Review queue; Tag does not run dedupe on demand.
+- "what about gas" = filter intent -> emit FILTER block for Transportation / Gas & Fuel.
+- "tim hortons?" = filter intent -> emit FILTER block for Tim Hortons.
+- "gordon foods is income" = categorization command -> emit <correction> block (see IS-A PATTERN below).
+Never treat question words ("how", "what", "any") as merchant names. Strip leading "how much/many/often", "what about", "show me", "tell me" before interpreting the remainder as a merchant or category.
+
 FILTER intent  - triggers on ANY of these patterns:
 - A merchant name typed alone e.g. "borrowell" or "7-eleven" or "petro"
 - "show me X" / "find X" / "search X" / "filter by X" / "look up X"
@@ -846,15 +857,20 @@ export const handler: Handler = async (event) => {
     // Also extract a merchant token from the raw message even when searchIntent
     // doesn't flag it as a search  - so "how much at 7-eleven?" still prioritizes.
     const MERCHANT_STOPWORDS = new Set([
-      'are you sure', 'how much', 'how many', 'what about', 'tell me', 'let me',
+      'are you sure', 'how much', 'how many', 'how often', 'how frequently',
+      'what about', 'tell me', 'let me',
       'thank you', 'thanks', 'yes', 'no', 'okay', 'ok', 'sure', 'maybe',
       'i think', 'i dont', "i don't", 'can you', 'show me', 'please',
       'got it', 'never mind', 'nevermind',
     ]);
+    // Strip common leading question phrases so the merchant regex picks
+    // up the actual merchant, e.g. "how many shadified" -> "shadified"
+    const STRIP_LEADING = /^(how\s+(?:much|many|often|frequently)|what\s+about|show\s+me|tell\s+me|can\s+you|let\s+me)\s+/i;
+    const stripped = message.replace(STRIP_LEADING, '').trim();
     const extractFromFallback = (): string | null => {
       const atHit = message.match(/\bat\s+([a-z0-9][a-z0-9 &'.-]{1,30}?)(?:\?|\s*$)/i)?.[1]?.toLowerCase();
       if (atHit) return atHit;
-      const tokenHit = message.match(/\b([a-z0-9][a-z0-9 &'.-]{2,30})\b/i)?.[1]?.toLowerCase();
+      const tokenHit = stripped.match(/\b([a-z0-9][a-z0-9 &'.-]{2,30})\b/i)?.[1]?.toLowerCase();
       if (!tokenHit) return null;
       const trimmed = tokenHit.trim();
       // Digit-leading tokens like "7 eleven", "7-11", "99 cents" are always
@@ -956,7 +972,7 @@ export const handler: Handler = async (event) => {
   // 6. Call OpenAI
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const completion = await callWithRetry(() => openai.chat.completions.create({
-    model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+    model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o',
     temperature: 0.4,
     max_tokens: 500,
     messages: [
