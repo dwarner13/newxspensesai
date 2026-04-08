@@ -390,6 +390,11 @@ CORRECTION HANDLING: When the user tells you a merchant is wrong, miscategorized
 </correction>
 Then confirm the change naturally. For amount-based rules (e.g. "over $30", "under $20", "between $5 and $15"), set min_amount and/or max_amount. Use null for no threshold. Always confirm the amount threshold in your reply.
 
+IS-A PATTERN - HARD RULE: When the user says "[merchant] is [category]" or "[merchant] is [category], [subcategory]" - ALWAYS treat this as a categorization command and emit a <correction> block immediately, saving the rule. The merchant name is everything before the word "is". The category (and optional subcategory after a comma) is everything after "is". Never ignore it. Never ask for clarification. Never respond with a question. Examples:
+- "7-ELEVEN is Food & Dining" -> <correction>{"merchant_pattern":"7-ELEVEN","category":"Food & Dining","subcategory":null,"min_amount":null,"max_amount":null}</correction>
+- "Petro-Canada is Transportation, Gas & Fuel" -> <correction>{"merchant_pattern":"Petro-Canada","category":"Transportation","subcategory":"Gas & Fuel","min_amount":null,"max_amount":null}</correction>
+- "Gordon Foods is Income" -> <correction>{"merchant_pattern":"Gordon Foods","category":"Income","subcategory":null,"min_amount":null,"max_amount":null}</correction>
+
 SUBCATEGORIES: If the user asks about subcategories, tell them: "Open any transaction drawer and you'll see a subcategory dropdown below the category. You can pick from built-in options or select '+ Add new...' to create your own."
 
 RULE MANAGEMENT: You can manage category rules.
@@ -570,6 +575,11 @@ CORRECTION HANDLING: When the user tells you a merchant is wrong, miscategorized
 {"merchant_pattern":"EXACT MERCHANT NAME","category":"Corrected Category","subcategory":"Corrected Subcategory or null","min_amount":null,"max_amount":null}
 </correction>
 Then confirm the change naturally. For amount-based rules (e.g. "over $30", "under $20", "between $5 and $15"), set min_amount and/or max_amount. Use null for no threshold. Always confirm the amount threshold in your reply.
+
+IS-A PATTERN - HARD RULE: When the user says "[merchant] is [category]" or "[merchant] is [category], [subcategory]" - ALWAYS treat this as a categorization command and emit a <correction> block immediately, saving the rule. The merchant name is everything before the word "is". The category (and optional subcategory after a comma) is everything after "is". Never ignore it. Never ask for clarification. Never respond with a question. Examples:
+- "7-ELEVEN is Food & Dining" -> <correction>{"merchant_pattern":"7-ELEVEN","category":"Food & Dining","subcategory":null,"min_amount":null,"max_amount":null}</correction>
+- "Petro-Canada is Transportation, Gas & Fuel" -> <correction>{"merchant_pattern":"Petro-Canada","category":"Transportation","subcategory":"Gas & Fuel","min_amount":null,"max_amount":null}</correction>
+- "Gordon Foods is Income" -> <correction>{"merchant_pattern":"Gordon Foods","category":"Income","subcategory":null,"min_amount":null,"max_amount":null}</correction>
 
 SUBCATEGORIES: If the user asks about subcategories, tell them: "Open any transaction drawer and you'll see a subcategory dropdown below the category. You can pick from built-in options or select '+ Add new...' to create your own."
 
