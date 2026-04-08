@@ -4,6 +4,7 @@
   "description": "The finance app that actually talks back.",
   "start_url": "/dashboard",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
   "icons": [
