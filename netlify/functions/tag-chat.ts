@@ -701,9 +701,23 @@ export const handler: Handler = async (event) => {
     const searchIntent = extractSearchIntent(message);
     // Also extract a merchant token from the raw message even when searchIntent
     // doesn't flag it as a search  - so "how much at 7-eleven?" still prioritizes.
-    const msgMerchant = searchIntent.merchant ||
-      (message.match(/\bat\s+([a-z0-9][a-z0-9 &'.-]{1,30}?)(?:\?|\s*$)/i)?.[1]?.toLowerCase() || null) ||
-      (message.match(/\b([a-z0-9][a-z0-9 &'.-]{2,30})\b/i)?.[1]?.toLowerCase() || null);
+    const MERCHANT_STOPWORDS = new Set([
+      'are you sure', 'how much', 'how many', 'what about', 'tell me', 'let me',
+      'thank you', 'thanks', 'yes', 'no', 'okay', 'ok', 'sure', 'maybe',
+      'i think', 'i dont', "i don't", 'can you', 'show me', 'please',
+      'got it', 'never mind', 'nevermind',
+    ]);
+    const extractFromFallback = (): string | null => {
+      const atHit = message.match(/\bat\s+([a-z0-9][a-z0-9 &'.-]{1,30}?)(?:\?|\s*$)/i)?.[1]?.toLowerCase();
+      if (atHit) return atHit;
+      const tokenHit = message.match(/\b([a-z0-9][a-z0-9 &'.-]{2,30})\b/i)?.[1]?.toLowerCase();
+      if (!tokenHit) return null;
+      if (MERCHANT_STOPWORDS.has(tokenHit.trim())) return null;
+      // Reject pure pronoun/filler single tokens
+      if (/^(the|you|me|my|this|that|it|is|was|were|and|or|but|so|do|does|did)$/i.test(tokenHit.trim())) return null;
+      return tokenHit;
+    };
+    const msgMerchant = searchIntent.merchant || extractFromFallback();
     if (searchIntent.isSearch || msgMerchant) {
       try {
         // Step 1: merchant-prioritized rows (if merchant mentioned)
@@ -713,7 +727,7 @@ export const handler: Handler = async (event) => {
             .from('transactions')
             .select('id, merchant_name, description, amount, date, posted_at, category, subcategory, type')
             .eq('user_id', auth.userId)
-            .ilike('merchant_name', `%${msgMerchant}%`)
+            .ilike('merchant_name', `%${msgMerchant.replace(/\s+/g, '%')}%`)
             .order('date', { ascending: false })
             .limit(200);
           priorityRows = mRows || [];

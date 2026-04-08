@@ -282,10 +282,10 @@ export function TagCopilotPanel({
       }
       if (!replyText) {
         replyText = handoffTo
-          ? `Let me connect you to ${handoffTo.split("-")[0]} for this one…`
+          ? `Let me connect you to ${handoffTo.split("-")[0]} for this one...`
           : "I couldn't process that. Try again.";
       } else if (handoffTo) {
-        replyText += `\n\nConnecting you to ${handoffTo.split("-")[0]}…`;
+        replyText += `\n\nConnecting you to ${handoffTo.split("-")[0]}...`;
       }
       setMessages(prev => [...prev, { role: "assistant", content: replyText }]);
     } catch {
