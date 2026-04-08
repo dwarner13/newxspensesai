@@ -160,7 +160,7 @@ function extractSearchIntent(message: string): {
     'subscriptions': ['Subscriptions'], 'entertainment': ['Entertainment'], 'housing': ['Housing'],
     'utilities': ['Utilities'], 'insurance': ['Insurance'], 'travel': ['Travel'],
     'education': ['Education'], 'bank fees': ['Bank Fees'], 'income': ['Income'],
-    'uncategorized': ['Uncategorized'], 'needs review': ['Needs Review'],
+    'other': ['Other'], 'uncategorized': ['Needs Review'], 'needs review': ['Needs Review'],
     // Transportation subcategories
     'gas & fuel': ['Transportation', 'Gas & Fuel'],
     'gas and fuel': ['Transportation', 'Gas & Fuel'],
@@ -1001,6 +1001,7 @@ export const handler: Handler = async (event) => {
     'transfers': { category: 'Transfers', subcategory: '' },
     'income': { category: 'Income', subcategory: '' },
     'needs review': { category: 'Needs Review', subcategory: '' },
+    'other': { category: 'Other', subcategory: '' },
   };
 
   // When real transaction data was injected, strip any FILTER the LLM emitted  -
