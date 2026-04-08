@@ -630,14 +630,12 @@ export const handler: Handler = async (event) => {
     } catch { /* non-blocking */ }
   }
 
-  // 4. Year totals + category breakdown (complete, all transactions in year)
-  const yearStart = `${new Date().getFullYear()}-01-01`;
+  // 4. Complete category totals + year totals (ALL transactions, no date filter)
   const { data: allTxs } = await supabase
     .from('transactions')
     .select('amount, category')
     .eq('user_id', auth.userId)
-    .gte('posted_at', yearStart)
-    .limit(5000);
+    .limit(10000);
   let yearSpent = 0, yearIncome = 0;
   const categoryTotalsMap = new Map<string, { total: number; count: number }>();
   for (const t of allTxs || []) {
@@ -656,7 +654,7 @@ export const handler: Handler = async (event) => {
   const categoryTotalsSorted = Array.from(categoryTotalsMap.entries())
     .sort((a, b) => b[1].total - a[1].total);
   const categoryTotalsBlock = [
-    `CATEGORY TOTALS (complete, all ${allTxs?.length || 0} transactions year-to-date):`,
+    `COMPLETE CATEGORY TOTALS (all ${allTxs?.length || 0} transactions, use these for any spending aggregation question):`,
     ...categoryTotalsSorted.map(([cat, v]) => `- ${cat}: $${v.total.toFixed(2)} (${v.count} tx)`),
     `- TOTAL SPENT: $${yearSpent.toFixed(2)}`,
     `- TOTAL INCOME: $${yearIncome.toFixed(2)}`,

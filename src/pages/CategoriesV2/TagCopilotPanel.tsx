@@ -78,7 +78,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     const b = line.match(/^[-*]\s+(.+)/);
     if (b) return (
       <div key={idx} style={{ display: "flex", gap: 7, marginBottom: 3 }}>
-        <span style={{ color: T.cyan, flexShrink: 0, fontSize: 11 }}>{"\u25B8"}</span>
+        <span style={{ color: T.cyan, flexShrink: 0, fontSize: 11 }}>{">"}</span>
         <span style={{ color: T.textMuted }}>{renderInline(b[1])}</span>
       </div>
     );
@@ -257,7 +257,7 @@ export function TagCopilotPanel({
           message: text,
           history: updatedMessages.slice(0, -1),
           systemPromptOverride:
-            "STRICT CHAT RULES \u2014 violating these breaks the experience:\n1. Max 2 sentences. Hard limit. No exceptions.\n2. Ask ONE question then STOP. Never ask multiple questions.\n3. Zero bullet points. Zero numbered lists. Zero headers. Plain conversational sentences only.\n4. Never write analysis, breakdowns, or math. Just talk.\n5. You already have the financial data \u2014 reference it naturally, don't explain it back.\n\nYou are Tag \u2014 XspensesAI's categorization expert. You're having a focused chat, not writing a report.\n\nAMOUNT ANOMALY RULE \u2014 this is critical:\nIf the user asks about a transaction where the amount is unusually high for that merchant (more than 3\u00d7 what you'd expect based on the merchant type), you MUST flag it. Be specific \u2014 name the merchant, state the amount, give a realistic comparison (e.g. 'A $147 charge at 7-Eleven is about 18\u00d7 a typical visit'). Always end with exactly this sentence: 'I'd verify this against your bank app or original statement before I lock in a category \u2014 this one looks off.' Never skip this when the amount is suspicious. This protects the user and is non-negotiable.\n\nUSER'S FINANCIAL DATA:\n- Total spent: " +
+            "STRICT CHAT RULES - violating these breaks the experience:\n1. Max 2 sentences. Hard limit. No exceptions.\n2. Ask ONE question then STOP. Never ask multiple questions.\n3. Zero bullet points. Zero numbered lists. Zero headers. Plain conversational sentences only.\n4. Never write analysis, breakdowns, or math. Just talk.\n5. You already have the financial data - reference it naturally, don't explain it back.\n\nYou are Tag - XspensesAI's categorization expert. You're having a focused chat, not writing a report.\n\nAMOUNT ANOMALY RULE - this is critical:\nIf the user asks about a transaction where the amount is unusually high for that merchant (more than 3x what you'd expect based on the merchant type), you MUST flag it. Be specific - name the merchant, state the amount, give a realistic comparison (e.g. 'A $147 charge at 7-Eleven is about 18x a typical visit'). Always end with exactly this sentence: 'I'd verify this against your bank app or original statement before I lock in a category - this one looks off.' Never skip this when the amount is suspicious. This protects the user and is non-negotiable.\n\nUSER'S FINANCIAL DATA:\n- Total spent: " +
             (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) +
             " CAD\n- Total transactions: " + (txCount || 0) + "\n- Spending categories:\n" +
             (topCategories || []).map(c => {
@@ -267,7 +267,7 @@ export function TagCopilotPanel({
               if (c.topMerchant) line += " \u00b7 Top: " + c.topMerchant;
               return line;
             }).join("\n") +
-            "\n\nYou are looking at the Categories page with the user. Answer questions about their spending categories, budget status, tax deductibility, business vs personal split, and category optimization for Canadian self-employed. Reference the real numbers above.\nTag personality: detective-like, precise, witty, always helpful. When something looks wrong, say so directly \u2014 that's what makes Tag trustworthy.",
+            "\n\nYou are looking at the Categories page with the user. Answer questions about their spending categories, budget status, tax deductibility, business vs personal split, and category optimization for Canadian self-employed. Reference the real numbers above.\nTag personality: detective-like, precise, witty, always helpful. When something looks wrong, say so directly - that's what makes Tag trustworthy.",
         }),
       });
       if (!res.ok) throw new Error(`tag-copilot ${res.status}`);
@@ -307,23 +307,23 @@ export function TagCopilotPanel({
     if (overBudget.length > 0) {
       const worst = overBudget.sort((a, b) => (b.total - b.budget!) - (a.total - a.budget!))[0];
       const pct = Math.round((worst.total / (worst.budget || 1)) * 100);
-      text = `${hi} \u2014 ${overBudget.length} categor${overBudget.length > 1 ? "ies are" : "y is"} over budget. **${worst.category}** is at ${pct}% of budget (${worst.total.toLocaleString("en-CA", { maximumFractionDigits: 0 })} / ${worst.budget?.toLocaleString("en-CA", { maximumFractionDigits: 0 })}). Want me to break that down?`;
+      text = `${hi} - ${overBudget.length} categor${overBudget.length > 1 ? "ies are" : "y is"} over budget. **${worst.category}** is at ${pct}% of budget (${worst.total.toLocaleString("en-CA", { maximumFractionDigits: 0 })} / ${worst.budget?.toLocaleString("en-CA", { maximumFractionDigits: 0 })}). Want me to break that down?`;
     } else if (flaggedCount > 0) {
       const suspicious = flaggedTransactions.find(f => f.issue && f.issue.toLowerCase().includes("unusual"));
       if (suspicious) {
-        text = `${hi} \u2014 ${flaggedCount} transaction${flaggedCount > 1 ? "s" : ""} flagged, and **${suspicious.merchant}** (${suspicious.amount}) looks off to me \u2014 that amount doesn't match their usual pattern. Verify that one against your bank app first.`;
+        text = `${hi} - ${flaggedCount} transaction${flaggedCount > 1 ? "s" : ""} flagged, and **${suspicious.merchant}** (${suspicious.amount}) looks off to me - that amount doesn't match their usual pattern. Verify that one against your bank app first.`;
       } else {
-        text = `${hi} \u2014 ${flaggedCount} transaction${flaggedCount > 1 ? "s" : ""} still need a category. Want me to sort those out?`;
+        text = `${hi} - ${flaggedCount} transaction${flaggedCount > 1 ? "s" : ""} still need a category. Want me to sort those out?`;
       }
     } else if (sorted.length > 0 && totalSpent && totalSpent > 0) {
       const top = sorted[0], second = sorted[1];
       const pct = Math.round((top.total / totalSpent) * 100);
       const tip = top.category === "Transfers" && second
-        ? `**${second.category}** is your biggest real expense at ${Math.round((second.total / totalSpent) * 100)}% \u2014 typical for your business?`
+        ? `**${second.category}** is your biggest real expense at ${Math.round((second.total / totalSpent) * 100)}% - typical for your business?`
         : `**${top.category}** is ${pct}% of total spend. Is that expected for your work?`;
-      text = `${hi} \u2014 books look clean \u2713 ${tip}`;
+      text = `${hi} - books look clean (v) ${tip}`;
     } else {
-      text = `${hi} \u2014 all ${count} transactions categorized. Ask me anything about your categories, budgets, or what's deductible.`;
+      text = `${hi} - all ${count} transactions categorized. Ask me anything about your categories, budgets, or what's deductible.`;
     }
     setGreetingText(text);
   }, [txCount, totalCount, topCategories, totalSpent, flaggedCount]);
@@ -404,7 +404,7 @@ export function TagCopilotPanel({
             className="tag-close"
             onClick={handleClose}
             style={{ width: 30, height: 30, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.textMuted, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
-          >{"\u00d7"}</button>
+          >{"x"}</button>
         </div>
 
         {/* Body */}
@@ -500,7 +500,7 @@ export function TagCopilotPanel({
                       color: "#ffffff", cursor: "pointer",
                       fontFamily: "'Syne',sans-serif", letterSpacing: 0.3,
                     }}
-                  >Ask Tag {"\u2192"}</button>
+                  >Ask Tag {"->"}</button>
                 </div>
               ))}
             </Reveal>
@@ -519,7 +519,7 @@ export function TagCopilotPanel({
                   boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
                 }}>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, marginBottom: 3, fontFamily: "'Syne',sans-serif" }}>
-                    Split "{sg.parentCategory}" {"\u2192"} {sg.subcategories.length} subcategories
+                    Split "{sg.parentCategory}" {"->"} {sg.subcategories.length} subcategories
                   </div>
                   <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 12 }}>Distinct spending patterns detected</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
@@ -594,7 +594,7 @@ export function TagCopilotPanel({
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ fontSize: 11, fontWeight: 500, color: T.text, flex: 1, fontFamily: "'DM Mono',monospace", letterSpacing: 0.5 }}>{r.merchant}</span>
-                      <span style={{ fontSize: 11, color: T.textDim }}>{"\u2192"}</span>
+                      <span style={{ fontSize: 11, color: T.textDim }}>{"->"}</span>
                       <span style={{
                         fontSize: 11, fontWeight: 700, color: "#ffffff",
                         background: "rgba(34,211,238,0.12)",
@@ -625,9 +625,9 @@ export function TagCopilotPanel({
                 border: "1px solid rgba(34,211,238,0.12)",
               }}>
                 {flaggedCount > 0
-                  ? `Start with the ${flaggedCount} flagged transaction${flaggedCount !== 1 ? "s" : ""} \u2014 once those are categorized, your spending totals will be accurate and Prime can give you a better summary.`
+                  ? `Start with the ${flaggedCount} flagged transaction${flaggedCount !== 1 ? "s" : ""} - once those are categorized, your spending totals will be accurate and Prime can give you a better summary.`
                   : subcategorySuggestions.length > 0
-                  ? "All transactions look good. Consider approving the subcategory splits \u2014 it will give Crystal better data for trend analysis."
+                  ? "All transactions look good. Consider approving the subcategory splits - it will give Crystal better data for trend analysis."
                   : "Everything looks clean. Your categories are well organized and Tag confidence is high."
                 }
               </div>
