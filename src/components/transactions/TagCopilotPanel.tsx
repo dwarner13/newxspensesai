@@ -1005,7 +1005,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           {busy && (
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(34,211,153,0.12)', border:'1px solid rgba(34,211,153,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#22d3ee' }}>T</div>
-              <div style={{ fontSize:13, color:'#e8ecf4' }}>ThinkingΓÇª</div>
+              <div style={{ fontSize:13, color:'#e8ecf4' }}>Thinking...</div>
             </div>
           )}
           <div ref={bottomRef} />
