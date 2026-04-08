@@ -611,7 +611,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         padding: "10px 16px 12px",
         background: THEME.bg,
       }}>
-        <div style={{ marginBottom: 8, display: "flex", justifyContent: "center", overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" as any }}>
+        <div style={{ marginBottom: 8 }}>
           <QuickActionChips chips={[
             { icon: "\uD83D\uDCCA", label: "Categories", action: () => { onClose?.(); navigate("/dashboard/smart-categories"); } },
             { icon: "\uD83E\uDDFE", label: "Tax summary", action: () => { onClose?.(); navigate("/dashboard/tax-assistant"); } },

@@ -1,4 +1,4 @@
-﻿import { THEME } from "./agentConfig";
+import { THEME } from "./agentConfig";
 
 interface ChipItem {
   icon: string;
@@ -13,20 +13,36 @@ interface QuickActionChipsProps {
 export function QuickActionChips({ chips }: QuickActionChipsProps) {
   return (
     <div
+      className="prime-chip-row"
       style={{
         display: "flex",
-        justifyContent: "center",
-        gap: 7,
+        flexWrap: "nowrap",
+        justifyContent: "flex-start",
+        gap: 8,
         overflowX: "auto",
+        WebkitOverflowScrolling: "touch",
         scrollbarWidth: "none",
-        paddingBottom: 2,
+        msOverflowStyle: "none",
+        paddingBottom: 4,
       }}
     >
+      <style>{`
+        .prime-chip-row::-webkit-scrollbar { display: none; }
+        @media (max-width: 768px) {
+          .prime-chip-row .prime-chip {
+            font-size: 12px !important;
+            padding: 8px 12px !important;
+            border-radius: 20px !important;
+          }
+        }
+      `}</style>
       {chips.map((chip) => (
         <button
           key={chip.label}
           onClick={chip.action}
+          className="prime-chip"
           style={{
+            flexShrink: 0,
             display: "inline-flex",
             alignItems: "center",
             gap: 5,
