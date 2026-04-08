@@ -733,17 +733,19 @@ export const handler: Handler = async (event) => {
     } catch { /* non-blocking */ }
   }
 
-  // 4. Complete category totals + year totals (ALL transactions, no date filter)
+  // 4. Complete category + subcategory totals (ALL transactions, no date filter)
   const { data: allTxs } = await supabase
     .from('transactions')
-    .select('amount, category, type')
+    .select('amount, category, subcategory, type')
     .eq('user_id', auth.userId)
     .limit(10000);
   let yearSpent = 0, yearIncome = 0;
   const categoryTotalsMap = new Map<string, { total: number; count: number }>();
+  const subcatTotalsMap = new Map<string, { total: number; count: number }>();
   for (const t of allTxs || []) {
     const amt = Math.abs(Number(t.amount || 0));
     const cat = String(t.category || 'Uncategorized');
+    const sub = String((t as any).subcategory || '');
     if (cat.toLowerCase() === 'income' || String((t as any).type || '').toLowerCase() === 'income') {
       yearIncome += amt;
     } else {
@@ -752,17 +754,32 @@ export const handler: Handler = async (event) => {
       entry.total += amt;
       entry.count += 1;
       categoryTotalsMap.set(cat, entry);
+      const subKey = `${cat}||${sub}`;
+      const subEntry = subcatTotalsMap.get(subKey) || { total: 0, count: 0 };
+      subEntry.total += amt;
+      subEntry.count += 1;
+      subcatTotalsMap.set(subKey, subEntry);
     }
   }
   const categoryTotalsSorted = Array.from(categoryTotalsMap.entries())
     .sort((a, b) => b[1].total - a[1].total);
+  const subcatTotalsSorted = Array.from(subcatTotalsMap.entries())
+    .filter(([k]) => k.split('||')[1]) // only rows with a subcategory
+    .sort((a, b) => b[1].total - a[1].total);
   const categoryTotalsBlock = [
     `COMPLETE CATEGORY TOTALS (all ${allTxs?.length || 0} transactions, use these for any spending aggregation question):`,
     ...categoryTotalsSorted.map(([cat, v]) => `- ${cat}: $${v.total.toFixed(2)} (${v.count} tx)`),
+    '',
+    'SUBCATEGORY TOTALS:',
+    ...subcatTotalsSorted.map(([k, v]) => {
+      const [cat, sub] = k.split('||');
+      return `- ${cat} / ${sub}: $${v.total.toFixed(2)} (${v.count} tx)`;
+    }),
+    '',
     `- TOTAL SPENT: $${yearSpent.toFixed(2)}`,
     `- TOTAL INCOME: $${yearIncome.toFixed(2)}`,
     '',
-    'Use these totals verbatim for any aggregation or "top category" question. Never recompute from the injected transaction list.',
+    'Use these totals verbatim for any aggregation, "top category", or subcategory question. Never recompute from the injected transaction list.',
   ].join('\n');
 
   // 4.5: Pre-fetch transaction data for search intents (page-level only)
@@ -821,7 +838,10 @@ export const handler: Handler = async (event) => {
               q = q.eq('category', searchIntent.category);
             }
           }
-          if (searchIntent.subcategory) q = q.ilike('subcategory', `%${searchIntent.subcategory}%`);
+          if (searchIntent.subcategory) {
+            const subRoot = searchIntent.subcategory.split(' & ')[0].split(' ')[0];
+            q = q.ilike('subcategory', `%${subRoot}%`);
+          }
           if (searchIntent.type === 'income') q = q.eq('type', 'income');
           else if (searchIntent.type === 'expense') q = q.neq('type', 'income');
           if (searchIntent.startDate) q = q.gte('date', searchIntent.startDate);
