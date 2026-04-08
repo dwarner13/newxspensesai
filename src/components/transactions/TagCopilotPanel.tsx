@@ -185,7 +185,7 @@ function resolveCategory(input: string): string | null {
 
 function detectQueryKeyword(text: string): string | null {
   const t = text.trim();
-  // "show me all massage transactions" ΓÇö transactions word is optional, handles typos
+  // "show me all massage transactions" - transactions word is optional, handles typos
   const queryMatch = t.match(
     /\b(?:how many|show (?:me )?(?:all )?(?:my )?|find|list(?: all)?(?:\s+my)?|pull up|search for|look up|display|get me|what are my|all my)\s+(?:my\s+)?(.+?)(?:\s+transac\w*|\s+expenses?|\s+purchases?|\s+charges?)?\s*[?!]?\s*$/i
   );
@@ -285,7 +285,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
   const fetchProactiveGreeting = useCallback(async () => {
     const hi = firstName ? `Hey ${firstName}` : 'Hey';
     // Show instant placeholder so there is no blank gap while fetch runs
-    setLocalMessages([{ role: 'tag' as const, text: `${hi} ΓÇö checking your transactions...` }]);
+    setLocalMessages([{ role: 'tag' as const, text: `${hi} - checking your transactions...` }]);
     try {
       const sb = getSupabase(); if (!sb) return;
       const { data: { session } } = await sb.auth.getSession(); if (!session) return;
@@ -624,7 +624,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       const { cleanReply, action: tagAction } = parseTagAction(data.reply);
-      // Handle handoff from server ΓÇö short-circuit before other processing
+      // Handle handoff from server - short-circuit before other processing
       if (data.handoff?.to && onTagAction) {
         setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
         setBusy(false);
@@ -632,8 +632,8 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
         return;
       }
       setLocalMessages(m => [...m, { role: 'tag' as const, text: cleanReply }]);
-      // Detect query keyword ΓÇö if user asked to see transactions, fetch inline results
-      // Skip client-side query detection ΓÇö backend now handles search
+      // Detect query keyword - if user asked to see transactions, fetch inline results
+      // Skip client-side query detection - backend now handles search
       // via injectedTxContext (real Supabase data injected before model call)
       const queryKw = null;
       if (tagAction && onTagAction && !queryKw) onTagAction(tagAction);
@@ -647,7 +647,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
         }
       }
     } catch {
-      setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Something went wrong ΓÇö try again.' }]);
+      setLocalMessages(m => [...m, { role: 'tag' as const, text: 'Something went wrong - try again.' }]);
     }
     setBusy(false);
   };
@@ -698,7 +698,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
         setSmartReview({ issues: mapped, summary: `Found ${data.issueCount} issues across ${data.totalAffected} transactions` });
         setSmartReviewApproved(new Set(mapped.map((i: any) => i.id)));
       } else {
-        setSmartReview({ issues: [], summary: 'No issues found ΓÇö your categorizations look clean!' });
+        setSmartReview({ issues: [], summary: 'No issues found - your categorizations look clean!' });
       }
     } catch { /* silent */ }
     finally { setSmartReviewLoading(false); }
@@ -1018,7 +1018,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           <div style={{ padding:'8px 16px', borderTop:'1px solid rgba(34,211,238,0.15)', background:'rgba(34,211,238,0.04)', display:'flex', alignItems:'center', gap:6 }}>
             <span style={{ fontSize:12 }}>{'\uD83D\uDCCC'}</span>
             <span style={{ fontSize:11, color:'#22d3ee', fontWeight:600, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-              {selectedTransaction.merchant_name || 'Unknown'} ΓÇö ${Math.abs(selectedTransaction.amount).toFixed(2)} on {selectedTransaction.date || selectedTransaction.posted_at?.split('T')[0] || '?'}
+              {selectedTransaction.merchant_name || 'Unknown'} - ${Math.abs(selectedTransaction.amount).toFixed(2)} on {selectedTransaction.date || selectedTransaction.posted_at?.split('T')[0] || '?'}
             </span>
             <span style={{ fontSize:10, color:'#475569' }}>Say "change this to..." to recategorize</span>
           </div>
@@ -1054,7 +1054,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
               ))}
             </div>
             {activityLoading && <div style={{ display:'flex', alignItems:'center', gap:10, color:'#7b8ba5', fontSize:13 }}><div style={{ width:16, height:16, borderRadius:'50%', border:'2px solid #1e2d4a', borderTopColor:'#22d3ee', animation:'spin 1s linear infinite' }} />Loading...</div>}
-            {!activityLoading && activityLog.length === 0 && <div style={{ textAlign:'center', padding:'40px 0', color:'#7b8ba5', fontSize:13 }}>No activity yet ΓÇö changes by Tag will appear here.</div>}
+            {!activityLoading && activityLog.length === 0 && <div style={{ textAlign:'center', padding:'40px 0', color:'#7b8ba5', fontSize:13 }}>No activity yet - changes by Tag will appear here.</div>}
             {!activityLoading && (() => {
               const groups: Record<string, any[]> = {};
               activityLog.forEach(log => { const d = new Date(log.created_at).toLocaleDateString('en-CA', { weekday:'long', month:'long', day:'numeric' }); if (!groups[d]) groups[d] = []; groups[d].push(log); });
@@ -1087,7 +1087,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
         {activeTab === 'rules' && (
           <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'16px 20px' }}>
             {learnedRules.length === 0 ? (
-              <div style={{ textAlign:'center', padding:'40px 0', color:'#7b8ba5', fontSize:13 }}>No rules saved yet ΓÇö Tag saves rules when you fix a merchant.</div>
+              <div style={{ textAlign:'center', padding:'40px 0', color:'#7b8ba5', fontSize:13 }}>No rules saved yet - Tag saves rules when you fix a merchant.</div>
             ) : learnedRules.map((rule: any) => (
               <div key={rule.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:10, background:'#111a2e', border:'1px solid #1e2d4a', marginBottom:6 }}>
                 <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(34,211,238,0.12)', border:'1px solid rgba(34,211,238,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>{'\u26A1'}</div>
