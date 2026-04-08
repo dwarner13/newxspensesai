@@ -30,11 +30,11 @@
  * 1. Frontend generates a stable sessionId per user + employee (stored in localStorage)
  * 2. Frontend passes sessionId in request body: { sessionId: "uuid-here", ... }
  * 3. Backend calls ensureSession(sb, userId, sessionId, employeeSlug):
- *    - If sessionId exists and is valid → reuse it
- *    - If sessionId missing/invalid → create new session in chat_sessions table
+ *    - If sessionId exists and is valid -> reuse it
+ *    - If sessionId missing/invalid -> create new session in chat_sessions table
  * 4. Backend calls getRecentMessages(sessionId) to load conversation history
  * 5. Backend saves new messages to chat_messages table with session_id
- * 6. Next request with same sessionId will load previous messages → maintains context
+ * 6. Next request with same sessionId will load previous messages -> maintains context
  * 
  * RECENT CHANGES (2025-01-20):
  * - Added Custodian conversation summary generation (updateConversationSummaryForCustodian)
@@ -166,7 +166,7 @@ interface ChatRequest {
       recentFacts?: string[];
     } | null;
     lastTagOutput?: any;
-    /** All import summaries displayed to the user this session — use these to answer follow-up questions */
+    /** All import summaries displayed to the user this session - use these to answer follow-up questions */
     recentImportSummaries?: Array<{
       importId: string;
       label: string; // e.g. "BMO February 2026"
@@ -800,7 +800,7 @@ function getClarificationDecision(
     /\bfrom\b.+\bto\b/i.test(text);
   const asksSnapshotStyle = /\b(current|latest|snapshot|overview|right now)\b/i.test(text);
   // If Prime has real transaction data loaded, skip timeframe clarification
-  // and answer from what we have — asking for clarification when data exists
+  // and answer from what we have - asking for clarification when data exists
   // is the #1 reason Prime feels dumb to users
   const hasRealDataLoaded = Boolean(primeContext?.financialSnapshot?.hasTransactions);
   if (hasRealDataLoaded && asksSpendOrCategory && !hasTimeframe) {
@@ -1609,7 +1609,7 @@ function isStatementBreakdownIntent(message: string): boolean {
     || /\b(uploaded|uploaded statement|what i uploaded|which statement|that upload|that statement|my statement|my document|the file|the document|the statement|this document|this statement|my import|the import)\b/.test(text);
   const breakdownAsks = /\b(break\s*down|breakdown|what'?s on|what is on|summar(?:y|ize)|summarise|what did you find|findings|show me|list|totals?|categories?|tell me|what'?s in|analyz[e|is]|analys[e|is]|review|overview|explain|describe|walk me|give me)\b/.test(text);
   const statementDetailAsks = /\b(due date|minimum payment|min payment|new balance|credit limit|available credit|account last[-\s]?4|last[-\s]?4|issuer|institution|card|visa|mastercard|credit card|bank statement|statement type|statement period|period start|period end)\b/.test(text);
-  // Bare month/time-range with no specific drill-down → treat as a breakdown request.
+  // Bare month/time-range with no specific drill-down -> treat as a breakdown request.
   // "this month", "february", "last month" alone means the user wants the full summary.
   const bareMonthRequest = /^\s*(this month|last month|january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|sept|october|oct|november|nov|december|dec)\s*[.?!]?\s*$/i.test(text);
   return (explicitStatementContext && breakdownAsks) || statementDetailAsks || bareMonthRequest;
@@ -1629,7 +1629,7 @@ function isStatementQaIntent(message: string): boolean {
   if (styleOnlyQuestion && !/\b(transactions?|charges?|spend|spent|total|category|merchant|income|deposits?|refunds?|fees?|interest|largest|biggest|top\s+\d+)\b/.test(text)) {
     return false;
   }
-  // Bare month/time-range with no drill-down filter → route to breakdown, not QA.
+  // Bare month/time-range with no drill-down filter -> route to breakdown, not QA.
   // QA is for specific questions like "how much at Uber this month" or "show me charges".
   if (monthMentioned && !statementKeywords && !merchantNeedle) {
     return false;
@@ -1905,7 +1905,7 @@ function routePrime(
     };
   }
 
-  // Import announcement bypass — never route statement imports to clarification
+  // Import announcement bypass - never route statement imports to clarification
   const lowerTextForBypass = sanitizedUserText.toLowerCase();
   const isImportAnnouncement =
     lowerTextForBypass.includes('system: a new statement') ||
@@ -3014,7 +3014,7 @@ function buildUploadFindingsResponseFromSummary(
 
   if (txLines.length > 0) {
     return [
-      'Yes — I have your latest statement in front of me.',
+      'Yes - I have your latest statement in front of me.',
       'Prime read: here is what matters first.',
       ...(summaryNarrative ? ['', summaryNarrative] : []),
       ...(summaryBullets.length > 0 ? ['', 'Top findings:', ...summaryBullets] : []),
@@ -3027,7 +3027,7 @@ function buildUploadFindingsResponseFromSummary(
   }
 
   return [
-    'Yes — I found your latest upload summary.',
+    'Yes - I found your latest upload summary.',
     'Prime read: I can guide this step-by-step from here.',
     ...(summaryNarrative ? ['', summaryNarrative] : []),
     ...(summaryBullets.length > 0
@@ -3657,7 +3657,7 @@ async function loadStatementBreakdown(
         .eq('id', targetImportId)
         .maybeSingle();
       if (!importCheck || String(importCheck.status || '') !== 'committed') {
-        targetImportId = null; // not committed — fall through to most-recent-committed
+        targetImportId = null; // not committed - fall through to most-recent-committed
       }
     }
 
@@ -4138,7 +4138,7 @@ async function loadStatementQaRows(
       if (filtered.length > 0) {
         rows.push(...filtered);
       } else if (req.importId) {
-        // import_id filter returned 0 rows — fall back to ALL user transactions
+        // import_id filter returned 0 rows - fall back to ALL user transactions
         // This handles cases where the resolved import_id doesn't match committed rows
         const unfiltered = filterTxRows(data, false);
         rows.push(...unfiltered);
@@ -4600,9 +4600,9 @@ async function getUserProfile(
       }
     }
 
-    // Preferred name: display_name → first_name → full_name → auth metadata/email
+    // Preferred name: display_name -> first_name -> full_name -> auth metadata/email
     const rawPreferredName = profile.display_name || profile.first_name || profile.full_name || 'there';
-    // Capitalize each word (handles "darrell warner" → "Darrell Warner")
+    // Capitalize each word (handles "darrell warner" -> "Darrell Warner")
     let preferredName = rawPreferredName === 'there' ? 'there'
       : rawPreferredName.split(' ').map((w: string) => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
     if (preferredName === 'there') {
@@ -4828,7 +4828,7 @@ async function buildAttachmentContext(
         }
       }
     } catch {
-      // Non-fatal — proceed without import enrichment
+      // Non-fatal - proceed without import enrichment
     }
 
     const contextParts: string[] = [];
@@ -4913,7 +4913,7 @@ async function buildAttachmentContext(
               if (flagParts.length > 0) docContext.push(`  Flags: ${flagParts.join(', ')}`);
             }
           } catch {
-            // Non-fatal — breakdown parse failed; context has metadata only
+            // Non-fatal - breakdown parse failed; context has metadata only
           }
         }
       }
@@ -5664,7 +5664,7 @@ export const handler: Handler = async (event, context) => {
       console.log('[Guardrails] Scanning text (user-only):', userText);
     }
     if (isGreetingAllowlisted) {
-      console.log('[Guardrails] Allowlisted greeting — skipping jailbreak detection');
+      console.log('[Guardrails] Allowlisted greeting - skipping jailbreak detection');
     }
 
     let masked = userText;
@@ -6200,7 +6200,7 @@ export const handler: Handler = async (event, context) => {
     // This keeps simple utility requests fast and reliable.
     setStage('deterministic_brains');
 
-    // PRIME_GREETING messages must skip ALL deterministic paths — they should always
+    // PRIME_GREETING messages must skip ALL deterministic paths - they should always
     // reach the LLM with full context so Prime generates a real greeting, not a canned response.
     // Also strip from masked so intent detectors don't match keywords in the instruction text.
     // NOTE: systemMessages is declared later (~line 8682), so we defer the push.
@@ -7008,7 +7008,7 @@ export const handler: Handler = async (event, context) => {
             };
           }
         } catch {
-          // Summary not ready yet — fall through to model
+          // Summary not ready yet - fall through to model
         }
       }
     }
@@ -7032,7 +7032,7 @@ export const handler: Handler = async (event, context) => {
           };
         }
       } catch {
-        // No saved summary — proceed with worker chain
+        // No saved summary - proceed with worker chain
       }
     }
 
@@ -8608,7 +8608,7 @@ export const handler: Handler = async (event, context) => {
           .eq('status', 'initiated')
           .gte('created_at', fiveMinutesAgo);
         
-        console.log(`[Chat] ✅ Loaded handoff context from ${handoffContext.from_employee} → ${finalEmployeeSlug}`);
+        console.log(`[Chat] ✅ Loaded handoff context from ${handoffContext.from_employee} -> ${finalEmployeeSlug}`);
       }
     } catch (error: any) {
       console.warn('[Chat] Failed to load handoff context:', error);
@@ -8678,7 +8678,7 @@ export const handler: Handler = async (event, context) => {
     // 8. BUILD MODEL MESSAGES
     // ========================================================================
     // Build system messages array (separate messages for each rule)
-    // ORDER: Global fluency rule → Merged user context → Prime rule → Employee-specific prompts
+    // ORDER: Global fluency rule -> Merged user context -> Prime rule -> Employee-specific prompts
     const systemMessages: Array<{ role: 'system'; content: string }> = [];
     // Push deferred greeting instruction (set early before deterministic paths, but systemMessages wasn't initialized yet)
     if (deferredGreetingSystemMessage) {
@@ -8769,7 +8769,7 @@ export const handler: Handler = async (event, context) => {
     systemMessages.push({ role: 'system', content: mergedUserContext });
 
     // 2.5 Employee Brain Pack (ALL employees, per employee_key)
-    // This is the employee’s unique identity + workflow + tone layer.
+    // This is the employee's unique identity + workflow + tone layer.
     const employeeBrainPrompt = buildEmployeeBrainSystemPrompt({
       employee_key: employeeKey, // resolved earlier from slug/registry
       ai_fluency_level: (ctx as any)?.ai_fluency_level ?? null,
@@ -8787,7 +8787,7 @@ export const handler: Handler = async (event, context) => {
       });
     }
 
-    // 2.6 Employee Job Context (per-employee “what’s happening right now” snapshot)
+    // 2.6 Employee Job Context (per-employee “what's happening right now” snapshot)
     try {
       const jobCtx = await buildEmployeeJobContextSystemMessage(sb, {
         employeeKey,
@@ -8846,11 +8846,11 @@ export const handler: Handler = async (event, context) => {
         }
       }
       
-      // Recent import summaries — all documents uploaded this session. Use these to answer
+      // Recent import summaries - all documents uploaded this session. Use these to answer
       // follow-up questions and to compare documents when the user asks about specific statements.
       if (pc.recentImportSummaries && pc.recentImportSummaries.length > 0) {
         const summaries = pc.recentImportSummaries;
-        primeContextMessage += `\nRECENT IMPORT SUMMARIES (${summaries.length} document${summaries.length > 1 ? 's' : ''} I displayed this session — reference the correct one when answering follow-up questions):\n`;
+        primeContextMessage += `\nRECENT IMPORT SUMMARIES (${summaries.length} document${summaries.length > 1 ? 's' : ''} I displayed this session - reference the correct one when answering follow-up questions):\n`;
         summaries.forEach((rs, i) => {
           primeContextMessage += `\n[Document ${i + 1}${rs.label ? `: ${rs.label}` : ''}]\n`;
           primeContextMessage += `- Total spend: $${rs.totalSpend.toFixed(2)}\n`;
@@ -8890,7 +8890,7 @@ export const handler: Handler = async (event, context) => {
       } catch { /* non-blocking */ }
 
       // ── Full Team Intelligence Feed ─────────────────────────────────────────
-      // Prime is CEO — he needs to know everything every agent has done
+      // Prime is CEO - he needs to know everything every agent has done
 
       // 1. Category rules Tag has saved
       try {
@@ -8904,12 +8904,12 @@ export const handler: Handler = async (event, context) => {
         if (rules && rules.length > 0) {
           primeContextMessage += '\nTag\'s saved category rules (most recent first):\n' +
             rules.map((r: any) =>
-              `- "${r.merchant_pattern}" → ${r.category}${r.subcategory ? ' / ' + r.subcategory : ''}`
+              `- "${r.merchant_pattern}" -> ${r.category}${r.subcategory ? ' / ' + r.subcategory : ''}`
             ).join('\n') + '\n';
         }
       } catch { /* non-blocking */ }
 
-      // 2. Tag conversations — what merchants were discussed and last outcome
+      // 2. Tag conversations - what merchants were discussed and last outcome
       try {
         const { data: tagConvs } = await sb
           .from('tag_conversations')
@@ -8931,7 +8931,7 @@ export const handler: Handler = async (event, context) => {
         }
       } catch { /* non-blocking */ }
 
-      // 3. Import history — all statements Byte processed
+      // 3. Import history - all statements Byte processed
       try {
         const { data: imports } = await sb
           .from('imports')
@@ -8945,7 +8945,7 @@ export const handler: Handler = async (event, context) => {
             const filename = String(imp.file_url || '').split('/').pop() || 'Unknown';
             const date = imp.created_at ? new Date(imp.created_at).toLocaleDateString('en-CA') : '?';
             const { count } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('import_id', imp.id);
-            primeContextMessage += `- ${decodeURIComponent(filename)} (${date}) — ${imp.status}, ${count || 0} transactions\n`;
+            primeContextMessage += `- ${decodeURIComponent(filename)} (${date}) - ${imp.status}, ${count || 0} transactions\n`;
           }
         }
       } catch { /* non-blocking */ }
@@ -8976,7 +8976,7 @@ export const handler: Handler = async (event, context) => {
           primeContextMessage += `- Net flow: ${(totalInc - totalExp).toLocaleString('en-CA', {maximumFractionDigits:0})}\n`;
           primeContextMessage += `- Uncategorized: ${uncatCount}\n`;
           primeContextMessage += `- Category breakdown:\n` + sorted.map(([cat, amt]) =>
-            `  • ${cat}: ${amt.toLocaleString('en-CA', {maximumFractionDigits:0})}`
+            `  - ${cat}: ${amt.toLocaleString('en-CA', {maximumFractionDigits:0})}`
           ).join('\n') + '\n';
         }
       } catch { /* non-blocking */ }
@@ -8999,38 +8999,38 @@ export const handler: Handler = async (event, context) => {
 
       // CEO PERSONA INJECTION
       primeContextMessage += `
-PRIME CEO PERSONA — CRITICAL RULES:
+PRIME CEO PERSONA - CRITICAL RULES:
 You are Prime, the lead financial AI and CEO of the XspensesAI agent team.
 Your team: Byte (OCR/imports), Tag (categorization), Crystal (analytics), Goalie (goals), Ledger (tax).
-You have full visibility of everything they have done — shown above.
+You have full visibility of everything they have done - shown above.
 
 RESPONSE RULES (non-negotiable):
-1. Always end with ONE specific question — never more, never zero.
-2. Reference real numbers from the data above — never invent figures.
+1. Always end with ONE specific question - never more, never zero.
+2. Reference real numbers from the data above - never invent figures.
 3. Max 3 sentences before your question. After 3 sentences you are rambling.
 4. Be direct: "You overspent on Food & Dining by $340" not "it looks like spending may be elevated."
-5. If an agent did something, you know about it — own the team output.
+5. If an agent did something, you know about it - own the team output.
 6. Never use bullet points for conversational replies. Bullets for breakdowns only.
 
-ERROR RECOGNITION — name the real problem, never say "I hit a delay":
-- Uncategorized count jumped → "Your uncategorized count jumped to X — Tag's sweep likely didn't run on the last import. Want me to trigger it?"
-- Import stalled → "Byte processed [file] but nothing committed — import is in [status] state. Want me to check what's blocking it?"
-- Rules saved but not applied → "Tag saved [N] rules but the sweep predates them — those transactions are still miscategorized. Want me to run a backfill?"
-- Missing data → "I don't have [specific thing] loaded — that comes from [source]. Want me to pull it?"
+ERROR RECOGNITION - name the real problem, never say "I hit a delay":
+- Uncategorized count jumped -> "Your uncategorized count jumped to X - Tag's sweep likely didn't run on the last import. Want me to trigger it?"
+- Import stalled -> "Byte processed [file] but nothing committed - import is in [status] state. Want me to check what's blocking it?"
+- Rules saved but not applied -> "Tag saved [N] rules but the sweep predates them - those transactions are still miscategorized. Want me to run a backfill?"
+- Missing data -> "I don't have [specific thing] loaded - that comes from [source]. Want me to pull it?"
 
-CLARIFICATION — do NOT ask for clarification when:
-- User asks about "this month" or "last month" → use most recent statement data, just answer
-- User asks "how am I doing" → give net flow + top 2 categories + one question
-- User uploads a statement → give headline numbers, ask what they want to know
-- User asks about a category → answer from real totals you have
+CLARIFICATION - do NOT ask for clarification when:
+- User asks about "this month" or "last month" -> use most recent statement data, just answer
+- User asks "how am I doing" -> give net flow + top 2 categories + one question
+- User uploads a statement -> give headline numbers, ask what they want to know
+- User asks about a category -> answer from real totals you have
 
-HANDOFF — never hand off without context:
-- To Tag: "I'll ask Tag to handle that — [one sentence of context]."
-- To Byte: "Byte needs to look at that — [one sentence about the issue]."
+HANDOFF - never hand off without context:
+- To Tag: "I'll ask Tag to handle that - [one sentence of context]."
+- To Byte: "Byte needs to look at that - [one sentence about the issue]."
 
-PRIORITIZE IN THIS ORDER: uncategorized transactions → income gaps → budget overruns → deductibles.
-TONE: CFO giving a Monday morning briefing — direct, warm, data-first. Not a chatbot.
-GREETING RULE: When responding to [PRIME_GREETING], never start with "Good morning/afternoon/evening". Use varied openers like "Darrell —", "Here's where things stand —", "Quick read on your books —", "Your numbers right now —". Always lead with a real number from the data.
+PRIORITIZE IN THIS ORDER: uncategorized transactions -> income gaps -> budget overruns -> deductibles.
+TONE: CFO giving a Monday morning briefing - direct, warm, data-first. Not a chatbot.
+GREETING RULE: When responding to [PRIME_GREETING], never start with "Good morning/afternoon/evening". Use varied openers like "Darrell -", "Here's where things stand -", "Quick read on your books -", "Your numbers right now -". Always lead with a real number from the data.
 `;
 
       // Prepend Prime context BEFORE orchestration rule (so orchestration can reference context)
@@ -9176,7 +9176,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
 
     // Combine user message with attachment context
     let userMessageContent = masked;
-    // Strip [PRIME_GREETING] instruction from user message → move to system prompt
+    // Strip [PRIME_GREETING] instruction from user message -> move to system prompt
     // so the model never echoes "It is evening. Use the real financial data..." in the response
     const isGreetingMessage = userMessageContent.startsWith('[PRIME_GREETING]');
     if (isGreetingMessage) {
@@ -9245,9 +9245,9 @@ CUSTODIAN CONTEXT (Account Security & Settings):
             role: 'system' as const,
             content: `TAG ESCALATION & RULE-SETTING INSTRUCTIONS
 
-ESCALATION: If the user asks about financial strategy, tax advice, deduction optimization, budgeting goals, or anything beyond categorization — do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my categorization expertise — let me bring in Prime for that."
+ESCALATION: If the user asks about financial strategy, tax advice, deduction optimization, budgeting goals, or anything beyond categorization - do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my categorization expertise - let me bring in Prime for that."
 
-RULE-SETTING: You can set categorization rules. When a user says "mark X as business" or "X should be categorized as Y", insert into category_rules table: { user_id, merchant_pattern (the match_value), category, is_business, match_type: "contains", is_active: true }. Then confirm: "Rule saved — all future X transactions will be categorized as Y." Use the tag-learn function or direct Supabase insert via tag_upsert_rule if available.`,
+RULE-SETTING: You can set categorization rules. When a user says "mark X as business" or "X should be categorized as Y", insert into category_rules table: { user_id, merchant_pattern (the match_value), category, is_business, match_type: "contains", is_active: true }. Then confirm: "Rule saved - all future X transactions will be categorized as Y." Use the tag-learn function or direct Supabase insert via tag_upsert_rule if available.`,
           }
         : null;
 
@@ -9272,11 +9272,11 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           const bd = imp.statement_breakdown_json;
           const txCount = bd?.total_transactions ?? '?';
           const totalAmt = bd?.total_amount != null ? `$${Number(bd.total_amount).toLocaleString('en-CA', { minimumFractionDigits: 2 })}` : '?';
-          return `- [${imp.status}] "${imp.filename}" (${imp.via || imp.source || 'unknown'}) — ${txCount} txns, ${totalAmt} — ${imp.created_at}`;
+          return `- [${imp.status}] "${imp.filename}" (${imp.via || imp.source || 'unknown'}) - ${txCount} txns, ${totalAmt} - ${imp.created_at}`;
         });
 
         const docLines = (docsResult.data || []).map((doc: any) =>
-          `- "${doc.file_name}" (${doc.file_type || 'unknown'}) — ${doc.created_at}`
+          `- "${doc.file_name}" (${doc.file_type || 'unknown'}) - ${doc.created_at}`
         );
 
         const contextBlock = [
@@ -9290,7 +9290,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           ``,
           `Use this data to answer questions about upload status, processing results, transaction counts, and file history.`,
           ``,
-          `ESCALATION: If the user asks about financial strategy, spending analysis, tax advice, or anything beyond document processing and imports — do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my document expertise — let me bring in Prime for that."`,
+          `ESCALATION: If the user asks about financial strategy, spending analysis, tax advice, or anything beyond document processing and imports - do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my document expertise - let me bring in Prime for that."`,
         ].join('\n');
 
         byteContextHint = { role: 'system' as const, content: contextBlock };
@@ -9327,7 +9327,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           userProfileContext: Boolean(userProfile),
           primeAuthority: Boolean(primeAuthorityHint),
           fluencyGlobal: systemMessages.some((m) => m.content.includes('SYSTEM RULE: AI FLUENCY ADAPTATION')),
-          primeOrchestration: systemMessages.some((m) => m.content.includes('ROLE: PRIME — AI FINANCIAL CEO')),
+          primeOrchestration: systemMessages.some((m) => m.content.includes('ROLE: PRIME - AI FINANCIAL CEO')),
           dbEmployeePrompt: systemMessages.some((m) => m.content === employeeSystemPrompt),
           brainPack: systemMessages.some((m) => m.content.includes('EMPLOYEE BRAIN PACK')),
         },
@@ -9892,7 +9892,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   
                   // Special debug logging for request_employee_handoff BEFORE execution
                   if (toolName === 'request_employee_handoff') {
-                    console.log(`[Chat] 🔄 HANDOFF REQUEST (streaming): ${finalEmployeeSlug} → ${args.target_slug || 'unknown'}`, {
+                    console.log(`[Chat] 🔄 HANDOFF REQUEST (streaming): ${finalEmployeeSlug} -> ${args.target_slug || 'unknown'}`, {
                       reason: args.reason || 'No reason provided',
                       summary: args.summary_for_next_employee || 'No summary provided',
                       userId,
@@ -9958,7 +9958,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                           ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
                           : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
                         
-                        console.log(`[Chat] ✅ HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
+                        console.log(`[Chat] ✅ HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} -> ${targetSlug}`, {
                           reason,
                           summary: summary?.substring(0, 100),
                           sessionId: finalSessionId,
@@ -10780,7 +10780,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             
             // Special debug logging for request_employee_handoff BEFORE execution
             if (toolName === 'request_employee_handoff') {
-              console.log(`[Chat] 🔄 HANDOFF REQUEST (non-streaming): ${finalEmployeeSlug} → ${args.target_slug || 'unknown'}`, {
+              console.log(`[Chat] 🔄 HANDOFF REQUEST (non-streaming): ${finalEmployeeSlug} -> ${args.target_slug || 'unknown'}`, {
                 reason: args.reason || 'No reason provided',
                 summary: args.summary_for_next_employee || 'No summary provided',
                 userId,
@@ -10840,7 +10840,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
                     : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
                   
-                  console.log(`[Chat] ✅ HANDOFF COMPLETE (non-streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
+                  console.log(`[Chat] ✅ HANDOFF COMPLETE (non-streaming): ${originalEmployeeSlug} -> ${targetSlug}`, {
                     reason,
                     summary: summary?.substring(0, 100),
                     sessionId: finalSessionId,
@@ -11271,7 +11271,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           }
         }
         if (assistantContent) {
-          // Retry succeeded — return the content
+          // Retry succeeded - return the content
           setStage('respond');
         } else {
           setStage('respond');
@@ -11407,7 +11407,7 @@ function buildSafeFallbackResponse(stage: string, ctx?: OrchCtx): string {
     ctx.failed_stage = (stage as OrchStage) || ctx.failed_stage;
     ctx.fallback_used = true;
   }
-  return `I'm processing your data — one moment. I hit a delay in the ${stage} step, so please retry and I'll continue from there.\n\nThis is taking longer than normal. I can still help — tell me if you want a quick answer or a detailed one.`;
+  return `I'm processing your data - one moment. I hit a delay in the ${stage} step, so please retry and I'll continue from there.\n\nThis is taking longer than normal. I can still help - tell me if you want a quick answer or a detailed one.`;
 }
 
 function ensureAssistantContent(content: string | null | undefined, stage: string, ctx?: OrchCtx): string {

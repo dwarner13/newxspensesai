@@ -1,5 +1,5 @@
 /**
- * DashboardHeader Component — Slim V2
+ * DashboardHeader Component - Slim V2
  * 48px navbar: search (left) + bell + profile dropdown (right)
  */
 
@@ -20,7 +20,7 @@ interface DashboardHeaderProps {
 
 export default function DashboardHeader(_props: DashboardHeaderProps) {
   const navigate = useNavigate();
-  // ControlCenterDrawer removed — Settings V2 page handles profile
+  // ControlCenterDrawer removed - Settings V2 page handles profile
   const { user, signOut } = useAuth();
   const { profile, avatarUrl } = useProfileContext();
 
@@ -167,7 +167,7 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
               onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNotificationsOpen(false); }}
               className="flex items-center justify-center w-[34px] h-[34px] rounded-full overflow-hidden transition-all"
               style={{ border: '1px solid rgba(200,166,78,0.35)' }}
-              aria-label={`Profile — ${computedDisplayName}`}
+              aria-label={`Profile - ${computedDisplayName}`}
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt={computedDisplayName} className="w-full h-full object-cover" />

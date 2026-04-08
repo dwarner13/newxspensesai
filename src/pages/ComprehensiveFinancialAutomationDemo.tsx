@@ -257,21 +257,21 @@ const ComprehensiveFinancialAutomationDemo: React.FC = () => {
             <div>
               <h3 className="font-medium text-gray-900 mb-3">Core Components</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>• MultiDocumentAnalysisEngine</li>
-                <li>• EnhancedBlitzAutomation</li>
-                <li>• EnhancedWisdomAutomation</li>
-                <li>• EnhancedCrystalAutomation</li>
-                <li>• ComprehensiveFinancialAutomation</li>
+                <li>- MultiDocumentAnalysisEngine</li>
+                <li>- EnhancedBlitzAutomation</li>
+                <li>- EnhancedWisdomAutomation</li>
+                <li>- EnhancedCrystalAutomation</li>
+                <li>- ComprehensiveFinancialAutomation</li>
               </ul>
             </div>
             <div>
               <h3 className="font-medium text-gray-900 mb-3">Integration Points</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Document processing pipeline</li>
-                <li>• AI employee coordination</li>
-                <li>• Real-time monitoring system</li>
-                <li>• Predictive modeling engine</li>
-                <li>• Strategy synthesis framework</li>
+                <li>- Document processing pipeline</li>
+                <li>- AI employee coordination</li>
+                <li>- Real-time monitoring system</li>
+                <li>- Predictive modeling engine</li>
+                <li>- Strategy synthesis framework</li>
               </ul>
             </div>
           </div>

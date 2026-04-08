@@ -73,7 +73,7 @@ export function PrimeGreetingCard({ greeting, onChipClick, className = '' }: Pri
                   transition={{ duration: 0.3, delay: 0.35 + index * 0.1 }}
                   className="flex items-start gap-2"
                 >
-                  <span className="text-amber-400/60 mt-1.5">•</span>
+                  <span className="text-amber-400/60 mt-1.5">-</span>
                   <span>{bullet}</span>
                 </motion.li>
               ))}

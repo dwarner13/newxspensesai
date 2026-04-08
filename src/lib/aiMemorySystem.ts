@@ -190,7 +190,7 @@ class AIMemorySystem {
     // Smart handoff logic
     switch (completedTask.type) {
       case 'document_processing':
-        // Byte finishes processing → Tag starts categorization
+        // Byte finishes processing -> Tag starts categorization
         if (fromEmployee === 'byte') {
           this.createTask('tag', {
             type: 'categorization',
@@ -202,7 +202,7 @@ class AIMemorySystem {
         break;
       
       case 'categorization':
-        // Tag finishes categorization → Crystal analyzes trends
+        // Tag finishes categorization -> Crystal analyzes trends
         if (fromEmployee === 'tag') {
           this.createTask('crystal', {
             type: 'analysis',
@@ -214,7 +214,7 @@ class AIMemorySystem {
         break;
       
       case 'analysis':
-        // Crystal finishes analysis → Intelia creates business insights
+        // Crystal finishes analysis -> Intelia creates business insights
         if (fromEmployee === 'crystal') {
           this.createTask('intelia', {
             type: 'analysis',

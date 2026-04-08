@@ -110,7 +110,7 @@ const OnboardingStepSix = () => {
               Meet Your AI Assistant
             </h1>
             <p className="text-xl text-gray-400 max-w-2xl ">
-              XspensesAI is powered by smart financial intelligence — here's what it can do for you.
+              XspensesAI is powered by smart financial intelligence - here's what it can do for you.
             </p>
           </div>
           

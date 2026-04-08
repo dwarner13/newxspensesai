@@ -266,92 +266,92 @@ export default function SecurityCompliance() {
 **Financial Security Framework:**
 
 **1. Account Security:**
-• **Multi-Factor Authentication** - Enable 2FA on all financial accounts
-• **Strong Passwords** - Use unique, complex passwords for each account
-• **Password Manager** - Use a secure password manager for credential storage
-• **Account Monitoring** - Regularly monitor account activity for suspicious behavior
-• **Account Recovery** - Set up secure account recovery options
-• **Session Management** - Log out of accounts when not in use
+- **Multi-Factor Authentication** - Enable 2FA on all financial accounts
+- **Strong Passwords** - Use unique, complex passwords for each account
+- **Password Manager** - Use a secure password manager for credential storage
+- **Account Monitoring** - Regularly monitor account activity for suspicious behavior
+- **Account Recovery** - Set up secure account recovery options
+- **Session Management** - Log out of accounts when not in use
 
 **2. Data Protection:**
-• **Encryption** - Ensure all sensitive data is encrypted at rest and in transit
-• **Data Classification** - Identify and classify sensitive financial information
-• **Access Controls** - Implement role-based access controls
-• **Data Backup** - Maintain secure, encrypted backups of important data
-• **Data Retention** - Establish data retention and disposal policies
-• **Data Minimization** - Only collect and store necessary data
+- **Encryption** - Ensure all sensitive data is encrypted at rest and in transit
+- **Data Classification** - Identify and classify sensitive financial information
+- **Access Controls** - Implement role-based access controls
+- **Data Backup** - Maintain secure, encrypted backups of important data
+- **Data Retention** - Establish data retention and disposal policies
+- **Data Minimization** - Only collect and store necessary data
 
 **3. Device Security:**
-• **Device Encryption** - Encrypt all devices that contain financial data
-• **Software Updates** - Keep all software and operating systems updated
-• **Antivirus Protection** - Use reputable antivirus and anti-malware software
-• **Firewall Protection** - Enable and configure firewalls on all devices
-• **Secure Networks** - Only access financial accounts on secure networks
-• **Device Management** - Implement mobile device management for business use
+- **Device Encryption** - Encrypt all devices that contain financial data
+- **Software Updates** - Keep all software and operating systems updated
+- **Antivirus Protection** - Use reputable antivirus and anti-malware software
+- **Firewall Protection** - Enable and configure firewalls on all devices
+- **Secure Networks** - Only access financial accounts on secure networks
+- **Device Management** - Implement mobile device management for business use
 
 **4. Network Security:**
-• **Secure Wi-Fi** - Use WPA3 encryption for wireless networks
-• **VPN Usage** - Use VPNs when accessing financial data on public networks
-• **Network Monitoring** - Monitor network traffic for suspicious activity
-• **Guest Networks** - Separate guest networks from main networks
-• **Router Security** - Change default router passwords and settings
-• **Network Segmentation** - Separate financial data networks from general use
+- **Secure Wi-Fi** - Use WPA3 encryption for wireless networks
+- **VPN Usage** - Use VPNs when accessing financial data on public networks
+- **Network Monitoring** - Monitor network traffic for suspicious activity
+- **Guest Networks** - Separate guest networks from main networks
+- **Router Security** - Change default router passwords and settings
+- **Network Segmentation** - Separate financial data networks from general use
 
 **5. Transaction Security:**
-• **Fraud Monitoring** - Enable fraud alerts on all financial accounts
-• **Transaction Limits** - Set appropriate transaction limits
-• **Payment Verification** - Verify all payment details before confirming
-• **Secure Payment Methods** - Use secure payment methods and avoid public computers
-• **Receipt Management** - Securely store and manage transaction receipts
-• **Dispute Resolution** - Know how to dispute unauthorized transactions
+- **Fraud Monitoring** - Enable fraud alerts on all financial accounts
+- **Transaction Limits** - Set appropriate transaction limits
+- **Payment Verification** - Verify all payment details before confirming
+- **Secure Payment Methods** - Use secure payment methods and avoid public computers
+- **Receipt Management** - Securely store and manage transaction receipts
+- **Dispute Resolution** - Know how to dispute unauthorized transactions
 
 **6. Identity Protection:**
-• **Credit Monitoring** - Monitor credit reports for suspicious activity
-• **Identity Theft Protection** - Consider identity theft protection services
-• **Document Security** - Securely store important financial documents
-• **Social Security Protection** - Protect Social Security numbers and other identifiers
-• **Mail Security** - Use secure mail handling for financial documents
-• **Shredding** - Properly dispose of sensitive financial documents
+- **Credit Monitoring** - Monitor credit reports for suspicious activity
+- **Identity Theft Protection** - Consider identity theft protection services
+- **Document Security** - Securely store important financial documents
+- **Social Security Protection** - Protect Social Security numbers and other identifiers
+- **Mail Security** - Use secure mail handling for financial documents
+- **Shredding** - Properly dispose of sensitive financial documents
 
 **7. Business Security:**
-• **Employee Training** - Train employees on security best practices
-• **Access Management** - Implement proper access controls for business accounts
-• **Vendor Security** - Assess security practices of financial service providers
-• **Incident Response** - Have a plan for responding to security incidents
-• **Compliance Monitoring** - Monitor compliance with security regulations
-• **Security Audits** - Conduct regular security audits and assessments
+- **Employee Training** - Train employees on security best practices
+- **Access Management** - Implement proper access controls for business accounts
+- **Vendor Security** - Assess security practices of financial service providers
+- **Incident Response** - Have a plan for responding to security incidents
+- **Compliance Monitoring** - Monitor compliance with security regulations
+- **Security Audits** - Conduct regular security audits and assessments
 
 **8. Privacy Protection:**
-• **Privacy Settings** - Review and configure privacy settings on financial accounts
-• **Data Sharing** - Limit data sharing with third parties
-• **Opt-Out Options** - Exercise opt-out rights for data sharing
-• **Privacy Policies** - Understand privacy policies of financial services
-• **Data Rights** - Know your rights regarding personal data
-• **Privacy Tools** - Use privacy-enhancing tools and services
+- **Privacy Settings** - Review and configure privacy settings on financial accounts
+- **Data Sharing** - Limit data sharing with third parties
+- **Opt-Out Options** - Exercise opt-out rights for data sharing
+- **Privacy Policies** - Understand privacy policies of financial services
+- **Data Rights** - Know your rights regarding personal data
+- **Privacy Tools** - Use privacy-enhancing tools and services
 
 **9. Physical Security:**
-• **Document Storage** - Store important documents in secure locations
-• **Safe Deposit Boxes** - Use safe deposit boxes for valuable documents
-• **Home Security** - Implement home security measures
-• **Travel Security** - Secure financial information when traveling
-• **Office Security** - Secure financial data in office environments
-• **Disaster Recovery** - Have plans for protecting data during disasters
+- **Document Storage** - Store important documents in secure locations
+- **Safe Deposit Boxes** - Use safe deposit boxes for valuable documents
+- **Home Security** - Implement home security measures
+- **Travel Security** - Secure financial information when traveling
+- **Office Security** - Secure financial data in office environments
+- **Disaster Recovery** - Have plans for protecting data during disasters
 
 **10. Incident Response:**
-• **Security Incidents** - Know how to respond to security incidents
-• **Breach Notification** - Understand breach notification requirements
-• **Recovery Procedures** - Have procedures for recovering from security incidents
-• **Legal Requirements** - Understand legal requirements for security incidents
-• **Insurance Coverage** - Consider cyber insurance for additional protection
-• **Professional Support** - Know when to seek professional security support
+- **Security Incidents** - Know how to respond to security incidents
+- **Breach Notification** - Understand breach notification requirements
+- **Recovery Procedures** - Have procedures for recovering from security incidents
+- **Legal Requirements** - Understand legal requirements for security incidents
+- **Insurance Coverage** - Consider cyber insurance for additional protection
+- **Professional Support** - Know when to seek professional security support
 
 **Pro Tips:**
-• **Layered Security** - Implement multiple layers of security protection
-• **Regular Updates** - Keep security measures updated and current
-• **User Education** - Educate all users on security best practices
-• **Monitoring** - Continuously monitor for security threats
-• **Testing** - Regularly test security measures and procedures
-• **Documentation** - Maintain documentation of security procedures
+- **Layered Security** - Implement multiple layers of security protection
+- **Regular Updates** - Keep security measures updated and current
+- **User Education** - Educate all users on security best practices
+- **Monitoring** - Continuously monitor for security threats
+- **Testing** - Regularly test security measures and procedures
+- **Documentation** - Maintain documentation of security procedures
 
 What specific aspect of financial security would you like to address?`;
     }
@@ -362,92 +362,92 @@ What specific aspect of financial security would you like to address?`;
 **Financial Compliance Framework:**
 
 **1. Tax Compliance:**
-• **Tax Filing** - Ensure timely and accurate tax filings
-• **Record Keeping** - Maintain required records for tax purposes
-• **Deduction Compliance** - Follow rules for tax deductions and credits
-• **Reporting Requirements** - Meet all tax reporting requirements
-• **Audit Preparation** - Maintain records for potential audits
-• **Tax Law Updates** - Stay current with changes in tax laws
+- **Tax Filing** - Ensure timely and accurate tax filings
+- **Record Keeping** - Maintain required records for tax purposes
+- **Deduction Compliance** - Follow rules for tax deductions and credits
+- **Reporting Requirements** - Meet all tax reporting requirements
+- **Audit Preparation** - Maintain records for potential audits
+- **Tax Law Updates** - Stay current with changes in tax laws
 
 **2. Banking Compliance:**
-• **Bank Secrecy Act** - Comply with BSA requirements for large transactions
-• **Anti-Money Laundering** - Follow AML regulations and reporting
-• **Know Your Customer** - Provide required information to financial institutions
-• **Transaction Reporting** - Report transactions as required by law
-• **Account Verification** - Complete required account verification processes
-• **Regulatory Updates** - Stay informed about banking regulation changes
+- **Bank Secrecy Act** - Comply with BSA requirements for large transactions
+- **Anti-Money Laundering** - Follow AML regulations and reporting
+- **Know Your Customer** - Provide required information to financial institutions
+- **Transaction Reporting** - Report transactions as required by law
+- **Account Verification** - Complete required account verification processes
+- **Regulatory Updates** - Stay informed about banking regulation changes
 
 **3. Investment Compliance:**
-• **Securities Laws** - Comply with securities laws and regulations
-• **Investment Adviser Rules** - Follow rules if providing investment advice
-• **Disclosure Requirements** - Provide required disclosures to investors
-• **Fiduciary Duties** - Meet fiduciary obligations when applicable
-• **Trading Rules** - Follow trading rules and restrictions
-• **Market Regulations** - Comply with market regulations and rules
+- **Securities Laws** - Comply with securities laws and regulations
+- **Investment Adviser Rules** - Follow rules if providing investment advice
+- **Disclosure Requirements** - Provide required disclosures to investors
+- **Fiduciary Duties** - Meet fiduciary obligations when applicable
+- **Trading Rules** - Follow trading rules and restrictions
+- **Market Regulations** - Comply with market regulations and rules
 
 **4. Business Compliance:**
-• **Business Registration** - Maintain proper business registrations
-• **Licensing Requirements** - Obtain and maintain required licenses
-• **Employment Laws** - Comply with employment and payroll laws
-• **Contract Compliance** - Ensure contracts meet legal requirements
-• **Insurance Requirements** - Maintain required insurance coverage
-• **Corporate Governance** - Follow corporate governance requirements
+- **Business Registration** - Maintain proper business registrations
+- **Licensing Requirements** - Obtain and maintain required licenses
+- **Employment Laws** - Comply with employment and payroll laws
+- **Contract Compliance** - Ensure contracts meet legal requirements
+- **Insurance Requirements** - Maintain required insurance coverage
+- **Corporate Governance** - Follow corporate governance requirements
 
 **5. Data Privacy Compliance:**
-• **GDPR Compliance** - Follow GDPR requirements for EU data
-• **CCPA Compliance** - Comply with California privacy laws
-• **Data Protection Laws** - Follow applicable data protection regulations
-• **Consent Management** - Properly manage data consent
-• **Data Rights** - Honor data subject rights
-• **Breach Notification** - Follow breach notification requirements
+- **GDPR Compliance** - Follow GDPR requirements for EU data
+- **CCPA Compliance** - Comply with California privacy laws
+- **Data Protection Laws** - Follow applicable data protection regulations
+- **Consent Management** - Properly manage data consent
+- **Data Rights** - Honor data subject rights
+- **Breach Notification** - Follow breach notification requirements
 
 **6. Financial Reporting Compliance:**
-• **GAAP Compliance** - Follow Generally Accepted Accounting Principles
-• **Financial Statements** - Prepare accurate financial statements
-• **Audit Requirements** - Meet audit requirements when applicable
-• **Disclosure Standards** - Follow financial disclosure standards
-• **Internal Controls** - Maintain adequate internal controls
-• **Documentation** - Maintain proper financial documentation
+- **GAAP Compliance** - Follow Generally Accepted Accounting Principles
+- **Financial Statements** - Prepare accurate financial statements
+- **Audit Requirements** - Meet audit requirements when applicable
+- **Disclosure Standards** - Follow financial disclosure standards
+- **Internal Controls** - Maintain adequate internal controls
+- **Documentation** - Maintain proper financial documentation
 
 **7. Consumer Protection Compliance:**
-• **Fair Lending** - Comply with fair lending laws
-• **Truth in Lending** - Follow Truth in Lending Act requirements
-• **Fair Credit Reporting** - Comply with credit reporting laws
-• **Debt Collection** - Follow debt collection regulations
-• **Consumer Rights** - Honor consumer rights and protections
-• **Dispute Resolution** - Provide proper dispute resolution processes
+- **Fair Lending** - Comply with fair lending laws
+- **Truth in Lending** - Follow Truth in Lending Act requirements
+- **Fair Credit Reporting** - Comply with credit reporting laws
+- **Debt Collection** - Follow debt collection regulations
+- **Consumer Rights** - Honor consumer rights and protections
+- **Dispute Resolution** - Provide proper dispute resolution processes
 
 **8. International Compliance:**
-• **Foreign Account Reporting** - Report foreign accounts as required
-• **International Tax** - Comply with international tax requirements
-• **Sanctions Compliance** - Follow economic sanctions and embargoes
-• **Cross-Border Transactions** - Comply with cross-border transaction rules
-• **Currency Reporting** - Report currency transactions as required
-• **International Standards** - Follow international financial standards
+- **Foreign Account Reporting** - Report foreign accounts as required
+- **International Tax** - Comply with international tax requirements
+- **Sanctions Compliance** - Follow economic sanctions and embargoes
+- **Cross-Border Transactions** - Comply with cross-border transaction rules
+- **Currency Reporting** - Report currency transactions as required
+- **International Standards** - Follow international financial standards
 
 **9. Industry-Specific Compliance:**
-• **Healthcare Finance** - Comply with healthcare financial regulations
-• **Real Estate Finance** - Follow real estate finance regulations
-• **Insurance Compliance** - Meet insurance industry requirements
-• **Retirement Plans** - Comply with retirement plan regulations
-• **Cryptocurrency** - Follow cryptocurrency regulations
-• **Fintech Compliance** - Meet fintech industry requirements
+- **Healthcare Finance** - Comply with healthcare financial regulations
+- **Real Estate Finance** - Follow real estate finance regulations
+- **Insurance Compliance** - Meet insurance industry requirements
+- **Retirement Plans** - Comply with retirement plan regulations
+- **Cryptocurrency** - Follow cryptocurrency regulations
+- **Fintech Compliance** - Meet fintech industry requirements
 
 **10. Compliance Management:**
-• **Compliance Programs** - Develop and maintain compliance programs
-• **Risk Assessment** - Conduct regular compliance risk assessments
-• **Training Programs** - Provide compliance training to staff
-• **Monitoring Systems** - Implement compliance monitoring systems
-• **Audit Procedures** - Establish compliance audit procedures
-• **Remediation Plans** - Develop plans for addressing compliance issues
+- **Compliance Programs** - Develop and maintain compliance programs
+- **Risk Assessment** - Conduct regular compliance risk assessments
+- **Training Programs** - Provide compliance training to staff
+- **Monitoring Systems** - Implement compliance monitoring systems
+- **Audit Procedures** - Establish compliance audit procedures
+- **Remediation Plans** - Develop plans for addressing compliance issues
 
 **Pro Tips:**
-• **Stay Informed** - Keep up with regulatory changes and updates
-• **Document Everything** - Maintain thorough documentation of compliance efforts
-• **Seek Expert Advice** - Consult with legal and compliance experts when needed
-• **Regular Reviews** - Conduct regular compliance reviews and assessments
-• **Training** - Provide ongoing compliance training
-• **Monitoring** - Continuously monitor compliance status
+- **Stay Informed** - Keep up with regulatory changes and updates
+- **Document Everything** - Maintain thorough documentation of compliance efforts
+- **Seek Expert Advice** - Consult with legal and compliance experts when needed
+- **Regular Reviews** - Conduct regular compliance reviews and assessments
+- **Training** - Provide ongoing compliance training
+- **Monitoring** - Continuously monitor compliance status
 
 What specific compliance area would you like to address?`;
     }
@@ -458,92 +458,92 @@ What specific compliance area would you like to address?`;
 **Fraud Prevention Framework:**
 
 **1. Identity Theft Prevention:**
-• **Personal Information Protection** - Never share sensitive information unnecessarily
-• **Document Security** - Secure important documents like Social Security cards
-• **Mail Security** - Use secure mail handling and shred sensitive documents
-• **Credit Monitoring** - Monitor credit reports regularly for suspicious activity
-• **Identity Theft Alerts** - Set up fraud alerts and credit freezes
-• **Identity Theft Insurance** - Consider identity theft protection services
+- **Personal Information Protection** - Never share sensitive information unnecessarily
+- **Document Security** - Secure important documents like Social Security cards
+- **Mail Security** - Use secure mail handling and shred sensitive documents
+- **Credit Monitoring** - Monitor credit reports regularly for suspicious activity
+- **Identity Theft Alerts** - Set up fraud alerts and credit freezes
+- **Identity Theft Insurance** - Consider identity theft protection services
 
 **2. Phishing Prevention:**
-• **Email Security** - Be cautious of suspicious emails and links
-• **Website Verification** - Verify website authenticity before entering information
-• **URL Inspection** - Check URLs carefully for spoofing attempts
-• **Attachment Safety** - Don't open suspicious email attachments
-• **Social Engineering** - Be aware of social engineering tactics
-• **Multi-Factor Authentication** - Use MFA to prevent account takeover
+- **Email Security** - Be cautious of suspicious emails and links
+- **Website Verification** - Verify website authenticity before entering information
+- **URL Inspection** - Check URLs carefully for spoofing attempts
+- **Attachment Safety** - Don't open suspicious email attachments
+- **Social Engineering** - Be aware of social engineering tactics
+- **Multi-Factor Authentication** - Use MFA to prevent account takeover
 
 **3. Financial Fraud Prevention:**
-• **Account Monitoring** - Regularly monitor all financial accounts
-• **Transaction Verification** - Verify all transactions before confirming
-• **Payment Security** - Use secure payment methods and avoid public computers
-• **Card Security** - Protect credit and debit card information
-• **ATM Safety** - Use ATMs in secure locations and check for skimmers
-• **Wire Transfer Security** - Verify wire transfer details carefully
+- **Account Monitoring** - Regularly monitor all financial accounts
+- **Transaction Verification** - Verify all transactions before confirming
+- **Payment Security** - Use secure payment methods and avoid public computers
+- **Card Security** - Protect credit and debit card information
+- **ATM Safety** - Use ATMs in secure locations and check for skimmers
+- **Wire Transfer Security** - Verify wire transfer details carefully
 
 **4. Investment Fraud Prevention:**
-• **Investment Verification** - Verify investment opportunities and advisors
-• **High Returns** - Be skeptical of promises of unusually high returns
-• **Pressure Tactics** - Avoid investments that use high-pressure sales tactics
-• **Documentation** - Get all investment details in writing
-• **Regulatory Compliance** - Verify investment advisors are properly licensed
-• **Due Diligence** - Conduct thorough research before investing
+- **Investment Verification** - Verify investment opportunities and advisors
+- **High Returns** - Be skeptical of promises of unusually high returns
+- **Pressure Tactics** - Avoid investments that use high-pressure sales tactics
+- **Documentation** - Get all investment details in writing
+- **Regulatory Compliance** - Verify investment advisors are properly licensed
+- **Due Diligence** - Conduct thorough research before investing
 
 **5. Business Fraud Prevention:**
-• **Employee Screening** - Conduct background checks on employees
-• **Internal Controls** - Implement strong internal controls and segregation of duties
-• **Vendor Verification** - Verify vendors and suppliers before doing business
-• **Invoice Verification** - Verify invoices and payment requests
-• **Expense Monitoring** - Monitor business expenses for unusual patterns
-• **Whistleblower Protection** - Establish whistleblower protection programs
+- **Employee Screening** - Conduct background checks on employees
+- **Internal Controls** - Implement strong internal controls and segregation of duties
+- **Vendor Verification** - Verify vendors and suppliers before doing business
+- **Invoice Verification** - Verify invoices and payment requests
+- **Expense Monitoring** - Monitor business expenses for unusual patterns
+- **Whistleblower Protection** - Establish whistleblower protection programs
 
 **6. Online Security:**
-• **Secure Websites** - Only use secure websites (HTTPS) for financial transactions
-• **Password Security** - Use strong, unique passwords for all accounts
-• **Software Updates** - Keep all software updated to prevent vulnerabilities
-• **Antivirus Protection** - Use reputable antivirus and anti-malware software
-• **Firewall Protection** - Enable and configure firewalls
-• **Secure Networks** - Only access financial accounts on secure networks
+- **Secure Websites** - Only use secure websites (HTTPS) for financial transactions
+- **Password Security** - Use strong, unique passwords for all accounts
+- **Software Updates** - Keep all software updated to prevent vulnerabilities
+- **Antivirus Protection** - Use reputable antivirus and anti-malware software
+- **Firewall Protection** - Enable and configure firewalls
+- **Secure Networks** - Only access financial accounts on secure networks
 
 **7. Mobile Security:**
-• **Device Security** - Secure mobile devices with passwords and encryption
-• **App Security** - Only download apps from trusted sources
-• **Public Wi-Fi** - Avoid accessing financial accounts on public Wi-Fi
-• **Bluetooth Security** - Disable Bluetooth when not in use
-• **Location Services** - Be careful with location services and sharing
-• **Device Updates** - Keep mobile devices updated
+- **Device Security** - Secure mobile devices with passwords and encryption
+- **App Security** - Only download apps from trusted sources
+- **Public Wi-Fi** - Avoid accessing financial accounts on public Wi-Fi
+- **Bluetooth Security** - Disable Bluetooth when not in use
+- **Location Services** - Be careful with location services and sharing
+- **Device Updates** - Keep mobile devices updated
 
 **8. Social Media Security:**
-• **Privacy Settings** - Configure privacy settings on social media accounts
-• **Information Sharing** - Be careful about sharing personal information online
-• **Friend Requests** - Be cautious of friend requests from unknown people
-• **Scam Awareness** - Be aware of scams that target social media users
-• **Account Security** - Use strong passwords and enable two-factor authentication
-• **Content Sharing** - Be careful about what you share online
+- **Privacy Settings** - Configure privacy settings on social media accounts
+- **Information Sharing** - Be careful about sharing personal information online
+- **Friend Requests** - Be cautious of friend requests from unknown people
+- **Scam Awareness** - Be aware of scams that target social media users
+- **Account Security** - Use strong passwords and enable two-factor authentication
+- **Content Sharing** - Be careful about what you share online
 
 **9. Elder Fraud Prevention:**
-• **Family Communication** - Maintain open communication about financial matters
-• **Power of Attorney** - Establish proper power of attorney arrangements
-• **Caregiver Screening** - Screen caregivers and service providers
-• **Financial Education** - Educate elderly family members about fraud risks
-• **Monitoring** - Monitor financial accounts for unusual activity
-• **Support Systems** - Establish support systems for elderly family members
+- **Family Communication** - Maintain open communication about financial matters
+- **Power of Attorney** - Establish proper power of attorney arrangements
+- **Caregiver Screening** - Screen caregivers and service providers
+- **Financial Education** - Educate elderly family members about fraud risks
+- **Monitoring** - Monitor financial accounts for unusual activity
+- **Support Systems** - Establish support systems for elderly family members
 
 **10. Incident Response:**
-• **Fraud Detection** - Know how to detect fraud and suspicious activity
-• **Reporting Procedures** - Know how to report fraud to authorities
-• **Account Freezing** - Know how to freeze accounts if fraud is detected
-• **Documentation** - Document all fraud incidents and communications
-• **Recovery Procedures** - Have procedures for recovering from fraud
-• **Legal Support** - Know when to seek legal support for fraud cases
+- **Fraud Detection** - Know how to detect fraud and suspicious activity
+- **Reporting Procedures** - Know how to report fraud to authorities
+- **Account Freezing** - Know how to freeze accounts if fraud is detected
+- **Documentation** - Document all fraud incidents and communications
+- **Recovery Procedures** - Have procedures for recovering from fraud
+- **Legal Support** - Know when to seek legal support for fraud cases
 
 **Pro Tips:**
-• **Trust Your Instincts** - If something seems too good to be true, it probably is
-• **Verify Everything** - Always verify information before taking action
-• **Stay Informed** - Keep up with the latest fraud schemes and tactics
-• **Report Suspicious Activity** - Report suspicious activity immediately
-• **Educate Others** - Share fraud prevention information with family and friends
-• **Regular Reviews** - Regularly review security measures and procedures
+- **Trust Your Instincts** - If something seems too good to be true, it probably is
+- **Verify Everything** - Always verify information before taking action
+- **Stay Informed** - Keep up with the latest fraud schemes and tactics
+- **Report Suspicious Activity** - Report suspicious activity immediately
+- **Educate Others** - Share fraud prevention information with family and friends
+- **Regular Reviews** - Regularly review security measures and procedures
 
 What specific fraud prevention area would you like to address?`;
     }
@@ -554,92 +554,92 @@ What specific fraud prevention area would you like to address?`;
 **Data Protection Framework:**
 
 **1. Data Encryption:**
-• **At-Rest Encryption** - Encrypt all sensitive data stored on devices
-• **In-Transit Encryption** - Use HTTPS and VPNs for data transmission
-• **End-to-End Encryption** - Use end-to-end encryption for communications
-• **Database Encryption** - Encrypt databases containing financial information
-• **File Encryption** - Encrypt individual files containing sensitive data
-• **Key Management** - Properly manage encryption keys and certificates
+- **At-Rest Encryption** - Encrypt all sensitive data stored on devices
+- **In-Transit Encryption** - Use HTTPS and VPNs for data transmission
+- **End-to-End Encryption** - Use end-to-end encryption for communications
+- **Database Encryption** - Encrypt databases containing financial information
+- **File Encryption** - Encrypt individual files containing sensitive data
+- **Key Management** - Properly manage encryption keys and certificates
 
 **2. Access Control:**
-• **User Authentication** - Implement strong user authentication systems
-• **Role-Based Access** - Use role-based access controls for data access
-• **Least Privilege** - Grant minimum necessary access to users
-• **Access Monitoring** - Monitor and log all data access attempts
-• **Session Management** - Manage user sessions and timeouts
-• **Remote Access Security** - Secure remote access to data
+- **User Authentication** - Implement strong user authentication systems
+- **Role-Based Access** - Use role-based access controls for data access
+- **Least Privilege** - Grant minimum necessary access to users
+- **Access Monitoring** - Monitor and log all data access attempts
+- **Session Management** - Manage user sessions and timeouts
+- **Remote Access Security** - Secure remote access to data
 
 **3. Data Classification:**
-• **Sensitive Data Identification** - Identify and classify sensitive financial data
-• **Data Labeling** - Label data according to sensitivity levels
-• **Handling Procedures** - Establish procedures for handling different data types
-• **Retention Policies** - Implement data retention and disposal policies
-• **Data Inventory** - Maintain inventory of all sensitive data
-• **Risk Assessment** - Assess risks associated with different data types
+- **Sensitive Data Identification** - Identify and classify sensitive financial data
+- **Data Labeling** - Label data according to sensitivity levels
+- **Handling Procedures** - Establish procedures for handling different data types
+- **Retention Policies** - Implement data retention and disposal policies
+- **Data Inventory** - Maintain inventory of all sensitive data
+- **Risk Assessment** - Assess risks associated with different data types
 
 **4. Backup and Recovery:**
-• **Regular Backups** - Perform regular backups of important data
-• **Encrypted Backups** - Ensure backups are encrypted
-• **Offsite Storage** - Store backups in secure offsite locations
-• **Backup Testing** - Regularly test backup and recovery procedures
-• **Version Control** - Maintain multiple versions of important data
-• **Disaster Recovery** - Have disaster recovery plans for data protection
+- **Regular Backups** - Perform regular backups of important data
+- **Encrypted Backups** - Ensure backups are encrypted
+- **Offsite Storage** - Store backups in secure offsite locations
+- **Backup Testing** - Regularly test backup and recovery procedures
+- **Version Control** - Maintain multiple versions of important data
+- **Disaster Recovery** - Have disaster recovery plans for data protection
 
 **5. Privacy Protection:**
-• **Privacy Policies** - Develop and maintain privacy policies
-• **Consent Management** - Properly manage user consent for data use
-• **Data Minimization** - Only collect and store necessary data
-• **Anonymization** - Anonymize data when possible
-• **Right to Deletion** - Honor requests for data deletion
-• **Privacy Impact Assessments** - Conduct privacy impact assessments
+- **Privacy Policies** - Develop and maintain privacy policies
+- **Consent Management** - Properly manage user consent for data use
+- **Data Minimization** - Only collect and store necessary data
+- **Anonymization** - Anonymize data when possible
+- **Right to Deletion** - Honor requests for data deletion
+- **Privacy Impact Assessments** - Conduct privacy impact assessments
 
 **6. Network Security:**
-• **Firewall Protection** - Use firewalls to protect data networks
-• **Network Segmentation** - Segment networks to isolate sensitive data
-• **Intrusion Detection** - Implement intrusion detection systems
-• **Network Monitoring** - Monitor network traffic for suspicious activity
-• **Secure Protocols** - Use secure protocols for data transmission
-• **Wireless Security** - Secure wireless networks and connections
+- **Firewall Protection** - Use firewalls to protect data networks
+- **Network Segmentation** - Segment networks to isolate sensitive data
+- **Intrusion Detection** - Implement intrusion detection systems
+- **Network Monitoring** - Monitor network traffic for suspicious activity
+- **Secure Protocols** - Use secure protocols for data transmission
+- **Wireless Security** - Secure wireless networks and connections
 
 **7. Device Security:**
-• **Device Encryption** - Encrypt all devices that contain sensitive data
-• **Device Management** - Implement mobile device management
-• **Remote Wiping** - Enable remote wiping for lost or stolen devices
-• **Software Updates** - Keep device software updated
-• **Antivirus Protection** - Use antivirus and anti-malware software
-• **Physical Security** - Secure physical access to devices
+- **Device Encryption** - Encrypt all devices that contain sensitive data
+- **Device Management** - Implement mobile device management
+- **Remote Wiping** - Enable remote wiping for lost or stolen devices
+- **Software Updates** - Keep device software updated
+- **Antivirus Protection** - Use antivirus and anti-malware software
+- **Physical Security** - Secure physical access to devices
 
 **8. Application Security:**
-• **Secure Development** - Follow secure development practices
-• **Code Review** - Conduct security code reviews
-• **Vulnerability Testing** - Regularly test applications for vulnerabilities
-• **Input Validation** - Validate all user inputs
-• **Output Encoding** - Encode outputs to prevent injection attacks
-• **Session Security** - Implement secure session management
+- **Secure Development** - Follow secure development practices
+- **Code Review** - Conduct security code reviews
+- **Vulnerability Testing** - Regularly test applications for vulnerabilities
+- **Input Validation** - Validate all user inputs
+- **Output Encoding** - Encode outputs to prevent injection attacks
+- **Session Security** - Implement secure session management
 
 **9. Third-Party Security:**
-• **Vendor Assessment** - Assess security practices of third-party vendors
-• **Contract Requirements** - Include security requirements in contracts
-• **Data Sharing Agreements** - Establish secure data sharing agreements
-• **Vendor Monitoring** - Monitor vendor security practices
-• **Incident Response** - Include vendors in incident response plans
-• **Compliance Verification** - Verify vendor compliance with security requirements
+- **Vendor Assessment** - Assess security practices of third-party vendors
+- **Contract Requirements** - Include security requirements in contracts
+- **Data Sharing Agreements** - Establish secure data sharing agreements
+- **Vendor Monitoring** - Monitor vendor security practices
+- **Incident Response** - Include vendors in incident response plans
+- **Compliance Verification** - Verify vendor compliance with security requirements
 
 **10. Monitoring and Auditing:**
-• **Security Monitoring** - Implement comprehensive security monitoring
-• **Audit Logging** - Maintain detailed audit logs of data access
-• **Alert Systems** - Set up alert systems for suspicious activity
-• **Regular Audits** - Conduct regular security audits
-• **Compliance Monitoring** - Monitor compliance with data protection requirements
-• **Incident Detection** - Implement systems for detecting security incidents
+- **Security Monitoring** - Implement comprehensive security monitoring
+- **Audit Logging** - Maintain detailed audit logs of data access
+- **Alert Systems** - Set up alert systems for suspicious activity
+- **Regular Audits** - Conduct regular security audits
+- **Compliance Monitoring** - Monitor compliance with data protection requirements
+- **Incident Detection** - Implement systems for detecting security incidents
 
 **Pro Tips:**
-• **Layered Protection** - Implement multiple layers of data protection
-• **Regular Updates** - Keep security measures updated and current
-• **User Training** - Train users on data protection best practices
-• **Testing** - Regularly test data protection measures
-• **Documentation** - Maintain documentation of data protection procedures
-• **Continuous Improvement** - Continuously improve data protection measures
+- **Layered Protection** - Implement multiple layers of data protection
+- **Regular Updates** - Keep security measures updated and current
+- **User Training** - Train users on data protection best practices
+- **Testing** - Regularly test data protection measures
+- **Documentation** - Maintain documentation of data protection procedures
+- **Continuous Improvement** - Continuously improve data protection measures
 
 What specific aspect of data protection would you like to address?`;
     }
@@ -658,14 +658,14 @@ What specific aspect of data protection would you like to address?`;
 🛠️ **Incident Response** - Respond to security incidents and breaches
 
 **How I Can Help:**
-• Implement comprehensive security measures for your finances
-• Ensure compliance with financial regulations and laws
-• Protect against fraud, scams, and identity theft
-• Secure sensitive financial data and information
-• Manage regulatory compliance requirements
-• Assess and mitigate security and compliance risks
-• Monitor security status and compliance
-• Respond to security incidents and breaches
+- Implement comprehensive security measures for your finances
+- Ensure compliance with financial regulations and laws
+- Protect against fraud, scams, and identity theft
+- Secure sensitive financial data and information
+- Manage regulatory compliance requirements
+- Assess and mitigate security and compliance risks
+- Monitor security status and compliance
+- Respond to security incidents and breaches
 
 **My Approach:**
 I believe that security and compliance are fundamental to financial success. I help you build robust security frameworks and maintain compliance with all relevant regulations.

@@ -129,7 +129,7 @@ export const SharedChatInterface: React.FC<SharedChatInterfaceProps> = ({
   // Get employee branding (from registry or customizations)
   const emoji = customizations?.emoji || employeeData?.emoji || '🤖';
   const title = customizations?.title || employeeData?.title || 'AI Assistant';
-  const subtitle = customizations?.subtitle || (employeeData ? `${employeeData.title} — ${employeeData.capabilities.join(', ')}` : '');
+  const subtitle = customizations?.subtitle || (employeeData ? `${employeeData.title} - ${employeeData.capabilities.join(', ')}` : '');
   const welcomeMessage = customizations?.welcomeMessage || `Hello! I'm ${title}. How can I help you today?`;
   const placeholder = customizations?.placeholder || `Ask ${title} anything...`;
   

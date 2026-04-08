@@ -55,22 +55,22 @@ export async function aiFallbackParseTransactions(params: {
     // Build strict system prompt
     const systemPrompt = `You are a bank statement transaction parser. Extract transactions from OCR text.
 
-STEP 1 — DETECT LAYOUT
+STEP 1 - DETECT LAYOUT
 Find the transaction table header to identify column order. For BMO statements the header is:
 "Amounts deducted from your account ($) | Amounts added to your account ($) | Balance ($)"
 
-STEP 2 — PARSE RIGHT TO LEFT
+STEP 2 - PARSE RIGHT TO LEFT
 For each transaction row:
 - Rightmost number = running balance
 - Number immediately left of balance = transaction amount
 - Never swap these two
 
-STEP 3 — COMMA RULE
+STEP 3 - COMMA RULE
 - Number WITH thousands comma (e.g. 6,030.39) = balance
 - Number WITHOUT comma (e.g. 11.85) = amount
 - Exception: if BOTH have commas, the larger is the balance
 
-STEP 4 — BALANCE RECONCILIATION
+STEP 4 - BALANCE RECONCILIATION
 Verify: previous_balance - debit_amount = new_balance (or + for credits)
 If it doesn't reconcile, try the other number. Reject the row if neither reconciles.
 
@@ -79,14 +79,14 @@ Return a JSON object: { "transactions": [ ... ] }
 Each transaction must have:
 - date: YYYY-MM-DD (use TRANSACTION DATE if available, else POSTING DATE)
 - description: Full activity line (merchant + details)
-- merchant: Merchant name (preserve spaces — "SAVE ON FOODS" not "SAVEONFOODS")
+- merchant: Merchant name (preserve spaces - "SAVE ON FOODS" not "SAVEONFOODS")
 - amount: Number (negative for debits/purchases, positive for credits/deposits)
 
 IGNORE: summary blocks, interest tables, points summaries, headers/footers, section titles.
 Currency: assume CAD unless specified. For foreign tx with CAD conversion, always use the CAD amount.
 Institution: include top-level "institution" field if bank/issuer (BMO, TD, RBC, etc.) is detected.
 If no line-item transactions are found, output: { "transactions": [] }
-No commentary, no markdown, no backticks — JSON only.`;
+No commentary, no markdown, no backticks - JSON only.`;
 
     const userPrompt = `Parse this ${statementType} statement OCR text and extract all line-item transactions:
 

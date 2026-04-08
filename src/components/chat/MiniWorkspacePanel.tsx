@@ -161,7 +161,7 @@ export function MiniWorkspacePanel({
                     "
                   >
                     <span className="text-slate-50">
-                      Chat with {config.name.split('—')[0].trim()}
+                      Chat with {config.name.split('-')[0].trim()}
                     </span>
                     <span className="text-[11px] text-emerald-400">Open chat ▸</span>
                   </button>

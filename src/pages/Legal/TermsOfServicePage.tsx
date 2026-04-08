@@ -8,7 +8,7 @@ export default function TermsOfServicePage() {
 
       <H2>2. Nature of the Service</H2>
       <P>XspensesAI is a financial organization and tracking tool powered by artificial intelligence. The Service is designed to help you organize, categorize, and understand your financial transactions. XspensesAI is NOT a licensed financial advisor, tax professional, accountant, or legal advisor. All AI-generated categorizations, insights, summaries, scores, and recommendations are informational only and do not constitute professional financial, tax, investment, or legal advice.</P>
-      <P>You must consult a licensed professional — such as a Certified Public Accountant (CPA), Chartered Professional Accountant, licensed financial advisor, or qualified tax professional — before making financial decisions based on information provided by the Service.</P>
+      <P>You must consult a licensed professional - such as a Certified Public Accountant (CPA), Chartered Professional Accountant, licensed financial advisor, or qualified tax professional - before making financial decisions based on information provided by the Service.</P>
 
       <H2>3. AI Agents and Automated Processing</H2>
       <P>XspensesAI uses multiple AI agents (Prime, Byte, Tag, Crystal, Goalie, and Ledger) to process your financial data. These agents are software tools that use machine learning and natural language processing to provide their respective services. They are not human professionals and their outputs should be treated as automated suggestions, not professional advice.</P>
@@ -22,7 +22,7 @@ export default function TermsOfServicePage() {
 
       <H2>6. Data Processing and Third Parties</H2>
       <P>By uploading financial documents to XspensesAI, you grant us permission to process those documents through our service infrastructure, which includes third-party data processors: Supabase (database and storage), Google Cloud Vision API (optical character recognition), and Anthropic Claude API (AI analysis and conversation). Your data is shared with these processors only as necessary to provide the Service.</P>
-      <P>We process statement data only — specifically transaction amounts, dates, merchant names, and categories. We do not store or transmit credit card numbers, bank account login credentials, Social Insurance Numbers (SIN), Social Security Numbers (SSN), or banking passwords.</P>
+      <P>We process statement data only - specifically transaction amounts, dates, merchant names, and categories. We do not store or transmit credit card numbers, bank account login credentials, Social Insurance Numbers (SIN), Social Security Numbers (SSN), or banking passwords.</P>
 
       <H2>7. User Responsibilities</H2>
       <P>You are responsible for the accuracy and legality of all documents and data you upload to the Service. You represent that you have the right to upload and process any financial documents you provide. You are solely responsible for all financial decisions you make, regardless of any information provided by the Service.</P>

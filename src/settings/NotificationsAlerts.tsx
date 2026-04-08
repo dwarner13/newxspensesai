@@ -40,7 +40,7 @@ export default function NotificationsAlerts() {
         <ul className="list-disc pl-6">
           {alerts.map(alert => (
             <li key={alert.id} className="mb-1">
-              <span className="font-semibold">{alert.trigger}</span> — {alert.method}
+              <span className="font-semibold">{alert.trigger}</span> - {alert.method}
             </li>
           ))}
         </ul>

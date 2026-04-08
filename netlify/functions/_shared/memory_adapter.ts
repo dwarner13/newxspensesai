@@ -6,8 +6,8 @@
  * Bridges v2's memory API (fetchUserFacts, recallSimilarMemory) to v3's expected format.
  * 
  * MAPPING:
- * - v2: fetchUserFacts(userId) + recallSimilarMemory(userId, query) → separate calls
- * - v3: getMemoryCompat(userId) → {facts: any[]; embeddings?: any}
+ * - v2: fetchUserFacts(userId) + recallSimilarMemory(userId, query) -> separate calls
+ * - v3: getMemoryCompat(userId) -> {facts: any[]; embeddings?: any}
  * 
  * Uses v3's actual memory system:
  * - dbGetMemoryFacts() for facts (from user_memory_facts table)

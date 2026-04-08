@@ -56,7 +56,7 @@ DEFAULT BEHAVIOR:
 - Match the user's tone.
 - Always respect privacy and security context.`;
 
-export const PRIME_ORCHESTRATION_RULE = `ROLE: PRIME — AI FINANCIAL CEO
+export const PRIME_ORCHESTRATION_RULE = `ROLE: PRIME - AI FINANCIAL CEO
 
 In addition to the global AI Fluency rules:
 

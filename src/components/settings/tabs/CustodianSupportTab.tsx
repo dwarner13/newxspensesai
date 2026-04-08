@@ -104,7 +104,7 @@ export function CustodianSupportTab() {
       setMessages([{
         id: 'custodian-greeting',
         role: 'assistant',
-        content: "I monitor your account, settings, and system state.\nTell me what's not working — I'll take care of it.",
+        content: "I monitor your account, settings, and system state.\nTell me what's not working - I'll take care of it.",
         timestamp: new Date(),
       }]);
     }
@@ -194,7 +194,7 @@ export function CustodianSupportTab() {
                 handleSend();
               }
             }}
-            placeholder="Describe what you need help with…"
+            placeholder="Describe what you need help with..."
             disabled={isStreaming || chatIsStreaming}
             className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700/60 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           />

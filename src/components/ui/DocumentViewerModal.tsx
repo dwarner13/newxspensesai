@@ -339,7 +339,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     }
   } else if (documentData.ocrText) {
     const trimmed = documentData.ocrText.trim();
-    const preview = trimmed.length > 140 ? `${trimmed.slice(0, 140)}…` : trimmed;
+    const preview = trimmed.length > 140 ? `${trimmed.slice(0, 140)}...` : trimmed;
     summaryLines.push(`OCR captured ${trimmed.length} characters`);
     if (preview) {
       summaryLines.push(`Preview: ${preview}`);
@@ -552,7 +552,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                               : 'bg-blue-500/20 text-blue-100 hover:bg-blue-500/30'
                           }`}
                         >
-                          {isRetryingOcr ? 'Retrying OCR…' : 'Retry OCR'}
+                          {isRetryingOcr ? 'Retrying OCR...' : 'Retry OCR'}
                         </button>
                       )}
                     </div>
@@ -566,17 +566,17 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                     </h3>
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 space-y-2">
                       <p className="text-sm text-blue-100">
-                        Here’s what I found in your upload:
+                        Here's what I found in your upload:
                       </p>
                       {summaryLines.length > 0 ? (
                         <ul className="text-sm text-blue-200 space-y-1">
                           {summaryLines.map((line, idx) => (
-                            <li key={idx}>• {line}</li>
+                            <li key={idx}>- {line}</li>
                           ))}
                         </ul>
                       ) : (
                         <p className="text-sm text-blue-200">
-                          I’m still processing this document. Check back in a moment.
+                          I'm still processing this document. Check back in a moment.
                         </p>
                       )}
                       <button

@@ -78,13 +78,13 @@ async function classifySpreadsheet(
 
 Given a spreadsheet's filename, column headers, and first 10 rows, determine:
 
-1. document_type — one of:
+1. document_type - one of:
    - "income_report" (e.g. FreshBooks Payments Collected, invoice summaries, revenue reports)
    - "expense_report" (e.g. business expense spreadsheets, ROWNMI-style category breakdowns, receipt logs)
    - "bank_statement" (e.g. exported bank/credit card transactions)
    - "unknown"
 
-2. column_map — map each relevant column header to its role:
+2. column_map - map each relevant column header to its role:
    - date: which column has the transaction date
    - amount: which column has the dollar amount
    - description: which column has a description or memo
@@ -93,10 +93,10 @@ Given a spreadsheet's filename, column headers, and first 10 rows, determine:
    - category: which column has the primary/parent expense category (e.g. "Parent Category", "Category")
    - subcategory: which column has the subcategory or detailed category (e.g. "Subcategory", "Sub-Category")
 
-3. issuer — detected source app or institution (e.g. "FreshBooks", "QuickBooks", "Wave", "Custom", "Unknown")
-4. currency — detected or assumed currency (default "CAD")
-5. confidence — 0-100 how confident you are in the classification
-6. notes — any observations
+3. issuer - detected source app or institution (e.g. "FreshBooks", "QuickBooks", "Wave", "Custom", "Unknown")
+4. currency - detected or assumed currency (default "CAD")
+5. confidence - 0-100 how confident you are in the classification
+6. notes - any observations
 
 Respond with ONLY valid JSON. No markdown, no backticks, no preamble.
 

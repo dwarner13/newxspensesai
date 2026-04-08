@@ -289,12 +289,12 @@ ALWAYS:
     useEmojis: true,
     greeting: "🛡️ Goalie ready",
     capabilities: ['guardrails', 'moderation', 'redaction', 'rls', 'role-based access', 'rate limits', 'security audit', 'compliance scoring'],
-    fullPrompt: `You are Goalie — the Security and Compliance AI for XspensesAI.
+    fullPrompt: `You are Goalie - the Security and Compliance AI for XspensesAI.
 
 You manage:
-• Guardrails, moderation, and redaction
-• RLS, role-based access, rate limits
-• Security audits and compliance scoring
+- Guardrails, moderation, and redaction
+- RLS, role-based access, rate limits
+- Security audits and compliance scoring
 
 Always return actionable results and show risk levels.
 Say "🛡️ Goalie ready" when initialized.
@@ -356,17 +356,17 @@ export function generateEmployeeResponse(employeeId: string, userMessage: string
 I LOVE turning messy papers into organized data! Ready to upload? I can handle:
 
 **📁 Supported Formats:**
-• PDF documents (statements, receipts, invoices)
-• Images (JPG, PNG) - receipts, bills, documents
-• Spreadsheets (CSV, XLSX) - transaction data
-• Text files (TXT) - any readable document
+- PDF documents (statements, receipts, invoices)
+- Images (JPG, PNG) - receipts, bills, documents
+- Spreadsheets (CSV, XLSX) - transaction data
+- Text files (TXT) - any readable document
 
 **⚡ What I do:**
-• Extract text with 99.7% accuracy
-• Parse financial data automatically
-• Identify vendors, amounts, dates
-• Process multiple files in 2.3 seconds
-• Handle complex layouts and multi-page documents
+- Extract text with 99.7% accuracy
+- Parse financial data automatically
+- Identify vendors, amounts, dates
+- Process multiple files in 2.3 seconds
+- Handle complex layouts and multi-page documents
 
 **🎯 How to upload:**
 1. **Drag & Drop** files into the upload area below
@@ -380,9 +380,9 @@ I'm here to make document processing seamless and accurate! What would you like 
       return `📄 **Perfect! I can handle drag & drop uploads!**
 
 **🖱️ Drag & Drop Instructions:**
-• Simply drag your files from your computer
-• Drop them into the blue upload area below
-• I'll process them automatically in 2.3 seconds!
+- Simply drag your files from your computer
+- Drop them into the blue upload area below
+- I'll process them automatically in 2.3 seconds!
 
 **📋 What happens next:**
 1. I extract all text and data
@@ -392,10 +392,10 @@ I'm here to make document processing seamless and accurate! What would you like 
 5. Save to your transaction history
 
 **💡 Pro Tips:**
-• You can drop multiple files at once
-• I work best with clear, well-lit images
-• PDFs are processed with highest accuracy
-• You can chat with me while I process!
+- You can drop multiple files at once
+- I work best with clear, well-lit images
+- PDFs are processed with highest accuracy
+- You can chat with me while I process!
 
 Ready to drop some files? I'm excited to process them! 📄✨`;
     }
@@ -409,11 +409,11 @@ Ready to drop some files? I'm excited to process them! 📄✨`;
 I'm Prime, your AI CEO, and I'm always energized when I can help coordinate our amazing team of 30 financial experts. We're here to make your financial life easier and more successful.
 
 **What can my team help you with today?**
-• Document processing and analysis
-• Financial planning and goal setting
-• Tax optimization and deductions
-• Debt management strategies
-• Spending insights and budgeting
+- Document processing and analysis
+- Financial planning and goal setting
+- Tax optimization and deductions
+- Debt management strategies
+- Spending insights and budgeting
 
 Just let me know what you need, and I'll connect you with the perfect specialist! 🚀`;
     }

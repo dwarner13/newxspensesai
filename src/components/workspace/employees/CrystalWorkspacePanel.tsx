@@ -145,7 +145,7 @@ export function CrystalWorkspacePanel() {
           {/* Short list */}
           <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar space-y-2 text-[11px] text-slate-200">
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              🔮 <span className="font-medium">Next month forecast</span> — $3,420 predicted spending
+              🔮 <span className="font-medium">Next month forecast</span> - $3,420 predicted spending
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
               ⚠️ <span className="font-medium">3 anomaly alerts</span> detected in spending patterns

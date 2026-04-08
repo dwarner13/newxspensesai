@@ -471,7 +471,7 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
                 )}
 
                 <p className="text-xs text-slate-400 text-center">
-                  Tip: Prime Chat stays private and secure — your session is restored.
+                  Tip: Prime Chat stays private and secure - your session is restored.
                 </p>
 
                 {/* Tertiary: Settings - Match onboarding tertiary link */}

@@ -432,7 +432,7 @@ export function PrimeTasksSlideoutContent({
 
                       </span>
 
-                      <span className="text-slate-500">• {task.ago}</span>
+                      <span className="text-slate-500">- {task.ago}</span>
 
                     </div>
 

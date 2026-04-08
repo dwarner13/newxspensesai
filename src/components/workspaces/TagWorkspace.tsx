@@ -103,7 +103,7 @@ const TagWorkspace: React.FC = () => {
             <div className="pattern-content">
               <div className="pattern-rule">
                 <span className="pattern-text">{pattern.pattern}</span>
-                <span className="pattern-arrow">→</span>
+                <span className="pattern-arrow">-></span>
                 <span className="pattern-category">{pattern.category}</span>
               </div>
               <div className="pattern-stats">

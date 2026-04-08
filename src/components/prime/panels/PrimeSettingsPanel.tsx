@@ -45,20 +45,20 @@ export function PrimeSettingsPanel() {
         </p>
         <ul className="space-y-1.5 text-[11px] text-slate-300">
           <li className="flex items-center gap-2">
-            <span className="text-slate-500">•</span>
-            <span>Debt & freedom → Blitz, Liberty</span>
+            <span className="text-slate-500">-</span>
+            <span>Debt & freedom -> Blitz, Liberty</span>
           </li>
           <li className="flex items-center gap-2">
-            <span className="text-slate-500">•</span>
-            <span>Receipt & docs → Byte</span>
+            <span className="text-slate-500">-</span>
+            <span>Receipt & docs -> Byte</span>
           </li>
           <li className="flex items-center gap-2">
-            <span className="text-slate-500">•</span>
-            <span>Spending analysis → Crystal</span>
+            <span className="text-slate-500">-</span>
+            <span>Spending analysis -> Crystal</span>
           </li>
           <li className="flex items-center gap-2">
-            <span className="text-slate-500">•</span>
-            <span>Forecasts → Finley</span>
+            <span className="text-slate-500">-</span>
+            <span>Forecasts -> Finley</span>
           </li>
         </ul>
       </section>

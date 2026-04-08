@@ -16,7 +16,7 @@ export const EMPLOYEES: Employee[] = [
     name: 'Prime',
     emoji: '👑',
     route: '/dashboard',
-    short: 'The Boss AI — your first stop for everything. Routes you to the right expert instantly.',
+    short: 'The Boss AI - your first stop for everything. Routes you to the right expert instantly.',
     learnMorePath: '/ai-employees',
     tags: ['boss','help','how to','where','guide','onboarding','tour','troubleshoot','who should i use']
   },
@@ -27,9 +27,9 @@ export const EMPLOYEES: Employee[] = [
   { key: 'goalie',  name: 'Goalie',  emoji: '🥅', route: '/dashboard/goal-concierge',         short: 'Goal planning and progress tracking.',       learnMorePath: '/features/goal-concierge',           tags: ['goal','plan','save','milestone','target'] },
   { key: 'crystal', name: 'Crystal', emoji: '🔮', route: '/dashboard/spending-predictions',   short: 'Forecasts spending trends.',                 learnMorePath: '/features/spending-predictions',     tags: ['predict','forecast','future','trend'] },
   { key: 'tag',     name: 'Tag',     emoji: '🏷️', route: '/dashboard/ai-categorization',      short: 'Auto-categorizes transactions.',             learnMorePath: '/features/ai-insights',              tags: ['categorize','label','merchant','rules'] },
-  { key: 'liberty', name: 'Liberty', emoji: '🕊️', route: '/dashboard/ai-financial-freedom',   short: 'Debt Freedom & Protection Coach — upload ANY loan, credit card, or mortgage screenshot and Liberty will show you how to pay it off faster, save interest, and protect yourself from predatory debt.',                 learnMorePath: '/features/ai-goals',                 tags: ['freedom','fire','independence','debt','loan','mortgage','car loan','credit card','payday','debt payoff','interest','fees','line of credit','loc','student loan','personal loan'] },
+  { key: 'liberty', name: 'Liberty', emoji: '🕊️', route: '/dashboard/ai-financial-freedom',   short: 'Debt Freedom & Protection Coach - upload ANY loan, credit card, or mortgage screenshot and Liberty will show you how to pay it off faster, save interest, and protect yourself from predatory debt.',                 learnMorePath: '/features/ai-goals',                 tags: ['freedom','fire','independence','debt','loan','mortgage','car loan','credit card','payday','debt payoff','interest','fees','line of credit','loc','student loan','personal loan'] },
   { key: 'blitz',   name: 'Blitz',   emoji: '⚡', route: '/dashboard/blitz',                  short: 'Rapid actions & alerts.',                    learnMorePath: '/features/ai-goals',                 tags: ['actions','checklist','next-steps','alerts'] },
-  { key: 'chime',   name: 'Chime',   emoji: '🔔', route: '/dashboard/bill-reminders',         short: 'Smart Debt & Reminder Coach — watches your recurring payments and sends friendly nudges so you stay ahead of your debt and bills.',                         learnMorePath: '/features/automation',               tags: ['reminder','bill','due','notify','alert','nudge','notification','ping','check-in','upcoming bills','payments due'] },
+  { key: 'chime',   name: 'Chime',   emoji: '🔔', route: '/dashboard/bill-reminders',         short: 'Smart Debt & Reminder Coach - watches your recurring payments and sends friendly nudges so you stay ahead of your debt and bills.',                         learnMorePath: '/features/automation',               tags: ['reminder','bill','due','notify','alert','nudge','notification','ping','check-in','upcoming bills','payments due'] },
 
   // === Wellness / Audio ===
   { key: 'harmony', name: 'Harmony', emoji: '💚', route: '/dashboard/financial-therapist',    short: 'Financial wellness and life balance.',        learnMorePath: '/features/ai-therapist',             tags: ['wellness','balance','mindfulness','harmony'] },

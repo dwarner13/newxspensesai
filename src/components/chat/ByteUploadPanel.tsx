@@ -544,7 +544,7 @@ export function ByteUploadPanel({
             )}
           </div>
           <div className="text-[10px] text-slate-400 leading-tight">
-            Any file type • Max 25MB
+            Any file type - Max 25MB
           </div>
           <div className="mt-1 text-[10px] text-cyan-200/85 tabular-nums">
             Batch Status · Slots: {Math.min(activeSlotCount, slotLimit)}/{slotLimit}
@@ -725,8 +725,8 @@ export function ByteUploadPanel({
             {(lastDebugPayload || []).map((item) => (
               <div key={item.docId} className="rounded-lg border border-amber-500/20 bg-slate-900/60 p-2"> 
                 <div className="flex flex-wrap items-center gap-2 text-[10px] text-amber-100">
-                  <span>Doc: …{item.docId?.slice(-6)}</span>
-                  {item.importId && <span>Import: …{item.importId.slice(-6)}</span>}
+                  <span>Doc: ...{item.docId?.slice(-6)}</span>
+                  {item.importId && <span>Import: ...{item.importId.slice(-6)}</span>}
                   {item.ocrEngineUsed && <span>OCR: {item.ocrEngineUsed}</span>}
                   <span>Text: {item.rawTextLength} chars</span>
                 </div>

@@ -451,7 +451,7 @@ export default function SpotifyIntegrationFeaturePage() {
                       />
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-white text-sm truncate">{playlist.name}</h4>
-                        <p className="text-white/60 text-xs">{playlist.tracks} tracks • {playlist.mood}</p>
+                        <p className="text-white/60 text-xs">{playlist.tracks} tracks - {playlist.mood}</p>
                       </div>
                     </div>
                   </div>

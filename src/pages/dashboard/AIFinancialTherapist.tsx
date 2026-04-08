@@ -453,7 +453,7 @@ Mood: ${session.mood}
 Progress: ${session.progress}%
 
 Key Insights:
-${session.insights.map(insight => `• ${insight}`).join('\n')}
+${session.insights.map(insight => `- ${insight}`).join('\n')}
 
 Generated on: ${new Date().toLocaleDateString()}
     `;
@@ -586,7 +586,7 @@ Generated on: ${new Date().toLocaleDateString()}
               <p className="therapist-style">{therapist.style}</p>
               <p className="therapist-desc">{therapist.description}</p>
               <div className="specialties">
-                {therapist.specialties.join(' • ')}
+                {therapist.specialties.join(' - ')}
               </div>
               <button 
                 className="start-session-btn"

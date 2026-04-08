@@ -213,11 +213,11 @@ export function FormattedMessageText({ text }: { text: string }) {
             </div>
           );
         }
-        if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
-          const body = trimmed.replace(/^[-•]\s+/, '');
+        if (trimmed.startsWith('- ') || trimmed.startsWith('- ')) {
+          const body = trimmed.replace(/^[--]\s+/, '');
           return (
             <div key={`line-${idx}`} className="mb-1 flex items-start gap-2">
-              <span className="text-slate-300">•</span>
+              <span className="text-slate-300">-</span>
               <span>{renderInlineRich(body, `li-${idx}`)}</span>
             </div>
           );

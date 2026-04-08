@@ -149,7 +149,7 @@ const AIBankStatementUploader = () => {
                 <div className="mt-8 p-4 bg-purple-50 rounded-lg">
                     <h4 className="font-semibold text-purple-900 mb-2">🤖 AI Status</h4>
                     <p className="text-purple-700 text-sm">
-                        Document ID: {documentId} • Ready for categorization and learning
+                        Document ID: {documentId} - Ready for categorization and learning
                     </p>
                 </div>
             )}

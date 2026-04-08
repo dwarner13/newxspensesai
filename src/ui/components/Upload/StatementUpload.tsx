@@ -69,7 +69,7 @@ const StatementUpload = forwardRef<Exposed>((_, ref) => {
         aria-hidden
       />
       {/* Optional overlay spinner when busy */}
-      {busy && <div className="fixed bottom-4 right-4 rounded-2xl bg-black/60 px-3 py-2 text-sm text-white">Uploading…</div>}
+      {busy && <div className="fixed bottom-4 right-4 rounded-2xl bg-black/60 px-3 py-2 text-sm text-white">Uploading...</div>}
     </>
   );
 });

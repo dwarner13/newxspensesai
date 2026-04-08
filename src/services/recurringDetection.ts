@@ -153,9 +153,9 @@ function analyzePattern(transactions: Transaction[]): {
 
   // Determine frequency based on median gap
   // Heuristics:
-  // 5-9 days → weekly
-  // 10-18 days → biweekly
-  // 26-35 days → monthly
+  // 5-9 days -> weekly
+  // 10-18 days -> biweekly
+  // 26-35 days -> monthly
   let frequency: 'monthly' | 'biweekly' | 'weekly' | 'unknown' = 'unknown';
   let interval_days: number | null = null;
   let day_of_month: number | null = null;

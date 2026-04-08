@@ -1,5 +1,5 @@
 /**
- * Comprehensive Canadian merchant → category+subcategory map.
+ * Comprehensive Canadian merchant -> category+subcategory map.
  * Used by tag-categorize-committed.ts and tag-reclassify-other.ts.
  */
 
@@ -201,7 +201,7 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
 
 export function matchMerchantMap(merchantName: string): { category: string; subcategory?: string } | null {
   const normalized = normalizeMerchant(merchantName);
-  // Also strip all spaces for OCR-mangled names like "SHADI FIED" → "shadified"
+  // Also strip all spaces for OCR-mangled names like "SHADI FIED" -> "shadified"
   const noSpaces = normalized.replace(/\s+/g, '');
   for (const [pattern, result] of Object.entries(MERCHANT_CATEGORY_MAP)) {
     if (normalized.includes(pattern)) return result;

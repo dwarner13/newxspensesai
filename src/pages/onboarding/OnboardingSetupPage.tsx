@@ -52,7 +52,7 @@ export default function OnboardingSetupPage() {
       <div className="bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center py-20 min-h-screen">
         <div className="text-center flex flex-col items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
-          <p className="text-white text-lg">Loading your setup…</p>
+          <p className="text-white text-lg">Loading your setup...</p>
         </div>
       </div>
     );
@@ -64,7 +64,7 @@ export default function OnboardingSetupPage() {
       <div className="bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center py-20 min-h-screen">
         <div className="text-center flex flex-col items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
-          <p className="text-white text-lg">Redirecting…</p>
+          <p className="text-white text-lg">Redirecting...</p>
         </div>
       </div>
     );
@@ -76,7 +76,7 @@ export default function OnboardingSetupPage() {
       <div className="bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center py-20 min-h-screen">
         <div className="text-center flex flex-col items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
-          <p className="text-white text-lg">Loading your setup…</p>
+          <p className="text-white text-lg">Loading your setup...</p>
         </div>
       </div>
     );

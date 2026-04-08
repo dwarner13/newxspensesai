@@ -11,7 +11,7 @@ export const inputSchema = z.object({
   currency: z.string().optional().default('CAD'),
   amount: z.number(), // typical payment or due amount
   days_until_due: z.number().optional(), // for upcoming payment scenarios
-  extra_payment_option: z.number().optional(), // e.g. 25 for "if you pay $25 more…"
+  extra_payment_option: z.number().optional(), // e.g. 25 for "if you pay $25 more..."
   progress_summary: z.string().optional(), // optional human readable summary from Liberty/Finley/Crystal
   payoff_estimate: z.string().optional(), // e.g. "You're on track to be debt-free in 3.6 years"
   interest_savings_estimate: z.string().optional(), // e.g. "You could save about $480 in interest"
@@ -331,7 +331,7 @@ function generateDebtProgressBody(
     body += `\n\n💰 ${interestSavingsEstimate}`;
   }
 
-  body += '\n\nSmall, consistent payments are working—nice job!';
+  body += '\n\nSmall, consistent payments are working-nice job!';
 
   return body;
 }

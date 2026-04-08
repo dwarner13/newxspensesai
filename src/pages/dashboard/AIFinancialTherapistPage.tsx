@@ -17,7 +17,7 @@
  * - Modify column widths or grid behavior
  * - Add page-specific layout overrides
  * 
- * REFERENCE: This page uses DashboardPageShell → DashboardThreeColumnLayout
+ * REFERENCE: This page uses DashboardPageShell -> DashboardThreeColumnLayout
  * All styling comes from shared components (TherapistWorkspacePanel, EmployeeUnifiedCardBase)
  */
 
@@ -37,7 +37,7 @@ export default function AIFinancialTherapistPage() {
   // VERIFICATION: Reference implementation (gold standard)
   if (import.meta.env.DEV) {
     console.log('[UI] 🏆 Reference layout: AIFinancialTherapistPage (Serenity)', {
-      layout: 'DashboardPageShell → DashboardThreeColumnLayout',
+      layout: 'DashboardPageShell -> DashboardThreeColumnLayout',
       left: 'TherapistWorkspacePanel',
       center: 'TherapistUnifiedCard (EmployeeUnifiedCardBase)',
       right: 'ActivityFeedSidebar',

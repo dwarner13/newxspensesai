@@ -286,12 +286,12 @@ const RevolutionaryFeatures = () => (
             <div className="podcast-examples bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 mb-4">
               <h4 className="font-semibold mb-2">Sample Episode Titles:</h4>
               <ul className="text-sm text-gray-700 space-y-1">
-                <li>• "How Sarah Conquered Her Credit Card Debt in 6 Months"</li>
-                <li>• "Mike's Q4 Business Expense Review & Tax Strategy"</li>
-                <li>• "Your November Financial Wins & December Goals"</li>
+                <li>- "How Sarah Conquered Her Credit Card Debt in 6 Months"</li>
+                <li>- "Mike's Q4 Business Expense Review & Tax Strategy"</li>
+                <li>- "Your November Financial Wins & December Goals"</li>
               </ul>
             </div>
-            <a href="/features/personal-podcast" className="feature-link text-purple-600 font-semibold hover:underline">Get My Personal Podcast →</a>
+            <a href="/features/personal-podcast" className="feature-link text-purple-600 font-semibold hover:underline">Get My Personal Podcast -></a>
           </div>
         </div>
         
@@ -322,12 +322,12 @@ const RevolutionaryFeatures = () => (
             <div className="therapy-benefits bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 mb-4">
               <h4 className="font-semibold mb-2">Real Therapy Results:</h4>
               <ul className="text-sm text-gray-700 space-y-1">
-                <li>• 87% reduction in money anxiety after 30 days</li>
-                <li>• 94% feel more confident about financial decisions</li>
-                <li>• 76% report better sleep during tax season</li>
+                <li>- 87% reduction in money anxiety after 30 days</li>
+                <li>- 94% feel more confident about financial decisions</li>
+                <li>- 76% report better sleep during tax season</li>
               </ul>
             </div>
-            <a href="/features/ai-therapist" className="feature-link text-purple-600 font-semibold hover:underline">Start Healing Today →</a>
+            <a href="/features/ai-therapist" className="feature-link text-purple-600 font-semibold hover:underline">Start Healing Today -></a>
           </div>
         </div>
         
@@ -350,9 +350,9 @@ const RevolutionaryFeatures = () => (
               <div className="playlist-suggestions text-sm text-gray-600">
                 <p className="font-semibold mb-2">Now Playing:</p>
                 <ul className="space-y-1">
-                  <li>• "Deep Focus Instrumentals - Receipt Organization"</li>
-                  <li>• "Victory Vibes - After Filing"</li>
-                  <li>• "Calm Confidence - IRS Stress Relief"</li>
+                  <li>- "Deep Focus Instrumentals - Receipt Organization"</li>
+                  <li>- "Victory Vibes - After Filing"</li>
+                  <li>- "Calm Confidence - IRS Stress Relief"</li>
                 </ul>
               </div>
             </div>
@@ -369,12 +369,12 @@ const RevolutionaryFeatures = () => (
             <div className="music-features bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 mb-4">
               <h4 className="font-semibold mb-2">Smart Music Integration:</h4>
               <ul className="text-sm text-gray-700 space-y-1">
-                <li>• Auto-plays focus music during expense categorization</li>
-                <li>• Victory songs when AI finds deductions</li>
-                <li>• Calming sounds during financial therapy sessions</li>
+                <li>- Auto-plays focus music during expense categorization</li>
+                <li>- Victory songs when AI finds deductions</li>
+                <li>- Calming sounds during financial therapy sessions</li>
               </ul>
             </div>
-            <a href="/features/spotify-integration" className="feature-link text-purple-600 font-semibold hover:underline">Connect Your Spotify →</a>
+            <a href="/features/spotify-integration" className="feature-link text-purple-600 font-semibold hover:underline">Connect Your Spotify -></a>
           </div>
         </div>
       </div>
@@ -504,7 +504,7 @@ const SmartImportAISection = () => (
           <p className="text-gray-600 mb-4">Organizes entire year of expenses in under 5 minutes. Creates audit-proof categorization for tax season.</p>
           <div className="power-example bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-3">
             <div className="text-sm text-gray-700">
-              <strong>Example:</strong> 47 bank statements → Tax-ready in 3 minutes
+              <strong>Example:</strong> 47 bank statements -> Tax-ready in 3 minutes
             </div>
           </div>
         </div>
@@ -540,7 +540,7 @@ const SocialProofResults = () => (
         <div className="testimonials-grid grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="testimonial-card bg-white rounded-2xl p-8 shadow-lg border border-gray-100 flex flex-col items-center">
             <div className="testimonial-content text-gray-800 mb-4">
-              <p>"Uploaded 47 bank statements → AI organized everything for taxes in 3 minutes. Found $3,400 in missed deductions! Tax season is now effortless."</p>
+              <p>"Uploaded 47 bank statements -> AI organized everything for taxes in 3 minutes. Found $3,400 in missed deductions! Tax season is now effortless."</p>
             </div>
             <div className="testimonial-author flex items-center gap-3">
               <img src="/api/placeholder/50/50" alt="Sarah M." className="rounded-full w-12 h-12 object-cover" />

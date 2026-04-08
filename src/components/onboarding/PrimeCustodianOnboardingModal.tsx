@@ -1,10 +1,10 @@
 /**
- * Prime → Custodian Onboarding Modal
+ * Prime -> Custodian Onboarding Modal
  * 
  * AI-led profile creation flow:
  * 1. Prime greeting (static)
  * 2. Custodian conversational setup (chat UI)
- * 3. Completion → handoff back to Prime
+ * 3. Completion -> handoff back to Prime
  * 
  * Features:
  * - Centered modal with backdrop blur
@@ -119,7 +119,7 @@ const QUESTIONS = [
     question: "How proactive should XspensesAI be?",
     key: 'proactivity_level',
     type: 'options' as const,
-    narration: "Last question—how hands-on should I be?",
+    narration: "Last question-how hands-on should I be?",
     options: [
       { value: 'insights', label: 'Show insights only' },
       { value: 'alerts', label: 'Send alerts when needed' },
@@ -196,7 +196,7 @@ export function PrimeCustodianOnboardingModal({
   const PRIME_MESSAGES = [
     "I'll help you see what's happening with your money.",
     "We'll start by personalizing your dashboard and AI team.",
-    "Custodian is here—three quick questions, then we begin.",
+    "Custodian is here-three quick questions, then we begin.",
   ];
   
   // Handle Prime scene enter (called when scene starts typing)
@@ -876,7 +876,7 @@ export function PrimeCustodianOnboardingModal({
                     willChange: 'transform, opacity, filter',
                   }}
                 >
-                  {/* Content crossfade: Preparing → Chat → Final */}
+                  {/* Content crossfade: Preparing -> Chat -> Final */}
                   <AnimatePresence mode="wait">
                     {rightPanelMode === 'preparing' && step !== 'final' && (
                       <motion.div

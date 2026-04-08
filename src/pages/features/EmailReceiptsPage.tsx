@@ -61,10 +61,10 @@ const EmailReceiptsPage = () => {
             className="text-center"
           >
             <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6">
-              Forward Email Receipts Automatically — Let AI Do the Rest
+              Forward Email Receipts Automatically - Let AI Do the Rest
             </h1>
             <p className="text-xl text-gray-600 mb-8 max-w-3xl ">
-              Every e-receipt, invoice, or billing email scanned and categorized instantly — just by forwarding it to your XspensesAI address.
+              Every e-receipt, invoice, or billing email scanned and categorized instantly - just by forwarding it to your XspensesAI address.
             </p>
             <button
               onClick={handleGetAddress}

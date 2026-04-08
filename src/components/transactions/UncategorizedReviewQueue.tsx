@@ -8,8 +8,8 @@
  * - Inline category selector per row (auto-saves on change)
  * - Rule-based AI suggestion with one-click accept
  * - Skip button (hides row locally without mutating the DB)
- * - "Auto-Tag All" — calls tag-categorize-committed endpoint
- * - "Show All" link → /dashboard/transactions
+ * - "Auto-Tag All" - calls tag-categorize-committed endpoint
+ * - "Show All" link -> /dashboard/transactions
  * - Celebration state when no uncategorized transactions remain
  */
 
@@ -51,7 +51,7 @@ const DEFAULT_CATEGORIES = [
 ];
 
 // Lightweight rule set mirrored from tag-categorize-committed.ts
-// Used for client-side suggestions only — no server round-trip needed.
+// Used for client-side suggestions only - no server round-trip needed.
 const SUGGESTION_RULES: Array<{ contains: string[]; category: string }> = [
   { contains: ['starbucks', 'tim horton', 'second cup'], category: 'Dining' },
   { contains: ['uber', 'lyft', 'taxi', 'transit', 'presto'], category: 'Transportation' },
@@ -88,11 +88,11 @@ function getMerchant(tx: UncategorizedTx): string {
 
 function formatDate(tx: UncategorizedTx): string {
   const raw = tx.posted_at || tx.date;
-  if (!raw) return '—';
+  if (!raw) return '-';
   const d = new Date(raw);
-  if (isNaN(d.getTime())) return '—';
+  if (isNaN(d.getTime())) return '-';
   const year = d.getFullYear();
-  if (year < 1900 || year > 2100) return '—';
+  if (year < 1900 || year > 2100) return '-';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
@@ -102,7 +102,7 @@ function formatAmount(amount: number): string {
 }
 
 interface Props {
-  /** User's existing category names — merged with defaults for the dropdown */
+  /** User's existing category names - merged with defaults for the dropdown */
   categories?: string[];
   /** Optional date range from month chip selection */
   monthRange?: { start: string; end: string };
@@ -223,7 +223,7 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session?.access_token) {
-      toast.error('Session expired — please refresh');
+      toast.error('Session expired - please refresh');
       return;
     }
 
@@ -240,7 +240,7 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
       const json = (await res.json()) as { ok: boolean; updated?: number; total?: number };
       if (json.ok) {
         if ((json.updated ?? 0) === 0) {
-          toast('No rules matched — select categories manually below');
+          toast('No rules matched - select categories manually below');
         } else {
           toast.success(
             `Tag categorized ${json.updated} of ${json.total} transaction${json.total !== 1 ? 's' : ''}`
@@ -253,15 +253,15 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
               },
             });
           } catch {
-            // non-fatal — categories are written, summary will be stale
+            // non-fatal - categories are written, summary will be stale
           }
         }
         refresh();
       } else {
-        toast.error('Auto-Tag failed — try again');
+        toast.error('Auto-Tag failed - try again');
       }
     } catch {
-      toast.error('Auto-Tag failed — check your connection');
+      toast.error('Auto-Tag failed - check your connection');
     } finally {
       setIsAutoTagging(false);
     }
@@ -302,7 +302,7 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
           {isAutoTagging ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
-              Tagging…
+              Tagging...
             </>
           ) : (
             <>
@@ -318,7 +318,7 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading…
+            Loading...
           </div>
         ) : visibleTransactions.length === 0 && totalCount > 0 ? (
           <div className="py-6 text-center text-xs text-slate-500">
@@ -389,7 +389,7 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
                       className="w-full appearance-none rounded-md bg-slate-800/80 border border-slate-700/60 px-2.5 py-1 pr-6 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500/50 cursor-pointer hover:bg-slate-700/80 transition-colors disabled:opacity-50"
                     >
                       <option value="" disabled>
-                        Select category…
+                        Select category...
                       </option>
                       {categoryList.map((cat) => (
                         <option key={cat} value={cat}>

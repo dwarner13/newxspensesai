@@ -22,7 +22,7 @@ export function GuestModeBanner() {
         <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
         <div className="flex-1">
           <p className="text-sm text-blue-300 font-medium mb-1">
-            Guest Mode — changes are stored locally
+            Guest Mode - changes are stored locally
           </p>
           <p className="text-xs text-blue-400/80">
             Create an account to sync your data across devices and access all features.

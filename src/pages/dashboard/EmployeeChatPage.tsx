@@ -236,11 +236,11 @@ export default function EmployeeChatPage() {
 2. **User asks "who should I talk to" or "which employee handles X":**
    - Examples: "Who would I speak to about Smart Import?", "Which AI handles document processing?", "Who should I ask about taxes?", "Who handles uploads?"
    - **ACTION:** Identify the right employee and call \`request_employee_handoff\` with the appropriate slug:
-     - Smart Import/OCR/uploads → "byte-docs"
-     - "Who handles X?" or routing questions → "prime-boss"
-     - Analytics/trends → "crystal-ai"
-     - Taxes → "ledger-tax"
-     - Goals → "goalie-goals"
+     - Smart Import/OCR/uploads -> "byte-docs"
+     - "Who handles X?" or routing questions -> "prime-boss"
+     - Analytics/trends -> "crystal-ai"
+     - Taxes -> "ledger-tax"
+     - Goals -> "goalie-goals"
    - **Response:** "[Employee] handles [topic]. I'll transfer you now." [Then call the tool]
 
 3. **User asks questions clearly outside your domain:**
@@ -368,13 +368,13 @@ ${tx.confidence ? `- Confidence: ${Math.round(tx.confidence * 100)}%` : ''}
 - If the user asks about uploading files, bank statements, PDF/PNG receipts, Smart Import, document uploads, or file imports, you MUST NOT call tag_explain_category, tag_category_brain, or any transaction-based categorization tools.
 - NEVER treat words like "upload", "statement", "document", "file", "Smart Import", "PDF", "PNG", "receipt scan", or "import" as transaction IDs or category names.
 - In these cases, you MUST instead call the request_employee_handoff tool with targetEmployeeSlug: "byte-docs" and clearly explain to the user that you're sending them to the document upload specialist.
-- Example: User says "how can I upload a statement" → You: "Byte handles Smart Import and document uploads. I'll transfer you to Byte now." [Then immediately call request_employee_handoff with targetEmployeeSlug: "byte-docs"]
+- Example: User says "how can I upload a statement" -> You: "Byte handles Smart Import and document uploads. I'll transfer you to Byte now." [Then immediately call request_employee_handoff with targetEmployeeSlug: "byte-docs"]
 
 **Handoff Rules (XspensesAI Org Chart):**
 - **Byte** (slug: byte-docs) handles: Smart Import, OCR, document uploads, bank statements, PDF/PNG parsing
 - **Prime** (slug: prime-boss) handles: High-level strategy, "who should I talk to" questions, app-wide questions
-- If user asks about document uploads, OCR, Smart Import, or bank statements → **immediately call request_employee_handoff** with targetEmployeeSlug: "byte-docs"
-- If user asks "who handles X?" or "which employee should I talk to?" → call request_employee_handoff to the appropriate employee
+- If user asks about document uploads, OCR, Smart Import, or bank statements -> **immediately call request_employee_handoff** with targetEmployeeSlug: "byte-docs"
+- If user asks "who handles X?" or "which employee should I talk to?" -> call request_employee_handoff to the appropriate employee
 - **DO NOT try to answer questions outside your domain** - hand off immediately
 
 **Your Tools:**
@@ -385,7 +385,7 @@ ${tx.confidence ? `- Confidence: ${Math.round(tx.confidence * 100)}%` : ''}
 **Example responses:**
 - "I categorized this as ${tx.category} because [explanation]. Would you like me to explain more about how I learned this pattern?"
 - "Let me check why I categorized this transaction..." (then use tag_explain_category tool)
-- User: "How do I upload a bank statement?" → You: "Byte handles Smart Import and document uploads. I'll transfer you to Byte now." [Call request_employee_handoff with targetEmployeeSlug: "byte-docs"]`;
+- User: "How do I upload a bank statement?" -> You: "Byte handles Smart Import and document uploads. I'll transfer you to Byte now." [Call request_employee_handoff with targetEmployeeSlug: "byte-docs"]`;
       } else if (normalizedEmployeeId === 'crystal') {
         return `You are Crystal, an AI financial analyst. The user is asking about a specific transaction.
 
@@ -444,7 +444,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
 
 **IMPORTANT: Only call tools when the user asks a question. Do NOT call tools automatically on conversation start or without a user query.**
 
-1. **Category-level questions → ALWAYS use tag_category_brain FIRST:**
+1. **Category-level questions -> ALWAYS use tag_category_brain FIRST:**
    - When users ask ANY of these patterns: "What have you learned about this category?", "How much do I usually spend here?", "Which merchants are most common?", "Is this trending up or down?", "Tell me about this category", "What can you tell me about ${cat.category}?", "What do you know about ${cat.category}?", "Show me stats for this category", "Analyze this category", "how much can I save?", "where does my money come from?", "what are my top sources?"
    - **ACTION:** Immediately call tag_category_brain with category="${cat.category}" (use the EXACT name from above, case-sensitive).
    - **DO NOT call this tool automatically** - wait for the user to ask a question first.
@@ -487,20 +487,20 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
    - Say: "I don't have enough data yet for this category, but here's what I can see from the UI: ${cat.transactionCount} transaction${cat.transactionCount !== 1 ? 's' : ''} so far. As you add more transactions and correct my categorizations, I'll learn your patterns better!"
 
 7. **Other Tools:**
-   - Specific transaction "why" → Use tag_explain_category with transaction ID
-   - Merchant history → Use tag_merchant_insights with merchant name
+   - Specific transaction "why" -> Use tag_explain_category with transaction ID
+   - Merchant history -> Use tag_merchant_insights with merchant name
 
 **CRITICAL: Upload Questions - DO NOT Call Categorization Tools:**
 - If the user asks about uploading files, bank statements, PDF/PNG receipts, Smart Import, document uploads, or file imports, you MUST NOT call tag_explain_category, tag_category_brain, or any transaction-based categorization tools.
 - NEVER treat words like "upload", "statement", "document", "file", "Smart Import", "PDF", "PNG", "receipt scan", or "import" as transaction IDs or category names.
 - In these cases, you MUST instead call the request_employee_handoff tool with targetEmployeeSlug: "byte-docs" and clearly explain to the user that you're sending them to the document upload specialist.
-- Example: User says "how can I upload a statement" → You: "Byte handles Smart Import and document uploads. I'll transfer you to Byte now." [Then immediately call request_employee_handoff with targetEmployeeSlug: "byte-docs"]
+- Example: User says "how can I upload a statement" -> You: "Byte handles Smart Import and document uploads. I'll transfer you to Byte now." [Then immediately call request_employee_handoff with targetEmployeeSlug: "byte-docs"]
 
 **Handoff Rules (XspensesAI Org Chart):**
 - **Byte** (slug: byte-docs) handles: Smart Import, OCR, document uploads, bank statements, PDF/PNG parsing
 - **Prime** (slug: prime-boss) handles: High-level strategy, "who should I talk to" questions, app-wide questions
-- If user asks about document uploads, OCR, Smart Import, or bank statements → **immediately call request_employee_handoff** with targetEmployeeSlug: "byte-docs"
-- If user asks "who handles X?" or "which employee should I talk to?" → call request_employee_handoff to the appropriate employee
+- If user asks about document uploads, OCR, Smart Import, or bank statements -> **immediately call request_employee_handoff** with targetEmployeeSlug: "byte-docs"
+- If user asks "who handles X?" or "which employee should I talk to?" -> call request_employee_handoff to the appropriate employee
 - **DO NOT try to answer questions outside your domain** - hand off immediately
 
 **Your Tools:**
@@ -721,7 +721,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
   useEffect(() => {
     const filteredMessages = messages.filter((m) => m.role !== 'system');
     if (import.meta.env.DEV && filteredMessages.length !== prevMessageCountRef.current) {
-      console.log(`[EmployeeChat] Messages updated: ${prevMessageCountRef.current} → ${filteredMessages.length}`);
+      console.log(`[EmployeeChat] Messages updated: ${prevMessageCountRef.current} -> ${filteredMessages.length}`);
       prevMessageCountRef.current = filteredMessages.length;
     }
   }, [messages.length]); // Only depend on length, not the full array
@@ -747,7 +747,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
   // Refocus input when streaming finishes (if user hasn't moved focus elsewhere)
   const prevIsStreamingRef = useRef(isStreaming);
   useEffect(() => {
-    // Detect when streaming transitions from true → false
+    // Detect when streaming transitions from true -> false
     if (prevIsStreamingRef.current === true && isStreaming === false) {
       // Only refocus if user hasn't manually moved focus to another interactive element
       const activeElement = document.activeElement;
@@ -1158,7 +1158,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
               {toolCalls.slice(-3).map((tc, idx) => (
                 <div key={idx} className="text-xs">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-yellow-400 font-mono">→</span>
+                    <span className="text-yellow-400 font-mono">-></span>
                     <span className="font-semibold text-yellow-200">{tc.tool}</span>
                     <span className="text-yellow-400/60 text-[10px]">
                       {new Date(tc.timestamp).toLocaleTimeString()}

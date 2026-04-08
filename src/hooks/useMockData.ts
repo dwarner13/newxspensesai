@@ -63,7 +63,7 @@ export const useMockData = (initialMockMode = false) => {
   const transformTransactions = (transactions: any[]) => {
     return transactions.map(tx => ({
       title: tx.description,
-      subtitle: `${tx.category} • ${new Date(tx.date).toLocaleDateString()}`,
+      subtitle: `${tx.category} - ${new Date(tx.date).toLocaleDateString()}`,
       amount: `${tx.amount >= 0 ? '+' : '-'}$${Math.abs(tx.amount).toFixed(2)} ${tx.needsReview ? '⚠️' : ''}`,
       image: tx.receipt_url || "https://via.placeholder.com/150x90.png?text=No+Receipt",
       category: tx.category,

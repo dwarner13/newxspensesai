@@ -175,7 +175,7 @@ export function PrimeWorkspacePanel({ onEmployeeClick, className }: PrimeWorkspa
     const compact = String(value || '').replace(/\s+/g, ' ').trim();
     if (!compact) return '';
     // Keep task text compact and readable in a single line.
-    return compact.length > 56 ? `${compact.slice(0, 55)}…` : compact;
+    return compact.length > 56 ? `${compact.slice(0, 55)}...` : compact;
   };
 
   const currentTaskByEmployeeKey = useMemo(() => {

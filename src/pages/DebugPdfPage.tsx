@@ -295,10 +295,10 @@ const DebugPdfPage = () => {
               <div className="bg-white p-4 rounded-lg border border-error-200">
                 <h4 className="font-medium text-gray-900 mb-2">Troubleshooting Tips:</h4>
                 <ul className="text-sm text-gray-700 space-y-1">
-                  <li>• Check if the PDF contains selectable text (not just images)</li>
-                  <li>• Try a different PDF from the same bank</li>
-                  <li>• Some PDFs may have security features preventing text extraction</li>
-                  <li>• Consider using a specialized PDF extraction service for production</li>
+                  <li>- Check if the PDF contains selectable text (not just images)</li>
+                  <li>- Try a different PDF from the same bank</li>
+                  <li>- Some PDFs may have security features preventing text extraction</li>
+                  <li>- Consider using a specialized PDF extraction service for production</li>
                 </ul>
               </div>
             </div>
@@ -391,10 +391,10 @@ const DebugPdfPage = () => {
           <div className="mt-6 bg-gray-50 p-4 rounded-lg">
             <h3 className="font-medium text-gray-900 mb-2">Debug Information</h3>
             <div className="text-sm text-gray-600">
-              <p>• AI Model: GPT-3.5 Turbo</p>
-              <p>• Prompt Tokens: ~{Math.ceil(parsedTransactions.length / 4)}</p>
-              <p>• Completion Tokens: ~{Math.ceil(JSON.stringify(categorizedResults).length / 4)}</p>
-              <p>• Processing Time: {(Math.random() * 2 + 1).toFixed(2)}s</p>
+              <p>- AI Model: GPT-3.5 Turbo</p>
+              <p>- Prompt Tokens: ~{Math.ceil(parsedTransactions.length / 4)}</p>
+              <p>- Completion Tokens: ~{Math.ceil(JSON.stringify(categorizedResults).length / 4)}</p>
+              <p>- Processing Time: {(Math.random() * 2 + 1).toFixed(2)}s</p>
             </div>
           </div>
         </div>

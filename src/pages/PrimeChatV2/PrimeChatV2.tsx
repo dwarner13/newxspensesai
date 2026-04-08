@@ -87,7 +87,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const { firstName, userId, session } = useAuth();
   const teamActivity = useTeamActivitySummary();
 
-  // Wire into the EXISTING chat engine — sends to POST /.netlify/functions/chat
+  // Wire into the EXISTING chat engine - sends to POST /.netlify/functions/chat
   // Team activity summary injected so Prime knows what other agents discussed
   const {
     messages,
@@ -127,7 +127,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [revealStep, setRevealStep] = useState(0);
   const revealStarted = useRef(false);
 
-  // Sequential reveal — each step unlocks the next briefing section
+  // Sequential reveal - each step unlocks the next briefing section
   useEffect(() => {
     if (data.loading || data.transactionCount === 0) return;
     if (revealStarted.current) return;
@@ -151,14 +151,14 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
-  // Filter to only visible messages — skip hidden user prompts and greeting instructions
+  // Filter to only visible messages - skip hidden user prompts and greeting instructions
   const chatMessages = messages.filter(m => {
     if (m.role === 'user' && m.meta?.hidden) return false;
     if (m.role === 'user' && String(m.content || '').startsWith('[PRIME_GREETING]')) return false;
     return true;
   });
 
-  // Auto-scroll on new content — but respect user scroll-up intent
+  // Auto-scroll on new content - but respect user scroll-up intent
   useEffect(() => {
     if (!userScrolledUpRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -177,7 +177,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return () => el.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Send through the real chat engine — no openChat(), stays in-panel
+  // Send through the real chat engine - no openChat(), stays in-panel
   const handleSend = useCallback(async (message: string) => {
     setPromptsUsed(true);
     setBriefingCollapsed(true);
@@ -196,7 +196,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
 
     try {
       if (isSpreadsheetFile(file.name)) {
-        // Spreadsheet path: process-spreadsheet → approve → commit
+        // Spreadsheet path: process-spreadsheet -> approve -> commit
         const result = await handleSpreadsheetUpload(file, userId, authToken);
         const successMsg = result.byte_message
           || `Imported ${result.transaction_count ?? 0} transactions from ${file.name}`;
@@ -217,8 +217,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         });
         const txCount = result.transactionCount ?? result.stats?.transactionCount ?? 0;
         const successMsg = txCount > 0
-          ? `Processed ${file.name} — ${txCount} transactions imported.`
-          : `Processed ${file.name}. Byte is extracting transactions — this may take a moment.`;
+          ? `Processed ${file.name} - ${txCount} transactions imported.`
+          : `Processed ${file.name}. Byte is extracting transactions - this may take a moment.`;
         setUploadMessages(prev =>
           prev.map(m => m.id === msgId ? { ...m, text: successMsg, type: "success" as const } : m)
         );
@@ -397,7 +397,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         ) : (
           /* ── Full briefing (sequential reveal) ── */
           <>
-            {/* STEP 1 — Greeting */}
+            {/* STEP 1 - Greeting */}
             {revealStep >= 1 && (
               <div style={{ display: "flex", gap: 10, marginBottom: 4, animation: 'primeReveal 0.4s ease forwards' }}>
                 <AgentDot agent="Prime" size={28} />
@@ -413,7 +413,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               </div>
             )}
 
-            {/* STEP 2 — Summary (types in) */}
+            {/* STEP 2 - Summary (types in) */}
             {revealStep >= 2 && (
               <div style={{ marginLeft: 38, marginBottom: 8, animation: 'primeReveal 0.4s ease forwards' }}>
                 <div style={{ fontSize: 15, color: THEME.textMuted, lineHeight: 1.7, padding: "12px 14px", borderRadius: 12, background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}55` }}>
@@ -432,11 +432,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               </div>
             )}
 
-            {/* STEP 3 — Top transactions */}
+            {/* STEP 3 - Top transactions */}
             {revealStep >= 3 && data.topTransactions.length > 0 && (
               <div style={{ marginLeft: 38, marginTop: 4, marginBottom: 18, animation: 'primeReveal 0.4s ease forwards' }}>
                 <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "14px 16px", width: "100%" }}>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700, marginBottom: 12, textAlign: "center" }}>Top Transactions — Latest Statement</div>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700, marginBottom: 12, textAlign: "center" }}>Top Transactions - Latest Statement</div>
                   {data.topTransactions.slice(0, 5).map((tx, i, arr) => (
                     <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 100px 90px", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: i < arr.length - 1 ? `1px solid ${THEME.border}44` : "none" }}>
                       <div style={{ minWidth: 0, fontSize: 12.5, fontWeight: 600, color: THEME.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant}</div>
@@ -452,7 +452,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               </div>
             )}
 
-            {/* STEP 4 — Tag callout */}
+            {/* STEP 4 - Tag callout */}
             {revealStep >= 4 && (
               <div style={{ marginLeft: 38, animation: 'primeReveal 0.4s ease forwards' }}>
                 <div style={{ fontSize: 14, color: THEME.textMuted, marginBottom: 12, lineHeight: 1.5 }}>Here&apos;s what the team flagged for you:</div>
@@ -464,14 +464,14 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               </div>
             )}
 
-            {/* STEP 5 — Byte callout */}
+            {/* STEP 5 - Byte callout */}
             {revealStep >= 5 && (
               <div style={{ marginLeft: 38, marginBottom: 6, animation: 'primeReveal 0.4s ease forwards' }}>
                 <AgentCallout agent="Byte" text={data.pendingImports > 0 ? `${data.pendingImports} statement${data.pendingImports > 1 ? "s" : ""} ready to import.` : "No pending imports \u2014 all statements processed."} cta={data.pendingImports > 0 ? "Import now" : "Upload new"} onCtaClick={() => { onClose?.(); navigate("/dashboard/upload"); }} />
               </div>
             )}
 
-            {/* STEP 6 — Crystal callout */}
+            {/* STEP 6 - Crystal callout */}
             {revealStep >= 6 && (
               <div style={{ marginLeft: 38, marginBottom: 6, animation: 'primeReveal 0.4s ease forwards' }}>
                 <AgentCallout agent="Crystal" text={data.trendAlert ? `${data.trendAlert.category} has ${data.trendAlert.direction === "up" ? "increased" : "decreased"} ${data.trendAlert.months.length} months straight: ${data.trendAlert.months.map((m) => "$" + m.toLocaleString()).join(" \u2192 ")}.` : data.categoryBreakdown.length > 0 ? `Your top category is ${data.categoryBreakdown[0].label} at $${data.categoryBreakdown[0].amount.toLocaleString()}. No unusual trends detected.` : "Not enough data yet to spot trends."} cta="See trend analysis" onCtaClick={() => { onClose?.(); navigate("/dashboard/my-story"); }} />
@@ -488,7 +488,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               </div>
             )}
 
-            {/* STEP 7 — Tax deductions + Prime's Take */}
+            {/* STEP 7 - Tax deductions + Prime's Take */}
             {revealStep >= 7 && data.deductions.total > 0 && (
               <div style={{ marginLeft: 38, marginTop: 14, marginBottom: 18, animation: 'primeReveal 0.4s ease forwards' }}>
                 <TaxDeductionsCard total={data.deductions.total} categories={data.deductions.categories} />
@@ -507,7 +507,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               </div>
             )}
 
-            {/* STEP 8 — Follow-up chips */}
+            {/* STEP 8 - Follow-up chips */}
             {revealStep >= 8 && !promptsUsed && (
               <div style={{ marginLeft: 38, animation: 'primeReveal 0.4s ease forwards' }}>
                 <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>Want me to dig into any of this?</div>
@@ -604,7 +604,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         <div ref={bottomRef} />
       </div>
 
-      {/* BOTTOM INPUT BAR — flex child, not absolute */}
+      {/* BOTTOM INPUT BAR - flex child, not absolute */}
       <div style={{
         flexShrink: 0,
         borderTop: `1px solid ${THEME.border}`,

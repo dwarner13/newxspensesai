@@ -39,7 +39,7 @@ export default function SpotifyIntegrationPage() {
   // VERIFICATION: Confirm using unified shell (remove after verifying)
   if (import.meta.env.DEV) {
     console.log('[UI] ✅ Using unified shell: SpotifyIntegrationPage', {
-      layout: 'DashboardPageShell → DashboardThreeColumnLayout',
+      layout: 'DashboardPageShell -> DashboardThreeColumnLayout',
       left: 'SpotifyWorkspacePanel',
       center: 'SpotifyUnifiedCard (EmployeeUnifiedCardBase)',
       right: 'ActivityFeedSidebar',

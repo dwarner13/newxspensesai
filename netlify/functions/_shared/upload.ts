@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-// BUCKET must exist in Supabase Storage (see Supabase → Storage → Buckets)
+// BUCKET must exist in Supabase Storage (see Supabase -> Storage -> Buckets)
 // If you get "The related resource does not exist" error, create a bucket named "docs" in Supabase Storage
 const BUCKET = 'docs';
 
@@ -124,7 +124,7 @@ export async function createSignedUploadUrl(path: string, expiresIn = 600) {
   const { data, error } = await sb.storage.from(BUCKET).createSignedUploadUrl(path, expiresIn);
   if (error) {
     console.error(`[createSignedUploadUrl] Storage error for bucket "${BUCKET}":`, error);
-    throw new Error(`Failed to create signed upload URL: ${error.message} (code: ${error.code || 'UNKNOWN'}). The storage bucket "${BUCKET}" may not exist. Create it in Supabase → Storage → Buckets.`);
+    throw new Error(`Failed to create signed upload URL: ${error.message} (code: ${error.code || 'UNKNOWN'}). The storage bucket "${BUCKET}" may not exist. Create it in Supabase -> Storage -> Buckets.`);
   }
   return { url: data.signedUrl, token: data.token };
 }

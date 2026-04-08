@@ -32,7 +32,7 @@ export function BossProvider({ children }: { children: React.ReactNode }) {
         .eq('id', user.id)
         .single();
 
-      // OPTIONAL quick stats — ignore failures
+      // OPTIONAL quick stats - ignore failures
       // NOTE: 'uploads' table doesn't exist - using 'user_documents' instead
       let recentUploads: number | undefined = undefined;
       try {

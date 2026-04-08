@@ -71,7 +71,7 @@ export async function execute(input: Input, ctx: { userId: string; authHeader?: 
     if (!confirmed) {
       const sampleList = (preview.samples || [])
         .slice(0, 3)
-        .map((s: any) => `• ${s.merchant_name || matchValue} — $${Math.abs(s.amount || 0).toFixed(2)} (currently: ${s.current_category})`)
+        .map((s: any) => `- ${s.merchant_name || matchValue} - $${Math.abs(s.amount || 0).toFixed(2)} (currently: ${s.current_category})`)
         .join('\n');
 
       return Ok({
@@ -105,7 +105,7 @@ export async function execute(input: Input, ctx: { userId: string; authHeader?: 
       matchCount: preview.matchCount,
       updatedCount: commit.updatedCount,
       ruleSaved: true,
-      message: `Done ✓ Updated ${commit.updatedCount} transaction${commit.updatedCount !== 1 ? 's' : ''} from "${preview.samples?.[0]?.current_category || 'previous category'}" → **${targetCategory}**. Rule saved — future "${matchValue}" transactions will be categorized correctly.`,
+      message: `Done ✓ Updated ${commit.updatedCount} transaction${commit.updatedCount !== 1 ? 's' : ''} from "${preview.samples?.[0]?.current_category || 'previous category'}" -> **${targetCategory}**. Rule saved - future "${matchValue}" transactions will be categorized correctly.`,
     });
 
   } catch (error) {

@@ -307,7 +307,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
                 metrics.total_amount && `$${metrics.total_amount?.toFixed(2)}`,
                 flags.uncategorized_count > 0 && `${flags.uncategorized_count} uncategorized`,
                 flags.anomalies_detected > 0 && `${flags.anomalies_detected} anomalies`,
-              ].filter(Boolean).join(' • ');
+              ].filter(Boolean).join(' - ');
 
               return (
                 <div

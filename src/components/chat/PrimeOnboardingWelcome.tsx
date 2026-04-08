@@ -209,7 +209,7 @@ export function PrimeOnboardingWelcome({ onChipClick, onComplete }: PrimeOnboard
             </div>
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">Prime — AI Financial CEO</h3>
+            <h3 className="text-lg font-semibold text-white">Prime - AI Financial CEO</h3>
           </div>
         </div>
 
@@ -366,7 +366,7 @@ export function PrimeOnboardingWelcome({ onChipClick, onComplete }: PrimeOnboard
           </div>
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Prime — AI Financial CEO</h3>
+          <h3 className="text-lg font-semibold text-white">Prime - AI Financial CEO</h3>
         </div>
       </div>
 

@@ -166,7 +166,7 @@ export function UploadQueuePanel({
             </h3>
             {progress.overallSpeed > 0 && (
               <span className="text-xs text-slate-400">
-                {formatSpeed(progress.overallSpeed)} • {formatTime(progress.overallEta)}
+                {formatSpeed(progress.overallSpeed)} - {formatTime(progress.overallEta)}
               </span>
             )}
           </div>

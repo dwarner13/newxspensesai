@@ -87,7 +87,7 @@ export default function SignupPageV2() {
     }}>
       <div style={{ position: "absolute", top: -200, left: -200, width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent}08 0%, transparent 70%)`, filter: "blur(80px)" }} />
 
-      {/* LEFT — Brand (hidden on mobile) */}
+      {/* LEFT - Brand (hidden on mobile) */}
       <div style={{
         flex: 1, padding: isMobile ? "40px 24px 20px" : "60px 80px",
         display: isMobile ? "none" : "flex", flexDirection: "column",
@@ -132,7 +132,7 @@ export default function SignupPageV2() {
         </div>
       </div>
 
-      {/* RIGHT — Form */}
+      {/* RIGHT - Form */}
       <div style={{
         width: isMobile ? "100%" : 480, padding: isMobile ? "40px 24px" : "60px 50px",
         display: "flex", flexDirection: "column",

@@ -25,10 +25,10 @@ const DEFAULT_OPTIONS: Required<SegmentationOptions> = {
  * Determine user's segment based on usage signals
  * 
  * Classification logic:
- * 1. If onboarding incomplete OR no last_login → "first_time"
- * 2. Else if inactive (last login > inactiveDays ago) → "inactive"
- * 3. Else if high usage (meets power_user thresholds) → "power_user"
- * 4. Else → "returning"
+ * 1. If onboarding incomplete OR no last_login -> "first_time"
+ * 2. Else if inactive (last login > inactiveDays ago) -> "inactive"
+ * 3. Else if high usage (meets power_user thresholds) -> "power_user"
+ * 4. Else -> "returning"
  * 
  * @param signals UsageSignals from user's profile/activity
  * @param opts Optional configuration (inactiveDays, thresholds)

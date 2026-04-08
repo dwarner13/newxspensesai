@@ -148,7 +148,7 @@ export function LibertyWorkspacePanel() {
               💰 <span className="font-medium">$1,247 interest</span> saved with current plan
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              🎯 <span className="font-medium">Freedom milestones</span> — 3 achievements unlocked
+              🎯 <span className="font-medium">Freedom milestones</span> - 3 achievements unlocked
             </div>
           </div>
         </div>

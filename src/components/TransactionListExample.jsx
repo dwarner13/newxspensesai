@@ -29,7 +29,7 @@ const TransactionListExample = () => {
         ));
         
         // Here you would typically also call your AI service
-        console.log(`Category corrected: ${transactionId} → ${newCategory}`);
+        console.log(`Category corrected: ${transactionId} -> ${newCategory}`);
     };
 
     return (

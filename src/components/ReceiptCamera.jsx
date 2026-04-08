@@ -211,9 +211,9 @@ const ReceiptCamera = ({ onReceiptProcessed, user }) => {
                             <div className="p-4 text-white">
                                 <h5 className="font-semibold mb-2">✅ Image Quality Check:</h5>
                                 <div className="text-sm space-y-1">
-                                    <p>• Text is clearly visible</p>
-                                    <p>• Receipt is fully in frame</p>
-                                    <p>• Lighting is adequate</p>
+                                    <p>- Text is clearly visible</p>
+                                    <p>- Receipt is fully in frame</p>
+                                    <p>- Lighting is adequate</p>
                                 </div>
                             </div>
                         </div>

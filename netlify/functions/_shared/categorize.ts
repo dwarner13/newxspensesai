@@ -100,7 +100,7 @@ export async function categorizeTransaction(
     }
   }
 
-  // Step 2b: Income detection — positive amounts or income-type keywords
+  // Step 2b: Income detection - positive amounts or income-type keywords
   // Self-employed income sources (FreshBooks payments, client cheques, etc.)
   if (amount > 0) {
     return {

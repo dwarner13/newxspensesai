@@ -74,7 +74,7 @@ export function PrimeWelcomeModal({ isOpen, onContinue }: PrimeWelcomeModalProps
                     Welcome to XspensesAI
                   </h2>
                   <p className="text-slate-300 leading-relaxed">
-                    I'm Prime — your financial operating system.
+                    I'm Prime - your financial operating system.
                   </p>
                   <p className="text-slate-400 text-sm">
                     Custodian will personalize XspensesAI in under a minute.

@@ -8,7 +8,7 @@ import Tesseract from 'tesseract.js';
  * - Browser-based OCR using Tesseract.js (no server required)
  * - Intelligent transaction extraction with amount-based matching
  * - Automatic garbled text filtering
- * - Proper invoice ordering (Work → Subtotal → GST → Total)
+ * - Proper invoice ordering (Work -> Subtotal -> GST -> Total)
  * - OCR error correction for common misreadings
  * - Duplicate prevention
  * - Clean, readable results
@@ -295,7 +295,7 @@ export default function LocalOCRTester() {
       }
     }
 
-    // Sort transactions in logical order: Work items → Subtotal → GST → Grand Total
+    // Sort transactions in logical order: Work items -> Subtotal -> GST -> Grand Total
     const sortedTransactions = transactions.sort((a, b) => {
       const getOrder = (desc: string) => {
         if (desc.includes('Grand Total')) return 4;

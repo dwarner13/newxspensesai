@@ -222,7 +222,7 @@ async function generateEmbedding(text: string, model: string = 'text-embedding-3
 /**
  * Upsert a fact into user_memory_facts with deduplication
  * 
- * Normalizes fact → SHA256 hash → insert with UNIQUE(user_id, hash_sha256)
+ * Normalizes fact -> SHA256 hash -> insert with UNIQUE(user_id, hash_sha256)
  * Returns fact_id on success
  */
 export async function upsertFact(params: UpsertFactParams): Promise<string | null> {
@@ -281,7 +281,7 @@ export async function upsertFact(params: UpsertFactParams): Promise<string | nul
 /**
  * Generate embedding and store in memory_embeddings
  * 
- * Calls OpenAI embedding API → inserts with UNIQUE(fact_id, model)
+ * Calls OpenAI embedding API -> inserts with UNIQUE(fact_id, model)
  */
 export async function embedAndStore(params: EmbedAndStoreParams): Promise<boolean> {
   const { userId, factId, text, model = 'text-embedding-3-large' } = params;
@@ -817,7 +817,7 @@ export async function getMemory(params: {
   // Add RAG memories section
   if (retrieved.memories.length > 0) {
     const memorySnippets = retrieved.memories
-      .map(m => `• ${m.content_redacted} (${(m.similarity * 100).toFixed(0)}% match)`)
+      .map(m => `- ${m.content_redacted} (${(m.similarity * 100).toFixed(0)}% match)`)
       .join('\n');
     contextParts.push(`## Relevant Past Conversations\n${memorySnippets}`);
   }

@@ -2,8 +2,8 @@
  * Smart Import React Hook
  * 
  * Handles file uploads with automatic guardrails and routing:
- * - Images/PDFs → OCR with PII redaction
- * - CSV/OFX/QIF → Statement parser with PII redaction
+ * - Images/PDFs -> OCR with PII redaction
+ * - CSV/OFX/QIF -> Statement parser with PII redaction
  * 
  * All files run through STRICT guardrails before processing
  */
@@ -308,14 +308,14 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
    * All UI entry points (Byte card, workspace, chat) must call this function.
    * 
    * Pipeline flow:
-   * 1. smart-import-init → Creates doc record, returns signed URL
-   * 2. Client uploads file to signed URL → File stored in Supabase Storage
-   * 3. smart-import-finalize → Routes by file type:
-   *    - Images/PDFs → smart-import-ocr (async)
-   *    - CSV/OFX/QIF → smart-import-parse-csv (async)
-   * 4. OCR/Parse → Applies guardrails, extracts text
-   * 5. normalize-transactions → Extracts transactions, categorizes (Tag), inserts to staging (async)
-   * 6. commit-import → Manual step (not automatic) - moves transactions from staging to final table
+   * 1. smart-import-init -> Creates doc record, returns signed URL
+   * 2. Client uploads file to signed URL -> File stored in Supabase Storage
+   * 3. smart-import-finalize -> Routes by file type:
+   *    - Images/PDFs -> smart-import-ocr (async)
+   *    - CSV/OFX/QIF -> smart-import-parse-csv (async)
+   * 4. OCR/Parse -> Applies guardrails, extracts text
+   * 5. normalize-transactions -> Extracts transactions, categorizes (Tag), inserts to staging (async)
+   * 6. commit-import -> Manual step (not automatic) - moves transactions from staging to final table
    * 
    * Note: Transaction counts are not available immediately because normalization is async.
    * The transactionCount in UploadResult may be undefined until normalization completes.

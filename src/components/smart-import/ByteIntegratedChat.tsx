@@ -41,7 +41,7 @@ export function ByteIntegratedChat({ onInputFocus }: ByteIntegratedChatProps) {
         <div className="flex items-center justify-center gap-2 mb-3">
           <Shield className="w-3 h-3 text-blue-400" />
           <span className="text-xs font-medium text-blue-400">
-            Secure • 99.7% Accurate
+            Secure - 99.7% Accurate
           </span>
         </div>
 

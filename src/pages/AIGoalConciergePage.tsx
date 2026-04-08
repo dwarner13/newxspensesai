@@ -36,7 +36,7 @@ const faqs = [
   },
   {
     question: 'Can I set any type of financial goal?',
-    answer: 'Absolutely. Whether it’s saving, investing, or paying off debt, the AI adapts to your needs.'
+    answer: 'Absolutely. Whether it's saving, investing, or paying off debt, the AI adapts to your needs.'
   },
   {
     question: 'What makes XspensesAI different from other goal apps?',
@@ -172,7 +172,7 @@ const AIGoalConciergePage = () => {
               </ul>
               <div className="mt-6 flex items-center gap-3">
                 <Play className="w-8 h-8 text-pink-300 animate-pulse" aria-label="Audio preview" />
-                <span className="text-pink-100 font-medium">Motivational podcast preview: "You’re on track! Keep going!"</span>
+                <span className="text-pink-100 font-medium">Motivational podcast preview: "You're on track! Keep going!"</span>
                 <button className="ml-auto bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600 transition">Listen</button>
               </div>
             </div>
@@ -188,7 +188,7 @@ const AIGoalConciergePage = () => {
               <ul className="list-disc pl-6 text-gray-700 space-y-2 mb-6">
                 <li>Boring spreadsheets and static apps</li>
                 <li>No real motivation or accountability</li>
-                <li>One-size-fits-all advice that doesn’t adapt</li>
+                <li>One-size-fits-all advice that doesn't adapt</li>
                 <li>Lack of progress tracking and celebration</li>
               </ul>
               <h3 className="text-xl font-semibold mb-2 text-pink-700">The AI Solution</h3>
@@ -244,7 +244,7 @@ const AIGoalConciergePage = () => {
             <div className="flex-1 bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center">
               <Play className="w-10 h-10 text-pink-500 mb-4 animate-pulse" aria-label="Podcast preview" />
               <h3 className="text-xl font-semibold mb-2 text-purple-900">Personalized Podcast Preview</h3>
-              <p className="text-gray-700 mb-4">"You’re 50% to your goal! Here’s a story of someone who made it happen."</p>
+              <p className="text-gray-700 mb-4">"You're 50% to your goal! Here's a story of someone who made it happen."</p>
               <button className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg font-bold text-lg shadow-lg hover:scale-105 transition-transform flex items-center gap-2">
                 Listen to Sample
               </button>
@@ -321,7 +321,7 @@ const AIGoalConciergePage = () => {
               Try AI Demo
             </Link>
           </div>
-          <p className="text-xs text-gray-500">No credit card required • Cancel anytime • Money-back guarantee</p>
+          <p className="text-xs text-gray-500">No credit card required - Cancel anytime - Money-back guarantee</p>
         </div>
       </section>
       {/* FAQ Section */}
@@ -344,7 +344,7 @@ const AIGoalConciergePage = () => {
         <div className="container max-w-3xl mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Achieve Your Goals?</h2>
           <p className="text-xl text-purple-100 mb-8">
-            Join thousands who’ve transformed their finances with the AI Goal Concierge. Start your journey today!
+            Join thousands who've transformed their finances with the AI Goal Concierge. Start your journey today!
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/signup" className="bg-white text-purple-600 px-8 py-4 rounded-xl text-lg font-semibold hover:shadow-xl transform hover:scale-105 transition-all duration-200">
@@ -358,7 +358,7 @@ const AIGoalConciergePage = () => {
             </Link>
           </div>
           <p className="text-purple-100 text-sm mt-6">
-            No credit card required • 14-day free trial • Cancel anytime
+            No credit card required - 14-day free trial - Cancel anytime
           </p>
         </div>
       </section>

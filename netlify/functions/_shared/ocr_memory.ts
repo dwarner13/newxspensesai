@@ -4,9 +4,9 @@
  * Day 10: Match vendors, reinforce aliases, remember categories
  * 
  * Functions:
- * - matchVendor: Match merchant to canonical name (exact → alias → embedding)
+ * - matchVendor: Match merchant to canonical name (exact -> alias -> embedding)
  * - reinforceVendor: Update vendor alias confidence
- * - rememberCategory: Store vendor→category fact in memory
+ * - rememberCategory: Store vendor->category fact in memory
  */
 
 import { admin } from './supabase';
@@ -165,7 +165,7 @@ export async function reinforceVendor(params: {
 }
 
 /**
- * Remember vendor→category fact in memory
+ * Remember vendor->category fact in memory
  */
 export async function rememberCategory(params: {
   userId: string;
@@ -182,7 +182,7 @@ export async function rememberCategory(params: {
   
   try {
     // Build fact string
-    let fact = `vendor.category: ${merchant} → ${category}`;
+    let fact = `vendor.category: ${merchant} -> ${category}`;
     if (subcategory) {
       fact += ` (${subcategory})`;
     }

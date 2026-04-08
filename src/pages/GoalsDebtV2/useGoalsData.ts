@@ -22,7 +22,7 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   const merchant = (t.merchant_name || "").toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || "").toLowerCase();
   // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign — expenses are stored as negative values
+  // Do NOT use amount sign - expenses are stored as negative values
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
@@ -67,7 +67,7 @@ export function useGoalsData(): GoalsPageData {
         .order("priority", { ascending: true });
 
       if (goalsErr?.code === "42P01" || goalsErr?.message?.includes("does not exist")) {
-        // Table doesn't exist — use example data
+        // Table doesn't exist - use example data
         setGoals(EXAMPLE_GOALS);
       } else if (goalsData && goalsData.length > 0) {
         setGoals(goalsData.map((g: Record<string, unknown>) => ({

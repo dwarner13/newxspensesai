@@ -514,7 +514,7 @@ const AdminPanelPage = () => {
                           </select>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>Level {user.level} • {user.xp} XP</div>
+                          <div>Level {user.level} - {user.xp} XP</div>
                           <div>{user.transaction_count} transactions</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

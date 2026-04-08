@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 
 /**
- * PRIME ROUTER (MVP) — orchestration endpoint
+ * PRIME ROUTER (MVP) - orchestration endpoint
  * URL: /.netlify/functions/prime-router
  *
  * Supports:
@@ -707,7 +707,7 @@ export const handler: Handler = async (event) => {
         : false;
 
       if (isTerminalOcrError) {
-        console.warn('[prime-router] Terminal OCR result — halting pipeline', {
+        console.warn('[prime-router] Terminal OCR result - halting pipeline', {
           importId,
           documentId: ctx.documentId,
           traceId,
@@ -821,7 +821,7 @@ export const handler: Handler = async (event) => {
       });
       const syncState = String(syncRes.data?.state || '');
       if (syncState === 'ocr_unusable' || String(syncRes.data?.error_code || '').toLowerCase() === 'unusable_ocr_text') {
-        console.warn('[prime-router] Terminal OCR result — halting pipeline', {
+        console.warn('[prime-router] Terminal OCR result - halting pipeline', {
           importId,
           documentId: ctx.documentId,
           traceId,
@@ -841,7 +841,7 @@ export const handler: Handler = async (event) => {
         });
       }
       if (syncState === 'ocr_rejected' || String(syncRes.data?.error_code || '').toLowerCase() === 'malformed_pdf') {
-        console.warn('[prime-router] Terminal OCR result — halting pipeline', {
+        console.warn('[prime-router] Terminal OCR result - halting pipeline', {
           importId,
           documentId: ctx.documentId,
           traceId,
@@ -870,7 +870,7 @@ export const handler: Handler = async (event) => {
           retryable: true,
           error_code: syncRes.data?.error_code || (syncState === 'ocr_timed_out_retry' ? 'timeout' : 'provider_error'),
           details: syncRes.data,
-          primeMessage: "Byte couldn’t read the statement (timeout/provider failure). Please retry. No transactions were saved.",
+          primeMessage: "Byte couldn't read the statement (timeout/provider failure). Please retry. No transactions were saved.",
         });
       }
 

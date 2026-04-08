@@ -23,7 +23,7 @@ export function DashWorkspace({ open, onClose, conversationId, initialQuestion }
       open={open}
       onClose={onClose}
       employeeSlug="dash"
-      title="Dash — Analytics AI"
+      title="Dash - Analytics AI"
       subtitle="Analytics specialist · Helps you understand your financial data through advanced analytics, insights, and visualizations."
       workspaceLabel="Analytics Workspace"
       avatarEmoji={theme.emoji}

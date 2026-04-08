@@ -21,7 +21,7 @@ const T = {
   gold: '#c8a64e',
 };
 
-const PRIME_VOICE = `\n\nKeep every reply to 2-3 sentences maximum. Be direct, warm and confident — you are a senior financial advisor, not a report generator. Always end with one question to keep the conversation going. Never use bullet points, headers, or numbered lists in replies. Speak like a person, not a dashboard. Never list raw transactions. When asked about statements or spending, summarize in 2-3 sentences covering: total spent, top 2-3 categories, and one insight. Then ask one follow-up question. If the user asks about subcategories, tell them: "Tap any transaction to open the drawer — you'll see a subcategory dropdown below the category. You can pick from built-in options or add your own."`;
+const PRIME_VOICE = `\n\nKeep every reply to 2-3 sentences maximum. Be direct, warm and confident - you are a senior financial advisor, not a report generator. Always end with one question to keep the conversation going. Never use bullet points, headers, or numbered lists in replies. Speak like a person, not a dashboard. Never list raw transactions. When asked about statements or spending, summarize in 2-3 sentences covering: total spent, top 2-3 categories, and one insight. Then ask one follow-up question. If the user asks about subcategories, tell them: "Tap any transaction to open the drawer - you'll see a subcategory dropdown below the category. You can pick from built-in options or add your own."`;
 
 function buildPageContext(page: string): { label: string; systemPrompt: string } {
   if (page.includes('/reports')) {
@@ -105,7 +105,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
         if (messages[i].role === 'assistant') { lastCompletedIndex.current = i; break; }
       }
     }
-    // Also catch direct message sets (e.g. greeting) — when not loading and last msg is assistant
+    // Also catch direct message sets (e.g. greeting) - when not loading and last msg is assistant
     if (!isLoading && !prevLoading.current && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant') {
       lastCompletedIndex.current = messages.length - 1;
     }
@@ -222,7 +222,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
     localStorage.setItem('prime_chat_history', JSON.stringify(messages.slice(-20)));
   }, [messages]);
 
-  // Fetch snapshot when drawer opens — don't fire opening message yet
+  // Fetch snapshot when drawer opens - don't fire opening message yet
   useEffect(() => {
     if (!isOpen) return;
     if (!primeSnapshot) { fetchPrimeSnapshot(); }
@@ -240,9 +240,9 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
 
     let greeting: string;
     if (snap?.hasTransactions && txCount > 0) {
-      greeting = `${hi} — ${stmtCount} statement${stmtCount !== 1 ? 's' : ''} in, ${txCount} transactions processed. What do you want to dig into?`;
+      greeting = `${hi} - ${stmtCount} statement${stmtCount !== 1 ? 's' : ''} in, ${txCount} transactions processed. What do you want to dig into?`;
     } else {
-      greeting = `${hi} — upload your first statement and I'll get to work. What bank are we starting with?`;
+      greeting = `${hi} - upload your first statement and I'll get to work. What bank are we starting with?`;
     }
 
     setMessages([{ id: 'greeting-' + Date.now(), role: 'assistant', content: greeting }]);
@@ -411,11 +411,11 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
 
       let reply: string;
       if (txs.length === 0) {
-        reply = "I couldn't pull transactions from that file — it might not be a bank statement, or the format threw me off. Try a different file?";
+        reply = "I couldn't pull transactions from that file - it might not be a bank statement, or the format threw me off. Try a different file?";
       } else {
         const top5 = txs.slice(0, 5);
         const lines = top5.map((t: any) =>
-          `${t.merchant} — $${Math.abs(t.amount).toFixed(2)} (${t.type})`
+          `${t.merchant} - $${Math.abs(t.amount).toFixed(2)} (${t.type})`
         ).join('\n');
         const total = txs.reduce((s: number, t: any) => s + Math.abs(t.amount || 0), 0);
         reply = `I found ${txs.length} transactions in ${file.name}. Here are the biggest:\n\n${lines}\n\nTotal: $${total.toFixed(2)}. Want me to import this statement?`;
@@ -466,8 +466,8 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
           const txCount = primeSnapshot?.recentImportSummaries?.reduce((s: number, r: any) => s + (r.txCount || 0), 0) ?? 0;
           const hi = firstName ? `Hey ${firstName}` : 'Hey';
           const greeting = snap?.hasTransactions && txCount > 0
-            ? `${hi} — ${stmtCount} statement${stmtCount !== 1 ? 's' : ''} in, ${txCount} transactions processed. What do you want to dig into?`
-            : `${hi} — upload your first statement and I'll get to work. What bank are we starting with?`;
+            ? `${hi} - ${stmtCount} statement${stmtCount !== 1 ? 's' : ''} in, ${txCount} transactions processed. What do you want to dig into?`
+            : `${hi} - upload your first statement and I'll get to work. What bank are we starting with?`;
           setMessages([{ id: 'greeting-' + Date.now(), role: 'assistant', content: greeting }]);
         }} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: T.dim, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6 }}>
           <Trash2 size={13} /> Clear

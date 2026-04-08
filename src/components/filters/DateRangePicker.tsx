@@ -52,7 +52,7 @@ const DateRangePicker = ({ startDate, endDate, onChange }: DateRangePickerProps)
         <span className="flex-1">
           {startDate || endDate ? (
             <span>
-              {formatDateForDisplay(startDate)} — {formatDateForDisplay(endDate)}
+              {formatDateForDisplay(startDate)} - {formatDateForDisplay(endDate)}
             </span>
           ) : (
             <span className="text-gray-400">Select date range</span>

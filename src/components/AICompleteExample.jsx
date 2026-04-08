@@ -150,19 +150,19 @@ const AICompleteExample = () => {
                         <div>
                             <h4 className="font-semibold text-gray-900 mb-2">📄 Upload Tab</h4>
                             <ul className="space-y-2 text-sm text-gray-700">
-                                <li>• Drag & drop or click to upload files</li>
-                                <li>• Supports PDF, CSV, Excel, and images</li>
-                                <li>• AI processes and extracts transactions</li>
-                                <li>• Automatic categorization with confidence scores</li>
+                                <li>- Drag & drop or click to upload files</li>
+                                <li>- Supports PDF, CSV, Excel, and images</li>
+                                <li>- AI processes and extracts transactions</li>
+                                <li>- Automatic categorization with confidence scores</li>
                             </ul>
                         </div>
                         <div>
                             <h4 className="font-semibold text-gray-900 mb-2">📊 Results Tab</h4>
                             <ul className="space-y-2 text-sm text-gray-700">
-                                <li>• View all extracted transactions</li>
-                                <li>• Click categories to edit and teach AI</li>
-                                <li>• See processing statistics</li>
-                                <li>• Export or save results</li>
+                                <li>- View all extracted transactions</li>
+                                <li>- Click categories to edit and teach AI</li>
+                                <li>- See processing statistics</li>
+                                <li>- Export or save results</li>
                             </ul>
                         </div>
                     </div>

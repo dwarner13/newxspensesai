@@ -29,7 +29,7 @@ export function PrimeTrustMessage({ onDismiss }: PrimeTrustMessageProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm text-slate-300 leading-relaxed">
-              Quick note — I help you understand and organize your finances.
+              Quick note - I help you understand and organize your finances.
               Sensitive details are automatically protected, and you're always in control.
             </p>
           </div>

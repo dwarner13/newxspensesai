@@ -140,7 +140,7 @@ const DocumentUpload = ({ onUploadComplete }) => {
                                     {file.name}
                                 </h3>
                                 <p className="text-gray-600">
-                                    {(file.size / 1024).toFixed(1)} KB • Ready to process
+                                    {(file.size / 1024).toFixed(1)} KB - Ready to process
                                 </p>
                             </div>
                         ) : (

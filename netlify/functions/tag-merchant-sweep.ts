@@ -1,5 +1,5 @@
 /**
- * tag-merchant-sweep — Surfaces transactions with unknown merchants.
+ * tag-merchant-sweep - Surfaces transactions with unknown merchants.
  * Marks them as Needs Review with subcategory 'Unknown Merchant - Verify'
  * and returns details for display in Tag's chat interface.
  */

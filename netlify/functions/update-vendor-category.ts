@@ -62,7 +62,7 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    // Save vendor→category rule for future use
+    // Save vendor->category rule for future use
     try {
       const { error: ruleError } = await supabase
         .from('categorization_rules')

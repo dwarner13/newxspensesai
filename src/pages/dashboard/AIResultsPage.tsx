@@ -378,10 +378,10 @@ export default function AIResultsPage() {
 
   const grade = allTimeStats.savingsRate > 20 ? 'A' : allTimeStats.savingsRate > 10 ? 'B' : 'C';
   const yearRange = useMemo(() => {
-    if (monthKeys.length === 0) return '—';
+    if (monthKeys.length === 0) return '-';
     const start = monthKeys[0].slice(0, 4);
     const end = monthKeys[monthKeys.length - 1].slice(0, 4);
-    return start === end ? start : `${start} → ${end}`;
+    return start === end ? start : `${start} -> ${end}`;
   }, [monthKeys]);
 
   const storySubtitle =
@@ -783,7 +783,7 @@ export default function AIResultsPage() {
                       onClick={() => nextScope && setScope(nextScope)}
                       className="text-[10px] text-violet-400 disabled:opacity-40"
                     >
-                      Next →
+                      Next ->
                     </button>
                     <button type="button" onClick={() => setScope('all')} className="text-[10px] text-violet-400">
                       Clear · show full story
@@ -822,7 +822,7 @@ export default function AIResultsPage() {
                         onClick={() => exportSection(card.exportKey, `${card.title} section`)}
                         className="text-[10px] text-slate-600 hover:text-slate-400"
                       >
-                        Export →
+                        Export ->
                       </button>
                     </div>
                     {expanded && (
@@ -926,7 +926,7 @@ export default function AIResultsPage() {
               <div className="whitespace-pre-wrap text-[13px] leading-[1.95] text-slate-400">{chapterText}</div>
               <div className="no-print mt-5 flex flex-wrap gap-3">
                 <button type="button" onClick={() => openAgent('prime')} className="rounded-xl border border-violet-500/40 bg-violet-500/15 px-3 py-2 text-[11px] text-violet-200">
-                  Continue story →
+                  Continue story ->
                 </button>
                 <button
                   type="button"

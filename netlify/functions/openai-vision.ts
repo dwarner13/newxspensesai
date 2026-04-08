@@ -64,13 +64,13 @@ export const handler: Handler = async (event) => {
   }
 
   // ── Resolve image URL for OpenAI ────────────────────────────────────────────
-  // OpenAI accepts: full data URLs (data:…), public https URLs, or raw base64
+  // OpenAI accepts: full data URLs (data:...), public https URLs, or raw base64
   // wrapped as a data URL.
   let resolvedUrl: string;
   if (imageInput.startsWith('data:') || imageInput.startsWith('http')) {
     resolvedUrl = imageInput;
   } else {
-    // Raw base64 — wrap as a generic JPEG data URL so OpenAI can decode it.
+    // Raw base64 - wrap as a generic JPEG data URL so OpenAI can decode it.
     resolvedUrl = `data:image/jpeg;base64,${imageInput}`;
   }
 

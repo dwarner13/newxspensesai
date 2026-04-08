@@ -1,5 +1,5 @@
 /**
- * fix-post-import — Post-import fixup function.
+ * fix-post-import - Post-import fixup function.
  * Called by frontend after upload pipeline completes.
  * Fixes: filename NULL, committed_at NULL, and triggers Tag sweep.
  *
@@ -32,7 +32,7 @@ export const handler: Handler = async (event) => {
   const fixes: string[] = [];
 
   try {
-    // Bug 1: Fix filename NULL on imports — backfill from user_documents
+    // Bug 1: Fix filename NULL on imports - backfill from user_documents
     const { data: importsNoFile } = await sb
       .from('imports')
       .select('id, document_id, filename')
@@ -51,7 +51,7 @@ export const handler: Handler = async (event) => {
           const filename = doc.original_name || (doc.storage_path ? doc.storage_path.split('/').pop() : null);
           if (filename) {
             await sb.from('imports').update({ filename: filename, updated_at: new Date().toISOString() }).eq('id', imp.id).eq('user_id', userId);
-            fixes.push(`filename fixed: ${imp.id} → ${filename}`);
+            fixes.push(`filename fixed: ${imp.id} -> ${filename}`);
           }
         }
       }
@@ -104,9 +104,9 @@ export const handler: Handler = async (event) => {
               body: JSON.stringify({ importId: imp.id }),
             });
             if (commitRes.ok) fixes.push(`auto-committed: ${imp.id} (${count} staging rows)`);
-            else fixes.push(`commit failed: ${imp.id} — ${commitRes.status}`);
+            else fixes.push(`commit failed: ${imp.id} - ${commitRes.status}`);
           } catch (e: any) {
-            fixes.push(`commit error: ${imp.id} — ${e.message}`);
+            fixes.push(`commit error: ${imp.id} - ${e.message}`);
           }
         }
       }

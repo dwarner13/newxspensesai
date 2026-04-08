@@ -175,7 +175,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, isOpen, onClo
               <div key={transaction.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                 <div className="flex-1">
                   <p className="text-white font-medium">{transaction.description}</p>
-                  <p className="text-white/60 text-sm">{transaction.date} • {transaction.category}</p>
+                  <p className="text-white/60 text-sm">{transaction.date} - {transaction.category}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-white font-semibold">${transaction.amount.toLocaleString()}</p>

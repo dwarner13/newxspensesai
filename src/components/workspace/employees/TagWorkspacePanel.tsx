@@ -2,7 +2,7 @@
  * TagWorkspacePanel Component
  *
  * Left sidebar panel for Tag workspace showing real category stats and rules.
- * All counts come from hooks via props — nothing hardcoded.
+ * All counts come from hooks via props - nothing hardcoded.
  */
 
 import React, { useState } from 'react';
@@ -16,7 +16,7 @@ interface TagWorkspacePanelProps {
   uncategorizedCount: number | null;
   activeRulesCount: number | null;
   isLoading?: boolean;
-  /** Top rules for workspace preview — ordered by times_applied DESC */
+  /** Top rules for workspace preview - ordered by times_applied DESC */
   rules?: CategoryRule[];
   /** Sum of times_applied across all rules */
   totalTimesApplied?: number;
@@ -33,8 +33,8 @@ interface TagWorkspacePanelProps {
 }
 
 function fmt(value: number | null, isLoading?: boolean): string {
-  if (isLoading) return '…';
-  if (value === null) return '—';
+  if (isLoading) return '...';
+  if (value === null) return '-';
   return value.toLocaleString();
 }
 
@@ -196,7 +196,7 @@ export function TagWorkspacePanel({
             {/* Top rules preview */}
             <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar space-y-1.5">
               {isLoading ? (
-                <p className="text-[11px] text-slate-600">Loading…</p>
+                <p className="text-[11px] text-slate-600">Loading...</p>
               ) : topRules.length === 0 ? (
                 <div className="text-center py-3">
                   <p className="text-[11px] text-slate-600">No rules yet</p>
@@ -207,7 +207,7 @@ export function TagWorkspacePanel({
                           key={`${row.merchant}-${row.category}`}
                           className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-200"
                         >
-                          {row.merchant} → {row.category} ({row.count})
+                          {row.merchant} -> {row.category} ({row.count})
                         </div>
                       ))}
                     </div>
@@ -221,7 +221,7 @@ export function TagWorkspacePanel({
                       {isGeneratingStarterRules ? (
                         <>
                           <Loader2 className="h-3 w-3 animate-spin" />
-                          Generating…
+                          Generating...
                         </>
                       ) : (
                         <>✨ Generate 3 starter rules</>
@@ -251,7 +251,7 @@ export function TagWorkspacePanel({
                     <span className="text-[11px] text-slate-300 font-medium truncate">
                       {rule.match_value}
                     </span>
-                    <span className="text-[11px] text-slate-500 shrink-0">→</span>
+                    <span className="text-[11px] text-slate-500 shrink-0">-></span>
                     <span className="text-[11px] text-slate-300 truncate">{rule.category}</span>
                   </div>
                 ))

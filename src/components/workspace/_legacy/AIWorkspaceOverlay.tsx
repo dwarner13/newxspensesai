@@ -121,7 +121,7 @@ export function AIWorkspaceOverlay({
   }, [inputValue, sendFunction, isLoading]);
 
   // Generate placeholder text if not provided
-  const placeholder = inputPlaceholder || `Message ${title.split('—')[0].trim()}...`;
+  const placeholder = inputPlaceholder || `Message ${title.split('-')[0].trim()}...`;
 
   // Generate title ID for aria-labelledby
   const titleId = `ai-workspace-title-${employeeSlug}`;

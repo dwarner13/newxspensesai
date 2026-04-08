@@ -11,7 +11,7 @@ export default function AutomationFeaturePage() {
       </Helmet>
       <section className="bg-gradient-to-br from-purple-900 via-blue-900 to-pink-700 text-white py-20 px-4 text-center rounded-3xl shadow-xl mb-16">
         <h1 className="text-5xl md:text-6xl font-extrabold mb-6">Smart Financial Automation</h1>
-        <p className="text-xl md:text-2xl text-blue-100 mb-10 max-w-2xl mx-auto">Set it and forget it—but smarter. Let AI optimize your budgets, bills, and savings automatically.</p>
+        <p className="text-xl md:text-2xl text-blue-100 mb-10 max-w-2xl mx-auto">Set it and forget it-but smarter. Let AI optimize your budgets, bills, and savings automatically.</p>
         <div className="mt-8 text-lg text-white font-semibold">This feature page is coming soon!</div>
       </section>
     </WebsiteLayout>

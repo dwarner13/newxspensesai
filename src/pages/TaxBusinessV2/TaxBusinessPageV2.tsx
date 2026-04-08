@@ -6,14 +6,14 @@ const T = {
 };
 
 const verticals = [
-  { icon: "🍽️", name: "Restaurants & Food Service", desc: "Cost of goods, labour, occupancy, merchant fees — auto-sorted from your statements." },
-  { icon: "⚖️", name: "Professional Services", desc: "Law firms, accountants, consultants — track billable expenses and subcontractors." },
-  { icon: "🔧", name: "Trades & Contractors", desc: "Vehicle, tools, materials, job-site costs — organized for T2125 filing." },
-  { icon: "🏪", name: "Retail & E-Commerce", desc: "Inventory, shipping, platform fees — clean expense reports for your bookkeeper." },
+  { icon: "🍽️", name: "Restaurants & Food Service", desc: "Cost of goods, labour, occupancy, merchant fees - auto-sorted from your statements." },
+  { icon: "⚖️", name: "Professional Services", desc: "Law firms, accountants, consultants - track billable expenses and subcontractors." },
+  { icon: "🔧", name: "Trades & Contractors", desc: "Vehicle, tools, materials, job-site costs - organized for T2125 filing." },
+  { icon: "🏪", name: "Retail & E-Commerce", desc: "Inventory, shipping, platform fees - clean expense reports for your bookkeeper." },
 ];
 
 const features = [
-  { icon: "📂", title: "Business Category Rules", desc: "Tag learns your business — COGS, labour, occupancy, professional fees." },
+  { icon: "📂", title: "Business Category Rules", desc: "Tag learns your business - COGS, labour, occupancy, professional fees." },
   { icon: "📊", title: "Accountant-Ready Export", desc: "One-click export your bookkeeper can open directly in their software." },
   { icon: "🧾", title: "HST / GST Tracking", desc: "Flag HST-eligible expenses automatically as transactions come in." },
   { icon: "👥", title: "Multi-User Access", desc: "Invite your bookkeeper or accountant to view and export your data." },
@@ -33,7 +33,7 @@ export default function TaxBusinessPageV2() {
           XspensesAI for Business
         </h1>
         <p style={{ fontSize: 15, color: T.muted, lineHeight: 1.6, maxWidth: 560 }}>
-          Everything self-employed Canadians love about XspensesAI — rebuilt for small business owners. Upload your statements, let AI organize your expenses by business category, and hand your accountant a clean report at tax time.
+          Everything self-employed Canadians love about XspensesAI - rebuilt for small business owners. Upload your statements, let AI organize your expenses by business category, and hand your accountant a clean report at tax time.
         </p>
       </div>
 

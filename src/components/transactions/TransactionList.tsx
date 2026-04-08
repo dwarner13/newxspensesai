@@ -1,5 +1,5 @@
 /**
- * TransactionList — bank-style grouped feed with load-more pagination.
+ * TransactionList - bank-style grouped feed with load-more pagination.
  */
 
 import React, { useEffect, useState, useMemo } from 'react';

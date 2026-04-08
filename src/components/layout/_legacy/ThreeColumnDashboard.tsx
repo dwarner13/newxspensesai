@@ -158,7 +158,7 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
               className="sidebar-toggle-btn"
               onClick={handleLeftSidebarToggle}
             >
-              {isLeftSidebarCollapsed ? '→' : '←'}
+              {isLeftSidebarCollapsed ? '->' : '←'}
             </button>
           </div>
 

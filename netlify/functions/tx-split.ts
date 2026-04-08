@@ -1,6 +1,6 @@
 /**
- * tx-split — Split a single transaction into multiple with different categories.
- * Does NOT delete the original — updates it with the first split's data,
+ * tx-split - Split a single transaction into multiple with different categories.
+ * Does NOT delete the original - updates it with the first split's data,
  * then inserts new rows for the remaining splits.
  */
 

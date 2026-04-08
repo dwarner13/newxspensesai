@@ -40,7 +40,7 @@ export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: Setting
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-bold text-white leading-tight">
-              Settings — Control Center
+              Settings - Control Center
             </h2>
             <p className="text-sm text-slate-400 mt-1">
               Manage your account · Customize your XspensesAI experience
@@ -114,7 +114,7 @@ export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: Setting
           </span>
         </div>
         <div className="text-[11px] text-slate-400">
-          Secure • Always Supporting
+          Secure - Always Supporting
         </div>
       </div>
 
@@ -125,7 +125,7 @@ export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: Setting
         >
           <input
             type="text"
-            placeholder="Ask about settings…"
+            placeholder="Ask about settings..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => {

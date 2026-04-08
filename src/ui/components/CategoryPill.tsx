@@ -264,7 +264,7 @@ export const CategoryPill: React.FC<
                   !value ? 'bg-blue-50 font-semibold text-blue-700' : 'text-slate-700'
                 }`}
               >
-                — Uncategorized —
+                - Uncategorized -
               </button>
             </li>
 

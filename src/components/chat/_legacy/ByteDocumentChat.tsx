@@ -1303,7 +1303,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         
         return {
           transactions: allTransactions,
-          method: 'PDF → Image → OCR'
+          method: 'PDF -> Image -> OCR'
         };
       }
     } catch (error) {
@@ -1623,7 +1623,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           } else {
             // Set active context for questions
             setActiveDocumentContext(context);
-            responseMessage = `Sure. Ask me anything about this document — for example:
+            responseMessage = `Sure. Ask me anything about this document - for example:
 - "Why was this month more expensive than usual?"
 - "How much did I spend on Restaurants?"
 - "Show me all transactions over $200."`;
@@ -1683,7 +1683,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
               if (nextIndex < categorizationState.length) {
                 setCurrentVendorIndex(nextIndex);
                 const nextVendor = categorizationState[nextIndex];
-                responseMessage = `Got it — I'll categorize **${vendor}** as **${finalCategory}** from now on.\n\nI've updated ${updateResult.updatedCount} transaction${updateResult.updatedCount !== 1 ? 's' : ''} in this document.\n\n${buildVendorCategorizationPrompt(nextVendor)}`;
+                responseMessage = `Got it - I'll categorize **${vendor}** as **${finalCategory}** from now on.\n\nI've updated ${updateResult.updatedCount} transaction${updateResult.updatedCount !== 1 ? 's' : ''} in this document.\n\n${buildVendorCategorizationPrompt(nextVendor)}`;
                 followUpActions = [
                   ...STANDARD_CATEGORIES.slice(0, 6).map(cat => ({
                     type: 'prime_categorize_vendor' as const,
@@ -2331,7 +2331,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                           <div>
                             <h3 className="text-white font-medium">{doc.filename}</h3>
                             <p className="text-gray-400 text-sm">
-                              {doc.transactions?.length || 0} transactions • {doc.processingMethod} • 
+                              {doc.transactions?.length || 0} transactions - {doc.processingMethod} - 
                               {new Date(doc.uploadDate).toLocaleDateString()}
                             </p>
                           </div>

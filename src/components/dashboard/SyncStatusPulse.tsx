@@ -33,7 +33,7 @@ export default function SyncStatusPulse({ userId }: Props) {
             <>
               Score: <span className="font-semibold text-slate-200">{status.score}</span> ·
               Ready: {status.ready} · Pending: {status.pending} · Rejected: {status.rejected} ·
-              Last sync: {status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString() : "—"}
+              Last sync: {status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString() : "-"}
             </>
           )}
         </div>
@@ -43,7 +43,7 @@ export default function SyncStatusPulse({ userId }: Props) {
         disabled={busy}
         className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white disabled:opacity-50"
       >
-        {busy ? "Syncing…" : "Sync Now"}
+        {busy ? "Syncing..." : "Sync Now"}
       </button>
     </div>
   );

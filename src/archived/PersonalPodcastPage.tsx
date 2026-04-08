@@ -45,7 +45,7 @@ export default function PersonalPodcastPage() {
           <button className="inline-block bg-gradient-to-r from-red-500 to-pink-500 text-white px-12 py-6 rounded-xl font-bold text-2xl shadow-2xl hover:from-pink-500 hover:to-red-500 transition-all duration-300 animate-pulse">
             CREATE MY AVATAR & GET ROASTED
           </button>
-          <p className="text-sm text-blue-200 mt-2">Takes 30 seconds • No credit card • 1,247 created today</p>
+          <p className="text-sm text-blue-200 mt-2">Takes 30 seconds - No credit card - 1,247 created today</p>
         </div>
 
         {/* Scrolling Ticker */}
@@ -77,7 +77,7 @@ export default function PersonalPodcastPage() {
             </div>
             <div className="p-6">
               <h3 className="text-xl font-bold mb-2">"I CAN'T BELIEVE AI SAID THIS 😭"</h3>
-              <p className="text-sm text-gray-600 mb-2">2.3M views • 847K shares</p>
+              <p className="text-sm text-gray-600 mb-2">2.3M views - 847K shares</p>
               <p className="text-gray-700 mb-4">Sofia destroys shopping addiction</p>
               <button className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center">
                 <Play size={16} className="mr-2" />
@@ -92,7 +92,7 @@ export default function PersonalPodcastPage() {
             </div>
             <div className="p-6">
               <h3 className="text-xl font-bold mb-2">"FROM BROKE TO BOSS IN 30 DAYS"</h3>
-              <p className="text-sm text-gray-600 mb-2">1.8M views • 623K shares</p>
+              <p className="text-sm text-gray-600 mb-2">1.8M views - 623K shares</p>
               <p className="text-gray-700 mb-4">Danny's transformation bootcamp</p>
               <button className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center">
                 <Play size={16} className="mr-2" />
@@ -107,7 +107,7 @@ export default function PersonalPodcastPage() {
             </div>
             <div className="p-6">
               <h3 className="text-xl font-bold mb-2">"MY AI MOM MADE ME CRY"</h3>
-              <p className="text-sm text-gray-600 mb-2">3.1M views • 1.2M shares</p>
+              <p className="text-sm text-gray-600 mb-2">3.1M views - 1.2M shares</p>
               <p className="text-gray-700 mb-4">Mama Michelle's tough love</p>
               <button className="bg-gradient-to-r from-pink-500 to-red-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center">
                 <Play size={16} className="mr-2" />
@@ -153,8 +153,8 @@ export default function PersonalPodcastPage() {
             </div>
             <p className="text-gray-700 italic mb-4">"YOOO! YOU ACTUALLY SAVED MONEY! LET'S FUCKING GOOO!"</p>
             <div className="text-sm text-gray-600 mb-4">
-              <div>• 97% Success Rate</div>
-              <div>• Addiction Level: Extreme</div>
+              <div>- 97% Success Rate</div>
+              <div>- Addiction Level: Extreme</div>
             </div>
             <button className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 rounded-lg font-semibold">
               TRY MAX FREE
@@ -169,8 +169,8 @@ export default function PersonalPodcastPage() {
             </div>
             <p className="text-gray-700 italic mb-4">"Bestie... Uber Eats 5 times this week? We need to talk..."</p>
             <div className="text-sm text-gray-600 mb-4">
-              <div>• 2.3M Roasts Delivered</div>
-              <div>• Accuracy: Terrifying</div>
+              <div>- 2.3M Roasts Delivered</div>
+              <div>- Accuracy: Terrifying</div>
             </div>
             <button className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white px-4 py-2 rounded-lg font-semibold">
               GET ROASTED NOW
@@ -185,8 +185,8 @@ export default function PersonalPodcastPage() {
             </div>
             <p className="text-gray-700 italic mb-4">"Bro, you're spending like you're a millionaire. You're not."</p>
             <div className="text-sm text-gray-600 mb-4">
-              <div>• 89% Tough Love Success</div>
-              <div>• Brutality: Maximum</div>
+              <div>- 89% Tough Love Success</div>
+              <div>- Brutality: Maximum</div>
             </div>
             <button className="w-full bg-gradient-to-r from-blue-400 to-indigo-500 text-white px-4 py-2 rounded-lg font-semibold">
               GET DESTROYED
@@ -201,8 +201,8 @@ export default function PersonalPodcastPage() {
             </div>
             <p className="text-gray-700 italic mb-4">"Let's analyze your spending patterns with data-driven insights."</p>
             <div className="text-sm text-gray-600 mb-4">
-              <div>• 94% Learning Rate</div>
-              <div>• Intelligence: Genius</div>
+              <div>- 94% Learning Rate</div>
+              <div>- Intelligence: Genius</div>
             </div>
             <button className="w-full bg-gradient-to-r from-green-400 to-teal-500 text-white px-4 py-2 rounded-lg font-semibold">
               GET SMART
@@ -217,8 +217,8 @@ export default function PersonalPodcastPage() {
             </div>
             <p className="text-gray-700 italic mb-4">"Honey, I'm not mad, I'm just disappointed in your choices."</p>
             <div className="text-sm text-gray-600 mb-4">
-              <div>• 98% Emotional Impact</div>
-              <div>• Love: Unconditional</div>
+              <div>- 98% Emotional Impact</div>
+              <div>- Love: Unconditional</div>
             </div>
             <button className="w-full bg-gradient-to-r from-red-400 to-pink-500 text-white px-4 py-2 rounded-lg font-semibold">
               GET THE LOVE
@@ -233,8 +233,8 @@ export default function PersonalPodcastPage() {
             </div>
             <p className="text-gray-700 italic mb-4">"You're not broke, you're just not thinking like a millionaire yet."</p>
             <div className="text-sm text-gray-600 mb-4">
-              <div>• 96% Mindset Shift</div>
-              <div>• Royalty: Confirmed</div>
+              <div>- 96% Mindset Shift</div>
+              <div>- Royalty: Confirmed</div>
             </div>
             <button className="w-full bg-gradient-to-r from-purple-400 to-violet-500 text-white px-4 py-2 rounded-lg font-semibold">
               BECOME ROYAL
@@ -293,7 +293,7 @@ export default function PersonalPodcastPage() {
 
           <div className="text-center mt-8">
             <button className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-8 py-4 rounded-xl text-lg font-bold hover:shadow-xl transform hover:scale-105 transition-all duration-200">
-              JOIN THE CHAOS →
+              JOIN THE CHAOS ->
             </button>
           </div>
         </div>
@@ -409,8 +409,8 @@ export default function PersonalPodcastPage() {
             </div>
             <h3 className="text-xl font-bold mb-4">TikTok Ready</h3>
             <ul className="text-gray-600 mb-6 text-left">
-              <li>• 15-sec roast clips</li>
-              <li>• Auto-captions included</li>
+              <li>- 15-sec roast clips</li>
+              <li>- Auto-captions included</li>
             </ul>
             <button className="bg-gradient-to-r from-pink-500 to-red-500 text-white px-4 py-2 rounded-lg font-semibold">
               CREATE VIRAL CLIP
@@ -423,8 +423,8 @@ export default function PersonalPodcastPage() {
             </div>
             <h3 className="text-xl font-bold mb-4">Instagram Stories</h3>
             <ul className="text-gray-600 mb-6 text-left">
-              <li>• Avatar transformation timelapses</li>
-              <li>• Shareable quote cards</li>
+              <li>- Avatar transformation timelapses</li>
+              <li>- Shareable quote cards</li>
             </ul>
             <button className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg font-semibold">
               GENERATE CONTENT
@@ -437,8 +437,8 @@ export default function PersonalPodcastPage() {
             </div>
             <h3 className="text-xl font-bold mb-4">YouTube Shorts</h3>
             <ul className="text-gray-600 mb-6 text-left">
-              <li>• 60-sec therapy sessions</li>
-              <li>• Reaction compilations</li>
+              <li>- 60-sec therapy sessions</li>
+              <li>- Reaction compilations</li>
             </ul>
             <button className="bg-gradient-to-r from-red-500 to-orange-500 text-white px-4 py-2 rounded-lg font-semibold">
               EXPORT VIDEO
@@ -461,7 +461,7 @@ export default function PersonalPodcastPage() {
               <div className="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold mb-2">STARTING IN 12:47</div>
               <h3 className="text-xl font-bold">🔴 Sofia's Savage Hour</h3>
               <p className="text-gray-600">Topic: "Black Friday Preparation Therapy"</p>
-              <p className="text-sm text-gray-500">847 waiting • Last week's episode went viral</p>
+              <p className="text-sm text-gray-500">847 waiting - Last week's episode went viral</p>
             </div>
             <button className="w-full bg-red-600 text-white px-4 py-2 rounded-lg font-semibold">
               CLAIM YOUR SPOT
@@ -473,7 +473,7 @@ export default function PersonalPodcastPage() {
               <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-bold mb-2">TONIGHT @ 8PM</div>
               <h3 className="text-xl font-bold">⚡ AI BATTLE ROYALE</h3>
               <p className="text-gray-600">Max vs Danny: "Aggressive Saving vs Living Life"</p>
-              <p className="text-sm text-gray-500">Vote for winner • Prize: Custom episode</p>
+              <p className="text-sm text-gray-500">Vote for winner - Prize: Custom episode</p>
             </div>
             <button className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold">
               PICK YOUR SIDE
@@ -485,7 +485,7 @@ export default function PersonalPodcastPage() {
               <div className="bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold mb-2">TOMORROW @ 7AM</div>
               <h3 className="text-xl font-bold">☕ Wake & Save with Max</h3>
               <p className="text-gray-600">"Start your day with financial violence"</p>
-              <p className="text-sm text-gray-500">Limited to 1000 • Coffee not included</p>
+              <p className="text-sm text-gray-500">Limited to 1000 - Coffee not included</p>
             </div>
             <button className="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-semibold">
               SET REMINDER
@@ -543,7 +543,7 @@ export default function PersonalPodcastPage() {
             <span className="ml-2 font-bold">4.9/5 (12,847 reviews)</span>
           </div>
           <div className="text-sm">
-            "Most Addictive App 2024" - TechCrunch • "Gen Z's Financial Revolution" - Forbes
+            "Most Addictive App 2024" - TechCrunch - "Gen Z's Financial Revolution" - Forbes
           </div>
         </div>
       </section>
@@ -561,7 +561,7 @@ export default function PersonalPodcastPage() {
         </button>
         
         <p className="text-lg text-purple-100 mb-8">
-          30 seconds to setup • Free forever • No boring budgets
+          30 seconds to setup - Free forever - No boring budgets
         </p>
 
         <div className="grid md:grid-cols-4 gap-4 mb-8 text-sm">
@@ -572,7 +572,7 @@ export default function PersonalPodcastPage() {
         </div>
 
         <div className="text-sm text-purple-200">
-          Not ready? <a href="#" className="underline">Watch 60-sec demo</a> • <a href="#" className="underline">Read the roasts</a> • <a href="#" className="underline">Stalk our TikTok</a>
+          Not ready? <a href="#" className="underline">Watch 60-sec demo</a> - <a href="#" className="underline">Read the roasts</a> - <a href="#" className="underline">Stalk our TikTok</a>
         </div>
       </section>
 

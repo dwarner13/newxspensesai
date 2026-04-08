@@ -30,7 +30,7 @@ const SecurityPage = () => {
             <div className="bg-white rounded-2xl shadow p-6 text-center">
               <div className="text-3xl mb-2">🛡️</div>
               <h4 className="font-semibold mb-1">Zero-Knowledge Architecture</h4>
-              <p className="text-gray-600">We design systems so that only you can access your sensitive data—never our staff.</p>
+              <p className="text-gray-600">We design systems so that only you can access your sensitive data-never our staff.</p>
             </div>
             <div className="bg-white rounded-2xl shadow p-6 text-center">
               <div className="text-3xl mb-2">🔑</div>

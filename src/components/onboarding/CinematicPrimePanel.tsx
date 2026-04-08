@@ -6,7 +6,7 @@
  * - Large responsive headline (text-3xl to text-5xl)
  * - Slow premium typewriter (38ms per char)
  * - Subtle caret glow animation
- * - Staggered animations: headline → subtext → button
+ * - Staggered animations: headline -> subtext -> button
  * - Respects prefers-reduced-motion
  */
 

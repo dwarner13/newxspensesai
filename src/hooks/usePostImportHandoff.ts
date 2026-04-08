@@ -535,7 +535,7 @@ async function preparePrimeSummary(importId: string, _userId: string, importIds?
             body: JSON.stringify({ limit: 1000 }),
           });
         } catch {
-          // non-fatal — Prime will still run, categories may be partial
+          // non-fatal - Prime will still run, categories may be partial
         }
         // ── Now Prime reads categorized data ─────────────────────────────
         const result = await fetchPrimeSummarySingleFlight(

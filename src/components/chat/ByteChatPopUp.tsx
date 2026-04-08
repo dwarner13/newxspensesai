@@ -64,7 +64,7 @@ export function ByteChatPopUp({ isOpen, onMinimize, initialInput = '' }: ByteCha
               {/* Text */}
               <div className="flex-1 min-w-0">
                 <h3 className="text-base md:text-lg font-bold text-white truncate">
-                  Byte — Smart Import AI
+                  Byte - Smart Import AI
                 </h3>
                 <p className="text-xs md:text-sm text-slate-400 truncate">
                   Data Processing Specialist
@@ -98,7 +98,7 @@ export function ByteChatPopUp({ isOpen, onMinimize, initialInput = '' }: ByteCha
               <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full">
                 <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-400" />
                 <span className="text-xs text-blue-400 font-medium">
-                  Byte Processing • 99.7% Accuracy • Guardrails Active
+                  Byte Processing - 99.7% Accuracy - Guardrails Active
                 </span>
               </div>
             </div>

@@ -34,19 +34,19 @@ const ByteWorkspace: React.FC = () => {
       {
         file: 'Chase_Statement.pdf',
         comment: 'Found 12 tax deductions you missed! You\'re welcome! 🎉',
-        stats: '247 transactions • 2.1s • 99.8%',
+        stats: '247 transactions - 2.1s - 99.8%',
         timestamp: '2 minutes ago'
       },
       {
         file: 'Receipts_Batch_3.pdf',
         comment: 'Organized 47 receipts by category. I love this job! 📄',
-        stats: '47 receipts • 1.8s • 100%',
+        stats: '47 receipts - 1.8s - 100%',
         timestamp: '15 minutes ago'
       },
       {
         file: 'Business_Expenses.xlsx',
         comment: 'Calculated $340 in missed deductions. Science! 🧪',
-        stats: '89 expenses • 3.2s • 99.5%',
+        stats: '89 expenses - 3.2s - 99.5%',
         timestamp: '1 hour ago'
       }
     ];
@@ -79,7 +79,7 @@ const ByteWorkspace: React.FC = () => {
           const newProcessing = {
             file: file.name,
             comment: `Just processed ${file.name}! I'm getting better at this! 🚀`,
-            stats: `${Math.floor(Math.random() * 100) + 50} items • ${(Math.random() * 2 + 1).toFixed(1)}s • ${(99 + Math.random()).toFixed(1)}%`,
+            stats: `${Math.floor(Math.random() * 100) + 50} items - ${(Math.random() * 2 + 1).toFixed(1)}s - ${(99 + Math.random()).toFixed(1)}%`,
             timestamp: 'Just now'
           };
           

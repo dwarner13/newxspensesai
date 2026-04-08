@@ -145,10 +145,10 @@ export function AnalyticsWorkspacePanel() {
           {/* Short reports list */}
           <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar space-y-2 text-[11px] text-slate-200">
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              📊 <span className="font-medium">Monthly Summary</span> — Scheduled for tomorrow
+              📊 <span className="font-medium">Monthly Summary</span> - Scheduled for tomorrow
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              📈 <span className="font-medium">Spending Analysis</span> — Scheduled for next week
+              📈 <span className="font-medium">Spending Analysis</span> - Scheduled for next week
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
               💾 <span className="font-medium">5 data sources</span> connected and syncing

@@ -1,9 +1,9 @@
 /**
- * tag-action — Natural language category change handler for Tag chat.
+ * tag-action - Natural language category change handler for Tag chat.
  *
  * Intents:
- *   preview  → find matching transactions, return count + samples (no writes)
- *   commit   → update transactions + create rule + write vendor memory
+ *   preview  -> find matching transactions, return count + samples (no writes)
+ *   commit   -> update transactions + create rule + write vendor memory
  */
 
 import type { Handler } from '@netlify/functions';
@@ -144,7 +144,7 @@ export const handler: Handler = async (event) => {
 
   if (!intent) return err('Missing intent (preview | commit | save_rule | undo | bulk_apply)');
 
-  // Bulk apply — from background sweep
+  // Bulk apply - from background sweep
   if (intent === 'bulk_apply') {
     const { groups } = body;
     if (!Array.isArray(groups)) return err('Missing groups array');
@@ -163,7 +163,7 @@ export const handler: Handler = async (event) => {
     return ok({ ok: true, intent: 'bulk_apply', applied: total });
   }
 
-  // Undo intent — doesn't need matchValue/targetCategory
+  // Undo intent - doesn't need matchValue/targetCategory
   if (intent === 'undo') {
     const { affectedIds, previousCategory } = body;
     if (!Array.isArray(affectedIds) || !previousCategory) return err('Missing affectedIds or previousCategory');
@@ -313,7 +313,7 @@ export const handler: Handler = async (event) => {
       const ruleSubcategory = body.targetSubcategory ?? body.subcategory ?? parsedTarget.subcategory ?? null;
       const ruleAmountMin = body.amount_min ?? null;
       const ruleAmountMax = body.amount_max ?? null;
-      // Upsert into category_rules — schema uses match_value, NOT merchant_pattern
+      // Upsert into category_rules - schema uses match_value, NOT merchant_pattern
       const { error: ruleErr } = await supabase.from('category_rules').upsert(
         {
           user_id: userId,

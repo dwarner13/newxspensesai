@@ -118,7 +118,7 @@ export function PersonalityHeader({
               {employee.specialty}
             </span>
             <span className="text-white/60 text-xs">
-              •
+              -
             </span>
             <span className="text-white/60 text-xs">
               {status.label}

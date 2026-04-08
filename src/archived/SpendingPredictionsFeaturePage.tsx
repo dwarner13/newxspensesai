@@ -148,9 +148,9 @@ const SpendingPredictionsPage = () => {
               <h3 className="text-2xl font-bold mb-4">Pattern Recognition</h3>
               <p className="text-gray-600 mb-4">AI analyzes your spending patterns across seasons, life events, and habits to predict future expenses.</p>
               <ul className="text-sm text-gray-600 space-y-2">
-                <li>• Seasonal spending patterns</li>
-                <li>• Life event correlations</li>
-                <li>• Behavioral analysis</li>
+                <li>- Seasonal spending patterns</li>
+                <li>- Life event correlations</li>
+                <li>- Behavioral analysis</li>
               </ul>
             </div>
             
@@ -161,9 +161,9 @@ const SpendingPredictionsPage = () => {
               <h3 className="text-2xl font-bold mb-4">94% Accuracy</h3>
               <p className="text-gray-600 mb-4">Our predictions are 94% accurate on average, helping you plan with confidence.</p>
               <ul className="text-sm text-gray-600 space-y-2">
-                <li>• Machine learning models</li>
-                <li>• Continuous improvement</li>
-                <li>• Real-time adjustments</li>
+                <li>- Machine learning models</li>
+                <li>- Continuous improvement</li>
+                <li>- Real-time adjustments</li>
               </ul>
             </div>
             
@@ -174,9 +174,9 @@ const SpendingPredictionsPage = () => {
               <h3 className="text-2xl font-bold mb-4">Early Warnings</h3>
               <p className="text-gray-600 mb-4">Get alerts about unusual spending patterns before they become problems.</p>
               <ul className="text-sm text-gray-600 space-y-2">
-                <li>• Anomaly detection</li>
-                <li>• Budget alerts</li>
-                <li>• Trend warnings</li>
+                <li>- Anomaly detection</li>
+                <li>- Budget alerts</li>
+                <li>- Trend warnings</li>
               </ul>
             </div>
           </div>

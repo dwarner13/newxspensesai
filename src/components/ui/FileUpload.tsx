@@ -220,7 +220,7 @@ export default function FileUpload({
               {isDragOver ? 'Drop files here' : 'Click to upload or drag and drop'}
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              {acceptedTypes.join(', ')} • Max {maxSize}MB per file • Up to {maxFiles} files
+              {acceptedTypes.join(', ')} - Max {maxSize}MB per file - Up to {maxFiles} files
             </p>
           </div>
         </div>

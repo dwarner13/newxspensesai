@@ -1191,7 +1191,7 @@ const SmartImportAIPage: React.FC = () => {
                               <span className="text-white/80 truncate max-w-28">{file.name}</span>
                               <div className="flex items-center gap-1">
                                 <span className="text-green-400">{file.transactions} transactions</span>
-                                <span className="text-white/60">•</span>
+                                <span className="text-white/60">-</span>
                                 <span className="text-green-400">{file.accuracy}</span>
                               </div>
                             </div>
@@ -1423,7 +1423,7 @@ const SmartImportAIPage: React.FC = () => {
                     <h4 className="text-white font-medium">Tag</h4>
                     <p className="text-white/60 text-xs">Auto-categorizes transactions</p>
                   </div>
-                  <span className="text-white/40 text-xs">→</span>
+                  <span className="text-white/40 text-xs">-></span>
                 </button>
                 
                 {/* Crystal - For analysis */}
@@ -1441,7 +1441,7 @@ const SmartImportAIPage: React.FC = () => {
                     <h4 className="text-white font-medium">Crystal</h4>
                     <p className="text-white/60 text-xs">Forecasts spending trends</p>
                   </div>
-                  <span className="text-white/40 text-xs">→</span>
+                  <span className="text-white/40 text-xs">-></span>
                 </button>
                 
                 {/* Intelia - For business intelligence */}
@@ -1459,7 +1459,7 @@ const SmartImportAIPage: React.FC = () => {
                     <h4 className="text-white font-medium">Intelia</h4>
                     <p className="text-white/60 text-xs">Business intelligence & insights</p>
                   </div>
-                  <span className="text-white/40 text-xs">→</span>
+                  <span className="text-white/40 text-xs">-></span>
                 </button>
                 
                 {/* Prime - For executive oversight */}
@@ -1477,7 +1477,7 @@ const SmartImportAIPage: React.FC = () => {
                     <h4 className="text-white font-medium">Prime</h4>
                     <p className="text-white/60 text-xs">Strategic AI CEO oversight</p>
                   </div>
-                  <span className="text-white/40 text-xs">→</span>
+                  <span className="text-white/40 text-xs">-></span>
                 </button>
               </div>
             </div>

@@ -75,7 +75,7 @@ export default function MyFinancialStoryV2() {
                   border: "none", color: "#0b1220", cursor: "pointer",
                   boxShadow: `0 4px 16px ${THEME.accent}35`,
                   width: isMobile ? "100%" : "auto",
-                  }} onClick={() => toast('Coming soon — accountant sharing via Inbox')}>{"\uD83D\uDCE7"} Send to Accountant</button>
+                  }} onClick={() => toast('Coming soon - accountant sharing via Inbox')}>{"\uD83D\uDCE7"} Send to Accountant</button>
               </div>
             </div>
           </Reveal>
@@ -230,7 +230,7 @@ export default function MyFinancialStoryV2() {
                 <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.5 }}>Download a branded PDF report, send to your accountant, or export the data for your podcast recap.</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <button onClick={() => toast('PDF export coming soon — use Export CSV for now')} style={{ padding: "10px 24px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: `0 4px 16px ${THEME.accent}35`, whiteSpace: "nowrap" }}>{"\uD83D\uDCC4"} Download PDF</button>
+                <button onClick={() => toast('PDF export coming soon - use Export CSV for now')} style={{ padding: "10px 24px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: `0 4px 16px ${THEME.accent}35`, whiteSpace: "nowrap" }}>{"\uD83D\uDCC4"} Download PDF</button>
                 <button style={{ padding: "10px 24px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: THEME.surface, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer", whiteSpace: "nowrap" }}>{"\uD83D\uDCE7"} Email Report</button>
                 <button style={{ padding: "10px 24px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: THEME.surface, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer", whiteSpace: "nowrap" }}>{"\uD83D\uDCCA"} Export CSV</button>
               </div>

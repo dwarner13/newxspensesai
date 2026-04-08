@@ -10,7 +10,7 @@
  * Input JSON (at least one field required):
  *   ocrText      – pre-extracted OCR text (used by parseReceiptWithAI.ts)
  *   text         – alias for ocrText
- *   imageDataUrl – full data URL  (data:image/jpeg;base64,…)
+ *   imageDataUrl – full data URL  (data:image/jpeg;base64,...)
  *   imageUrl     – public https:// URL
  *   docType      – optional hint ("receipt" | anything); default "receipt"
  *
@@ -150,7 +150,7 @@ export const handler: Handler = async (event) => {
     });
   }
 
-  // Parse input — inline to avoid any shared-helper caching issues.
+  // Parse input - inline to avoid any shared-helper caching issues.
   // Handles: plain string body, base64-encoded body, pre-parsed object body.
   let body: Record<string, unknown> = {};
   try {
@@ -166,14 +166,14 @@ export const handler: Handler = async (event) => {
       if (raw) body = JSON.parse(raw);
     }
   } catch (parseErr: any) {
-    // body stays {} — log so we can see what failed
+    // body stays {} - log so we can see what failed
     console.error('[ocr-ingest-simple] body parse failed:',
       parseErr?.message,
       '| first 80 chars of raw body:',
       String(event.body ?? '').slice(0, 80));
   }
 
-  // Debug — helps diagnose body-parsing failures without logging full content
+  // Debug - helps diagnose body-parsing failures without logging full content
   console.log('[ocr-ingest-simple] content-type:',
     event.headers?.['content-type'] ??
     event.headers?.['Content-Type']);
@@ -184,7 +184,7 @@ export const handler: Handler = async (event) => {
     'parsedKeys:',
     Object.keys(body ?? {}));
 
-  // Type-safe normalization — String(undefined) produces "undefined", so guard first
+  // Type-safe normalization - String(undefined) produces "undefined", so guard first
   const textInputRaw =
     (typeof body.ocrText === 'string' ? body.ocrText : '') ||
     (typeof body.text === 'string' ? body.text : '');

@@ -247,7 +247,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
     try {
       const sb = getSupabase(); if (!sb) return;
       const { data: { user } } = await sb.auth.getUser(); if (!user) return;
-      // Treat Other / Uncategorized / null as Needs Review — they all mean "uncategorized"
+      // Treat Other / Uncategorized / null as Needs Review - they all mean "uncategorized"
       const { count } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', user.id).or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
       setNeedsReviewCount(count || 0);
     } catch { /* non-blocking */ }

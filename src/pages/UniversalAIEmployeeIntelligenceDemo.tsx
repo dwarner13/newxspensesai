@@ -460,7 +460,7 @@ export const UniversalAIEmployeeIntelligenceDemo: React.FC = () => {
                   <div className="space-y-3">
                     <div className="p-3 bg-green-50 rounded-lg">
                       <h4 className="font-medium text-green-900 mb-1">Task Loop Completion</h4>
-                      <p className="text-sm text-green-800">Process → Analyze → Deliver → Next Actions</p>
+                      <p className="text-sm text-green-800">Process -> Analyze -> Deliver -> Next Actions</p>
                     </div>
                     <div className="p-3 bg-blue-50 rounded-lg">
                       <h4 className="font-medium text-blue-900 mb-1">Data Reference Accuracy</h4>

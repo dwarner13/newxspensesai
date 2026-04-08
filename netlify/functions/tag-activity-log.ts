@@ -1,5 +1,5 @@
 /**
- * tag-activity-log — Returns Tag's categorization activity history for a user.
+ * tag-activity-log - Returns Tag's categorization activity history for a user.
  * Supports pagination, month filtering, and monthly summary stats.
  */
 
@@ -66,7 +66,7 @@ export const handler: Handler = async (event) => {
       transaction_amount: e.transactions?.amount || null,
     }));
 
-    // Monthly summary — aggregate by month and source
+    // Monthly summary - aggregate by month and source
     const { data: summaryRows } = await sb
       .from('tag_activity_log')
       .select('created_at, change_source, merchant_name')

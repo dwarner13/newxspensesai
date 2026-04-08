@@ -79,20 +79,20 @@ const SmartCategoriesPage: React.FC = () => {
   const { imports: importList } = useImportList();
   const categoryRules = useCategoryRules();
 
-  // Build EmployeeStat[] for the Tag card hero — "—" when data is unavailable
+  // Build EmployeeStat[] for the Tag card hero - "-" when data is unavailable
   const tagCardStats: EmployeeStat[] = [
     {
-      value: tagStats.isLoading ? '…' : tagStats.itemsTagged !== null ? tagStats.itemsTagged.toLocaleString() : '—',
+      value: tagStats.isLoading ? '...' : tagStats.itemsTagged !== null ? tagStats.itemsTagged.toLocaleString() : '-',
       label: 'Items Tagged',
       colorClass: 'text-cyan-400',
     },
     {
-      value: tagStats.isLoading ? '…' : tagStats.autoTaggedPct !== null ? `${tagStats.autoTaggedPct}%` : '—',
+      value: tagStats.isLoading ? '...' : tagStats.autoTaggedPct !== null ? `${tagStats.autoTaggedPct}%` : '-',
       label: 'Auto-Tagged',
       colorClass: 'text-green-400',
     },
     {
-      value: tagStats.isLoading ? '…' : tagStats.categoryCount !== null ? String(tagStats.categoryCount) : '—',
+      value: tagStats.isLoading ? '...' : tagStats.categoryCount !== null ? String(tagStats.categoryCount) : '-',
       label: 'Categories',
       colorClass: 'text-purple-400',
     },
@@ -292,7 +292,7 @@ const SmartCategoriesPage: React.FC = () => {
     };
   }, [categorySummaries]);
 
-  // O(1) lookup: category name → SmartCategorySummary (for learning metrics)
+  // O(1) lookup: category name -> SmartCategorySummary (for learning metrics)
   const summaryMap = useMemo(() => {
     const map = new Map<string, SmartCategorySummary>();
     for (const s of categorySummaries) {
@@ -337,7 +337,7 @@ const SmartCategoriesPage: React.FC = () => {
     return months;
   }, [transactions]);
 
-  // Month range from selectedMonth key → ISO date strings for Supabase queries
+  // Month range from selectedMonth key -> ISO date strings for Supabase queries
   const monthRange = useMemo(() => {
     if (!selectedMonth) return undefined;
     const [y, m] = selectedMonth.split('-').map(Number);
@@ -367,10 +367,10 @@ const SmartCategoriesPage: React.FC = () => {
     const merchant = String(tx.merchant || '').toUpperCase().trim();
     const description = String(tx.description || '').toUpperCase().trim();
 
-    // 1. Category override � if Tag/user explicitly set "Income", trust it
+    // 1. Category override � if Tag/user explicitly set "Income", trust it
     if (category === 'income') return 'income';
 
-    // 2. Merchant/description patterns � payments, credits, refunds are income
+    // 2. Merchant/description patterns � payments, credits, refunds are income
     const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
     const INCOME_CONTAINS = /\b(PAYMENT RECEIVED|PAYMENT THANK YOU|CREDIT ADJUSTMENT|REFUND|DEPOSIT|E-TRANSFER IN|PAYROLL)\b/;
     if (INCOME_PATTERNS.test(merchant) || INCOME_CONTAINS.test(merchant) || INCOME_CONTAINS.test(description)) {
@@ -413,7 +413,7 @@ const SmartCategoriesPage: React.FC = () => {
     return map;
   }, [selectedMonth, transactions]);
 
-  // Category spending breakdown (expenses only, sorted desc) — enriched with learning + trend
+  // Category spending breakdown (expenses only, sorted desc) - enriched with learning + trend
   const breakdownEntries = useMemo(() => {
     const map = new Map<string, { amount: number; count: number }>();
     for (const tx of monthFilteredTransactions) {
@@ -670,7 +670,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
 
 **IMPORTANT: Only call tools when the user asks a question. Do NOT call tools automatically on conversation start or without a user query.**
 
-1. **Category-level questions → ALWAYS use tag_category_brain FIRST:**
+1. **Category-level questions -> ALWAYS use tag_category_brain FIRST:**
    - When users ask ANY of these patterns: "What have you learned about this category?", "How much do I usually spend here?", "Which merchants are most common?", "Is this trending up or down?", "Tell me about this category", "What can you tell me about ${cat.category}?", "What do you know about ${cat.category}?", "Show me stats for this category", "Analyze this category", "how much can I save?", "where does my money come from?", "what are my top sources?"
    - **ACTION:** Immediately call tag_category_brain with category="${cat.category}" (use the EXACT name from above, case-sensitive).
    - **DO NOT call this tool automatically** - wait for the user to ask a question first.
@@ -713,14 +713,14 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
    - Say: "I don't have enough data yet for this category, but here's what I can see from the UI: ${cat.transactionCount} transaction${cat.transactionCount !== 1 ? 's' : ''} so far. As you add more transactions and correct my categorizations, I'll learn your patterns better!"
 
 7. **Other Tools:**
-   - Specific transaction "why" → Use tag_explain_category with transaction ID
-   - Merchant history → Use tag_merchant_insights with merchant name
+   - Specific transaction "why" -> Use tag_explain_category with transaction ID
+   - Merchant history -> Use tag_merchant_insights with merchant name
 
 **Handoff Rules (XspensesAI Org Chart):**
 - **Byte** (slug: byte-docs) handles: Smart Import, OCR, document uploads, bank statements, PDF/PNG parsing
 - **Prime** (slug: prime-boss) handles: High-level strategy, "who should I talk to" questions, app-wide questions
-- If user asks about document uploads, OCR, Smart Import, or bank statements → **immediately call request_employee_handoff** with targetEmployeeSlug: "byte-docs"
-- If user asks "who handles X?" or "which employee should I talk to?" → call request_employee_handoff to the appropriate employee
+- If user asks about document uploads, OCR, Smart Import, or bank statements -> **immediately call request_employee_handoff** with targetEmployeeSlug: "byte-docs"
+- If user asks "who handles X?" or "which employee should I talk to?" -> call request_employee_handoff to the appropriate employee
 - **DO NOT try to answer questions outside your domain** - hand off immediately
 
 **Your Tools:**
@@ -764,7 +764,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
     }
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
-      toast.error('Session expired — please refresh');
+      toast.error('Session expired - please refresh');
       return;
     }
     setIsRunningHandoffTag(true);
@@ -797,7 +797,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
             },
           });
         } catch {
-          // non-fatal — categories are written, summary will be stale
+          // non-fatal - categories are written, summary will be stale
         }
       }
       const processed = Number(json?.processed ?? json?.total ?? 0);
@@ -1162,7 +1162,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
   };
   const previewTagAction = async (matchValue: string, targetCategory: string, matchType: 'contains' | 'exact' = 'contains') => {
     const token = await getAccessToken();
-    if (!token) throw new Error('Session expired — please refresh');
+    if (!token) throw new Error('Session expired - please refresh');
     const res = await fetch('/.netlify/functions/tag-action', {
       method: 'POST',
       headers: {
@@ -1196,7 +1196,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
     affectedIds: string[];
   }) => {
     const token = await getAccessToken();
-    if (!token) throw new Error('Session expired — please refresh');
+    if (!token) throw new Error('Session expired - please refresh');
     const res = await fetch('/.netlify/functions/tag-action', {
       method: 'POST',
       headers: {
@@ -1355,19 +1355,19 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Auto-tagged %</div>
             <div className="mt-1 text-sm font-semibold text-emerald-300">
-              {tagStats.autoTaggedPct !== null ? `${tagStats.autoTaggedPct}%` : '—'}
+              {tagStats.autoTaggedPct !== null ? `${tagStats.autoTaggedPct}%` : '-'}
             </div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Categories</div>
             <div className="mt-1 text-sm font-semibold text-slate-100">
-              {tagStats.categoryCount !== null ? tagStats.categoryCount : '—'}
+              {tagStats.categoryCount !== null ? tagStats.categoryCount : '-'}
             </div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Needs review</div>
             <div className={`mt-1 text-sm font-semibold ${(tagStats.uncategorizedCount || 0) > 0 ? 'text-amber-300' : 'text-slate-100'}`}>
-              {tagStats.uncategorizedCount !== null ? tagStats.uncategorizedCount : '—'}
+              {tagStats.uncategorizedCount !== null ? tagStats.uncategorizedCount : '-'}
             </div>
           </div>
         </section>
@@ -1572,7 +1572,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                           <div className={`text-right text-xs ${
                             entry.trend === 'up' ? 'text-red-300' : entry.trend === 'down' ? 'text-emerald-300' : 'text-slate-400'
                           }`}>
-                            {entry.trend === 'flat' ? '—' : `${entry.trend === 'up' ? '↑' : '↓'} ${entry.trendPct ?? ''}%`}
+                            {entry.trend === 'flat' ? '-' : `${entry.trend === 'up' ? '↑' : '↓'} ${entry.trendPct ?? ''}%`}
                           </div>
                           <button
                             type="button"
@@ -1589,7 +1589,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                             }`}
                             title={
                               entry.avgConfidence !== null && entry.avgConfidence < 0.7
-                                ? 'Low confidence — click for Tag explanation'
+                                ? 'Low confidence - click for Tag explanation'
                                 : 'Open Tag inspector'
                             }
                           >
@@ -1812,7 +1812,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                 disabled={isRunningHandoffTag}
                 className="rounded-md border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[11px] font-medium text-violet-300 hover:bg-violet-500/20 disabled:opacity-60"
               >
-                {isRunningHandoffTag ? 'Tag running…' : 'Auto-Tag all transactions'}
+                {isRunningHandoffTag ? 'Tag running...' : 'Auto-Tag all transactions'}
               </button>
               <button
                 type="button"
@@ -1879,7 +1879,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                   disabled={isRunningHandoffTag}
                   className="w-full rounded-md border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-60"
                 >
-                  {isRunningHandoffTag ? 'Tag AI running…' : 'Run Tag AI pass on all transactions'}
+                  {isRunningHandoffTag ? 'Tag AI running...' : 'Run Tag AI pass on all transactions'}
                 </button>
                 <div className="grid grid-cols-3 gap-1">
                   <button
@@ -1947,7 +1947,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                             disabled={isMerchantApplying === item.merchant}
                             className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
                           >
-                            {isMerchantApplying === item.merchant ? 'Applying…' : 'Approve'}
+                            {isMerchantApplying === item.merchant ? 'Applying...' : 'Approve'}
                           </button>
                         </div>
                       </div>

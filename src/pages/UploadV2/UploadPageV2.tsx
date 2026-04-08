@@ -98,7 +98,7 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
   if (!response.ok) throw new Error(data.error || "Spreadsheet import failed");
 
   // Auto-approve and auto-commit so transactions flow through the full pipeline
-  // (approve sets approved_at, commit moves staging → transactions + runs Tag)
+  // (approve sets approved_at, commit moves staging -> transactions + runs Tag)
   if (data.import_id) {
     const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
@@ -113,7 +113,7 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
       body: JSON.stringify({ importId: data.import_id }),
     });
 
-    // Commit (moves staging → transactions, triggers Tag categorization)
+    // Commit (moves staging -> transactions, triggers Tag categorization)
     const commitRes = await fetch("/.netlify/functions/commit-import", {
       method: "POST",
       headers: authHeaders,
@@ -142,7 +142,7 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
       console.error('[UploadV2] apply-category-rules threw', err);
     }
 
-    // Tag the import with detected issuer — non-blocking
+    // Tag the import with detected issuer - non-blocking
     const issuer = detectIssuer(file.name);
     fetch('/.netlify/functions/set-import-issuer', {
       method: 'POST',
@@ -209,7 +209,7 @@ export default function UploadPageV2() {
         setRecentReceipts(recent || []);
       };
       reader.readAsDataURL(file);
-    } catch { setByteReceiptMsg('Upload failed — try again.'); }
+    } catch { setByteReceiptMsg('Upload failed - try again.'); }
   };
 
   const introText = "Drop as many statements as you want. I'll work through them one at a time \u2014 extract transactions, hand each off to Tag for categorization, then Prime reviews.";
@@ -256,11 +256,11 @@ export default function UploadPageV2() {
 
       let importIdForSweep = '';
       if (isSpreadsheetFile(current.file.name)) {
-        // ── XLSX/CSV path — use dedicated spreadsheet processor ──
+        // ── XLSX/CSV path - use dedicated spreadsheet processor ──
         const xlResult = await handleSpreadsheetUpload(current.file, userId, session?.access_token, fileHash);
         importIdForSweep = xlResult.import_id || '';
       } else {
-        // ── PDF/image path — use existing OCR pipeline ──
+        // ── PDF/image path - use existing OCR pipeline ──
         const result = await runSmartImportPipeline({
           userId, file: current.file, fileName: current.file.name,
           mimeType: current.file.type || "application/octet-stream",
@@ -319,7 +319,7 @@ export default function UploadPageV2() {
       processingRef.current = true;
       updateItem(next.id, { status: "processing", progress: 0 });
 
-      // Progress simulation — climbs to 85% during processing
+      // Progress simulation - climbs to 85% during processing
       const progressInterval = setInterval(() => {
         const currentItem = queueRef.current.find(q => q.id === next.id);
         if (!currentItem || currentItem.status !== 'processing') {
@@ -406,12 +406,12 @@ export default function UploadPageV2() {
                 break;
               }
             }
-            if (!importId) console.warn('[UploadV2] poll timed out — no committed import found after 30s');
+            if (!importId) console.warn('[UploadV2] poll timed out - no committed import found after 30s');
           }
         }
 
         // ── Apply category rules to all uncategorized transactions ──
-        // ALWAYS runs, even if pipeline threw — general cleanup mode will still
+        // ALWAYS runs, even if pipeline threw - general cleanup mode will still
         // catch rows that landed in the transactions table from a partial commit.
         console.log('[UploadV2] apply-category-rules gate:', { hasToken: !!session?.access_token, importId, pipelineError: !!pipelineError });
         if (session?.access_token) {
@@ -438,7 +438,7 @@ export default function UploadPageV2() {
             console.error('[UploadV2] apply-category-rules threw', err);
           }
         } else {
-          console.warn('[UploadV2] Skipping apply-category-rules — missing token');
+          console.warn('[UploadV2] Skipping apply-category-rules - missing token');
         }
 
         await new Promise(r => setTimeout(r, 800));
@@ -696,7 +696,7 @@ export default function UploadPageV2() {
           <div onClick={() => receiptFileRef.current?.click()} style={{ border: `2px dashed ${T.green}44`, borderRadius: 20, padding: '48px 24px', textAlign: 'center' as const, cursor: 'pointer', background: `${T.green}04`, marginBottom: 24 }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>{'\uD83E\uDDFE'}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6 }}>Drop receipts here</div>
-            <div style={{ fontSize: 13, color: T.muted }}>Photos, PDFs, screenshots — Byte will read them</div>
+            <div style={{ fontSize: 13, color: T.muted }}>Photos, PDFs, screenshots - Byte will read them</div>
           </div>
           <button onClick={() => receiptCameraRef.current?.click()} style={{ padding: '12px 24px', borderRadius: 12, fontSize: 13, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, margin: '0 auto 24px' }}>{'\uD83D\uDCF7'} Take Photo</button>
           {byteReceiptMsg && (
@@ -734,7 +734,7 @@ export default function UploadPageV2() {
         <AgentFloatingBubble
           letter="B"
           color="#22d3ee"
-          label="Byte — Upload Assistant"
+          label="Byte - Upload Assistant"
           pulse={stats.processing > 0}
           onClick={() => setBytePanelOpen(true)}
         />,

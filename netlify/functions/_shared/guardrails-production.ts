@@ -5,7 +5,7 @@
  * 1. Ingestion settings are TENANT-LOCKED (admin-only, never user prefs)
  * 2. PII masking happens BEFORE any model calls or storage
  * 3. Audit logs store HASHES only (no raw content)
- * 4. Order of operations: Local regex → Moderation → Jailbreak
+ * 4. Order of operations: Local regex -> Moderation -> Jailbreak
  * 5. Service role keys stay server-side (never in VITE_*)
  * 
  * PERFORMANCE:
@@ -435,7 +435,7 @@ export async function runGuardrails(
         // BLOCK on critical or if preset requires blocking
         if (shouldBlock) {
           // Generate user-friendly block message based on categories
-          let blockMessage = "I'm sorry — I can't assist with that request.";
+          let blockMessage = "I'm sorry - I can't assist with that request.";
           
           if (categories['illicit-violent'] || categories['illicit']) {
             blockMessage = "I can't help with hacking, illegal activities, or anything that could cause harm.";

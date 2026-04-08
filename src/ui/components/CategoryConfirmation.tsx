@@ -152,7 +152,7 @@ export function CategoryConfirmation({
             )}
             {lowConfidence.length > 0 && (
               <span>
-                {highConfidence.length > 0 && " • "}
+                {highConfidence.length > 0 && " - "}
                 ⚠️ {lowConfidence.length} need your review
               </span>
             )}
@@ -186,11 +186,11 @@ export function CategoryConfirmation({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-slate-900">
-                    Transaction {result.transaction_id.slice(0, 8)}…
+                    Transaction {result.transaction_id.slice(0, 8)}...
                   </p>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    Source: {result.source} • {result.reason.substring(0, 40)}
-                    {result.reason.length > 40 ? "…" : ""}
+                    Source: {result.source} - {result.reason.substring(0, 40)}
+                    {result.reason.length > 40 ? "..." : ""}
                   </p>
                 </div>
 
@@ -313,7 +313,7 @@ export function CategoryConfirmation({
       {/* Footer: Show hidden count */}
       {hiddenCount > 0 && (
         <div className="mt-4 pt-3 border-t border-slate-200 text-center text-sm text-slate-600">
-          +{hiddenCount} more result{hiddenCount === 1 ? "" : "s"} •{" "}
+          +{hiddenCount} more result{hiddenCount === 1 ? "" : "s"} -{" "}
           <button
             onClick={() => {
               // Reset and show all

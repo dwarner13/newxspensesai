@@ -313,7 +313,7 @@ export function PrimeUnifiedCard({
                 handleCommandSend();
               }
             }}
-            placeholder="Type a command… e.g. Move Sobeys to Groceries"
+            placeholder="Type a command... e.g. Move Sobeys to Groceries"
             className="flex-1 rounded-full border border-emerald-500/25 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none transition-shadow focus:border-emerald-400/40 focus:shadow-[0_0_20px_rgba(16,185,129,0.25)]"
           />
           <select

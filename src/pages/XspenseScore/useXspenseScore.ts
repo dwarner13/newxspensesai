@@ -9,7 +9,7 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   const merchant = (t.merchant_name || "").toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || "").toLowerCase();
   // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign — expenses are stored as negative values
+  // Do NOT use amount sign - expenses are stored as negative values
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
@@ -109,7 +109,7 @@ export function useXspenseScore(): XspenseScoreData {
       { label: "Net flow trend", value: netTrend, status: (netTrend === "positive" ? "pass" : "warn") as "pass" | "warn" | "fail", tip: "" },
     ];
 
-    // 5. Debt Management (15%) — no debts table yet, use neutral score
+    // 5. Debt Management (15%) - no debts table yet, use neutral score
     const debtScore = 65;
     const debtFactors = [
       { label: "Debt tracking", value: "Not set up", status: "warn" as const, tip: "Add debts in Goals & Debt to track your progress." },

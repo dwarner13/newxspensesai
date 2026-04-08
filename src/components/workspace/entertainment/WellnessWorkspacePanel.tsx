@@ -145,10 +145,10 @@ export function WellnessWorkspacePanel() {
           {/* Short list */}
           <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar space-y-2 text-[11px] text-slate-200">
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              🧘 <span className="font-medium">85 wellness score</span> — excellent progress
+              🧘 <span className="font-medium">85 wellness score</span> - excellent progress
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              🔥 <span className="font-medium">12 day streak</span> — keep it up!
+              🔥 <span className="font-medium">12 day streak</span> - keep it up!
             </div>
           </div>
         </div>

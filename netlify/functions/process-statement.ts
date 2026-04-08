@@ -8,14 +8,14 @@
  *             source: 'google_vision'|'claude_vision', period: { start: string|null, end: string|null } }
  *
  * Flow:
- *   1. Decode base64 → Buffer
+ *   1. Decode base64 -> Buffer
  *   2. pdf-parse: extract raw text + compute confidence
- *   3. If confidence ≥ 0.85 → primary path (source = 'google_vision')
- *      Else → Claude Vision fallback (source = 'claude_vision')
+ *   3. If confidence ≥ 0.85 -> primary path (source = 'google_vision')
+ *      Else -> Claude Vision fallback (source = 'claude_vision')
  *   4. Validate & clean extracted transactions
  *   5. Bulk-insert to transactions_staging
  *   6. Upsert import_summaries row
- *   7. Insert ai_activity_events → trigger Byte announcement to Prime
+ *   7. Insert ai_activity_events -> trigger Byte announcement to Prime
  */
 
 import { Handler } from '@netlify/functions';
@@ -134,7 +134,7 @@ async function extractFromText(buffer: Buffer): Promise<{ text: string; confiden
  * Looks for date + description + amount + type patterns anywhere in the text.
  */
 function parseTransactionsFromText(text: string): Omit<ExtractionResult, 'source' | 'rawText' | 'confidence'> {
-  // Global regex — matches transactions even when all content is on one line
+  // Global regex - matches transactions even when all content is on one line
   // Covers ISO dates (YYYY-MM-DD), slash dates, and "Month D, YYYY"
   const txnGlobalRe = /(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\w{3,9}\s+\d{1,2},?\s+\d{4})\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})\s+(DEBIT|CREDIT|debit|credit)/g;
   const periodRe = /(?:statement period|period)[:\s]+(\d{4}-\d{2}-\d{2}|\w+\s+\d{1,2},?\s+\d{4})[^a-z0-9]*(?:to|through|[-–])[^a-z0-9]*(\d{4}-\d{2}-\d{2}|\w+\s+\d{1,2},?\s+\d{4})/gi;
@@ -311,7 +311,7 @@ Format:
   ]
 }
 CRITICAL: Bank statements have multiple number columns (Amounts Deducted, Amounts Added, Balance).
-Use ONLY the Deducted or Added column for amounts. NEVER use the Balance column � it is the running total, not the transaction amount.
+Use ONLY the Deducted or Added column for amounts. NEVER use the Balance column � it is the running total, not the transaction amount.
 If a convenience store purchase appears as $500+, you are reading the Balance column by mistake.
 Preserve spaces in merchant names: "SAVE ON FOODS" not "SAVEONFOODS".
 Return ONLY the JSON object described above with no other text.
@@ -380,7 +380,7 @@ async function extractWithOpenAI(text: string): Promise<Omit<ExtractionResult, '
 }
 
 // ---------------------------------------------------------------------------
-// Cascade: Claude Vision → OpenAI text parsing
+// Cascade: Claude Vision -> OpenAI text parsing
 // ---------------------------------------------------------------------------
 
 async function tryClaudeThenOpenAI(
@@ -407,7 +407,7 @@ async function tryClaudeThenOpenAI(
     }
   }
 
-  // Both AI paths failed — return empty extraction so staging row still gets written
+  // Both AI paths failed - return empty extraction so staging row still gets written
   console.error('[process-statement] All extraction paths failed; returning empty result');
   return {
     period: { start: null, end: null },
@@ -447,7 +447,7 @@ export const handler: Handler = async (event) => {
   console.log(`[process-statement] START importRunId=${importRunId} file=${fileName} user=${userId}`);
 
   try {
-    // Step 1: Decode base64 → Buffer
+    // Step 1: Decode base64 -> Buffer
     const buffer = Buffer.from(base64, 'base64');
 
     // Step 2: Try text extraction with pdf-parse
@@ -457,7 +457,7 @@ export const handler: Handler = async (event) => {
     console.log(`[process-statement] pdf-parse confidence=${confidence.toFixed(3)}`);
 
     if (confidence >= 0.85) {
-      // Primary path: text-based PDF — try heuristic parser
+      // Primary path: text-based PDF - try heuristic parser
       const parsed = parseTransactionsFromText(rawText);
       if (parsed.transactions.length > 0) {
         extraction = {
@@ -468,13 +468,13 @@ export const handler: Handler = async (event) => {
         };
         console.log(`[process-statement] primary path: ${extraction.transactions.length} transactions`);
       } else {
-        // Heuristic parser found 0 transactions despite high-confidence text — fall back to Claude Vision → OpenAI
+        // Heuristic parser found 0 transactions despite high-confidence text - fall back to Claude Vision -> OpenAI
         console.log(`[process-statement] heuristic parser returned 0 transactions, trying Claude Vision`);
         extraction = await tryClaudeThenOpenAI(base64!, mimeType || 'application/pdf', rawText);
         console.log(`[process-statement] ai fallback: ${extraction.transactions.length} transactions via ${extraction.source}`);
       }
     } else {
-      // Fallback: Claude Vision → OpenAI (low confidence or pdf-parse failure)
+      // Fallback: Claude Vision -> OpenAI (low confidence or pdf-parse failure)
       console.log(`[process-statement] confidence=${confidence.toFixed(3)} below threshold, trying Claude Vision`);
       extraction = await tryClaudeThenOpenAI(base64, mimeType || 'application/pdf', rawText);
       console.log(`[process-statement] ai fallback: ${extraction.transactions.length} transactions via ${extraction.source}`);
@@ -555,10 +555,10 @@ export const handler: Handler = async (event) => {
 
     if (summaryError) {
       console.error('[process-statement] import_summaries upsert error:', summaryError);
-      // Non-fatal — staging rows are already committed
+      // Non-fatal - staging rows are already committed
     }
 
-    // Step 6: Insert ai_activity_events → triggers Byte announcement
+    // Step 6: Insert ai_activity_events -> triggers Byte announcement
     const { error: eventError } = await sb.from('ai_activity_events').insert({
       event_type: 'byte.import.completed',
       user_id: userId,
@@ -627,7 +627,7 @@ export const handler: Handler = async (event) => {
         { onConflict: 'import_id' }
       );
     } catch {
-      // ignore — we're already in error handler
+      // ignore - we're already in error handler
     }
 
     return {

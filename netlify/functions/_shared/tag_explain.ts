@@ -125,7 +125,7 @@ export async function explainTransactionCategory(
     }
 
     if (merchantSeenCount >= 3 && dominantCat && dominantCat !== category) {
-      proactiveInsights.push(`🔄 You usually tag ${merchant} as ${dominantCat} (${dominantCatCount}/${merchantSeenCount} times). This one is ${category} — is that right?`);
+      proactiveInsights.push(`🔄 You usually tag ${merchant} as ${dominantCat} (${dominantCatCount}/${merchantSeenCount} times). This one is ${category} - is that right?`);
     }
 
     if (merchantSeenCount === 0 && !category) {

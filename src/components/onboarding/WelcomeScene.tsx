@@ -21,7 +21,7 @@ interface WelcomeSceneProps {
 
 const WELCOME_LINES = [
   "Welcome to XspensesAI.",
-  "I'm Prime — your financial operating system.",
+  "I'm Prime - your financial operating system.",
   "Custodian will personalize XspensesAI in under a minute.",
 ];
 

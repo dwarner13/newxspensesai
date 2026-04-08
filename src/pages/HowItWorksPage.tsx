@@ -26,7 +26,7 @@ const HowItWorksPage = () => {
           >
             <h1 className="text-4xl md:text-5xl font-bold mb-6">How XspensesAI Works</h1>
             <p className="text-xl text-gray-700 max-w-3xl  mb-8">
-              From receipt to insight — see how our AI handles your expenses with zero stress.
+              From receipt to insight - see how our AI handles your expenses with zero stress.
             </p>
             <Link
               to="/signup"
@@ -55,7 +55,7 @@ const HowItWorksPage = () => {
               </div>
               <p className="text-lg text-gray-600 mb-6">
                 Drag and drop images, snap photos from your phone, or upload PDFs from email or desktop.
-                XspensesAI uses smart OCR to scan and extract every detail — vendor, date, amount, and category hints.
+                XspensesAI uses smart OCR to scan and extract every detail - vendor, date, amount, and category hints.
               </p>
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <h3 className="font-medium text-gray-900 mb-2">Supported Formats:</h3>
@@ -113,7 +113,7 @@ const HowItWorksPage = () => {
               </div>
               <p className="text-lg text-gray-600 mb-6">
                 Our machine learning engine auto-categorizes each transaction.
-                From coffee runs to office supplies — everything lands in the right place.
+                From coffee runs to office supplies - everything lands in the right place.
                 You can always edit or add custom rules.
               </p>
               <div className="space-y-4">
@@ -222,7 +222,7 @@ const HowItWorksPage = () => {
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Start Smarter Today</h2>
             <p className="text-xl opacity-90 mb-8 max-w-3xl ">
-              No more guessing where your money goes. Let XspensesAI guide your financial journey — one receipt at a time.
+              No more guessing where your money goes. Let XspensesAI guide your financial journey - one receipt at a time.
             </p>
             <Link
               to="/signup"

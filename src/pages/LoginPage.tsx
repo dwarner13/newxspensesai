@@ -413,7 +413,7 @@ export default function LoginPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="block w-full pl-12 pr-12 py-3 border border-white/10 rounded-xl bg-white/5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400/50 transition-all text-sm"
-                            placeholder="••••••••"
+                            placeholder="--------"
                           />
                           <button
                             type="button"
@@ -444,7 +444,7 @@ export default function LoginPage() {
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 className="block w-full pl-12 pr-4 py-3 border border-white/10 rounded-xl bg-white/5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400/50 transition-all text-sm"
-                                placeholder="••••••••"
+                                placeholder="--------"
                               />
                             </div>
                           </div>

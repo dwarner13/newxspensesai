@@ -237,7 +237,7 @@ const ByteLabPage: React.FC = () => {
                     <div className="doc-icon">{getDocIcon(item.type)}</div>
                     <div className="doc-info">
                       <div className="doc-name">{item.name}</div>
-                      <div className="doc-stats">{item.transactions} transactions • {item.time} • {item.accuracy} accuracy</div>
+                      <div className="doc-stats">{item.transactions} transactions - {item.time} - {item.accuracy} accuracy</div>
                       <div className="byte-comment">"{item.comment}"</div>
                     </div>
                   </div>

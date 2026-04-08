@@ -84,7 +84,7 @@ export function useCategoryRules(): UseCategoryRulesResult {
           setRules(decodedRules);
         }
       } catch {
-        // table may not exist yet — return empty silently
+        // table may not exist yet - return empty silently
         categoryRulesTableUnavailable = true;
         if (!cancelled) setRules([]);
       } finally {

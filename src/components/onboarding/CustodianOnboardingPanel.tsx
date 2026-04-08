@@ -41,7 +41,7 @@ const PRIMARY_GOALS = [
 ];
 
 const STEP_PROMPTS = {
-  name: "Hi — I'm Custodian.\n\nI'll personalize everything around you. This takes under a minute.\n\nFirst — what should I call you?",
+  name: "Hi - I'm Custodian.\n\nI'll personalize everything around you. This takes under a minute.\n\nFirst - what should I call you?",
   level: "How comfortable are you with finances?",
   goal: "What do you want help with first?",
   done: "All set.",

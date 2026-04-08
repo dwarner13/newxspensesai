@@ -438,7 +438,7 @@ export class TagCategorizationBrain {
 
   // Learning from user corrections
   async learnFromCorrection(userId: string, transaction: Transaction, oldCategory: string, newCategory: string): Promise<void> {
-    console.log(`🏷️ Tag: Learning from correction - ${transaction.merchant}: ${oldCategory} → ${newCategory}`);
+    console.log(`🏷️ Tag: Learning from correction - ${transaction.merchant}: ${oldCategory} -> ${newCategory}`);
     
     const userPatterns = this.userPatterns.get(userId) || [];
     

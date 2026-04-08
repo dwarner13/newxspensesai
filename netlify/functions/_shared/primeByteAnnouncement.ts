@@ -52,7 +52,7 @@ export async function announceByteCompletionToPrime(
 
       if (eventError) {
         if (isMissingColumnError(eventError)) {
-          // announced_at column not yet in schema — degrade gracefully.
+          // announced_at column not yet in schema - degrade gracefully.
           console.warn('[announceByteCompletionToPrime] announced_at column missing; falling back to most-recent event');
           const { data: fallback, error: fallbackErr } = await sb
             .from('ai_activity_events')

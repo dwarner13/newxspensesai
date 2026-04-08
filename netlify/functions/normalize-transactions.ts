@@ -55,12 +55,12 @@ const NORMALIZE_DEBUG_ENABLED =
 const NETLIFY_DEV_SOFT_TIMEOUT_MS = Number(process.env.NORMALIZE_DEV_SOFT_TIMEOUT_MS || 22000);
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ISSUER_PATTERNS = [
-  { match: /triangle/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /canadian tire/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /ctfs/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /ct financial/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /canadian tire bank/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /world elite mastercard/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /triangle/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /canadian tire/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /ctfs/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /ct financial/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /canadian tire bank/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /world elite mastercard/i, name: 'Canadian Tire - Triangle Mastercard' },
   { match: /capital one/i, name: 'Capital One' },
   { match: /td bank|td canada trust/i, name: 'TD Bank' },
   { match: /rbc|royal bank of canada/i, name: 'RBC' },
@@ -1106,7 +1106,7 @@ async function processNormalizationInBackground(
 
     // Parse balance/payment fields from OCR text and store in user_documents.metadata.statement_summary
     // so commit-import.ts and the chat live fallback can include them in the breakdown.
-    // NOTE: imports.metadata column does not exist — user_documents.metadata is used instead.
+    // NOTE: imports.metadata column does not exist - user_documents.metadata is used instead.
     const toMoney = (val: string | undefined): number | null => {
       if (!val) return null;
       const n = parseFloat(String(val).replace(/,/g, ''));
@@ -1137,7 +1137,7 @@ async function processNormalizationInBackground(
       .eq('id', importRecord.id);
 
     // Store BMO statement-level closing totals in imports.statement_breakdown_json for accurate
-    // STATEMENT SNAPSHOT display. These come directly from the "Closing totals" line — authoritative
+    // STATEMENT SNAPSHOT display. These come directly from the "Closing totals" line - authoritative
     // and independent of staging row amounts (which can be inflated by OCR parsing errors or
     // SHA-256 dedup collisions on same-day same-amount entries).
     // Uses the existing statement_breakdown_json JSONB column (added in 20260301 migration).

@@ -46,7 +46,7 @@ const CreditScoreCard = ({ score, change = 0, lastUpdated, nextUpdate }: CreditS
       <div className="flex items-center text-sm text-gray-600">
         <div className="flex items-center">
           <span className="mr-1">Updated {lastUpdated}</span>
-          <span className="mx-2">•</span>
+          <span className="mx-2">-</span>
           <span>Next update {nextUpdate}</span>
         </div>
       </div>

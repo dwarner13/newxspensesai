@@ -56,7 +56,7 @@ export function triggerPrimeUpload(source: string = 'rail'): void {
 const MINI_WORKSPACES: MiniWorkspaceConfig[] = [
   {
     id: 'prime',
-    name: 'Prime — Command Center',
+    name: 'Prime - Command Center',
     role: 'AI CEO & router',
     slug: 'prime-boss',
     pagePath: '/dashboard/prime-chat',
@@ -67,7 +67,7 @@ const MINI_WORKSPACES: MiniWorkspaceConfig[] = [
   },
   {
     id: 'byte',
-    name: 'Byte — Smart Import AI',
+    name: 'Byte - Smart Import AI',
     role: 'Document & receipt processing',
     slug: 'byte-docs',
     pagePath: '/dashboard/smart-import-ai',
@@ -78,7 +78,7 @@ const MINI_WORKSPACES: MiniWorkspaceConfig[] = [
   },
   {
     id: 'tag',
-    name: 'Tag — Smart Categories',
+    name: 'Tag - Smart Categories',
     role: 'Auto-categorization & rules',
     slug: 'tag-ai',
     pagePath: '/dashboard/smart-categories',
@@ -89,7 +89,7 @@ const MINI_WORKSPACES: MiniWorkspaceConfig[] = [
   },
   {
     id: 'analytics',
-    name: 'Crystal — Analytics AI',
+    name: 'Crystal - Analytics AI',
     role: 'Spending insights & reports',
     slug: 'crystal-analytics',
     pagePath: '/dashboard/analytics-ai',
@@ -175,7 +175,7 @@ export default function DesktopChatSideBar({
     return {
       count: activeUploadJobs.length,
       progress,
-      leadTitle: leadTitle.length > 46 ? `${leadTitle.slice(0, 45)}…` : leadTitle,
+      leadTitle: leadTitle.length > 46 ? `${leadTitle.slice(0, 45)}...` : leadTitle,
       isActive: activeUploadJobs.length > 0,
       stageText: activeUploadJobs.length > 0 ? stageText : 'Upload a statement to start OCR + categorization.',
     };
@@ -373,7 +373,7 @@ export default function DesktopChatSideBar({
     if (actionId === 'ai-pulse') {
       return {
         title: 'AI Pulse HUD',
-        subtitle: `${runningCount} running • ${needsUserCount} needs input`,
+        subtitle: `${runningCount} running - ${needsUserCount} needs input`,
         showProgress: false,
         progress: 0,
         detail: unreadAiCount > 0 ? `${unreadAiCount} unread AI alert${unreadAiCount === 1 ? '' : 's'}` : 'No pending AI alerts.',

@@ -57,12 +57,12 @@ const PrimeChatInterface: React.FC<PrimeChatInterfaceProps> = ({ isOpen, onClose
 I've assembled your complete financial team of 30+ specialized AI employees. We're ready to tackle any financial challenge you have.
 
 **What can we accomplish together today?**
-• Upload and process documents
-• Analyze spending patterns  
-• Optimize taxes and deductions
-• Create debt payoff strategies
-• Set and track financial goals
-• And much more!
+- Upload and process documents
+- Analyze spending patterns  
+- Optimize taxes and deductions
+- Create debt payoff strategies
+- Set and track financial goals
+- And much more!
 
 Just tell me what you need, and I'll connect you with the right expert.`,
         employee: {
@@ -336,7 +336,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
                     <span className="text-xs text-gray-400">{message.employee.name}</span>
                     {message.handoff && (
                       <span className="text-xs text-blue-400">
-                        → {AIEmployees[message.handoff.to]?.name}
+                        -> {AIEmployees[message.handoff.to]?.name}
                       </span>
                     )}
                   </div>
@@ -443,7 +443,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
           </div>
           
           <div className="mt-2 text-xs text-gray-500">
-            Prime coordinates your complete AI financial team • 30+ specialized employees ready to help
+            Prime coordinates your complete AI financial team - 30+ specialized employees ready to help
           </div>
         </div>
       </div>

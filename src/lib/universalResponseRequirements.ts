@@ -54,7 +54,7 @@ export class UniversalResponseRequirements {
       issues.push({
         type: 'incomplete_task_loop',
         severity: 'high',
-        description: 'Response does not complete the full task loop (process → analyze → deliver → next actions)',
+        description: 'Response does not complete the full task loop (process -> analyze -> deliver -> next actions)',
         suggestion: 'Ensure response includes analysis, delivery of results, and clear next actions'
       });
     } else {

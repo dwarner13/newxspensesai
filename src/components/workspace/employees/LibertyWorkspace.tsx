@@ -23,7 +23,7 @@ export function LibertyWorkspace({ open, onClose, conversationId, initialQuestio
       open={open}
       onClose={onClose}
       employeeSlug="liberty-ai"
-      title="Liberty — Financial Freedom"
+      title="Liberty - Financial Freedom"
       subtitle="Financial freedom specialist · Helps you break free from debt and achieve financial independence."
       workspaceLabel="Freedom Workspace"
       avatarEmoji={theme.emoji}

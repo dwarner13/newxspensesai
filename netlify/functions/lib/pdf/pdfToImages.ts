@@ -224,7 +224,7 @@ export async function pdfToImages(
     Path2D: typeof (globalThis as any).Path2D !== 'undefined',
   };
   if ((!polyfillsReady.DOMMatrix || !polyfillsReady.ImageData || !polyfillsReady.Path2D) && !warnedMissingPdfPolyfills) {
-    console.warn('[OCR] PDF polyfill missing — scanned rendering may degrade');
+    console.warn('[OCR] PDF polyfill missing - scanned rendering may degrade');
     warnedMissingPdfPolyfills = true;
   }
   if (!loggedPdfPolyfillStatus) {

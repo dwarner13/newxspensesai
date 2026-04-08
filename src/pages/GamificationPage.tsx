@@ -251,19 +251,19 @@ const GamificationPage = () => {
             <h3 className="font-semibold text-gray-900 mb-2">Earn XP</h3>
             <ul className="text-sm text-gray-600 space-y-2">
               <li className="flex items-start">
-                <span className="text-primary-600 mr-2">•</span>
+                <span className="text-primary-600 mr-2">-</span>
                 <span>Upload statements (+15 XP)</span>
               </li>
               <li className="flex items-start">
-                <span className="text-primary-600 mr-2">•</span>
+                <span className="text-primary-600 mr-2">-</span>
                 <span>Scan receipts (+10 XP)</span>
               </li>
               <li className="flex items-start">
-                <span className="text-primary-600 mr-2">•</span>
+                <span className="text-primary-600 mr-2">-</span>
                 <span>Categorize transactions (+20 XP)</span>
               </li>
               <li className="flex items-start">
-                <span className="text-primary-600 mr-2">•</span>
+                <span className="text-primary-600 mr-2">-</span>
                 <span>Daily login streak (+2 XP/day)</span>
               </li>
             </ul>
@@ -276,19 +276,19 @@ const GamificationPage = () => {
             <h3 className="font-semibold text-gray-900 mb-2">Level Up</h3>
             <ul className="text-sm text-gray-600 space-y-2">
               <li className="flex items-start">
-                <span className="text-secondary-600 mr-2">•</span>
+                <span className="text-secondary-600 mr-2">-</span>
                 <span>Gain levels as you earn XP</span>
               </li>
               <li className="flex items-start">
-                <span className="text-secondary-600 mr-2">•</span>
+                <span className="text-secondary-600 mr-2">-</span>
                 <span>Each level requires more XP</span>
               </li>
               <li className="flex items-start">
-                <span className="text-secondary-600 mr-2">•</span>
+                <span className="text-secondary-600 mr-2">-</span>
                 <span>Unlock new titles and badges</span>
               </li>
               <li className="flex items-start">
-                <span className="text-secondary-600 mr-2">•</span>
+                <span className="text-secondary-600 mr-2">-</span>
                 <span>Track your financial mastery</span>
               </li>
             </ul>
@@ -301,19 +301,19 @@ const GamificationPage = () => {
             <h3 className="font-semibold text-gray-900 mb-2">Earn Badges</h3>
             <ul className="text-sm text-gray-600 space-y-2">
               <li className="flex items-start">
-                <span className="text-accent-600 mr-2">•</span>
+                <span className="text-accent-600 mr-2">-</span>
                 <span>Complete achievements</span>
               </li>
               <li className="flex items-start">
-                <span className="text-accent-600 mr-2">•</span>
+                <span className="text-accent-600 mr-2">-</span>
                 <span>Maintain daily streaks</span>
               </li>
               <li className="flex items-start">
-                <span className="text-accent-600 mr-2">•</span>
+                <span className="text-accent-600 mr-2">-</span>
                 <span>Reach milestone levels</span>
               </li>
               <li className="flex items-start">
-                <span className="text-accent-600 mr-2">•</span>
+                <span className="text-accent-600 mr-2">-</span>
                 <span>Each badge awards bonus XP</span>
               </li>
             </ul>

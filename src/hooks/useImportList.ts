@@ -72,7 +72,7 @@ function buildStatementLabel(
   const accountLast4 = String(statementMeta?.account_last4 || '').trim();
 
   if (issuer) {
-    return accountLast4 ? `${issuer} • ••••${accountLast4}` : issuer;
+    return accountLast4 ? `${issuer} - ----${accountLast4}` : issuer;
   }
 
   const docMetadata = (doc?.metadata as Record<string, unknown> | null) || null;

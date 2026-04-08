@@ -42,7 +42,7 @@ export function PrimeBriefingPanel() {
         className="fixed inset-0 z-[50] bg-slate-950/50 backdrop-blur-[2px]"
         onClick={() => setIsOpen(false)}
       />
-      {/* Panel — capture and stop all key events */}
+      {/* Panel - capture and stop all key events */}
       <div
         className="fixed top-0 right-0 z-[51] h-full w-full md:w-[560px] shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
         style={{

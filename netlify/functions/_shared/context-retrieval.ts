@@ -210,7 +210,7 @@ export async function retrieveContext(params: {
 
   // Format memories with similarity scores
   const memorySnippets = topMemory
-    .map(m => `• ${m.content_redacted} (${(m.similarity * 100).toFixed(0)}% match)`)
+    .map(m => `- ${m.content_redacted} (${(m.similarity * 100).toFixed(0)}% match)`)
     .join('\n');
 
   // Format tasks (due_date and description columns don't exist, use default text)

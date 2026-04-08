@@ -136,16 +136,16 @@ RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 FACTS (stable personal/business info):
-✓ "age" → "32"
-✓ "business_type" → "freelance consulting"
-✓ "home_city" → "Toronto"
-✓ "savings_goal" → "$50k by Dec 2026"
+✓ "age" -> "32"
+✓ "business_type" -> "freelance consulting"
+✓ "home_city" -> "Toronto"
+✓ "savings_goal" -> "$50k by Dec 2026"
 ✗ Don't extract: temporary statements, questions, current transactions
 
 PREFERENCES (stable settings/ways of working):
-✓ "export_format" → "CSV"
-✓ "notification_frequency" → "weekly"
-✓ "budget_tracking" → "envelope method"
+✓ "export_format" -> "CSV"
+✓ "notification_frequency" -> "weekly"
+✓ "budget_tracking" -> "envelope method"
 ✗ Don't extract: one-time choices, vague likes
 
 TASKS (explicit commitments with clear action):
@@ -154,8 +154,8 @@ TASKS (explicit commitments with clear action):
 ✗ Don't extract: vague ideas ("I should probably..."), questions
 
 CORRECTIONS (explicit updates/fixes):
-✓ "business_name" → "Acme Corp" (was "ABC Inc")
-✓ "budget_limit" → "$3000" (was "$2500")
+✓ "business_name" -> "Acme Corp" (was "ABC Inc")
+✓ "budget_limit" -> "$3000" (was "$2500")
 ✗ Don't extract: casual clarifications
 
 CONFIDENCE SCORING:

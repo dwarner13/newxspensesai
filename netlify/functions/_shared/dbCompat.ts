@@ -1,5 +1,5 @@
 /**
- * Database compatibility helpers — single source of truth.
+ * Database compatibility helpers - single source of truth.
  *
  * Use these to detect Supabase/PostgREST schema-drift errors and degrade
  * gracefully instead of returning 500.  Import this instead of duplicating

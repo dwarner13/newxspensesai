@@ -15,8 +15,8 @@ interface CustodianWarmupPanelProps {
 }
 
 const WARMUP_LINES = [
-  "Loading your workspace…",
-  "Checking preferences…",
+  "Loading your workspace...",
+  "Checking preferences...",
   "Ready in a moment.",
 ];
 
@@ -94,7 +94,7 @@ export function CustodianWarmupPanel({ isMobile = false }: CustodianWarmupPanelP
             transition={{ duration: 0.4, delay: 0.3 }}
             className="text-sm text-slate-400 mb-8"
           >
-            Preparing your setup…
+            Preparing your setup...
           </motion.p>
 
           {/* Sequential Lines */}

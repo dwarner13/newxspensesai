@@ -424,7 +424,7 @@ export default function DashboardPrimeChat({ isOpen, onClose, initialGreeting, i
               </button>
             </div>
             <p className="text-[10px] text-gray-500 mt-2 text-center">
-              ✅ Protected by guardrails • 🔒 PII detection active
+              ✅ Protected by guardrails - 🔒 PII detection active
             </p>
           </div>
         </>

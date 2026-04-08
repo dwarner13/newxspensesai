@@ -14,7 +14,7 @@ import type { EmployeeStat } from '../../../config/employeeDisplayConfig';
 interface TagUnifiedCardProps {
   onExpandClick?: () => void;
   onChatInputClick?: () => void;
-  /** Real stats from Supabase — overrides hardcoded config defaults when provided */
+  /** Real stats from Supabase - overrides hardcoded config defaults when provided */
   stats?: EmployeeStat[];
 }
 

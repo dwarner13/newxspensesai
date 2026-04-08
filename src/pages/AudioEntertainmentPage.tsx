@@ -288,7 +288,7 @@ export default function AudioEntertainmentPage() {
                     {track.artist}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-                    {track.album} • {formatTime(track.duration)}
+                    {track.album} - {formatTime(track.duration)}
                   </p>
                   <button
                     onClick={() => handlePlayDemo(track)}

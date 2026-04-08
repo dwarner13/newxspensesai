@@ -71,7 +71,7 @@ export default function LoginPageV2() {
       <div style={{ position: "absolute", top: -200, left: -200, width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent}08 0%, transparent 70%)`, filter: "blur(80px)" }} />
       <div style={{ position: "absolute", bottom: -200, right: -100, width: 500, height: 500, borderRadius: "50%", background: `radial-gradient(circle, ${C.purple}06 0%, transparent 70%)`, filter: "blur(80px)" }} />
 
-      {/* LEFT — Brand (hidden on mobile) */}
+      {/* LEFT - Brand (hidden on mobile) */}
       <div style={{
         flex: 1, padding: isMobile ? "40px 24px 20px" : "60px 80px",
         display: isMobile ? "none" : "flex", flexDirection: "column",
@@ -134,7 +134,7 @@ export default function LoginPageV2() {
         </div>
       </div>
 
-      {/* RIGHT — Form */}
+      {/* RIGHT - Form */}
       <div style={{
         width: isMobile ? "100%" : 440, padding: isMobile ? "32px 24px" : "40px 36px",
         display: "flex", flexDirection: "column",

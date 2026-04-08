@@ -69,7 +69,7 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
 
       {open && (
         <div style={{ borderTop: "1px solid " + T.border }}>
-          {/* Column headers — desktop only */}
+          {/* Column headers - desktop only */}
           <div className="reports-row-header" style={{ display: window.innerWidth >= 768 ? "grid" : "none", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "8px 18px", fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: 1 }}>
             <span>Statement Period</span><span>Transactions</span><span>Spent</span><span>Income</span><span />
           </div>
@@ -81,7 +81,7 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
                 <span style={{ color: T.muted }}>{s.txCount}</span>
                 <span style={{ color: T.red, fontWeight: 600 }}>{fmtCAD(s.totalSpent)}</span>
                 <span style={{ color: T.green, fontWeight: 600 }}>{fmtCAD(s.totalIncome)}</span>
-                <button onClick={() => navigate("/dashboard/transactions?importId=" + s.importId)} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: T.gold + "12", border: "1px solid " + T.gold + "28", color: T.gold, cursor: "pointer" }}>View →</button>
+                <button onClick={() => navigate("/dashboard/transactions?importId=" + s.importId)} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: T.gold + "12", border: "1px solid " + T.gold + "28", color: T.gold, cursor: "pointer" }}>View -></button>
               </div>
               {/* Mobile card */}
               <div style={{ display: window.innerWidth < 768 ? "flex" : "none", alignItems: "center", padding: "10px 18px", gap: 10 }}>
@@ -90,7 +90,7 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
                   <div style={{ color: T.muted, fontSize: 12, marginTop: 2 }}>{s.txCount} transactions · {fmtCAD(s.totalSpent)} spent</div>
                   {s.totalIncome > 0 && <div style={{ color: T.green, fontSize: 12, marginTop: 1 }}>{fmtCAD(s.totalIncome)} income</div>}
                 </div>
-                <button onClick={() => navigate("/dashboard/transactions?importId=" + s.importId)} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: T.gold + "12", border: "1px solid " + T.gold + "28", color: T.gold, cursor: "pointer", flexShrink: 0 }}>View →</button>
+                <button onClick={() => navigate("/dashboard/transactions?importId=" + s.importId)} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: T.gold + "12", border: "1px solid " + T.gold + "28", color: T.gold, cursor: "pointer", flexShrink: 0 }}>View -></button>
               </div>
             </div>
           ))}
@@ -271,9 +271,9 @@ export default function ReportsPageV2() {
   // ── Chart insights ──
   const chartInsights = useMemo(() => {
     const trends = data.monthlyTrends;
-    if (trends.length === 0) return { highMonth: "—", avgSpend: 0, trendPct: 0 };
+    if (trends.length === 0) return { highMonth: "-", avgSpend: 0, trendPct: 0 };
     const sorted = [...trends].sort((a, b) => b.spent - a.spent);
-    const highMonth = sorted[0]?.month || "—";
+    const highMonth = sorted[0]?.month || "-";
     const avgSpend = Math.round(trends.reduce((s, t) => s + t.spent, 0) / trends.length);
     const trendPct = trends.length >= 2 ? Math.round(((trends[trends.length - 1].spent - trends[trends.length - 2].spent) / (trends[trends.length - 2].spent || 1)) * 100) : 0;
     return { highMonth, avgSpend, trendPct };
@@ -358,14 +358,14 @@ export default function ReportsPageV2() {
             <div style={{ borderRadius: 14, border: "1px dashed " + T.border, padding: "14px 18px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 10, height: 10, borderRadius: "50%", background: ISSUER_COLORS[name] || T.dim, opacity: 0.4 }} />
               <span style={{ fontSize: 13, color: T.dim, flex: 1 }}>Upload {name} statement to populate this section</span>
-              <button onClick={() => navigate("/dashboard/upload")} style={{ padding: "5px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: "1px solid " + T.border, color: T.muted, cursor: "pointer" }}>Upload →</button>
+              <button onClick={() => navigate("/dashboard/upload")} style={{ padding: "5px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: "1px solid " + T.border, color: T.muted, cursor: "pointer" }}>Upload -></button>
             </div>
           </Reveal>
         ))}
 
         {/* ═══ E. Two-column panel row ═══ */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 24, marginBottom: 24 }}>
-          {/* LEFT — Crystal Trends */}
+          {/* LEFT - Crystal Trends */}
           <Reveal delay={350}>
             <div style={{ borderRadius: 14, border: "1px solid " + T.border, background: T.surface, padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
@@ -393,11 +393,11 @@ export default function ReportsPageV2() {
                 <span style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, background: T.purple + "12", color: T.purple, fontWeight: 600 }}>Avg: {fmtCAD(chartInsights.avgSpend)}/mo</span>
                 <span style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, background: T.purple + "12", color: T.purple, fontWeight: 600 }}>{chartInsights.trendPct >= 0 ? "\u2191" : "\u2193"} {Math.abs(chartInsights.trendPct)}%</span>
               </div>
-              <button onClick={() => { setChatAgent("Crystal"); sendChat("What are my spending trends?"); }} style={{ marginTop: 12, width: "100%", padding: "8px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: T.purple + "12", border: "1px solid " + T.purple + "28", color: T.purple, cursor: "pointer" }}>Ask Crystal →</button>
+              <button onClick={() => { setChatAgent("Crystal"); sendChat("What are my spending trends?"); }} style={{ marginTop: 12, width: "100%", padding: "8px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: T.purple + "12", border: "1px solid " + T.purple + "28", color: T.purple, cursor: "pointer" }}>Ask Crystal -></button>
             </div>
           </Reveal>
 
-          {/* RIGHT — Prime Checklist */}
+          {/* RIGHT - Prime Checklist */}
           <Reveal delay={400}>
             <div style={{ borderRadius: 14, border: "1px solid " + T.border, background: T.surface, padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
@@ -422,7 +422,7 @@ export default function ReportsPageV2() {
                 <span style={{ color: T.dim }}>FreshBooks income</span>
                 <span style={{ fontSize: 10, color: T.dim, marginLeft: "auto" }}>Coming soon</span>
               </div>
-              <button onClick={() => exportCSV()} style={{ marginTop: 12, width: "100%", padding: "8px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: "transparent", border: "1px solid " + T.gold + "44", color: T.gold, cursor: "pointer" }}>Generate Accountant Summary →</button>
+              <button onClick={() => exportCSV()} style={{ marginTop: 12, width: "100%", padding: "8px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: "transparent", border: "1px solid " + T.gold + "44", color: T.gold, cursor: "pointer" }}>Generate Accountant Summary -></button>
             </div>
           </Reveal>
         </div>
@@ -542,7 +542,7 @@ export default function ReportsPageV2() {
         <Reveal delay={550}>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "16px 0", borderTop: "1px solid " + T.border, marginTop: 8 }}>
             <button onClick={exportCSV} style={{ padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: T.surface, border: "1px solid " + T.border, color: T.muted, cursor: "pointer" }}>⬇ Download CSV</button>
-            <button onClick={() => navigate("/dashboard/tax-summary")} style={{ padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 16px " + T.gold + "35" }}>Send to Tax Summary →</button>
+            <button onClick={() => navigate("/dashboard/tax-summary")} style={{ padding: "10px 20px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 16px " + T.gold + "35" }}>Send to Tax Summary -></button>
           </div>
         </Reveal>
       </div>

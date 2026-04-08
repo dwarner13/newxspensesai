@@ -39,7 +39,7 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
           </div>
         </div>
         <div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e', marginBottom: 6 }}>$0</div>
-        <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 12 }}>Books are clean — ready for Tax Summary</div>
+        <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 12 }}>Books are clean - ready for Tax Summary</div>
         <button
           onClick={e => { e.stopPropagation(); navigate('/dashboard/tax-summary'); }}
           style={{

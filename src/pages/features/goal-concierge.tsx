@@ -438,7 +438,7 @@ const GoalConciergePage = () => {
                   ) : (
                     <div>
                       <div className="text-xs text-white/70 mb-1">
-                        Goalie • Wealth Architect
+                        Goalie - Wealth Architect
                       </div>
                       {currentResponse}
                     </div>
@@ -451,28 +451,28 @@ const GoalConciergePage = () => {
                 <>
                   <div className="flex justify-start">
                     <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-2xl rounded-bl-md max-w-md">
-                      <div className="text-xs text-white/70 mb-1">Finley • Financial Intelligence</div>
+                      <div className="text-xs text-white/70 mb-1">Finley - Financial Intelligence</div>
                       {getCurrentGoal().finley}
           </div>
         </div>
         
                   <div className="flex justify-start">
                     <div className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white px-4 py-2 rounded-2xl rounded-bl-md max-w-md">
-                      <div className="text-xs text-white/70 mb-1">Crystal • Future Predictor</div>
+                      <div className="text-xs text-white/70 mb-1">Crystal - Future Predictor</div>
                       {getCurrentGoal().crystal}
         </div>
           </div>
           
                   <div className="flex justify-start">
                     <div className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-4 py-2 rounded-2xl rounded-bl-md max-w-md">
-                      <div className="text-xs text-white/70 mb-1">Nova • Opportunity Spotter</div>
+                      <div className="text-xs text-white/70 mb-1">Nova - Opportunity Spotter</div>
                       {getCurrentGoal().nova}
                     </div>
           </div>
           
                   <div className="flex justify-start">
                     <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-2xl rounded-bl-md max-w-md">
-                      <div className="text-xs text-white/70 mb-1">Wisdom • Strategic Advisor</div>
+                      <div className="text-xs text-white/70 mb-1">Wisdom - Strategic Advisor</div>
                       {getCurrentGoal().wisdom}
                     </div>
                   </div>

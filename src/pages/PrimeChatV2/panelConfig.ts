@@ -1,11 +1,11 @@
 /**
- * Global panel design tokens — imported by all agent copilot panels.
+ * Global panel design tokens - imported by all agent copilot panels.
  * Change a value here and it updates every agent panel automatically.
  */
 export const PANEL = {
   // Typography
   messageFontSize: 16,   // readable on all screens, prevents iOS Safari auto-zoom
-  inputFontSize: 16,     // MUST stay 16+ — iOS zooms the page on inputs below 16px
+  inputFontSize: 16,     // MUST stay 16+ - iOS zooms the page on inputs below 16px
   labelFontSize: 12,
   metaFontSize: 10,
   lineHeight: 1.65,

@@ -1,7 +1,7 @@
 /**
  * Upload File with Progress Tracking
  * 
- * Wraps the canonical upload pipeline (smart-import-init → upload → finalize)
+ * Wraps the canonical upload pipeline (smart-import-init -> upload -> finalize)
  * with progress tracking for use with UploadQueue.
  */
 

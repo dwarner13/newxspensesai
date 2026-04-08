@@ -265,10 +265,10 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
                     const DISABLE_HANDOFFS = import.meta.env.VITE_DISABLE_AUTO_HANDOFFS === 'true';
                     if (DISABLE_HANDOFFS) {
                       // Quiet mode: ignore auto-handoff to prevent storms
-                      warn(`[useStreamChat] 🚫 Auto-handoff disabled by env flag. Ignoring handoff event: ${event.from} → ${event.to}`);
+                      warn(`[useStreamChat] 🚫 Auto-handoff disabled by env flag. Ignoring handoff event: ${event.from} -> ${event.to}`);
                       break;
                     }
-                    log(`[useStreamChat] 🔄 Handoff detected: ${event.from} → ${event.to}`, {
+                    log(`[useStreamChat] 🔄 Handoff detected: ${event.from} -> ${event.to}`, {
                       reason: event.reason,
                       summary: event.summary,
                     });

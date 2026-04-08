@@ -41,7 +41,7 @@ export async function requestOcrProcessing(
   const importRunId = requestId || `import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   try {
-    // Convert File → base64
+    // Convert File -> base64
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binary = '';

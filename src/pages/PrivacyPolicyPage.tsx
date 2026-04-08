@@ -72,10 +72,10 @@ export default function PrivacyPolicyPage() {
                   We use your data to:
                 </p>
                 <ul className="space-y-2 text-gray-700">
-                  <li>• Provide and improve the service</li>
-                  <li>• Generate AI-powered reports</li>
-                  <li>• Communicate updates and support</li>
-                  <li>• Comply with legal obligations</li>
+                  <li>- Provide and improve the service</li>
+                  <li>- Generate AI-powered reports</li>
+                  <li>- Communicate updates and support</li>
+                  <li>- Comply with legal obligations</li>
                 </ul>
               </div>
             </section>
@@ -157,11 +157,11 @@ export default function PrivacyPolicyPage() {
             <Link to="/terms" className="hover:text-gray-700 transition-colors">
               Terms of Service
             </Link>
-            <span>•</span>
+            <span>-</span>
             <a href="mailto:support@xspensesai.com" className="hover:text-gray-700 transition-colors">
               Contact Support
             </a>
-            <span>•</span>
+            <span>-</span>
             <Link to="/" className="hover:text-gray-700 transition-colors">
               Back to App
             </Link>

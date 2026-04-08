@@ -125,7 +125,7 @@ export function ByteInlineUpload({
                   <span>{progressLabel}</span>
                 </>
               ) : (
-                <span>Processing your documents…</span>
+                <span>Processing your documents...</span>
               )}
             </span>
           )}

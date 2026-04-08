@@ -44,11 +44,11 @@ export default function ReceiptsPage() {
           body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name }),
         });
         const data = await res.json();
-        setByteMessage(data.ok ? data.reply : 'Something went wrong — try again.');
+        setByteMessage(data.ok ? data.reply : 'Something went wrong - try again.');
         void fetchReceipts();
       };
       reader.readAsDataURL(file);
-    } catch { setByteMessage('Upload failed — try again.'); }
+    } catch { setByteMessage('Upload failed - try again.'); }
   };
 
   const handleMatchAll = async () => {

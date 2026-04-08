@@ -515,7 +515,7 @@ export const UniversalConsentBanner: React.FC<
                   rel="noopener noreferrer"
                   className="text-amber-700 hover:text-amber-900 hover:underline font-medium inline-flex items-center gap-1"
                 >
-                  Read full privacy policy →
+                  Read full privacy policy ->
                 </a>
               </div>
             )}

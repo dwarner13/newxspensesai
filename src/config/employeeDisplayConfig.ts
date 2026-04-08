@@ -17,7 +17,7 @@ export interface EmployeeStat {
 export interface EmployeeDisplayConfig {
   emoji: string;
   displayName: string; // Short name, e.g. "Prime", "Byte"
-  title: string; // Full title, e.g. "Prime — AI Command Center"
+  title: string; // Full title, e.g. "Prime - AI Command Center"
   subtitle: string; // Short description
   gradient: string; // Tailwind gradient classes for buttons/accents
   accentGlow: string; // Tailwind class for radial glow behind avatar, e.g. 'bg-sky-500/10'
@@ -27,7 +27,7 @@ export interface EmployeeDisplayConfig {
   primaryButtonShadow: string; // Shadow class for primary button, e.g. 'shadow-blue-900/60'
   stats?: EmployeeStat[]; // Default stats to display (optional, can be overridden)
   // Chat-specific display config
-  chatTitle: string; // Short title for chat header, e.g. "Byte — Chat"
+  chatTitle: string; // Short title for chat header, e.g. "Byte - Chat"
   chatSubtitle: string; // One-line role description for chat header, e.g. "Smart Import & OCR Wizard"
   chatQuickPrompts: string[]; // Array of 3-6 suggested questions for "Try asking" row
   chatAccentGlow?: string; // Optional Tailwind class for avatar/glow ring in chat header (reuses accentGlow if not provided)
@@ -37,7 +37,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'prime-boss': {
     emoji: '👑',
     displayName: 'Prime',
-    title: 'Prime — AI Command Center',
+    title: 'Prime - AI Command Center',
     subtitle: 'Your financial CEO · Routing tasks and coordinating your AI team',
     gradient: 'from-amber-400 via-orange-500 to-pink-500',
     accentGlow: 'bg-amber-500/10',
@@ -50,7 +50,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '1.9s', label: 'Avg Response', colorClass: 'text-orange-400' },
       { value: '30+', label: 'Active Employees', colorClass: 'text-pink-400' },
     ],
-    chatTitle: 'Prime — Chat',
+    chatTitle: 'Prime - Chat',
     chatSubtitle: 'AI Orchestrator & Financial Guide',
     chatQuickPrompts: [
       'Help me upload and process my bank statements.',
@@ -61,7 +61,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'byte-docs': {
     emoji: '📄',
     displayName: 'Byte',
-    title: 'Byte — Smart Import AI',
+    title: 'Byte - Smart Import AI',
     subtitle: 'Smart Import specialist · Handles documents, OCR and clean transaction data',
     gradient: 'from-sky-400 via-cyan-400 to-emerald-400',
     accentGlow: 'bg-sky-500/10',
@@ -74,7 +74,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '2.3s', label: 'Avg Speed', colorClass: 'text-green-400' },
       { value: '24/7', label: 'Available', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Byte — Chat',
+    chatTitle: 'Byte - Chat',
     chatSubtitle: 'Smart Import & OCR Wizard',
     chatQuickPrompts: [
       'Scan my latest receipts and show me today\'s total spending.',
@@ -86,7 +86,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'tag-ai': {
     emoji: '🏷️',
     displayName: 'Tag',
-    title: 'Tag — Smart Categories AI',
+    title: 'Tag - Smart Categories AI',
     subtitle: 'Intelligent categorization · Auto-organize your transactions',
     gradient: 'from-yellow-300 via-amber-400 to-orange-500',
     accentGlow: 'bg-teal-500/10',
@@ -99,7 +99,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '98.5%', label: 'Accuracy', colorClass: 'text-green-400' },
       { value: '45', label: 'Categories', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Tag — Chat',
+    chatTitle: 'Tag - Chat',
     chatSubtitle: 'Smart Categories & Rules Engine',
     chatQuickPrompts: [
       'Show me all uncategorized transactions from the last 30 days.',
@@ -112,7 +112,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'tag-agent': {
     emoji: '🏷️',
     displayName: 'Tag',
-    title: 'Tag — Smart Categories AI',
+    title: 'Tag - Smart Categories AI',
     subtitle: 'Intelligent categorization · Auto-organize your transactions',
     gradient: 'from-yellow-300 via-amber-400 to-orange-500',
     accentGlow: 'bg-teal-500/10',
@@ -125,7 +125,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '98.5%', label: 'Accuracy', colorClass: 'text-green-400' },
       { value: '45', label: 'Categories', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Tag — Chat',
+    chatTitle: 'Tag - Chat',
     chatSubtitle: 'Smart Categories & Rules Engine',
     chatQuickPrompts: [
       'Show me all uncategorized transactions from the last 30 days.',
@@ -137,7 +137,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'finley-forecasts': {
     emoji: '💰',
     displayName: 'Finley',
-    title: 'Finley — AI Financial Assistant',
+    title: 'Finley - AI Financial Assistant',
     subtitle: 'Personalized financial brain · Ask anything about your finances',
     gradient: 'from-yellow-400 via-orange-500 to-amber-500',
     accentGlow: 'bg-orange-500/10',
@@ -150,7 +150,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '92%', label: 'Satisfaction', colorClass: 'text-green-400' },
       { value: '1.2s', label: 'Avg Response', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Finley — Chat',
+    chatTitle: 'Finley - Chat',
     chatSubtitle: 'Financial Forecasting',
     chatQuickPrompts: [
       'How long will it take to pay off my credit card debt?',
@@ -162,7 +162,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'goalie-goals': {
     emoji: '🥅',
     displayName: 'Goalie',
-    title: 'Goalie — AI Goal Concierge',
+    title: 'Goalie - AI Goal Concierge',
     subtitle: 'Goal tracking specialist · Turn dreams into achievable milestones',
     gradient: 'from-amber-400 via-yellow-500 to-orange-500',
     accentGlow: 'bg-amber-500/10',
@@ -175,7 +175,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '87%', label: 'On Track', colorClass: 'text-green-400' },
       { value: '23', label: 'Milestones Hit', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Goalie — Chat',
+    chatTitle: 'Goalie - Chat',
     chatSubtitle: 'Goal Progress & Achievement',
     chatQuickPrompts: [
       'Show me my current financial goals and progress.',
@@ -187,7 +187,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'crystal-analytics': {
     emoji: '📈',
     displayName: 'Crystal',
-    title: 'Analytics — AI Insights Engine',
+    title: 'Analytics - AI Insights Engine',
     subtitle: 'Deep financial analysis · Uncover patterns and opportunities',
     gradient: 'from-purple-400 via-indigo-400 to-sky-400',
     accentGlow: 'bg-indigo-500/10',
@@ -200,7 +200,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '2,340', label: 'Insights Found', colorClass: 'text-green-400' },
       { value: '50K+', label: 'Data Points', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Crystal — Chat',
+    chatTitle: 'Crystal - Chat',
     chatSubtitle: 'Analytics & Insights',
     chatQuickPrompts: [
       'Give me a monthly summary of my expenses for the last 3 months.',
@@ -212,7 +212,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'debt-payoff-planner': {
     emoji: '🔥',
     displayName: 'Spark',
-    title: 'Spark — Payoff Planner',
+    title: 'Spark - Payoff Planner',
     subtitle: 'Debt payoff & savings · Your hype man for financial freedom!',
     gradient: 'from-yellow-400 via-orange-500 to-red-500',
     accentGlow: 'bg-orange-500/10',
@@ -225,7 +225,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '$1,247', label: 'Interest Saved', colorClass: 'text-green-400' },
       { value: '18mo', label: 'To Payoff', colorClass: 'text-blue-400' },
     ],
-    chatTitle: 'Spark — Chat',
+    chatTitle: 'Spark - Chat',
     chatSubtitle: 'Debt Payoff & Savings',
     chatQuickPrompts: [
       'Show me my current debt payoff plan and progress.',
@@ -237,7 +237,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'crystal-spending': {
     emoji: '🔮',
     displayName: 'Crystal',
-    title: 'Crystal — Spending Predictions AI',
+    title: 'Crystal - Spending Predictions AI',
     subtitle: 'Future spending oracle · See what\'s coming before it happens',
     gradient: 'from-fuchsia-400 via-purple-400 to-pink-400',
     accentGlow: 'bg-fuchsia-500/10',
@@ -250,7 +250,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '$3,420', label: 'Forecasted Spend', colorClass: 'text-green-400' },
       { value: '3', label: 'Alerts Active', colorClass: 'text-amber-400' },
     ],
-    chatTitle: 'Crystal — Chat',
+    chatTitle: 'Crystal - Chat',
     chatSubtitle: 'Spending Predictions & Forecasting',
     chatQuickPrompts: [
       'What will my spending look like next month?',
@@ -262,7 +262,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'dash-analytics': {
     emoji: '📊',
     displayName: 'Dash',
-    title: 'Dash — Business Intelligence',
+    title: 'Dash - Business Intelligence',
     subtitle: 'Strategic insights engine · Transform data into business decisions',
     gradient: 'from-indigo-400 via-blue-400 to-purple-400',
     accentGlow: 'bg-indigo-500/10',
@@ -275,7 +275,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '156', label: 'Insights Found', colorClass: 'text-green-400' },
       { value: '12', label: 'KPIs Tracked', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Dash — Chat',
+    chatTitle: 'Dash - Chat',
     chatSubtitle: 'Business Intelligence & Analytics',
     chatQuickPrompts: [
       'Generate a business intelligence report for this month.',
@@ -287,7 +287,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'smart-automation': {
     emoji: '⚙️',
     displayName: 'Automation',
-    title: 'Smart Automation — Rule Engine',
+    title: 'Smart Automation - Rule Engine',
     subtitle: 'Intelligent automation · Set rules and let AI handle the rest',
     gradient: 'from-violet-400 via-purple-400 to-fuchsia-400',
     accentGlow: 'bg-violet-500/10',
@@ -300,7 +300,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '342', label: 'Actions This Month', colorClass: 'text-green-400' },
       { value: '8.5hrs', label: 'Time Saved', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Automation — Chat',
+    chatTitle: 'Automation - Chat',
     chatSubtitle: 'Smart Rules & Workflows',
     chatQuickPrompts: [
       'Show me my active automation rules.',
@@ -312,7 +312,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'bank-accounts': {
     emoji: '🏦',
     displayName: 'Bank',
-    title: 'Bank Accounts — Connected Hub',
+    title: 'Bank Accounts - Connected Hub',
     subtitle: 'Secure bank connections · Real-time balance tracking',
     gradient: 'from-emerald-400 via-green-400 to-teal-400',
     accentGlow: 'bg-emerald-500/10',
@@ -325,7 +325,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '$24,580', label: 'Total Balance', colorClass: 'text-green-400' },
       { value: '2min', label: 'Last Synced', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Bank — Chat',
+    chatTitle: 'Bank - Chat',
     chatSubtitle: 'Account Management & Sync',
     chatQuickPrompts: [
       'Show me all my connected bank accounts.',
@@ -337,8 +337,8 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'bill-reminders': {
     emoji: '🔔',
     displayName: 'Chime',
-    title: 'Chime — Bill Reminders',
-    subtitle: 'Never miss a bill again — Chime keeps you on time and in control.',
+    title: 'Chime - Bill Reminders',
+    subtitle: 'Never miss a bill again - Chime keeps you on time and in control.',
     gradient: 'from-sky-400 via-blue-400 to-cyan-400',
     accentGlow: 'bg-sky-500/10',
     accentShadow: 'shadow-[0_0_40px_rgba(14,165,233,0.7)]',
@@ -350,7 +350,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '98%', label: 'Paid On Time', colorClass: 'text-green-400' },
       { value: '$2,340', label: 'Due This Month', colorClass: 'text-amber-400' },
     ],
-    chatTitle: 'Chime — Chat',
+    chatTitle: 'Chime - Chat',
     chatSubtitle: 'Bill Tracking & Reminders',
     chatQuickPrompts: [
       'Show me my upcoming bills for this month.',
@@ -362,7 +362,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'wellness-studio': {
     emoji: '💚',
     displayName: 'Harmony',
-    title: 'Harmony — Wellness Studio',
+    title: 'Harmony - Wellness Studio',
     subtitle: 'Mindful money practices to balance your financial health and reduce stress.',
     gradient: 'from-teal-400 via-emerald-400 to-green-400',
     accentGlow: 'bg-teal-500/10',
@@ -375,7 +375,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '12', label: 'Day Streak', colorClass: 'text-green-400' },
       { value: '34', label: 'Activities Done', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Harmony — Chat',
+    chatTitle: 'Harmony - Chat',
     chatSubtitle: 'Financial Wellness & Self-Care',
     chatQuickPrompts: [
       'How can I improve my financial wellness score?',
@@ -387,8 +387,8 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'financial-therapist': {
     emoji: '💚',
     displayName: 'Serenity',
-    title: 'Serenity — Financial Therapist',
-    subtitle: 'Emotional support for money decisions — reduce stress and build healthier habits.',
+    title: 'Serenity - Financial Therapist',
+    subtitle: 'Emotional support for money decisions - reduce stress and build healthier habits.',
     gradient: 'from-emerald-400 via-green-400 to-teal-400',
     accentGlow: 'bg-emerald-500/10',
     accentShadow: 'shadow-[0_0_40px_rgba(16,185,129,0.7)]',
@@ -400,7 +400,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '67%', label: 'Stress Reduced', colorClass: 'text-green-400' },
       { value: '↑', label: 'Mood Trending Up', colorClass: 'text-blue-400' },
     ],
-    chatTitle: 'Serenity — Chat',
+    chatTitle: 'Serenity - Chat',
     chatSubtitle: 'Financial Therapy & Support',
     chatQuickPrompts: [
       'Help me understand my relationship with money.',
@@ -412,8 +412,8 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'financial-story': {
     emoji: '🎙️',
     displayName: 'The Roundtable',
-    title: 'The Roundtable — Financial Story',
-    subtitle: 'Turn your financial journey into a story — milestones, insights, and weekly highlights.',
+    title: 'The Roundtable - Financial Story',
+    subtitle: 'Turn your financial journey into a story - milestones, insights, and weekly highlights.',
     gradient: 'from-amber-400 via-yellow-400 to-orange-400',
     accentGlow: 'bg-amber-500/10',
     accentShadow: 'shadow-[0_0_40px_rgba(245,158,11,0.7)]',
@@ -425,7 +425,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '24', label: 'Insights Captured', colorClass: 'text-green-400' },
       { value: '156', label: 'Milestones', colorClass: 'text-blue-400' },
     ],
-    chatTitle: 'The Roundtable — Chat',
+    chatTitle: 'The Roundtable - Chat',
     chatSubtitle: 'Financial Storytelling & Narratives',
     chatQuickPrompts: [
       'Create a story about my financial journey this year.',
@@ -437,7 +437,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'personal-podcast': {
     emoji: '🎙️',
     displayName: 'Podcast',
-    title: 'Podcast — AI Audio Creator',
+    title: 'Podcast - AI Audio Creator',
     subtitle: 'Transform your finances into engaging audio content',
     gradient: 'from-red-400 via-rose-400 to-pink-400',
     accentGlow: 'bg-red-500/10',
@@ -450,7 +450,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '3.5hrs', label: 'Total Duration', colorClass: 'text-green-400' },
       { value: '847', label: 'Total Listens', colorClass: 'text-blue-400' },
     ],
-    chatTitle: 'Podcast — Chat',
+    chatTitle: 'Podcast - Chat',
     chatSubtitle: 'Audio Content Creation',
     chatQuickPrompts: [
       'Create a new podcast episode about my finances.',
@@ -462,8 +462,8 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'spotify-integration': {
     emoji: '🌊',
     displayName: 'Wave',
-    title: 'Wave — Spotify Integration',
-    subtitle: 'Connect your music to your workflow — playlists, focus, and motivation.',
+    title: 'Wave - Spotify Integration',
+    subtitle: 'Connect your music to your workflow - playlists, focus, and motivation.',
     gradient: 'from-green-400 via-emerald-400 to-teal-400',
     accentGlow: 'bg-green-500/10',
     accentShadow: 'shadow-[0_0_40px_rgba(34,197,94,0.7)]',
@@ -475,7 +475,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '5', label: 'Playlists Created', colorClass: 'text-blue-400' },
       { value: '48hrs', label: 'Listening Time', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Wave — Chat',
+    chatTitle: 'Wave - Chat',
     chatSubtitle: 'Music & Finance Integration',
     chatQuickPrompts: [
       'Connect my Spotify account.',
@@ -487,8 +487,8 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'tax-assistant': {
     emoji: '📋',
     displayName: 'Ledger',
-    title: 'Ledger — Tax Assistant',
-    subtitle: 'Maximize deductions and minimize tax stress — guidance and organization.',
+    title: 'Ledger - Tax Assistant',
+    subtitle: 'Maximize deductions and minimize tax stress - guidance and organization.',
     gradient: 'from-blue-400 via-indigo-400 to-purple-400',
     accentGlow: 'bg-blue-500/10',
     accentShadow: 'shadow-[0_0_40px_rgba(59,130,246,0.7)]',
@@ -500,7 +500,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '$1,180', label: 'Estimated Savings', colorClass: 'text-emerald-400' },
       { value: '12', label: 'Documents Processed', colorClass: 'text-blue-400' },
     ],
-    chatTitle: 'Ledger — Chat',
+    chatTitle: 'Ledger - Chat',
     chatSubtitle: 'Tax Optimization & Guidance',
     chatQuickPrompts: [
       'Help me find tax deductions I might be missing.',
@@ -512,7 +512,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'liberty-financial-freedom': {
     emoji: '🕊️',
     displayName: 'Liberty',
-    title: 'Liberty — Financial Freedom',
+    title: 'Liberty - Financial Freedom',
     subtitle: 'Financial freedom specialist · Break free from debt and achieve independence',
     gradient: 'from-red-400 via-rose-400 to-pink-400',
     accentGlow: 'bg-red-500/10',
@@ -525,7 +525,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '$1,247', label: 'Interest Saved', colorClass: 'text-green-400' },
       { value: '18mo', label: 'To Freedom', colorClass: 'text-blue-400' },
     ],
-    chatTitle: 'Liberty — Chat',
+    chatTitle: 'Liberty - Chat',
     chatSubtitle: 'Financial Freedom & Independence',
     chatQuickPrompts: [
       'Show me my path to financial freedom.',
@@ -537,7 +537,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'transactions': {
     emoji: '🧾',
     displayName: 'Transactions',
-    title: 'Transactions — Financial Hub',
+    title: 'Transactions - Financial Hub',
     subtitle: 'Complete transaction history · Track every dollar in and out',
     gradient: 'from-slate-400 via-gray-400 to-zinc-400',
     accentGlow: 'bg-slate-500/10',
@@ -550,7 +550,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '$12,450', label: 'This Month', colorClass: 'text-green-400' },
       { value: '98.5%', label: 'Categorized', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Transactions — Chat',
+    chatTitle: 'Transactions - Chat',
     chatSubtitle: 'Transaction History & Management',
     chatQuickPrompts: [
       'Show me my recent transactions.',
@@ -562,7 +562,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'custodian': {
     emoji: '🔧',
     displayName: 'Custodian',
-    title: 'Custodian — Settings & Security',
+    title: 'Custodian - Settings & Security',
     subtitle: 'Account security, settings, and system diagnostics',
     gradient: 'from-slate-500 via-slate-600 to-slate-700',
     accentGlow: 'bg-slate-500/10',
@@ -575,7 +575,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       { value: '24/7', label: 'Monitoring', colorClass: 'text-blue-400' },
       { value: '0', label: 'Issues Found', colorClass: 'text-purple-400' },
     ],
-    chatTitle: 'Custodian — Settings & Security',
+    chatTitle: 'Custodian - Settings & Security',
     chatSubtitle: 'Onboarding & Security Specialist',
     chatQuickPrompts: [
       'Review my security settings',
@@ -602,7 +602,7 @@ export function getEmployeeDisplayConfig(slug: string): EmployeeDisplayConfig {
     accentColor: 'slate-500',
     primaryButtonGradient: 'from-slate-400 to-slate-600',
     primaryButtonShadow: 'shadow-slate-900/60',
-    chatTitle: 'AI Assistant — Chat',
+    chatTitle: 'AI Assistant - Chat',
     chatSubtitle: 'Your AI assistant',
     chatQuickPrompts: [
       'How can you help me?',

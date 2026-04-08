@@ -19,7 +19,7 @@ interface ActivityItem {
 }
 
 const mockActivities: ActivityItem[] = [
-  { id: 1, text: "Prime routed a question to Tag — Categories updated", timestamp: "5 min ago" },
+  { id: 1, text: "Prime routed a question to Tag - Categories updated", timestamp: "5 min ago" },
   { id: 2, text: "Byte processed 24 new transactions", timestamp: "12 min ago" },
   { id: 3, text: "Liberty updated your debt payoff plan", timestamp: "1 hour ago" },
   { id: 4, text: "Crystal detected a spending pattern", timestamp: "2 hours ago" },

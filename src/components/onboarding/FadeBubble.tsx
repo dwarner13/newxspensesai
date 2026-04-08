@@ -2,7 +2,7 @@
  * FadeBubble Component
  * 
  * Reusable fade-in bubble animation for Custodian messages.
- * Premium iMessage-style animation: opacity 0→1, y 8→0, blur 8px→0 over 0.45s.
+ * Premium iMessage-style animation: opacity 0->1, y 8->0, blur 8px->0 over 0.45s.
  */
 
 import React from 'react';

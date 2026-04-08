@@ -36,7 +36,7 @@ const FALLBACK_BRAIN: BrainPack = {
     const cur = currency || 'USD';
     const fluency = ai_fluency_level || 'Explorer';
     return [
-      `EMPLOYEE BRAIN PACK — FALLBACK`,
+      `EMPLOYEE BRAIN PACK - FALLBACK`,
       `Employee Key: ${employee_key}`,
       `User: ${name} | Currency: ${cur} | Fluency: ${fluency}`,
       `Rules: Be safe, clear, and helpful. No UI/UX changes unless asked.`,

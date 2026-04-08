@@ -96,7 +96,7 @@ export function PrimeTasksContent({
                   <span className="rounded-full bg-slate-950/80 px-2 py-0.5 text-xs text-slate-300">
                     {task.employeeName} · {task.employeeRole}
                   </span>
-                  <span className="text-slate-500">• {task.ago}</span>
+                  <span className="text-slate-500">- {task.ago}</span>
                 </div>
 
                 <span

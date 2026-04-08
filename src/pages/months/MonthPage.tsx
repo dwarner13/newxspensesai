@@ -186,7 +186,7 @@ export default function MonthPage() {
             </div>
           </div>
           <div className="text-sm text-gray-600 mt-1">
-            {monthData.transactions} transactions • {monthData.receipts} receipts
+            {monthData.transactions} transactions - {monthData.receipts} receipts
           </div>
         </div>
         

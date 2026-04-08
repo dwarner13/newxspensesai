@@ -162,18 +162,18 @@ const SubscriptionManager = () => {
             <div className="space-y-1 text-sm text-gray-600">
               {subscription.role === 'free' ? (
                 <>
-                  <div>• 10 receipts per month</div>
-                  <div>• Basic categorization</div>
-                  <div>• Manual entry only</div>
+                  <div>- 10 receipts per month</div>
+                  <div>- Basic categorization</div>
+                  <div>- Manual entry only</div>
                 </>
               ) : (
                 <>
-                  <div>• Unlimited receipts</div>
-                  <div>• AI-powered categorization</div>
-                  <div>• Advanced analytics</div>
-                  <div>• Priority support</div>
+                  <div>- Unlimited receipts</div>
+                  <div>- AI-powered categorization</div>
+                  <div>- Advanced analytics</div>
+                  <div>- Priority support</div>
                   {subscription.role === 'premium' && (
-                    <div>• Ask-AI assistant</div>
+                    <div>- Ask-AI assistant</div>
                   )}
                 </>
               )}

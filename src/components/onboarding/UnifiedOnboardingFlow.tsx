@@ -2,7 +2,7 @@
  * Unified Onboarding Flow
  * 
  * Detects first-time users (guest or authenticated) and triggers
- * Prime → Custodian onboarding modal.
+ * Prime -> Custodian onboarding modal.
  */
 
 import React, { useState, useEffect } from 'react';

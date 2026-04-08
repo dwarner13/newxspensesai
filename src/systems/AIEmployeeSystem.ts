@@ -43,8 +43,8 @@ async function convertToLegacyFormat(profile: EmployeeProfile | null): Promise<A
   
   return {
     id: profile.slug,
-    name: profile.title.split('—')[0].trim(),
-    role: profile.title.split('—')[1]?.trim() || profile.title,
+    name: profile.title.split('-')[0].trim(),
+    role: profile.title.split('-')[1]?.trim() || profile.title,
     emoji: profile.emoji || '🤖',
     department: profile.capabilities[0] || 'General',
     expertise: profile.capabilities,
@@ -210,7 +210,7 @@ export class AIRouter {
 export const handoffTemplates = {
   primeToSpecialist: async (toEmployeeSlug: string, reason: string) => {
     const employee = await getEmployee(toEmployeeSlug);
-    const name = employee?.title.split('—')[0].trim() || 'specialist';
+    const name = employee?.title.split('-')[0].trim() || 'specialist';
     return `I see this needs ${name}'s expertise in ${reason}. Let me connect you...`;
   },
   
@@ -220,7 +220,7 @@ export const handoffTemplates = {
   
   specialistToSpecialist: async (fromEmployeeSlug: string, toEmployeeSlug: string, reason: string) => {
     const toEmployee = await getEmployee(toEmployeeSlug);
-    const toName = toEmployee?.title.split('—')[0].trim() || 'specialist';
+    const toName = toEmployee?.title.split('-')[0].trim() || 'specialist';
     return `This also needs ${toName}'s input. Bringing them in now...`;
   },
   

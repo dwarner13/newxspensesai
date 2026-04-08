@@ -177,7 +177,7 @@ export function CustodianOnboardingOverlay({
                       Welcome to XspensesAI
                     </h2>
                     <p className="text-sm text-slate-400">
-                      Let's set up your profile • Question 1 of 3
+                      Let's set up your profile - Question 1 of 3
                     </p>
                   </div>
                 </div>

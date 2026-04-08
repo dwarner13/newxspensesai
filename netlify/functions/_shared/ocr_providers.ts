@@ -157,7 +157,7 @@ export async function ocrVision(params: { bytes?: Buffer; gcsUri?: string }): Pr
 /**
  * Best-effort OCR: Try all providers, return first good result
  * 
- * Order: local → OCR.Space → Vision
+ * Order: local -> OCR.Space -> Vision
  */
 export async function bestEffortOCR(input: { bytes?: Buffer; url?: string; gcsUri?: string }): Promise<{
   result: OCRProviderResult | null;

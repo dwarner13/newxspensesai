@@ -550,7 +550,7 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({ isOpen, onClose, onInco
                         onClick={() => setStep('manual')}
                         className="text-sm text-gray-600 hover:text-primary-600 transition-colors"
                       >
-                        Or enter manually →
+                        Or enter manually ->
                       </button>
                     </div>
                   </div>
@@ -702,7 +702,7 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({ isOpen, onClose, onInco
                           </h5>
                           <ul className="space-y-1">
                             {aiResult.warnings.map((warning, index) => (
-                              <li key={index} className="text-sm text-yellow-700">• {warning}</li>
+                              <li key={index} className="text-sm text-yellow-700">- {warning}</li>
                             ))}
                           </ul>
                         </div>
@@ -717,7 +717,7 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({ isOpen, onClose, onInco
                           </h5>
                           <ul className="space-y-1">
                             {aiResult.insights.map((insight, index) => (
-                              <li key={index} className="text-sm text-blue-700">• {insight}</li>
+                              <li key={index} className="text-sm text-blue-700">- {insight}</li>
                             ))}
                           </ul>
                         </div>

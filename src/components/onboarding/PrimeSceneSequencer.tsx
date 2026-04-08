@@ -2,7 +2,7 @@
  * Prime Scene Sequencer
  * 
  * Shows Prime messages one at a time with fade/replace flow.
- * Each message types → holds → fades away → next appears.
+ * Each message types -> holds -> fades away -> next appears.
  * StrictMode-safe with ref guards.
  */
 

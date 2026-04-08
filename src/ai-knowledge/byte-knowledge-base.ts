@@ -85,5 +85,5 @@ export const BYTE_RESPONSES = {
     `✅ **Processing Complete!**\n\nConfidence Score: ${(confidence * 100).toFixed(1)}%\nTransactions Extracted: ${transactionCount}\nData Quality: ${confidence > 0.9 ? 'Excellent' : confidence > 0.7 ? 'Good' : 'Fair'}`,
   
   errorHandling: (error: string) => 
-    `⚠️ **Processing Issue Detected**\n\nError: ${error}\n\nAs your document processing specialist, I can help troubleshoot this. Common solutions:\n• Try a clearer image\n• Ensure file is under 50MB\n• Check document format compatibility`
+    `⚠️ **Processing Issue Detected**\n\nError: ${error}\n\nAs your document processing specialist, I can help troubleshoot this. Common solutions:\n- Try a clearer image\n- Ensure file is under 50MB\n- Check document format compatibility`
 };

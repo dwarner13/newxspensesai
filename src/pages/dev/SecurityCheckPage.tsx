@@ -153,10 +153,10 @@ export default function SecurityCheckPage() {
         <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
           <h3 className="text-lg font-semibold text-white mb-4">What This Checks</h3>
           <ul className="space-y-2 text-slate-300 text-sm">
-            <li>• Current user ID is available</li>
-            <li>• Session access token exists</li>
-            <li>• Profiles table SELECT query works</li>
-            <li>• Exactly 1 profile row exists for current user</li>
+            <li>- Current user ID is available</li>
+            <li>- Session access token exists</li>
+            <li>- Profiles table SELECT query works</li>
+            <li>- Exactly 1 profile row exists for current user</li>
           </ul>
           <p className="text-xs text-slate-500 mt-4">
             Note: This tool does not expose secrets or sensitive data.

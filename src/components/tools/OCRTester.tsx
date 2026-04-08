@@ -183,7 +183,7 @@ export default function OCRTester() {
             disabled={!file || loading}
             className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'Processing…' : 'Run OCR + AI'}
+            {loading ? 'Processing...' : 'Run OCR + AI'}
           </button>
 
           {loading && (

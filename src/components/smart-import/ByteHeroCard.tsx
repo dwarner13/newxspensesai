@@ -25,7 +25,7 @@ export function ByteHeroCard({ onChatClick }: ByteHeroCardProps) {
         {/* Text Area */}
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-bold text-white">
-            Byte — Smart Import AI
+            Byte - Smart Import AI
           </h2>
           <p className="text-sm text-slate-400">
             Data Processing Specialist

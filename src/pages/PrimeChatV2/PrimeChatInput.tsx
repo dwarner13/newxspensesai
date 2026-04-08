@@ -76,7 +76,7 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: Pr
           onClick={() => fileRef.current?.click()}
           title="Attach a statement (PDF, CSV, image)"
           style={{
-            display: "none", /* Hidden — replaced by ChatAttachmentButton */
+            display: "none", /* Hidden - replaced by ChatAttachmentButton */
             width: 34,
             height: 34,
             borderRadius: 10,

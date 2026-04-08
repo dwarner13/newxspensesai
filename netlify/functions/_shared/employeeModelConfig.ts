@@ -34,7 +34,7 @@ const DEFAULT_MAX_TOKENS = 2000;
  */
 export async function getEmployeeModelConfig(employeeSlug: string): Promise<EmployeeModelConfig> {
   try {
-    // Resolve slug (handles aliases like 'crystal-analytics' → 'crystal-ai')
+    // Resolve slug (handles aliases like 'crystal-analytics' -> 'crystal-ai')
     const canonicalSlug = await resolveSlug(employeeSlug);
     
     // Load from registry (which reads from database)

@@ -76,11 +76,11 @@ const FEWSHOTS = [
   { q: 'Set a reminder for my mortgage payment', route: 'chime-ai' },
   { q: 'What payments are coming up in the next week?', route: 'chime-ai' },
   { q: 'Nudge me if I forget to pay my bills', route: 'chime-ai' },
-  { q: 'I\'m getting hit with overdraft fees — how do I stop this?', route: 'liberty-ai' },
+  { q: 'I\'m getting hit with overdraft fees - how do I stop this?', route: 'liberty-ai' },
   { q: 'What\'s the smartest way to get financial freedom in 3 years?', route: 'liberty-ai' },
   { q: 'Am I getting killed by fees anywhere?', route: 'liberty-ai' },
   { q: 'How do I reduce my interest payments?', route: 'liberty-ai' },
-  { q: 'My minimum payment is $200/month but I can pay $300 — what does that do?', route: 'liberty-ai' },
+  { q: 'My minimum payment is $200/month but I can pay $300 - what does that do?', route: 'liberty-ai' },
   // Blitz rapid actions examples
   { q: 'Give me an action plan', route: 'blitz-ai' },
   { q: 'What should I do next?', route: 'blitz-ai' },
@@ -136,7 +136,7 @@ export async function routeToEmployee(params: {
   if (requestedEmployee) {
     const canonicalSlug = await resolveSlug(requestedEmployee);
     
-    // Special Prime → Blitz handoff for action-style requests
+    // Special Prime -> Blitz handoff for action-style requests
     // When user explicitly selects Prime but asks for actions/checklists/next steps,
     // automatically route to Blitz instead (Blitz specializes in rapid action plans)
     const isPrime = canonicalSlug === 'prime-boss' || canonicalSlug === 'prime-ai';
@@ -164,11 +164,11 @@ export async function routeToEmployee(params: {
       );
     
     if (primeWantsActions) {
-      // Override Prime → route to Blitz for action-style requests
+      // Override Prime -> route to Blitz for action-style requests
       const blitzSlug = 'blitz-ai';
       const blitzPersona = await getPersona(blitzSlug);
       
-      console.log(`[Router] Prime → Blitz handoff: User explicitly selected Prime but asked for actions. Routing to Blitz.`);
+      console.log(`[Router] Prime -> Blitz handoff: User explicitly selected Prime but asked for actions. Routing to Blitz.`);
       
       if (blitzPersona) {
         return {
@@ -266,7 +266,7 @@ export async function routeToEmployee(params: {
   // - "How can I pay my car loan faster if I add $50/week?"
   // - "I have payday loans and a line of credit; help me get out of this."
   // - "What happens if I add $50/week to my mortgage?"
-  // - "I'm getting hit with overdraft fees — how do I stop this?"
+  // - "I'm getting hit with overdraft fees - how do I stop this?"
   // - "What's the smartest way to get financial freedom in 3 years?"
   // - "Am I getting killed by fees anywhere?"
   // - "How do I reduce my interest payments?"

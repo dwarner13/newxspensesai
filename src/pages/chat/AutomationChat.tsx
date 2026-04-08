@@ -82,7 +82,7 @@ export default function AutomationChat() {
           className="flex-1 border rounded px-3 py-2"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message…"
+          placeholder="Type a message..."
         />
         <button 
           className="px-3 py-2 rounded bg-black text-white" 

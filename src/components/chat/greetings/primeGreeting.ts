@@ -75,7 +75,7 @@ function getTimeOfDay(): 'morning' | 'afternoon' | 'evening' | 'night' {
 
 /**
  * Get display name with fallbacks
- * Priority: PrimeState.displayName → display_name → first_name → full_name → firstName prop → 'there'
+ * Priority: PrimeState.displayName -> display_name -> first_name -> full_name -> firstName prop -> 'there'
  * NEVER returns email local-part as name
  */
 function getDisplayName(options: PrimeGreetingOptions): string {

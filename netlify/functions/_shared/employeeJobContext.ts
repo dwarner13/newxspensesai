@@ -11,7 +11,7 @@ type JobContextArgs = {
 
 /**
  * Build a small “job context” system message for a specific employee.
- * This is NOT the brain pack; it’s the “what’s happening right now” snapshot.
+ * This is NOT the brain pack; it's the “what's happening right now” snapshot.
  */
 export async function buildEmployeeJobContextSystemMessage(
   sb: SupabaseClient,
@@ -19,7 +19,7 @@ export async function buildEmployeeJobContextSystemMessage(
 ): Promise<string | null> {
   const employee = (args.employeeKey || '').toLowerCase();
 
-  // Only Byte for now (we’ll add Ledger/Custodian later)
+  // Only Byte for now (we'll add Ledger/Custodian later)
   if (employee !== 'byte') return null;
 
   const docIds = (args.documentIds || []).filter(Boolean);
@@ -27,7 +27,7 @@ export async function buildEmployeeJobContextSystemMessage(
 
   // Try to fetch the most recent document rows for these IDs (best-effort)
   // NOTE: Table names may differ; we keep this safe and non-breaking.
-  // If your table is different, we’ll adjust after seeing your schema.
+  // If your table is different, we'll adjust after seeing your schema.
   let docsSummary = '';
   let hasOcrSignals = false;
 
@@ -110,7 +110,7 @@ export async function buildEmployeeJobContextSystemMessage(
     parts.push('- Summarize structured extraction signals (counts/date range/merchants/totals if available).');
     parts.push('- Flag missing/unclear fields.');
     parts.push('- Provide Confidence (high/medium/low).');
-    parts.push('- Recommend the next step (normalize → stage → commit, or ask user for clarification).');
+    parts.push('- Recommend the next step (normalize -> stage -> commit, or ask user for clarification).');
     parts.push('- If extraction is complete, suggest handoff to Ledger for categorization.');
   } else {
     parts.push('');

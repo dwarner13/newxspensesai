@@ -5,9 +5,9 @@
  * Returns: "idle" | "processing" | "responding"
  * 
  * Priority:
- * - If responding (chat streaming) → "responding"
- * - Else if processing (jobs/imports) → "processing"
- * - Else → "idle"
+ * - If responding (chat streaming) -> "responding"
+ * - Else if processing (jobs/imports) -> "processing"
+ * - Else -> "idle"
  */
 
 import { useMemo } from 'react';

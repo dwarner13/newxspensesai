@@ -353,7 +353,7 @@ const TransactionCategorizer = ({ onComplete }: TransactionCategorizerProps) => 
               Upload a CSV or text file containing transaction data
             </p>
             <p className="text-sm text-gray-500 mb-4">
-              Supported formats: .csv, .txt • Max size: 5MB
+              Supported formats: .csv, .txt - Max size: 5MB
             </p>
             <input
               ref={fileInputRef}
@@ -377,7 +377,7 @@ const TransactionCategorizer = ({ onComplete }: TransactionCategorizerProps) => 
                 <div>
                   <p className="font-medium">{file.name}</p>
                   <p className="text-sm text-gray-500">
-                    {sampleRows.length} rows • {(file.size / 1024).toFixed(1)} KB
+                    {sampleRows.length} rows - {(file.size / 1024).toFixed(1)} KB
                   </p>
                 </div>
               </div>

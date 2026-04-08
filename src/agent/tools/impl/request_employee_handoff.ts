@@ -68,7 +68,7 @@ export async function execute(
 
 export const metadata = {
   name: 'Request Employee Handoff',
-  description: 'Transfer the conversation to another AI employee who is better suited to answer the user\'s question. Use this when the user asks about topics outside your domain (e.g., goal tracking → Goalie, emotional support → Liberty, analytics → Crystal, strategic planning → Prime/Finley).',
+  description: 'Transfer the conversation to another AI employee who is better suited to answer the user\'s question. Use this when the user asks about topics outside your domain (e.g., goal tracking -> Goalie, emotional support -> Liberty, analytics -> Crystal, strategic planning -> Prime/Finley).',
   requiresConfirmation: false,
   dangerous: false,
 };

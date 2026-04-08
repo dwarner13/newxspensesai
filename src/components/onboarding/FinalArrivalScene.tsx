@@ -104,9 +104,9 @@ export function FinalArrivalScene({
           >
             <div className="flex flex-wrap items-center justify-center gap-3 text-slate-300">
               <span className={`${isMobile ? 'text-sm' : 'text-base'} font-medium text-slate-200`}>Smart Import</span>
-              <span className="text-purple-500/50">•</span>
+              <span className="text-purple-500/50">-</span>
               <span className={`${isMobile ? 'text-sm' : 'text-base'} font-medium text-slate-200`}>Smart Categories</span>
-              <span className="text-purple-500/50">•</span>
+              <span className="text-purple-500/50">-</span>
               <span className={`${isMobile ? 'text-sm' : 'text-base'} font-medium text-slate-200`}>Real-time AI employees</span>
             </div>
           </motion.div>

@@ -50,7 +50,7 @@ export default function XspenseScorePage() {
           <button onClick={() => {
             const grade = getScoreGrade(data.overallScore);
             const label = getScoreLabel(data.overallScore);
-            const text = `My XspensesAI Xspense Score is ${data.overallScore}/100 — ${grade} grade (${label}). Track your financial health at xspensesai.com`;
+            const text = `My XspensesAI Xspense Score is ${data.overallScore}/100 - ${grade} grade (${label}). Track your financial health at xspensesai.com`;
             if (navigator.share) { navigator.share({ title: 'My Xspense Score', text }).catch(() => {}); }
             else { navigator.clipboard.writeText(text).then(() => toast.success('Score copied to clipboard')); }
           }} style={{

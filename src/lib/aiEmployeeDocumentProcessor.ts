@@ -240,21 +240,21 @@ export class AIEmployeeDocumentProcessor {
 
     // Add file-specific insights
     response += `📄 **File Analysis:**\n`;
-    response += `• File type: ${fileType.toUpperCase()}\n`;
-    response += `• Processing time: ${(processingTime / 1000).toFixed(1)}s\n`;
-    response += `• Transactions found: ${totalTransactions}\n`;
-    response += `• Categories identified: ${categoriesFound}\n`;
-    response += `• Average confidence: ${(avgConfidence * 100).toFixed(1)}%\n\n`;
+    response += `- File type: ${fileType.toUpperCase()}\n`;
+    response += `- Processing time: ${(processingTime / 1000).toFixed(1)}s\n`;
+    response += `- Transactions found: ${totalTransactions}\n`;
+    response += `- Categories identified: ${categoriesFound}\n`;
+    response += `- Average confidence: ${(avgConfidence * 100).toFixed(1)}%\n\n`;
 
     // Add categorization insights
     response += `🏷️ **Categorization Results:**\n`;
     const categoryBreakdown = this.getCategoryBreakdown(categorizationResults);
     categoryBreakdown.slice(0, 5).forEach(({ category, count, confidence }) => {
-      response += `• ${category}: ${count} transactions (${(confidence * 100).toFixed(0)}% confidence)\n`;
+      response += `- ${category}: ${count} transactions (${(confidence * 100).toFixed(0)}% confidence)\n`;
     });
 
     if (categoryBreakdown.length > 5) {
-      response += `• ... and ${categoryBreakdown.length - 5} more categories\n`;
+      response += `- ... and ${categoryBreakdown.length - 5} more categories\n`;
     }
 
     response += '\n';
@@ -362,9 +362,9 @@ export class AIEmployeeDocumentProcessor {
     let greeting = this.bytePersonality.responseTemplates.greeting + '\n\n';
     
     greeting += `📁 **File Details:**\n`;
-    greeting += `• Name: ${file.name}\n`;
-    greeting += `• Size: ${(file.size / 1024 / 1024).toFixed(2)} MB\n`;
-    greeting += `• Type: ${file.type || 'Unknown'}\n\n`;
+    greeting += `- Name: ${file.name}\n`;
+    greeting += `- Size: ${(file.size / 1024 / 1024).toFixed(2)} MB\n`;
+    greeting += `- Type: ${file.type || 'Unknown'}\n\n`;
     
     greeting += `🚀 **Ready to Process:** I'm going to use my advanced OCR and AI categorization powers to extract and organize all your financial data. This is going to be awesome! ✨\n\n`;
     
@@ -383,14 +383,14 @@ export class AIEmployeeDocumentProcessor {
     
     let response = this.bytePersonality.responseTemplates.error + '\n\n';
     response += `🔧 **Technical Details:**\n`;
-    response += `• Error: ${errorMessage}\n`;
-    response += `• File: ${file.name}\n`;
-    response += `• Time: ${new Date().toLocaleTimeString()}\n\n`;
+    response += `- Error: ${errorMessage}\n`;
+    response += `- File: ${file.name}\n`;
+    response += `- Time: ${new Date().toLocaleTimeString()}\n\n`;
     
     response += `💡 **Byte's Suggestions:**\n`;
-    response += `• Try uploading a different file format (CSV, PDF, or image)\n`;
-    response += `• Make sure the file isn't corrupted or password-protected\n`;
-    response += `• Check that the file size is under 10MB\n\n`;
+    response += `- Try uploading a different file format (CSV, PDF, or image)\n`;
+    response += `- Make sure the file isn't corrupted or password-protected\n`;
+    response += `- Check that the file size is under 10MB\n\n`;
     
     response += `I'm here to help! Let's try again and get your data organized! 🎯`;
 

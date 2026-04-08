@@ -58,7 +58,7 @@ export function SemanticSearch({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search merchants, categories, amounts, dates…"
+            placeholder="Search merchants, categories, amounts, dates..."
             className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] py-3.5 pl-11 pr-11 text-base text-white placeholder:text-slate-500 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/10 transition-colors"
           />
           {query ? (

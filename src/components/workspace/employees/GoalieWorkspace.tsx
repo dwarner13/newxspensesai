@@ -23,7 +23,7 @@ export function GoalieWorkspace({ open, onClose, conversationId, initialQuestion
       open={open}
       onClose={onClose}
       employeeSlug="goalie-ai"
-      title="Goalie — Goal Concierge"
+      title="Goalie - Goal Concierge"
       subtitle="Goal planning specialist · Set goals, track progress, and stay accountable with your always-on financial coach."
       workspaceLabel="Goals Workspace"
       avatarEmoji={theme.emoji}

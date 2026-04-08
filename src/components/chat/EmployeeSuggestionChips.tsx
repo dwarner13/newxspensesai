@@ -107,7 +107,7 @@ export function EmployeeSuggestionChips({
           
           {/* Arrow indicator */}
           <span className="text-slate-500 group-hover:text-slate-300 transition-colors relative z-10">
-            →
+            ->
           </span>
         </button>
       ))}

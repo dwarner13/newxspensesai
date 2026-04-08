@@ -241,9 +241,9 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
                       </div>
                     )}
                     {onAskTag && (
-                      <button onClick={() => { onAskTag(`Help me with ${t.merchant_name||'this transaction'} (${Math.abs(t.amount).toFixed(2)}) — currently in ${displayCat}${displaySub?' / '+displaySub:''}. Is this right for a self-employed Canadian?`); onClose(); }}
+                      <button onClick={() => { onAskTag(`Help me with ${t.merchant_name||'this transaction'} (${Math.abs(t.amount).toFixed(2)}) - currently in ${displayCat}${displaySub?' / '+displaySub:''}. Is this right for a self-employed Canadian?`); onClose(); }}
                         style={{ alignSelf:'flex-start', padding:'5px 12px', borderRadius:14, fontSize:11, fontWeight:700, background:CYAN+'12', border:'1px solid '+CYAN+'30', color:CYAN, cursor:'pointer' }}>
-                        Ask Tag →
+                        Ask Tag ->
                       </button>
                     )}
                   </div>
@@ -261,7 +261,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
           </button>
           {onAskTag && (
             <button onClick={() => { onAskTag(subcategoryFilter
-              ? `Help me with ${subcategoryFilter.name} under ${category.name} — should these transactions stay here or move to a different category?`
+              ? `Help me with ${subcategoryFilter.name} under ${category.name} - should these transactions stay here or move to a different category?`
               : `I have ${category.transactionCount} transactions in ${category.name} totalling ${category.spent.toLocaleString()}. Can you help me review and optimize this category?`
             ); onClose(); }}
               style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 700, background: `${CYAN}15`, border: `1px solid ${CYAN}30`, color: CYAN, cursor: "pointer" }}>

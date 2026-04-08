@@ -15,7 +15,7 @@ export interface GuardrailNoticeProps {
 }
 
 export function GuardrailNotice({ 
-  message = 'Guardrails are active • Prime filters unsafe content and protects your data. This is not legal, tax, or investment advice.',
+  message = 'Guardrails are active - Prime filters unsafe content and protects your data. This is not legal, tax, or investment advice.',
   className = '',
 }: GuardrailNoticeProps) {
   return (

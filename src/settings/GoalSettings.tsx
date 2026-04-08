@@ -34,7 +34,7 @@ export default function GoalSettings() {
         <ul className="list-disc pl-6">
           {goals.map(goal => (
             <li key={goal.id} className="mb-1">
-              <span className="font-semibold">{goal.name}</span> — Target: ${goal.target} — Due: {goal.due} — XP: {goal.xp ? "Yes" : "No"}
+              <span className="font-semibold">{goal.name}</span> - Target: ${goal.target} - Due: {goal.due} - XP: {goal.xp ? "Yes" : "No"}
             </li>
           ))}
         </ul>

@@ -1,6 +1,6 @@
 import type { Handler } from "@netlify/functions";
 
-// ─── Quick smoke test — hit this once from the browser to verify Resend ───────
+// ─── Quick smoke test - hit this once from the browser to verify Resend ───────
 // URL: https://your-site.netlify.app/.netlify/functions/test-email
 // DELETE THIS FILE before going to production
 

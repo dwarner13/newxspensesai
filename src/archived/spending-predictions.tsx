@@ -33,21 +33,21 @@ const SpendingPredictionsPage = () => {
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                   <span className="font-medium">Next Week</span>
                 </div>
-                <span className="text-gray-600">Predicted: $284 • Confidence: 96%</span>
+                <span className="text-gray-600">Predicted: $284 - Confidence: 96%</span>
               </div>
               <div className="flex items-center justify-between bg-white rounded-lg p-4">
                 <div className="flex items-center space-x-3">
                   <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                   <span className="font-medium">Next Month</span>
                 </div>
-                <span className="text-gray-600">Predicted: $1,247 • Holiday surge detected</span>
+                <span className="text-gray-600">Predicted: $1,247 - Holiday surge detected</span>
               </div>
               <div className="flex items-center justify-between bg-white rounded-lg p-4">
                 <div className="flex items-center space-x-3">
                   <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
                   <span className="font-medium">3 Months</span>
                 </div>
-                <span className="text-gray-600">Predicted: $1,156 • Back to normal pattern</span>
+                <span className="text-gray-600">Predicted: $1,156 - Back to normal pattern</span>
               </div>
             </div>
           </div>

@@ -164,7 +164,7 @@ const PersonalBusinessGoalsPage = () => {
                           <h4 className="font-medium text-gray-900">{goal.name}</h4>
                           <div className="flex items-center text-xs text-gray-500 space-x-2">
                             <span className="bg-gray-100 px-2 py-0.5 rounded">{goal.category}</span>
-                            <span>•</span>
+                            <span>-</span>
                             <div className="flex items-center">
                               <Calendar className="h-3 w-3 mr-1" />
                               <span>Due {goal.deadline}</span>
@@ -263,7 +263,7 @@ const PersonalBusinessGoalsPage = () => {
                           <h4 className="font-medium text-gray-900">{goal.name}</h4>
                           <div className="flex items-center text-xs text-gray-500 space-x-2">
                             <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{goal.category}</span>
-                            <span>•</span>
+                            <span>-</span>
                             <div className="flex items-center">
                               <Calendar className="h-3 w-3 mr-1" />
                               <span>{goal.deadline}</span>

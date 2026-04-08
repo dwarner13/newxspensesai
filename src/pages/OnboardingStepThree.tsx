@@ -33,13 +33,13 @@ const OnboardingStepThree = () => {
       id: 'email',
       icon: <Mail className="w-6 h-6" />,
       title: '📬 Email',
-      description: 'I get invoices and receipts by email — I\'d like XspensesAI to help sort them.'
+      description: 'I get invoices and receipts by email - I\'d like XspensesAI to help sort them.'
     },
     {
       id: 'lost',
       icon: <AlertTriangle className="w-6 h-6" />,
       title: '🌀 They\'re lost!',
-      description: 'I misplace receipts often — I need help tracking them in one place.'
+      description: 'I misplace receipts often - I need help tracking them in one place.'
     }
   ];
 

@@ -14,7 +14,7 @@ export function AgentInsightStrip({ data }: AgentInsightStripProps) {
   // Dynamic Crystal insight
   const top = data.categories[0];
   const crystalText = top
-    ? `${top.name} is your highest spend at $${top.spent.toLocaleString()} (${data.totalSpent > 0 ? Math.round((top.spent / data.totalSpent) * 100) : 0}% of total).${top.trend > 10 ? ` Up ${top.trend}% from last month — worth watching.` : ""}`
+    ? `${top.name} is your highest spend at $${top.spent.toLocaleString()} (${data.totalSpent > 0 ? Math.round((top.spent / data.totalSpent) * 100) : 0}% of total).${top.trend > 10 ? ` Up ${top.trend}% from last month - worth watching.` : ""}`
     : "Upload statements to see spending insights.";
 
   const insights = [

@@ -2,7 +2,7 @@
  * useTagChatActions
  *
  * Intercepts Tag chat messages, detects action intents,
- * runs preview → confirmation → commit flow.
+ * runs preview -> confirmation -> commit flow.
  */
 
 import { useState, useCallback } from 'react';
@@ -78,7 +78,7 @@ export function useTagChatActions(): UseTagChatActionsResult {
     }
   ): Promise<boolean> => {
     const intent = classifyTagIntent(message);
-    if (!intent) return false; // not an action — fall through to chat
+    if (!intent) return false; // not an action - fall through to chat
 
     setIsProcessing(true);
     try {
@@ -113,16 +113,16 @@ export function useTagChatActions(): UseTagChatActionsResult {
       // Inject Tag's confirmation message into chat
       const sampleList = data.samples
         .slice(0, 3)
-        .map((s: any) => `• ${s.merchant_name} — ${Math.abs(s.amount).toFixed(2)} (currently: ${s.current_category})`)
+        .map((s: any) => `- ${s.merchant_name} - ${Math.abs(s.amount).toFixed(2)} (currently: ${s.current_category})`)
         .join('\n');
 
       onConfirmMessage(
-        `I found **${data.matchCount} transaction${data.matchCount !== 1 ? 's' : ''}** matching "${intent.matchValue}" to move to **${intent.targetCategory}**.\n\n${sampleList}${data.matchCount > 3 ? `\n• ...and ${data.matchCount - 3} more` : ''}\n\nConfirm to apply this change.`
+        `I found **${data.matchCount} transaction${data.matchCount !== 1 ? 's' : ''}** matching "${intent.matchValue}" to move to **${intent.targetCategory}**.\n\n${sampleList}${data.matchCount > 3 ? `\n- ...and ${data.matchCount - 3} more` : ''}\n\nConfirm to apply this change.`
       );
 
       return true;
     } catch {
-      toast.error('Tag action failed — check your connection');
+      toast.error('Tag action failed - check your connection');
       return true;
     } finally {
       setIsProcessing(false);
@@ -173,7 +173,7 @@ export function useTagChatActions(): UseTagChatActionsResult {
         toast.error(data.error || 'Commit failed');
       }
     } catch {
-      toast.error('Tag commit failed — check your connection');
+      toast.error('Tag commit failed - check your connection');
     } finally {
       setIsProcessing(false);
     }

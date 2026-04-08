@@ -306,13 +306,13 @@ export const ComprehensiveFinancialAutomationComponent: React.FC<ComprehensiveFi
                 <div className="p-3 bg-white rounded-lg">
                   <h5 className="font-medium text-gray-900">Credit Optimization</h5>
                   <p className="text-sm text-gray-600">
-                    {analysis.aiEmployeeAnalyses.wisdom.creditOptimization.currentScore} → {analysis.aiEmployeeAnalyses.wisdom.creditOptimization.optimizedScore}
+                    {analysis.aiEmployeeAnalyses.wisdom.creditOptimization.currentScore} -> {analysis.aiEmployeeAnalyses.wisdom.creditOptimization.optimizedScore}
                   </p>
                 </div>
                 <div className="p-3 bg-white rounded-lg">
                   <h5 className="font-medium text-gray-900">Cashflow Engineering</h5>
                   <p className="text-sm text-gray-600">
-                    ${analysis.aiEmployeeAnalyses.wisdom.cashflowEngineering.currentMonthlyFlow} → ${analysis.aiEmployeeAnalyses.wisdom.cashflowEngineering.optimizedFlow}
+                    ${analysis.aiEmployeeAnalyses.wisdom.cashflowEngineering.currentMonthlyFlow} -> ${analysis.aiEmployeeAnalyses.wisdom.cashflowEngineering.optimizedFlow}
                   </p>
                 </div>
                 <div className="p-3 bg-white rounded-lg">

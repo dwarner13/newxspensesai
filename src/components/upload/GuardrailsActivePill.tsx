@@ -108,19 +108,19 @@ export function GuardrailsActivePill({ isActive, className = '' }: GuardrailsAct
               <div className="p-4 space-y-3">
                 <ul className="space-y-2 text-xs text-slate-300">
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-400 mt-0.5">•</span>
+                    <span className="text-amber-400 mt-0.5">-</span>
                     <span>Sensitive details are automatically masked during processing</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-400 mt-0.5">•</span>
+                    <span className="text-amber-400 mt-0.5">-</span>
                     <span>Only what's needed is analyzed</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-400 mt-0.5">•</span>
+                    <span className="text-amber-400 mt-0.5">-</span>
                     <span>You control what gets saved</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-400 mt-0.5">•</span>
+                    <span className="text-amber-400 mt-0.5">-</span>
                     <span>You can discard an upload anytime</span>
                   </li>
                 </ul>

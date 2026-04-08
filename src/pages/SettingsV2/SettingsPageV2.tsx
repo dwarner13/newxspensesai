@@ -57,7 +57,7 @@ export default function SettingsPageV2() {
       await sb.auth.updateUser({ data: { display_name: editName.trim() } });
       await sb.from('profiles').upsert({ id: userId, display_name: editName.trim() });
       toast.success('Name updated');
-    } catch { toast.error('Could not save — try again'); }
+    } catch { toast.error('Could not save - try again'); }
     finally { setEditNameSaving(false); }
   };
 
@@ -230,7 +230,7 @@ export default function SettingsPageV2() {
                 <span style={{ fontSize: 14, fontWeight: 600, color: "#34d399" }}>Guardrails + PII Protection Active</span>
               </div>
               <div style={{ fontSize: 14, color: THEME.textMuted, lineHeight: 1.7, marginBottom: 16 }}>
-                All AI agents run through XspensesAI guardrails — PII masking (32+ detectors), content moderation, and jailbreak detection. Your financial data never leaves the secure pipeline.
+                All AI agents run through XspensesAI guardrails - PII masking (32+ detectors), content moderation, and jailbreak detection. Your financial data never leaves the secure pipeline.
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {[
@@ -279,9 +279,9 @@ export default function SettingsPageV2() {
                   <div style={{ padding: "6px 16px", borderRadius: 8, background: `${THEME.accent}12`, border: `1px solid ${THEME.accent}22`, fontSize: 13, fontWeight: 700, color: THEME.accent }}>{plan || 'Free'}</div>
                 </div>
                 <div style={{ padding: "20px", borderRadius: 14, background: `${THEME.accent}06`, border: `1px solid ${THEME.accent}15`, marginBottom: 16 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: THEME.text, marginBottom: 4 }}>Pro Plan — $29.99/mo</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: THEME.text, marginBottom: 4 }}>Pro Plan - $29.99/mo</div>
                   <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6 }}>Unlimited statements, all AI agents, priority processing, tax workspace, and accountant sharing.</div>
-                  <button onClick={() => toast("Stripe billing coming soon — contact hello@xspensesai.com to upgrade")} style={{ marginTop: 14, padding: "10px 24px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`, border: "none", color: "#0b1220", cursor: "pointer" }}>Upgrade to Pro {'\u2192'}</button>
+                  <button onClick={() => toast("Stripe billing coming soon - contact hello@xspensesai.com to upgrade")} style={{ marginTop: 14, padding: "10px 24px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`, border: "none", color: "#0b1220", cursor: "pointer" }}>Upgrade to Pro {'\u2192'}</button>
                 </div>
                 <div style={{ fontSize: 12, color: THEME.textDim }}>Billing management via Stripe coming soon. Questions? Email hello@xspensesai.com</div>
               </div>

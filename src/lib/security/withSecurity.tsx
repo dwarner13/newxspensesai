@@ -85,7 +85,7 @@ function SecurityToolbar({ page, controls, audit }: SecurityToolbarProps) {
       <div className="flex items-center justify-between mb-2">
         <div className="font-bold text-sm">🛡️ Security</div>
         <div className="text-xs font-semibold">
-          {audit.percentage.toFixed(0)}% • {audit.implemented.length}/{audit.required.length}
+          {audit.percentage.toFixed(0)}% - {audit.implemented.length}/{audit.required.length}
         </div>
       </div>
 
@@ -120,7 +120,7 @@ function SecurityToolbar({ page, controls, audit }: SecurityToolbarProps) {
           <ul className="text-xs space-y-0.5">
             {audit.missing.map((control) => (
               <li key={control}>
-                • {control} ({ControlMetadata[control]?.severity || "?"})
+                - {control} ({ControlMetadata[control]?.severity || "?"})
               </li>
             ))}
           </ul>

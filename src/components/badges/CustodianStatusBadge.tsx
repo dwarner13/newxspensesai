@@ -93,7 +93,7 @@ export function CustodianStatusBadge({
   // Ready state
   if (ready) {
     const tooltipText = setupDate
-      ? `Custodian setup complete • ${new Date(setupDate).toLocaleDateString()}`
+      ? `Custodian setup complete - ${new Date(setupDate).toLocaleDateString()}`
       : 'Your account is secured. Custodian setup complete.';
 
     // If onClick is provided, use it; otherwise show tooltip on hover

@@ -472,7 +472,7 @@ const BusinessIntelligence = () => {
               },
               {
                 title: "Tax-Ready Earnings Tracker",
-                description: "Auto-splits every income into take-home vs taxes owed. Example: Uber driver makes $1,000 → AI says 'Set aside $240 for taxes. Net safe cash: $760.'",
+                description: "Auto-splits every income into take-home vs taxes owed. Example: Uber driver makes $1,000 -> AI says 'Set aside $240 for taxes. Net safe cash: $760.'",
                 icon: "💰",
                 features: ["Automatic tax calculations", "Quarterly estimates", "Year-end reports", "Tax-ready documentation"]
               },
@@ -524,7 +524,7 @@ const BusinessIntelligence = () => {
             {[
               {
                 title: "Where Did My Money Go?",
-                description: "Natural language insights: '30% of your income went to fuel this week. That's 8% higher than average — consider fewer long trips.'",
+                description: "Natural language insights: '30% of your income went to fuel this week. That's 8% higher than average - consider fewer long trips.'",
                 icon: "🤔",
                 features: ["Natural language insights", "Peer comparisons", "Spending analysis", "Actionable recommendations"]
               },
@@ -595,7 +595,7 @@ const BusinessIntelligence = () => {
                     <h4 className="text-red-400 font-semibold text-sm mb-2">Key Challenges:</h4>
                     <ul className="text-white/70 text-xs space-y-1">
                       {business.challenges.map((challenge, idx) => (
-                        <li key={idx}>• {challenge}</li>
+                        <li key={idx}>- {challenge}</li>
                       ))}
                     </ul>
                   </div>
@@ -604,7 +604,7 @@ const BusinessIntelligence = () => {
                     <h4 className="text-green-400 font-semibold text-sm mb-2">AI Opportunities:</h4>
                     <ul className="text-white/70 text-xs space-y-1">
                       {business.aiInsights.map((insight, idx) => (
-                        <li key={idx}>• {insight}</li>
+                        <li key={idx}>- {insight}</li>
                       ))}
                     </ul>
                   </div>

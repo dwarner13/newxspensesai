@@ -139,7 +139,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
   return (
     <div style={{
       minHeight: "100vh",
-      // @ts-ignore — Safari needs -webkit-fill-available
+      // @ts-ignore - Safari needs -webkit-fill-available
       WebkitMinHeight: "-webkit-fill-available",
       width: "100%",
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -170,7 +170,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         marginBottom: 10, alignItems: "stretch",
       }}>
 
-        {/* CARD 1 — PRIME */}
+        {/* CARD 1 - PRIME */}
         <div style={{
           background: "linear-gradient(135deg, rgba(200,166,78,0.08), rgba(17,26,46,0.9))",
           border: "1px solid rgba(200,166,78,0.2)",
@@ -225,7 +225,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           </button>
         </div>
 
-        {/* CARD 2 — BYTE */}
+        {/* CARD 2 - BYTE */}
         <div style={{
           background: "linear-gradient(135deg, rgba(34,211,238,0.06), rgba(17,26,46,0.9))",
           border: "1px solid rgba(34,211,238,0.2)",
@@ -310,7 +310,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           )}
         </div>
 
-        {/* CARD 3 — TAG */}
+        {/* CARD 3 - TAG */}
         <div style={{
           background: "linear-gradient(135deg, rgba(34,211,238,0.05), rgba(17,26,46,0.9))",
           border: `1px solid ${splashData.uncategorizedCount > 0 ? "rgba(251,191,36,0.3)" : "rgba(34,211,238,0.2)"}`,

@@ -234,13 +234,13 @@ export default function FinancialScoreCard({ userId }: { userId: string }) {
           <p className="text-yellow-400 text-xs font-semibold mb-1">💡 Tips to Improve</p>
           <ul className="text-yellow-400/80 text-xs space-y-1">
             {!score.breakdown.hasNewData && (
-              <li>• Chat with your AI team or upload receipts this week</li>
+              <li>- Chat with your AI team or upload receipts this week</li>
             )}
             {score.breakdown.categorizeRate < 0.8 && (
-              <li>• Ask Tag to help categorize your expenses</li>
+              <li>- Ask Tag to help categorize your expenses</li>
             )}
             {score.breakdown.streak < 0.5 && (
-              <li>• Stay consistent - check in weekly for better results</li>
+              <li>- Stay consistent - check in weekly for better results</li>
             )}
           </ul>
         </div>

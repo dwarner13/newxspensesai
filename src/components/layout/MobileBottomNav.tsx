@@ -14,7 +14,7 @@ export default function MobileBottomNav() {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Navigate to upload page — file will need to be added there
+      // Navigate to upload page - file will need to be added there
       navigate('/dashboard/upload');
     }
     e.target.value = '';

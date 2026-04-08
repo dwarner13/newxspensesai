@@ -1,5 +1,5 @@
 /**
- * Merchant name normalization — backend copy.
+ * Merchant name normalization - backend copy.
  * Keep in sync with src/lib/merchantUtils.ts.
  */
 

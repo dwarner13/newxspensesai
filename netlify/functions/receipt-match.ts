@@ -1,5 +1,5 @@
 /**
- * receipt-match — Scan pending receipts and attempt to match against transactions.
+ * receipt-match - Scan pending receipts and attempt to match against transactions.
  */
 import type { Handler } from '@netlify/functions';
 import { serverSupabase } from './_shared/supabase.js';

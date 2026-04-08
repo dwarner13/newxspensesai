@@ -1,5 +1,5 @@
 /**
- * prime-briefing — Generates Prime's daily briefing after an import sweep completes.
+ * prime-briefing - Generates Prime's daily briefing after an import sweep completes.
  * Reads Tag's sweep results + overall financial snapshot, calls Claude Haiku,
  * saves to user_notifications for Inbox + Prime chat.
  */
@@ -65,7 +65,7 @@ export const handler: Handler = async (event) => {
     const topExpenseCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0] ?? null;
 
     // 4. Generate briefing via Claude Haiku
-    const systemPrompt = `You are Prime — XspensesAI's lead financial advisor. You speak directly, confidently, and like a smart CFO giving a morning briefing. You are aware of what your AI teammates Byte and Tag have done. Keep it concise — max 150 words. No bullet points in the intro paragraph. Use emojis sparingly for section headers only. End with ONE specific action item.`;
+    const systemPrompt = `You are Prime - XspensesAI's lead financial advisor. You speak directly, confidently, and like a smart CFO giving a morning briefing. You are aware of what your AI teammates Byte and Tag have done. Keep it concise - max 150 words. No bullet points in the intro paragraph. Use emojis sparingly for section headers only. End with ONE specific action item.`;
 
     const userPrompt = `Generate a briefing for Darrell based on this data:
 

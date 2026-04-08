@@ -40,7 +40,7 @@ export function DashUnifiedCard({ onExpandClick, onChatInputClick }: DashUnified
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-bold text-white leading-tight">
-              Dash — Analytics AI
+              Dash - Analytics AI
             </h2>
             <p className="text-sm text-slate-400 mt-1">
               Analytics specialist · Advanced analytics, insights, and visualizations
@@ -121,7 +121,7 @@ export function DashUnifiedCard({ onExpandClick, onChatInputClick }: DashUnified
           </span>
         </div>
         <div className="text-[11px] text-slate-400">
-          Secure • Always Analyzing
+          Secure - Always Analyzing
         </div>
       </div>
     </div>

@@ -149,7 +149,7 @@ export function buildCategorizationCompleteMessage(
   categorizedVendors: Array<{ vendor: string; category: string; count: number }>
 ): string {
   const vendorList = categorizedVendors.map(v => 
-    `- **${v.vendor}** → ${v.category} (${v.count} transaction${v.count !== 1 ? 's' : ''})`
+    `- **${v.vendor}** -> ${v.category} (${v.count} transaction${v.count !== 1 ? 's' : ''})`
   ).join('\n');
 
   return `Thanks! I've updated the remaining transactions:

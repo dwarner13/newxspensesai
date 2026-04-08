@@ -1,5 +1,5 @@
 /**
- * TransactionRow — bank-style feed row; category editing lives in the detail drawer.
+ * TransactionRow - bank-style feed row; category editing lives in the detail drawer.
  */
 
 import React from 'react';
@@ -187,7 +187,7 @@ export function TransactionRow({
   const isIncomeTx =
     txType === 'income' || txCategoryLower === 'income' || INCOME_PATTERNS_TR.test(txMerchantUpper);
   const numAmount = Number(amount);
-  // Do NOT use amount sign — expenses are stored as negative values
+  // Do NOT use amount sign - expenses are stored as negative values
   const isCredit = isIncomeTx;
   const amountPrefix = isCredit ? '+' : '−';
   const amountClass = isCredit ? 'text-emerald-500' : 'text-red-500';
@@ -212,7 +212,7 @@ export function TransactionRow({
         className="px-4 py-2 text-sm text-slate-500 border-b border-slate-800"
         onClick={onClick}
       >
-        Legacy table layout removed — use layout=&quot;feed&quot;.
+        Legacy table layout removed - use layout=&quot;feed&quot;.
       </div>
     );
   }

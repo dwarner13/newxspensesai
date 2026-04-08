@@ -118,7 +118,7 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Queue for normalization → transactions table (fire and forget)
+    // Queue for normalization -> transactions table (fire and forget)
     const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
     if (!docId || !UUID_V4_RE.test(String(docId))) {
       console.warn('[smart-import-parse-csv] Skipping normalize-transactions due to invalid documentId', { docId });

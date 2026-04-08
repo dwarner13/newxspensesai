@@ -19,7 +19,7 @@ const PersonalPodcastCard = () => {
       </div>
       <div className="bg-white/5 rounded-lg p-4 border border-white/10 mb-4">
         <h4 className="text-white font-semibold mb-1">Your December Financial Journey</h4>
-        <p className="text-white/60 text-sm mb-2">December 15, 2024 • 12 min</p>
+        <p className="text-white/60 text-sm mb-2">December 15, 2024 - 12 min</p>
         <p className="text-white/80 text-sm">You saved 15% more this month! Your emergency fund is growing steadily.</p>
       </div>
       <div className="flex gap-2">

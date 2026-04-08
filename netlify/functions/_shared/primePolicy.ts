@@ -38,8 +38,8 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     laneRules.push(
       '- A financial document has been attached to this conversation.',
       '- Look for a "STATEMENT FINANCIAL DATA:" block in the user message context.',
-      '- IF that block is present (contains totals, categories, merchants): produce an executive-grade summary using the PRIME DOCUMENT SUMMARY TEMPLATE with sections: Summary, Key details, Transactions (cleaned), Issues. Use ONLY the data provided — never invent values. Normalize merchant names, detect recurring patterns, flag high-impact transactions.',
-      '- IF only document metadata is present (filename, type, confidence — but NO financial totals): tell the user their document was received but the financial data is still being extracted, and they can ask again once processing completes. Do NOT invent numbers.',
+      '- IF that block is present (contains totals, categories, merchants): produce an executive-grade summary using the PRIME DOCUMENT SUMMARY TEMPLATE with sections: Summary, Key details, Transactions (cleaned), Issues. Use ONLY the data provided - never invent values. Normalize merchant names, detect recurring patterns, flag high-impact transactions.',
+      '- IF only document metadata is present (filename, type, confidence - but NO financial totals): tell the user their document was received but the financial data is still being extracted, and they can ask again once processing completes. Do NOT invent numbers.',
     );
   }
 

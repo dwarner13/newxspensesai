@@ -16,8 +16,8 @@ import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
 import UnifiedAssistantChat from "../components/chat/UnifiedAssistantChat";
 import { useUnifiedChatLauncher } from "../hooks/useUnifiedChatLauncher";
 import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
-// ActivityFeedSidebar removed — activity timeline lives in DashboardHomeV2
-// DesktopChatSideBar removed — agents accessed via Prime briefing panel
+// ActivityFeedSidebar removed - activity timeline lives in DashboardHomeV2
+// DesktopChatSideBar removed - agents accessed via Prime briefing panel
 import { ChatHistorySidebar } from "../components/chat/ChatHistorySidebar";
 import { ControlCenterDrawer } from "../components/settings/ControlCenterDrawer";
 import { AccountCenterPanel } from "../components/settings/AccountCenterPanel";
@@ -46,7 +46,7 @@ function DashboardHeaderWithBadges() {
   return <DashboardHeader />;
 }
 
-// DashboardContentGrid - simple passthrough wrapper (Activity Feed removed — lives in Dashboard V2)
+// DashboardContentGrid - simple passthrough wrapper (Activity Feed removed - lives in Dashboard V2)
 function DashboardContentGrid({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
@@ -64,7 +64,7 @@ export default function DashboardLayout() {
 
   // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
-  // All routes are now full-width — activity feed rail removed
+  // All routes are now full-width - activity feed rail removed
   // NOTE: onboarding early-return moved to end of component (after all hooks) to avoid hooks violation
   
   // Dev mode: Setup click debug helper to identify blocking overlays
@@ -552,7 +552,7 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, isChatOpen, openChat]);
   */
-  // Auto-open disabled — PrimeChatV2 panel replaces the old UnifiedAssistantChat slideout.
+  // Auto-open disabled - PrimeChatV2 panel replaces the old UnifiedAssistantChat slideout.
   // Users open Prime via the floating bubble or Dashboard briefing card.
   // useEffect(() => {
   //   if (!ready || !userId || !profile) return;
@@ -954,7 +954,7 @@ export default function DashboardLayout() {
     }
   }, [location.pathname]);
 
-  // Body scroll lock — must be before any early returns
+  // Body scroll lock - must be before any early returns
   const useBodyScroll = isDashboardRoute;
   useEffect(() => {
     if (useBodyScroll) {
@@ -993,7 +993,7 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, location.pathname, navigate]);
 
-  // ═══ SPLASH SCREEN — EARLY RETURN ═══
+  // ═══ SPLASH SCREEN - EARLY RETURN ═══
   if (showSplash && ready && userId) {
     return (
       <div style={{
@@ -1189,7 +1189,7 @@ export default function DashboardLayout() {
         return <PostOnboardingChooser custodianReady={custodianReady} />;
       })()}
 
-      {/* Old UnifiedAssistantChat slideout DISABLED — PrimeChatV2 panel is the primary chat UI.
+      {/* Old UnifiedAssistantChat slideout DISABLED - PrimeChatV2 panel is the primary chat UI.
          PrimeChatV2 uses useUnifiedChatEngine directly for in-panel conversations.
          Keeping the component available but not auto-rendered to avoid the old modal appearing. */}
       {/* {!location.pathname.startsWith('/dashboard/custodian') && (
@@ -1217,14 +1217,14 @@ export default function DashboardLayout() {
         onClose={handleCloseChatHistory}
       />
 
-      {/* Desktop Side Chat Tab removed — agents accessed via Prime briefing panel and Dashboard V2 */}
+      {/* Desktop Side Chat Tab removed - agents accessed via Prime briefing panel and Dashboard V2 */}
 
-      {/* Prime Floating Bubble removed — each page renders its own agent bubble */}
+      {/* Prime Floating Bubble removed - each page renders its own agent bubble */}
 
-      {/* Control Center Drawer DISABLED — replaced by Settings V2 page */}
+      {/* Control Center Drawer DISABLED - replaced by Settings V2 page */}
       {/* <ControlCenterDrawer /> */}
       
-      {/* Account Center Panel DISABLED — replaced by Settings V2 page */}
+      {/* Account Center Panel DISABLED - replaced by Settings V2 page */}
       {/* <AccountCenterPanel /> */}
 
       {/* Prime Tools Panel - Opens from floating rail Prime Tools button */}
@@ -1236,7 +1236,7 @@ export default function DashboardLayout() {
       {/* Upload Modal */}
       <UploadModal />
 
-      {/* Unified Onboarding Flow - Prime → Custodian Modal (Guest + Auth) */}
+      {/* Unified Onboarding Flow - Prime -> Custodian Modal (Guest + Auth) */}
       {/* UnifiedOnboardingFlow disabled when CinematicOnboardingOverlay is active */}
       {/* CinematicOnboardingOverlay is the SINGLE SOURCE OF TRUTH for onboarding UI */}
       {!(showFirstTimeSetup && !firstTimeSetupCompleted) && (
@@ -1255,7 +1255,7 @@ export default function DashboardLayout() {
         />
       )}
 
-      {/* Welcome Back Overlay DISABLED — replaced by Dashboard V2 briefing */}
+      {/* Welcome Back Overlay DISABLED - replaced by Dashboard V2 briefing */}
       {/* {showWelcomeBack && !showFirstTimeSetup && !location.pathname.startsWith('/onboarding') && (
         <PrimeWelcomeOverlayCinematic />
       )} */}

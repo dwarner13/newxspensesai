@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         if (ENABLE_AUTH_GREETING_TOASTS) {
-          toast.success(`${timeGreeting} — Prime is ready.`, {
+          toast.success(`${timeGreeting} - Prime is ready.`, {
             duration: 4000,
             position: 'top-right',
           });

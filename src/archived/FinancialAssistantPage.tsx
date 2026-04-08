@@ -91,9 +91,9 @@ const FinancialAssistantPage = () => {
               <p className="text-sm text-gray-600 mb-1">AI Assistant</p>
               <p className="text-gray-700">Absolutely! I found 3 opportunities to save $247/month:</p>
               <ul className="mt-2 space-y-1 text-sm text-gray-700">
-                <li>• Cancel unused subscription ($89/month)</li>
-                <li>• Switch to cheaper grocery store ($98/month)</li>
-                <li>• Reduce coffee shop visits ($60/month)</li>
+                <li>- Cancel unused subscription ($89/month)</li>
+                <li>- Switch to cheaper grocery store ($98/month)</li>
+                <li>- Reduce coffee shop visits ($60/month)</li>
               </ul>
             </div>
           </div>

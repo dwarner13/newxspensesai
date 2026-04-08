@@ -21,7 +21,7 @@ const FreelancerTaxCard = () => {
 
         {/* Description */}
         <p className="text-white/80 text-sm leading-relaxed mb-6 flex-grow">
-          Let AI track your deductible expenses and optimize your taxes—stress-free.
+          Let AI track your deductible expenses and optimize your taxes-stress-free.
         </p>
 
         {/* Features */}

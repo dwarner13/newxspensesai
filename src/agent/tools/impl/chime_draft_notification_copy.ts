@@ -354,7 +354,7 @@ function generatePaymentMissedBodyEmail(merchantName: string, amount: number | u
     body += ` of $${amount.toFixed(2)}`;
   }
 
-  body += ' may have been missed. No worries — we can help you get back on track.\n\nWant to set up a plan?';
+  body += ' may have been missed. No worries - we can help you get back on track.\n\nWant to set up a plan?';
 
   return body;
 }

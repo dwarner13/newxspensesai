@@ -31,10 +31,10 @@ To cancel, respond with "cancel" or ask for alternatives.`;
 
 export const KNOWLEDGE_RETRIEVAL_POLICY = `
 KNOWLEDGE DECISION TREE:
-1. For pricing, plans, or product features → Use pricing_get/plans_list (source of truth)
-2. For documented processes or workflows → Search knowledge packs first
-3. For recent updates or news → Use safe_web_research with high-authority domains
-4. For general information → Combine knowledge packs + web cache
+1. For pricing, plans, or product features -> Use pricing_get/plans_list (source of truth)
+2. For documented processes or workflows -> Search knowledge packs first
+3. For recent updates or news -> Use safe_web_research with high-authority domains
+4. For general information -> Combine knowledge packs + web cache
 
 CITATION REQUIREMENTS:
 - ALWAYS cite sources when using external knowledge

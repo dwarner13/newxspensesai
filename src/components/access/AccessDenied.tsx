@@ -45,11 +45,11 @@ const AccessDenied = ({
               <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-lg border border-yellow-200">
                 <h4 className="font-medium text-yellow-800 mb-2">Premium Benefits:</h4>
                 <ul className="text-sm text-yellow-700 space-y-1">
-                  <li>• AI-powered insights and suggestions</li>
-                  <li>• Advanced categorization rules</li>
-                  <li>• Unlimited receipt scanning</li>
-                  <li>• Priority email support</li>
-                  <li>• Export to multiple formats</li>
+                  <li>- AI-powered insights and suggestions</li>
+                  <li>- Advanced categorization rules</li>
+                  <li>- Unlimited receipt scanning</li>
+                  <li>- Priority email support</li>
+                  <li>- Export to multiple formats</li>
                 </ul>
               </div>
               <button className="btn-primary bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600">

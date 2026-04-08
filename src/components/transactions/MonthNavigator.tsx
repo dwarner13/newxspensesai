@@ -93,7 +93,7 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
             type="button"
             ref={isActive ? activeRef : undefined}
             onClick={() => onSelect(imp.id)}
-            title={`${sanitizeIssuerPillLabel(imp.statementLabel)} • ${imp.docName} • Uploaded ${formatLongDate(imp.created_at)}`}
+            title={`${sanitizeIssuerPillLabel(imp.statementLabel)} - ${imp.docName} - Uploaded ${formatLongDate(imp.created_at)}`}
             className={[
               pillBase,
               isActive

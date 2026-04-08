@@ -43,7 +43,7 @@ export const getSafeData = (getData: (key: string) => any) => {
 export const transformTransactionsForDisplay = (transactions: any[]) => {
   return transactions.map(tx => ({
     title: tx.description,
-    subtitle: `${tx.category} • ${new Date(tx.date).toLocaleDateString()}`,
+    subtitle: `${tx.category} - ${new Date(tx.date).toLocaleDateString()}`,
     amount: `${tx.type === 'Credit' ? '+' : '-'}${Math.abs(tx.amount).toFixed(2)} ${tx.receipt_url ? '🧾' : ''}`,
     image: tx.receipt_url || "https://via.placeholder.com/150x90.png?text=No+Receipt"
   }));

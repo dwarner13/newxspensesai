@@ -593,7 +593,7 @@ const AICategorizationPage: React.FC = () => {
                       <div className={`w-3 h-3 ${category.color} rounded-full`}></div>
                       <div>
                         <div className="text-white text-sm font-medium">{category.name}</div>
-                        <div className="text-white/60 text-xs">{category.percentage} • {category.transactions}</div>
+                        <div className="text-white/60 text-xs">{category.percentage} - {category.transactions}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1372,19 +1372,19 @@ const AICategorizationPage: React.FC = () => {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 text-green-400">
                             <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span className="text-sm">Starbucks $4.50 → Food & Dining</span>
+                            <span className="text-sm">Starbucks $4.50 -> Food & Dining</span>
                           </div>
                           <div className="flex items-center gap-2 text-green-400">
                             <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span className="text-sm">Shell Gas $45.20 → Transportation</span>
+                            <span className="text-sm">Shell Gas $45.20 -> Transportation</span>
                           </div>
                           <div className="flex items-center gap-2 text-green-400">
                             <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span className="text-sm">Netflix $15.99 → Entertainment</span>
+                            <span className="text-sm">Netflix $15.99 -> Entertainment</span>
                           </div>
                           <div className="flex items-center gap-2 text-green-400">
                             <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span className="text-sm">Uber $18.90 → Transportation</span>
+                            <span className="text-sm">Uber $18.90 -> Transportation</span>
                           </div>
                         </div>
                       </div>
@@ -1393,11 +1393,11 @@ const AICategorizationPage: React.FC = () => {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 text-yellow-400">
                             <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                            <span className="text-sm">Amazon $67.80 → Needs review</span>
+                            <span className="text-sm">Amazon $67.80 -> Needs review</span>
                           </div>
                           <div className="flex items-center gap-2 text-yellow-400">
                             <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                            <span className="text-sm">Walmart $23.45 → Needs review</span>
+                            <span className="text-sm">Walmart $23.45 -> Needs review</span>
                           </div>
                         </div>
                       </div>

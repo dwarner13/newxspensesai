@@ -548,10 +548,10 @@ const BusinessExpenseIntelligencePage = () => {
                   <h3 className="text-lg font-semibold">Seamless System Integration</h3>
                 </div>
                 <ul className="space-y-2 text-sm text-gray-700 mb-4">
-                  <li>• QuickBooks, Xero, Sage integration</li>
-                  <li>• ERP system connectivity (NetSuite, SAP)</li>
-                  <li>• API access for custom integrations</li>
-                  <li>• Real-time data synchronization</li>
+                  <li>- QuickBooks, Xero, Sage integration</li>
+                  <li>- ERP system connectivity (NetSuite, SAP)</li>
+                  <li>- API access for custom integrations</li>
+                  <li>- Real-time data synchronization</li>
                 </ul>
                 <div className="bg-white rounded-lg p-3">
                   <div className="text-xs font-medium text-purple-600">Integration Time:</div>
@@ -564,10 +564,10 @@ const BusinessExpenseIntelligencePage = () => {
                   <h3 className="text-lg font-semibold">Enterprise Security & Compliance</h3>
                 </div>
                 <ul className="space-y-2 text-sm text-gray-700 mb-4">
-                  <li>• SOC 2 Type II certified</li>
-                  <li>• GDPR and CCPA compliant</li>
-                  <li>• Bank-level encryption (256-bit AES)</li>
-                  <li>• Role-based access controls</li>
+                  <li>- SOC 2 Type II certified</li>
+                  <li>- GDPR and CCPA compliant</li>
+                  <li>- Bank-level encryption (256-bit AES)</li>
+                  <li>- Role-based access controls</li>
                 </ul>
                 <div className="bg-white rounded-lg p-3">
                   <div className="text-xs font-medium text-green-600">Security Level:</div>
@@ -592,7 +592,7 @@ const BusinessExpenseIntelligencePage = () => {
                 Limited Time: Enterprise Business Intelligence for $199/month
               </div>
               <div className="text-purple-200 text-sm">
-                (Reg. $299/month • Includes unlimited users and entities • Cancel anytime)
+                (Reg. $299/month - Includes unlimited users and entities - Cancel anytime)
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

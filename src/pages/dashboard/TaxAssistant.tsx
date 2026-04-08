@@ -151,23 +151,23 @@ export default function TaxAssistant() {
       return `💡 Great question about deductions! Let me help you identify potential tax deductions for your business:
 
 **Common Business Deductions:**
-• **Office Expenses** - Rent, utilities, supplies, equipment
-• **Professional Services** - Legal, accounting, consulting fees
-• **Marketing & Advertising** - Website, social media, print ads
-• **Travel & Meals** - Business trips, client meetings (50% meals)
-• **Vehicle Expenses** - Mileage or actual expenses for business use
-• **Home Office** - If you work from home exclusively
-• **Professional Development** - Courses, certifications, conferences
-• **Software & Subscriptions** - Business tools, cloud services
-• **Insurance** - Business liability, professional indemnity
-• **Bank Fees** - Business account fees, credit card processing
+- **Office Expenses** - Rent, utilities, supplies, equipment
+- **Professional Services** - Legal, accounting, consulting fees
+- **Marketing & Advertising** - Website, social media, print ads
+- **Travel & Meals** - Business trips, client meetings (50% meals)
+- **Vehicle Expenses** - Mileage or actual expenses for business use
+- **Home Office** - If you work from home exclusively
+- **Professional Development** - Courses, certifications, conferences
+- **Software & Subscriptions** - Business tools, cloud services
+- **Insurance** - Business liability, professional indemnity
+- **Bank Fees** - Business account fees, credit card processing
 
 **Pro Tips:**
-• Keep detailed receipts and records
-• Document business purpose for all expenses
-• Track mileage with dates and destinations
-• Separate business and personal expenses
-• Consider quarterly estimated tax payments
+- Keep detailed receipts and records
+- Document business purpose for all expenses
+- Track mileage with dates and destinations
+- Separate business and personal expenses
+- Consider quarterly estimated tax payments
 
 What specific type of deduction are you looking to claim? I can provide more detailed guidance!`;
     }
@@ -176,34 +176,34 @@ What specific type of deduction are you looking to claim? I can provide more det
       return `📅 Excellent question about quarterly tax payments! Here's what you need to know:
 
 **Who Needs to Pay Quarterly:**
-• Self-employed individuals
-• Freelancers and contractors
-• Small business owners
-• Anyone who owes $1,000+ in taxes
+- Self-employed individuals
+- Freelancers and contractors
+- Small business owners
+- Anyone who owes $1,000+ in taxes
 
 **Payment Deadlines:**
-• Q1: April 15 (Jan-Mar income)
-• Q2: June 15 (Apr-May income)
-• Q3: September 15 (Jun-Aug income)
-• Q4: January 15 (Sep-Dec income)
+- Q1: April 15 (Jan-Mar income)
+- Q2: June 15 (Apr-May income)
+- Q3: September 15 (Jun-Aug income)
+- Q4: January 15 (Sep-Dec income)
 
 **How to Calculate:**
-• Estimate your annual income
-• Calculate expected tax liability
-• Pay 25% each quarter
-• Adjust based on actual income
+- Estimate your annual income
+- Calculate expected tax liability
+- Pay 25% each quarter
+- Adjust based on actual income
 
 **Benefits of Quarterly Payments:**
-• Avoid penalties and interest
-• Better cash flow management
-• Reduces year-end tax burden
-• Helps with budgeting
+- Avoid penalties and interest
+- Better cash flow management
+- Reduces year-end tax burden
+- Helps with budgeting
 
 **Pro Tips:**
-• Use Form 1040-ES for calculations
-• Set up automatic payments
-• Keep detailed income records
-• Adjust payments as income changes
+- Use Form 1040-ES for calculations
+- Set up automatic payments
+- Keep detailed income records
+- Adjust payments as income changes
 
 Would you like help calculating your quarterly payment amount?`;
     }
@@ -212,36 +212,36 @@ Would you like help calculating your quarterly payment amount?`;
       return `📁 Excellent! Let's create a comprehensive record-keeping system to ensure you're organized, compliant, and ready for tax season. Here's my approach to financial record organization:
 
 **Record-Keeping Framework:**
-• **Digital First** - Use cloud storage for all documents
-• **Categorize Everything** - Separate by expense type and date
-• **Backup Regularly** - Multiple copies in different locations
-• **Review Monthly** - Catch errors and missing receipts early
+- **Digital First** - Use cloud storage for all documents
+- **Categorize Everything** - Separate by expense type and date
+- **Backup Regularly** - Multiple copies in different locations
+- **Review Monthly** - Catch errors and missing receipts early
 
 **Essential Records to Keep:**
-• **Income Records** - Invoices, payment confirmations, bank statements
-• **Expense Receipts** - All business-related purchases
-• **Mileage Logs** - Date, destination, purpose, miles driven
-• **Home Office** - Square footage, utility bills, rent/mortgage
-• **Equipment Purchases** - Receipts, warranties, depreciation schedules
-• **Professional Development** - Course certificates, conference receipts
+- **Income Records** - Invoices, payment confirmations, bank statements
+- **Expense Receipts** - All business-related purchases
+- **Mileage Logs** - Date, destination, purpose, miles driven
+- **Home Office** - Square footage, utility bills, rent/mortgage
+- **Equipment Purchases** - Receipts, warranties, depreciation schedules
+- **Professional Development** - Course certificates, conference receipts
 
 **Organization System:**
-• **By Category** - Office, Travel, Marketing, Professional Services
-• **By Date** - Monthly folders with year-month format
-• **By Project** - If you work on multiple projects
-• **By Client** - If you have multiple income sources
+- **By Category** - Office, Travel, Marketing, Professional Services
+- **By Date** - Monthly folders with year-month format
+- **By Project** - If you work on multiple projects
+- **By Client** - If you have multiple income sources
 
 **Digital Tools I Recommend:**
-• **Receipt Scanning** - Use your phone camera with OCR
-• **Cloud Storage** - Google Drive, Dropbox, or OneDrive
-• **Expense Tracking** - QuickBooks, FreshBooks, or similar
-• **Mileage Apps** - MileIQ, Everlance, or built-in phone apps
+- **Receipt Scanning** - Use your phone camera with OCR
+- **Cloud Storage** - Google Drive, Dropbox, or OneDrive
+- **Expense Tracking** - QuickBooks, FreshBooks, or similar
+- **Mileage Apps** - MileIQ, Everlance, or built-in phone apps
 
 **Pro Tips:**
-• **Scan Immediately** - Don't wait, receipts fade and get lost
-• **Use Consistent Naming** - Date_Category_Amount_Description
-• **Set Reminders** - Monthly review and organization
-• **Keep Physical Copies** - For high-value items and equipment
+- **Scan Immediately** - Don't wait, receipts fade and get lost
+- **Use Consistent Naming** - Date_Category_Amount_Description
+- **Set Reminders** - Monthly review and organization
+- **Keep Physical Copies** - For high-value items and equipment
 
 What specific type of records are you looking to organize? I can provide more detailed guidance for your situation!`;
     }
@@ -250,70 +250,70 @@ What specific type of records are you looking to organize? I can provide more de
       return `🎯 Fantastic! Let's optimize your tax strategy to minimize your tax burden and maximize your savings. Here's my comprehensive approach to tax optimization:
 
 **1. Income Optimization:**
-• **Timing** - Defer income to next year if in lower bracket
-• **Batching** - Group expenses in high-income years
-• **Retirement Contributions** - Maximize 401(k), IRA, SEP-IRA
-• **Health Savings** - Use HSA for medical expenses
+- **Timing** - Defer income to next year if in lower bracket
+- **Batching** - Group expenses in high-income years
+- **Retirement Contributions** - Maximize 401(k), IRA, SEP-IRA
+- **Health Savings** - Use HSA for medical expenses
 
 **2. Expense Maximization:**
-• **Accelerate Deductions** - Prepay expenses when beneficial
-• **Depreciation** - Use Section 179 for equipment
-• **Home Office** - Calculate both methods (simplified vs actual)
-• **Vehicle** - Compare standard mileage vs actual expenses
+- **Accelerate Deductions** - Prepay expenses when beneficial
+- **Depreciation** - Use Section 179 for equipment
+- **Home Office** - Calculate both methods (simplified vs actual)
+- **Vehicle** - Compare standard mileage vs actual expenses
 
 **3. Business Structure:**
-• **Entity Selection** - LLC, S-Corp, C-Corp considerations
-• **Election Timing** - When to make entity elections
-• **Salary vs Distributions** - Optimize S-Corp compensation
-• **Retirement Plans** - Choose best plan for your situation
+- **Entity Selection** - LLC, S-Corp, C-Corp considerations
+- **Election Timing** - When to make entity elections
+- **Salary vs Distributions** - Optimize S-Corp compensation
+- **Retirement Plans** - Choose best plan for your situation
 
 **4. Tax Credits:**
-• **Research & Development** - R&D tax credit for innovation
-• **Work Opportunity** - WOTC for hiring certain employees
-• **Energy Credits** - Solar, wind, energy-efficient equipment
-• **Child Care** - Dependent care credit and FSA
+- **Research & Development** - R&D tax credit for innovation
+- **Work Opportunity** - WOTC for hiring certain employees
+- **Energy Credits** - Solar, wind, energy-efficient equipment
+- **Child Care** - Dependent care credit and FSA
 
 **5. Retirement Planning:**
-• **Contribution Limits** - Maximize all available accounts
-• **Roth vs Traditional** - Tax diversification strategy
-• **Catch-up Contributions** - Age 50+ additional contributions
-• **Backdoor Roth** - High-income Roth IRA strategy
+- **Contribution Limits** - Maximize all available accounts
+- **Roth vs Traditional** - Tax diversification strategy
+- **Catch-up Contributions** - Age 50+ additional contributions
+- **Backdoor Roth** - High-income Roth IRA strategy
 
 **6. Investment Strategy:**
-• **Tax-Loss Harvesting** - Offset gains with losses
-• **Asset Location** - Tax-efficient fund placement
-• **Long-term Holdings** - Favor long-term capital gains
-• **Municipal Bonds** - Tax-free income consideration
+- **Tax-Loss Harvesting** - Offset gains with losses
+- **Asset Location** - Tax-efficient fund placement
+- **Long-term Holdings** - Favor long-term capital gains
+- **Municipal Bonds** - Tax-free income consideration
 
 **7. Year-End Planning:**
-• **Income Shifting** - Move income between tax years
-• **Expense Acceleration** - Pay bills before year-end
-• **Charitable Giving** - Donate appreciated assets
-• **Estimated Payments** - Adjust for current year changes
+- **Income Shifting** - Move income between tax years
+- **Expense Acceleration** - Pay bills before year-end
+- **Charitable Giving** - Donate appreciated assets
+- **Estimated Payments** - Adjust for current year changes
 
 **8. Quarterly Reviews:**
-• **Quarterly Reviews** - Review tax situation quarterly
-• **Estimated Payments** - Optimize estimated tax payments
-• **Withholding Adjustments** - Adjust W-4 withholding for optimal cash flow
-• **Documentation** - Maintain organized records throughout year
-• **Professional Consultation** - Regular meetings with tax advisor
-• **Legislation Monitoring** - Stay informed about tax law changes
+- **Quarterly Reviews** - Review tax situation quarterly
+- **Estimated Payments** - Optimize estimated tax payments
+- **Withholding Adjustments** - Adjust W-4 withholding for optimal cash flow
+- **Documentation** - Maintain organized records throughout year
+- **Professional Consultation** - Regular meetings with tax advisor
+- **Legislation Monitoring** - Stay informed about tax law changes
 
 **9. Long-Term Strategies:**
-• **Tax Bracket Planning** - Plan for current and future tax brackets
-• **Retirement Planning** - Optimize retirement account strategies
-• **Estate Planning** - Minimize estate and inheritance taxes
-• **Business Succession** - Plan for business transfer and tax implications
-• **Investment Planning** - Develop tax-efficient investment strategies
-• **Insurance Planning** - Use life insurance for tax-advantaged wealth transfer
+- **Tax Bracket Planning** - Plan for current and future tax brackets
+- **Retirement Planning** - Optimize retirement account strategies
+- **Estate Planning** - Minimize estate and inheritance taxes
+- **Business Succession** - Plan for business transfer and tax implications
+- **Investment Planning** - Develop tax-efficient investment strategies
+- **Insurance Planning** - Use life insurance for tax-advantaged wealth transfer
 
 **Pro Tips:**
-• **Start Early** - Tax optimization requires year-round planning
-• **Think Long-Term** - Consider multi-year strategies, not just current year
-• **Stay Flexible** - Be ready to adjust strategies based on changing circumstances
-• **Document Everything** - Maintain detailed records for all optimization strategies
-• **Seek Professional Help** - Complex strategies require expert guidance
-• **Monitor Changes** - Stay informed about tax law changes that affect your strategy
+- **Start Early** - Tax optimization requires year-round planning
+- **Think Long-Term** - Consider multi-year strategies, not just current year
+- **Stay Flexible** - Be ready to adjust strategies based on changing circumstances
+- **Document Everything** - Maintain detailed records for all optimization strategies
+- **Seek Professional Help** - Complex strategies require expert guidance
+- **Monitor Changes** - Stay informed about tax law changes that affect your strategy
 
 What specific aspect of tax optimization would you like to explore?`;
     }
@@ -322,36 +322,36 @@ What specific aspect of tax optimization would you like to explore?`;
       return `📁 Excellent! Let's create a comprehensive record-keeping system to ensure you're organized, compliant, and ready for tax season. Here's my approach to financial record organization:
 
 **Record-Keeping Framework:**
-• **Digital First** - Use cloud storage for all documents
-• **Categorize Everything** - Separate by expense type and date
-• **Backup Regularly** - Multiple copies in different locations
-• **Review Monthly** - Catch errors and missing receipts early
+- **Digital First** - Use cloud storage for all documents
+- **Categorize Everything** - Separate by expense type and date
+- **Backup Regularly** - Multiple copies in different locations
+- **Review Monthly** - Catch errors and missing receipts early
 
 **Essential Records to Keep:**
-• **Income Records** - Invoices, payment confirmations, bank statements
-• **Expense Receipts** - All business-related purchases
-• **Mileage Logs** - Date, destination, purpose, miles driven
-• **Home Office** - Square footage, utility bills, rent/mortgage
-• **Equipment Purchases** - Receipts, warranties, depreciation schedules
-• **Professional Development** - Course certificates, conference receipts
+- **Income Records** - Invoices, payment confirmations, bank statements
+- **Expense Receipts** - All business-related purchases
+- **Mileage Logs** - Date, destination, purpose, miles driven
+- **Home Office** - Square footage, utility bills, rent/mortgage
+- **Equipment Purchases** - Receipts, warranties, depreciation schedules
+- **Professional Development** - Course certificates, conference receipts
 
 **Organization System:**
-• **By Category** - Office, Travel, Marketing, Professional Services
-• **By Date** - Monthly folders with year-month format
-• **By Project** - If you work on multiple projects
-• **By Client** - If you have multiple income sources
+- **By Category** - Office, Travel, Marketing, Professional Services
+- **By Date** - Monthly folders with year-month format
+- **By Project** - If you work on multiple projects
+- **By Client** - If you have multiple income sources
 
 **Digital Tools I Recommend:**
-• **Receipt Scanning** - Use your phone camera with OCR
-• **Cloud Storage** - Google Drive, Dropbox, or OneDrive
-• **Expense Tracking** - QuickBooks, FreshBooks, or similar
-• **Mileage Apps** - MileIQ, Everlance, or built-in phone apps
+- **Receipt Scanning** - Use your phone camera with OCR
+- **Cloud Storage** - Google Drive, Dropbox, or OneDrive
+- **Expense Tracking** - QuickBooks, FreshBooks, or similar
+- **Mileage Apps** - MileIQ, Everlance, or built-in phone apps
 
 **Pro Tips:**
-• **Scan Immediately** - Don't wait, receipts fade and get lost
-• **Use Consistent Naming** - Date_Category_Amount_Description
-• **Set Reminders** - Monthly review and organization
-• **Keep Physical Copies** - For high-value items and equipment
+- **Scan Immediately** - Don't wait, receipts fade and get lost
+- **Use Consistent Naming** - Date_Category_Amount_Description
+- **Set Reminders** - Monthly review and organization
+- **Keep Physical Copies** - For high-value items and equipment
 
 What specific type of records are you looking to organize? I can provide more detailed guidance for your situation!`;
     }
@@ -560,7 +560,7 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
                             <FileText className="w-5 h-5 text-blue-400" />
                             <div>
                               <p className="text-white font-medium text-sm">Bank Statement - Chase</p>
-                              <p className="text-white/60 text-xs">Dec 2024 • 47 transactions</p>
+                              <p className="text-white/60 text-xs">Dec 2024 - 47 transactions</p>
                             </div>
                           </div>
                           <span className="text-green-400 text-xs">✓ Processed</span>
@@ -570,7 +570,7 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
                             <FileText className="w-5 h-5 text-green-400" />
                             <div>
                               <p className="text-white font-medium text-sm">Receipts Bundle</p>
-                              <p className="text-white/60 text-xs">Nov 2024 • 23 receipts</p>
+                              <p className="text-white/60 text-xs">Nov 2024 - 23 receipts</p>
                             </div>
                           </div>
                           <span className="text-green-400 text-xs">✓ Processed</span>
@@ -580,7 +580,7 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
                             <FileText className="w-5 h-5 text-purple-400" />
                             <div>
                               <p className="text-white font-medium text-sm">Invoice Template</p>
-                              <p className="text-white/60 text-xs">Template • Ready to use</p>
+                              <p className="text-white/60 text-xs">Template - Ready to use</p>
                             </div>
                           </div>
                           <span className="text-blue-400 text-xs">📋 Template</span>

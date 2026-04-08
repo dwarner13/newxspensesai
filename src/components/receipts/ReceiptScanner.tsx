@@ -850,11 +850,11 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
             <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h3 className="text-sm font-semibold text-blue-800 mb-2">💡 Tips for Better Receipt Recognition:</h3>
               <ul className="text-xs text-blue-700 space-y-1">
-                <li>• Ensure good lighting and flat surface</li>
-                <li>• Avoid shadows and glare on the receipt</li>
-                <li>• Make sure text is clear and readable</li>
-                <li>• Hold camera steady and parallel to receipt</li>
-                <li>• Clean receipt surface if possible</li>
+                <li>- Ensure good lighting and flat surface</li>
+                <li>- Avoid shadows and glare on the receipt</li>
+                <li>- Make sure text is clear and readable</li>
+                <li>- Hold camera steady and parallel to receipt</li>
+                <li>- Clean receipt surface if possible</li>
               </ul>
             </div>
 

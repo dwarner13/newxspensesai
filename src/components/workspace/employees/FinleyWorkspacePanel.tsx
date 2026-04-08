@@ -145,13 +145,13 @@ export function FinleyWorkspacePanel() {
           {/* Short topics list */}
           <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar space-y-2 text-[11px] text-slate-200">
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              💰 <span className="font-medium">Budgeting</span> — 45 questions answered
+              💰 <span className="font-medium">Budgeting</span> - 45 questions answered
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              📈 <span className="font-medium">Investing</span> — 28 questions answered
+              📈 <span className="font-medium">Investing</span> - 28 questions answered
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              🎯 <span className="font-medium">Saving</span> — 32 questions answered
+              🎯 <span className="font-medium">Saving</span> - 32 questions answered
             </div>
           </div>
         </div>

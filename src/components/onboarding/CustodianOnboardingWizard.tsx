@@ -194,7 +194,7 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
         {isComplete && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { icon: '\uD83D\uDCC4', text: 'Upload your first statement — Byte will read it in seconds' },
+              { icon: '\uD83D\uDCC4', text: 'Upload your first statement - Byte will read it in seconds' },
               { icon: '\uD83C\uDFF7\uFE0F', text: 'Tag will categorize every transaction automatically' },
               { icon: '\u265B', text: 'Prime will brief you on your financial picture' },
             ].map(c => (

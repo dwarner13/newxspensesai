@@ -1,5 +1,5 @@
 /**
- * admin-data — Serves all admin dashboard data.
+ * admin-data - Serves all admin dashboard data.
  * Requires is_admin = true on the requesting user's profile.
  */
 

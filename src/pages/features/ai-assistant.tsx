@@ -19,10 +19,10 @@ const AIAssistantPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       <Helmet>
-        <title>AI Financial Assistant — Always-On Financial Guidance | XspensesAI</title>
+        <title>AI Financial Assistant - Always-On Financial Guidance | XspensesAI</title>
         <meta
           name="description"
-          content="Meet your AI Financial Assistant — a 24/7 personal financial guide that turns your data into instant clarity, smarter decisions, and confident action."
+          content="Meet your AI Financial Assistant - a 24/7 personal financial guide that turns your data into instant clarity, smarter decisions, and confident action."
         />
       </Helmet>
 
@@ -93,7 +93,7 @@ const AIAssistantPage = () => {
               Financial Clarity, On Demand
             </h2>
             <p className="text-white/80 text-lg max-w-3xl mx-auto">
-              Your assistant doesn’t just answer — it explains, prioritizes, and helps you take
+              Your assistant doesn't just answer - it explains, prioritizes, and helps you take
               action with confidence.
             </p>
           </div>
@@ -301,7 +301,7 @@ const AIAssistantPage = () => {
                 </div>
                 <p className="text-white/80 text-sm mb-4">
                   Based on your current cash flow and budget, you can afford it without exceeding
-                  your monthly spending targets — but it will reduce your savings this month by 18%.
+                  your monthly spending targets - but it will reduce your savings this month by 18%.
                 </p>
                 <div className="space-y-2 text-sm text-white/70">
                   <div className="flex items-center gap-2">
@@ -364,12 +364,12 @@ const AIAssistantPage = () => {
               {
                 icon: <Globe size={22} />,
                 title: 'Always On, Anywhere',
-                body: 'Ask from your phone, desktop, or while traveling — your assistant is always ready.',
+                body: 'Ask from your phone, desktop, or while traveling - your assistant is always ready.',
               },
               {
                 icon: <HeartHandshake size={22} />,
                 title: 'Supportive, Not Overwhelming',
-                body: 'Clear next steps, no jargon, no anxiety — just calm, trusted financial help.',
+                body: 'Clear next steps, no jargon, no anxiety - just calm, trusted financial help.',
               },
             ].map((item) => (
               <div
@@ -466,7 +466,7 @@ const AIAssistantPage = () => {
                   Powered by the Full AI Workforce
                 </h2>
                 <p className="text-white/80 text-lg max-w-2xl">
-                  Prime orchestrates Byte, Tag, Crystal, and Finley behind the scenes — so every
+                  Prime orchestrates Byte, Tag, Crystal, and Finley behind the scenes - so every
                   answer is calculated, verified, and explained in plain language.
                 </p>
               </div>
@@ -526,7 +526,7 @@ const AIAssistantPage = () => {
               who knows your entire financial picture and is always ready to help you make smarter
               money decisions."
             </p>
-            <p className="text-white/60 text-sm mt-3">— XspensesAI Philosophy</p>
+            <p className="text-white/60 text-sm mt-3">- XspensesAI Philosophy</p>
           </div>
         </div>
       </section>
@@ -628,14 +628,14 @@ const AIAssistantPage = () => {
               People Feel the Difference
             </h2>
             <p className="text-white/80 text-lg max-w-3xl mx-auto">
-              Clear, calm, and confident — the experience users describe most often.
+              Clear, calm, and confident - the experience users describe most often.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               {
                 quote:
-                  '“The assistant told me exactly why I overspent and how to fix it — in 30 seconds.”',
+                  '“The assistant told me exactly why I overspent and how to fix it - in 30 seconds.”',
                 name: 'Jordan R.',
                 title: 'Founder',
               },
@@ -681,7 +681,7 @@ const AIAssistantPage = () => {
               {
                 title: 'Typical Finance Apps',
                 points: [
-                  'Show data, don’t explain it',
+                  'Show data, don't explain it',
                   'Require manual digging',
                   'Generic tips, little context',
                   'Reactive, not proactive',
@@ -714,7 +714,7 @@ const AIAssistantPage = () => {
                 <ul className="space-y-2 text-white/70 text-sm">
                   {column.points.map((point) => (
                     <li key={point} className="flex items-start gap-2">
-                      <span className="text-cyan-300 mt-1">•</span>
+                      <span className="text-cyan-300 mt-1">-</span>
                       <span>{point}</span>
                     </li>
                   ))}
@@ -752,7 +752,7 @@ const AIAssistantPage = () => {
               },
               {
                 q: 'Is it just a chatbot?',
-                a: 'No. It’s a decision-support system that explains, prioritizes, and guides you with data-backed reasoning.',
+                a: 'No. It's a decision-support system that explains, prioritizes, and guides you with data-backed reasoning.',
               },
             ].map((item) => (
               <div

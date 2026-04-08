@@ -175,7 +175,7 @@ You can manually create rules anytime, or I can help you categorize specific tra
   }
   
   const ruleList = topCandidates
-    .map(c => `- **${c.vendor}** → Category: ${c.category}`)
+    .map(c => `- **${c.vendor}** -> Category: ${c.category}`)
     .join('\n');
   
   return {

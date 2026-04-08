@@ -28,7 +28,7 @@ const MESSAGE_TEMPLATES: Record<SecurityMessageEvent, (uploadId?: string) => str
     'That upload didn\'t complete. Nothing was saved, and temporary data was cleared.',
   
   upload_discard_success: () =>
-    'Done — I removed that upload and cleared extracted data.',
+    'Done - I removed that upload and cleared extracted data.',
   
   upload_discard_failed: () =>
     'I stopped processing and blocked access, but couldn\'t fully remove it yet. Please retry or contact support.',

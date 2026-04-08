@@ -103,7 +103,7 @@ export const handler: Handler = async (event, context) => {
 
     const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
 
-    // Route 1: Images/PDFs → OCR (guardrails run in OCR function)
+    // Route 1: Images/PDFs -> OCR (guardrails run in OCR function)
     if (isImageOrPdf(doc.mime_type)) {
       const docStatus = String(doc?.status || '').toLowerCase();
       const docOcrStatus = String(doc?.ocr_status || '').toLowerCase();
@@ -157,7 +157,7 @@ export const handler: Handler = async (event, context) => {
       return { statusCode: 200, body: JSON.stringify({ started: true, queued: true, via: 'ocr' }) };
     }
 
-    // Route 2: CSV/OFX/QIF → Parser with guardrails
+    // Route 2: CSV/OFX/QIF -> Parser with guardrails
     if (isStatement(doc.original_name)) {
       const rawText = await file.text();
 

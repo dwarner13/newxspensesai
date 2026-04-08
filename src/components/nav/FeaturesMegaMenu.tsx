@@ -176,7 +176,7 @@ export default function FeaturesMegaMenu() {
         {/* bottom footer strip with CTA */}
         <div className="flex items-center justify-between rounded-b-3xl border-t border-white/20 bg-white/10 px-6 py-2">
           <div className="text-sm text-white/80 font-bold leading-tight tracking-tight">
-            Transform your finances with AI — <span className="text-white font-bold">start today</span>.
+            Transform your finances with AI - <span className="text-white font-bold">start today</span>.
           </div>
           <Link
             to="/signup"

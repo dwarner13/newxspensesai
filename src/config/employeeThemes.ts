@@ -14,7 +14,7 @@ export const employeeThemes = {
     pill: "border-amber-500/40 bg-amber-500/10 text-amber-100/90",
     sendGradient: "from-amber-500 to-amber-600",
     sendShadow: "shadow-amber-500/30",
-    placeholder: "Ask Prime anything…"
+    placeholder: "Ask Prime anything..."
   },
   byte: {
     emoji: "📄",
@@ -24,7 +24,7 @@ export const employeeThemes = {
     pill: "border-indigo-500/40 bg-indigo-500/10 text-indigo-100/90",
     sendGradient: "from-indigo-500 to-indigo-600",
     sendShadow: "shadow-indigo-500/30",
-    placeholder: "Message Byte…"
+    placeholder: "Message Byte..."
   },
   tag: {
     emoji: "🏷️",
@@ -34,7 +34,7 @@ export const employeeThemes = {
     pill: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100/90",
     sendGradient: "from-emerald-500 to-emerald-600",
     sendShadow: "shadow-emerald-500/30",
-    placeholder: "Ask Tag about categories…"
+    placeholder: "Ask Tag about categories..."
   },
   crystal: {
     emoji: "🔮",
@@ -44,7 +44,7 @@ export const employeeThemes = {
     pill: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100/90",
     sendGradient: "from-cyan-500 to-cyan-600",
     sendShadow: "shadow-cyan-500/30",
-    placeholder: "Ask Crystal for insights…"
+    placeholder: "Ask Crystal for insights..."
   },
   finley: {
     emoji: "💼",
@@ -54,7 +54,7 @@ export const employeeThemes = {
     pill: "border-blue-500/40 bg-blue-500/10 text-blue-100/90",
     sendGradient: "from-blue-500 to-blue-600",
     sendShadow: "shadow-blue-500/30",
-    placeholder: "Ask Finley about forecasting…"
+    placeholder: "Ask Finley about forecasting..."
   },
   goalie: {
     emoji: "🥅",
@@ -64,7 +64,7 @@ export const employeeThemes = {
     pill: "border-yellow-500/40 bg-yellow-500/10 text-yellow-100/90",
     sendGradient: "from-yellow-500 to-yellow-600",
     sendShadow: "shadow-yellow-500/30",
-    placeholder: "Ask Goalie about goals…"
+    placeholder: "Ask Goalie about goals..."
   },
   liberty: {
     emoji: "🕊️",
@@ -74,7 +74,7 @@ export const employeeThemes = {
     pill: "border-rose-500/40 bg-rose-500/10 text-rose-100/90",
     sendGradient: "from-rose-500 to-rose-600",
     sendShadow: "shadow-rose-500/30",
-    placeholder: "Ask Liberty about debt freedom…"
+    placeholder: "Ask Liberty about debt freedom..."
   },
   dash: {
     emoji: "📈",
@@ -84,7 +84,7 @@ export const employeeThemes = {
     pill: "border-blue-500/40 bg-blue-500/10 text-blue-100/90",
     sendGradient: "from-blue-500 to-blue-600",
     sendShadow: "shadow-blue-500/30",
-    placeholder: "Ask Dash about analytics…"
+    placeholder: "Ask Dash about analytics..."
   }
 } as const;
 

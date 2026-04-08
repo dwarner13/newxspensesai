@@ -321,7 +321,7 @@ const ViewTransactionsPage: React.FC = () => {
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">Transaction History</h1>
               <p className="text-slate-400">
-                {filteredTransactions.length} transactions • {formatCurrency(filteredTransactions.reduce((sum, tx) => sum + (tx.type === 'Debit' ? tx.amount : -tx.amount), 0))} net
+                {filteredTransactions.length} transactions - {formatCurrency(filteredTransactions.reduce((sum, tx) => sum + (tx.type === 'Debit' ? tx.amount : -tx.amount), 0))} net
               </p>
             </div>
             <div className="flex items-center gap-3">

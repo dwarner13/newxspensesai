@@ -37,7 +37,7 @@ const faqs = [
   },
   {
     question: 'What makes this different from other goal apps?',
-    answer: 'Most apps give static advice. XspensesAI learns, remembers, and evolves with you—delivering truly personalized financial guidance.'
+    answer: 'Most apps give static advice. XspensesAI learns, remembers, and evolves with you-delivering truly personalized financial guidance.'
   }
 ];
 
@@ -219,7 +219,7 @@ const GoalsPage = () => {
               </div>
               <div className="bg-gradient-to-br from-pink-100 to-purple-100 rounded-2xl p-6 shadow-lg">
                 <h3 className="text-lg font-bold text-pink-700 mb-2">Month 6: Knows Your Financial DNA</h3>
-                <p className="text-gray-700">"You save more when you get audio encouragement. Here’s a new podcast episode to keep you motivated!"</p>
+                <p className="text-gray-700">"You save more when you get audio encouragement. Here's a new podcast episode to keep you motivated!"</p>
               </div>
             </div>
             <div className="flex flex-col gap-6 items-center">
@@ -292,7 +292,7 @@ const GoalsPage = () => {
         <div className="container max-w-3xl mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to End Manual Expense Work Forever?</h2>
           <p className="text-xl text-purple-100 mb-8">
-            The sooner you start, the smarter your AI becomes. Don’t waste another day with generic financial advice.
+            The sooner you start, the smarter your AI becomes. Don't waste another day with generic financial advice.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/signup" className="bg-white text-purple-600 px-8 py-4 rounded-xl text-lg font-semibold hover:shadow-xl transform hover:scale-105 transition-all duration-200">
@@ -306,7 +306,7 @@ const GoalsPage = () => {
             </Link>
           </div>
           <p className="text-purple-100 text-sm mt-6">
-            ✓ No credit card required • ✓ Process 10 documents free • ✓ See results in 2.3 seconds
+            ✓ No credit card required - ✓ Process 10 documents free - ✓ See results in 2.3 seconds
           </p>
         </div>
       </section>

@@ -1,6 +1,6 @@
 /**
  * CategoryRulesManager
- * Full CRUD UI for category_rules — create, edit, toggle, delete.
+ * Full CRUD UI for category_rules - create, edit, toggle, delete.
  */
 import React, { useState } from 'react';
 import { Plus, Trash2, Pencil, Check, X, ToggleLeft, ToggleRight } from 'lucide-react';
@@ -103,7 +103,7 @@ export function CategoryRulesManager({ rules, isLoading, onDelete, onUpdate, onR
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-white">Category Rules</h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">{rules.length} rule{rules.length !== 1 ? 's' : ''} — Tag applies these on every import</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">{rules.length} rule{rules.length !== 1 ? 's' : ''} - Tag applies these on every import</p>
         </div>
         <button
           onClick={() => setShowCreate((v) => !v)}
@@ -152,7 +152,7 @@ export function CategoryRulesManager({ rules, isLoading, onDelete, onUpdate, onR
               disabled={isSaving || !newMatchValue.trim()}
               className="rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors"
             >
-              {isSaving ? 'Saving…' : 'Save'}
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
             <button onClick={() => setShowCreate(false)} className="text-slate-500 hover:text-slate-300">
               <X className="h-4 w-4" />
@@ -163,9 +163,9 @@ export function CategoryRulesManager({ rules, isLoading, onDelete, onUpdate, onR
 
       {/* Rules list */}
       {isLoading ? (
-        <p className="text-[11px] text-slate-500 py-2">Loading rules…</p>
+        <p className="text-[11px] text-slate-500 py-2">Loading rules...</p>
       ) : rules.length === 0 ? (
-        <p className="text-[11px] text-slate-500 py-2">No rules yet — create one above or run Auto-Tag to generate starter rules.</p>
+        <p className="text-[11px] text-slate-500 py-2">No rules yet - create one above or run Auto-Tag to generate starter rules.</p>
       ) : (
         <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
           {rules.map((rule) => (

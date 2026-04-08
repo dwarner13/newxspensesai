@@ -16,7 +16,7 @@ const SmartAutomationPage = () => {
       setLearningDays(prev => {
         if (prev < 90) {
           const newDays = prev + 1;
-          // AI accuracy progression: 78% → 94% → 99.7%
+          // AI accuracy progression: 78% -> 94% -> 99.7%
           if (newDays <= 30) {
             setAiAccuracy(78 + (newDays * 0.53)); // 78% to 94% over 30 days
           } else if (newDays <= 90) {
@@ -171,8 +171,8 @@ const SmartAutomationPage = () => {
               <h3 className="text-lg font-bold text-gray-900 mb-4">Mind-Blowing AI Learning Examples</h3>
               <div className="space-y-4">
                 <div className="bg-white rounded-lg p-4">
-                  <div className="text-sm text-gray-500 mb-1">Day 1 → Day 90</div>
-                  <div className="text-sm font-semibold">Basic categorization → Predicts spending 6 months ahead with 99.7% accuracy</div>
+                  <div className="text-sm text-gray-500 mb-1">Day 1 -> Day 90</div>
+                  <div className="text-sm font-semibold">Basic categorization -> Predicts spending 6 months ahead with 99.7% accuracy</div>
                 </div>
                 <div className="bg-white rounded-lg p-4">
                   <div className="text-sm text-gray-500 mb-1">Emotion Recognition</div>
@@ -193,7 +193,7 @@ const SmartAutomationPage = () => {
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900">Day 1-30: Pattern Recognition</div>
-                    <div className="text-sm text-gray-600">AI observes and learns from every financial decision (78% → 94% accuracy)</div>
+                    <div className="text-sm text-gray-600">AI observes and learns from every financial decision (78% -> 94% accuracy)</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -202,7 +202,7 @@ const SmartAutomationPage = () => {
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900">Day 31-60: Predictive Intelligence</div>
-                    <div className="text-sm text-gray-600">Develops superhuman pattern recognition and predictive capabilities (94% → 99.7%)</div>
+                    <div className="text-sm text-gray-600">Develops superhuman pattern recognition and predictive capabilities (94% -> 99.7%)</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -520,10 +520,10 @@ const SmartAutomationPage = () => {
                   <h3 className="text-lg font-semibold">Autonomous Decision Making</h3>
                 </div>
                 <ul className="space-y-2 text-sm text-gray-700 mb-4">
-                  <li>• AI makes decisions while you sleep</li>
-                  <li>• Automatic bill payment optimization</li>
-                  <li>• Smart savings allocation</li>
-                  <li>• Investment timing optimization</li>
+                  <li>- AI makes decisions while you sleep</li>
+                  <li>- Automatic bill payment optimization</li>
+                  <li>- Smart savings allocation</li>
+                  <li>- Investment timing optimization</li>
                 </ul>
                 <div className="bg-white rounded-lg p-3">
                   <div className="text-xs font-medium text-purple-600">Autonomy Level:</div>
@@ -536,10 +536,10 @@ const SmartAutomationPage = () => {
                   <h3 className="text-lg font-semibold">Superhuman Accuracy</h3>
                 </div>
                 <ul className="space-y-2 text-sm text-gray-700 mb-4">
-                  <li>• 99.7% prediction accuracy</li>
-                  <li>• 15x faster pattern recognition</li>
-                  <li>• Zero emotional decision bias</li>
-                  <li>• Continuous learning improvement</li>
+                  <li>- 99.7% prediction accuracy</li>
+                  <li>- 15x faster pattern recognition</li>
+                  <li>- Zero emotional decision bias</li>
+                  <li>- Continuous learning improvement</li>
                 </ul>
                 <div className="bg-white rounded-lg p-3">
                   <div className="text-xs font-medium text-green-600">Intelligence Level:</div>
@@ -564,7 +564,7 @@ const SmartAutomationPage = () => {
                 Limited Time: Smart Financial Automation for $29/month
               </div>
               <div className="text-purple-200 text-sm">
-                (Reg. $49/month • Includes complete AI control • Cancel anytime)
+                (Reg. $49/month - Includes complete AI control - Cancel anytime)
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

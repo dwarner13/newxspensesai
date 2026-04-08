@@ -324,14 +324,14 @@ export function ByteWorkspacePanel({
                     disabled={openingDocId === doc.id}
                     className="shrink-0 rounded-md border border-slate-600 px-2 py-1 text-[10px] text-slate-100 hover:bg-slate-600 disabled:opacity-50"
                   >
-                    {openingDocId === doc.id ? 'Opening…' : 'View PDF'}
+                    {openingDocId === doc.id ? 'Opening...' : 'View PDF'}
                   </button>
                 </div>
                 {doc.text ? (
                   <div className="text-slate-500 truncate">{doc.text.substring(0, 80)}...</div>
                 ) : (
                   <div className="text-slate-500 truncate">
-                    {doc.status ? `${doc.status}…` : 'Processing…'}
+                    {doc.status ? `${doc.status}...` : 'Processing...'}
                   </div>
                 )}
               </div>

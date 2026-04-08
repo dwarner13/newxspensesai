@@ -9,7 +9,7 @@
  *
  * IMPORTANT: This function ONLY updates category, category_source, subcategory,
  * subcategory_source, and updated_at. It NEVER changes type, amount, or
- * merchant_name — those fields are owned by the parser.
+ * merchant_name - those fields are owned by the parser.
  */
 
 import type { Handler } from '@netlify/functions';
@@ -26,7 +26,7 @@ const headers = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// ─── Hardcoded merchant overrides — these ALWAYS win ────────────────────────
+// ─── Hardcoded merchant overrides - these ALWAYS win ────────────────────────
 // Match by checking if merchant_name.toUpperCase() includes the key.
 // Order matters: more specific keys first (e.g. "POPEYE'S SUPPLEMENTS" before "POPEYES")
 const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: string }> = [
@@ -271,7 +271,7 @@ export const handler: Handler = async (event) => {
   const requestedLimit = Number(body.limit);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(1000, Math.floor(requestedLimit))) : 500;
 
-  // Diagnostic logging — visible in Netlify function logs
+  // Diagnostic logging - visible in Netlify function logs
   console.log('[apply-category-rules] CALLED', { userId, importId, limit, timestamp: new Date().toISOString() });
   safeLog('info', '[apply-category-rules] Starting', { userId, importId, limit });
 
@@ -334,7 +334,7 @@ export const handler: Handler = async (event) => {
   const maxAttempts = importId ? 5 : 3;
   const delayMs = importId ? 2000 : 3000;
 
-  // JS-side filter — guarantees no .or() syntax issues block matching
+  // JS-side filter - guarantees no .or() syntax issues block matching
   const NEEDS_CATEGORIZATION = new Set(['', 'other', 'uncategorized', 'needs review']);
   const needsCategorization = (cat: unknown): boolean => {
     if (cat == null) return true;
@@ -352,7 +352,7 @@ export const handler: Handler = async (event) => {
     if (importId) {
       query = query.eq('import_id', importId);
     }
-    // No category filter — filter in JS below
+    // No category filter - filter in JS below
 
     const { data: rows, error } = await query;
 
@@ -369,7 +369,7 @@ export const handler: Handler = async (event) => {
     if (txs.length > 0) break;
 
     if (attempt < maxAttempts) {
-      console.log(`[apply-category-rules] No rows yet — waiting ${delayMs}ms before retry ${attempt + 1}/${maxAttempts}`);
+      console.log(`[apply-category-rules] No rows yet - waiting ${delayMs}ms before retry ${attempt + 1}/${maxAttempts}`);
       await new Promise(r => setTimeout(r, delayMs));
     }
   }
@@ -378,7 +378,7 @@ export const handler: Handler = async (event) => {
   // filter and run cleanup mode for the whole user (handles duplicate-hash case
   // where commit lands under a different import_id than the one we were given).
   if (txs.length === 0 && importId) {
-    console.warn('[apply-category-rules] importId returned 0 rows — falling back to user-wide cleanup', { userId, importId });
+    console.warn('[apply-category-rules] importId returned 0 rows - falling back to user-wide cleanup', { userId, importId });
     const { data: fallbackRows, error: fallbackErr } = await supabase
       .from('transactions')
       .select('id, merchant_name, merchant, amount, description, category')
@@ -395,7 +395,7 @@ export const handler: Handler = async (event) => {
   }
 
   if (txs.length === 0) {
-    console.warn('[apply-category-rules] ZERO ROWS after all retries — commit-import may have failed or importId mismatch', { userId, importId, attempts: maxAttempts });
+    console.warn('[apply-category-rules] ZERO ROWS after all retries - commit-import may have failed or importId mismatch', { userId, importId, attempts: maxAttempts });
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skipped: 0, duplicatesRemoved, reason: 'no_rows_after_retries', attempts: maxAttempts }) };
   }
 
@@ -437,7 +437,7 @@ export const handler: Handler = async (event) => {
   });
 
   // ── Step 5: Apply rules in priority order ──
-  // Priority: hardcoded overrides → vendor memory → DB rules → merchant map → inline rules
+  // Priority: hardcoded overrides -> vendor memory -> DB rules -> merchant map -> inline rules
   const updates: Array<{ id: string; category: string; subcategory?: string | null; source: string }> = [];
   let skipped = 0;
 
@@ -486,7 +486,7 @@ export const handler: Handler = async (event) => {
       continue;
     }
 
-    // No match — mark as Needs Review
+    // No match - mark as Needs Review
     if (needsWork) {
       updates.push({ id: tx.id, category: 'Needs Review', source: 'needs_review' });
     } else {
@@ -494,7 +494,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // ── Step 6: Batch update — ONLY category fields, never type/amount/merchant ──
+  // ── Step 6: Batch update - ONLY category fields, never type/amount/merchant ──
   console.log('[apply-category-rules] PRE-UPDATE', { userId, importId, txsFetched: txs.length, updatesQueued: updates.length, skipped });
 
   let updated = 0;
@@ -511,7 +511,7 @@ export const handler: Handler = async (event) => {
           payload.subcategory = u.subcategory ?? null;
           if (u.subcategory) payload.subcategory_source = u.source;
         }
-        // NEVER include type, amount, or merchant_name — those are parser-owned
+        // NEVER include type, amount, or merchant_name - those are parser-owned
         return supabase
           .from('transactions')
           .update(payload)

@@ -35,7 +35,7 @@ export function ByteActivityItem({ event, onViewResults }: ByteActivityItemProps
   const importRunId = (metadata.import_run_id as string | undefined) || (metadata.import_id as string | undefined);
   const effectiveTitle =
     opsDashboardEnabled && txnCount > 0
-      ? `Import completed — ${txnCount} transaction${txnCount > 1 ? 's' : ''} processed.`
+      ? `Import completed - ${txnCount} transaction${txnCount > 1 ? 's' : ''} processed.`
       : event.title;
 
   const handleClick = () => {
@@ -163,7 +163,7 @@ export function ByteActivityItem({ event, onViewResults }: ByteActivityItemProps
           >
             View results
           </button>
-          <span className="text-slate-600">•</span>
+          <span className="text-slate-600">-</span>
           <button
             onClick={handleChatClick}
             className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"

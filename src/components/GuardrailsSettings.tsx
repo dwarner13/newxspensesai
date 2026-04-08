@@ -399,10 +399,10 @@ export function GuardrailsSettings({ userId, onConfigChange }: GuardrailsSetting
             <div className="text-sm text-blue-800">
               <p className="font-medium mb-1">How Guardrails Work:</p>
               <ul className="space-y-1 text-xs">
-                <li>• <strong>PII Detection:</strong> Automatically masks sensitive information before processing</li>
-                <li>• <strong>Jailbreak Protection:</strong> Blocks attempts to override system instructions</li>
-                <li>• <strong>Moderation:</strong> Filters harmful or inappropriate content (optional)</li>
-                <li>• <strong>Accuracy Check:</strong> Flags potentially inaccurate financial claims (optional)</li>
+                <li>- <strong>PII Detection:</strong> Automatically masks sensitive information before processing</li>
+                <li>- <strong>Jailbreak Protection:</strong> Blocks attempts to override system instructions</li>
+                <li>- <strong>Moderation:</strong> Filters harmful or inappropriate content (optional)</li>
+                <li>- <strong>Accuracy Check:</strong> Flags potentially inaccurate financial claims (optional)</li>
               </ul>
               <p className="mt-2 text-xs">
                 All violations are logged for compliance and security monitoring.

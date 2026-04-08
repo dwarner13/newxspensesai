@@ -1,5 +1,5 @@
 /**
- * tag-smart-review — Scans committed transactions for known categorization errors.
+ * tag-smart-review - Scans committed transactions for known categorization errors.
  * Returns a list of issues with suggested fixes, grouped by merchant.
  */
 
@@ -40,15 +40,15 @@ interface Rule {
 }
 
 const RULES: Rule[] = [
-  { merchantPatterns: ['%GORDON FOOD%'], suggestedCategory: 'Income', suggestedSubcategory: 'Employment Income', reason: 'Looks like your employer — should be Employment Income' },
-  { merchantPatterns: ['%TD LOAN%', '%NATIONAL MONEY%'], categoryFilter: 'Business Income', suggestedCategory: 'Debt Payments', suggestedSubcategory: 'Loan Payment', reason: 'Loan payment — should be Debt Payments' },
-  { merchantPatterns: ['%EASY FINANCIAL%', '%FLEXITI%', '%CASH MONEY%'], categoryFilter: 'Business Income', suggestedCategory: 'Debt Payments', suggestedSubcategory: 'Credit Payment', reason: 'Finance company — should be Debt Payments' },
-  { merchantPatterns: ['%SOBEYS%', '%SAFEWAY%', '%SAVE ON%'], categoryFilter: 'Business Income', suggestedCategory: 'Groceries', suggestedSubcategory: null, reason: 'Grocery store — should be Groceries' },
-  { merchantPatterns: ['%PETRO%', '%SHELL%', '%ESSO%'], categoryFilter: 'Business Income', suggestedCategory: 'Transportation', suggestedSubcategory: 'Gas & Fuel', reason: 'Gas station — should be Transportation' },
-  { merchantPatterns: ['%SHOPPERS%', '%REXALL%', '%LONDON DRUG%'], categoryFilter: 'Business Income', suggestedCategory: 'Personal Care', suggestedSubcategory: 'Pharmacy', reason: 'Pharmacy — should be Personal Care' },
-  { merchantPatterns: ['%MASSAGE%'], categoryFilter: 'Business Income', suggestedCategory: 'Personal Care', suggestedSubcategory: 'Massage Therapy', reason: 'Massage therapy — should be Personal Care' },
-  { merchantPatterns: ['%SALON%', '%SPA%'], categoryFilter: 'Business Income', suggestedCategory: 'Personal Care', suggestedSubcategory: 'Hair & Nails', reason: 'Salon/spa — should be Personal Care' },
-  { merchantPatterns: ['%7-ELEVEN%'], categoryFilter: 'Transfers', suggestedCategory: 'Food & Dining', suggestedSubcategory: 'Convenience Store', reason: 'Convenience store categorized as Transfers — should be Food & Dining' },
+  { merchantPatterns: ['%GORDON FOOD%'], suggestedCategory: 'Income', suggestedSubcategory: 'Employment Income', reason: 'Looks like your employer - should be Employment Income' },
+  { merchantPatterns: ['%TD LOAN%', '%NATIONAL MONEY%'], categoryFilter: 'Business Income', suggestedCategory: 'Debt Payments', suggestedSubcategory: 'Loan Payment', reason: 'Loan payment - should be Debt Payments' },
+  { merchantPatterns: ['%EASY FINANCIAL%', '%FLEXITI%', '%CASH MONEY%'], categoryFilter: 'Business Income', suggestedCategory: 'Debt Payments', suggestedSubcategory: 'Credit Payment', reason: 'Finance company - should be Debt Payments' },
+  { merchantPatterns: ['%SOBEYS%', '%SAFEWAY%', '%SAVE ON%'], categoryFilter: 'Business Income', suggestedCategory: 'Groceries', suggestedSubcategory: null, reason: 'Grocery store - should be Groceries' },
+  { merchantPatterns: ['%PETRO%', '%SHELL%', '%ESSO%'], categoryFilter: 'Business Income', suggestedCategory: 'Transportation', suggestedSubcategory: 'Gas & Fuel', reason: 'Gas station - should be Transportation' },
+  { merchantPatterns: ['%SHOPPERS%', '%REXALL%', '%LONDON DRUG%'], categoryFilter: 'Business Income', suggestedCategory: 'Personal Care', suggestedSubcategory: 'Pharmacy', reason: 'Pharmacy - should be Personal Care' },
+  { merchantPatterns: ['%MASSAGE%'], categoryFilter: 'Business Income', suggestedCategory: 'Personal Care', suggestedSubcategory: 'Massage Therapy', reason: 'Massage therapy - should be Personal Care' },
+  { merchantPatterns: ['%SALON%', '%SPA%'], categoryFilter: 'Business Income', suggestedCategory: 'Personal Care', suggestedSubcategory: 'Hair & Nails', reason: 'Salon/spa - should be Personal Care' },
+  { merchantPatterns: ['%7-ELEVEN%'], categoryFilter: 'Transfers', suggestedCategory: 'Food & Dining', suggestedSubcategory: 'Convenience Store', reason: 'Convenience store categorized as Transfers - should be Food & Dining' },
 ];
 
 export const handler: Handler = async (event) => {
@@ -120,7 +120,7 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    // RULE 10 — Inconsistent merchant categorization
+    // RULE 10 - Inconsistent merchant categorization
     const merchantGroups = new Map<string, Tx[]>();
     for (const tx of allTxs) {
       if (usedIds.has(tx.id)) continue;
@@ -156,7 +156,7 @@ export const handler: Handler = async (event) => {
           currentCategory: minCat,
           suggestedCategory: dominant,
           suggestedSubcategory: null,
-          reason: `Inconsistent — most transactions for this merchant are ${dominant}`,
+          reason: `Inconsistent - most transactions for this merchant are ${dominant}`,
           transactionIds: ids,
           count: ids.length,
           totalAmount: minorityTxs.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0),
@@ -165,8 +165,8 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    // RULE 11 — Duplicate transaction detection
-    // Group by date + normalized merchant + amount — flag groups with > 1 record
+    // RULE 11 - Duplicate transaction detection
+    // Group by date + normalized merchant + amount - flag groups with > 1 record
     const dupGroups = new Map<string, Tx[]>();
     for (const tx of allTxs) {
       const dateStr = (tx.posted_at || '').split('T')[0] || '';

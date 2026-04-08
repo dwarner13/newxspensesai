@@ -420,7 +420,7 @@ const WellnessStudioFeaturePage = () => {
                 <div className="text-4xl">🧘‍♀️</div>
                 <div>
                   <h3 className="text-xl font-bold text-white">{currentSession.title}</h3>
-                  <p className="text-cyan-400">Guided by {currentSession.aiGuide} • {currentSession.duration}</p>
+                  <p className="text-cyan-400">Guided by {currentSession.aiGuide} - {currentSession.duration}</p>
             </div>
           </div>
               <p className="text-white/80 mb-4">{currentSession.description}</p>
@@ -602,7 +602,7 @@ const WellnessStudioFeaturePage = () => {
               </p>
               <ul className="text-sm text-white/70 space-y-2">
                 {capability.features.map((feature, idx) => (
-                  <li key={idx}>• {feature}</li>
+                  <li key={idx}>- {feature}</li>
                 ))}
               </ul>
             </div>
@@ -657,7 +657,7 @@ const WellnessStudioFeaturePage = () => {
               <p className="text-white/80 mb-4 text-sm">{program.description}</p>
               <div className="text-white/70 text-sm space-y-1">
                 {program.features.map((feature, idx) => (
-                  <div key={idx}>• {feature}</div>
+                  <div key={idx}>- {feature}</div>
                 ))}
               </div>
             </div>
@@ -692,7 +692,7 @@ const WellnessStudioFeaturePage = () => {
                 name: "Maria K.",
                 role: "Marketing Manager",
                 testimonial: "The AI financial therapist helped me understand why I was overspending on coffee when stressed. Now I have healthy coping mechanisms and save $200/month!",
-                improvement: "Stress Level: 9/10 → 3/10",
+                improvement: "Stress Level: 9/10 -> 3/10",
                 bg: "from-purple-500/20 to-pink-500/20",
                 border: "border-purple-400/30"
               },
@@ -700,7 +700,7 @@ const WellnessStudioFeaturePage = () => {
                 name: "James C.",
                 role: "Freelance Designer",
                 testimonial: "I used to lose sleep worrying about money. The financial sleep stories and meditation sessions have completely changed my relationship with finances.",
-                improvement: "Sleep Quality: 4/10 → 8/10",
+                improvement: "Sleep Quality: 4/10 -> 8/10",
                 bg: "from-blue-500/20 to-green-500/20",
                 border: "border-blue-400/30"
               }
@@ -794,7 +794,7 @@ const WellnessStudioFeaturePage = () => {
               🌟 Limited Time: Complete Financial Wellness for $29/month
             </div>
             <div className="text-purple-200 text-sm">
-              (Regular $49/month • AI Financial Therapist • Personalized Wellness Programs • Cancel anytime)
+              (Regular $49/month - AI Financial Therapist - Personalized Wellness Programs - Cancel anytime)
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-6 justify-center">

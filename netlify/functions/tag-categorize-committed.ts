@@ -5,7 +5,7 @@
  * rows that are still uncategorized. Called by UncategorizedReviewQueue's
  * "Auto-Tag All" button.
  *
- * Does NOT use AI — rule matching only. Fetches a large batch per call.
+ * Does NOT use AI - rule matching only. Fetches a large batch per call.
  * Returns { ok, updated, total }.
  */
 
@@ -212,7 +212,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // 3b. Fetch user-defined DB rules (exact → starts_with → contains → regex priority)
+  // 3b. Fetch user-defined DB rules (exact -> starts_with -> contains -> regex priority)
   type DbRule = { match_type: string; match_value: string; category: string; subcategory?: string | null; min_amount?: number | null; max_amount?: number | null };
   let dbRules: DbRule[] = [];
   try {
@@ -226,7 +226,7 @@ export const handler: Handler = async (event) => {
       (a, b) => (TYPE_PRIORITY[a.match_type] ?? 9) - (TYPE_PRIORITY[b.match_type] ?? 9)
     );
   } catch {
-    /* table may not exist yet — skip */
+    /* table may not exist yet - skip */
   }
 
   function applyDbRules(merchant: string, amount?: number): { category: string; subcategory: string | null } | null {
@@ -262,7 +262,7 @@ export const handler: Handler = async (event) => {
     return null;
   }
 
-  // 4. Apply memory → DB rules → inline rules for each tx
+  // 4. Apply memory -> DB rules -> inline rules for each tx
   const updates: Array<{ id: string; category: string; subcategory?: string | null; source: string }> = [];
   for (let i = 0; i < txs.length; i++) {
     const tx = txs[i];
@@ -300,7 +300,7 @@ export const handler: Handler = async (event) => {
       continue;
     }
 
-    // Nothing matched — mark as "Needs Review" instead of leaving as Other/Uncategorized
+    // Nothing matched - mark as "Needs Review" instead of leaving as Other/Uncategorized
     updates.push({ id: tx.id, category: 'Needs Review', source: 'needs_review' });
   }
 
@@ -362,7 +362,7 @@ export const handler: Handler = async (event) => {
           }).eq('id', tx.id).eq('user_id', userId);
         }
       }
-      if (reclassified > 0) safeLog('info', `[tag-categorize-committed] Reclassified ${reclassified} Other → real categories`, { userId });
+      if (reclassified > 0) safeLog('info', `[tag-categorize-committed] Reclassified ${reclassified} Other -> real categories`, { userId });
     }
   } catch { /* non-blocking */ }
 

@@ -132,21 +132,21 @@ const ReceiptScannerPage = () => {
               <div className="space-y-2">
                 <h4 className="font-medium text-gray-900">📷 Photo Quality</h4>
                 <ul className="space-y-1 text-gray-600">
-                  <li>• Ensure good lighting</li>
-                  <li>• Keep receipt flat and straight</li>
-                  <li>• Include the entire receipt</li>
-                  <li>• Avoid shadows and glare</li>
-                  <li>• Use high contrast backgrounds</li>
+                  <li>- Ensure good lighting</li>
+                  <li>- Keep receipt flat and straight</li>
+                  <li>- Include the entire receipt</li>
+                  <li>- Avoid shadows and glare</li>
+                  <li>- Use high contrast backgrounds</li>
                 </ul>
               </div>
               <div className="space-y-2">
                 <h4 className="font-medium text-gray-900">🎯 Supported Receipts</h4>
                 <ul className="space-y-1 text-gray-600">
-                  <li>• Grocery stores</li>
-                  <li>• Restaurants and cafes</li>
-                  <li>• Gas stations</li>
-                  <li>• Retail purchases</li>
-                  <li>• Service providers</li>
+                  <li>- Grocery stores</li>
+                  <li>- Restaurants and cafes</li>
+                  <li>- Gas stations</li>
+                  <li>- Retail purchases</li>
+                  <li>- Service providers</li>
                 </ul>
               </div>
             </div>

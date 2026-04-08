@@ -148,7 +148,7 @@ export function TherapistWorkspacePanel() {
               💚 <span className="font-medium">15 sessions</span> completed with 67% stress reduction
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              📈 <span className="font-medium">Mood trending up</span> — positive progress
+              📈 <span className="font-medium">Mood trending up</span> - positive progress
             </div>
           </div>
         </div>

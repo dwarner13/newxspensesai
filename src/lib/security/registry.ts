@@ -136,7 +136,7 @@ export const SecurityRegistry: Record<PageKey, SecurityControl[]> = {
   bankAccounts: [
     "authGate",     // User must be logged in
     "rlsBacked",    // Accounts scoped by user_id
-    "piiMask",      // Account numbers masked (••••1234)
+    "piiMask",      // Account numbers masked (----1234)
     "safeLog",      // No full account numbers in logs
     "rateLimit",    // 60 reqs/min on account update
     "auditLog",     // Account connections logged

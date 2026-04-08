@@ -38,11 +38,11 @@ export type Category = {
 };
 
 /**
- * Merchant name alias → category mapping
+ * Merchant name alias -> category mapping
  *
  * Example:
- * - Alias: "AMZN", "AMAZON.COM", "AMAZON PRIME" → Category: "Shopping"
- * - Alias: "STARBUCKS", "STARBKS" → Category: "Dining Out"
+ * - Alias: "AMZN", "AMAZON.COM", "AMAZON PRIME" -> Category: "Shopping"
+ * - Alias: "STARBUCKS", "STARBKS" -> Category: "Dining Out"
  *
  * Used by Tag to normalize vendor names and auto-categorize.
  */
@@ -72,11 +72,11 @@ export type UserCategoryPrefs = {
 // ============================================================================
 
 /**
- * Pattern-based rule for merchant → category mapping
+ * Pattern-based rule for merchant -> category mapping
  *
  * Example:
- * - Pattern: "COSTCO%" → Category: "Groceries" (priority: 50)
- * - Pattern: "^AMAZON" → Category: "Shopping" (priority: 100, regex mode)
+ * - Pattern: "COSTCO%" -> Category: "Groceries" (priority: 50)
+ * - Pattern: "^AMAZON" -> Category: "Shopping" (priority: 100, regex mode)
  *
  * Rules are evaluated in priority order (lower = higher precedence).
  */
@@ -97,8 +97,8 @@ export type CategoryRule = {
  * Normalized merchant name (learned from corrections)
  *
  * Example:
- * - Raw: "AMZN.COM/AMZONS3" → Normalized: "Amazon"
- * - Raw: "STARBUCKS #1234" → Normalized: "Starbucks"
+ * - Raw: "AMZN.COM/AMZONS3" -> Normalized: "Amazon"
+ * - Raw: "STARBUCKS #1234" -> Normalized: "Starbucks"
  *
  * Helps deduplicate and clean merchant names across transactions.
  */

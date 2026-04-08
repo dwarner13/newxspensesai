@@ -54,7 +54,7 @@ export function useTeamActivitySummary(): TeamActivitySummary {
           .limit(50);
 
         if (error) {
-          // Table might not exist or RLS blocks — gracefully handle
+          // Table might not exist or RLS blocks - gracefully handle
           setLoading(false);
           return;
         }
@@ -65,7 +65,7 @@ export function useTeamActivitySummary(): TeamActivitySummary {
         for (const row of (data || [])) {
           const meta = (row.meta && typeof row.meta === 'object') ? row.meta as Record<string, unknown> : {};
           const slug = String(meta.employee_key || meta.employee_slug || 'prime');
-          const key = slug.split('-')[0]; // 'prime-boss' → 'prime'
+          const key = slug.split('-')[0]; // 'prime-boss' -> 'prime'
 
           if (seen.has(key)) continue;
           seen.add(key);
@@ -85,7 +85,7 @@ export function useTeamActivitySummary(): TeamActivitySummary {
 
         setActivities(results);
       } catch {
-        // Silently fail — not critical
+        // Silently fail - not critical
       } finally {
         setLoading(false);
       }

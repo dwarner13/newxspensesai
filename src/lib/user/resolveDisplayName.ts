@@ -64,7 +64,7 @@ export async function resolveDisplayName(
       console.warn('[resolveDisplayName] Error fetching profile:', profileError);
     }
 
-    // Priority: display_name → first_name → full_name → user_metadata → null
+    // Priority: display_name -> first_name -> full_name -> user_metadata -> null
     const displayName =
       profile?.display_name?.trim() ||
       profile?.first_name?.trim() ||

@@ -361,7 +361,7 @@ export function AIAssistantDashboard() {
                   </p>
                   {insight.actionable && (
                     <button className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium">
-                      {insight.action} →
+                      {insight.action} ->
                     </button>
                   )}
                 </div>
@@ -417,7 +417,7 @@ export function AIAssistantDashboard() {
                     {transaction.merchantName}
                   </div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {transaction.category} • {transaction.confidence * 100}% confidence
+                    {transaction.category} - {transaction.confidence * 100}% confidence
                   </div>
                 </div>
               </div>

@@ -5,8 +5,8 @@
  * Uses ProfileContext (which loads from public.profiles table).
  * 
  * Fallback rules:
- * - No profile row → show email prefix / "Free" / level 1
- * - Guest mode → show "Guest" + local storage message
+ * - No profile row -> show email prefix / "Free" / level 1
+ * - Guest mode -> show "Guest" + local storage message
  */
 
 import { useMemo } from 'react';

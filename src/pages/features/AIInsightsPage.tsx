@@ -182,7 +182,7 @@ export default function AIInsightsPage() {
               </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Build</h2>
               <p className="text-lg text-gray-600 mb-6">
-                XspensesAI doesn't just track your finances—it helps you build a better financial future with AI-powered recommendations and personalized insights.
+                XspensesAI doesn't just track your finances-it helps you build a better financial future with AI-powered recommendations and personalized insights.
               </p>
               <div className="space-y-4">
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">

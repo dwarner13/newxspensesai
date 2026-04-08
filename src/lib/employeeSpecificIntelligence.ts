@@ -120,10 +120,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Blitz', 'Crystal', 'Wisdom', 'Automa'],
         handoffScenarios: [
-          'Complex categorization decisions → Wisdom',
-          'Debt optimization analysis → Blitz',
-          'Spending pattern predictions → Crystal',
-          'Automation opportunities → Automa'
+          'Complex categorization decisions -> Wisdom',
+          'Debt optimization analysis -> Blitz',
+          'Spending pattern predictions -> Crystal',
+          'Automation opportunities -> Automa'
         ],
         coordinationCapabilities: [
           'Provides categorized data foundation for all other employees',
@@ -191,10 +191,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Tag', 'Crystal', 'Wisdom', 'Prime'],
         handoffScenarios: [
-          'Complex debt strategies → Wisdom',
-          'Timeline predictions → Crystal',
-          'Team coordination → Prime',
-          'Data foundation → Tag'
+          'Complex debt strategies -> Wisdom',
+          'Timeline predictions -> Crystal',
+          'Team coordination -> Prime',
+          'Data foundation -> Tag'
         ],
         coordinationCapabilities: [
           'Provides debt elimination strategies for comprehensive planning',
@@ -262,10 +262,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Blitz', 'Wisdom', 'Prime', 'Tag'],
         handoffScenarios: [
-          'Debt timeline predictions → Blitz',
-          'Strategic planning → Wisdom',
-          'Team coordination → Prime',
-          'Data foundation → Tag'
+          'Debt timeline predictions -> Blitz',
+          'Strategic planning -> Wisdom',
+          'Team coordination -> Prime',
+          'Data foundation -> Tag'
         ],
         coordinationCapabilities: [
           'Provides predictive insights for all financial planning',
@@ -333,10 +333,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Prime', 'Crystal', 'Blitz', 'Tag'],
         handoffScenarios: [
-          'Team coordination → Prime',
-          'Predictive analysis → Crystal',
-          'Debt strategies → Blitz',
-          'Data foundation → Tag'
+          'Team coordination -> Prime',
+          'Predictive analysis -> Crystal',
+          'Debt strategies -> Blitz',
+          'Data foundation -> Tag'
         ],
         coordinationCapabilities: [
           'Provides strategic framework for all financial decisions',
@@ -404,9 +404,9 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['All AI Employees'],
         handoffScenarios: [
-          'Specialized tasks → Appropriate specialists',
-          'Complex coordination → All team members',
-          'Executive reporting → All stakeholders'
+          'Specialized tasks -> Appropriate specialists',
+          'Complex coordination -> All team members',
+          'Executive reporting -> All stakeholders'
         ],
         coordinationCapabilities: [
           'Coordinates all AI employees for comprehensive solutions',
@@ -474,10 +474,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Wisdom', 'Fortune', 'Tag', 'Automa'],
         handoffScenarios: [
-          'Strategic planning → Wisdom',
-          'Reality checks → Fortune',
-          'Data organization → Tag',
-          'Automation → Automa'
+          'Strategic planning -> Wisdom',
+          'Reality checks -> Fortune',
+          'Data organization -> Tag',
+          'Automation -> Automa'
         ],
         coordinationCapabilities: [
           'Provides wellness perspective to all financial decisions',
@@ -545,10 +545,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Wisdom', 'Harmony', 'Blitz', 'Crystal'],
         handoffScenarios: [
-          'Strategic planning → Wisdom',
-          'Wellness balance → Harmony',
-          'Debt strategies → Blitz',
-          'Predictions → Crystal'
+          'Strategic planning -> Wisdom',
+          'Wellness balance -> Harmony',
+          'Debt strategies -> Blitz',
+          'Predictions -> Crystal'
         ],
         coordinationCapabilities: [
           'Provides reality checks for all financial plans',
@@ -616,10 +616,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Tag', 'Wisdom', 'Automa', 'Byte'],
         handoffScenarios: [
-          'Data organization → Tag',
-          'Strategic planning → Wisdom',
-          'Automation → Automa',
-          'Technology → Byte'
+          'Data organization -> Tag',
+          'Strategic planning -> Wisdom',
+          'Automation -> Automa',
+          'Technology -> Byte'
         ],
         coordinationCapabilities: [
           'Provides tax optimization for all financial decisions',
@@ -687,10 +687,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Tag', 'Byte', 'Ledger', 'Prime'],
         handoffScenarios: [
-          'Data organization → Tag',
-          'Technology integration → Byte',
-          'Record keeping → Ledger',
-          'Team coordination → Prime'
+          'Data organization -> Tag',
+          'Technology integration -> Byte',
+          'Record keeping -> Ledger',
+          'Team coordination -> Prime'
         ],
         coordinationCapabilities: [
           'Provides automation solutions for all financial processes',
@@ -758,10 +758,10 @@ export class EmployeeSpecificIntelligence {
       collaborationIntelligence: {
         primaryCollaborators: ['Automa', 'Tag', 'Ledger', 'Prime'],
         handoffScenarios: [
-          'Automation → Automa',
-          'Data organization → Tag',
-          'Record keeping → Ledger',
-          'Team coordination → Prime'
+          'Automation -> Automa',
+          'Data organization -> Tag',
+          'Record keeping -> Ledger',
+          'Team coordination -> Prime'
         ],
         coordinationCapabilities: [
           'Provides technology solutions for all financial processes',

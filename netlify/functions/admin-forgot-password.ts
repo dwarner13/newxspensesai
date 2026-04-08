@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Service role — never exposed to client
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Service role - never exposed to client
 );
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;

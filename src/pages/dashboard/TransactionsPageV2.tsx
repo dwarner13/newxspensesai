@@ -402,7 +402,7 @@ export default function TransactionsPageV2() {
       const d = (t.date || t.posted_at || (t as any).transaction_date || (t as any).txn_date || "").slice(0, 10);
       if (!d && !unknownLogged) {
         unknownLogged = true;
-        console.log('[TransactionsPageV2] Unknown Date transaction — available fields:', {
+        console.log('[TransactionsPageV2] Unknown Date transaction - available fields:', {
           id: t.id, date: t.date, posted_at: t.posted_at,
           transaction_date: (t as any).transaction_date, txn_date: (t as any).txn_date,
           created_at: (t as any).created_at, merchant: t.merchant_name,
@@ -1035,7 +1035,7 @@ export default function TransactionsPageV2() {
           allCommittedTransactions={transactions}
           onClose={() => setSelectedTx(null)}
           onCommittedCategorySaved={(txId, category) => {
-            // Update the selected transaction in-place — don't close the drawer
+            // Update the selected transaction in-place - don't close the drawer
             // and don't refetch (which would trigger filter eviction).
             // Realtime subscription will sync the list in background.
             setSelectedTx(prev => prev && prev.id === txId ? { ...prev, category } as any : prev);

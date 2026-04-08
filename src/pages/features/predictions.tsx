@@ -453,7 +453,7 @@ const PredictionsFeaturePage = () => {
                   ) : (
                     <div>
                       <div className="text-xs text-white/70 mb-1">
-                        Crystal • AI Fortune Teller
+                        Crystal - AI Fortune Teller
                       </div>
                       {currentPrediction}
                     </div>
@@ -466,21 +466,21 @@ const PredictionsFeaturePage = () => {
                 <>
                   <div className="flex justify-start">
                     <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-2xl rounded-bl-md max-w-md">
-                      <div className="text-xs text-white/70 mb-1">Finley • Financial Intelligence</div>
+                      <div className="text-xs text-white/70 mb-1">Finley - Financial Intelligence</div>
                       {getCurrentPrediction().finley}
                     </div>
                   </div>
                   
                   <div className="flex justify-start">
                     <div className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-4 py-2 rounded-2xl rounded-bl-md max-w-md">
-                      <div className="text-xs text-white/70 mb-1">Nova • Opportunity Spotter</div>
+                      <div className="text-xs text-white/70 mb-1">Nova - Opportunity Spotter</div>
                       {getCurrentPrediction().nova}
                     </div>
                   </div>
                   
                   <div className="flex justify-start">
                     <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-2xl rounded-bl-md max-w-md">
-                      <div className="text-xs text-white/70 mb-1">Wisdom • Strategic Advisor</div>
+                      <div className="text-xs text-white/70 mb-1">Wisdom - Strategic Advisor</div>
                       {getCurrentPrediction().wisdom}
                     </div>
                   </div>

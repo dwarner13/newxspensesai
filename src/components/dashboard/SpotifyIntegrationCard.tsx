@@ -43,7 +43,7 @@ const SpotifyIntegrationCard = () => {
               />
               <div className="flex-1">
                 <h4 className="text-sm font-semibold text-white">{todaysPlaylist.name}</h4>
-                <p className="text-xs text-white/60">{todaysPlaylist.tracks} tracks • {todaysPlaylist.mood}</p>
+                <p className="text-xs text-white/60">{todaysPlaylist.tracks} tracks - {todaysPlaylist.mood}</p>
               </div>
             </div>
           </div>

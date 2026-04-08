@@ -456,7 +456,7 @@ function App() {
                       } />
                     </Route>
                     
-                    {/* Admin Console — standalone, no sidebar, no auth guard */}
+                    {/* Admin Console - standalone, no sidebar, no auth guard */}
                     <Route path="/xai-admin" element={<AdminLoginPage />} />
                     <Route path="/xai-admin/dashboard" element={<AdminDashboard />} />
                     <Route path="/xai-admin/reset-password" element={<AdminResetPasswordPage />} />

@@ -316,7 +316,7 @@ export function sendBlockedResponse(
   body: string;
 } {
   // Determine user-friendly message based on reason
-  let userMessage = "I'm sorry — I can't help with that request.";
+  let userMessage = "I'm sorry - I can't help with that request.";
   
   if (blockedReason.includes('moderation')) {
     userMessage = "I can't assist with that type of content. Please rephrase your question.";

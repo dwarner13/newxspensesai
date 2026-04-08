@@ -6,7 +6,7 @@ import { isActivePath } from '../../navigation/is-active';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ChevronLeft, ChevronRight, MoreHorizontal, Upload } from 'lucide-react';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
-// AccountCenterPanel removed — using Settings V2 page instead
+// AccountCenterPanel removed - using Settings V2 page instead
 import { useProfile } from '../../hooks/useProfile';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
@@ -174,7 +174,7 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
         </div>
       </div>
 
-      {/* Upload CTA — always visible, never scrolls away */}
+      {/* Upload CTA - always visible, never scrolls away */}
       {!isCollapsed && (
         <div className="px-3 py-2" style={{ borderTop: '1px solid #1e2d4a' }}>
           <button

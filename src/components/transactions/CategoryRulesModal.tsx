@@ -1,8 +1,8 @@
 /**
  * CategoryRulesModal
  *
- * Full rules management interface — view, toggle, delete, and add new rules.
- * Opened from the "Manage Rules →" link in TagWorkspacePanel.
+ * Full rules management interface - view, toggle, delete, and add new rules.
+ * Opened from the "Manage Rules ->" link in TagWorkspacePanel.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -124,7 +124,7 @@ export function CategoryRulesModal({ rules, userCategories, onClose, onRefresh }
           <div>
             <h2 className="text-sm font-semibold text-slate-100">Category Rules</h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Rules run before AI — exact matches fire first
+              Rules run before AI - exact matches fire first
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -181,7 +181,7 @@ export function CategoryRulesModal({ rules, userCategories, onClose, onRefresh }
                   onChange={(e) => setNewCategory(e.target.value)}
                   className="rounded-md bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
                 >
-                  <option value="" disabled>Select…</option>
+                  <option value="" disabled>Select...</option>
                   {categoryList.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -234,10 +234,10 @@ export function CategoryRulesModal({ rules, userCategories, onClose, onRefresh }
                       {rule.match_value}
                     </td>
                     <td className="px-3 py-2.5 text-slate-300 max-w-[140px] truncate" title={rule.category}>
-                      → {rule.category}
+                      -> {rule.category}
                     </td>
                     <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">
-                      {rule.times_applied > 0 ? rule.times_applied.toLocaleString() : '—'}
+                      {rule.times_applied > 0 ? rule.times_applied.toLocaleString() : '-'}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1.5">

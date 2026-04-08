@@ -13,7 +13,7 @@ interface ChatMsg {
 export function CustodianPanel({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'custodian', text: "Hey — I'm Custodian, your system guide. Ask me how to use any feature, where to find something, or how the AI team works. For financial questions, Prime's your guy." },
+    { role: 'custodian', text: "Hey - I'm Custodian, your system guide. Ask me how to use any feature, where to find something, or how the AI team works. For financial questions, Prime's your guy." },
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -43,7 +43,7 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
       const data = await res.json();
       setMessages(m => [...m, { role: 'custodian', text: data.reply, action: data.action }]);
     } catch {
-      setMessages(m => [...m, { role: 'custodian', text: 'Something went wrong — try again.' }]);
+      setMessages(m => [...m, { role: 'custodian', text: 'Something went wrong - try again.' }]);
     }
     setBusy(false);
   };

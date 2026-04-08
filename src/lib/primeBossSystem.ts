@@ -150,13 +150,13 @@ class PrimeBossSystem {
 **ACTIVE OPERATIONS:**
 ${activeEmployees.map(state => {
   const employee = EMPLOYEES.find(e => e.key === state.employeeKey);
-  return `• ${employee?.name}: ${state.workingOn}`;
+  return `- ${employee?.name}: ${state.workingOn}`;
 }).join('\n')}
 
 **PERFORMANCE METRICS:**
-• Tasks Completed Today: ${completedToday}
-• Active Employees: ${activeEmployees.length}/${EMPLOYEES.length}
-• System Efficiency: ${Math.round(allStates.reduce((sum, state) => {
+- Tasks Completed Today: ${completedToday}
+- Active Employees: ${activeEmployees.length}/${EMPLOYEES.length}
+- System Efficiency: ${Math.round(allStates.reduce((sum, state) => {
   const report = this.bossState.aiEmployeeReports.get(state.employeeKey);
   return sum + (report?.efficiency || 0);
 }, 0) / allStates.length)}%
@@ -188,21 +188,21 @@ ${this.generateRecommendations()}
     const avgEfficiency = reports.reduce((sum, report) => sum + report.efficiency, 0) / reports.length;
     
     if (avgEfficiency < 80) {
-      recommendations.push("• Consider redistributing workload for better efficiency");
+      recommendations.push("- Consider redistributing workload for better efficiency");
     }
     
     const criticalEmployees = reports.filter(r => r.status === 'critical').length;
     if (criticalEmployees > 0) {
-      recommendations.push(`• ${criticalEmployees} employee(s) need immediate attention`);
+      recommendations.push(`- ${criticalEmployees} employee(s) need immediate attention`);
     }
     
     const excellentEmployees = reports.filter(r => r.status === 'excellent').length;
     if (excellentEmployees > 2) {
-      recommendations.push("• Excellent performance across the team - consider expanding operations");
+      recommendations.push("- Excellent performance across the team - consider expanding operations");
     }
     
     if (recommendations.length === 0) {
-      recommendations.push("• All systems operating optimally");
+      recommendations.push("- All systems operating optimally");
     }
     
     return recommendations.join('\n');
@@ -304,10 +304,10 @@ ${this.generateRecommendations()}
 🎯 **COMPLETE WORKFLOW RECAP - ${timeframe.toUpperCase()}**
 
 **OVERVIEW:**
-• Workflows Analyzed: ${recentWorkflows.length}
-• Total Tasks Processed: ${totalTasks}
-• Completion Rate: ${Math.round((completedTasks / totalTasks) * 100)}%
-• Active Employees: ${allStates.filter(s => s.currentTask).length}
+- Workflows Analyzed: ${recentWorkflows.length}
+- Total Tasks Processed: ${totalTasks}
+- Completion Rate: ${Math.round((completedTasks / totalTasks) * 100)}%
+- Active Employees: ${allStates.filter(s => s.currentTask).length}
 
 **DETAILED BREAKDOWN:**
 ${allStates.map(state => {
@@ -340,12 +340,12 @@ ${this.generatePrimeRecommendations()}
     
     const avgEfficiency = reports.reduce((sum, report) => sum + report.efficiency, 0) / reports.length;
     
-    insights.push(`• Team average efficiency: ${avgEfficiency.toFixed(1)}%`);
-    insights.push(`• Peak performance achieved by multiple employees`);
+    insights.push(`- Team average efficiency: ${avgEfficiency.toFixed(1)}%`);
+    insights.push(`- Peak performance achieved by multiple employees`);
     
     const activeTasks = reports.reduce((sum, report) => sum + report.tasksInProgress, 0);
     if (activeTasks > 3) {
-      insights.push(`• High activity level: ${activeTasks} concurrent tasks`);
+      insights.push(`- High activity level: ${activeTasks} concurrent tasks`);
     }
     
     return insights.join('\n');
@@ -357,16 +357,16 @@ ${this.generatePrimeRecommendations()}
     
     const needsAttention = reports.filter(r => r.status === 'needs_attention' || r.status === 'critical');
     if (needsAttention.length > 0) {
-      recommendations.push(`• ${needsAttention.length} employee(s) require Prime's direct intervention`);
+      recommendations.push(`- ${needsAttention.length} employee(s) require Prime's direct intervention`);
     }
     
     const excellent = reports.filter(r => r.status === 'excellent');
     if (excellent.length >= 3) {
-      recommendations.push("• Excellent team performance - consider expanding AI workforce");
+      recommendations.push("- Excellent team performance - consider expanding AI workforce");
     }
     
-    recommendations.push("• Continue current operational excellence");
-    recommendations.push("• Monitor task handoffs for optimization opportunities");
+    recommendations.push("- Continue current operational excellence");
+    recommendations.push("- Monitor task handoffs for optimization opportunities");
     
     return recommendations.join('\n');
   }

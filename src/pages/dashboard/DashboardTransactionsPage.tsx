@@ -471,7 +471,7 @@ const DashboardTransactionsPage: React.FC = () => {
       let mappedDocument: any = null;
 
       // 1) If this transaction came from a bank statement / PDF,
-      //    it should have a document_id → look in user_documents first.
+      //    it should have a document_id -> look in user_documents first.
       if (transaction.document_id) {
         try {
           const { data: docData, error: docError } = await supabase
@@ -1489,7 +1489,7 @@ const DashboardTransactionsPage: React.FC = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-white text-sm font-medium truncate">{transaction.description}</p>
-                              <p className="text-white/60 text-xs">${transaction.amount.toFixed(2)} • {transaction.date}</p>
+                              <p className="text-white/60 text-xs">${transaction.amount.toFixed(2)} - {transaction.date}</p>
                             </div>
                             <button
                               onClick={() => handleTransactionClick(transaction)}

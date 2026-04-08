@@ -80,7 +80,7 @@ const UploadPage = () => {
       }
 
       // Check if we should use the new orchestration system
-      // Multi-file is supported — ByteProcessingModal accepts File[]
+      // Multi-file is supported - ByteProcessingModal accepts File[]
       const allPdfsOrCsv = files.every(f => f.type.includes('pdf') || f.name.toLowerCase().endsWith('.csv') || f.type.includes('csv'));
       const useOrchestration = allPdfsOrCsv;
       

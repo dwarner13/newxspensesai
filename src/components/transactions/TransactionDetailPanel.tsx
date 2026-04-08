@@ -96,7 +96,7 @@ export function TransactionDetailPanel({
         } catch { /* rule save is non-blocking */ }
       }
 
-      toast.success('Updated — Tag will remember this merchant');
+      toast.success('Updated - Tag will remember this merchant');
       setIsEditing(false);
 
       // Notify parent so the list refreshes
@@ -168,7 +168,7 @@ export function TransactionDetailPanel({
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Date:</span>
-                    <span className="text-slate-100">{pendingTransaction.data_json.date || '—'}</span>
+                    <span className="text-slate-100">{pendingTransaction.data_json.date || '-'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Merchant:</span>
@@ -179,7 +179,7 @@ export function TransactionDetailPanel({
                     <span className={`font-semibold ${pendingTransaction.data_json.amount && pendingTransaction.data_json.amount < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                       {pendingTransaction.data_json.amount !== undefined
                         ? `${pendingTransaction.data_json.amount < 0 ? '-' : '+'}$${Math.abs(pendingTransaction.data_json.amount).toFixed(2)}`
-                        : '—'}
+                        : '-'}
                     </span>
                   </div>
                   {pendingTransaction.data_json.description && (
@@ -241,14 +241,14 @@ export function TransactionDetailPanel({
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Date:</span>
-                    <span className="text-slate-100">{transaction?.posted_at || '—'}</span>
+                    <span className="text-slate-100">{transaction?.posted_at || '-'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Amount:</span>
                     <span className={`font-semibold ${transaction && transaction.amount < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                       {transaction?.amount !== undefined
                         ? `${transaction.amount < 0 ? '-' : '+'}$${Math.abs(transaction.amount).toFixed(2)}`
-                        : '—'}
+                        : '-'}
                     </span>
                   </div>
                 </div>

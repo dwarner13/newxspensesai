@@ -43,7 +43,7 @@ export function useReportsData(): ReportsData {
         const d = new Date(imp.created_at);
         const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
         return {
-          name: `Import — ${imp.statementLabel || imp.docName}`,
+          name: `Import - ${imp.statementLabel || imp.docName}`,
           agent: "Byte",
           color: "#34d399",
           date: dateStr,

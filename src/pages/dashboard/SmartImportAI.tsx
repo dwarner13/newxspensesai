@@ -93,7 +93,7 @@ export default function SmartImportAI() {
 
       if (Array.isArray(preview) && preview.length > 0) {
         setPreviewRows(preview);
-        toast.success(`Preview ready — ${preview.length} rows`);
+        toast.success(`Preview ready - ${preview.length} rows`);
         return;
       }
 
@@ -103,7 +103,7 @@ export default function SmartImportAI() {
         if (!sb) throw new Error('Supabase client not available');
         const mapped = await fetchPreviewRows(sb, importId);
         setPreviewRows(mapped);
-        toast.success(`Preview ready — ${previewCount ?? mapped.length} rows`);
+        toast.success(`Preview ready - ${previewCount ?? mapped.length} rows`);
       } catch (e: any) {
         setPreviewRows([]);
         emitBus("ERROR", { where: "PREVIEW_FETCH", message: "Failed to fetch preview", detail: e });
@@ -116,7 +116,7 @@ export default function SmartImportAI() {
   const commitImport = async () => {
     if (!activeImportId) return;
     if (!previewRows?.length) {
-      toast.error('Preview is empty — cannot commit.');
+      toast.error('Preview is empty - cannot commit.');
       return;
     }
     setIsCommitting(true);
@@ -172,11 +172,11 @@ export default function SmartImportAI() {
     }
   };
 
-  // Approve → Commit → Prime → Crystal
+  // Approve -> Commit -> Prime -> Crystal
   const approveAndAnalyze = async () => {
     if (!activeImportId) return;
     if (!previewRows?.length) {
-      toast.error('Preview is empty — cannot approve.');
+      toast.error('Preview is empty - cannot approve.');
       return;
     }
     setIsProcessing(true);
@@ -320,7 +320,7 @@ export default function SmartImportAI() {
                 Preview ({previewRows.length} rows)
               </h3>
               {activeImportId && (
-                <span className="text-xs text-slate-500">Import ID: {activeImportId.slice(0, 8)}…</span>
+                <span className="text-xs text-slate-500">Import ID: {activeImportId.slice(0, 8)}...</span>
               )}
             </div>
             <div className="overflow-x-auto -mx-2 sm:mx-0">
@@ -349,7 +349,7 @@ export default function SmartImportAI() {
                             )}
           </div>
                         ) : (
-                          '—'
+                          '-'
                         )}
                       </Td>
                       <Td className="text-right font-medium">
@@ -367,14 +367,14 @@ export default function SmartImportAI() {
                 disabled={isCommitting || isProcessing || previewRows.length === 0}
                 className="inline-flex justify-center items-center px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
               >
-                {isCommitting ? 'Committing…' : 'Import All'}
+                {isCommitting ? 'Committing...' : 'Import All'}
               </button>
               <button
                 onClick={approveAndAnalyze}
                 disabled={isProcessing || isCommitting || previewRows.length === 0}
                 className="inline-flex justify-center items-center px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                {isProcessing ? 'Processing…' : 'Approve & Send to Prime & Crystal'}
+                {isProcessing ? 'Processing...' : 'Approve & Send to Prime & Crystal'}
               </button>
               <button
                 onClick={() => {
@@ -494,7 +494,7 @@ export default function SmartImportAI() {
                         <div className="text-xs text-orange-600">{(dup.similarity * 100).toFixed(0)}% similar</div>
                       </div>
                       <div className="text-xs text-slate-600">
-                        {dup.date} • ${dup.amount.toFixed(2)} • {dup.transactionIds.length} transaction{dup.transactionIds.length !== 1 ? 's' : ''}
+                        {dup.date} - ${dup.amount.toFixed(2)} - {dup.transactionIds.length} transaction{dup.transactionIds.length !== 1 ? 's' : ''}
                       </div>
                     </div>
                   ))}
@@ -532,8 +532,8 @@ export default function SmartImportAI() {
                 </div>
 
             <div className="mt-4 flex gap-4">
-              <a href="/transactions" className="text-blue-600 hover:underline">→ View Transactions</a>
-              <a href="/insights" className="text-blue-600 hover:underline">→ View Insights</a>
+              <a href="/transactions" className="text-blue-600 hover:underline">-> View Transactions</a>
+              <a href="/insights" className="text-blue-600 hover:underline">-> View Insights</a>
             </div>
           </section>
         )}

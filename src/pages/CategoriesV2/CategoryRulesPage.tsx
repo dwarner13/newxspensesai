@@ -196,7 +196,7 @@ export default function CategoryRulesPage() {
         return;
       }
     }
-    setTestResult('No rule matches — would go to AI categorization');
+    setTestResult('No rule matches - would go to AI categorization');
   };
 
   const ruleCount = rules.length;
@@ -234,7 +234,7 @@ export default function CategoryRulesPage() {
           </div>
         </div>
         <p style={{ fontSize: 13, color: THEME.textMuted, margin: '0 0 24px 0' }}>
-          {ruleCount > 0 ? `Tag has learned ${ruleCount} rule${ruleCount !== 1 ? 's' : ''} for your transactions` : 'No rules yet — Tag learns as you categorize'}
+          {ruleCount > 0 ? `Tag has learned ${ruleCount} rule${ruleCount !== 1 ? 's' : ''} for your transactions` : 'No rules yet - Tag learns as you categorize'}
         </p>
       </Reveal>
 
@@ -295,12 +295,12 @@ export default function CategoryRulesPage() {
         </Reveal>
       )}
 
-      {/* Rules — grouped by category */}
+      {/* Rules - grouped by category */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: THEME.textDim, fontSize: 13 }}>Loading rules...</div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: THEME.textDim, fontSize: 13 }}>
-          {search ? 'No rules match your search' : 'No rules yet — categorize transactions with Tag to start building rules'}
+          {search ? 'No rules match your search' : 'No rules yet - categorize transactions with Tag to start building rules'}
         </div>
       ) : (
         <Reveal delay={100}>
@@ -367,7 +367,7 @@ export default function CategoryRulesPage() {
                               <input value={editSubcategory} onChange={e => setEditSubcategory(e.target.value)} placeholder="subcategory" style={{ padding: '3px 6px', borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.borderLight}`, color: THEME.text, fontSize: 11, outline: 'none', boxSizing: 'border-box' }} />
                             </div>
                           ) : (
-                            <div style={{ fontSize: 12, color: rule.subcategory ? THEME.textMuted : THEME.textDim, cursor: 'pointer' }} onClick={() => startEdit(rule)}>{rule.subcategory || '—'}</div>
+                            <div style={{ fontSize: 12, color: rule.subcategory ? THEME.textMuted : THEME.textDim, cursor: 'pointer' }} onClick={() => startEdit(rule)}>{rule.subcategory || '-'}</div>
                           )}
 
                           {/* Date */}

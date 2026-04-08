@@ -583,17 +583,17 @@ const FreelancerTaxAssistantPage = () => {
                 <ul className="space-y-2 text-sm text-gray-700 mb-4">
                   {country === 'US' ? (
                     <>
-                      <li>• "Your Q4 Deduction Opportunities"</li>
-                      <li>• "Why Your Home Office Deduction Increased"</li>
-                      <li>• "Equipment Purchase vs. Lease Analysis"</li>
-                      <li>• "Year-End Tax Planning for Your Business"</li>
+                      <li>- "Your Q4 Deduction Opportunities"</li>
+                      <li>- "Why Your Home Office Deduction Increased"</li>
+                      <li>- "Equipment Purchase vs. Lease Analysis"</li>
+                      <li>- "Year-End Tax Planning for Your Business"</li>
                     </>
                   ) : (
                     <>
-                      <li>• "Your Q4 Business Expense Review"</li>
-                      <li>• "GST/HST Registration: Should You Register?"</li>
-                      <li>• "Capital vs Current Expense Classification"</li>
-                      <li>• "Year-End Tax Planning for Self-Employed"</li>
+                      <li>- "Your Q4 Business Expense Review"</li>
+                      <li>- "GST/HST Registration: Should You Register?"</li>
+                      <li>- "Capital vs Current Expense Classification"</li>
+                      <li>- "Year-End Tax Planning for Self-Employed"</li>
                     </>
                   )}
                 </ul>
@@ -613,10 +613,10 @@ const FreelancerTaxAssistantPage = () => {
                   <h3 className="text-lg font-semibold">Tax Season Playlists</h3>
                 </div>
                 <ul className="space-y-2 text-sm text-gray-700 mb-4">
-                  <li>• "Focus Flow - Tax Preparation"</li>
-                  <li>• "Calm Confidence - {country === 'US' ? 'IRS' : 'CRA'} Stress Relief"</li>
-                  <li>• "Victory Vibes - After Filing"</li>
-                  <li>• "Planning Power - Quarterly Reviews"</li>
+                  <li>- "Focus Flow - Tax Preparation"</li>
+                  <li>- "Calm Confidence - {country === 'US' ? 'IRS' : 'CRA'} Stress Relief"</li>
+                  <li>- "Victory Vibes - After Filing"</li>
+                  <li>- "Planning Power - Quarterly Reviews"</li>
                 </ul>
                 <div className="bg-white rounded-lg p-3">
                   <div className="text-xs font-medium text-green-600">Recommended:</div>
@@ -641,7 +641,7 @@ const FreelancerTaxAssistantPage = () => {
                 Limited Time: Get your first year's tax optimization for ${country === 'US' ? '49' : '59 CAD'}/month
               </div>
               <div className="text-purple-200 text-sm">
-                (Reg. ${country === 'US' ? '79' : '89 CAD'}/month • Cancel anytime)
+                (Reg. ${country === 'US' ? '79' : '89 CAD'}/month - Cancel anytime)
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

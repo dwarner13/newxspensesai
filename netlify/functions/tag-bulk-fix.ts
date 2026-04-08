@@ -1,5 +1,5 @@
 /**
- * tag-bulk-fix — Fixes known categorization errors in bulk for a user.
+ * tag-bulk-fix - Fixes known categorization errors in bulk for a user.
  * Applies merchant-specific category overrides based on common misclassifications.
  */
 
@@ -23,53 +23,53 @@ interface BulkFix {
 
 const FIXES: BulkFix[] = [
   {
-    label: 'GORDON FOOD → Income',
+    label: 'GORDON FOOD -> Income',
     match: { column: 'merchant_name', op: 'ilike', value: '%GORDON FOOD%' },
     set: { category: 'Income', subcategory: 'Employment Income', category_source: 'bulk_fix' },
   },
   {
-    label: '7-ELEVEN STORE Transfers → Food & Dining',
+    label: '7-ELEVEN STORE Transfers -> Food & Dining',
     match: { column: 'merchant_name', op: 'eq', value: '7-ELEVEN STORE' },
     extraFilter: { column: 'category', op: 'eq', value: 'Transfers' },
     set: { category: 'Food & Dining', category_source: 'bulk_fix' },
   },
   {
-    label: 'TD LOAN → Debt Payments',
+    label: 'TD LOAN -> Debt Payments',
     match: { column: 'merchant_name', op: 'ilike', value: '%TD LOAN%' },
     set: { category: 'Debt Payments', category_source: 'bulk_fix' },
   },
   {
-    label: 'EASY FINANCIAL → Debt Payments',
+    label: 'EASY FINANCIAL -> Debt Payments',
     match: { column: 'merchant_name', op: 'ilike', value: '%EASY FINANCIAL%' },
     set: { category: 'Debt Payments', category_source: 'bulk_fix' },
   },
   {
-    label: 'SHADIFIED / SALON → Personal Care',
+    label: 'SHADIFIED / SALON -> Personal Care',
     match: { column: 'merchant_name', op: 'ilike', value: '%SHADIFIED%' },
     set: { category: 'Personal Care', category_source: 'bulk_fix' },
   },
   {
-    label: 'MASSAGE → Personal Care',
+    label: 'MASSAGE -> Personal Care',
     match: { column: 'merchant_name', op: 'ilike', value: '%MASSAGE%' },
     set: { category: 'Personal Care', subcategory: 'Massage & Wellness', category_source: 'bulk_fix' },
   },
   {
-    label: 'INTERAC Transfers → Transfers',
+    label: 'INTERAC Transfers -> Transfers',
     match: { column: 'merchant_name', op: 'ilike', value: '%INTERAC%' },
     set: { category: 'Transfers', category_source: 'bulk_fix' },
   },
   {
-    label: 'NATIONAL MONEY → Debt Payments',
+    label: 'NATIONAL MONEY -> Debt Payments',
     match: { column: 'merchant_name', op: 'ilike', value: '%NATIONAL MONEY%' },
     set: { category: 'Debt Payments', category_source: 'bulk_fix' },
   },
   {
-    label: 'FLEXITI → Debt Payments',
+    label: 'FLEXITI -> Debt Payments',
     match: { column: 'merchant_name', op: 'ilike', value: '%FLEXITI%' },
     set: { category: 'Debt Payments', category_source: 'bulk_fix' },
   },
   {
-    label: 'CAPITAL ONE → Debt Payments',
+    label: 'CAPITAL ONE -> Debt Payments',
     match: { column: 'merchant_name', op: 'ilike', value: '%CAPITAL ONE%' },
     set: { category: 'Debt Payments', category_source: 'bulk_fix' },
   },

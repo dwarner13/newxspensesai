@@ -104,7 +104,7 @@ const AILearningPage = () => {
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">The Right Questions at the Right Time</h2>
             <p className="text-xl text-gray-600 max-w-3xl ">
-              XspensesAI doesn't just organize your expenses—it asks intelligent questions that help you make better financial decisions.
+              XspensesAI doesn't just organize your expenses-it asks intelligent questions that help you make better financial decisions.
             </p>
           </div>
 
@@ -165,7 +165,7 @@ const AILearningPage = () => {
               </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Private, Secure, Personalized</h2>
               <p className="text-lg text-gray-600 mb-6">
-                Your financial data is yours alone. XspensesAI's learning happens exclusively within your account—your categorization preferences and spending patterns are never shared with other users.
+                Your financial data is yours alone. XspensesAI's learning happens exclusively within your account-your categorization preferences and spending patterns are never shared with other users.
               </p>
               <div className="space-y-4">
                 <div className="flex items-start">
@@ -193,7 +193,7 @@ const AILearningPage = () => {
                   <h3 className="text-xl font-semibold text-gray-900">Your Privacy Promise</h3>
                 </div>
                 <p className="text-gray-700 mb-6">
-                  "We built XspensesAI because we wanted a smarter way to track expenses without compromising privacy. Your data is yours—period. Our AI learns your preferences to serve you better, but that knowledge stays in your account only."
+                  "We built XspensesAI because we wanted a smarter way to track expenses without compromising privacy. Your data is yours-period. Our AI learns your preferences to serve you better, but that knowledge stays in your account only."
                 </p>
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gray-200 rounded-full"></div>

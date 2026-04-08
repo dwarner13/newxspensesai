@@ -15,7 +15,7 @@ const XspensesAIDemoPage = () => {
     },
     { 
       type: 'ai', 
-      content: "Hi! I'm your AI Financial Advisor. Try uploading a document or asking me demo questions like:\n\n• 'Analyze my coffee spending'\n• 'Create a podcast about my finances'\n• 'Help me optimize my budget'",
+      content: "Hi! I'm your AI Financial Advisor. Try uploading a document or asking me demo questions like:\n\n- 'Analyze my coffee spending'\n- 'Create a podcast about my finances'\n- 'Help me optimize my budget'",
       time: '10:30 AM'
     }
   ]);
@@ -47,15 +47,15 @@ const XspensesAIDemoPage = () => {
   ];
 
   const demoResponses = {
-    "coffee": "☕ **Coffee Spending Analysis:**\n\nYour coffee expenses: $127/month\n• Peak times: Monday mornings (stress correlation)\n• Starbucks: 67% of purchases\n• Weekend spending: 40% higher\n\n💡 **AI Suggestion:** Switch to subscription model - could save $34/month!",
+    "coffee": "☕ **Coffee Spending Analysis:**\n\nYour coffee expenses: $127/month\n- Peak times: Monday mornings (stress correlation)\n- Starbucks: 67% of purchases\n- Weekend spending: 40% higher\n\n💡 **AI Suggestion:** Switch to subscription model - could save $34/month!",
     
     "podcast": "🎧 **Generating Your AI Roast...**\n\n*'Sofia's Savage Roast - December Edition'*\n\n🎙️ \"This month Sarah made incredible progress... her savings rate jumped to 23.4%, putting her ahead of 78% of similar users. But here's what's really fascinating - her coffee spending patterns reveal interesting stress-management opportunities...\"\n\n▶️ [Play 12-minute episode]",
     
-    "weekend": "📊 **Weekend Spending Analysis:**\n\nWeekend pattern detected:\n• Fridays: +127% spending spike\n• Saturdays: Entertainment heavy ($89 avg)\n• Sundays: Preparation spending\n\n🎯 **Optimization Strategy:**\n1. Set Friday evening limit: $50\n2. Plan Saturday activities in advance\n3. Batch Sunday prep purchases",
+    "weekend": "📊 **Weekend Spending Analysis:**\n\nWeekend pattern detected:\n- Fridays: +127% spending spike\n- Saturdays: Entertainment heavy ($89 avg)\n- Sundays: Preparation spending\n\n🎯 **Optimization Strategy:**\n1. Set Friday evening limit: $50\n2. Plan Saturday activities in advance\n3. Batch Sunday prep purchases",
     
-    "debt": "💳 **Debt Payoff Timeline:**\n\nCurrent debt: $23,500\n• Credit cards: $8,500 (24.99% APR)\n• Car loan: $15,000 (6.5% APR)\n\n📈 **AI Strategy:**\nAvalanche method: Pay minimums + $200 extra to highest rate\n**Debt-free date: August 2027**\n**Interest saved: $3,247**",
+    "debt": "💳 **Debt Payoff Timeline:**\n\nCurrent debt: $23,500\n- Credit cards: $8,500 (24.99% APR)\n- Car loan: $15,000 (6.5% APR)\n\n📈 **AI Strategy:**\nAvalanche method: Pay minimums + $200 extra to highest rate\n**Debt-free date: August 2027**\n**Interest saved: $3,247**",
     
-    "bank": "🏦 **Bank Statement Insights:**\n\n✅ Processed 47 transactions\n✅ Categorized with 94% confidence\n✅ Found 3 optimization opportunities\n\n**Key Findings:**\n• Subscription audit needed: $67 unused services\n• Timing opportunity: Bills due on paydays\n• Cash flow: $847 available for goals",
+    "bank": "🏦 **Bank Statement Insights:**\n\n✅ Processed 47 transactions\n✅ Categorized with 94% confidence\n✅ Found 3 optimization opportunities\n\n**Key Findings:**\n- Subscription audit needed: $67 unused services\n- Timing opportunity: Bills due on paydays\n- Cash flow: $847 available for goals",
     
     "credit": "📈 **Credit Score Optimization:**\n\nCurrent score: 738 (Good)\nTarget: 780+ (Excellent)\n\n**Action Plan:**\n1. Reduce utilization to <10% (+23 points)\n2. Increase credit limits (+8 points) \n3. Keep old accounts open (+5 points)\n\n🎯 **Timeline:** 780+ score by March 2025"
   };
@@ -300,9 +300,9 @@ const XspensesAIDemoPage = () => {
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                     <h4 className="font-bold text-yellow-800 mb-2">💡 AI Insights</h4>
                     <ul className="text-sm text-yellow-700 space-y-1">
-                      <li>• Your weekend spending is 40% higher than weekdays</li>
-                      <li>• Coffee purchases correlate with email volume (stress spending)</li>
-                      <li>• You're on track to save $150 more this month vs last month</li>
+                      <li>- Your weekend spending is 40% higher than weekdays</li>
+                      <li>- Coffee purchases correlate with email volume (stress spending)</li>
+                      <li>- You're on track to save $150 more this month vs last month</li>
                     </ul>
                   </div>
                 </div>
@@ -345,7 +345,7 @@ const XspensesAIDemoPage = () => {
                   <h3 className="text-white font-bold">AI Financial Advisor</h3>
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-white/80 text-sm">Online • Demo Mode</span>
+                    <span className="text-white/80 text-sm">Online - Demo Mode</span>
                   </div>
                 </div>
                 <div className="text-white/60">

@@ -23,7 +23,7 @@ export function FinleyWorkspace({ open, onClose, conversationId, initialQuestion
       open={open}
       onClose={onClose}
       employeeSlug="finley-forecasts"
-      title="Finley — AI Financial Assistant"
+      title="Finley - AI Financial Assistant"
       subtitle="Personalized financial brain · Ask anything about your finances, get insights, and plan your future."
       workspaceLabel="Financial Assistant Workspace"
       avatarEmoji={theme.emoji}

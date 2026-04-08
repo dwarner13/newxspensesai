@@ -264,10 +264,10 @@ const UploadTestPage = () => {
                 <div className="mt-4 p-3 bg-white rounded-lg border border-error-200">
                   <h4 className="font-medium text-gray-900 mb-2">Troubleshooting</h4>
                   <ul className="text-sm text-gray-600 space-y-1">
-                    <li>• Check that the 'receipts' bucket exists in Supabase</li>
-                    <li>• Verify RLS policies allow authenticated users to upload</li>
-                    <li>• Ensure your Supabase URL and anon key are correct</li>
-                    <li>• Check network tab for more detailed error information</li>
+                    <li>- Check that the 'receipts' bucket exists in Supabase</li>
+                    <li>- Verify RLS policies allow authenticated users to upload</li>
+                    <li>- Ensure your Supabase URL and anon key are correct</li>
+                    <li>- Check network tab for more detailed error information</li>
                   </ul>
                 </div>
               )}

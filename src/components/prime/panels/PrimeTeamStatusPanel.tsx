@@ -445,11 +445,11 @@ function PrimeStatusSettingsView() {
           <h4 className="text-xs font-semibold text-slate-50 mb-3">Routing Priorities</h4>
           <div className="flex flex-wrap gap-2">
             {[
-              "Imports → Byte",
-              "Categories → Tag",
-              "Goals → Goalie",
-              "Debt → Blitz",
-              "Analytics → Crystal",
+              "Imports -> Byte",
+              "Categories -> Tag",
+              "Goals -> Goalie",
+              "Debt -> Blitz",
+              "Analytics -> Crystal",
             ].map((route) => (
               <span
                 key={route}

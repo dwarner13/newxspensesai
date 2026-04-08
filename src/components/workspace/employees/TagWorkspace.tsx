@@ -45,7 +45,7 @@ export function TagWorkspace({
       onClose={onClose}
       minimized={minimized}
       employeeSlug="tag-ai"
-      title="Tag — Smart Categories"
+      title="Tag - Smart Categories"
       subtitle="Transaction categorization specialist · Learns from your corrections and patterns."
       workspaceLabel="Categories Workspace"
       avatarEmoji={theme.emoji}

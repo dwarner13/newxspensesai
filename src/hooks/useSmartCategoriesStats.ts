@@ -3,7 +3,7 @@
  *
  * Fetches real Tag / Smart Categories stats from Supabase for the current user.
  * All counts are queried independently so a failure in one doesn't block others.
- * Returns null for any stat that cannot be determined; consumers should show "—".
+ * Returns null for any stat that cannot be determined; consumers should show "-".
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -116,14 +116,14 @@ export function useSmartCategoriesStats(): SmartCategoriesStats {
         if (!error && count !== null) setUncategorizedCount(count);
       })(),
 
-      // 5. Active rules — gracefully handle missing table
+      // 5. Active rules - gracefully handle missing table
       (async () => {
         try {
           const { count, error } = await supabase
             .from('category_rules')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', userId);
-          // Table missing → error code 42P01 or PGRST116
+          // Table missing -> error code 42P01 or PGRST116
           if (!error && count !== null) {
             setActiveRulesCount(count);
           } else {

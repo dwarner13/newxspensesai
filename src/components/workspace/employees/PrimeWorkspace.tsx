@@ -50,7 +50,7 @@ export function PrimeWorkspace({
       onClose={onClose}
       minimized={minimized}
       employeeSlug="prime-boss"
-      title="Prime — AI Command Center"
+      title="Prime - AI Command Center"
       subtitle="Your financial CEO, routing tasks and coordinating your AI team."
       workspaceLabel="Prime Workspace"
       avatarEmoji={theme.emoji}

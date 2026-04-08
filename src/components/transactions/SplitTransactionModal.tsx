@@ -87,7 +87,7 @@ export function SplitTransactionModal({
           <div>
             <h2 className="text-lg font-semibold text-white">Split Transaction</h2>
             <p className="text-sm text-slate-400 mt-0.5">
-              {transaction.merchant_name} • ${totalAmount.toFixed(2)}
+              {transaction.merchant_name} - ${totalAmount.toFixed(2)}
             </p>
           </div>
           <button

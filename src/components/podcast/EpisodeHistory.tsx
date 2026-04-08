@@ -142,11 +142,11 @@ export function EpisodeHistory({ userId, aiController }: EpisodeHistoryProps) {
                   
                   <div className="flex items-center gap-4 text-sm text-gray-400 mb-2">
                     <span>Episode #{episode.episode_number}</span>
-                    <span>•</span>
+                    <span>-</span>
                     <span>{getPodcasterName(episode.podcaster_id)}</span>
-                    <span>•</span>
+                    <span>-</span>
                     <span>{formatDate(episode.created_at)}</span>
-                    <span>•</span>
+                    <span>-</span>
                     <span>{episode.listen_count} listens</span>
                   </div>
                   

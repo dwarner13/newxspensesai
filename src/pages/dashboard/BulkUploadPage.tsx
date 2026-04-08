@@ -101,9 +101,9 @@ export default function BulkUploadPage() {
       for (const f of list) {
         const k = fkey(f);
         if (byKey.has(k)) continue;
-        if (!f.size) { addToast(`Skipped "${f.name}" — empty file`); continue; }
-        if (f.size > MAX_FILE_SIZE) { addToast(`Skipped "${f.name}" — exceeds 25 MB (${fmtBytes(f.size)})`); continue; }
-        if (!isAccepted(f)) { addToast(`Skipped "${f.name}" — unsupported type`); continue; }
+        if (!f.size) { addToast(`Skipped "${f.name}" - empty file`); continue; }
+        if (f.size > MAX_FILE_SIZE) { addToast(`Skipped "${f.name}" - exceeds 25 MB (${fmtBytes(f.size)})`); continue; }
+        if (!isAccepted(f)) { addToast(`Skipped "${f.name}" - unsupported type`); continue; }
         if (slots + added >= MAX_FILES) { addToast(`Batch limit (${MAX_FILES}) reached. Extra files skipped.`); break; }
         byKey.set(k, { id: `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, file: f, status: 'queued', progress: 0 });
         added++;
@@ -359,10 +359,10 @@ export default function BulkUploadPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-emerald-100">
                       {stats.complete} statement{stats.complete === 1 ? '' : 's'} processed
-                      {stats.totalTx > 0 && ` — ${stats.totalTx} transactions`}
+                      {stats.totalTx > 0 && ` - ${stats.totalTx} transactions`}
                     </h3>
                     <p className="mt-1 text-sm text-emerald-200/80">
-                      Click "Ask Prime" on any file above for a focused summary. Tag categorization runs automatically — give it 30-60s.
+                      Click "Ask Prime" on any file above for a focused summary. Tag categorization runs automatically - give it 30-60s.
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-3">
                       <Link to="/dashboard/transactions" className="text-sm text-cyan-300 hover:text-cyan-200">View Transactions</Link>

@@ -297,7 +297,7 @@ export function DocumentUploadZone({
                     
                     <div className="flex items-center justify-between mt-1">
                       <p className="text-xs text-gray-500">
-                        {getFileLabel(attachment.type)} • {formatFileSize(attachment.size)}
+                        {getFileLabel(attachment.type)} - {formatFileSize(attachment.size)}
                       </p>
                       <p className="text-xs text-gray-500">
                         {getStatusMessage(attachment.status)}

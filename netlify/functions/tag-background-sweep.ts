@@ -1,5 +1,5 @@
 /**
- * tag-background-sweep — Post-import categorization sweep.
+ * tag-background-sweep - Post-import categorization sweep.
  * Checks Needs Review transactions against rules + merchant history.
  * Returns confident matches for bulk apply + unsure merchants for user input.
  */
@@ -153,7 +153,7 @@ export const handler: Handler = async (event) => {
       const autoCount = confident.length;
       const needsInputCount = allImportTxs?.filter(t => !t.category || t.category === 'Needs Review' || t.category === 'Other' || t.category === 'Uncategorized').length ?? 0;
 
-      const catLines = topCategories.map(c => `   ${c.category} — $${c.total.toFixed(2)} (${c.count} txns)`).join('\n');
+      const catLines = topCategories.map(c => `   ${c.category} - $${c.total.toFixed(2)} (${c.count} txns)`).join('\n');
       const reportMessage = [
         `I finished processing your ${month} statement (${filename}).`,
         '',

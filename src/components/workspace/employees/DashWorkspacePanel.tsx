@@ -98,13 +98,13 @@ export function DashWorkspacePanel() {
 
           <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar space-y-2 text-[11px] text-slate-200">
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              📊 <span className="font-medium">Monthly Summary</span> — Ready to generate
+              📊 <span className="font-medium">Monthly Summary</span> - Ready to generate
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              📈 <span className="font-medium">Spending Trends</span> — Processing
+              📈 <span className="font-medium">Spending Trends</span> - Processing
             </div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              📋 <span className="font-medium">Category Analysis</span> — Queued
+              📋 <span className="font-medium">Category Analysis</span> - Queued
             </div>
           </div>
         </div>

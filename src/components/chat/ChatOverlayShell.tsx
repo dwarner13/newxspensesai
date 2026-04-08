@@ -11,7 +11,7 @@ import { X, Minus } from 'lucide-react';
 import { GuardrailNotice } from './GuardrailNotice';
 
 export interface ChatOverlayShellProps {
-  /** Chat title (e.g., "PRIME — CHAT") */
+  /** Chat title (e.g., "PRIME - CHAT") */
   title: string;
   
   /** Optional subtitle/description */

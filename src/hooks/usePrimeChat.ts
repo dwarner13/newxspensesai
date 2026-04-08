@@ -763,7 +763,7 @@ export function usePrimeChat(
             const DISABLE_HANDOFFS = import.meta.env.VITE_DISABLE_AUTO_HANDOFFS === 'true';
             if (DISABLE_HANDOFFS && !allowNextHandoffRef.current) {
               // Quiet mode: ignore auto-handoff storms, but allow explicit user-requested handoffs
-              warn(`[usePrimeChat] 🚫 Auto-handoff disabled. Ignoring handoff event: ${j.from} → ${j.to}`);
+              warn(`[usePrimeChat] 🚫 Auto-handoff disabled. Ignoring handoff event: ${j.from} -> ${j.to}`);
               return { aiText, hasContent };
             }
 
@@ -775,7 +775,7 @@ export function usePrimeChat(
                 allowNextHandoffTimeoutRef.current = null;
               }
             }
-            log(`[usePrimeChat] 🔄 Handoff event: ${j.from} → ${j.to}`, j.message || '');
+            log(`[usePrimeChat] 🔄 Handoff event: ${j.from} -> ${j.to}`, j.message || '');
             
             // Always update activeEmployeeSlug to the target employee
             // Handoff events indicate the backend has already switched the session employee
@@ -1724,7 +1724,7 @@ export function usePrimeChat(
               // If no content received, show safe fallback message instead of removing placeholder
               const contentToCommit = finalContent.trim().length > 0 
                 ? finalContent 
-                : "Sorry — I didn't receive a response. Please try again.";
+                : "Sorry - I didn't receive a response. Please try again.";
               
               upsertAssistantMessage({
                 messageId: streamingAssistantId,
@@ -1946,7 +1946,7 @@ export function usePrimeChat(
           upsertAssistantMessage({
             messageId: errorMessageId,
             requestId,
-            content: "Sorry — I didn't receive a response. Please try again.",
+            content: "Sorry - I didn't receive a response. Please try again.",
             isStreaming: false,
             employeeKey: employeeSlugToSend,
           });

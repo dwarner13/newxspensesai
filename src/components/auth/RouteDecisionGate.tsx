@@ -8,7 +8,7 @@
  * 1. Wait for auth.ready === true (auth state resolved)
  * 2. Wait for profile to load (!isProfileLoading AND profile exists or confirmed missing)
  * 3. Show "Preparing your workspace..." screen during wait
- * 4. Only after both ready, decide: onboarding required → redirect, else → render children
+ * 4. Only after both ready, decide: onboarding required -> redirect, else -> render children
  * 
  * This ensures ConnectedDashboard and chat components never mount before onboarding decision.
  * 
@@ -40,13 +40,13 @@
  *    - Only ONE chat mount log
  * 
  * Expected log sequence (new user):
- *   [RouteDecisionGate] routeReady=false → PreparingWorkspaceScreen
+ *   [RouteDecisionGate] routeReady=false -> PreparingWorkspaceScreen
  *   [RouteDecisionGate] Decision: routeReady=true, onboardingCompleted=false, targetRoute=/onboarding/welcome
  *   [RouteDecisionGate] Redirecting to onboarding (dashboard NOT rendered)
  *   [OnboardingWelcomePage] Mounted (endTransition called)
  * 
  * Expected log sequence (returning user):
- *   [RouteDecisionGate] routeReady=false → PreparingWorkspaceScreen
+ *   [RouteDecisionGate] routeReady=false -> PreparingWorkspaceScreen
  *   [RouteDecisionGate] Decision: routeReady=true, onboardingCompleted=true, targetRoute=/dashboard
  *   [RouteDecisionGate] Rendering dashboard (onboarding complete)
  *   [ConnectedDashboard] Render (ONCE, after onboarding decision)
@@ -218,7 +218,7 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
   // Hook 9: useEffect - transition - called unconditionally
   useEffect(() => {
     if (onboardingRequired && location.pathname.startsWith('/dashboard')) {
-      console.log('[RouteDecisionGate] Triggering transition → redirecting to onboarding');
+      console.log('[RouteDecisionGate] Triggering transition -> redirecting to onboarding');
       startTransition();
     }
   }, [onboardingRequired, location.pathname, startTransition]);

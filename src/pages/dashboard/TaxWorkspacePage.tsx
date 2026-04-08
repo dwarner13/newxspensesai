@@ -69,9 +69,9 @@ const MEALS_BUCKETS: Bucket[] = [
 const HOME_BUCKETS: Bucket[] = [
   { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "celtic group", "rent", "rnt payt"] },
   { label: "Condo Fees", keywords: ["condo fee", "strata", "hoa"] },
-  { label: "Utilities — Electric", keywords: ["epcor", "electricity", "electric"] },
-  { label: "Utilities — Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
-  { label: "Utilities — Water", keywords: ["epcor water", "water bill"] },
+  { label: "Utilities - Electric", keywords: ["epcor", "electricity", "electric"] },
+  { label: "Utilities - Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
+  { label: "Utilities - Water", keywords: ["epcor water", "water bill"] },
   { label: "Internet", keywords: ["telus", "shaw", "internet"] },
   { label: "Home Insurance", keywords: ["home insurance", "property insurance", "tenant insurance"] },
 ];
@@ -97,7 +97,7 @@ const PERSONAL_BUCKETS: Bucket[] = [
 
 const INCOME_BUCKETS: Bucket[] = []; // Income groups by merchant (no predefined buckets)
 
-/** Map section id → its buckets */
+/** Map section id -> its buckets */
 const SECTION_BUCKETS: Record<string, Bucket[]> = {
   income: INCOME_BUCKETS,
   vehicle: VEHICLE_BUCKETS,
@@ -507,7 +507,7 @@ export default function TaxWorkspacePage() {
                   ))}
                 </div>
                 <div style={{ fontSize: 11, color: THEME.textDim, marginTop: 8 }}>
-                  Enter your odometer readings — your accountant will calculate the business-use percentage.
+                  Enter your odometer readings - your accountant will calculate the business-use percentage.
                 </div>
               </div>
             )}

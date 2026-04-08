@@ -1,5 +1,5 @@
 /**
- * tag-reclassify-other — Backfill "Other" transactions using merchant map + rules.
+ * tag-reclassify-other - Backfill "Other" transactions using merchant map + rules.
  *
  * SQL migration (run manually in Supabase):
  * UPDATE transactions

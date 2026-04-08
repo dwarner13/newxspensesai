@@ -248,11 +248,11 @@ export function GuardrailsAdmin({ userId }: GuardrailsAdminProps) {
               Important Notes
             </h3>
             <ul className="space-y-2 text-sm text-blue-800">
-              <li>• <strong>Ingestion (Gmail/OCR):</strong> Always uses Strict preset for compliance.</li>
-              <li>• <strong>Chat:</strong> Uses the preset you select here (default: Balanced).</li>
-              <li>• <strong>PII Redaction:</strong> Always enabled regardless of preset (legal requirement).</li>
-              <li>• <strong>End Users:</strong> Should not see these settings - compliance is automatic.</li>
-              <li>• <strong>Audit Trail:</strong> All guardrail events are logged for compliance reporting.</li>
+              <li>- <strong>Ingestion (Gmail/OCR):</strong> Always uses Strict preset for compliance.</li>
+              <li>- <strong>Chat:</strong> Uses the preset you select here (default: Balanced).</li>
+              <li>- <strong>PII Redaction:</strong> Always enabled regardless of preset (legal requirement).</li>
+              <li>- <strong>End Users:</strong> Should not see these settings - compliance is automatic.</li>
+              <li>- <strong>Audit Trail:</strong> All guardrail events are logged for compliance reporting.</li>
             </ul>
           </div>
         </div>

@@ -119,7 +119,7 @@ const OnboardingStepFive = () => {
               How did you discover XspensesAI?
             </h1>
             <p className="text-xl text-gray-400 max-w-2xl ">
-              Your feedback helps us grow smarter — and reward our top referrers.
+              Your feedback helps us grow smarter - and reward our top referrers.
             </p>
           </div>
           

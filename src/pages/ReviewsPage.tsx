@@ -154,7 +154,7 @@ const ReviewsPage = () => {
           >
             <Quote className="h-16 w-16 mx-auto mb-8 text-orange-300" />
             <blockquote className="text-2xl md:text-3xl font-medium mb-8 leading-relaxed">
-              "XspensesAI didn't just help me track expenses—it completely transformed my relationship with money. 
+              "XspensesAI didn't just help me track expenses-it completely transformed my relationship with money. 
               The AI insights are like having a personal financial advisor, and the podcasts make financial planning enjoyable!"
             </blockquote>
             <div className="flex items-center justify-center gap-4">

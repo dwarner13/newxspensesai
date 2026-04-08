@@ -15,7 +15,7 @@ const SAMPLE_EVENTS = [
   {
     actor_slug: 'prime-boss',
     actor_label: 'Prime',
-    title: 'Prime routed a question to Tag — Categories updated',
+    title: 'Prime routed a question to Tag - Categories updated',
     description: 'Tag analyzed and updated transaction categories',
     category: 'categories',
     severity: 'success' as const,

@@ -116,7 +116,7 @@ export function SettingsWorkspacePanel() {
                 {topCards.find(c => c.id === '2')?.description}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Notifications: On • Auto-sync: On
+                Notifications: On - Auto-sync: On
               </p>
               <p className="text-xs text-slate-500 mt-1">
                 {topCards.find(c => c.id === '2')?.timestamp}

@@ -1,5 +1,5 @@
 /**
- * categoryRules — client-side CRUD helpers for the category_rules table.
+ * categoryRules - client-side CRUD helpers for the category_rules table.
  *
  * Kept framework-free (no hooks) so these can be called from anywhere:
  * TransactionRow, UncategorizedReviewQueue, CategoryRulesModal, etc.
@@ -41,7 +41,7 @@ export function decodeRuleCategory(encoded: string): { category: string; subcate
 
 // ── Rule matching helpers ────────────────────────────────────────────────────
 
-/** Apply rules (already sorted exact→starts_with→contains→regex) against raw vendor text. */
+/** Apply rules (already sorted exact->starts_with->contains->regex) against raw vendor text. */
 export function applyRules(text: string, rules: CategoryRule[]): string | null {
   const lower = text.toLowerCase();
   for (const rule of rules) {

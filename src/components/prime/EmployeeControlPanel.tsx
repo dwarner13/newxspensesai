@@ -252,7 +252,7 @@ export const EmployeeControlPanel: React.FC<EmployeeControlPanelProps> = ({
                   </span>
                   {lastActivity && (
                     <span className="text-xs text-slate-500">
-                      • {formatLastActivity(lastActivity)}
+                      - {formatLastActivity(lastActivity)}
                     </span>
                   )}
                 </div>

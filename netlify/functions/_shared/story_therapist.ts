@@ -54,13 +54,13 @@ export function makePrimeStory(input: StoryInput): string {
  */
 export function makeTherapistTips(input: TherapistInput = {}): string {
   const tips = [
-    `• Pick one small habit to change this week (e.g., $10/day snack cap).`,
-    `• Set a reminder for Friday to review wins.`,
-    `• One tiny action: cancel 1 unused subscription today.`
+    `- Pick one small habit to change this week (e.g., $10/day snack cap).`,
+    `- Set a reminder for Friday to review wins.`,
+    `- One tiny action: cancel 1 unused subscription today.`
   ];
   
   if (input.goal) {
-    tips.unshift(`• Remember your goal: ${input.goal}. Take one step today.`);
+    tips.unshift(`- Remember your goal: ${input.goal}. Take one step today.`);
   }
   
   return tips.join('\n');

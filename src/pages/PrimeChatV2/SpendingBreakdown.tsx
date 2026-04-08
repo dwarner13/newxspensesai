@@ -63,7 +63,7 @@ export function SpendingBreakdown({ categories, total }: SpendingBreakdownProps)
           marginBottom: 16,
         }}
       >
-        Spending Breakdown — This Period
+        Spending Breakdown - This Period
       </div>
 
       {categories.map((cat) => (

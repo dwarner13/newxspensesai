@@ -32,7 +32,7 @@ export default function GoalCard({
           <button onClick={() => onDelete(id)} className="text-red-500">Delete</button>
         </div>
       </div>
-      <p className="text-sm text-gray-500">Category: {category} • Deadline: {deadline}</p>
+      <p className="text-sm text-gray-500">Category: {category} - Deadline: {deadline}</p>
       <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
         <div className="bg-green-500 h-full" style={{ width: `${percent}%` }} />
       </div>

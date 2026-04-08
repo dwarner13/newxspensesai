@@ -59,15 +59,15 @@ export function buildDocumentSummary(
 ): string {
   switch (docType) {
     case 'bank_statement':
-      return `Bank statement • ${transactionCount} transaction${transactionCount !== 1 ? 's' : ''} extracted`;
+      return `Bank statement - ${transactionCount} transaction${transactionCount !== 1 ? 's' : ''} extracted`;
     case 'receipt':
-      return `Receipt • ${transactionCount} line item${transactionCount !== 1 ? 's' : ''} detected`;
+      return `Receipt - ${transactionCount} line item${transactionCount !== 1 ? 's' : ''} detected`;
     case 'csv':
-      return `CSV import • ${transactionCount} row${transactionCount !== 1 ? 's' : ''} processed`;
+      return `CSV import - ${transactionCount} row${transactionCount !== 1 ? 's' : ''} processed`;
     case 'generic_document':
-      return `Document • ${transactionCount} transaction${transactionCount !== 1 ? 's' : ''} extracted`;
+      return `Document - ${transactionCount} transaction${transactionCount !== 1 ? 's' : ''} extracted`;
     default:
-      return `${fileName} • ${transactionCount} item${transactionCount !== 1 ? 's' : ''} processed`;
+      return `${fileName} - ${transactionCount} item${transactionCount !== 1 ? 's' : ''} processed`;
   }
 }
 
@@ -101,13 +101,13 @@ export function buildCompletionMessage(
   
   switch (docType) {
     case 'bank_statement':
-      return `I've finished processing your bank statement **${fileName}**.\n\n• ${transactionCount} transaction${transactionCount !== 1 ? 's were' : ' was'} extracted and normalized.\n• You can review this statement in the **Bank Statements** section of Smart Import AI.`;
+      return `I've finished processing your bank statement **${fileName}**.\n\n- ${transactionCount} transaction${transactionCount !== 1 ? 's were' : ' was'} extracted and normalized.\n- You can review this statement in the **Bank Statements** section of Smart Import AI.`;
     case 'receipt':
-      return `Your receipt **${fileName}** has been scanned and processed.\n\n• ${transactionCount} line item${transactionCount !== 1 ? 's were' : ' was'} detected.\n• You'll find it in the **Receipts** section of Smart Import AI.`;
+      return `Your receipt **${fileName}** has been scanned and processed.\n\n- ${transactionCount} line item${transactionCount !== 1 ? 's were' : ' was'} detected.\n- You'll find it in the **Receipts** section of Smart Import AI.`;
     case 'csv':
-      return `Your CSV file **${fileName}** has been imported.\n\n• ${transactionCount} row${transactionCount !== 1 ? 's were' : ' was'} processed.\n• It's now listed under the **CSV Imports** section of Smart Import AI.`;
+      return `Your CSV file **${fileName}** has been imported.\n\n- ${transactionCount} row${transactionCount !== 1 ? 's were' : ' was'} processed.\n- It's now listed under the **CSV Imports** section of Smart Import AI.`;
     case 'generic_document':
-      return `Your document **${fileName}** has been processed.\n\n• ${transactionCount} transaction${transactionCount !== 1 ? 's were' : ' was'} extracted.\n• You can review it in the **Other Documents** section of Smart Import AI.`;
+      return `Your document **${fileName}** has been processed.\n\n- ${transactionCount} transaction${transactionCount !== 1 ? 's were' : ' was'} extracted.\n- You can review it in the **Other Documents** section of Smart Import AI.`;
     default:
       return `Processing complete for **${fileName}**. ${transactionCount} item${transactionCount !== 1 ? 's' : ''} extracted.`;
   }

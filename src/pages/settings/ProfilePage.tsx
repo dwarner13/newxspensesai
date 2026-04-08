@@ -329,7 +329,7 @@ export default function ProfilePage() {
               {saveStatus === 'saving' && (
                 <>
                   <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
-                  <span className="text-sm text-blue-400">Saving…</span>
+                  <span className="text-sm text-blue-400">Saving...</span>
                 </>
               )}
               {saveStatus === 'saved' && (

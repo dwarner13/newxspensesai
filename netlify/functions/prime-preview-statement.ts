@@ -10,7 +10,7 @@ const headers = {
 };
 
 /**
- * Lite statement preview — OCR + extract top transactions via Claude Haiku.
+ * Lite statement preview - OCR + extract top transactions via Claude Haiku.
  * Does NOT write anything to the database.
  */
 export const handler: Handler = async (event) => {
@@ -107,7 +107,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ transactions: [], error: 'Preview failed — try again in a moment.' }),
+      body: JSON.stringify({ transactions: [], error: 'Preview failed - try again in a moment.' }),
     };
   }
 };

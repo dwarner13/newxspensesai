@@ -3,7 +3,7 @@
  * 
  * Displays a list of all imports for the current user with:
  * - File name
- * - Status chip (Uploaded → Parsing → Parsed → Committed)
+ * - Status chip (Uploaded -> Parsing -> Parsed -> Committed)
  * - Transaction count
  * - Date range (if available)
  * - Total income/expenses (if committed)
@@ -206,7 +206,7 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
     if (failed === 0) {
       toast.success(`Committed ${totalCommitted} transaction${totalCommitted !== 1 ? 's' : ''} across ${parsedImports.length} import${parsedImports.length !== 1 ? 's' : ''}`);
     } else {
-      toast.error(`${failed} import${failed !== 1 ? 's' : ''} failed — ${parsedImports.length - failed} succeeded`);
+      toast.error(`${failed} import${failed !== 1 ? 's' : ''} failed - ${parsedImports.length - failed} succeeded`);
     }
     await fetchImports();
     window.dispatchEvent(new CustomEvent('transactionsImported', { detail: { count: totalCommitted } }));
@@ -304,7 +304,7 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
    * Format date for display
    */
   const formatDate = (dateString: string | null): string => {
-    if (!dateString) return '—';
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -371,7 +371,7 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
             {committing === '__all__' ? (
               <>
                 <Clock className="h-4 w-4 animate-spin" />
-                Committing all…
+                Committing all...
               </>
             ) : (
               <>

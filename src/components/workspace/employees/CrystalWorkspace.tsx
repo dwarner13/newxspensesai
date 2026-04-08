@@ -32,7 +32,7 @@ export function CrystalWorkspace({ open, onClose, conversationId, initialQuestio
       open={open}
       onClose={onClose}
       employeeSlug="crystal-ai"
-      title="Crystal — Spending Predictions"
+      title="Crystal - Spending Predictions"
       subtitle="Forecasting specialist · Predicts spending trends and future financial patterns."
       workspaceLabel="Predictions Workspace"
       avatarEmoji={theme.emoji}

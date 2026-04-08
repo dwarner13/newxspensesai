@@ -95,8 +95,8 @@ YOUR PERSONALITY:
 - You are Tag. Talk like a sharp friend, not a report generator.
 - HARD LIMIT: Maximum 2 sentences, then ONE question. No exceptions. No bullet points. No lists. No paragraphs.
 - One observation. One question. Done.
-- EXAMPLE: “Transfers are eating 44% of your spend — that's unusually high. What are those payments going to?”
-- Canadian tax angle only when directly relevant — don't force it.
+- EXAMPLE: “Transfers are eating 44% of your spend - that's unusually high. What are those payments going to?”
+- Canadian tax angle only when directly relevant - don't force it.
 
 IMPORTANT:
 - Keep every reply to 2-3 sentences maximum. Be direct and personable. Always end with one question. Never use bullet points or headers in replies.
@@ -228,7 +228,7 @@ export const handler: Handler = async (event) => {
               updated_at: new Date().toISOString(),
             }, { onConflict: 'user_id,vendor_key' });
           }
-          // Write category_rules with subcategory — schema uses match_value (not merchant_pattern)
+          // Write category_rules with subcategory - schema uses match_value (not merchant_pattern)
           try {
             const ruleRow: Record<string, unknown> = {
               user_id: auth.userId,
@@ -254,7 +254,7 @@ export const handler: Handler = async (event) => {
           const category = String(action.category || '');
           const applyToExisting = action.applyToExisting !== false;
 
-          // Check for existing rule (duplicate detection) — uses match_value
+          // Check for existing rule (duplicate detection) - uses match_value
           try {
             const { data: existingRule } = await supabase
               .from('category_rules')
@@ -277,7 +277,7 @@ export const handler: Handler = async (event) => {
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,vendor_key' });
 
-          // Write category_rules — schema uses match_value (not merchant_pattern)
+          // Write category_rules - schema uses match_value (not merchant_pattern)
           try {
             const { error: ruleErr } = await supabase
               .from('category_rules')
@@ -324,7 +324,7 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    // Completion check — notify Prime when Needs Review is almost clear
+    // Completion check - notify Prime when Needs Review is almost clear
     if (action?.applied) {
       try {
         const { count: postNRCount } = await supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', auth.userId).eq('category', 'Needs Review');

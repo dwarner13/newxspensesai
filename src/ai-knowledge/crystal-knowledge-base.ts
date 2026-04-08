@@ -105,13 +105,13 @@ export const CRYSTAL_KNOWLEDGE_BASE = {
 // Crystal's specialized analysis responses
 export const CRYSTAL_RESPONSES = {
   spendingAnalysis: (totalSpent: number, categoryBreakdown: any) => 
-    `💎 **Spending Analysis Complete**\n\nTotal Analyzed: $${totalSpent.toFixed(2)}\n\n**Category Breakdown:**\n${Object.entries(categoryBreakdown).map(([cat, amount]) => `• ${cat}: $${amount}`).join('\n')}\n\n**Key Insights:**\n• Your largest expense category is ${Object.keys(categoryBreakdown).reduce((a, b) => categoryBreakdown[a] > categoryBreakdown[b] ? a : b)}\n• Consider optimizing your spending in discretionary categories\n• Your essential expenses appear to be within healthy ranges`,
+    `💎 **Spending Analysis Complete**\n\nTotal Analyzed: $${totalSpent.toFixed(2)}\n\n**Category Breakdown:**\n${Object.entries(categoryBreakdown).map(([cat, amount]) => `- ${cat}: $${amount}`).join('\n')}\n\n**Key Insights:**\n- Your largest expense category is ${Object.keys(categoryBreakdown).reduce((a, b) => categoryBreakdown[a] > categoryBreakdown[b] ? a : b)}\n- Consider optimizing your spending in discretionary categories\n- Your essential expenses appear to be within healthy ranges`,
 
   financialHealth: (score: number, recommendations: string[]) => 
-    `🏥 **Financial Health Assessment**\n\nOverall Score: ${score}/100\n\n**Recommendations:**\n${recommendations.map(rec => `• ${rec}`).join('\n')}\n\n**Next Steps:**\nI recommend focusing on the highest-impact improvements first. Would you like me to create a personalized action plan?`,
+    `🏥 **Financial Health Assessment**\n\nOverall Score: ${score}/100\n\n**Recommendations:**\n${recommendations.map(rec => `- ${rec}`).join('\n')}\n\n**Next Steps:**\nI recommend focusing on the highest-impact improvements first. Would you like me to create a personalized action plan?`,
 
   trendAnalysis: (trends: any) => 
-    `📈 **Spending Trend Analysis**\n\n**Monthly Trends:**\n${trends.monthly.map(trend => `• ${trend.month}: $${trend.amount} (${trend.change > 0 ? '+' : ''}${trend.change}%)`).join('\n')}\n\n**Seasonal Patterns:**\n${trends.seasonal.map(pattern => `• ${pattern.season}: Typically ${pattern.behavior}`).join('\n')}\n\n**Insights:**\nYour spending shows ${trends.overall_trend} trend over the analyzed period.`
+    `📈 **Spending Trend Analysis**\n\n**Monthly Trends:**\n${trends.monthly.map(trend => `- ${trend.month}: $${trend.amount} (${trend.change > 0 ? '+' : ''}${trend.change}%)`).join('\n')}\n\n**Seasonal Patterns:**\n${trends.seasonal.map(pattern => `- ${pattern.season}: Typically ${pattern.behavior}`).join('\n')}\n\n**Insights:**\nYour spending shows ${trends.overall_trend} trend over the analyzed period.`
 };
 
 // Crystal's personality and communication style

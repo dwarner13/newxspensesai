@@ -43,7 +43,7 @@ export function UploadModal() {
   const handleProcess = useCallback(async () => {
     if (!selectedFile || !userId) return;
     await smartImport.uploadFiles([selectedFile]);
-    // Keep modal open to show progress — close on completion
+    // Keep modal open to show progress - close on completion
   }, [selectedFile, userId, smartImport]);
 
   const step = smartImport.uploadStatus.step;

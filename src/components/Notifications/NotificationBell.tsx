@@ -101,7 +101,7 @@ export default function NotificationBell({
     return buckets;
   }, [items]);
 
-  /** "Have Prime handle it" — sends a single summarized command to your chat endpoint */
+  /** "Have Prime handle it" - sends a single summarized command to your chat endpoint */
   async function handleWithPrime() {
     try {
       setProcessing(true);
@@ -116,7 +116,7 @@ export default function NotificationBell({
       const summary = actionable
         .map(
           (n) =>
-            `• [${employeeLabel[n.employee]}] ${n.title}${
+            `- [${employeeLabel[n.employee]}] ${n.title}${
               n.payload ? ` (payload=${JSON.stringify(n.payload)})` : ""
             }`
         )
@@ -264,7 +264,7 @@ function Section({
                 <span className={`text-[11px] px-2 py-0.5 rounded-full ${employeeChip[n.employee]}`}>
                   {employeeLabel[n.employee]}
                 </span>
-                {!n.read && <span className="text-[10px] text-white/50">• new</span>}
+                {!n.read && <span className="text-[10px] text-white/50">- new</span>}
               </div>
               <div className="text-sm text-white/90">{n.title}</div>
               {n.description && (

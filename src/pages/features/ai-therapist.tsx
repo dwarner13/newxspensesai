@@ -386,7 +386,7 @@ const AITherapistFeaturePage = () => {
                   ) : (
                     <div>
                       <div className="text-xs text-white/70 mb-1">
-                        {getCurrentSession().therapist} • {getCurrentSession().mood}
+                        {getCurrentSession().therapist} - {getCurrentSession().mood}
                 </div>
                       {currentResponse}
                 </div>

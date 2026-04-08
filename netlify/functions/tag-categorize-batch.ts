@@ -405,7 +405,7 @@ export const handler: Handler = async (event) => {
         (a, b) => (DB_RULE_PRIORITY[a.match_type] ?? 9) - (DB_RULE_PRIORITY[b.match_type] ?? 9)
       );
     } catch {
-      /* category_rules table may not exist yet — degrade gracefully */
+      /* category_rules table may not exist yet - degrade gracefully */
     }
 
     function pickUserDbRule(text: string): CategorizeResult | null {

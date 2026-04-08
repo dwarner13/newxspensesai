@@ -249,7 +249,7 @@ const AIEmployeeDocumentProcessor: React.FC<AIEmployeeDocumentProcessorProps> = 
               <div>
                 <h3 className="font-semibold text-gray-900">{selectedFile.name}</h3>
                 <p className="text-sm text-gray-600">
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • {selectedFile.type || 'Unknown type'}
+                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB - {selectedFile.type || 'Unknown type'}
                 </p>
               </div>
             </div>
@@ -353,7 +353,7 @@ const AIEmployeeDocumentProcessor: React.FC<AIEmployeeDocumentProcessorProps> = 
                     <h4 className="font-medium text-gray-900 mb-2">Spending Patterns</h4>
                     <ul className="text-sm text-gray-600 space-y-1">
                       {result.aiResponse.insights.spendingPatterns.map((pattern, index) => (
-                        <li key={index}>• {pattern}</li>
+                        <li key={index}>- {pattern}</li>
                       ))}
                     </ul>
                   </div>
@@ -364,7 +364,7 @@ const AIEmployeeDocumentProcessor: React.FC<AIEmployeeDocumentProcessorProps> = 
                     <h4 className="font-medium text-gray-900 mb-2">Recommendations</h4>
                     <ul className="text-sm text-gray-600 space-y-1">
                       {result.aiResponse.insights.recommendations.map((rec, index) => (
-                        <li key={index}>• {rec}</li>
+                        <li key={index}>- {rec}</li>
                       ))}
                     </ul>
                   </div>

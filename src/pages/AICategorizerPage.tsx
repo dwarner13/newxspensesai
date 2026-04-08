@@ -82,10 +82,10 @@ const AICategorizerPage = () => {
               <div className="bg-white p-3 rounded-lg border border-blue-200">
                 <h4 className="font-medium text-blue-900 mb-2">Cost Information</h4>
                 <ul className="space-y-1 text-blue-700">
-                  <li>• OpenAI charges ~$0.002 per 1K tokens</li>
-                  <li>• Each transaction uses ~50 tokens</li>
-                  <li>• 100 transactions ≈ $0.01 USD</li>
-                  <li>• Set usage limits in OpenAI dashboard</li>
+                  <li>- OpenAI charges ~$0.002 per 1K tokens</li>
+                  <li>- Each transaction uses ~50 tokens</li>
+                  <li>- 100 transactions ≈ $0.01 USD</li>
+                  <li>- Set usage limits in OpenAI dashboard</li>
                 </ul>
               </div>
             </div>
@@ -119,17 +119,17 @@ const AICategorizerPage = () => {
               <div>
                 <h4 className="font-medium mb-2">File Format</h4>
                 <ul className="space-y-1">
-                  <li>• Use CSV files for best compatibility</li>
-                  <li>• Include date, description, and amount columns</li>
-                  <li>• One transaction per row</li>
+                  <li>- Use CSV files for best compatibility</li>
+                  <li>- Include date, description, and amount columns</li>
+                  <li>- One transaction per row</li>
                 </ul>
               </div>
               <div>
                 <h4 className="font-medium mb-2">Data Quality</h4>
                 <ul className="space-y-1">
-                  <li>• Clear merchant/vendor names work best</li>
-                  <li>• Remove header rows if present</li>
-                  <li>• Ensure consistent date formats</li>
+                  <li>- Clear merchant/vendor names work best</li>
+                  <li>- Remove header rows if present</li>
+                  <li>- Ensure consistent date formats</li>
                 </ul>
               </div>
             </div>
@@ -185,7 +185,7 @@ const AICategorizerPage = () => {
             ← Back to Upload
           </Link>
           <Link to="/transactions" className="btn-primary">
-            View All Transactions →
+            View All Transactions ->
           </Link>
         </div>
       </div>

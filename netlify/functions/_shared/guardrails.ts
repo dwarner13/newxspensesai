@@ -255,7 +255,7 @@ Answer ONLY with a JSON object: {"verdict": "safe"|"jailbreak", "confidence": 0.
 /**
  * NOT IMPLEMENTED YET
  * This would verify financial claims against actual data
- * E.g., "You spent $500 on groceries" → verify against transactions table
+ * E.g., "You spent $500 on groceries" -> verify against transactions table
  */
 async function checkHallucination(text: string, userId: string): Promise<{
   flagged: boolean

@@ -115,7 +115,7 @@ const ReferralSourceScreen = () => {
               How did you find out about XspensesAI?
             </h1>
             <p className="text-lg text-gray-400">
-              Your feedback helps us grow smarter — and reward our top referrers.
+              Your feedback helps us grow smarter - and reward our top referrers.
             </p>
           </div>
           

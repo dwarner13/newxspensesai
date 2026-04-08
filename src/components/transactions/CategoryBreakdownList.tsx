@@ -21,7 +21,7 @@ export interface BreakdownEntry {
   learningDominance?: 'mostly-learned' | 'mostly-ai' | 'mixed' | 'unknown';
   avgConfidence?: number | null;  // 0–1
   trend?: 'up' | 'down' | 'flat';
-  trendPct?: number;         // integer, e.g. 14 → "↑14%"
+  trendPct?: number;         // integer, e.g. 14 -> "↑14%"
 }
 
 interface AvailableMonth {
@@ -106,7 +106,7 @@ function BreakdownRow({ entry, maxAmount, isIncome, onRowClick, onAskTag }: RowP
             )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Trend delta — only shown when a month is selected */}
+            {/* Trend delta - only shown when a month is selected */}
             {trend && trend !== 'flat' && trendPct !== undefined && (
               <span
                 className={`text-[10px] font-semibold tabular-nums ${
@@ -143,7 +143,7 @@ function BreakdownRow({ entry, maxAmount, isIncome, onRowClick, onAskTag }: RowP
         </div>
       </div>
 
-      {/* Ask Tag — visible on hover */}
+      {/* Ask Tag - visible on hover */}
       {onAskTag && (
         <button
           type="button"
@@ -271,7 +271,7 @@ export function CategoryBreakdownList({
       <div className="divide-y divide-slate-800/60">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <p className="text-xs text-slate-500">Loading…</p>
+            <p className="text-xs text-slate-500">Loading...</p>
           </div>
         ) : !hasData ? (
           <div className="py-6 px-4 text-center">

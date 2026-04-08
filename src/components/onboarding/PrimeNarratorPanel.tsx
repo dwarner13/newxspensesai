@@ -109,7 +109,7 @@ export function PrimeNarratorPanel({
             lineHeight: '1.15',
           }}
         >
-          I'm Prime — your financial operating system.
+          I'm Prime - your financial operating system.
         </h1>
       </motion.div>
 

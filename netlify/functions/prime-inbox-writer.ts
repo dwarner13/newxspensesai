@@ -1,5 +1,5 @@
 /**
- * prime-inbox-writer — Inserts a message into the user's inbox on behalf of Prime.
+ * prime-inbox-writer - Inserts a message into the user's inbox on behalf of Prime.
  * Used by backend pipelines to surface proactive insights, summaries, and CTAs.
  */
 

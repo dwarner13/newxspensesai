@@ -146,7 +146,7 @@ const FinancialStoryPage = () => {
                     What if your savings account was the hero of an epic adventure?"
                   </p>
                   <div className="mt-4 text-sm text-white/40">
-                    — Prime, Chief Story Officer
+                    - Prime, Chief Story Officer
                   </div>
                 </div>
               </div>

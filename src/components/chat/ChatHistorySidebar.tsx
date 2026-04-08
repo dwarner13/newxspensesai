@@ -139,7 +139,7 @@ export function ChatHistorySidebar({ isOpen, onClose }: ChatHistorySidebarProps)
               <header className="flex items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/70 px-6 py-4">
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold tracking-[0.24em] text-slate-400 uppercase">
-                    Prime — History
+                    Prime - History
                   </span>
                   <span className="text-sm text-slate-300">
                     Recent conversations with your AI team.

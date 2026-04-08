@@ -49,8 +49,8 @@ export class AIResponseEngine {
     // Convert to legacy format for compatibility
     const employee: AIEmployee = {
       id: employeeProfile.slug,
-      name: employeeProfile.title.split('—')[0].trim(),
-      role: employeeProfile.title.split('—')[1]?.trim() || employeeProfile.title,
+      name: employeeProfile.title.split('-')[0].trim(),
+      role: employeeProfile.title.split('-')[1]?.trim() || employeeProfile.title,
       emoji: employeeProfile.emoji || '🤖',
       department: employeeProfile.capabilities[0] || 'General',
       expertise: employeeProfile.capabilities,

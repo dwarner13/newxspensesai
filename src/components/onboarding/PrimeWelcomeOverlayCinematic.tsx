@@ -118,7 +118,7 @@ export function PrimeWelcomeOverlayCinematic({ onDismiss }: PrimeWelcomeOverlayC
     }, 240);
   };
 
-  // Get preferred name from profile (display_name → first_name → fallback)
+  // Get preferred name from profile (display_name -> first_name -> fallback)
   const preferredName = useMemo(() => {
     if (!profile) return null;
     // Use display_name first, fallback to first_name, then 'there'

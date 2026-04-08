@@ -20,7 +20,7 @@ function buildBriefing(latest: ImportListItem): string {
   const filename = latest.docName || "your statement";
 
   if (!bd?.totals) {
-    return `I processed ${filename} — details are still being extracted.`;
+    return `I processed ${filename} - details are still being extracted.`;
   }
 
   const { total_debits, total_credits, transaction_count } = bd.totals;
@@ -29,7 +29,7 @@ function buildBriefing(latest: ImportListItem): string {
   const txType = isIncome ? "income" : "expense";
   const txCount = transaction_count || 0;
 
-  let msg = `I processed ${filename} — ${txCount} ${txType} transaction${txCount !== 1 ? "s" : ""} totaling ${fmtCurrency(totalAmount)}.`;
+  let msg = `I processed ${filename} - ${txCount} ${txType} transaction${txCount !== 1 ? "s" : ""} totaling ${fmtCurrency(totalAmount)}.`;
 
   if (isIncome && bd.top_merchants && bd.top_merchants.length > 0) {
     const topPayers = bd.top_merchants.slice(0, 3).map(m => `${m.merchant} (${fmtCurrency(m.total)})`).join(", ");

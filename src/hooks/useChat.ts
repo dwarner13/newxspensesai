@@ -35,7 +35,7 @@ export function useChat(employeeSlug: string) {
       // Handle handoff if present
       if (resp?.meta?.handoff) {
         const { from, to } = resp.meta.handoff;
-        console.log(`[useChat] 🔄 Handoff detected: ${from} → ${to}`);
+        console.log(`[useChat] 🔄 Handoff detected: ${from} -> ${to}`);
         setActiveEmployeeSlug(to);
         
         // Add handoff notification message

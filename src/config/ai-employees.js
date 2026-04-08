@@ -27,7 +27,7 @@ export const getActiveEmployees = async () => {
   const employees = await getAllEmployees();
   return employees.map(emp => ({
     id: emp.slug,
-    name: emp.title.split('—')[0].trim(),
+    name: emp.title.split('-')[0].trim(),
     emoji: emp.emoji,
     active: emp.is_active,
     department: emp.capabilities[0] || 'General',
@@ -41,7 +41,7 @@ export const getEmployeeById = async (id) => {
   
   return {
     id: employee.slug,
-    name: employee.title.split('—')[0].trim(),
+    name: employee.title.split('-')[0].trim(),
     emoji: employee.emoji,
     active: employee.is_active,
     department: employee.capabilities[0] || 'General',
@@ -56,7 +56,7 @@ export const getEmployeesByDepartment = async (department) => {
     .filter(emp => emp.capabilities.some(cap => cap.toLowerCase().includes(department.toLowerCase())))
     .map(emp => ({
       id: emp.slug,
-      name: emp.title.split('—')[0].trim(),
+      name: emp.title.split('-')[0].trim(),
       emoji: emp.emoji,
       active: emp.is_active,
       department: emp.capabilities[0] || 'General',

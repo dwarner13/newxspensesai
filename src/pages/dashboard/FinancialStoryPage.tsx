@@ -39,7 +39,7 @@ export default function FinancialStoryPage() {
   // VERIFICATION: Confirm using unified shell (remove after verifying)
   if (import.meta.env.DEV) {
     console.log('[UI] ✅ Using unified shell: FinancialStoryPage', {
-      layout: 'DashboardPageShell → DashboardThreeColumnLayout',
+      layout: 'DashboardPageShell -> DashboardThreeColumnLayout',
       left: 'StoryWorkspacePanel',
       center: 'StoryUnifiedCard (EmployeeUnifiedCardBase)',
       right: 'ActivityFeedSidebar',

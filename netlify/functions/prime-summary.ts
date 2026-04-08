@@ -15,12 +15,12 @@ const headers = {
 const GENERIC_SUMMARY = 'Your categorized results and insights are available.';
 const LOW_CONFIDENCE_THRESHOLD = 0.6;
 const ISSUER_PATTERNS = [
-  { match: /triangle/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /canadian tire/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /ctfs/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /ct financial/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /canadian tire bank/i, name: 'Canadian Tire — Triangle Mastercard' },
-  { match: /world elite mastercard/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /triangle/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /canadian tire/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /ctfs/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /ct financial/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /canadian tire bank/i, name: 'Canadian Tire - Triangle Mastercard' },
+  { match: /world elite mastercard/i, name: 'Canadian Tire - Triangle Mastercard' },
   { match: /capital one/i, name: 'Capital One' },
   { match: /td bank|td canada trust/i, name: 'TD Bank' },
   { match: /rbc|royal bank of canada/i, name: 'RBC' },
@@ -267,7 +267,7 @@ async function sanitizeSummaryForOutput(
 ): Promise<string> {
   // Summary is LLM-generated from already-sanitized data.
   // PII guardrails false-positive on dollar amounts (phone_intl regex matches $XX.XX).
-  // Skip guardrails here � PII was already caught at ingestion time.
+  // Skip guardrails here � PII was already caught at ingestion time.
   const base = cleanupOcrText(String(summary || ''));
   return base.trim() ? base : String(summary || '');
 }
@@ -402,7 +402,7 @@ function buildPrimeReadHeadline(institutionRaw: string | null | undefined, utili
   if (normalized.includes('scotia') || normalized.includes('scotiabank')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Pinch Point' : 'The Control Path';
   if (normalized.includes('cibc')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Stress Point' : 'The Leverage Lane';
   if (normalized.includes('td')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Pressure Line' : 'The Planning Lane';
-  return `${institution} — ${signal}`;
+  return `${institution} - ${signal}`;
 }
 
 function parseDateRangeLabel(dateRange: any): string | null {
@@ -594,7 +594,7 @@ function renderPrimeNarrativeV1(params: {
   const readParagraphOne =
     primeReadClauses.length > 0
       ? `What stands out right now is that ${primeReadClauses.join(', ')}.`
-      : 'The core numbers are clear — review the top merchants and recurring charges above to identify where spend pressure is highest.';
+      : 'The core numbers are clear - review the top merchants and recurring charges above to identify where spend pressure is highest.';
   const readParagraphTwo =
     'If you do one thing this cycle, push payment above minimum and review recurring charges so your monthly cash flow starts opening up instead of tightening.';
   const narrativeInstitution = institution === 'unknown' ? 'This account' : institution;
@@ -1075,8 +1075,8 @@ export function formatOcrSummaryMarkdown(params: {
           .slice(0, 3)
           .join(', ')}.`
       : normalizedTopCategories.length > 0
-        ? `Tag placed ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} into initial categories — review and correct any mismatches so Tag can learn.`
-        : `All ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} are uncategorized — open Smart Categories to kick off Tag.`;
+        ? `Tag placed ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} into initial categories - review and correct any mismatches so Tag can learn.`
+        : `All ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} are uncategorized - open Smart Categories to kick off Tag.`;
   summaryParagraphs.push(
     `Byte extracted ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} for this statement, with ${trustedCount} currently ready to use and ${needsReviewCount} needing review.`
   );
@@ -1448,7 +1448,7 @@ function buildFallbackSummary(docData: any): string | null {
 
   if (lines.length > 0) {
     return `I read your document (${docData.original_name || 'upload'}). Here's what I found:\n${lines
-      .map((l) => `• ${l}`)
+      .map((l) => `- ${l}`)
       .join('\n')}`;
   }
 

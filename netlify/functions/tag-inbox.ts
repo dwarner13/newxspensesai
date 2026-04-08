@@ -20,7 +20,7 @@ export const handler: Handler = async (event) => {
   const sb = serverSupabase();
 
   try {
-    // 1. Unresolved — uncategorized transactions grouped by merchant
+    // 1. Unresolved - uncategorized transactions grouped by merchant
     const { data: uncatTxs } = await sb
       .from('transactions')
       .select('id, merchant_name, amount, category')
@@ -37,7 +37,7 @@ export const handler: Handler = async (event) => {
     }
     const unresolved = Object.values(map).sort((a, b) => b.transaction_count - a.transaction_count);
 
-    // 2. Resolved — recent rules
+    // 2. Resolved - recent rules
     let resolved: any[] = [];
     try {
       const { data: rules } = await sb
@@ -53,7 +53,7 @@ export const handler: Handler = async (event) => {
       }));
     } catch { /* table may not exist */ }
 
-    // 3. Imports — recent with tx counts
+    // 3. Imports - recent with tx counts
     const { data: imps } = await sb
       .from('imports')
       .select('id, file_url, created_at')
@@ -75,7 +75,7 @@ export const handler: Handler = async (event) => {
       };
     }));
 
-    // 4. Recurring rule suggestions — merchants 3+ times with consistent category, no rule
+    // 4. Recurring rule suggestions - merchants 3+ times with consistent category, no rule
     let ruleSuggestions: any[] = [];
     try {
       const { data: frequent } = await sb

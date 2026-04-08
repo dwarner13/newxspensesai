@@ -49,7 +49,7 @@ export function buildUserContext(): UserContext {
   const { profile, displayName } = useProfileContext();
   const { firstName } = useAuth();
   
-  // Preferred name: display_name → first_name → full_name
+  // Preferred name: display_name -> first_name -> full_name
   const preferredName = profile?.display_name || profile?.first_name || profile?.full_name || firstName || displayName || 'there';
   
   // Account type (account_type column)
@@ -87,7 +87,7 @@ export function buildUserContextFromProfile(
   firstName: string | null,
   displayName: string
 ): UserContext {
-  // Preferred name: display_name → first_name → full_name
+  // Preferred name: display_name -> first_name -> full_name
   const preferredName = profile?.display_name || profile?.first_name || profile?.full_name || firstName || displayName || 'there';
   
   // Account type (account_type column)

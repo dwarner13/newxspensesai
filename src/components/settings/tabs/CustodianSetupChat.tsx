@@ -169,7 +169,7 @@ export function CustodianSetupChat({ onComplete, onClose }: CustodianSetupChatPr
           <div>
             <h3 className="text-sm font-semibold text-white">Custodian</h3>
             <p className="text-xs text-slate-400">
-              Profile setup • Step {currentStep + 1} of {QUESTIONS.length}
+              Profile setup - Step {currentStep + 1} of {QUESTIONS.length}
             </p>
           </div>
         </div>
@@ -310,19 +310,19 @@ export function CustodianSetupChat({ onComplete, onClose }: CustodianSetupChatPr
                 <div className="space-y-2">
                   {answers.displayName && confirmations.displayName && (
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="text-slate-400">• Name:</span>
+                      <span className="text-slate-400">- Name:</span>
                       <span className="text-white font-medium">{answers.displayName}</span>
                     </div>
                   )}
                   {answers.focus && confirmations.focus && (
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="text-slate-400">• Focus:</span>
+                      <span className="text-slate-400">- Focus:</span>
                       <span className="text-white font-medium capitalize">{answers.focus}</span>
                     </div>
                   )}
                   {answers.insightStyle && confirmations.insightStyle && (
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="text-slate-400">• Explanation style:</span>
+                      <span className="text-slate-400">- Explanation style:</span>
                       <span className="text-white font-medium">{answers.insightStyle}</span>
                     </div>
                   )}

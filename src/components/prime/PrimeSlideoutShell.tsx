@@ -13,7 +13,7 @@ import { CHAT_SHEET_HEIGHT, CHAT_SHEET_WIDTH } from "../../lib/chatSlideoutConst
 import { useSlideoutResizeGuard } from "../../lib/slideoutResizeGuard";
 
 export interface PrimeSlideoutShellProps {
-  /** Panel title (e.g., "PRIME — CHAT") */
+  /** Panel title (e.g., "PRIME - CHAT") */
   title: string;
 
   /** Optional subtitle/description */

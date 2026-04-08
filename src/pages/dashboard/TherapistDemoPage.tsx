@@ -121,20 +121,20 @@ const TherapistDemoPage: React.FC = () => {
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-white">🎯 Smart Detection</h3>
                 <ul className="text-gray-300 space-y-2 text-sm">
-                  <li>• Monitors user behavior patterns</li>
-                  <li>• Detects emotional indicators</li>
-                  <li>• Tracks spending anomalies</li>
-                  <li>• Identifies avoidance patterns</li>
+                  <li>- Monitors user behavior patterns</li>
+                  <li>- Detects emotional indicators</li>
+                  <li>- Tracks spending anomalies</li>
+                  <li>- Identifies avoidance patterns</li>
                 </ul>
               </div>
               
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-white">💬 Context-Aware Responses</h3>
                 <ul className="text-gray-300 space-y-2 text-sm">
-                  <li>• Personalized therapist messages</li>
-                  <li>• Empathetic tone matching</li>
-                  <li>• Behavioral pattern recognition</li>
-                  <li>• Proactive emotional support</li>
+                  <li>- Personalized therapist messages</li>
+                  <li>- Empathetic tone matching</li>
+                  <li>- Behavioral pattern recognition</li>
+                  <li>- Proactive emotional support</li>
                 </ul>
               </div>
             </div>
@@ -170,20 +170,20 @@ const TherapistDemoPage: React.FC = () => {
               <div>
                 <h3 className="text-lg font-semibold text-white mb-4">For Users</h3>
                 <ul className="text-gray-300 space-y-2">
-                  <li>• Proactive emotional support</li>
-                  <li>• Reduces financial stress</li>
-                  <li>• Builds healthy money habits</li>
-                  <li>• Feels like a real therapist</li>
+                  <li>- Proactive emotional support</li>
+                  <li>- Reduces financial stress</li>
+                  <li>- Builds healthy money habits</li>
+                  <li>- Feels like a real therapist</li>
                 </ul>
               </div>
               
               <div>
                 <h3 className="text-lg font-semibold text-white mb-4">For Your App</h3>
                 <ul className="text-gray-300 space-y-2">
-                  <li>• Unique competitive advantage</li>
-                  <li>• Increases user engagement</li>
-                  <li>• Reduces user churn</li>
-                  <li>• Differentiates from competitors</li>
+                  <li>- Unique competitive advantage</li>
+                  <li>- Increases user engagement</li>
+                  <li>- Reduces user churn</li>
+                  <li>- Differentiates from competitors</li>
                 </ul>
               </div>
             </div>

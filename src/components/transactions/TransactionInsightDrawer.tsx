@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
-// StatementPdfViewer deferred — import removed for now
+// StatementPdfViewer deferred - import removed for now
 
 type DrawerTransaction =
   | { kind: 'committed'; transaction: CommittedTransaction }

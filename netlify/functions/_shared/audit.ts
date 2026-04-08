@@ -81,7 +81,7 @@ export interface AuditEvent {
   duration_ms?: number;
   error_message?: string;
   error_code?: string;
-  changes?: Record<string, unknown>; // old → new
+  changes?: Record<string, unknown>; // old -> new
   metadata?: Record<string, unknown>;
   severity: AuditSeverity;
   timestamp: string;

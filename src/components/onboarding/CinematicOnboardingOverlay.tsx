@@ -1125,7 +1125,7 @@ export function CinematicOnboardingOverlay({ missingFields, onComplete }: Cinema
                         animate={{ opacity: 1 }}
                         transition={{ delay: prefersReducedMotion ? 0 : 0, duration: prefersReducedMotion ? 0 : 0.4 }}
                       >
-                        I'm Prime — your AI financial guide and orchestrator.
+                        I'm Prime - your AI financial guide and orchestrator.
                       </motion.p>
                       <motion.p
                         initial={{ opacity: 0 }}
@@ -1205,7 +1205,7 @@ export function CinematicOnboardingOverlay({ missingFields, onComplete }: Cinema
                       Account setup in progress
                     </h2>
                     <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                      I'm handing things over to Custodian — our AI responsible for security, privacy, and system defaults.
+                      I'm handing things over to Custodian - our AI responsible for security, privacy, and system defaults.
                     </p>
                     
                     {/* Animated Lock Indicator */}
@@ -1235,7 +1235,7 @@ export function CinematicOnboardingOverlay({ missingFields, onComplete }: Cinema
                         }}
                         className="text-xs text-emerald-400 font-medium"
                       >
-                        Securing your workspace…
+                        Securing your workspace...
                       </motion.p>
                     </div>
                   </div>

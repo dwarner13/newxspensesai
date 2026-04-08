@@ -29,7 +29,7 @@ export interface Profile {
 }
 
 export interface UserIdentity {
-  /** Preferred name (display_name → first_name → full_name) */
+  /** Preferred name (display_name -> first_name -> full_name) */
   preferredName: string;
   
   /** Account type (personal/business/both/exploring) */
@@ -65,7 +65,7 @@ export interface ProfileContextType {
   /** Refresh profile from database */
   refreshProfile: () => Promise<void>;
   
-  /** Computed display name (display_name → first_name → full_name) */
+  /** Computed display name (display_name -> first_name -> full_name) */
   displayName: string;
   
   /** Normalized user identity object */
@@ -163,7 +163,7 @@ async function hydrateProfile(userId: string, userEmail: string): Promise<Profil
 
 /**
  * Compute display name from profile
- * Name resolution order: display_name → first_name → full_name
+ * Name resolution order: display_name -> first_name -> full_name
  */
 function computeDisplayName(profile: Profile | null, userEmail: string | null, isGuest: boolean): string {
   if (isGuest) {
@@ -175,7 +175,7 @@ function computeDisplayName(profile: Profile | null, userEmail: string | null, i
     return userEmail?.split('@')[0] || 'User';
   }
 
-  // Name resolution order: display_name → first_name → full_name
+  // Name resolution order: display_name -> first_name -> full_name
   return (
     profile.display_name ||
     profile.first_name ||
@@ -231,7 +231,7 @@ function computeUserIdentity(profile: Profile | null, displayName: string, isGue
     ? profile.metadata as Record<string, any>
     : null;
 
-  // Preferred name: display_name → first_name → full_name
+  // Preferred name: display_name -> first_name -> full_name
   const preferredName = profile.display_name || profile.first_name || profile.full_name || displayName;
 
   // Account type (account_type column)

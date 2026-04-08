@@ -78,7 +78,7 @@ function JobCard({ job, onFocus, onResume, onViewResults, onRetry }: JobCardProp
       <div className="flex items-center gap-2 mb-2">
         <div className="text-lg">{employeeDisplay.emoji}</div>
         <span className="text-xs font-medium text-slate-300">{employeeDisplay.shortName}</span>
-        <span className="text-xs text-slate-500">•</span>
+        <span className="text-xs text-slate-500">-</span>
         <span className="text-xs text-slate-500">{formatTime(job.created_at)}</span>
       </div>
       
@@ -340,9 +340,9 @@ export function JobsDrawer() {
                 <h2 className="text-lg font-semibold text-white">Jobs & Updates</h2>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-xs text-slate-400">Track your AI team's progress</p>
-                  <span className="text-xs text-slate-500">•</span>
+                  <span className="text-xs text-slate-500">-</span>
                   <p className="text-xs text-emerald-400">
-                    AI Team: Active{runningCount > 0 && ` • ${runningCount} running`}
+                    AI Team: Active{runningCount > 0 && ` - ${runningCount} running`}
                   </p>
                 </div>
               </div>

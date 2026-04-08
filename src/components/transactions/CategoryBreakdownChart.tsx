@@ -93,7 +93,7 @@ const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
         <div>
           <h3 className="text-xl font-bold text-white mb-2">Category Breakdown</h3>
           <p className="text-slate-400">
-            {totalCount} transactions • {formatCurrency(totalAmount)} total
+            {totalCount} transactions - {formatCurrency(totalAmount)} total
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -45,10 +45,10 @@ import { useAuth } from "@/contexts/AuthContext";
 /**
  * Notification Priority Levels
  *
- * - "success" — Task completed successfully (green badge)
- * - "info" — Informational message (blue badge)
- * - "warning" — Warning or alert (yellow badge)
- * - "critical" — Urgent action required (red badge)
+ * - "success" - Task completed successfully (green badge)
+ * - "info" - Informational message (blue badge)
+ * - "warning" - Warning or alert (yellow badge)
+ * - "critical" - Urgent action required (red badge)
  */
 export type NotificationPriority = "success" | "info" | "warning" | "critical";
 

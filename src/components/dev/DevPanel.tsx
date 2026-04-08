@@ -3,7 +3,7 @@ import { useDevTools } from "@/contexts/DevToolsContext";
 
 function truncate(s?: string, n = 220) {
   if (!s) return "";
-  return s.length > n ? s.slice(0, n) + " …" : s;
+  return s.length > n ? s.slice(0, n) + " ..." : s;
 }
 
 function Section({
@@ -67,7 +67,7 @@ export default function DevPanel() {
         className="px-3 py-2 rounded-xl shadow bg-gray-800 text-white text-sm hover:bg-gray-700 transition-colors"
         onClick={() => setOpen(!open)}
       >
-        🛡️ Dev • {open ? "Hide" : "Show"}
+        🛡️ Dev - {open ? "Hide" : "Show"}
       </button>
 
       {/* Drawer */}
@@ -98,7 +98,7 @@ export default function DevPanel() {
               <ul className="text-xs space-y-1">
                 {guardrails.slice(0, 10).map((g, i) => (
                   <li key={i}>
-                    <b>{g.stage}</b> • {g.action} •{" "}
+                    <b>{g.stage}</b> - {g.action} -{" "}
                     <span className="opacity-70">{g.severity ?? "n/a"}</span>
                   </li>
                 ))}
@@ -110,8 +110,8 @@ export default function DevPanel() {
 
           <Section title="Memory">
             <div className="text-sm">
-              Hit: <b>{memory.hit ?? "—"}</b> • Count:{" "}
-              <b>{memory.count ?? "—"}</b>
+              Hit: <b>{memory.hit ?? "-"}</b> - Count:{" "}
+              <b>{memory.count ?? "-"}</b>
             </div>
             {memory.recalls?.length ? (
               <ul className="text-xs mt-2 space-y-1">
@@ -129,7 +129,7 @@ export default function DevPanel() {
                 </div>
                 <ul className="text-xs space-y-1">
                   {memory.lastFacts.map((f, i) => (
-                    <li key={i}>• {truncate(f)}</li>
+                    <li key={i}>- {truncate(f)}</li>
                   ))}
                 </ul>
               </div>

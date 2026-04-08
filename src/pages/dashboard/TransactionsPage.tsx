@@ -68,7 +68,7 @@ type StatementReviewRow = {
 function toInstitutionLabel(label: string): string {
   const raw = String(label || '').trim();
   if (!raw) return 'Statement';
-  const issuerOnly = raw.split('•')[0]?.trim();
+  const issuerOnly = raw.split('-')[0]?.trim();
   const normalized = (issuerOnly || raw).trim();
   const hasInstitutionLikeText = /[A-Za-z]{3,}/.test(normalized);
   return hasInstitutionLikeText ? normalized : 'Statement';
@@ -703,7 +703,7 @@ export default function TransactionsPage() {
     };
   }, [allTransactions]);
 
-  // Category breakdown for right panel — expenses only, grouped by category
+  // Category breakdown for right panel - expenses only, grouped by category
   const categoryBreakdown = useMemo(() => {
     const map = new Map<string, number>();
     scopedTransactions.forEach((tx) => {
@@ -957,7 +957,7 @@ export default function TransactionsPage() {
     const recentDine = sumCatWindow('Food & Dining', recentStart, now);
     const prevDine = sumCatWindow('Food & Dining', prevStart, prevEnd);
     if (prevDine > 10 && recentDine > prevDine * 1.4) {
-      return 'Dining out is up sharply this week compared to last week — worth a quick glance.';
+      return 'Dining out is up sharply this week compared to last week - worth a quick glance.';
     }
     return null;
   }, [urlFilteredCommitted]);
@@ -1316,13 +1316,13 @@ export default function TransactionsPage() {
     }).format(value);
   }, []);
   const formatDate = useCallback((value: string | null) => {
-    if (!value) return '—';
+    if (!value) return '-';
     const d = new Date(value);
-    if (isNaN(d.getTime())) return '—';
+    if (isNaN(d.getTime())) return '-';
     // Guard against OCR date-parsing artifacts that produce ancient years
     // (e.g. "0119-12-31" parsed from a 2-digit year gets interpreted as 119 AD)
     const year = d.getFullYear();
-    if (year < 1900 || year > 2100) return '—';
+    if (year < 1900 || year > 2100) return '-';
     return d.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -1545,14 +1545,14 @@ export default function TransactionsPage() {
     ? importScopedCount
     : urlFilteredCommitted.length + urlFilteredPending.length;
 
-  // Tag AI bulk categorization — calls tag-categorize-batch once per unique importId
+  // Tag AI bulk categorization - calls tag-categorize-batch once per unique importId
   const [isTagRunning, setIsTagRunning] = useState(false);
   const handleCategorizeWithTagAI = useCallback(async () => {
     const supabase = getSupabase();
     if (!supabase) return;
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
-      toast.error('Session expired — please refresh');
+      toast.error('Session expired - please refresh');
       return;
     }
 
@@ -1591,7 +1591,7 @@ export default function TransactionsPage() {
 
     setIsTagRunning(false);
     if (totalErrors > 0 && totalCategorized === 0) {
-      toast.error('Tag AI categorization failed — check console');
+      toast.error('Tag AI categorization failed - check console');
     } else if (totalErrors > 0) {
       toast.success(`Tag AI categorized ${totalCategorized} transactions (${totalErrors} import(s) failed)`);
     } else {
@@ -1662,7 +1662,7 @@ export default function TransactionsPage() {
     return true;
   }, [pendingTransactions, userId]);
 
-  // Approve a single pending (staging) transaction → commits it to the transactions table
+  // Approve a single pending (staging) transaction -> commits it to the transactions table
   const handleApprove = useCallback(async (pendingId: string) => {
     await approvePendingBatch([pendingId]);
   }, [approvePendingBatch]);
@@ -1692,7 +1692,7 @@ export default function TransactionsPage() {
     setIsGroupEditOpen(false);
   }, [smartPendingGroup]);
 
-  // Reject a single pending transaction → removes it from staging
+  // Reject a single pending transaction -> removes it from staging
   const handleReject = useCallback(async (pendingId: string) => {
     if (!userId) return;
     const supabase = getSupabase();
@@ -1745,7 +1745,7 @@ export default function TransactionsPage() {
   const handleDrawerFlagReview = useCallback(
     (_row: { kind: 'committed' | 'pending'; transaction: CommittedTransaction | PendingTransaction }) => {
       void _row;
-      toast.success("Thanks — we've noted this for review.");
+      toast.success("Thanks - we've noted this for review.");
       setDetailDrawerOpen(false);
     },
     []
@@ -1953,7 +1953,7 @@ export default function TransactionsPage() {
                           <div className="flex items-center justify-between gap-2">
                             <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{row.category}</span>
                             <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold border ${toneClass}`}>
-                              {row.scorePct >= 50 ? `${row.scorePct}%` : '—'}
+                              {row.scorePct >= 50 ? `${row.scorePct}%` : '-'}
                             </span>
                           </div>
                           <div className="mt-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -1978,7 +1978,7 @@ export default function TransactionsPage() {
                   <div className="mb-2 flex items-center justify-between">
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Rule Opportunities</div>
                     <div className="text-[10px] text-slate-500">
-                      Active rules: {activeRuleCount ?? '—'}
+                      Active rules: {activeRuleCount ?? '-'}
                     </div>
                   </div>
                   {ruleSuggestionChips.length === 0 ? (
@@ -2008,7 +2008,7 @@ export default function TransactionsPage() {
                             className="rounded border border-violet-300/40 px-1.5 py-0.5 text-[10px] font-semibold text-violet-100 hover:bg-violet-500/25 disabled:opacity-60"
                             title="Create rule"
                           >
-                            {isRuleCreateSaving === chip.merchant ? '…' : '+'}
+                            {isRuleCreateSaving === chip.merchant ? '...' : '+'}
                           </button>
                         </div>
                       ))}
@@ -2495,7 +2495,7 @@ export default function TransactionsPage() {
                               disabled={isTagRunning || pendingCount <= 0}
                               className="rounded border border-violet-400/35 bg-violet-500/10 px-2 py-1.5 text-left text-[11px] text-violet-100 transition-colors hover:bg-violet-500/20 disabled:opacity-50"
                             >
-                              {isTagRunning ? 'Running Tag AI categorization…' : 'Apply high-confidence categories'}
+                              {isTagRunning ? 'Running Tag AI categorization...' : 'Apply high-confidence categories'}
                             </button>
                             <button
                               type="button"
@@ -2702,7 +2702,7 @@ export default function TransactionsPage() {
                             disabled={isMoveSaving}
                             className="rounded-md border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[11px] text-violet-100 hover:bg-violet-500/25 disabled:opacity-60"
                           >
-                            {isMoveSaving ? 'Saving…' : 'Apply'}
+                            {isMoveSaving ? 'Saving...' : 'Apply'}
                           </button>
                           <button
                             type="button"
@@ -2861,7 +2861,7 @@ export default function TransactionsPage() {
                 </button>
               </div>
               <div className="mt-2 text-[10px] text-slate-400">
-                Scope: <span className="text-slate-200">{isStatementView ? selectedStatementInstitution : 'All statements'}</span> · Active rules: <span className="text-slate-200">{activeRuleCount ?? '—'}</span>
+                Scope: <span className="text-slate-200">{isStatementView ? selectedStatementInstitution : 'All statements'}</span> · Active rules: <span className="text-slate-200">{activeRuleCount ?? '-'}</span>
               </div>
               <div className="mt-2">
                 <button
@@ -2900,7 +2900,7 @@ export default function TransactionsPage() {
                     disabled={isTagRunning}
                     className="rounded border border-violet-500/40 bg-violet-500/10 px-2 py-2 text-left text-xs text-violet-100 hover:bg-violet-500/20 disabled:opacity-60 transition-colors"
                   >
-                    <div className="font-semibold">{isTagRunning ? 'Tag is categorizing…' : 'Run Tag Auto-Categorize'}</div>
+                    <div className="font-semibold">{isTagRunning ? 'Tag is categorizing...' : 'Run Tag Auto-Categorize'}</div>
                     <div className="mt-0.5 text-[10px] text-violet-200/80">Apply best-fit categories in batch</div>
                   </button>
                   <button
@@ -2927,7 +2927,7 @@ export default function TransactionsPage() {
                   <div className="space-y-1.5">
                     {ruleSuggestionChips.slice(0, 5).map((chip) => (
                       <div key={`diag-rule-${chip.merchant}-${chip.category}`} className="rounded border border-slate-800 bg-slate-950/60 p-2">
-                        <div className="text-[11px] font-medium text-slate-100 truncate">{chip.merchant} → {chip.category}</div>
+                        <div className="text-[11px] font-medium text-slate-100 truncate">{chip.merchant} -> {chip.category}</div>
                         <div className="mt-0.5 text-[10px] text-slate-400">{chip.count} matching transactions</div>
                         <div className="mt-1.5 flex items-center gap-1.5">
                           <button
@@ -2943,7 +2943,7 @@ export default function TransactionsPage() {
                             onClick={() => { void handleCreateRuleFromChip(chip.merchant, chip.category); }}
                             className="rounded border border-violet-400/40 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-100 hover:bg-violet-500/25 disabled:opacity-60"
                           >
-                            {isRuleCreateSaving === chip.merchant ? 'Saving…' : 'Apply rule'}
+                            {isRuleCreateSaving === chip.merchant ? 'Saving...' : 'Apply rule'}
                           </button>
                         </div>
                       </div>

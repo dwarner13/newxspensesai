@@ -2,7 +2,7 @@
  * StatusBadge Component
  * 
  * Reusable status badge for dashboard header
- * Used to display page-specific status information (e.g., "Byte Online • 24/7", "Uploads enabled")
+ * Used to display page-specific status information (e.g., "Byte Online - 24/7", "Uploads enabled")
  * Supports fixed-width pills for consistent layout
  */
 

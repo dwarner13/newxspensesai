@@ -275,7 +275,7 @@ export default function SecurityCenter() {
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-sm transition-colors"
             >
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-              {loading ? "Checking…" : "Run Check"}
+              {loading ? "Checking..." : "Run Check"}
             </button>
 
             {data && (
@@ -378,7 +378,7 @@ export default function SecurityCenter() {
                 <div className="mt-4 pt-4 border-t space-y-2">
                   {data.rls.issues.map((issue, i) => (
                     <p key={i} className="text-sm text-red-700 flex items-start gap-2">
-                      <span className="flex-shrink-0">•</span>
+                      <span className="flex-shrink-0">-</span>
                       <span>{issue}</span>
                     </p>
                   ))}
@@ -393,7 +393,7 @@ export default function SecurityCenter() {
                 <ul className="space-y-2">
                   {data.recommendations.map((rec, i) => (
                     <li key={i} className="text-sm text-blue-800 flex items-start gap-2">
-                      <span className="flex-shrink-0 text-base">→</span>
+                      <span className="flex-shrink-0 text-base">-></span>
                       <span>{rec}</span>
                     </li>
                   ))}

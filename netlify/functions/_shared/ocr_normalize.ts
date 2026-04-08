@@ -1,7 +1,7 @@
 /**
  * OCR Normalizer Module
  * 
- * Day 9: Convert ParsedDoc → NormalizedTransaction[]
+ * Day 9: Convert ParsedDoc -> NormalizedTransaction[]
  * 
  * Functions:
  * - toTransactions: Map invoice/receipt/bank to normalized transactions
@@ -123,7 +123,7 @@ export function normalizeOcrResult(
         merchant: row.client,
         amount: row.amount,       // positive = income
         currency: row.currency || 'CAD',
-        description: `${row.client} — ${row.method || 'Payment'}${row.invoiceNo ? ` (Invoice ${row.invoiceNo})` : ''}`,
+        description: `${row.client} - ${row.method || 'Payment'}${row.invoiceNo ? ` (Invoice ${row.invoiceNo})` : ''}`,
         docId: undefined,
       }));
       return openaiClient ? Promise.resolve(mapped) : mapped;
@@ -931,7 +931,7 @@ export async function linkToDocument(txId: number, docId: string): Promise<void>
 }
 
 /**
- * parseIncomeReportRows — Extracts individual payment rows from income
+ * parseIncomeReportRows - Extracts individual payment rows from income
  * report PDFs (FreshBooks "Payments Collected", Wave, etc.)
  *
  * Expected OCR text pattern (FreshBooks):
@@ -984,7 +984,7 @@ function parseIncomeReportRows(text: string): Array<{
     const invoiceMatch = chunk.match(/(?:Invoice|Credit)\s*(\d{4,})/i);
     const invoiceNo = invoiceMatch?.[1] || null;
 
-    // Extract method — must appear as a standalone word followed by "Invoice"/"Credit"
+    // Extract method - must appear as a standalone word followed by "Invoice"/"Credit"
     // or end-of-chunk.  Avoid matching "Cash" inside client names like "Cash for Cars".
     const methodMatch = chunk.match(/\b(Transfer|Check|Credit|EFT|Wire|ACH|Direct\s+Deposit)\s+(?=Invoice|Credit|\$)/i);
     const method = methodMatch?.[1] || null;
@@ -1004,7 +1004,7 @@ function parseIncomeReportRows(text: string): Array<{
     // Skip header/footer lines
     if (/^Date\b|^Client\b|^Method\b|payments?\s+applied|do not count/i.test(client)) continue;
 
-    // Normalize date: MM/DD/YYYY → YYYY-MM-DD
+    // Normalize date: MM/DD/YYYY -> YYYY-MM-DD
     const [mm, dd, yyyy] = datePositions[i].date.split('/');
     const isoDate = `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
 
@@ -1143,26 +1143,26 @@ function parseBmoEverydayStatement(text: string): Array<{
       ? Math.abs(parsed.amount)
       : -Math.abs(parsed.amount);
 
-    // Balance-delta validation — the source of truth.
+    // Balance-delta validation - the source of truth.
     // If we have a previous balance, the delta MUST equal the transaction amount.
     // If the parsed amount disagrees with the delta by more than $0.02, the OCR
     // misread the amount column (likely picked up trailing digits of the balance).
-    // In that case, trust the delta — it's mathematically derived from the balances.
+    // In that case, trust the delta - it's mathematically derived from the balances.
     let signedAmount: number;
     if (deltaBasedAmount !== null && deltaBasedAmount !== 0) {
       const deltaAbs = Math.abs(deltaBasedAmount);
       const parsedAbs = Math.abs(parsed.amount);
       const diff = Math.abs(deltaAbs - parsedAbs);
       if (diff > 0.02) {
-        // Parsed amount is wrong — use the delta instead
-        console.warn(`[BMO Parser] Amount mismatch: parsed=${parsedAbs} delta=${deltaAbs} on "${parsed.description.slice(0, 40)}" — using delta`);
+        // Parsed amount is wrong - use the delta instead
+        console.warn(`[BMO Parser] Amount mismatch: parsed=${parsedAbs} delta=${deltaAbs} on "${parsed.description.slice(0, 40)}" - using delta`);
         signedAmount = deltaBasedAmount > 0 ? deltaAbs : -deltaAbs;
       } else {
-        // Parsed amount agrees with delta — use parsed value with delta-derived sign
+        // Parsed amount agrees with delta - use parsed value with delta-derived sign
         signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
       }
     } else {
-      // No previous balance available — fall back to description-based sign
+      // No previous balance available - fall back to description-based sign
       signedAmount = signedAmountFromDesc;
     }
 
@@ -2530,9 +2530,9 @@ function cleanDescription(description: string): string {
 /**
  * Extract merchant name from description.
  * Strips BMO/Canadian-bank transaction-type prefixes so the actual payee name is returned.
- * e.g. "Debit Card Purchase, 7-ELEVEN STORE 33535" → "7-ELEVEN STORE"
- *      "Bill Payment - ROGERS"                      → "ROGERS"
- *      "Interac e-Transfer Sent - John Smith"        → "John Smith"
+ * e.g. "Debit Card Purchase, 7-ELEVEN STORE 33535" -> "7-ELEVEN STORE"
+ *      "Bill Payment - ROGERS"                      -> "ROGERS"
+ *      "Interac e-Transfer Sent - John Smith"        -> "John Smith"
  */
 function extractMerchant(description: string): string {
   const trimmed = description.trim();
@@ -2633,7 +2633,7 @@ function removeDuplicates(
     const normMerch = (tx.merchant || '')
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, '') // strip all non-alphanumeric
-      .slice(0, 12); // first 12 chars — enough to identify, ignores suffix variations
+      .slice(0, 12); // first 12 chars - enough to identify, ignores suffix variations
     const key = `${tx.date || ''}|${normMerch}|${Math.abs(tx.amount)}`;
     
     if (!seen.has(key)) {

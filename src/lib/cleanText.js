@@ -63,7 +63,7 @@ function cleanOcrText(rawText) {
   cleaned = cleaned.trim();
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n'); // Max 2 consecutive newlines
 
-  console.log(`🧹 Text cleaning: ${rawText.length} → ${cleaned.length} characters`);
+  console.log(`🧹 Text cleaning: ${rawText.length} -> ${cleaned.length} characters`);
   
   return cleaned;
 }
