@@ -135,16 +135,18 @@ function extractSearchIntent(message: string): {
   const msg = message.toLowerCase().trim();
   const isSearch = (
     /^(show|find|search|filter|get|pull up|display|list|look up)[\s\w]/i.test(message) ||
-    /\b(transactions|charges|purchases|expenses|spending)\b/i.test(message) ||
+    /\b(transactions|charges|purchases|expenses|spending|spend)\b/i.test(message) ||
     /^[a-z0-9 &'.-]{2,35}$/i.test(message.trim())
   ) && !/\b(change|move|update|fix|set|categorize|bulk|undo|revert|rule|save)\b/i.test(msg);
 
   if (!isSearch) return { isSearch: false };
 
+  // "at <merchant>" pattern  - "how much did I spend at 7-Eleven?"
+  const atMerchantMatch = message.match(/\bat\s+([a-z0-9][a-z0-9 &'.-]{1,30}?)(?:\?|\s*$)/i);
   const merchantMatch = message.match(
     /(?:show|find|search|filter|get|list)?\s*(?:me\s+)?(?:my\s+)?(?:all\s+)?([a-z0-9 &'.-]+?)(?:\s+transactions?|\s+charges?|\s+purchases?)?$/i
   );
-  const rawMerchant = merchantMatch?.[1]?.trim() || '';
+  const rawMerchant = (atMerchantMatch?.[1] || merchantMatch?.[1] || '').trim();
 
   const CATEGORY_TERMS: Record<string, string> = {
     'groceries': 'Groceries', 'grocery': 'Groceries', 'food': 'Food & Dining',
@@ -237,7 +239,7 @@ ${learnedCategory ? `- Tag has learned: usually "${learnedCategory}" for this me
 
   if (!merchant && pageContext) {
     // Page-level operator mode
-    return `${userLine}You are Tag — XspensesAI's categorization agent operating at the page level.
+    return `${userLine}You are Tag  - XspensesAI's categorization agent operating at the page level.
 The user is on the Transactions page talking to you directly.
 
 USER'S FINANCES:
@@ -245,7 +247,7 @@ USER'S FINANCES:
 - Total income: $${yearTotal.income.toFixed(2)}
 - Transactions in view: ${pageContext.transactionCount || 0}
 
-FILTER intent — triggers on ANY of these patterns:
+FILTER intent  - triggers on ANY of these patterns:
 - A merchant name typed alone e.g. "borrowell" or "7-eleven" or "petro"
 - "show me X" / "find X" / "search X" / "filter by X" / "look up X"
 - "what are my X transactions" / "X purchases" / "X charges"
@@ -254,34 +256,34 @@ FILTER intent — triggers on ANY of these patterns:
 
 FILTER JSON format: FILTER:{"search":"<merchant or empty>","category":"<category or empty>","subcategory":"<subcategory or empty>"}
 - For merchant lookups: set "search" to the merchant, leave category/subcategory empty
-  Example: "borrowell" → FILTER:{"search":"borrowell","category":"","subcategory":""}
+  Example: "borrowell" -> FILTER:{"search":"borrowell","category":"","subcategory":""}
 - For category/subcategory lookups: set "search" to empty, set category and/or subcategory
-  Example: "show me massage" → FILTER:{"search":"","category":"Personal Care","subcategory":"Massage & Wellness"}
-  Example: "show me fuel" → FILTER:{"search":"","category":"Transportation","subcategory":"Gas & Fuel"}
-  Example: "show me groceries" → FILTER:{"search":"","category":"Groceries","subcategory":""}
-  Example: "transportation" → FILTER:{"search":"","category":"Transportation","subcategory":""}
+  Example: "show me massage" -> FILTER:{"search":"","category":"Personal Care","subcategory":"Massage & Wellness"}
+  Example: "show me fuel" -> FILTER:{"search":"","category":"Transportation","subcategory":"Gas & Fuel"}
+  Example: "show me groceries" -> FILTER:{"search":"","category":"Groceries","subcategory":""}
+  Example: "transportation" -> FILTER:{"search":"","category":"Transportation","subcategory":""}
 
 Category/subcategory mappings (use these EXACT strings):
-- "massage"/"spa" → Personal Care / Massage & Wellness
-- "fuel"/"gas"/"petro"/"esso"/"gas station" → Transportation / Gas & Fuel
-- "parking" → Transportation / Parking
-- "oil change"/"repairs"/"maintenance" → Transportation / Vehicle Maintenance
-- "transit"/"bus"/"train" → Transportation / Transit
-- "uber"/"lyft"/"rideshare" → Transportation / Rideshare
-- "groceries"/"supermarket" → Groceries
-- "coffee"/"tim hortons"/"starbucks" → Food & Dining / Coffee & Drinks
-- "restaurant"/"dining"/"lunch"/"dinner" → Food & Dining / Restaurants
-- "fast food"/"takeout" → Food & Dining / Fast Food
-- "haircut"/"salon"/"barber" → Personal Care / Hair & Beauty
-- "gym"/"fitness" → Personal Care / Gym & Fitness
-- "dentist"/"dental" → Healthcare / Dental
-- "pharmacy"/"shoppers" → Healthcare / Pharmacy
-- "golf" → Entertainment / Golf
-- "casino"/"bingo" → Entertainment / Gaming & Lottery
-- "netflix"/"spotify"/"streaming" → Subscriptions / Streaming
-- "bank fee"/"service charge" → Bank Fees / Banking
-- "loan payment" → Debt Payments / Loan Payment
-- "income"/"paycheck" → Income / Employment
+- "massage"/"spa" -> Personal Care / Massage & Wellness
+- "fuel"/"gas"/"petro"/"esso"/"gas station" -> Transportation / Gas & Fuel
+- "parking" -> Transportation / Parking
+- "oil change"/"repairs"/"maintenance" -> Transportation / Vehicle Maintenance
+- "transit"/"bus"/"train" -> Transportation / Transit
+- "uber"/"lyft"/"rideshare" -> Transportation / Rideshare
+- "groceries"/"supermarket" -> Groceries
+- "coffee"/"tim hortons"/"starbucks" -> Food & Dining / Coffee & Drinks
+- "restaurant"/"dining"/"lunch"/"dinner" -> Food & Dining / Restaurants
+- "fast food"/"takeout" -> Food & Dining / Fast Food
+- "haircut"/"salon"/"barber" -> Personal Care / Hair & Beauty
+- "gym"/"fitness" -> Personal Care / Gym & Fitness
+- "dentist"/"dental" -> Healthcare / Dental
+- "pharmacy"/"shoppers" -> Healthcare / Pharmacy
+- "golf" -> Entertainment / Golf
+- "casino"/"bingo" -> Entertainment / Gaming & Lottery
+- "netflix"/"spotify"/"streaming" -> Subscriptions / Streaming
+- "bank fee"/"service charge" -> Bank Fees / Banking
+- "loan payment" -> Debt Payments / Loan Payment
+- "income"/"paycheck" -> Income / Employment
 
 Reply with ONE short sentence then the action on the same line.
 CRITICAL: FILTER:{} must ALWAYS be on a single line, no line breaks inside the JSON.
@@ -290,16 +292,16 @@ Never wrap FILTER JSON in markdown or backticks.
 NEVER respond to a merchant/category request WITHOUT the FILTER action.
 
 You can also help with:
-2. BULK CHANGE — detect "change all X to Y", "categorize X as Y". Confirm first:
+2. BULK CHANGE  - detect "change all X to Y", "categorize X as Y". Confirm first:
    BULK_CHANGE:{"merchant":"<merchant>","category":"<cat>","confirm":true}
-3. UNDO — detect "undo", "revert": UNDO:{}
-4. RECLASSIFY — detect "categorize everything", "fix uncategorized", "use your judgment", "clean up", "auto categorize":
+3. UNDO  - detect "undo", "revert": UNDO:{}
+4. RECLASSIFY  - detect "categorize everything", "fix uncategorized", "use your judgment", "clean up", "auto categorize":
    RECLASSIFY_PREVIEW:{}
    Do NOT ask what category. Do NOT execute. Just signal the preview.
-5. CATEGORIZE — when user says "put X into Y" or "X is Y" or uses a natural language alias:
+5. CATEGORIZE  - when user says "put X into Y" or "X is Y" or uses a natural language alias:
    CATEGORIZE:{"merchant":"<merchant>","category":"<category>","subcategory":"<subcategory or null>"}
-   Example: "put shell into fuel" → CATEGORIZE:{"merchant":"shell","category":"Transportation","subcategory":"Gas & Fuel"}
-6. QUESTIONS — answer naturally about spending, no action JSON
+   Example: "put shell into fuel" -> CATEGORIZE:{"merchant":"shell","category":"Transportation","subcategory":"Gas & Fuel"}
+6. QUESTIONS  - answer naturally about spending, no action JSON
 
 Rules:
 - Always confirm before bulk changes
@@ -308,7 +310,7 @@ Rules:
 - Use ONLY these exact category names: ${CATEGORIES.join(', ')}. NEVER invent category names not on this list. If unsure, use "Needs Review".
 - When user types just a merchant name with no other context, treat it as a FILTER
 - When user says "put X into Y" or "X is Y", use CATEGORIZE with the alias mapping
-- For reclassify: never ask what category — Tag figures it out
+- For reclassify: never ask what category  - Tag figures it out
 
 ${selectedTx ? `
 SELECTED TRANSACTION (user has this transaction open in the drawer):
@@ -319,15 +321,15 @@ SELECTED TRANSACTION (user has this transaction open in the drawer):
 - Current category: ${selectedTx.category || 'Uncategorized'}
 - Description: ${selectedTx.description || '(none)'}
 
-UPDATE_TRANSACTION intent — triggers when user says:
+UPDATE_TRANSACTION intent  - triggers when user says:
 "change this to X" / "this is wrong" / "recategorize as X" / "move this to X" / "this should be Y" / "wrong category"
 Reply naturally then append on same line:
 UPDATE_TRANSACTION:{"id":"${selectedTx.id}","category":"<new category>","subcategory":"<subcategory or null>","merchant":"<corrected merchant or null>"}
 Rules:
 - Map user words to canonical categories using the alias table above
 - If user says "expense" without specifying category, ask: "What type of expense? Food, Transportation, Personal Care...?"
-- If user says "income" → category: Income
-- Always confirm: "Got it — moved [merchant] to [category]."
+- If user says "income" -> category: Income
+- Always confirm: "Got it  - moved [merchant] to [category]."
 - If the merchant is known (not null), also append: SAVE_RULE:true
 ` : ''}
 IMPORTANT: Only output action JSON for actionable commands, never for questions about amounts or spending patterns.
@@ -352,16 +354,16 @@ UNKNOWN MERCHANT SWEEP: When user says "fix unknown transactions", "fix unknowns
 TRANSACTION SEARCH:
 When the user asks to find, show, list, filter, or search transactions:
 
-CRITICAL: When LIVE TRANSACTION DATA is provided in your context, respond in Tag's voice — sharp, direct, human. Structure it like this:
+CRITICAL: When LIVE TRANSACTION DATA is provided in your context, respond in Tag's voice  - sharp, direct, human. Structure it like this:
 
 1. ONE punchy opening line with the count and total.
-   Example: "Found 19 grocery transactions — $3,457 total."
+   Example: "Found 19 grocery transactions  - $3,457 total."
 
 2. A clean grouped list. Group by merchant if there are repeats. Show the most recent date and total per merchant, not every row.
-   Format: \u2022 [Merchant] — [X visits, $total]
-   Example: \u2022 Save On Foods — 8 visits, $1,204.38
-            \u2022 Sobeys Hollick Kenyon — 4 visits, $889.43
-            \u2022 Colton's No Frills — 2 visits, $22.19
+   Format: \u2022 [Merchant]  - [X visits, $total]
+   Example: \u2022 Save On Foods  - 8 visits, $1,204.38
+            \u2022 Sobeys Hollick Kenyon  - 4 visits, $889.43
+            \u2022 Colton's No Frills  - 2 visits, $22.19
 
 3. ONE short observation if something stands out.
    Example: "Save On Foods is your main grocery spot by a wide margin."
@@ -372,7 +374,7 @@ CRITICAL: When LIVE TRANSACTION DATA is provided in your context, respond in Tag
 Rules:
 - Never list every individual row. Group by merchant.
 - Never exceed 15 merchant groups. If more, show top 10 and say "+ [N] more merchants."
-- Never hallucinate — only use data from LIVE TRANSACTION DATA.
+- Never hallucinate  - only use data from LIVE TRANSACTION DATA.
 - Keep it under 300 words total.
 
 If LIVE TRANSACTION DATA shows 0 results, say:
@@ -385,19 +387,19 @@ With ONE conversational line before the FILTER.
 For amount or date filters without injected data, tell the user those filters aren't available in the quick view and offer a category search instead.
 
 TRANSACTION UPDATES (in-conversation):
-When the user refers to a transaction from earlier in the conversation ("change that one", "move the Jan 12 massage", "fix the second one") — use the transaction ID from the search results already in context. Do NOT ask the user to repeat the ID or find it themselves.
+When the user refers to a transaction from earlier in the conversation ("change that one", "move the Jan 12 massage", "fix the second one")  - use the transaction ID from the search results already in context. Do NOT ask the user to repeat the ID or find it themselves.
 
 Call tag_update_transaction_category with:
 - transactionId: from context
 - newCategory: the category the user specified
-- subcategory: the subcategory if the user specified one (e.g. "Office Supplies under Business" → category: "Business", subcategory: "Office Supplies")
+- subcategory: the subcategory if the user specified one (e.g. "Office Supplies under Business" -> category: "Business", subcategory: "Office Supplies")
 - merchantName: from context if available
 - oldCategory: from context if available
 
 After the update, confirm what changed in one line, then ask if the same rule should apply to all transactions from that merchant.
 
-ANSWER DIRECTLY — YOUR DOMAIN:
-You have access to the user's injected transaction context (up to 200 transactions — merchant-prioritized when a merchant is mentioned) PLUS a CATEGORY TOTALS block computed from the full transaction table. Use CATEGORY TOTALS for aggregation questions ("top spending category", "total spent on X") — never compute totals from only the injected subset. You MUST answer questions directly using this data for:
+ANSWER DIRECTLY  - YOUR DOMAIN:
+You have access to the user's injected transaction context (up to 200 transactions  - merchant-prioritized when a merchant is mentioned) PLUS a CATEGORY TOTALS block computed from the full transaction table. Use CATEGORY TOTALS for aggregation questions ("top spending category", "total spent on X")  - never compute totals from only the injected subset. You MUST answer questions directly using this data for:
 - Spending category questions ("how much did I spend on groceries?", "what's my biggest category?")
 - Totals and counts ("how many transactions this month?", "total spent at Amazon?")
 - Merchant/transaction lookups ("show me coffee purchases", "biggest expense?")
@@ -406,14 +408,14 @@ You have access to the user's injected transaction context (up to 200 transactio
 
 Do NOT hand off for these. Compute the answer from the context and respond in a single short sentence with the number.
 
-HANDOFF — ONLY FOR OUT-OF-SCOPE QUESTIONS:
+HANDOFF  - ONLY FOR OUT-OF-SCOPE QUESTIONS:
 Only hand off when the user asks about something clearly outside categorization/transaction data:
-- Budgeting advice, financial strategy, forecasts → prime-boss
-- Savings goals, milestones → goalie-goals
-- Debt payoff calculations, loan projections → finley-forecasts
-- Upload/OCR/statement processing issues → byte-docs
-- Trend analysis across long time ranges → crystal-analytics
-- Tax reports, year-end summaries → ledger-tax
+- Budgeting advice, financial strategy, forecasts -> prime-boss
+- Savings goals, milestones -> goalie-goals
+- Debt payoff calculations, loan projections -> finley-forecasts
+- Upload/OCR/statement processing issues -> byte-docs
+- Trend analysis across long time ranges -> crystal-analytics
+- Tax reports, year-end summaries -> ledger-tax
 
 Never hand off a question you can answer from the injected transaction context. Never say "I can't help with that" without either answering from context or handing off.
 
@@ -421,14 +423,14 @@ Emit on its own line:
 HANDOFF:{"to":"<slug>","reason":"<one sentence of what the user needs>"}
 
 Employee slugs and when to use them:
-- "prime-boss" — spending strategy, financial analysis, summaries, forecasts, budgeting advice, big picture questions, anything complex
-- "byte-docs" — upload questions, import status, OCR issues, statement processing, document questions
-- "goalie-goals" — savings goals, targets, milestones, goal tracking
-- "finley-forecasts" — debt payoff, loan calculations, projections
-- "crystal-analytics" — trends, pattern analysis, spending insights
-- "ledger-tax" — accountant reports, year-end summaries
+- "prime-boss"  - spending strategy, financial analysis, summaries, forecasts, budgeting advice, big picture questions, anything complex
+- "byte-docs"  - upload questions, import status, OCR issues, statement processing, document questions
+- "goalie-goals"  - savings goals, targets, milestones, goal tracking
+- "finley-forecasts"  - debt payoff, loan calculations, projections
+- "crystal-analytics"  - trends, pattern analysis, spending insights
+- "ledger-tax"  - accountant reports, year-end summaries
 
-Always say one short sentence before the HANDOFF line acknowledging what the user asked. Keep it natural — Tag is handing off to a colleague, not abandoning the user.
+Always say one short sentence before the HANDOFF line acknowledging what the user asked. Keep it natural  - Tag is handing off to a colleague, not abandoning the user.
 
 MERCHANT SPLIT RULES - INCOME vs EXPENSE:
 When a merchant appears with both income and expense transactions (e.g. 'GORDON FOODS' as a $62 grocery purchase AND 'GORDON FOODS ER' as a $2900 payroll deposit), you MUST handle them as two separate rules. Never create one blanket rule that would match both.
@@ -442,18 +444,18 @@ When you detect mixed transaction types for a merchant:
 Example flow:
 User: "Gordon Foods is groceries"
 Tag: "I see GORDON FOODS charges under $200 (groceries) AND GORDON FOODS ER deposits around $2,900 (looks like payroll). Want me to set two rules?
-1. GORDON FOODS under $200 → Groceries
-2. GORDON FOODS ER over $200 → Income"
+1. GORDON FOODS under $200 -> Groceries
+2. GORDON FOODS ER over $200 -> Income"
 
 If the user confirms, output two SAVE_RULE lines:
 SAVE_RULE:{"merchant_pattern":"GORDON FOODS","category":"Groceries","match_type":"contains","amount_min":null,"amount_max":200}
 SAVE_RULE:{"merchant_pattern":"GORDON FOODS ER","category":"Income","match_type":"exact","amount_min":200,"amount_max":null}
 
 SESSION CLOSING:
-When the needs-review queue is empty, or the user says "done", "that's all", "finished", "I'm done for now", "wrap it up" — respond with a closing message then emit SESSION_CLOSE on its own line.
+When the needs-review queue is empty, or the user says "done", "that's all", "finished", "I'm done for now", "wrap it up"  - respond with a closing message then emit SESSION_CLOSE on its own line.
 
 The closing message should:
-- Lead with a one-line summary of what was accomplished if you have context (e.g. "Queue cleared — your books are cleaner than when you sat down.")
+- Lead with a one-line summary of what was accomplished if you have context (e.g. "Queue cleared  - your books are cleaner than when you sat down.")
 - If no session context, keep it simple: "Good session. Your transactions are in better shape."
 - Add one forward nudge toward Prime: "Prime has a cleaner picture to work with now if you want the full breakdown."
 - End with SESSION_CLOSE on its own line (the server will strip it before sending to the user)
@@ -468,9 +470,9 @@ Always confirm actions taken.`;
 
 The user just changed merchant "${merchant}" (${amount != null ? '$' + Math.abs(amount).toFixed(2) : 'unknown amount'}) to category "${category}".
 Do NOT just confirm the change. Ask ONE short question to understand what this purchase actually was, so you can help build a smart rule. Examples:
-- "Got it — was this a gas fill-up or something else?"
-- "Makes sense — coffee run or snacks?"
-- "Quick one — what was the $${amount != null ? Math.abs(amount).toFixed(2) : '?'} at ${merchant}?"
+- "Got it  - was this a gas fill-up or something else?"
+- "Makes sense  - coffee run or snacks?"
+- "Quick one  - what was the $${amount != null ? Math.abs(amount).toFixed(2) : '?'} at ${merchant}?"
 Be casual, 1 sentence max. Do not offer to save a rule yet.`;
   }
 
@@ -481,7 +483,7 @@ USER'S OVERALL FINANCES (this year):
 - Total income: $${yearTotal.income.toFixed(2)}
 
 Conversation rules:
-1. If the user tells you the category directly (e.g. "Food & Dining", "Transportation"), accept it immediately — do NOT ask to confirm again. Just save it.
+1. If the user tells you the category directly (e.g. "Food & Dining", "Transportation"), accept it immediately  - do NOT ask to confirm again. Just save it.
 2. If the user's intent is unclear, ask ONE clarifying question.
 3. When the user has stated or confirmed a category, end your message with this exact text on its own line:
    SAVE_RULE:{"merchant_pattern":"${merchant}","category":"<category>","match_type":"exact","amount_min":null,"amount_max":null}
@@ -547,11 +549,11 @@ export const handler: Handler = async (event) => {
 
       const openingReply = uncatCount && uncatCount > 0
         ? `${uncatCount} transactions need categories. Want to start the queue, or is there something specific you're looking for?`
-        : `Books look clean — nothing uncategorized right now. What do you need?`;
+        : `Books look clean  - nothing uncategorized right now. What do you need?`;
 
       return { statusCode: 200, headers, body: JSON.stringify({ reply: openingReply, action: null, sessionComplete: false }) };
     } catch {
-      return { statusCode: 200, headers, body: JSON.stringify({ reply: "Hey — what can I help you categorize?", action: null, sessionComplete: false }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ reply: "Hey  - what can I help you categorize?", action: null, sessionComplete: false }) };
     }
   }
 
@@ -633,7 +635,7 @@ export const handler: Handler = async (event) => {
   // 4. Complete category totals + year totals (ALL transactions, no date filter)
   const { data: allTxs } = await supabase
     .from('transactions')
-    .select('amount, category')
+    .select('amount, category, type')
     .eq('user_id', auth.userId)
     .limit(10000);
   let yearSpent = 0, yearIncome = 0;
@@ -641,7 +643,7 @@ export const handler: Handler = async (event) => {
   for (const t of allTxs || []) {
     const amt = Math.abs(Number(t.amount || 0));
     const cat = String(t.category || 'Uncategorized');
-    if (cat.toLowerCase() === 'income') {
+    if (cat.toLowerCase() === 'income' || String((t as any).type || '').toLowerCase() === 'income') {
       yearIncome += amt;
     } else {
       yearSpent += amt;
@@ -667,9 +669,10 @@ export const handler: Handler = async (event) => {
   if (isPageContext && message) {
     const searchIntent = extractSearchIntent(message);
     // Also extract a merchant token from the raw message even when searchIntent
-    // doesn't flag it as a search — so "how much at 7-eleven?" still prioritizes.
+    // doesn't flag it as a search  - so "how much at 7-eleven?" still prioritizes.
     const msgMerchant = searchIntent.merchant ||
-      (message.match(/\b([a-z][a-z0-9 &'.-]{2,30})\b/i)?.[1]?.toLowerCase() || null);
+      (message.match(/\bat\s+([a-z0-9][a-z0-9 &'.-]{1,30}?)(?:\?|\s*$)/i)?.[1]?.toLowerCase() || null) ||
+      (message.match(/\b([a-z0-9][a-z0-9 &'.-]{2,30})\b/i)?.[1]?.toLowerCase() || null);
     if (searchIntent.isSearch || msgMerchant) {
       try {
         // Step 1: merchant-prioritized rows (if merchant mentioned)
@@ -683,6 +686,7 @@ export const handler: Handler = async (event) => {
             .order('date', { ascending: false })
             .limit(200);
           priorityRows = mRows || [];
+          console.log('[tag-chat] merchant priority:', { merchant: msgMerchant, priorityCount: priorityRows.length, fillCount: Math.max(0, 200 - priorityRows.length) });
         }
 
         // Step 2: fill remaining slots with recent transactions matching other filters
@@ -773,7 +777,7 @@ export const handler: Handler = async (event) => {
   let reply = completion.choices?.[0]?.message?.content || 'Sorry, I could not process that.';
   console.log('[tag-chat] RAW REPLY:', JSON.stringify(reply));
 
-  // Server-side FILTER injection — don't trust LLM to output it
+  // Server-side FILTER injection  - don't trust LLM to output it
   const isPageLevel = isPageContext || (!transactionId && !isQuickChange);
   const looksLikeSearch = isPageLevel && (
     /^[a-z0-9 &'-]{2,40}$/i.test(userMessage.trim()) ||
@@ -816,7 +820,7 @@ export const handler: Handler = async (event) => {
     'needs review': { category: 'Needs Review', subcategory: '' },
   };
 
-  // When real transaction data was injected, strip any FILTER the LLM emitted —
+  // When real transaction data was injected, strip any FILTER the LLM emitted  -
   // the model already responded with real data, no client-side filter needed.
   if (injectedTxContext && reply.includes('FILTER:')) {
     reply = reply.replace(/\s*FILTER:\s*(?:\{[^}]+\}|[^\n]+)/g, '').trim();
@@ -858,7 +862,7 @@ export const handler: Handler = async (event) => {
           const merchantVal = selectedTransaction.merchant || null;
           reply = reply + ` UPDATE_TRANSACTION:{"id":"${selectedTransaction.id}","category":"${normalized}","subcategory":"${sub}","merchant":${merchantVal ? `"${String(merchantVal).replace(/"/g, '\\"')}"` : 'null'}}`;
           if (merchantVal) reply += ' SAVE_RULE:true';
-          console.log('[tag-chat] Server injected UPDATE_TRANSACTION for', selectedTransaction.id, '→', normalized);
+          console.log('[tag-chat] Server injected UPDATE_TRANSACTION for', selectedTransaction.id, '->', normalized);
         }
       }
     }
@@ -874,14 +878,14 @@ export const handler: Handler = async (event) => {
     reply = reply.replace(/\s*HANDOFF:\s*\{[^}]+\}/g, '').trim();
   }
 
-  // Handle correction intent — user told Tag a merchant is miscategorized
+  // Handle correction intent  - user told Tag a merchant is miscategorized
   const correction = parseCorrection(reply);
   if (correction) {
     const { merchant_pattern, min_amount, max_amount } = correction;
     const category = normalizeCategory(correction.category);
     const subcategory = correction.subcategory?.trim() || null;
     try {
-      // Upsert into category_rules — schema uses match_value, NOT merchant_pattern
+      // Upsert into category_rules  - schema uses match_value, NOT merchant_pattern
       const rulePayload: Record<string, any> = {
         user_id: auth.userId,
         match_value: merchant_pattern.toUpperCase(),
@@ -902,7 +906,7 @@ export const handler: Handler = async (event) => {
         if (upErr) console.error('[tag-chat] correction upsert failed', upErr.message);
       }
       const amountNote = min_amount != null || max_amount != null ? ` (${min_amount != null ? '>=$' + min_amount : ''}${min_amount != null && max_amount != null ? ', ' : ''}${max_amount != null ? '<$' + max_amount : ''})` : '';
-      console.log(`[tag-chat] Correction rule saved: ${merchant_pattern} → ${category}${subcategory ? ' / ' + subcategory : ''}${amountNote}`);
+      console.log(`[tag-chat] Correction rule saved: ${merchant_pattern} -> ${category}${subcategory ? ' / ' + subcategory : ''}${amountNote}`);
 
       // Backfill existing transactions
       const updatePayload: Record<string, any> = {
@@ -968,7 +972,7 @@ export const handler: Handler = async (event) => {
         .order('match_value');
       if (rules && rules.length > 0) {
         const ruleList = rules.map((r: any) => {
-          let line = `${r.match_value} → ${r.category}${r.subcategory ? ' / ' + r.subcategory : ''}`;
+          let line = `${r.match_value} -> ${r.category}${r.subcategory ? ' / ' + r.subcategory : ''}`;
           if (r.min_amount != null) line += ` (≥$${r.min_amount})`;
           if (r.max_amount != null) line += ` (<$${r.max_amount})`;
           return line;
@@ -991,13 +995,13 @@ export const handler: Handler = async (event) => {
     if (next) {
       const amt = Math.abs(Number(next.amount || 0)).toFixed(2);
       const date = next.date || next.posted_at?.split('T')[0] || 'unknown date';
-      reply = `Next up: **${next.merchant_name}** — $${amt} on ${date}. What category should this be?`;
+      reply = `Next up: **${next.merchant_name}**  - $${amt} on ${date}. What category should this be?`;
     } else {
       reply = 'Good session. Your transactions are in better shape. Prime has a cleaner picture to work with now if you want the full breakdown.\nSESSION_CLOSE';
     }
   }
 
-  // Handle merchant_sweep intent — find and flag unknown-merchant transactions
+  // Handle merchant_sweep intent  - find and flag unknown-merchant transactions
   if (parseMerchantSweep(reply)) {
     reply = reply.replace(/<merchant_sweep\s*\/?>/g, '').trim();
     try {
@@ -1035,12 +1039,12 @@ export const handler: Handler = async (event) => {
           const amt = Math.abs(Number(tx.amount || 0)).toFixed(2);
           const d = tx.date || tx.posted_at?.split('T')[0] || '?';
           const desc = tx.description || '(no description)';
-          return `- **$${amt}** on ${d} — "${desc}"`;
+          return `- **$${amt}** on ${d}  - "${desc}"`;
         }).join('\n');
 
-        reply = `Found ${unknowns.length} transactions with no merchant name. I've flagged them for review.\n\n${lines}${unknowns.length > 5 ? `\n- ... and ${unknowns.length - 5} more` : ''}${(remaining || 0) > 0 ? `\n\n${remaining} more still unflagged — say "fix unknowns" again for the next batch.` : ''}\n\nOpen any of these in the transaction drawer to add the merchant name and category. I'll learn from your corrections.`;
+        reply = `Found ${unknowns.length} transactions with no merchant name. I've flagged them for review.\n\n${lines}${unknowns.length > 5 ? `\n- ... and ${unknowns.length - 5} more` : ''}${(remaining || 0) > 0 ? `\n\n${remaining} more still unflagged  - say "fix unknowns" again for the next batch.` : ''}\n\nOpen any of these in the transaction drawer to add the merchant name and category. I'll learn from your corrections.`;
       } else {
-        reply = 'All your transactions have merchant names — nothing to fix here!';
+        reply = 'All your transactions have merchant names  - nothing to fix here!';
       }
     } catch (err: any) {
       console.error('[tag-chat] merchant_sweep error:', err.message);
@@ -1049,7 +1053,7 @@ export const handler: Handler = async (event) => {
   }
 
   /*
-   * SQL RPC required for staging backfill — run in Supabase SQL editor:
+   * SQL RPC required for staging backfill  - run in Supabase SQL editor:
    *
    * create or replace function backfill_staging_category(
    *   p_user_id uuid,
@@ -1136,14 +1140,14 @@ export const handler: Handler = async (event) => {
       // 7c2. Enforce type from category_type_rules
       await enforceTypeBulk(supabase, auth.userId, ruleData.category, pattern);
 
-      // 7d. Backfill staging transactions (RPC — may not exist yet)
+      // 7d. Backfill staging transactions (RPC  - may not exist yet)
       try {
         await supabase.rpc('backfill_staging_category', {
           p_user_id: auth.userId,
           p_match_value: pattern,
           p_category: ruleData.category,
         });
-      } catch { /* RPC may not exist yet — skip */ }
+      } catch { /* RPC may not exist yet  - skip */ }
 
       ruleSaved = true;
     } catch { /* ignore parse errors */ }
