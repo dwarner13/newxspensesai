@@ -2927,7 +2927,7 @@ export default function TransactionsPage() {
                   <div className="space-y-1.5">
                     {ruleSuggestionChips.slice(0, 5).map((chip) => (
                       <div key={`diag-rule-${chip.merchant}-${chip.category}`} className="rounded border border-slate-800 bg-slate-950/60 p-2">
-                        <div className="text-[11px] font-medium text-slate-100 truncate">{chip.merchant} -> {chip.category}</div>
+                        <div className="text-[11px] font-medium text-slate-100 truncate">{chip.merchant}{" -> "}{chip.category}</div>
                         <div className="mt-0.5 text-[10px] text-slate-400">{chip.count} matching transactions</div>
                         <div className="mt-1.5 flex items-center gap-1.5">
                           <button
