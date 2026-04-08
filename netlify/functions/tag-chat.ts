@@ -397,7 +397,7 @@ Call tag_update_transaction_category with:
 After the update, confirm what changed in one line, then ask if the same rule should apply to all transactions from that merchant.
 
 ANSWER DIRECTLY — YOUR DOMAIN:
-You have access to the user's injected transaction context (up to 50 recent transactions with amount, date, merchant, category). You MUST answer questions directly using this data for:
+You have access to the user's injected transaction context (up to 200 transactions — merchant-prioritized when a merchant is mentioned) PLUS a CATEGORY TOTALS block computed from the full transaction table. Use CATEGORY TOTALS for aggregation questions ("top spending category", "total spent on X") — never compute totals from only the injected subset. You MUST answer questions directly using this data for:
 - Spending category questions ("how much did I spend on groceries?", "what's my biggest category?")
 - Totals and counts ("how many transactions this month?", "total spent at Amazon?")
 - Merchant/transaction lookups ("show me coffee purchases", "biggest expense?")
@@ -630,61 +630,110 @@ export const handler: Handler = async (event) => {
     } catch { /* non-blocking */ }
   }
 
-  // 4. Year totals
+  // 4. Year totals + category breakdown (complete, all transactions in year)
   const yearStart = `${new Date().getFullYear()}-01-01`;
   const { data: allTxs } = await supabase
     .from('transactions')
     .select('amount, category')
     .eq('user_id', auth.userId)
     .gte('posted_at', yearStart)
-    .limit(600);
+    .limit(5000);
   let yearSpent = 0, yearIncome = 0;
+  const categoryTotalsMap = new Map<string, { total: number; count: number }>();
   for (const t of allTxs || []) {
     const amt = Math.abs(Number(t.amount || 0));
-    if ((t.category || '').toLowerCase() === 'income') yearIncome += amt; else yearSpent += amt;
+    const cat = String(t.category || 'Uncategorized');
+    if (cat.toLowerCase() === 'income') {
+      yearIncome += amt;
+    } else {
+      yearSpent += amt;
+      const entry = categoryTotalsMap.get(cat) || { total: 0, count: 0 };
+      entry.total += amt;
+      entry.count += 1;
+      categoryTotalsMap.set(cat, entry);
+    }
   }
+  const categoryTotalsSorted = Array.from(categoryTotalsMap.entries())
+    .sort((a, b) => b[1].total - a[1].total);
+  const categoryTotalsBlock = [
+    `CATEGORY TOTALS (complete, all ${allTxs?.length || 0} transactions year-to-date):`,
+    ...categoryTotalsSorted.map(([cat, v]) => `- ${cat}: $${v.total.toFixed(2)} (${v.count} tx)`),
+    `- TOTAL SPENT: $${yearSpent.toFixed(2)}`,
+    `- TOTAL INCOME: $${yearIncome.toFixed(2)}`,
+    '',
+    'Use these totals verbatim for any aggregation or "top category" question. Never recompute from the injected transaction list.',
+  ].join('\n');
 
   // 4.5: Pre-fetch transaction data for search intents (page-level only)
   let injectedTxContext: string | null = null;
   if (isPageContext && message) {
     const searchIntent = extractSearchIntent(message);
-    if (searchIntent.isSearch) {
+    // Also extract a merchant token from the raw message even when searchIntent
+    // doesn't flag it as a search — so "how much at 7-eleven?" still prioritizes.
+    const msgMerchant = searchIntent.merchant ||
+      (message.match(/\b([a-z][a-z0-9 &'.-]{2,30})\b/i)?.[1]?.toLowerCase() || null);
+    if (searchIntent.isSearch || msgMerchant) {
       try {
-        let q = supabase
-          .from('transactions')
-          .select('id, merchant_name, description, amount, date, posted_at, category, subcategory, type')
-          .eq('user_id', auth.userId)
-          .order('date', { ascending: false })
-          .limit(50);
-        if (searchIntent.merchant) q = q.ilike('merchant_name', `%${searchIntent.merchant}%`);
-        if (searchIntent.category) {
-          if (searchIntent.category === 'Uncategorized') {
-            q = q.or('category.is.null,category.eq.Uncategorized,category.eq.Needs Review');
-          } else {
-            q = q.eq('category', searchIntent.category);
-          }
+        // Step 1: merchant-prioritized rows (if merchant mentioned)
+        let priorityRows: any[] = [];
+        if (msgMerchant) {
+          const { data: mRows } = await supabase
+            .from('transactions')
+            .select('id, merchant_name, description, amount, date, posted_at, category, subcategory, type')
+            .eq('user_id', auth.userId)
+            .ilike('merchant_name', `%${msgMerchant}%`)
+            .order('date', { ascending: false })
+            .limit(200);
+          priorityRows = mRows || [];
         }
-        if (searchIntent.type === 'income') q = q.eq('type', 'income');
-        else if (searchIntent.type === 'expense') q = q.neq('type', 'income');
-        if (searchIntent.startDate) q = q.gte('date', searchIntent.startDate);
-        if (searchIntent.endDate) q = q.lte('date', searchIntent.endDate);
-        if (searchIntent.minAmount) q = q.gte('amount', searchIntent.minAmount);
-        if (searchIntent.maxAmount) q = q.lte('amount', searchIntent.maxAmount);
 
-        const { data: txRows } = await q;
-        if (txRows && txRows.length > 0) {
+        // Step 2: fill remaining slots with recent transactions matching other filters
+        const remaining = Math.max(0, 200 - priorityRows.length);
+        let fillRows: any[] = [];
+        if (remaining > 0) {
+          let q = supabase
+            .from('transactions')
+            .select('id, merchant_name, description, amount, date, posted_at, category, subcategory, type')
+            .eq('user_id', auth.userId)
+            .order('date', { ascending: false })
+            .limit(remaining);
+          if (searchIntent.category) {
+            if (searchIntent.category === 'Uncategorized') {
+              q = q.or('category.is.null,category.eq.Uncategorized,category.eq.Needs Review');
+            } else {
+              q = q.eq('category', searchIntent.category);
+            }
+          }
+          if (searchIntent.type === 'income') q = q.eq('type', 'income');
+          else if (searchIntent.type === 'expense') q = q.neq('type', 'income');
+          if (searchIntent.startDate) q = q.gte('date', searchIntent.startDate);
+          if (searchIntent.endDate) q = q.lte('date', searchIntent.endDate);
+          if (searchIntent.minAmount) q = q.gte('amount', searchIntent.minAmount);
+          if (searchIntent.maxAmount) q = q.lte('amount', searchIntent.maxAmount);
+          const { data: fRows } = await q;
+          fillRows = fRows || [];
+        }
+
+        // Merge: merchant matches first, dedupe by id, then recent fill
+        const seen = new Set<string>(priorityRows.map(r => String(r.id)));
+        const txRows = [
+          ...priorityRows,
+          ...fillRows.filter(r => !seen.has(String(r.id))),
+        ].slice(0, 200);
+
+        if (txRows.length > 0) {
           const totalAmt = txRows.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0);
-          const lines = txRows.slice(0, 30).map((t: any, i: number) =>
+          const lines = txRows.slice(0, 60).map((t: any, i: number) =>
             `[${i + 1}] id:${t.id} | ${t.date || (t.posted_at || '').split('T')[0]} | ${t.merchant_name || t.description || 'Unknown'} | $${Math.abs(Number(t.amount)).toFixed(2)} | ${t.category || 'Uncategorized'}${t.subcategory ? ' / ' + t.subcategory : ''}`
           );
           injectedTxContext = [
-            `LIVE TRANSACTION DATA (${txRows.length} results, total $${totalAmt.toFixed(2)}):`,
+            `LIVE TRANSACTION DATA (${txRows.length} results, total $${totalAmt.toFixed(2)}${msgMerchant ? `, merchant-prioritized: ${msgMerchant}` : ''}):`,
             ...lines,
-            txRows.length > 30 ? `... and ${txRows.length - 30} more` : '',
+            txRows.length > 60 ? `... and ${txRows.length - 60} more` : '',
             '',
             'Use these exact IDs when the user asks to change or update a transaction.',
           ].filter(Boolean).join('\n');
-          console.log(`[tag-chat] Injected ${txRows.length} transactions into context`);
+          console.log(`[tag-chat] Injected ${txRows.length} transactions into context (priority=${priorityRows.length}, fill=${fillRows.length})`);
         } else {
           injectedTxContext = 'LIVE TRANSACTION DATA: No transactions found matching this search.';
         }
@@ -713,6 +762,7 @@ export const handler: Handler = async (event) => {
     max_tokens: 500,
     messages: [
       { role: 'system', content: systemPrompt },
+      { role: 'system' as const, content: categoryTotalsBlock },
       ...(injectedTxContext ? [{ role: 'system' as const, content: injectedTxContext }] : []),
       ...effectiveHistory.map((m: { role: string; content: string }) => ({
         role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
