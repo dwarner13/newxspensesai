@@ -95,6 +95,128 @@ function renderMarkdown(text: string): React.ReactNode[] {
   });
 }
 
+
+function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: () => void; supabase: any }) {
+  const [correcting, setCorrecting] = React.useState(false);
+  const [correctedValue, setCorrectedValue] = React.useState(issue.medianAmount ? issue.medianAmount.toFixed(2) : "");
+  const [saving, setSaving] = React.useState(false);
+
+  const handleSave = async () => {
+    const newAmt = parseFloat(correctedValue);
+    if (!Number.isFinite(newAmt) || newAmt <= 0) return;
+    setSaving(true);
+    try {
+      const sb = supabase;
+      const txId = issue.transactionIds[0];
+      const oldAmt = issue.totalAmount;
+      // Fix the amount
+      await sb.from("transactions").update({ amount: newAmt }).eq("id", txId);
+      // Log to tag_activity_log so Tag remembers this correction
+      const { data: { session } } = await sb.auth.getSession();
+      if (session?.user?.id) {
+        await sb.from("tag_activity_log").insert({
+          user_id: session.user.id,
+          transaction_id: txId,
+          merchant_name: issue.merchant,
+          action: "amount_corrected",
+          old_value: String(oldAmt),
+          new_value: String(newAmt),
+          reason: `OCR misread detected â€” corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
+          source: "tag_anomaly_review",
+        });
+      }
+      onFixed();
+      setCorrecting(false);
+    } catch (e) {
+      console.error("Amount fix failed:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{
+      padding: "14px 16px", borderRadius: 14,
+      background: "#0d1526",
+      border: "1px solid rgba(239,68,68,0.22)",
+      marginBottom: 8,
+      boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#e8f0fc", fontFamily: "'Syne',sans-serif" }}>{issue.merchant}</span>
+        <span style={{
+          fontSize: 13, fontWeight: 700, color: "#ffffff",
+          fontFamily: "'DM Mono',monospace",
+          background: "rgba(239,68,68,0.18)",
+          border: "1px solid rgba(239,68,68,0.38)",
+          padding: "1px 8px", borderRadius: 6,
+        }}>${Math.abs(issue.totalAmount).toFixed(2)}</span>
+      </div>
+      <div style={{ fontSize: 12, color: "#8899b4", marginBottom: 12, lineHeight: 1.5 }}>{issue.reason}</div>
+      {!correcting ? (
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setCorrecting(true)}
+            style={{
+              padding: "7px 14px", borderRadius: 9, fontSize: 11, fontWeight: 700,
+              background: "rgba(239,68,68,0.12)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              color: "#ffffff", cursor: "pointer",
+              fontFamily: "'Syne',sans-serif", letterSpacing: 0.3,
+            }}
+          >Correct Amount</button>
+          <button
+            onClick={onFixed}
+            style={{
+              padding: "7px 14px", borderRadius: 9, fontSize: 11, fontWeight: 700,
+              background: "transparent",
+              border: "1px solid #1a2740",
+              color: "#8899b4", cursor: "pointer",
+              fontFamily: "'Syne',sans-serif",
+            }}
+          >Looks Fine</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 13, color: "#8899b4", fontFamily: "'DM Mono',monospace" }}>$</span>
+          <input
+            type="number"
+            value={correctedValue}
+            onChange={e => setCorrectedValue(e.target.value)}
+            style={{
+              flex: 1, padding: "7px 10px", borderRadius: 8, fontSize: 13,
+              background: "#111d33", border: "1px solid rgba(34,211,238,0.3)",
+              color: "#e8f0fc", fontFamily: "'DM Mono',monospace",
+              outline: "none",
+            }}
+            placeholder={issue.medianAmount ? issue.medianAmount.toFixed(2) : "Enter correct amount"}
+            autoFocus
+          />
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: "7px 14px", borderRadius: 9, fontSize: 11, fontWeight: 700,
+              background: saving ? "rgba(34,211,238,0.1)" : "rgba(34,211,238,0.15)",
+              border: "1px solid rgba(34,211,238,0.3)",
+              color: "#22d3ee", cursor: saving ? "default" : "pointer",
+              fontFamily: "'Syne',sans-serif",
+            }}
+          >{saving ? "Saving..." : "Save"}</button>
+          <button
+            onClick={() => setCorrecting(false)}
+            style={{
+              padding: "7px 10px", borderRadius: 9, fontSize: 11,
+              background: "transparent", border: "1px solid #1a2740",
+              color: "#4a5f7a", cursor: "pointer",
+            }}
+          >âœ•</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TagAvatar({ size = 36 }: { size?: number }) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
@@ -159,6 +281,7 @@ export function TagCopilotPanel({
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
   const [rulesRefreshing, setRulesRefreshing] = useState(false);
   const [reapplying, setReapplying] = useState(false);
+  const [smartReviewIssues, setSmartReviewIssues] = useState<any[]>([]);
 
   const handleDeleteRule = async (rule: LearnedRule) => {
     if (!rule.id || rule.source !== 'category_rules') {
@@ -228,7 +351,7 @@ export function TagCopilotPanel({
       // Prefer category_rules (user-defined conversational rules)
       const { data: crData } = await supabase
         .from("category_rules")
-        .select("id, match_value, category, created_at, updated_at")
+        .select("id, merchant_pattern, category, created_at, updated_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -236,7 +359,7 @@ export function TagCopilotPanel({
         setLearnedRules(crData.map((r: any) => ({
           id: r.id,
           source: 'category_rules' as const,
-          merchant: String(r.match_value || "").toUpperCase(),
+          merchant: String(r.merchant_pattern || "").toUpperCase(),
           category: r.category,
           confidence: 100,
           createdAt: r.created_at,
@@ -308,6 +431,29 @@ export function TagCopilotPanel({
   }, [initialMessage]);
 
   useEffect(() => { fetchLearnedRules(); }, []);
+  useEffect(() => { fetchSmartReview(); }, []);
+
+  const fetchSmartReview = async () => {
+    try {
+      const sb = getSupabase();
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/.netlify/functions/tag-smart-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.ok && Array.isArray(json.issues)) {
+        setSmartReviewIssues(json.issues.filter((i: any) => i.issueType === "amount_anomaly"));
+      }
+    } catch (e) {
+      console.warn("[Tag] fetchSmartReview failed:", e);
+    }
+  };
+
+
 
   const handleClose = () => { setOpen(false); setTimeout(onClose, 320); };
 
@@ -385,31 +531,25 @@ export function TagCopilotPanel({
     if (count === 0 && (topCategories || []).length === 0) return;
     const hi = firstName ? `Hey ${firstName}` : "Hey";
     const sorted = [...(topCategories || [])].sort((a, b) => b.total - a.total);
+    const realCategories = sorted.filter(c => c.category !== "Transfers");
     const overBudget = (topCategories || []).filter(c => c.budget && c.budget > 0 && c.total > c.budget);
     let text = "";
     if (overBudget.length > 0) {
       const worst = overBudget.sort((a, b) => (b.total - b.budget!) - (a.total - a.budget!))[0];
       const pct = Math.round((worst.total / (worst.budget || 1)) * 100);
-      text = `${hi} - ${overBudget.length} categor${overBudget.length > 1 ? "ies are" : "y is"} over budget. **${worst.category}** is at ${pct}% of budget (${worst.total.toLocaleString("en-CA", { maximumFractionDigits: 0 })} / ${worst.budget?.toLocaleString("en-CA", { maximumFractionDigits: 0 })}). Want me to break that down?`;
-    } else if (flaggedCount > 0) {
-      const suspicious = flaggedTransactions.find(f => f.issue && f.issue.toLowerCase().includes("unusual"));
-      if (suspicious) {
-        text = `${hi} - ${flaggedCount} transaction${flaggedCount > 1 ? "s" : ""} flagged, and **${suspicious.merchant}** (${suspicious.amount}) looks off to me - that amount doesn't match their usual pattern. Verify that one against your bank app first.`;
-      } else {
-        text = `${hi} - ${flaggedCount} transaction${flaggedCount > 1 ? "s" : ""} still need a category. Want me to sort those out?`;
-      }
-    } else if (sorted.length > 0 && totalSpent && totalSpent > 0) {
-      const top = sorted[0], second = sorted[1];
-      const pct = Math.round((top.total / totalSpent) * 100);
-      const tip = top.category === "Transfers" && second
-        ? `**${second.category}** is your biggest real expense at ${Math.round((second.total / totalSpent) * 100)}% - typical for your business?`
-        : `**${top.category}** is ${pct}% of total spend. Is that expected for your work?`;
-      text = `${hi} - books look clean (done). ${tip}`;
+      text = `${hi} - **${worst.category}** is at ${pct}% of budget. I can tighten the rule for that category or check what's pulling the spend up. What would you like me to do?`;
+    } else if (rulesCount > 0 && realCategories.length > 0) {
+      const top = realCategories[0];
+      const ruleWord = rulesCount === 1 ? "rule" : "rules";
+      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend — want me to check deductibility or break it down by merchant?`;
+    } else if (realCategories.length > 0) {
+      const top = realCategories[0];
+      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend — want me to check what's deductible or add a rule for any merchants?`;
     } else {
-      text = `${hi} - all ${count} transactions categorized. Ask me anything about your categories, budgets, or what's deductible.`;
+      text = `${hi} - I'm your category intelligence engine. Ask me to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern.`;
     }
     setGreetingText(text);
-  }, [txCount, totalCount, topCategories, totalSpent, flaggedCount]);
+  }, [txCount, totalCount, topCategories, totalSpent, flaggedCount, rulesCount]);
 
   const lastAssistantIdx = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) { if (messages[i].role === "assistant") return i; }
@@ -638,6 +778,16 @@ export function TagCopilotPanel({
             </Reveal>
           )}
 
+
+          {/* Amount anomaly cards */}
+          {greetingText && detailsOpen && smartReviewIssues && smartReviewIssues.filter((i: any) => i.issueType === 'amount_anomaly').length > 0 && (
+            <Reveal delay={300} style={{ marginLeft: 38, marginBottom: 22 }}>
+              <SectionRule color="#ef4444" label="Possible OCR Misreads" />
+              {smartReviewIssues.filter((i: any) => i.issueType === 'amount_anomaly').map((issue: any) => (
+                <AmountAnomalyCard key={issue.id} issue={issue} onFixed={() => { fetchSmartReview && fetchSmartReview(); }} supabase={getSupabase()} />
+              ))}
+            </Reveal>
+          )}
           {/* Subcategory suggestions */}
           {greetingText && detailsOpen && subcategorySuggestions.length > 0 && (
             <Reveal delay={400} style={{ marginLeft: 38, marginBottom: 22 }}>

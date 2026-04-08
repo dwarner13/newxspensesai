@@ -66,7 +66,7 @@ async function getCommittedTxCount(importId: string, userId: string): Promise<nu
   return count || 0;
 }
 
-const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24" };
+const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24" };
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,.xlsx,.xls,image/*";
 
 function isSpreadsheetFile(name: string): boolean {
@@ -170,6 +170,7 @@ export default function UploadPageV2() {
   const [uploadMode, setUploadMode] = useState<'statement' | 'receipt'>('statement');
   const [byteReceiptMsg, setByteReceiptMsg] = useState<string | null>(null);
   const [recentReceipts, setRecentReceipts] = useState<any[]>([]);
+  const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const receiptFileRef = useRef<HTMLInputElement>(null);
@@ -212,7 +213,7 @@ export default function UploadPageV2() {
     } catch { setByteReceiptMsg('Upload failed - try again.'); }
   };
 
-  const introText = "Drop as many statements as you want. I'll work through them one at a time \u2014 extract transactions, hand each off to Tag for categorization, then Prime reviews.";
+  const introText = "Drop as many statements as you want. I'll work through them one at a time — extract transactions, hand each off to Tag for categorization, then Prime reviews.";
   const [typed, typeDone] = useTypewriter(introText, 14, 400);
 
   const addFiles = useCallback((files: FileList | File[]) => {
@@ -473,7 +474,7 @@ export default function UploadPageV2() {
     totalTx: queue.reduce((s, q) => s + (q.txCount || 0), 0),
   };
 
-  const byteStatus = stats.processing > 0 ? `Processing ${stats.complete + 1} of ${stats.total}...` : stats.total === 0 ? "Idle \u2014 waiting for files" : allDone ? "All done!" : "Ready";
+  const byteStatus = stats.processing > 0 ? `Processing ${stats.complete + 1} of ${stats.total}...` : stats.total === 0 ? "Idle — waiting for files" : allDone ? "All done!" : "Ready";
   const tagStatus = queue.some(q => q.status === "categorizing") ? "Categorizing..." : stats.processing > 0 ? "Waiting for Byte..." : allDone ? "All categorized!" : "Standing by";
   const primeStatus = allDone ? "Ready for briefing" : stats.processing > 0 ? "Waiting..." : "Standing by";
 
@@ -525,7 +526,7 @@ export default function UploadPageV2() {
             <div style={{ fontSize: 36, marginBottom: 12 }}>{"\uD83D\uDCC4"}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6 }}>Drop statements here</div>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 8 }}>or click to browse</div>
-            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG \u2014 add as many as you want</div>
+            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG — add as many as you want</div>
           </div>
           <input ref={fileRef} type="file" accept={ACCEPT} multiple style={{ display: "none" }}
             onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
