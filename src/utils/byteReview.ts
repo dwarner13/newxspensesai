@@ -189,7 +189,7 @@ ${categoryLines}
 
 You can view all extracted transactions in the Smart Import AI dashboard for further review.
 
-If you'd like, ask me about a specific vendor or date range and I'll break it down for you.`;
+If you'd like, ask me about a specific vendor or date range and I\'ll break it down for you.`;
 
   return message;
 }

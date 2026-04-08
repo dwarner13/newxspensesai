@@ -36,7 +36,7 @@ const faqs = [
   },
   {
     question: 'Can I set any type of financial goal?',
-    answer: 'Absolutely. Whether it's saving, investing, or paying off debt, the AI adapts to your needs.'
+    answer: 'Absolutely. Whether it\'s saving, investing, or paying off debt, the AI adapts to your needs.'
   },
   {
     question: 'What makes XspensesAI different from other goal apps?',

@@ -505,7 +505,7 @@ const BillRemindersFeaturePage = () => {
               Ready to Experience Chime's Protection?
             </h2>
             <p className="text-xl text-white/80 mb-8">
-              Join thousands of users who've transformed their bill management with Chime's AI protection. 
+              Join thousands of users who've transformed their bill management with Chime\'s AI protection. 
               Experience 100% payment success and never worry about late fees again.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

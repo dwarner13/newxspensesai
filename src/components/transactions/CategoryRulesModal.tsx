@@ -234,7 +234,7 @@ export function CategoryRulesModal({ rules, userCategories, onClose, onRefresh }
                       {rule.match_value}
                     </td>
                     <td className="px-3 py-2.5 text-slate-300 max-w-[140px] truncate" title={rule.category}>
-                      -> {rule.category}
+                      {"->"} {rule.category}
                     </td>
                     <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">
                       {rule.times_applied > 0 ? rule.times_applied.toLocaleString() : '-'}

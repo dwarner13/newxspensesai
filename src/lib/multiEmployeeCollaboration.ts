@@ -351,7 +351,7 @@ export class MultiEmployeeCollaboration {
       SavageSally: `I've given you a reality check and found ${insights[0]}. ${insights[1]} and ${insights[2]}. Time to get real!`
     };
 
-    return contributionMap[employeeName] || 'I've analyzed your data and have some insights to share.';
+    return contributionMap[employeeName] || 'I\'ve analyzed your data and have some insights to share.';
   }
 
   /**

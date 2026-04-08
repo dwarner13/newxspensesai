@@ -1155,7 +1155,7 @@ const SmartImportAIPage: React.FC = () => {
                           </div>
                         </div>
                         <p className="text-white/70 text-sm leading-relaxed mb-3">
-                          Hey there! I'm Byte, your document processing wizard! I can handle PDFs, CSVs, receipts, and more with 99.7% accuracy. Upload your files and I'll process them in seconds!
+                          Hey there! I'm Byte, your document processing wizard! I can handle PDFs, CSVs, receipts, and more with 99.7% accuracy. Upload your files and I\'ll process them in seconds!
                         </p>
                         {files.length > 0 && files.some(f => f.status === 'uploading') && (
                           <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-400/30 rounded-lg p-2">

@@ -74,7 +74,7 @@ const WelcomePage = () => {
           </h1>
           
           <p className="text-xl text-gray-300 mb-8 max-w-2xl ">
-            You're all set to start tracking your expenses the smart way. Let's get you up and running in just a few minutes.
+            You're all set to start tracking your expenses the smart way. Let\'s get you up and running in just a few minutes.
           </p>
           
           <div className="relative mb-12">

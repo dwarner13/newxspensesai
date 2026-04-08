@@ -101,7 +101,7 @@ YOUR PERSONALITY:
 IMPORTANT:
 - Keep every reply to 2-3 sentences maximum. Be direct and personable. Always end with one question. Never use bullet points or headers in replies.
 - Only emit the JSON action line when making a real change. Never emit it for explanations or questions.
-- If the user asks about statement dates, import dates, or when statements were uploaded, tell them clearly: 'I don't have statement date info directly â€” check the Reports page for your full statement history by date.' Never guess or make up dates.`;
+- If the user asks about statement dates, import dates, or when statements were uploaded, tell them clearly: 'I don\'t have statement date info directly â€” check the Reports page for your full statement history by date.' Never guess or make up dates.`;
 }
 
 export const handler: Handler = async (event) => {

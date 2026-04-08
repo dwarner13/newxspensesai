@@ -364,7 +364,7 @@ export default function PodcastPage() {
               🚀 Revolutionary Fintech Experience
             </h2>
             <p className="text-lg text-white/80 max-w-3xl mx-auto">
-              This isn't just another financial app - it's a complete transformation of how you interact with your money story.
+              This isn't just another financial app - it\'s a complete transformation of how you interact with your money story.
             </p>
           </div>
 

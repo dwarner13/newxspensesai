@@ -207,7 +207,7 @@ export function TagWorkspacePanel({
                           key={`${row.merchant}-${row.category}`}
                           className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-200"
                         >
-                          {row.merchant} -> {row.category} ({row.count})
+                          {row.merchant} {"->"} {row.category} ({row.count})
                         </div>
                       ))}
                     </div>

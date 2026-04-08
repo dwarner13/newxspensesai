@@ -22,7 +22,7 @@ export function MoneyLessons({ lessons }: MoneyLessonsProps) {
             fontSize: 12, fontWeight: 700, color: GOALIE_COLOR,
           }}>G</div>
           <div style={{ flex: 1, fontSize: 12.5, color: THEME.textMuted }}>
-            <span style={{ fontWeight: 700, color: GOALIE_COLOR }}>Goalie:</span> Based on your spending patterns, I'd recommend starting with "Debt Snowball vs Avalanche" \u2014 it's directly relevant to your debt situation.
+            <span style={{ fontWeight: 700, color: GOALIE_COLOR }}>Goalie:</span> Based on your spending patterns, I'd recommend starting with "Debt Snowball vs Avalanche" \u2014 it\'s directly relevant to your debt situation.
           </div>
         </div>
       </Reveal>

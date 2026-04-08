@@ -305,7 +305,7 @@ export function CustodianSetupChat({ onComplete, onClose }: CustodianSetupChatPr
               <Sparkles className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h4 className="text-lg font-semibold text-white mb-3">
-                  Here's what I've set up:
+                  Here's what I\'ve set up:
                 </h4>
                 <div className="space-y-2">
                   {answers.displayName && confirmations.displayName && (

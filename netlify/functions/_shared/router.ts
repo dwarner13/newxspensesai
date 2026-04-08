@@ -439,7 +439,7 @@ export async function routeToEmployee(params: {
   // ============================================================================
   } else if (
     // System error/issue language
-    /(this isn't working|something went wrong|error occurred|system error|bug|broken|not working|doesn't work|failed|failure)/i.test(last) ||
+    /(this isn't working|something went wrong|error occurred|system error|bug|broken|not working|doesn\'t work|failed|failure)/i.test(last) ||
     // Escalation language
     /(out of scope|cannot proceed|can't proceed|needs system help|need system help|escalate|escalation|triage|diagnose|diagnosis)/i.test(last) ||
     // Settings/controls language

@@ -681,7 +681,7 @@ const AIAssistantPage = () => {
               {
                 title: 'Typical Finance Apps',
                 points: [
-                  'Show data, don't explain it',
+                  'Show data, don\'t explain it',
                   'Require manual digging',
                   'Generic tips, little context',
                   'Reactive, not proactive',
@@ -752,7 +752,7 @@ const AIAssistantPage = () => {
               },
               {
                 q: 'Is it just a chatbot?',
-                a: 'No. It's a decision-support system that explains, prioritizes, and guides you with data-backed reasoning.',
+                a: 'No. It\'s a decision-support system that explains, prioritizes, and guides you with data-backed reasoning.',
               },
             ].map((item) => (
               <div

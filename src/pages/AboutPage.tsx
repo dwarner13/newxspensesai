@@ -13,7 +13,7 @@ const AboutPage = () => {
       <section className="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white py-20">
         <div className="container max-w-5xl mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Revolutionizing Financial Management</h1>
-          <p className="text-xl text-purple-100 max-w-2xl mx-auto">We're building the world's first FinTech Entertainment Platform that makes managing money enjoyable, intelligent, and deeply personal.</p>
+          <p className="text-xl text-purple-100 max-w-2xl mx-auto">We're building the world\'s first FinTech Entertainment Platform that makes managing money enjoyable, intelligent, and deeply personal.</p>
         </div>
       </section>
       {/* Company Story */}
@@ -53,7 +53,7 @@ const AboutPage = () => {
             <div className="bg-gradient-to-br from-purple-100 to-blue-100 rounded-2xl p-6 text-center shadow">
               <div className="text-3xl mb-2">🌟</div>
               <h3 className="font-semibold mb-2">Continuous Innovation</h3>
-              <p>We're constantly pushing the boundaries of what's possible in financial technology.</p>
+              <p>We're constantly pushing the boundaries of what\'s possible in financial technology.</p>
             </div>
           </div>
         </div>

@@ -388,7 +388,7 @@ export function SmartImportUploadStatusPanel({
               </div>
               {lastUploadSummary.summary.dateRange && (
                 <div className="mt-2">
-                  Date range: {lastUploadSummary.summary.dateRange.startDate} -> {lastUploadSummary.summary.dateRange.endDate}
+                  Date range: {lastUploadSummary.summary.dateRange.startDate} {"->"} {lastUploadSummary.summary.dateRange.endDate}
                 </div>
               )}
             </div>

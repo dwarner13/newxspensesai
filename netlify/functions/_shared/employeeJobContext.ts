@@ -11,7 +11,7 @@ type JobContextArgs = {
 
 /**
  * Build a small “job context” system message for a specific employee.
- * This is NOT the brain pack; it's the “what's happening right now” snapshot.
+ * This is NOT the brain pack; it's the “what\'s happening right now” snapshot.
  */
 export async function buildEmployeeJobContextSystemMessage(
   sb: SupabaseClient,

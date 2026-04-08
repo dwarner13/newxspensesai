@@ -647,7 +647,7 @@ const DebtPayoffPlannerFeaturePage = () => {
               Ready to Experience Blitz's Liberation?
             </h2>
             <p className="text-xl text-white/80 mb-8">
-              Join thousands of users who've transformed their debt with Blitz's AI liberation strategies. 
+              Join thousands of users who've transformed their debt with Blitz\'s AI liberation strategies. 
               Experience 3x faster payoff and start your journey to financial freedom today.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

@@ -198,7 +198,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             )}
           </div>
           <div style={{ fontSize: isMobile ? 12 : 11, color: C.dim, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(200,166,78,0.05)", borderLeft: "2px solid rgba(200,166,78,0.3)" }}>
-            "{isNewUser ? "Upload your first statement and I'll analyze your complete financial position." : splashData.deductionsTotal > 0 ? "Your books are in good shape. Let's make sure every deduction is captured before tax season." : "Upload your first statement and I'll analyze your financial position immediately."}"
+            "{isNewUser ? "Upload your first statement and I'll analyze your complete financial position." : splashData.deductionsTotal > 0 ? "Your books are in good shape. Let\'s make sure every deduction is captured before tax season." : "Upload your first statement and I\'ll analyze your financial position immediately."}"
           </div>
           {!isNewUser && splashData.loaded && (
             <div style={{ marginBottom: 8 }}>

@@ -381,7 +381,7 @@ export default function AIResultsPage() {
     if (monthKeys.length === 0) return '-';
     const start = monthKeys[0].slice(0, 4);
     const end = monthKeys[monthKeys.length - 1].slice(0, 4);
-    return start === end ? start : `${start} -> ${end}`;
+    return start === end ? start : `${start} {"->"} ${end}`;
   }, [monthKeys]);
 
   const storySubtitle =

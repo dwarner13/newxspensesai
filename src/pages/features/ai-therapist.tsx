@@ -229,7 +229,7 @@ const AITherapistFeaturePage = () => {
           <p
             className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
           >
-            Step into the world's first AI Emotional Healing Sanctuary where your AI therapist understands that money isn't just numbers - 
+            Step into the world's first AI Emotional Healing Sanctuary where your AI therapist understands that money isn\'t just numbers - 
             it's <span className="text-blue-300 font-bold">emotions</span>, <span className="text-purple-300 font-bold">memories</span>, and <span className="text-green-300 font-bold">deep-seated beliefs</span>. 
             Heal your relationship with money through compassionate AI therapy that creates a safe space for your financial journey.
           </p>

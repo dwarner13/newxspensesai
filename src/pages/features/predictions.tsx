@@ -629,7 +629,7 @@ const PredictionsFeaturePage = () => {
             Ready to Discover Your <span className="text-purple-400 font-extrabold drop-shadow-lg">Financial Future</span>?
           </h2>
           <p className="text-xl text-white/80 mb-8 max-w-3xl mx-auto">
-            Join thousands of users who've experienced Crystal's mystical predictions with 94% accuracy. 
+            Join thousands of users who've experienced Crystal\'s mystical predictions with 94% accuracy. 
             Your financial fortune awaits in the AI Crystal Ball Theater!
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

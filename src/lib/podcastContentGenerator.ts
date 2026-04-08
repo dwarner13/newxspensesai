@@ -236,7 +236,7 @@ export class PodcastContentGenerator {
     
     const script = `Welcome to your personalized financial podcast! I'm ${voice.name}, and ${catchphrase}. 
     
-Today, we're going to dive into your financial journey and see how you're progressing toward your goals. 
+Today, we're going to dive into your financial journey and see how you\'re progressing toward your goals. 
     
 Let me walk you through what we've discovered about your financial patterns and what this means for your future.`;
 

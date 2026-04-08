@@ -646,7 +646,7 @@ export default function PersonalPodcastFeaturePage() {
             🔥 Your Financial Reality Checkers
           </h2>
           <p className="text-lg text-white/80 leading-relaxed max-w-4xl mx-auto">
-            Sometimes you need someone to call out your BS. These AI podcasters deliver the brutal truth with style and humor. They'll roast your $400/month coffee habit, call out your impulse purchases, and make you laugh while they're making you better with money. Tough love that actually works.
+            Sometimes you need someone to call out your BS. These AI podcasters deliver the brutal truth with style and humor. They'll roast your $400/month coffee habit, call out your impulse purchases, and make you laugh while they\'re making you better with money. Tough love that actually works.
           </p>
         </div>
 
@@ -696,7 +696,7 @@ export default function PersonalPodcastFeaturePage() {
             🧠 AI Learning Journey - How Our Podcasters Get Smarter
           </h2>
           <p className="text-lg text-white/80 leading-relaxed max-w-3xl mx-auto">
-            Our AI podcasters don't just create content - they learn, adapt, and improve with every interaction. Here's how they become your perfect financial companions.
+            Our AI podcasters don't just create content - they learn, adapt, and improve with every interaction. Here\'s how they become your perfect financial companions.
           </p>
         </div>
 
@@ -733,7 +733,7 @@ export default function PersonalPodcastFeaturePage() {
               🚀 Revolutionary Fintech Experience
             </h2>
             <p className="text-lg text-white/80 max-w-3xl mx-auto">
-              This isn't just another financial app - it's a complete transformation of how you interact with your money story. Our AI podcasters are the future of financial education and motivation.
+              This isn't just another financial app - it\'s a complete transformation of how you interact with your money story. Our AI podcasters are the future of financial education and motivation.
             </p>
           </div>
 

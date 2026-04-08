@@ -359,7 +359,7 @@ What specific type of records are you looking to organize? I can provide more de
     // Default response
     return `I'm getting excited just thinking about how we can turn your tax situation into a money-saving masterpiece! Whether you're looking to maximize deductions, ensure compliance, or just understand how the tax system works, I'm here to help you uncover every opportunity.
 
-What's really on your mind when it comes to taxes? Are we talking about finding hidden deductions, organizing your records, or maybe you're ready to optimize your tax strategy for next year? I'm fired up and ready to help you solve whatever tax mysteries you're facing!`;
+What's really on your mind when it comes to taxes? Are we talking about finding hidden deductions, organizing your records, or maybe you\'re ready to optimize your tax strategy for next year? I\'m fired up and ready to help you solve whatever tax mysteries you\'re facing!`;
   };
 
   return (

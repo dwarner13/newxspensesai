@@ -54,7 +54,7 @@ const PrimeChatInterface: React.FC<PrimeChatInterfaceProps> = ({ isOpen, onClose
         type: 'ai',
         content: `👑 **Welcome! I'm Prime, your AI CEO.**
 
-I've assembled your complete financial team of 30+ specialized AI employees. We're ready to tackle any financial challenge you have.
+I've assembled your complete financial team of 30+ specialized AI employees. We\'re ready to tackle any financial challenge you have.
 
 **What can we accomplish together today?**
 - Upload and process documents
@@ -336,7 +336,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
                     <span className="text-xs text-gray-400">{message.employee.name}</span>
                     {message.handoff && (
                       <span className="text-xs text-blue-400">
-                        -> {AIEmployees[message.handoff.to]?.name}
+                        {"->"} {AIEmployees[message.handoff.to]?.name}
                       </span>
                     )}
                   </div>

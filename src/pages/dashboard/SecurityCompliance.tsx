@@ -681,9 +681,9 @@ What specific aspect of security and compliance would you like to explore?`;
     // Default response for other queries
     return `Oh, that's an interesting question, ${userName}! You know what I love about security? It's like being a guardian angel for your financial life - I can see threats before they become problems and build walls so strong that even the most determined attackers can't get through. Every security measure I implement is peace of mind you can count on.
 
-I'm getting excited just thinking about how we can fortify your financial defenses! Whether you're looking to prevent fraud, ensure compliance, or just understand how to keep your money safe, I'm here to help you create a security fortress that's impenetrable.
+I'm getting excited just thinking about how we can fortify your financial defenses! Whether you\'re looking to prevent fraud, ensure compliance, or just understand how to keep your money safe, I\'m here to help you create a security fortress that\'s impenetrable.
 
-What's really on your mind when it comes to security? Are we talking about fraud prevention, data protection, or maybe you're ready to dive deep into some compliance strategies? I'm fired up and ready to help you build whatever security measures you need to sleep soundly at night!`;
+What's really on your mind when it comes to security? Are we talking about fraud prevention, data protection, or maybe you\'re ready to dive deep into some compliance strategies? I\'m fired up and ready to help you build whatever security measures you need to sleep soundly at night!`;
   };
 
   const quickActions = [

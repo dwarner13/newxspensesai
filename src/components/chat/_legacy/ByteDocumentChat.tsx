@@ -2484,7 +2484,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
  * Testing Checklist:
  * [ ] Open /dashboard/smart-import-ai
  * [ ] Talk to Prime (send a couple of messages)
- * [ ] Click Byte tab - verify Byte's responses and Prime's messages are preserved
+ * [ ] Click Byte tab - verify Byte's responses and Prime\'s messages are preserved
  * [ ] Switch back to Prime - verify previous Prime conversation is restored
  * [ ] Navigate to Transactions page and back - verify last active employee is restored
  * [ ] Reload page - verify sessions persist via localStorage

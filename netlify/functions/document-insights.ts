@@ -433,7 +433,7 @@ Your answer should:
 - Use bullet points if helpful
 - Reference specific numbers from transactions or OCR text
 - Be empathetic and supportive
-- If the question can't be fully answered, say "Here's what I can see..." and provide partial insights
+- If the question can't be fully answered, say "Here\'s what I can see..." and provide partial insights
 - NEVER say "I don't have access" - always work with what you have
 
 PII has already been redacted.

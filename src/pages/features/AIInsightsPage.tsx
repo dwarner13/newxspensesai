@@ -149,7 +149,7 @@ export default function AIInsightsPage() {
                   </div>
                   
                   <div className="bg-secondary-50 rounded-lg p-3 max-w-[80%] ml-auto">
-                    <p className="text-gray-800">You're under your dining budget of $400 by $57.13. Great job! You've stayed under budget for this category for 3 consecutive months now.</p>
+                    <p className="text-gray-800">You're under your dining budget of $400 by $57.13. Great job! You\'ve stayed under budget for this category for 3 consecutive months now.</p>
                   </div>
                 </div>
                 

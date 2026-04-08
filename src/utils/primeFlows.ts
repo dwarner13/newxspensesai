@@ -7,7 +7,7 @@ import type { ProcessedDocumentContext, PrimeAction } from '../types/processedDo
 import { CHAT_ENDPOINT } from '../lib/chatEndpoint';
 
 /**
- * Build Prime's follow-up message after Byte's review
+ * Build Prime's follow-up message after Byte\'s review
  */
 export function buildPrimeFollowUpMessage(context: ProcessedDocumentContext): {
   content: string;

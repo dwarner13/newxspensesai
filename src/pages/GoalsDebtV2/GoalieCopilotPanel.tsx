@@ -20,7 +20,7 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
   const handleClose = () => { setOpen(false); setTimeout(onClose, 300); };
 
   const goalPct = data.totalGoalTarget > 0 ? Math.round((data.totalGoalCurrent / data.totalGoalTarget) * 100) : 0;
-  const statusText = `You're ${goalPct}% toward your total goal target of $${data.totalGoalTarget.toLocaleString()}. ${data.totalDebt > 0 ? `You also have $${data.totalDebt.toLocaleString()} in total debt.` : ""} ${data.monthlySavings > 0 ? `At $${data.monthlySavings.toLocaleString()}/mo savings, you're making progress.` : "Let's work on building your savings rate."}`;
+  const statusText = `You're ${goalPct}% toward your total goal target of $${data.totalGoalTarget.toLocaleString()}. ${data.totalDebt > 0 ? `You also have $${data.totalDebt.toLocaleString()} in total debt.` : ""} ${data.monthlySavings > 0 ? `At $${data.monthlySavings.toLocaleString()}/mo savings, you're making progress.` : "Let\'s work on building your savings rate."}`;
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [typed, messages.length]);

@@ -304,26 +304,26 @@ const AIEmployeeDemo: React.FC = () => {
                 <div className="bg-white/10 rounded-xl p-4">
                   <h3 className="text-white font-semibold mb-2">Single Employee Task:</h3>
                   <p className="text-white/70 text-sm mb-2">
-                    "Categorize my uncategorized transactions" -> Routes to Tag
+                    "Categorize my uncategorized transactions" {"->"} Routes to Tag
                   </p>
                   <p className="text-white/70 text-sm mb-2">
-                    "Help me pay off my debt faster" -> Routes to Blitz
+                    "Help me pay off my debt faster" {"->"} Routes to Blitz
                   </p>
                   <p className="text-white/70 text-sm">
-                    "What will my spending look like next month?" -> Routes to Crystal
+                    "What will my spending look like next month?" {"->"} Routes to Crystal
                   </p>
                 </div>
                 
                 <div className="bg-white/10 rounded-xl p-4">
                   <h3 className="text-white font-semibold mb-2">Multi-Employee Collaboration:</h3>
                   <p className="text-white/70 text-sm mb-2">
-                    "Give me a comprehensive review of my finances" -> Prime coordinates all employees
+                    "Give me a comprehensive review of my finances" {"->"} Prime coordinates all employees
                   </p>
                   <p className="text-white/70 text-sm mb-2">
-                    "Help me optimize my debt payoff strategy" -> Blitz + Fortune collaborate
+                    "Help me optimize my debt payoff strategy" {"->"} Blitz + Fortune collaborate
                   </p>
                   <p className="text-white/70 text-sm">
-                    "Analyze my spending patterns" -> Tag + Crystal + Savage Sally work together
+                    "Analyze my spending patterns" {"->"} Tag + Crystal + Savage Sally work together
                   </p>
                 </div>
               </div>

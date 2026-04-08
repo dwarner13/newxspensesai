@@ -127,8 +127,8 @@ export const PODCAST_PROMPTS = {
   
   TheRoundtable: `
     Create a 15-20 minute discussion with all personalities.
-    Include: Spark's celebration, Fortune's reality, Serenity's empathy,
-            Nova's creativity, Crystal's predictions, Prime's leadership
+    Include: Spark's celebration, Fortune\'s reality, Serenity\'s empathy,
+            Nova's creativity, Crystal\'s predictions, Prime\'s leadership
     Format: Natural conversation, disagreements, consensus building
     Structure: Opening debate, middle discussion, final consensus
   `

@@ -781,7 +781,7 @@ const AIEmployees = () => {
           </h2>
           <p className="text-white/80 text-lg mb-6 max-w-2xl mx-auto">
             Join thousands who've transformed their financial lives through the most advanced AI team ever assembled. 
-            From Prime's strategic leadership to every specialist's unique superpower, experience the future of fintech.
+            From Prime's strategic leadership to every specialist\'s unique superpower, experience the future of fintech.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link 

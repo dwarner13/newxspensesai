@@ -406,7 +406,7 @@ Ready to drop some files? I'm excited to process them! 📄✨`;
     if (message.includes('how are you') || message.includes('how are you doing')) {
       return `👑 **I'm doing excellent, thank you for asking!**
 
-I'm Prime, your AI CEO, and I'm always energized when I can help coordinate our amazing team of 30 financial experts. We're here to make your financial life easier and more successful.
+I'm Prime, your AI CEO, and I\'m always energized when I can help coordinate our amazing team of 30 financial experts. We\'re here to make your financial life easier and more successful.
 
 **What can my team help you with today?**
 - Document processing and analysis

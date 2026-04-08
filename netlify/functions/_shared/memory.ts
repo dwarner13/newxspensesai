@@ -858,7 +858,7 @@ export async function getMemory(params: {
  *   userId: 'user-123',
  *   sessionId: 'session-456',
  *   userMessage: 'I prefer CSV exports',
- *   assistantResponse: 'Got it, I'll use CSV format.'
+ *   assistantResponse: 'Got it, I\'ll use CSV format.'
  * }).catch(err => {
  *   console.warn('Failed to queue extraction:', err);
  * });

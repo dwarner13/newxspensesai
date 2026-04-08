@@ -589,9 +589,9 @@ What specific aspect of workflow automation would you like to explore?`;
     // Default response for other queries
     return `Oh, that's an interesting question, ${userName}! You know what I love about automation? It's like being a time wizard - I can take those repetitive, mind-numbing tasks that eat up your day and make them disappear into the background. Every workflow I optimize is time you get back to focus on what really matters.
 
-I'm getting excited just thinking about how we can streamline your financial processes! Whether you're looking to automate bill payments, optimize data entry, or just eliminate those tedious manual tasks, I'm here to help you create systems that work so smoothly you'll forget they're even running.
+I'm getting excited just thinking about how we can streamline your financial processes! Whether you\'re looking to automate bill payments, optimize data entry, or just eliminate those tedious manual tasks, I\'m here to help you create systems that work so smoothly you\'ll forget they\'re even running.
 
-What's really on your mind when it comes to automation? Are we talking about workflow design, smart rules, or maybe you're ready to dive deep into some process optimization? I'm fired up and ready to help you eliminate whatever repetitive tasks are slowing you down!`;
+What's really on your mind when it comes to automation? Are we talking about workflow design, smart rules, or maybe you\'re ready to dive deep into some process optimization? I\'m fired up and ready to help you eliminate whatever repetitive tasks are slowing you down!`;
   };
 
   const quickActions = [

@@ -453,7 +453,7 @@ export default function PersonalPodcastPage() {
 
       {/* SCHEDULE SECTION - FOMO INDUCING */}
       <section className="max-w-6xl mx-auto mb-20">
-        <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">TODAY'S CAN'T-MISS SHOWS</h2>
+        <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">TODAY'S CAN\'T-MISS SHOWS</h2>
         
         <div className="grid md:grid-cols-3 gap-8">
           <div className="bg-white rounded-2xl shadow-lg p-6">

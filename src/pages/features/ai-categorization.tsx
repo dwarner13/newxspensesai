@@ -498,7 +498,7 @@ const AICategorizationFeaturePage = () => {
               Ready to Experience Tag's Magic?
             </h2>
             <p className="text-xl text-white/80 mb-8">
-              Join thousands of users who've transformed their financial organization with Tag's AI categorization. 
+              Join thousands of users who've transformed their financial organization with Tag\'s AI categorization. 
               Experience 99.2% accuracy and watch your finances become perfectly organized.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

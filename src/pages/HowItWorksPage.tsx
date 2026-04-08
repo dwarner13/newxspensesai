@@ -195,7 +195,7 @@ const HowItWorksPage = () => {
                     <div className="flex items-start">
                       <Zap className="h-4 w-4 text-blue-600 mt-0.5 mr-2" />
                       <p className="text-sm text-blue-700">
-                        You're on track to stay under budget this month! You've spent 35% less on dining compared to last month.
+                        You're on track to stay under budget this month! You\'ve spent 35% less on dining compared to last month.
                       </p>
                     </div>
                   </div>

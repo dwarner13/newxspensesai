@@ -3861,7 +3861,7 @@ export default function UnifiedAssistantChat({
       );
       if (summaryReady) {
         stages = { byte: 'done', tag: 'done', saving: 'done' };
-        text = 'Step 3 of 3: Summary ready. I'm preparing your summary now.';
+        text = 'Step 3 of 3: Summary ready. I\'m preparing your summary now.';
         done = true;
       } else {
         // Do not claim "finished" until the summary handshake is actually ready.
@@ -4193,7 +4193,7 @@ export default function UnifiedAssistantChat({
       .map((line) => line.trim())
       .filter(Boolean);
     const parsed = lines
-      .map((line) => line.match(/^(.+?)\s*->\s*([a-zA-Z][a-zA-Z/&\-\s]{1,40})$/))
+      .map((line) => line.match(/^(.+?)\s*{"->"}\s*([a-zA-Z][a-zA-Z/&\-\s]{1,40})$/))
       .filter((m): m is RegExpMatchArray => Boolean(m));
     if (!parsed.length) return 0;
 
@@ -6604,7 +6604,7 @@ export default function UnifiedAssistantChat({
             Tag is ready to apply this change
           </p>
           <p className="text-[11px] text-slate-300">
-            {pendingPreview.matchCount} transactions -> <strong>{pendingPreview.targetCategory}</strong>
+            {pendingPreview.matchCount} transactions {"->"} <strong>{pendingPreview.targetCategory}</strong>
           </p>
           <div className="flex gap-2">
             <button

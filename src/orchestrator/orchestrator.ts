@@ -535,7 +535,7 @@ Your financial data tells a compelling story of growth, learning, and opportunit
 
 ## Hidden Patterns Revealed
 
-The analysis reveals fascinating patterns in your spending behavior. Your financial habits show consistency in essential categories while maintaining flexibility for life's pleasures. The data suggests you're building healthy financial routines.
+The analysis reveals fascinating patterns in your spending behavior. Your financial habits show consistency in essential categories while maintaining flexibility for life's pleasures. The data suggests you\'re building healthy financial routines.
 
 ## Opportunities & Warnings
 

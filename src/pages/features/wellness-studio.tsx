@@ -515,7 +515,7 @@ const WellnessStudioFeaturePage = () => {
                 Traditional financial management tools focus on numbers, but ignore the emotional and psychological aspects of money. They leave you feeling overwhelmed, anxious, and alone in your financial journey.
               </p>
               <p className="text-white/80">
-                That's why we created the world's first AI-powered financial wellness platform that addresses both your financial data AND your financial wellbeing.
+                That's why we created the world\'s first AI-powered financial wellness platform that addresses both your financial data AND your financial wellbeing.
               </p>
             </div>
             <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-8 border border-white/20">

@@ -357,7 +357,7 @@ Your progress toward your goals is incredible! ${goalProgress.map(goal => `You'r
 
 I have some gentle suggestions for next month: focus on ${topCategories[0]?.name.toLowerCase()} spending and consider setting up automatic transfers to your savings goals.
 
-You're on such an amazing financial journey, ${userName}. Every month you're building better habits and getting closer to your dreams.
+You're on such an amazing financial journey, ${userName}. Every month you\'re building better habits and getting closer to your dreams.
 
 I'm excited to see what next month brings for you! Keep up the fantastic work, and remember, every financial decision is a step toward your future.
     `;

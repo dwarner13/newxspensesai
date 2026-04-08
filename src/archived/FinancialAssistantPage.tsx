@@ -72,7 +72,7 @@ const FinancialAssistantPage = () => {
             </div>
             <div className="flex-1">
               <p className="text-sm text-gray-600 mb-1">AI Assistant</p>
-              <p className="text-gray-700">Hello! I've analyzed your spending this month. You're doing great with your budget! I noticed you spent 15% less on dining out compared to last month.</p>
+              <p className="text-gray-700">Hello! I've analyzed your spending this month. You\'re doing great with your budget! I noticed you spent 15% less on dining out compared to last month.</p>
             </div>
           </div>
           

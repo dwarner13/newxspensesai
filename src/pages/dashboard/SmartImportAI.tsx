@@ -257,7 +257,7 @@ export default function SmartImportAI() {
 
       emitBus("CRYSTAL_ADVICE_READY", { importId: activeImportId, adviceId: c.id || hand.handoffId });
       setAdvisory(c);
-      toast.success('Crystal's advisory is ready');
+      toast.success('Crystal\'s advisory is ready');
     } catch (e: any) {
       emitBus("ERROR", { where: "ORCHESTRATION", message: e?.message || 'Failed to process import', detail: e });
       toast.error(e?.message || 'Failed to process import');

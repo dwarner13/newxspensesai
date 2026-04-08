@@ -119,7 +119,7 @@ function welcomeTemplate(data: {
       Welcome to XspensesAI, ${data.firstName} \uD83D\uDC4B
     </h1>
     <p style="margin:0 0 24px;font-size:15px;color:${COLORS.muted};line-height:1.6;">
-      Your AI financial team is standing by. I'm Prime \u2014 your CFO advisor. Here's who else is on your bench:
+      Your AI financial team is standing by. I'm Prime \u2014 your CFO advisor. Here\'s who else is on your bench:
     </p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">

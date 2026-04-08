@@ -565,7 +565,7 @@ Financial education should be accessible, engaging, and entertaining. I help you
 **My Promise:**
 I'll help you build a successful podcast that educates your audience, builds your brand, and creates meaningful impact in the financial education space.
 
-Could you tell me more specifically what podcast creation topic you'd like to discuss? I'm ready to help you create amazing audio content!`;
+Could you tell me more specifically what podcast creation topic you'd like to discuss? I\'m ready to help you create amazing audio content!`;
   };
 
   const quickActions = [

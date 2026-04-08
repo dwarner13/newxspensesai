@@ -441,7 +441,7 @@ const SmartImportAIFeaturePage = () => {
             Ready to Experience AI Magic?
           </h2>
           <p className="text-white/80 text-lg mb-6 max-w-2xl mx-auto">
-            Join thousands who've transformed their financial data processing with Prime's AI team. 
+            Join thousands who've transformed their financial data processing with Prime\'s AI team. 
             From chaos to clarity in seconds - that's the power of AI orchestration.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
