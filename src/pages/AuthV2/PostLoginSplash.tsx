@@ -135,6 +135,34 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
   };
 
   const isNewUser = splashData.loaded && splashData.transactionCount === 0;
+  const isReady = splashData.loaded;
+
+  // Show a minimal centered spinner while the splash data loads.
+  // Prevents the "placeholder text then snap" flash.
+  if (!isReady) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0b1220",
+        fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+      }}>
+        <style>{`@keyframes splashSpin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%",
+            border: "2px solid rgba(200,166,78,0.2)",
+            borderTopColor: "#c8a64e",
+            animation: "splashSpin 0.9s linear infinite",
+          }} />
+          <div style={{ fontSize: 11, color: "#64748b", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700 }}>Preparing your briefing</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -149,7 +177,10 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
       background: "#0b1220",
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
       boxSizing: "border-box" as const,
+      opacity: 0,
+      animation: "splashFadeIn 0.3s ease forwards",
     }}>
+      <style>{`@keyframes splashFadeIn{to{opacity:1}}`}</style>
 
       {/* Header */}
       <div style={{ textAlign: "center", marginBottom: isMobile ? 16 : 12 }}>
@@ -366,7 +397,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
 
           {tagTransactions.length === 0 && splashData.loaded && (
             <div style={{ fontSize: isMobile ? 12 : 11, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
-              "All transactions categorized. Books are clean {"\u2713"}"
+              "All transactions categorized. Books are clean (done)"
             </div>
           )}
 
