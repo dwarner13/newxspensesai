@@ -202,11 +202,22 @@ export function TagCopilotPanel({
     finally { setRulesRefreshing(false); }
   };
 
+  // Session cutoff for the chat history — after 6 hours of inactivity we
+  // drop the stored messages so the user gets a fresh greeting instead of
+  // resuming a stale conversation. Tag's real learning lives in
+  // category_rules / vendor_category_memory, not the transcript.
+  const SESSION_WINDOW_MS = 6 * 60 * 60 * 1000;
   const normalizeStoredMessages = (): ChatMessage[] => {
     try {
       const saved = localStorage.getItem("tag_chat_history");
       if (!saved) return [];
       const raw = JSON.parse(saved);
+      const lastActive = Number(localStorage.getItem("tag_chat_last_active") || 0);
+      if (lastActive && Date.now() - lastActive > SESSION_WINDOW_MS) {
+        localStorage.removeItem("tag_chat_history");
+        localStorage.removeItem("tag_chat_last_active");
+        return [];
+      }
       return raw
         .map((m: any) => ({
           role: (m.role === "tag" ? "assistant" : m.role === "user" ? "user" : "assistant") as "user" | "assistant",
@@ -340,6 +351,7 @@ export function TagCopilotPanel({
   useEffect(() => {
     if (messages.length === 0) return;
     localStorage.setItem("tag_chat_history", JSON.stringify(messages.slice(-20)));
+    localStorage.setItem("tag_chat_last_active", String(Date.now()));
   }, [messages]);
 
   const canSend = inputValue.trim() && !isLoading;

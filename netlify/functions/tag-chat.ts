@@ -685,6 +685,12 @@ export const handler: Handler = async (event) => {
   }
 
   // 2. Load conversation history from tag_conversations
+  //    Session cutoff: only keep messages from the last 6 hours, capped at
+  //    the last 6 (3 turns). Older chats are still persisted for audit but
+  //    do not pollute the LLM prompt. This lets the fresh greeting fire
+  //    when the user returns after a break.
+  const SESSION_WINDOW_MS = 6 * 60 * 60 * 1000; // 6 hours
+  const SESSION_TURN_LIMIT = 6; // last 3 user/assistant pairs
   const conversationKey = merchantName || (isPageContext ? '__page__' : '');
   let persistedHistory: Array<{ role: string; content: string; ts: number }> = [];
   if (conversationKey) {
@@ -699,8 +705,15 @@ export const handler: Handler = async (event) => {
     } catch { /* table may not exist */ }
   }
 
-  // Merge: use persisted history if no frontend history provided
-  const effectiveHistory = history.length > 0 ? history : persistedHistory.map((m: any) => ({ role: m.role, content: m.content }));
+  const sessionCutoff = Date.now() - SESSION_WINDOW_MS;
+  const recentPersisted = persistedHistory
+    .filter((m) => typeof m.ts === 'number' && m.ts >= sessionCutoff)
+    .slice(-SESSION_TURN_LIMIT);
+
+  // Merge: prefer frontend history if provided, otherwise use recent persisted
+  const effectiveHistory = history.length > 0
+    ? history
+    : recentPersisted.map((m: any) => ({ role: m.role, content: m.content }));
 
   // 3. Fetch merchant history
   const merchantLower = merchantName.toLowerCase().trim();
