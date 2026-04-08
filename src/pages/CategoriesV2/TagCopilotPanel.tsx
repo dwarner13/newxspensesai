@@ -635,9 +635,26 @@ export function TagCopilotPanel({
           )}
 
           {/* Chat thread */}
+          {/* Parse category suggestion chips from a Tag reply */}
+          {(() => { /* noop - closure for helper */ return null; })()}
           {messages.map((msg, i) => {
             const isLastAssistant = msg.role === "assistant" && i === lastAssistantIdx;
             const isUser = msg.role === "user";
+            // Detect merchant-queue question and extract suggested category chips
+            const isMerchantQuestion = !isUser && isLastAssistant && !isLoading &&
+              /what (?:are|is) (?:these|this) usually\??/i.test(msg.content || "");
+            let suggestedChips: string[] = [];
+            if (isMerchantQuestion) {
+              const text = msg.content || "";
+              const afterQ = text.split(/what (?:are|is) (?:these|this) usually\??/i)[1] || "";
+              // Parse comma/slash/or-separated category names, strip punctuation
+              const candidates = afterQ
+                .replace(/[\[\]\(\)]/g, "")
+                .split(/[,/]|\bor\b/i)
+                .map(s => s.trim().replace(/[.?!]+$/, "").trim())
+                .filter(s => s.length >= 3 && s.length <= 40 && /[A-Za-z]/.test(s));
+              suggestedChips = Array.from(new Set(candidates)).slice(0, 3);
+            }
             return (
               <div key={i} style={{
                 display: "flex", gap: 9, marginTop: 18,
@@ -665,6 +682,39 @@ export function TagCopilotPanel({
                   }),
                 }}>
                   {isUser ? msg.content : renderMarkdown(msg.content ?? "")}
+                  {isMerchantQuestion && suggestedChips.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                      {suggestedChips.map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => handleSend(cat)}
+                          className="tag-chip"
+                          style={{
+                            fontSize: 11, fontWeight: 700,
+                            padding: "5px 11px", borderRadius: 999,
+                            background: "rgba(34,211,238,0.12)",
+                            border: "1px solid rgba(34,211,238,0.28)",
+                            color: T.cyan,
+                            cursor: "pointer",
+                            fontFamily: "'DM Mono',monospace",
+                          }}
+                        >{cat}</button>
+                      ))}
+                      <button
+                        onClick={() => handleSend("skip")}
+                        className="tag-chip"
+                        style={{
+                          fontSize: 11, fontWeight: 700,
+                          padding: "5px 11px", borderRadius: 999,
+                          background: "rgba(148,163,184,0.1)",
+                          border: "1px solid rgba(148,163,184,0.25)",
+                          color: T.textMuted,
+                          cursor: "pointer",
+                          fontFamily: "'DM Mono',monospace",
+                        }}
+                      >Skip -&gt;</button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
