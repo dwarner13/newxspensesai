@@ -142,7 +142,7 @@ interface TagCopilotPanelProps {
   totalSpent?: number; totalIncome?: number; txCount?: number;
   topCategories?: { category: string; total: number; transactionCount: number; budget?: number; topMerchant?: string }[];
 }
-interface LearnedRule { merchant: string; category: string; confidence: number; createdAt?: string }
+interface LearnedRule { merchant: string; category: string; confidence: number; createdAt?: string; updatedAt?: string }
 interface ChatMessage { role: "user" | "assistant"; content: string }
 
 export function TagCopilotPanel({
@@ -168,7 +168,7 @@ export function TagCopilotPanel({
       // Prefer category_rules (user-defined conversational rules)
       const { data: crData } = await supabase
         .from("category_rules")
-        .select("match_value, category, created_at")
+        .select("match_value, category, created_at, updated_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -178,6 +178,7 @@ export function TagCopilotPanel({
           category: r.category,
           confidence: 100,
           createdAt: r.created_at,
+          updatedAt: r.updated_at,
         })));
         return;
       }
@@ -663,11 +664,21 @@ export function TagCopilotPanel({
                       }}>{r.category}</span>
                       <span style={{ fontSize: 9.5, fontWeight: 700, color: T.green, fontFamily: "'DM Mono',monospace" }}>{r.confidence}%</span>
                     </div>
-                    {r.createdAt && (
-                      <div style={{ fontSize: 9.5, color: T.textDim, fontFamily: "'DM Mono',monospace", letterSpacing: 0.3 }}>
-                        Created {new Date(r.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
-                      </div>
-                    )}
+                    {(r.createdAt || r.updatedAt) && (() => {
+                      const fmtD = (iso: string) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+                      const created = r.createdAt ? fmtD(r.createdAt) : null;
+                      const updated = r.updatedAt ? fmtD(r.updatedAt) : null;
+                      const label = updated && created && updated !== created
+                        ? `Updated ${updated}`
+                        : created
+                        ? `Added ${created}`
+                        : updated ? `Updated ${updated}` : null;
+                      return label ? (
+                        <div style={{ fontSize: 9.5, color: T.textDim, fontFamily: "'DM Mono',monospace", letterSpacing: 0.3 }}>
+                          {label}
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                 ))}
               </div>

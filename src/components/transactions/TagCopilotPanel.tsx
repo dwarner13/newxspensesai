@@ -671,7 +671,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
       const supabase = getSupabase();
       const { data: { session } } = await supabase!.auth.getSession();
       if (!session) return;
-      const { data } = await supabase!.from('category_rules').select('id, merchant_pattern, category, subcategory, match_type, is_active, created_at').eq('user_id', session.user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(50);
+      const { data } = await supabase!.from('category_rules').select('id, merchant_pattern, category, subcategory, match_type, is_active, created_at, updated_at').eq('user_id', session.user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(50);
       setLearnedRules(data || []);
     } catch { /* silent */ }
   };
@@ -1088,18 +1088,31 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'16px 20px' }}>
             {learnedRules.length === 0 ? (
               <div style={{ textAlign:'center', padding:'40px 0', color:'#7b8ba5', fontSize:13 }}>No rules saved yet - Tag saves rules when you fix a merchant.</div>
-            ) : learnedRules.map((rule: any) => (
-              <div key={rule.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:10, background:'#111a2e', border:'1px solid #1e2d4a', marginBottom:6 }}>
-                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(34,211,238,0.12)', border:'1px solid rgba(34,211,238,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:'#22d3ee', flexShrink:0 }}>{'\u26A1'}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:'#e8ecf4', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' as const }}>{rule.merchant_pattern}</div>
-                  <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
-                    <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:'rgba(34,211,153,0.1)', color:'#34d399' }}>{rule.category}{rule.subcategory ? ` \u00b7 ${rule.subcategory}` : ''}</span>
-                    <span style={{ fontSize:9, color:'#475569' }}>{rule.match_type}</span>
+            ) : learnedRules.map((rule: any) => {
+              const fmtRuleDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+              const created = rule.created_at ? fmtRuleDate(rule.created_at) : null;
+              const updated = rule.updated_at ? fmtRuleDate(rule.updated_at) : null;
+              const dateLabel = updated && created && updated !== created
+                ? `Updated ${updated}`
+                : created
+                ? `Added ${created}`
+                : '';
+              return (
+                <div key={rule.id} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 14px', borderRadius:10, background:'#111a2e', border:'1px solid #1e2d4a', marginBottom:6 }}>
+                  <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(34,211,238,0.12)', border:'1px solid rgba(34,211,238,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:'#22d3ee', flexShrink:0, marginTop:2 }}>{'\u26A1'}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#e8ecf4', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' as const }}>{rule.merchant_pattern}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+                      <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:'rgba(34,211,153,0.1)', color:'#34d399' }}>{rule.category}{rule.subcategory ? ` \u00b7 ${rule.subcategory}` : ''}</span>
+                      <span style={{ fontSize:9, color:'#475569' }}>{rule.match_type}</span>
+                    </div>
+                    {dateLabel && (
+                      <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>{dateLabel}</div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <button onClick={() => window.location.href = '/dashboard/categories/rules'} style={{ marginTop:12, fontSize:12, color:'#22d3ee', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>View all rules {'\u2192'}</button>
           </div>
         )}
