@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Trash2, RefreshCw } from "lucide-react";
+import toast from "react-hot-toast";
 import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
@@ -157,6 +158,35 @@ export function TagCopilotPanel({
   const [inputValue, setInputValue] = useState(initialMessage || "");
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
   const [rulesRefreshing, setRulesRefreshing] = useState(false);
+  const [reapplying, setReapplying] = useState(false);
+
+  const handleReapplyRules = async () => {
+    if (reapplying) return;
+    setReapplying(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) { toast.error("Not logged in"); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { toast.error("Not logged in"); return; }
+      const res = await fetch("/.netlify/functions/apply-category-rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ limit: 1000 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        toast.success(`Re-applied rules - ${data.updated || 0} updated`);
+        try { window.dispatchEvent(new Event("tag:stats-refresh")); } catch { /* noop */ }
+      } else {
+        toast.error(data.error || "Re-apply failed");
+      }
+    } catch {
+      toast.error("Re-apply failed");
+    } finally {
+      setReapplying(false);
+    }
+  };
 
   const fetchLearnedRules = async () => {
     try {
@@ -623,9 +653,33 @@ export function TagCopilotPanel({
                   <SectionRule color={T.green} label="Rules I've Learned" />
                 </div>
                 <button
+                  onClick={handleReapplyRules}
+                  disabled={reapplying}
+                  title="Re-apply all rules to your transactions"
+                  style={{
+                    background: reapplying ? "rgba(52,211,153,0.15)" : "rgba(52,211,153,0.08)",
+                    border: `1px solid ${T.green}55`,
+                    borderRadius: 6,
+                    padding: "4px 10px",
+                    color: T.green,
+                    cursor: reapplying ? "default" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    marginBottom: 14,
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    fontFamily: "'Syne',sans-serif",
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  <RefreshCw size={11} style={{ animation: reapplying ? "tagSpin 0.9s linear infinite" : "none" }} />
+                  {reapplying ? "Applying..." : "Re-apply Rules"}
+                </button>
+                <button
                   onClick={fetchLearnedRules}
                   disabled={rulesRefreshing}
-                  title="Refresh rules"
+                  title="Refresh rules list"
                   style={{
                     background: "transparent",
                     border: `1px solid ${T.border}`,

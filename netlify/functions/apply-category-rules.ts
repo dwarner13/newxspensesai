@@ -156,68 +156,121 @@ type DbRule = {
 };
 
 /**
- * Normalize a merchant name or rule pattern for fuzzy comparison:
- * - lowercase
- * - strip trailing store codes / digits (e.g. "7-ELEVEN STORE 33535" -> "7-eleven store")
- * - collapse runs of whitespace
- * - remove hyphens so "7-eleven" matches "7 eleven"
- * - trim
+ * Canonical merchant name normalizer. Strips special chars, store codes,
+ * common legal suffixes. Used for both rule matching and merchant_name
+ * write-back. UPPERCASE output.
  */
-function normalizeForRuleMatch(raw: string): string {
-  return String(raw || '')
-    .toLowerCase()
-    // Trailing store codes like " 33535", " #1234", " - 001"
-    .replace(/\s*[#-]?\s*\d{2,}\s*$/g, '')
-    // Trailing " store 33535" / " #01234"
-    .replace(/\s+(store|location|branch|\b#)\s*\d*\s*$/gi, '')
-    // Collapse hyphens
-    .replace(/-/g, ' ')
-    // Collapse whitespace
+function normalizeMerchant(name: string): string {
+  return String(name || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
+    .trim()
+    // Trailing store numbers (3-6 digits)
+    .replace(/\s+\d{3,6}$/, '')
+    // Common trailing suffixes
+    .replace(/\s+(STORE|SHOP|LTD|INC|CORP|CO|LOCATION|BRANCH)$/i, '')
+    // Trailing "#123" store numbers
+    .replace(/\s+#\s*\d+$/, '')
     .trim();
 }
 
-function firstNWords(s: string, n: number): string {
-  return s.split(/\s+/).slice(0, n).join(' ');
+/** First word of a normalized name that is >= 4 characters (skips "THE", "AND" etc). */
+function firstSignificantWord(s: string): string {
+  const STOP = new Set(['THE', 'AND', 'FOR', 'FROM', 'ON', 'OF']);
+  for (const w of s.split(/\s+/)) {
+    if (w.length >= 4 && !STOP.has(w)) return w;
+  }
+  return s.split(/\s+/)[0] || '';
 }
 
+/**
+ * Fuzzy DB-rule matching.
+ * - Normalizes both merchant and pattern.
+ * - Exact: compare normalized strings.
+ * - Contains: normalized substring OR first-N-words prefix OR
+ *   first-significant-word membership.
+ * - starts_with: normalized prefix.
+ * - regex: raw regex on original merchant.
+ * Scoring: when multiple rules match, prefer the most specific (longest
+ * matched pattern wins).
+ */
 function applyDbRules(
   dbRules: DbRule[], merchant: string, amount?: number
-): { category: string; subcategory: string | null } | null {
+): { category: string; subcategory: string | null; rulePattern?: string } | null {
   const lower = merchant.toLowerCase();
-  const normMerchant = normalizeForRuleMatch(merchant);
+  const normMerchant = normalizeMerchant(merchant);
+
+  type Candidate = { rule: DbRule; score: number };
+  const candidates: Candidate[] = [];
+
   for (const amountPass of [true, false]) {
     for (const rule of dbRules) {
       const hasAmountThreshold = rule.min_amount != null || rule.max_amount != null;
       if (amountPass && !hasAmountThreshold) continue;
       if (!amountPass && hasAmountThreshold) continue;
       if (!rule.match_value) continue;
+
       const val = rule.match_value.toLowerCase();
-      const normVal = normalizeForRuleMatch(rule.match_value);
-      // First-N-words matching: if the rule has K words, compare the
-      // first K words of the normalized merchant against the full
-      // normalized rule value. Catches "GORDON FOODS" -> "GORDON FOODS ERP".
-      const ruleWordCount = normVal.split(/\s+/).filter(Boolean).length;
-      const merchantHead = firstNWords(normMerchant, ruleWordCount);
-      const nameMatched =
-        (rule.match_type === 'exact' && (lower === val || normMerchant === normVal)) ||
-        (rule.match_type === 'starts_with' && (lower.startsWith(val) || normMerchant.startsWith(normVal))) ||
-        (rule.match_type === 'contains' && (
-          lower.includes(val) ||
-          normMerchant.includes(normVal) ||
-          (ruleWordCount >= 2 && merchantHead === normVal)
-        )) ||
-        (rule.match_type === 'regex' && (() => { try { return new RegExp(rule.match_value, 'i').test(merchant); } catch { return false; } })());
-      if (!nameMatched) continue;
+      const normVal = normalizeMerchant(rule.match_value);
+      if (!normVal) continue;
+
+      const ruleWords = normVal.split(/\s+/).filter(Boolean);
+      const merchantWords = normMerchant.split(/\s+/).filter(Boolean);
+      const headMatch = merchantWords.slice(0, ruleWords.length).join(' ') === normVal;
+
+      let matched = false;
+      switch (rule.match_type) {
+        case 'exact':
+          matched = lower === val || normMerchant === normVal;
+          break;
+        case 'starts_with':
+          matched = lower.startsWith(val) || normMerchant.startsWith(normVal);
+          break;
+        case 'contains':
+          matched =
+            lower.includes(val) ||
+            normMerchant.includes(normVal) ||
+            (ruleWords.length >= 2 && headMatch) ||
+            // Fallback: any significant word of the rule appears in the
+            // normalized merchant as a whole word.
+            (() => {
+              const sig = firstSignificantWord(normVal);
+              if (sig.length < 5) return false;
+              return new RegExp(`\\b${sig}\\b`).test(normMerchant);
+            })();
+          break;
+        case 'regex':
+          try { matched = new RegExp(rule.match_value, 'i').test(merchant); } catch { matched = false; }
+          break;
+      }
+      if (!matched) continue;
+
       if (hasAmountThreshold && amount !== undefined) {
         const absAmt = Math.abs(amount);
         if (rule.min_amount != null && absAmt < rule.min_amount) continue;
         if (rule.max_amount != null && absAmt >= rule.max_amount) continue;
       } else if (hasAmountThreshold) { continue; }
-      return { category: normalizeCanonicalCategory(rule.category), subcategory: rule.subcategory || null };
+
+      // Scoring: longer normalized pattern = more specific.
+      // +5 bonus for exact, +3 for starts_with, +2 for head match.
+      let score = normVal.length;
+      if (rule.match_type === 'exact') score += 5;
+      else if (rule.match_type === 'starts_with') score += 3;
+      else if (rule.match_type === 'contains' && headMatch) score += 2;
+      candidates.push({ rule, score });
     }
+    if (candidates.length > 0) break; // amount-gated rules win over generic
   }
-  return null;
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0].rule;
+  return {
+    category: normalizeCanonicalCategory(best.category),
+    subcategory: best.subcategory || null,
+    rulePattern: normalizeMerchant(best.match_value),
+  };
 }
 
 // ─── Deduplication helper ──────────────────────────────────────────────────
@@ -476,7 +529,7 @@ export const handler: Handler = async (event) => {
 
   // ── Step 5: Apply rules in priority order ──
   // Priority: hardcoded overrides -> vendor memory -> DB rules -> merchant map -> inline rules
-  const updates: Array<{ id: string; category: string; subcategory?: string | null; source: string }> = [];
+  const updates: Array<{ id: string; category: string; subcategory?: string | null; source: string; normalizedMerchant?: string | null }> = [];
   let skipped = 0;
 
   for (let i = 0; i < txs.length; i++) {
@@ -506,7 +559,14 @@ export const handler: Handler = async (event) => {
     // Priority 2: User DB rules
     const dbRuleMatch = applyDbRules(dbRules, merchant, txAmount);
     if (dbRuleMatch) {
-      updates.push({ id: tx.id, category: normalizeCanonicalCategory(dbRuleMatch.category), subcategory: dbRuleMatch.subcategory, source: 'tag_rule' });
+      updates.push({
+        id: tx.id,
+        category: normalizeCanonicalCategory(dbRuleMatch.category),
+        subcategory: dbRuleMatch.subcategory,
+        source: 'tag_rule',
+        // Write-back the normalized merchant so future imports collapse variants.
+        normalizedMerchant: dbRuleMatch.rulePattern || null,
+      });
       continue;
     }
 
@@ -549,7 +609,13 @@ export const handler: Handler = async (event) => {
           payload.subcategory = u.subcategory ?? null;
           if (u.subcategory) payload.subcategory_source = u.source;
         }
-        // NEVER include type, amount, or merchant_name - those are parser-owned
+        // Write back normalized merchant_name only when we matched a user
+        // DB rule (source === 'tag_rule' + normalizedMerchant present).
+        // This collapses "7-ELEVEN STORE 33535" -> "7 ELEVEN" so future
+        // imports hit the same rule.
+        if ((u as any).normalizedMerchant && u.source === 'tag_rule') {
+          payload.merchant_name = (u as any).normalizedMerchant;
+        }
         return supabase
           .from('transactions')
           .update(payload)

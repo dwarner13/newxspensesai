@@ -160,6 +160,25 @@ export const handler: Handler = async (event) => {
       fixes.push(`merchant sweep error: ${e.message}`);
     }
 
+    // Auto-apply category rules after import (non-blocking)
+    try {
+      const rulesRes = await fetch(`${baseUrl}/.netlify/functions/apply-category-rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ limit: 1000 }),
+      });
+      if (rulesRes.ok) {
+        const rulesData = await rulesRes.json();
+        fixes.push(`apply-category-rules: ${rulesData.updated || 0} updated`);
+        console.log('[fix-post-import] apply-category-rules triggered for', String(userId).slice(0, 8));
+      } else {
+        fixes.push(`apply-category-rules non-200: ${rulesRes.status}`);
+      }
+    } catch (e: any) {
+      console.warn('[fix-post-import] apply-category-rules trigger failed (non-blocking):', e?.message);
+      fixes.push(`apply-category-rules error: ${e.message}`);
+    }
+
     return {
       statusCode: 200,
       headers,
