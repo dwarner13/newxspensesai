@@ -234,7 +234,7 @@ export default function TransactionsPageV2() {
   };
   const accounts: AccountCard[] = useMemo(() => {
     const detectIssuer = (imp: any): string => {
-      const fromCol = String(imp?.statement_issuer || '').trim();
+      const fromCol = String(imp?.issuer || '').trim();
       if (fromCol) return fromCol;
       const raw = String(imp?.docName || imp?.file_name || '').toUpperCase();
       if (/\bBMO\b/.test(raw)) return 'BMO';

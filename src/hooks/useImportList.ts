@@ -44,6 +44,8 @@ export interface ImportListItem {
   statementLabel: string;
   /** Original document filename */
   docName: string;
+  /** Issuer from imports.issuer column (e.g. 'BMO', 'TD') */
+  issuer: string | null;
   /** Statement breakdown data from imports table */
   breakdown: ImportBreakdown | null;
 }
@@ -121,7 +123,7 @@ export function useImportList(): UseImportListResult {
     try {
       const { data, error } = await supabase
         .from('imports')
-        .select('id, status, created_at, statement_breakdown_json, document:user_documents(id, original_name, metadata)')
+        .select('id, status, issuer, created_at, statement_breakdown_json, document:user_documents(id, original_name, metadata)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(36);
@@ -143,6 +145,7 @@ export function useImportList(): UseImportListResult {
           label: formatImportDateLabel(String(r.created_at || '')),
           statementLabel: buildStatementLabel(r, docName, doc),
           docName,
+          issuer: (r.issuer as string | null) ?? null,
           breakdown: rawBreakdown,
         };
       });
