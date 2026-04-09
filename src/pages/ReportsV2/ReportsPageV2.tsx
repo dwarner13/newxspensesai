@@ -319,16 +319,16 @@ export default function ReportsPageV2() {
         {/* ═══ B. Tax Summary Banner ═══ */}
         {!taxBannerDismissed && data.issuerGroups.length > 0 && (
           <Reveal delay={50}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 18px", borderRadius: 14, background: "linear-gradient(135deg, #1a1200, " + T.surface + ")", borderLeft: "3px solid " + T.gold, marginBottom: 20 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <span style={{ fontSize: 18, color: T.gold, flexShrink: 0 }}>{"\u265B"}</span>
-                <div style={{ flex: 1, fontSize: 12.5, color: T.muted, lineHeight: 1.5 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "20px 24px", borderRadius: 14, background: "linear-gradient(135deg, #1a1200, " + T.surface + ")", borderLeft: "3px solid " + T.gold, marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <span style={{ fontSize: 18, color: T.gold, flexShrink: 0, lineHeight: 1.7 }}>{"\u265B"}</span>
+                <div style={{ flex: 1, fontSize: 12.5, color: T.muted, lineHeight: 1.75 }}>
                   <strong style={{ color: T.gold }}>Ready to send to Tax Summary?</strong>{" "}
                   Prime has reviewed {data.issuerGroups.reduce((s, g) => s + g.statements.length, 0)} statements across {data.issuerGroups.length} issuers.
                 </div>
                 <button onClick={dismissTaxBanner} style={{ background: "transparent", border: "none", color: T.dim, cursor: "pointer", fontSize: 16, padding: 4, flexShrink: 0 }}>{"\u2715"}</button>
               </div>
-              <button onClick={() => navigate("/dashboard/tax-summary")} style={{ padding: "9px 18px", borderRadius: 10, fontSize: 12, fontWeight: 700, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", alignSelf: "flex-start" }}>Send to Tax Summary {"\u2192"}</button>
+              <button onClick={() => navigate("/dashboard/tax-summary")} style={{ marginTop: 10, padding: "9px 18px", borderRadius: 10, fontSize: 12, fontWeight: 700, background: "linear-gradient(135deg, " + T.gold + ", #a08030)", border: "none", color: "#0b1220", cursor: "pointer", alignSelf: "flex-start" }}>Send to Tax Summary {"\u2192"}</button>
             </div>
           </Reveal>
         )}
