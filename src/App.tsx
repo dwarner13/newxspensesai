@@ -106,7 +106,7 @@ const DisclaimerPage = lazy(() => import('./pages/Legal/DisclaimerPage'));
 const DataProcessingPage = lazy(() => import('./pages/Legal/DataProcessingPage'));
 const LoginPageV2 = lazy(() => import('./pages/AuthV2/LoginPageV2'));
 const SignupPageV2 = lazy(() => import('./pages/AuthV2/SignupPageV2'));
-const MarketingHomePage = lazy(() => import('./pages/MarketingSite/MarketingHomePage'));
+import MarketingHomePage from './pages/MarketingSite/MarketingHomePage';
 const PricingPage = lazy(() => import('./pages/MarketingSite/PricingPage'));
 const AIResultsPage = lazy(() => import('./pages/dashboard/AIResultsPage'));
 const EmployeeChatPage = lazy(() => import('./pages/dashboard/EmployeeChatPage'));
