@@ -3533,7 +3533,7 @@ export const handler: Handler = async (event, context) => {
           try {
             const commitResp = await fetch(commitUrl, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId },
               body: JSON.stringify({ importId: imp.id, userId: effectiveUserId }),
             });
             if (!commitResp.ok) {
