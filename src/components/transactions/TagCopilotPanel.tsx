@@ -1,4 +1,4 @@
-ï»¿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { X, Send, Trash2 } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
@@ -405,10 +405,10 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
       setTimeout(() => void send(), 50);
       return;
     }
-    // Guard 2: validate against canonical categories âˆ©â”â•œ reject free-text sentences
+    // Guard 2: validate against canonical categories n++ reject free-text sentences
     const resolved = resolveCategory(category);
     if (!resolved) {
-      // Not a valid category âˆ©â”â•œ treat as a chat message to Tag, don't advance queue
+      // Not a valid category n++ treat as a chat message to Tag, don't advance queue
       void sendAsChatMessage(category);
       return;
     }
@@ -787,14 +787,14 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding:'7px 14px', borderRadius:'8px 8px 0 0', fontSize:12, fontWeight:600, background:activeTab === tab.id ? '#111a2e' : 'transparent', border:`1px solid ${activeTab === tab.id ? '#1e2d4a' : 'transparent'}`, borderBottom:activeTab === tab.id ? '1px solid #111a2e' : 'none', color:activeTab === tab.id ? '#22d3ee' : '#7b8ba5', cursor:'pointer', marginBottom:-1, fontFamily:'inherit' }}>{tab.label}</button>
           ))}
         </div>
-        {/* Î“Ã¶Ã‡Î“Ã¶Ã‡ CHAT TAB Î“Ã¶Ã‡Î“Ã¶Ã‡ */}
+        {/* GöÇGöÇ CHAT TAB GöÇGöÇ */}
         {activeTab === 'chat' && (<>
         {/* ACTIVE TRANSACTION PILL */}
         {transaction && (
           <div style={{ margin:'12px 16px 0', padding:'10px 14px', borderRadius:8, background:'rgba(34,211,153,0.06)', border:'1px solid rgba(34,211,153,0.12)', fontSize:13, color:'#c8d0e0' }}>
             <span style={{ color:'#e8ecf4', fontWeight:600 }}>{transaction.merchant_name || 'Transaction'}</span>
-            {' â”¬â•– $'}{Math.abs(transaction.amount).toFixed(2)}
-            {' â”¬â•– '}<span style={{ color:'#22d3ee' }}>{transaction.category || 'Uncategorized'}</span>
+            {' -+ $'}{Math.abs(transaction.amount).toFixed(2)}
+            {' -+ '}<span style={{ color:'#22d3ee' }}>{transaction.category || 'Uncategorized'}</span>
           </div>
         )}
         {/* MESSAGES */}
@@ -1042,7 +1042,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           </button>
         </div>
         </>)}
-        {/* Î“Ã¶Ã‡Î“Ã¶Ã‡ ACTIVITY TAB Î“Ã¶Ã‡Î“Ã¶Ã‡ */}
+        {/* GöÇGöÇ ACTIVITY TAB GöÇGöÇ */}
         {activeTab === 'activity' && (
           <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'16px 20px' }}>
             <div style={{ display:'flex', gap:6, marginBottom:16, overflowX:'auto', scrollbarWidth:'none' as any }}>
@@ -1083,7 +1083,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
             })()}
           </div>
         )}
-        {/* Î“Ã¶Ã‡Î“Ã¶Ã‡ RULES TAB Î“Ã¶Ã‡Î“Ã¶Ã‡ */}
+        {/* GöÇGöÇ RULES TAB GöÇGöÇ */}
         {activeTab === 'rules' && (
           <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'16px 20px' }}>
             {learnedRules.length === 0 ? (
