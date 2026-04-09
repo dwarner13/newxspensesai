@@ -29,6 +29,7 @@ import OnboardingGuard from './components/auth/OnboardingGuard';
 import RouteDecisionGate from './components/auth/RouteDecisionGate';
 import { RouteTransitionOverlay } from './components/ui/RouteTransitionOverlay';
 import { isPrimeV2Enabled } from './env';
+import { useAuth } from '@/contexts/AuthContext';
 import { DevToolsProvider } from './contexts/DevToolsContext';
 import DevPanel from './components/dev/DevPanel';
 import { JobsDrawer } from './components/system/JobsDrawer';
