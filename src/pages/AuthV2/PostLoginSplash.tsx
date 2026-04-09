@@ -149,8 +149,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
   const isNewUser = splashData.loaded && splashData.transactionCount === 0;
   const isReady = splashData.loaded;
 
-  // Show a minimal centered spinner while the splash data loads.
-  // Prevents the "placeholder text then snap" flash.
+  // Minimal on-brand spinner while splashData loads.
   if (!isReady) {
     return (
       <div style={{
@@ -160,18 +159,16 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
         alignItems: "center",
         justifyContent: "center",
         background: "#0b1220",
-        fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
       }}>
         <style>{`@keyframes splashSpin{to{transform:rotate(360deg)}}`}</style>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: "50%",
-            border: "2px solid rgba(200,166,78,0.2)",
-            borderTopColor: "#c8a64e",
-            animation: "splashSpin 0.9s linear infinite",
-          }} />
-          <div style={{ fontSize: 11, color: "#64748b", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700 }}>Preparing your briefing</div>
-        </div>
+        <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          border: "2px solid #1e2d4a",
+          borderTopColor: "#c8a64e",
+          animation: "splashSpin 0.9s linear infinite",
+        }} />
       </div>
     );
   }
