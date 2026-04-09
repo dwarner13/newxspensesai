@@ -134,7 +134,7 @@ export function DashboardThreeColumnLayout({
         {/* CRITICAL: On /dashboard/prime-chat, remove h-full to allow natural height growth */}
         {hasLeftContent && (
           <div className={`min-w-0 w-full ${isPrimeChatPage ? '' : 'h-full'} min-h-0 flex items-stretch`}>
-            <div className={`w-full ${isPrimeChatPage ? '' : 'h-full'} min-h-0 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]`}>
+            <div className={`w-full ${isPrimeChatPage ? '' : 'h-full'} min-h-0 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]`}>
               {left}
             </div>
           </div>
@@ -144,7 +144,7 @@ export function DashboardThreeColumnLayout({
         <div className="min-w-0 w-full min-h-0 flex flex-col gap-6 items-stretch">
           {/* Main Center Content - Takes full space */}
           <div className="min-w-0 min-h-0 flex-1">
-            <div className={`w-full ${isPrimeChatPage ? 'h-full' : 'min-h-0'} rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]`}>
+            <div className={`w-full ${isPrimeChatPage ? 'h-full' : 'min-h-0'} rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]`}>
               {center}
             </div>
           </div>
@@ -162,7 +162,7 @@ export function DashboardThreeColumnLayout({
           {hasRightContent && isDesktop && !isPrimeChatPage && (
             <div className="min-w-0 shrink-0">
               <div 
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                 style={{
                   maxHeight: '420px',
                   overflow: 'visible' // No nested scroll - part of main scroll container
@@ -201,7 +201,7 @@ export function DashboardThreeColumnLayout({
       {/* Activity Feed - Mobile only: below grid */}
       {hasRightContent && !isDesktop && (
         <div className="mt-6">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
             {right}
           </div>
         </div>
