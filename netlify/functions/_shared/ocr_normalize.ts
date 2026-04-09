@@ -185,8 +185,8 @@ export function normalizeOcrResult(
   // BMO Everyday Banking detection:
   // Check for specific BMO statement markers
   if (
-    /Your Everyday Banking statement/i.test(normalizedText) &&
-    /EDMONTON, AB/i.test(normalizedText)
+    /Your\s*Everyday\s*Banking\s*statement/i.test(normalizedText) &&
+    /EDMONTON[\s,]*AB/i.test(normalizedText)
   ) {
     const bmoTransactions = parseBmoEverydayStatement(normalizedText);
     
@@ -210,8 +210,8 @@ export function normalizeOcrResult(
   // Also try BMO format if we detect "Everyday Banking" or "For the period ending" patterns
   // (fallback detection for other BMO statement variants)
   if (
-    /Everyday Banking/i.test(normalizedText) ||
-    (/For the period ending/i.test(normalizedText) && /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i.test(normalizedText))
+    /Everyday\s*Banking/i.test(normalizedText) ||
+    (/For\s*the\s*period\s*ending/i.test(normalizedText) && /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i.test(normalizedText))
   ) {
     const bmoTransactions = parseBmoEverydayStatement(normalizedText);
     if (bmoTransactions.length > 0) {
@@ -2233,8 +2233,8 @@ export function normalizeBankStatement(
   
   // First, try BMO Everyday Banking format (multi-line transactions)
   // Check if this looks like a BMO statement
-  const isBmoStatement = filteredText.includes('Everyday Banking') || 
-                         filteredText.includes('For the period ending') ||
+  const isBmoStatement = /Everyday\s*Banking/i.test(filteredText) || 
+                         /For\s*the\s*period\s*ending/i.test(filteredText) ||
                          /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i.test(filteredText);
   
   if (isBmoStatement && !hasColumnLayout) {
