@@ -24,6 +24,9 @@ interface Issue {
   suggestedCategory: string; suggestedSubcategory: string | null;
   reason: string; transactionIds: string[]; count: number;
   totalAmount: number; samples: { merchant_name: string; amount: number; posted_at: string }[];
+  issueType?: 'category' | 'duplicate' | 'amount_anomaly';
+  suggestedAmount?: number | null;
+  medianAmount?: number | null;
 }
 
 function ilike(val: string, pattern: string): boolean {
@@ -195,6 +198,50 @@ export const handler: Handler = async (event) => {
       });
     }
 
+
+    // RULE 12 - Amount anomaly detection (OCR misread detection)
+    // For each merchant with 3+ transactions, compute median amount.
+    // Flag any transaction where amount > 5x the median AND amount > $50.
+    const merchantAmountGroups = new Map<string, Tx[]>();
+    for (const tx of allTxs) {
+      if (usedIds.has(tx.id)) continue;
+      const key = (tx.merchant_name || '').toUpperCase().trim();
+      if (!key) continue;
+      if (!merchantAmountGroups.has(key)) merchantAmountGroups.set(key, []);
+      merchantAmountGroups.get(key)!.push(tx);
+    }
+
+    for (const [key, group] of merchantAmountGroups) {
+      if (group.length < 2) continue;
+      const amounts = group.map(t => Math.abs(Number(t.amount || 0))).filter(a => a > 0).sort((a, b) => a - b);
+      if (amounts.length < 2) continue;
+      const mid = Math.floor(amounts.length / 2);
+      const median = amounts.length % 2 !== 0 ? amounts[mid] : (amounts[mid - 1] + amounts[mid]) / 2;
+      if (median < 1) continue; // skip penny merchants
+      const anomalies = group.filter(t => {
+        const amt = Math.abs(Number(t.amount || 0));
+        return amt > median * 5 && amt > 50 && !usedIds.has(t.id);
+      });
+      if (anomalies.length === 0) continue;
+      for (const tx of anomalies) {
+        usedIds.add(tx.id);
+        issues.push({
+          id: randomUUID(),
+          merchant: tx.merchant_name || key,
+          currentCategory: tx.category || 'Unknown',
+          suggestedCategory: tx.category || 'Unknown',
+          suggestedSubcategory: null,
+          reason: `Typical ${tx.merchant_name || key} transaction is ~${median.toFixed(2)} but this shows ${Math.abs(Number(tx.amount)).toFixed(2)} — likely an OCR misread`,
+          transactionIds: [tx.id],
+          count: 1,
+          totalAmount: Math.abs(Number(tx.amount || 0)),
+          samples: [{ merchant_name: tx.merchant_name, amount: Number(tx.amount), posted_at: tx.posted_at }],
+          issueType: 'amount_anomaly',
+          suggestedAmount: null,
+          medianAmount: median,
+        });
+      }
+    }
     return ok({
       ok: true,
       totalScanned: allTxs.length,

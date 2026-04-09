@@ -61,29 +61,14 @@ import { useRouteTransition } from '../../contexts/RouteTransitionContext';
 import { useAppBootStatus } from '../../hooks/useAppBootStatus';
 
 /**
- * Loading screen shown while waiting for auth + profile to resolve
+ * Loading screen shown while waiting for auth + profile to resolve.
+ * Minimal on-brand spinner matching PostLoginSplash pattern.
  */
 function PreparingWorkspaceScreen() {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-b from-[#0f172a] to-[#1a1e3a]">
-      {/* Blurred background effect */}
-      <div className="absolute inset-0 bg-[#0f172a]/80 backdrop-blur-sm" />
-      
-      {/* Content */}
-      <div className="relative z-10 text-center flex flex-col items-center justify-center px-4">
-        {/* Subtle spinner */}
-        <div className="relative mb-6">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-white/20 border-t-white/60" />
-        </div>
-        
-        {/* Text */}
-        <p className="text-white/90 text-lg font-medium">
-          Preparing your workspace...
-        </p>
-        <p className="text-white/60 text-sm mt-2">
-          Just a moment
-        </p>
-      </div>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
+      <style>{`@keyframes authSpin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #1e2d4a', borderTopColor: '#c8a64e', animation: 'authSpin 0.9s linear infinite' }} />
     </div>
   );
 }

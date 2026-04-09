@@ -83,11 +83,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // Show loading while checking authentication
   if (loading || initialLoad) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
-        <div className="text-center flex flex-col items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
-          <p className="text-white text-lg">Checking authentication...</p>
-        </div>
+      <div style={{ minHeight: '100vh', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
+        <style>{`@keyframes authSpin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #1e2d4a', borderTopColor: '#c8a64e', animation: 'authSpin 0.9s linear infinite' }} />
       </div>
     );
   }
@@ -95,11 +93,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // Show loading while validating session
   if (sessionValidating) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
-        <div className="text-center flex flex-col items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
-          <p className="text-white text-lg">Validating your session...</p>
-        </div>
+      <div style={{ minHeight: '100vh', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
+        <style>{`@keyframes authSpin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #1e2d4a', borderTopColor: '#c8a64e', animation: 'authSpin 0.9s linear infinite' }} />
       </div>
     );
   }

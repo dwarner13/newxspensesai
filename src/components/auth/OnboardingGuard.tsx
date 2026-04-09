@@ -29,11 +29,9 @@ export default function OnboardingGuard({ children }: { children: React.ReactNod
   // This prevents route flipping during auth initialization
   if (!ready || loading || isProfileLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
-        <div className="text-center flex flex-col items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
-          <p className="text-white text-lg">Loading...</p>
-        </div>
+      <div style={{ minHeight: '100vh', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
+        <style>{`@keyframes authSpin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #1e2d4a', borderTopColor: '#c8a64e', animation: 'authSpin 0.9s linear infinite' }} />
       </div>
     );
   }

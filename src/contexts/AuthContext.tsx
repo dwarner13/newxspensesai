@@ -849,11 +849,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Show loading screen during initial auth check
   if (loading && initialLoad) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center flex flex-col items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4 mx-auto"></div>
-          <p className="text-gray-600">Checking authentication...</p>
-        </div>
+      <div style={{ minHeight: '100vh', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
+        <style>{`@keyframes authSpin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #1e2d4a', borderTopColor: '#c8a64e', animation: 'authSpin 0.9s linear infinite' }} />
       </div>
     );
   }

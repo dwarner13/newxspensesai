@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Vision Statement Parser
  * 
  * Uses OpenAI Vision API to extract structured transactions from bank/credit card statement images.
@@ -301,9 +301,31 @@ Extract ALL transactions into a JSON array.
 Return ONLY valid JSON, no markdown, no explanation.
 Format: { "summary": { "institution": "string or null", "account_type": "string or null", "statement_period_start": "YYYY-MM-DD or null", "statement_period_end": "YYYY-MM-DD or null", "previous_balance": null, "new_balance": null, "credit_limit": null }, "transactions": [ { "transaction_date": "YYYY-MM-DD", "posting_date": "YYYY-MM-DD or null", "description": "string", "merchant_guess": "string or null", "amount": number, "currency": "CAD", "raw_row_text": "string or null" } ] }
 Amounts: positive for purchases/charges/debits, negative for payments/credits/refunds.
-For BMO statements: the "Withdrawals" column is debit (positive), "Deposits" column is credit (negative).
-Never include running balance as an amount.
-Convert all dates to YYYY-MM-DD format.`;
+CRITICAL - BMO COLUMN DETECTION (apply to ALL bank statements):
+STEP 1 - Find the transaction table header to identify column order.
+For BMO the header reads: "Amounts deducted from your account ($) | Amounts added to your account ($) | Balance ($)"
+
+STEP 2 - Parse RIGHT TO LEFT on each transaction row:
+- Rightmost number = running balance (IGNORE - do NOT use as amount)
+- Number immediately LEFT of balance = transaction amount (USE THIS)
+- Never swap these two values
+
+STEP 3 - COMMA RULE to distinguish amount from balance:
+- Number WITH thousands comma e.g. 6,030.39 = running balance -> IGNORE
+- Number WITHOUT comma e.g. 11.85 = transaction amount -> USE
+- Exception: if BOTH have commas, the LARGER number is the balance
+
+STEP 4 - BALANCE RECONCILIATION:
+- Debit: previous_balance - debit_amount = new_balance
+- Credit: previous_balance + credit_amount = new_balance
+- If it does not reconcile, try the other number. Reject the row if neither reconciles.
+
+AMOUNTS: Withdrawals/debits/purchases = POSITIVE. Deposits/credits/payments = NEGATIVE.
+NEVER use the running balance column as the transaction amount.
+MERCHANTS: Preserve spaces e.g. "SAVE ON FOODS" not "SAVEONFOODS".
+DATES: Convert all dates to YYYY-MM-DD format.
+IGNORE: summary blocks, interest tables, points summaries, headers/footers.
+FOREIGN TX: Always use the CAD amount.`;
 
   console.log(`[Vision Parser Base64] Starting Claude Vision parse for user ${String(userId).slice(0, 8)}..., file: ${options.filename || 'unknown'}`);
 
@@ -388,5 +410,6 @@ Convert all dates to YYYY-MM-DD format.`;
     errors: errors.length > 0 ? errors : undefined,
   };
 }
+
 
 

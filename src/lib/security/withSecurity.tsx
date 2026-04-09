@@ -278,13 +278,9 @@ export function withSecurity(
           return LoadingComponent ? (
             <LoadingComponent page={pageKey} />
           ) : (
-            <div className="flex items-center justify-center min-h-screen">
-              <div className="text-center">
-                <div className="animate-spin mb-3">
-                  <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-600 rounded-full" />
-                </div>
-                <p className="text-gray-600">Loading...</p>
-              </div>
+            <div style={{ minHeight: '100vh', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
+              <style>{`@keyframes authSpin{to{transform:rotate(360deg)}}`}</style>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #1e2d4a', borderTopColor: '#c8a64e', animation: 'authSpin 0.9s linear infinite' }} />
             </div>
           );
         }
