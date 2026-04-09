@@ -1051,7 +1051,7 @@ function parseBmoEverydayStatement(text: string): Array<{
 
   let year = new Date().getFullYear();
   for (const line of lines) {
-    const m = /For the period ending .*?(\d{4})$/i.exec(line);
+    const m = /For\s*the\s*period\s*ending\s*.*?(\d{4})/i.exec(line);
     if (m) {
       year = Number(m[1]);
       break;
@@ -1063,8 +1063,8 @@ function parseBmoEverydayStatement(text: string): Array<{
     May: '05', Jun: '06', Jul: '07', Aug: '08',
     Sep: '09', Oct: '10', Nov: '11', Dec: '12',
   };
-  const dateHeadRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\b/i;
-  const amountRegex = /\d{1,3}(?:,\d{3})*(?:\.\d{2})/g;
+  const dateHeadRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i;
+  const amountRegex = /\d{1,3}(?:,\d{3})*(?:\.\d{2})|\d{4,7}\.\d{2}/g;
   const parseAmount = (raw: string): number => Number(raw.replace(/,/g, ''));
 
   const skipLine = (line: string): boolean =>
