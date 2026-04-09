@@ -3525,25 +3525,22 @@ export const handler: Handler = async (event, context) => {
           }
           if (stagedCount === 0) { console.warn("[smart-import-ocr] no staged rows after 60s, giving up"); return; }
           console.log("[smart-import-ocr] found", stagedCount, "staged rows, committing import:", imp.id);
-          // Direct DB commit - bypass commit-import function
-          const { data: stagingRows, error: fetchErr } = await sb.from("transactions_staging").select("*").eq("import_id", imp.id);
-          if (fetchErr || !stagingRows?.length) { console.warn("[smart-import-ocr] failed to fetch staging rows:", fetchErr?.message); return; }
-          const txRows = stagingRows.map((row: any) => ({
-            id: crypto.randomUUID(),
-            user_id: row.user_id,
-            merchant_name: row.data_json?.merchant || "Unknown",
-            amount: row.data_json?.amount || 0,
-            date: row.data_json?.date || null,
-            type: row.data_json?.type === "Credit" ? "income" : "expense",
-            category: row.tag_category || "Other",
-            import_id: row.import_id,
-          }));
-          const { error: insertErr } = await sb.from("transactions").insert(txRows);
-          if (insertErr) { console.error("[smart-import-ocr] insert failed:", insertErr.message); return; }
-          await sb.from("imports").update({ status: "committed" }).eq("id", imp.id);
-          console.log("[smart-import-ocr] committed", txRows.length, "transactions directly");
-        }).catch((err) => {
-          console.error("[smart-import-ocr] approve/commit failed", err);
+          // Call commit-import properly via HTTP (replaces direct DB bypass)
+          const commitUrl = `${process.env.URL}/.netlify/functions/commit-import`;
+          try {
+            const commitResp = await fetch(commitUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ importId: imp.id, userId: effectiveUserId }),
+            });
+            if (!commitResp.ok) {
+              console.error("[smart-import-ocr] commit-import failed:", await commitResp.text());
+            } else {
+              console.log("[smart-import-ocr] commit-import succeeded for import:", imp.id);
+            }
+          } catch (commitErr: any) {
+            console.error("[smart-import-ocr] commit-import call threw:", commitErr?.message);
+          }
         });
       }
     }
