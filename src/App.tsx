@@ -252,7 +252,8 @@ function ScrollToTop() {
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { userId, loading } = useAuth();
-  if (loading || userId) return null;
+  if (loading) return null;
+  if (userId) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
