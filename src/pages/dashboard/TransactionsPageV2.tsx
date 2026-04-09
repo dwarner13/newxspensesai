@@ -78,9 +78,13 @@ export default function TransactionsPageV2() {
   const [tagInjectedMsg, setTagInjectedMsg] = useState<string | null>(null);
   const [tagFollowupMerchants, setTagFollowupMerchants] = useState<any[] | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showProcessingBanner, setShowProcessingBanner] = useState(false);
   useEffect(() => {
     if (searchParams.get("from") === "upload") {
+      setShowProcessingBanner(true);
       setSearchParams({}, { replace: true });
+      // Auto-dismiss banner after 12 seconds
+      setTimeout(() => setShowProcessingBanner(false), 12000);
     }
     const filterParam = searchParams.get("filter");
     if (filterParam === "income") setFilter("income");
@@ -445,6 +449,18 @@ export default function TransactionsPageV2() {
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      {showProcessingBanner && (
+        <div style={{ background: "linear-gradient(135deg, #0f1f38, #0b1a30)", border: "1px solid #22d3ee44", borderRadius: 14, padding: "14px 18px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, maxWidth: 1100, margin: "0 auto 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#22d3ee18", border: "1.5px solid #22d3ee44", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>?</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#22d3ee" }}>Your statement is processing</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Transactions will appear within a moment — no need to refresh.</div>
+            </div>
+          </div>
+          <button onClick={() => setShowProcessingBanner(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16, padding: "0 4px", lineHeight: 1 }}>?</button>
+        </div>
+      )}
       <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-3">
           <div>
