@@ -249,6 +249,17 @@ function ScrollToTop() {
   return null;
 }
 
+function AuthRedirect({ children }: { children: React.ReactNode }) {
+  const { userId, loading } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!loading && userId) navigate("/dashboard", { replace: true });
+  }, [userId, loading]);
+  if (loading) return null;
+  if (userId) return null;
+  return <>{children}</>;
+}
+
 function App() {
   const [therapistTrigger] = useAtom(therapistTriggerAtom);
   const [isTherapistModalOpen] = useAtom(isTherapistModalOpenAtom);
@@ -326,7 +337,7 @@ function App() {
                       <Route path="/data-processing" element={<DataProcessingPage />} />
 
                       {/* V2 Marketing pages (standalone, have their own nav+footer) */}
-                      <Route path="/" element={<MarketingHomePage />} />
+                      <Route path="/" element={<AuthRedirect><MarketingHomePage /></AuthRedirect>} />
                       <Route path="/pricing" element={<Suspense fallback={<LoadingSpinner />}><PricingPage /></Suspense>} />
 
                       {/* Legacy marketing routes */}
