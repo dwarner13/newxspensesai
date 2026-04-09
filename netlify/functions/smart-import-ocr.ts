@@ -3442,7 +3442,7 @@ export const handler: Handler = async (event, context) => {
 
     // Byte Speed Mode v2: Return immediately, queue normalization in background
     // Fire normalization asynchronously - don't wait
-    const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
+    const netlifyUrl = process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
     const OCR_DEBUG_ENABLED = process.env.OCR_DEBUG === '1' || process.env.OCR_DEBUG === 'true';
     if (OCR_DEBUG_ENABLED) {
       console.log('[smart-import-ocr] Queuing normalize-transactions', {
