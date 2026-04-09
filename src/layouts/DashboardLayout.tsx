@@ -1171,7 +1171,7 @@ export default function DashboardLayout() {
       {/* CRITICAL: min-h-0 is MANDATORY for flex children to prevent overflow forcing body height */}
       {/* CRITICAL: For body scroll routes (ALL /dashboard/*), allow normal flow */}
       {/* For internal scroll routes, overflow-hidden prevents wrapper from creating page scrollbar */}
-      <div className={`flex-1 flex flex-col min-h-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-[72px]' : 'ml-[240px]'} ${useBodyScroll ? '' : 'overflow-hidden'}`}>
+      <div className={`flex-1 flex flex-col min-h-0 transition-[margin-left] duration-300 ${isSidebarCollapsed ? 'ml-[72px]' : 'ml-[240px]'} ${useBodyScroll ? '' : 'overflow-hidden'}`}>
         <DashboardHeaderWithBadges />
         
         {/* Main content */}
