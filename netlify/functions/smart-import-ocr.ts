@@ -3526,7 +3526,10 @@ export const handler: Handler = async (event, context) => {
           if (stagedCount === 0) { console.warn("[smart-import-ocr] no staged rows after 60s, giving up"); return; }
           console.log("[smart-import-ocr] found", stagedCount, "staged rows, committing import:", imp.id);
           // Call commit-import properly via HTTP (replaces direct DB bypass)
-          const commitUrl = `${process.env.URL}/.netlify/functions/commit-import`;
+          // Use the same netlifyUrl binding as normalize-transactions above -
+          // process.env.URL is not injected into the Functions runtime, only
+          // process.env.NETLIFY_URL is, which netlifyUrl already resolves to.
+          const commitUrl = `${netlifyUrl}/.netlify/functions/commit-import`;
           try {
             const commitResp = await fetch(commitUrl, {
               method: "POST",
