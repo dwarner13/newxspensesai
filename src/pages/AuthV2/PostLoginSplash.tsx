@@ -27,6 +27,7 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
   const [tagTransactions, setTagTransactions] = useState<any[]>([]);
   const [tagFixing, setTagFixing] = useState<string | null>(null);
   const [tagFixed, setTagFixed] = useState<Set<string>>(new Set());
+  const [recentCategorizedTxs, setRecentCategorizedTxs] = useState<any[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
@@ -76,6 +77,17 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
           .order('date', { ascending: false })
           .limit(3);
         setTagTransactions(data || []);
+        // If no uncategorized, fetch recent categorized to fill the space
+        if (!data || data.length === 0) {
+          const { data: recent } = await sb.from('transactions')
+            .select('id, merchant_name, category, amount')
+            .eq('user_id', uid)
+            .not('category', 'in', '("Needs Review","Other","Uncategorized")')
+            .not('category', 'is', 'null')
+            .order('date', { ascending: false })
+            .limit(3);
+          setRecentCategorizedTxs(recent || []);
+        }
       } catch { /* silent */ }
     })();
   }, [splashData.loaded]);
@@ -395,7 +407,21 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
             </div>
           )}
 
-          {tagTransactions.length === 0 && splashData.loaded && (
+          {tagTransactions.length === 0 && splashData.loaded && recentCategorizedTxs.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: isMobile ? 11 : 10, textTransform: "uppercase", letterSpacing: 1.2, color: C.dim, fontWeight: 700, marginBottom: 8 }}>Recently categorized:</div>
+              {recentCategorizedTxs.map(tx => (
+                <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, background: "rgba(52,211,153,0.04)", border: "1px solid rgba(52,211,153,0.1)", marginBottom: 4 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: isMobile ? 12 : 11, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.merchant_name || "Unknown"}</div>
+                    <div style={{ fontSize: isMobile ? 11 : 10, color: C.dim }}>{tx.category}</div>
+                  </div>
+                  <span style={{ fontSize: isMobile ? 11 : 10, color: C.green, fontWeight: 700, flexShrink: 0 }}>${Math.abs(Number(tx.amount)).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {tagTransactions.length === 0 && splashData.loaded && recentCategorizedTxs.length === 0 && (
             <div style={{ fontSize: isMobile ? 12 : 11, color: C.green, fontStyle: "italic", lineHeight: 1.6, marginBottom: 8, padding: "6px 10px", borderRadius: 10, background: "rgba(52,211,153,0.06)", borderLeft: "2px solid rgba(52,211,153,0.3)" }}>
               "All transactions categorized. Books are clean (done)"
             </div>
