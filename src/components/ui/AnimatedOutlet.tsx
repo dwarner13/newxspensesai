@@ -14,7 +14,7 @@
 import { useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Outlet } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 
 export function AnimatedOutlet() {
   const location = useLocation();
@@ -62,11 +62,17 @@ export function AnimatedOutlet() {
 
   const variants = prefersReducedMotion ? reducedMotionVariants : pageVariants;
 
+  // Ref used to toggle will-change only during the active animation.
+  // A permanent will-change keeps a compositor layer alive for the whole
+  // scroll lifetime, which hurts scroll perf.
+  const motionRef = useRef<HTMLDivElement>(null);
+
   return (
     <div className="w-full min-h-[calc(100vh-120px)]" style={{ position: 'relative' }}>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={key}
+          ref={motionRef}
           variants={variants}
           initial="initial"
           animate="animate"
@@ -75,11 +81,15 @@ export function AnimatedOutlet() {
             duration: prefersReducedMotion ? 0.1 : 0.22,
             ease: "easeOut", // Smooth easing, no blur
           }}
+          onAnimationStart={() => {
+            if (motionRef.current) motionRef.current.style.willChange = 'opacity, transform';
+          }}
+          onAnimationComplete={() => {
+            if (motionRef.current) motionRef.current.style.willChange = 'auto';
+          }}
           style={{
             width: '100%',
             minHeight: 'inherit',
-            // Ensure content doesn't shift during transition
-            willChange: 'opacity, transform',
             position: 'relative',
           }}
           // Prevent layout shift by maintaining dimensions

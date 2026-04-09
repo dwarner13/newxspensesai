@@ -653,25 +653,37 @@ export default function DashboardLayout() {
     log('Mobile menu state changed:', { isMobileMenuOpen, isMobile});
   }, [isMobileMenuOpen, isMobile]);
 
-  // Add pull-to-refresh touch event listeners for mobile
+  // Add pull-to-refresh touch event listeners for mobile.
+  // Registered as passive: true so the browser's native scroll is NOT
+  // blocked on the main thread. The pull-to-refresh handlers only
+  // process gestures when the container is already at scrollTop === 0
+  // (i.e. the user is pulling down from the top), otherwise we pass
+  // through unchanged so the native scroll runs at full speed.
   useEffect(() => {
     if (!isMobile) return;
 
     const { onTouchStart, onTouchMove, onTouchEnd } = pullToRefresh.handlers;
-    
-    // Add touch events to the main content area instead of document
-    const mainContent = document.querySelector('main');
-    if (mainContent) {
-      mainContent.addEventListener('touchstart', onTouchStart, { passive: false});
-      mainContent.addEventListener('touchmove', onTouchMove, { passive: false});
-      mainContent.addEventListener('touchend', onTouchEnd, { passive: false});
 
-      return () => {
-        mainContent.removeEventListener('touchstart', onTouchStart);
-        mainContent.removeEventListener('touchmove', onTouchMove);
-        mainContent.removeEventListener('touchend', onTouchEnd);
-      };
-    }
+    const mainContent = document.querySelector('main') as HTMLElement | null;
+    if (!mainContent) return;
+
+    const gated = (inner: (e: TouchEvent) => void) => (e: TouchEvent) => {
+      if (mainContent.scrollTop === 0) inner(e);
+    };
+
+    const wrappedStart = gated(onTouchStart);
+    const wrappedMove = gated(onTouchMove);
+    const wrappedEnd = gated(onTouchEnd);
+
+    mainContent.addEventListener('touchstart', wrappedStart, { passive: true });
+    mainContent.addEventListener('touchmove', wrappedMove, { passive: true });
+    mainContent.addEventListener('touchend', wrappedEnd, { passive: true });
+
+    return () => {
+      mainContent.removeEventListener('touchstart', wrappedStart);
+      mainContent.removeEventListener('touchmove', wrappedMove);
+      mainContent.removeEventListener('touchend', wrappedEnd);
+    };
   }, [isMobile, pullToRefresh.handlers]);
 
   // Auto-close drawer when route changes
