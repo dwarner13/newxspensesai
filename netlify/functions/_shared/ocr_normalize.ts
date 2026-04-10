@@ -1056,6 +1056,14 @@ function parseBmoEverydayStatement(text: string): Array<{
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
+  // TEMP DEBUG: visibility into what the BMO parser actually receives
+  // after cleanupOcrText / restoreBmoSpaces have run.
+  console.log('[BMO PARSER DEBUG] first 20 lines:',
+    lines.slice(0, 20).map((l, i) => `${i}: ${l}`).join('\n'));
+  console.log('[BMO PARSER DEBUG] total lines:', lines.length);
+  console.log('[BMO PARSER DEBUG] date matches:',
+    lines.filter(l => /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{1,2}\b/i.test(l)).length);
+
   let year = new Date().getFullYear();
   for (const line of lines) {
     const m = /For\s*the\s*period\s*ending\s*.*?(\d{4})/i.exec(line);
