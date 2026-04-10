@@ -1118,11 +1118,25 @@ function parseBmoEverydayStatement(text: string): Array<{
     let body = line.replace(dateHeadRegex, '').trim();
     let rawLineText = line;
 
-    // Some BMO rows wrap to next line before amount/balance columns.
-    if ((body.match(amountRegex) || []).length < 2 && i + 1 < lines.length && !lines[i + 1].match(dateHeadRegex)) {
-      body = `${body} ${lines[i + 1]}`.replace(/\s+/g, ' ').trim();
-      rawLineText = `${line} | ${lines[i + 1]}`;
-      i++;
+    // Some BMO rows wrap across multiple lines (date / description / amount / balance).
+    // Keep appending lines until we have 2+ amounts, hit the next date, or reach cap.
+    {
+      const extraRaw: string[] = [];
+      let j = i + 1;
+      while (
+        (body.match(amountRegex) || []).length < 2 &&
+        j < lines.length &&
+        !lines[j].match(dateHeadRegex) &&
+        j <= i + 5
+      ) {
+        extraRaw.push(lines[j]);
+        body = `${body} ${lines[j]}`.replace(/\s+/g, ' ').trim();
+        j++;
+      }
+      if (extraRaw.length > 0) {
+        rawLineText = [line, ...extraRaw].join(' | ');
+        i = j - 1; // for-loop will increment once more
+      }
     }
 
     const parsed = extractTxFromBody(body);
