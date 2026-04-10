@@ -41,8 +41,10 @@ function looksLikeCrowdedBmoEverydayBanking(text: string): boolean {
   if (/Everyday\s*Banking|Forthe\s*period\s*ending|EverydayBanking|Fortheperiodending/i.test(text)) {
     return true;
   }
-  // 2. Date abbreviation immediately followed by 1-2 digits
-  if (/(?<![A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{1,2}(?![A-Za-z0-9])/.test(text)) {
+  // 2. Date abbreviation immediately glued to 1-2 digits.
+  //    In crowded BMO text the day digits are followed by an uppercase letter
+  //    (e.g. "Dec17DebitCardPurchase"), so the lookahead must accept [A-Z].
+  if (/(?<![A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{1,2}(?=[A-Z\s,.\n]|$)/m.test(text)) {
     return true;
   }
   // 3. 2+ crowded BMO transaction body keywords
@@ -74,14 +76,23 @@ function restoreBmoSpaces(text: string): string {
 
   // 1) Insert a newline + space before "MonAbbr<digit>" so each transaction
   //    starts on its own line, then split month from day digits.
+  //    Use lookahead instead of \b — in crowded text the day digits are
+  //    immediately followed by an uppercase letter (e.g. "17Debit").
   out = out.replace(
-    /(?<![A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(\d{1,2})\b/g,
+    /(?<![A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(\d{1,2})(?=[A-Z\s,.\n]|$)/gm,
     '\n$1 $2'
   );
 
-  // 2) Insert spaces on lower-to-upper word boundaries that pdf-parse glued
-  //    together: "CardPurchase" -> "Card Purchase", "DebitCard" -> "Debit Card".
-  //    Skip all-caps runs (acronyms / merchant codes like "BMO", "POPEYES").
+  // 2a) Split digit-to-uppercase boundaries left after step 1, e.g.
+  //     "17DebitCardPurchase" -> "17 DebitCardPurchase",
+  //     "14INTERACe-Transfer" -> "14 INTERACe-Transfer".
+  //     Requires the uppercase letter to be followed by another letter
+  //     (avoids splitting inside merchant codes like "7-ELEVEN").
+  out = out.replace(/(\d)([A-Z][A-Za-z])/g, '$1 $2');
+
+  // 2b) Insert spaces on lower-to-upper word boundaries that pdf-parse glued
+  //     together: "CardPurchase" -> "Card Purchase", "DebitCard" -> "Debit Card".
+  //     Skip all-caps runs (acronyms / merchant codes like "BMO", "POPEYES").
   out = out.replace(/([a-z])([A-Z])/g, '$1 $2');
 
   // 3) Insert a space before "$" signs glued to other text.
