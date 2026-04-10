@@ -238,7 +238,14 @@ export function normalizeOcrResult(
   const isCibcStatement = /cibc|cibc account statement|transaction details/i.test(normalizedText);
   const hasColumnMode = bankTransactions.some(tx => Array.isArray(tx.confidenceFlags) && tx.confidenceFlags.includes('amount_from_columns'));
   const preferAiForCibc = isCibcStatement && !!openaiClient && !hasColumnMode;
-  const preferAiForStatements = !!openaiClient && process.env.OCR_PREFER_AI_STATEMENTS === '1' && !hasColumnMode;
+  // BMO Everyday Banking statements MUST go through the primary parser -
+  // the AI fallback misreads balance-column values as transaction amounts
+  // when pdf-parse strips spaces. This guard wins even if the env var is set.
+  const isBmoEverydayStatement = /Everyday\s*Banking|EverydayBanking/i.test(normalizedText);
+  const preferAiForStatements = !isBmoEverydayStatement
+    && !!openaiClient
+    && (process.env.OCR_PREFER_AI_STATEMENTS === '1' || process.env.OCR_PREFER_AI_STATEMENTS === 'true')
+    && !hasColumnMode;
   const preferAi = preferAiForCibc || preferAiForStatements;
   const lowCoverageBase = !isCreditCard && dateLineCount >= 5 && bankTransactions.length < Math.max(3, Math.floor(dateLineCount * 0.4));
   const lowCoverageCibc = isCibcStatement && bankTransactions.length < Math.max(6, Math.floor(dateLineCount * 0.6));

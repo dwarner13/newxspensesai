@@ -1,5 +1,81 @@
+/**
+ * Detect BMO Everyday Banking text that came out of pdf-parse with all
+ * spaces stripped. We look for the no-space versions of header phrases
+ * the parser would otherwise see as one giant blob.
+ */
+function looksLikeCrowdedBmoEverydayBanking(text: string): boolean {
+  return /Everyday\s*Banking|Forthe\s*period\s*ending|EverydayBanking|Fortheperiodending/i.test(text);
+}
+
+/**
+ * Restore spaces in BMO Everyday Banking text that pdf-parse concatenated.
+ *
+ * pdf-parse strips inter-word whitespace, producing lines like:
+ *   "Jan17DebitCardPurchase,7-ELEVENSTORE33535 3.514,235.69"
+ * which the BMO parser cannot understand. This function inserts spaces:
+ *   - before month abbreviations stuck to digits  ("Jan17" -> "Jan 17")
+ *   - on lower-to-upper boundaries inside words   ("CardPurchase" -> "Card Purchase")
+ *   - before "$" signs                            ("Total$1234" -> "Total $1234")
+ *   - between two adjacent amounts                ("3.514,235.69" -> "3.51 4,235.69")
+ *   - newlines before each transaction date       so the BMO date regex can match
+ *
+ * IMPORTANT: only applied when the text is clearly a BMO Everyday Banking
+ * statement. Other statement formats are left untouched.
+ */
+function restoreBmoSpaces(text: string): string {
+  let out = text;
+
+  // 1) Insert a newline + space before "MonAbbr<digit>" so each transaction
+  //    starts on its own line, then split month from day digits.
+  out = out.replace(
+    /(?<![A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(\d{1,2})\b/g,
+    '\n$1 $2'
+  );
+
+  // 2) Insert spaces on lower-to-upper word boundaries that pdf-parse glued
+  //    together: "CardPurchase" -> "Card Purchase", "DebitCard" -> "Debit Card".
+  //    Skip all-caps runs (acronyms / merchant codes like "BMO", "POPEYES").
+  out = out.replace(/([a-z])([A-Z])/g, '$1 $2');
+
+  // 3) Insert a space before "$" signs glued to other text.
+  out = out.replace(/([A-Za-z0-9])\$/g, '$1 $');
+
+  // 4) Split two adjacent amounts that pdf-parse ran together.
+  //    Pattern: a small amount (no thousands comma, 1-3 digits . 2 digits)
+  //    immediately followed by a balance (1+ digit, comma, 3 digits . 2 digits).
+  //    Example: "3.514,235.69" -> "3.51 4,235.69"
+  out = out.replace(
+    /(\d{1,3}\.\d{2})(\d{1,3},\d{3}\.\d{2})/g,
+    '$1 $2'
+  );
+  //    And the same for the case where the amount itself has a thousands comma
+  //    (e.g. "1,818.194,406.69" -> "1,818.19 4,406.69").
+  out = out.replace(
+    /(\d{1,3}(?:,\d{3})+\.\d{2})(\d{1,3}(?:,\d{3})+\.\d{2})/g,
+    '$1 $2'
+  );
+
+  // 5) Insert a space between a letter and a digit when no separator exists,
+  //    e.g. "STORE33535" -> "STORE 33535", but only when the digit run is 4+
+  //    chars to avoid touching "7-ELEVEN" style merchant codes.
+  out = out.replace(/([A-Za-z])(\d{4,})/g, '$1 $2');
+
+  // Collapse runs of internal whitespace introduced above (but keep newlines).
+  out = out.replace(/[ \t]{2,}/g, ' ');
+
+  return out;
+}
+
 export function cleanupOcrText(input: unknown): string {
-  const text = String(input || '');
+  let text = String(input || '');
+
+  // BMO statements that came out of pdf-parse without spaces need
+  // word/number boundary restoration BEFORE the rest of the cleanup runs,
+  // otherwise downstream regexes (date heads, amount columns) will not match.
+  if (looksLikeCrowdedBmoEverydayBanking(text)) {
+    text = restoreBmoSpaces(text);
+  }
+
   // Remove invalid unicode/control chars and normalize noisy OCR spacing.
   return text
     .replace(/[\uD800-\uDFFF]/g, '')
