@@ -1,10 +1,57 @@
 /**
+ * Crowded BMO transaction-body keywords. These are the spaceless forms
+ * pdf-parse produces from common BMO transaction descriptions. Two or
+ * more hits in a chunk is a strong signal the text is from a BMO
+ * statement body page.
+ */
+const BMO_BODY_KEYWORDS = [
+  /DebitCardPurchase/i,
+  /BillPayment/i,
+  /INTERACe?-?Transfer/i,
+  /Pre-?AuthorizedPayment/i,
+  /DirectDeposit/i,
+  /MobileCheque/i,
+  /OpeningBalance/i,
+  /ClosingBalance/i,
+  /ClosingTotals/i,
+  /OnlineBanking/i,
+];
+
+/**
  * Detect BMO Everyday Banking text that came out of pdf-parse with all
- * spaces stripped. We look for the no-space versions of header phrases
- * the parser would otherwise see as one giant blob.
+ * spaces stripped.
+ *
+ * Returns true if ANY of:
+ *  1. Header markers: "Everyday Banking" / "Fortheperiodending" etc.
+ *     (only present on page 1 of a multi-page statement).
+ *  2. Body symptom: date abbreviation immediately glued to 1-2 digits
+ *     (`Jan17`, `Feb03`). One hit is enough - this pattern is unique to
+ *     pdf-parse output.
+ *  3. 2+ crowded BMO transaction keywords (DebitCardPurchase,
+ *     BillPayment, etc.).
+ *  4. 3+ occurrences of an adjacent-amounts run (a small amount glued
+ *     to a thousands-comma balance, e.g. "3.514,235.69").
+ *
+ * Either signal triggers the fix, so per-page invocations of
+ * cleanupOcrText restore spaces on transaction body pages even when
+ * the header marker is on a different page.
  */
 function looksLikeCrowdedBmoEverydayBanking(text: string): boolean {
-  return /Everyday\s*Banking|Forthe\s*period\s*ending|EverydayBanking|Fortheperiodending/i.test(text);
+  // 1. Header phrase markers
+  if (/Everyday\s*Banking|Forthe\s*period\s*ending|EverydayBanking|Fortheperiodending/i.test(text)) {
+    return true;
+  }
+  // 2. Date abbreviation immediately followed by 1-2 digits
+  if (/(?<![A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{1,2}(?![A-Za-z0-9])/.test(text)) {
+    return true;
+  }
+  // 3. 2+ crowded BMO transaction body keywords
+  const keywordHits = BMO_BODY_KEYWORDS.reduce((n, re) => n + (re.test(text) ? 1 : 0), 0);
+  if (keywordHits >= 2) return true;
+  // 4. 3+ adjacent-amount runs (smaller amount glued to a balance)
+  const adjacentAmounts = text.match(/\d+\.\d{2}\d{1,3},\d{3}\.\d{2}/g) || [];
+  if (adjacentAmounts.length >= 3) return true;
+  return false;
 }
 
 /**
