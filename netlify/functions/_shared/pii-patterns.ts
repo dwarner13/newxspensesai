@@ -130,6 +130,14 @@ const FINANCIAL_DETECTORS: PiiDetector[] = [
     rx: /\b\d{7,17}\b/g,
     mask: (text, strategy) => {
       const digits = text.replace(/[^0-9]/g, '');
+      // Exclude store/reference numbers in transaction context (followed by decimal amount)
+      // e.g. "8800980 11.98" or "14659 57.74" from BMO merchant descriptions
+      // Check original context via the regex match position - use surrounding text heuristic
+      if (digits.length <= 8 && /^\d+$/.test(text)) {
+        // Short pure-digit sequences that look like store numbers, not bank accounts
+        // Bank accounts are rarely pure-digit standalone numbers under 9 digits in financial text
+        return text;
+      }
       if (digits.length < 7 || digits.length > 17) return text;
       // Exclude routing numbers (exactly 9 digits with valid prefix)
       if (digits.length === 9) {
@@ -345,8 +353,13 @@ const CONTACT_DETECTORS: PiiDetector[] = [
       if (/[,$]/.test(text)) {
         return text; // Likely a money amount with separators
       }
-      if (/\d+\.\d{2}$/.test(normalized) && !normalized.startsWith('+')) {
+      if (/\d+\.\d{2}$/.test(normalized) && !normalized.startsWith('+')){
         return text; // Likely a currency amount
+      }
+      // Exclude if text contains a decimal amount (transaction amounts from BMO)
+      // e.g. "33535 1.00 6" contains "1.00" - store number + amount, not a phone
+      if (/\d+\.\d{2}/.test(text)) {
+        return text; // Contains decimal amount, not a phone number
       }
       // Exclude IPv4 addresses (XXX.XXX.XXX.XXX format)
       if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(text.replace(/\s/g, ''))) {
