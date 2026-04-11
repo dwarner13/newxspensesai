@@ -60,7 +60,7 @@ const RULES: Array<{ contains: string[]; category: string }> = [
   { contains: ['home depot', 'home hardware', 'rona', 'lowes', 'canadian tire'], category: 'Home & Garden' },
   { contains: ['balanceprotector', 'balance protector', 'credit protect'], category: 'Bank Fees' },
   { contains: ['primevideo', 'prime video'], category: 'Subscriptions' },
-  { contains: ['payment'], category: 'Income' },
+  // REMOVED: 'payment' was too broad - caught B/M PAYT/PAY MTG/HYP, SCHOLFIELD, etc.
 
   // Debt & loan payments
   { contains: ['fairstone', 'money mart', 'cash money', 'cash store'], category: 'Debt Payments' },
