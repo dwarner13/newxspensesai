@@ -1170,7 +1170,7 @@ function parseBmoEverydayStatement(text: string): Array<{
     }
 
     const parsed = extractTxFromBody(body);
-    if (!parsed) continue;
+    if (!parsed) { console.log(`[BMO SKIP] date=${isoDate} body="${body.slice(0,80)}"`); continue; }
 
     if (/opening balance|closing totals|closing balance/i.test(parsed.description)) {
       lastBalance = parsed.balance;
@@ -2085,7 +2085,7 @@ function isIncomeDescription(description: string): boolean {
   if (/\bpayroll\b/.test(text)) return true;
   if (/\bmobile cheque deposit\b/.test(text)) return true;
   if (/\bcheque deposit\b/.test(text)) return true;
-  if (/interac e-?transfer received/i.test(text)) return true;
+  if (/interac\s*e-?transfer\s*received/i.test(text)) return true;
   if (/\breturn(ed)? merchandise\b/.test(text)) return true;
   if (/\bcda carbon rebate\b/.test(text)) return true;
   if (/\bgovernment deposit\b/.test(text)) return true;
@@ -2093,7 +2093,7 @@ function isIncomeDescription(description: string): boolean {
   if (/\bpre-?authorized payment\b/.test(text)) return false;
   if (/\bdebit card purchase\b/.test(text)) return false;
   if (/\bonline bill payment\b/.test(text)) return false;
-  if (/interac e-?transfer sent/i.test(text)) return false;
+  if (/interac\s*e-?transfer\s*sent/i.test(text)) return false;
   if (/\bonline transfer\b/.test(text)) return false;
   return false;
 }
@@ -2678,22 +2678,18 @@ function removeDuplicates(
     raw_line_text?: string;
   }>
 ): typeof transactions {
-  const seen = new Set<string>();
+  const seenCounts = new Map<string, number>();
   const unique: typeof transactions = [];
   
   for (const tx of transactions) {
-    // Create a key from date, normalized merchant, and absolute amount
-    // Aggressive normalization catches "7-Eleven" vs "7-ELEVEN STORE #1234" duplicates
     const normMerch = (tx.merchant || '')
       .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '') // strip all non-alphanumeric
-      .slice(0, 12); // first 12 chars - enough to identify, ignores suffix variations
-    const key = `${tx.date || ''}|${normMerch}|${Math.abs(tx.amount)}`;
-    
-    if (!seen.has(key)) {
-      seen.add(key);
-      unique.push(tx);
-    }
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 12);
+    const baseKey = `${tx.date || ""}|${normMerch}|${Math.abs(tx.amount)}`;
+    const occurrence = seenCounts.get(baseKey) ?? 0;
+    seenCounts.set(baseKey, occurrence + 1);
+    unique.push(tx);
   }
   
   return unique;
