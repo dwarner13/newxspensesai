@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { THEME } from "./categoryConfig";
@@ -872,7 +872,7 @@ export function TagCopilotPanel({
           )}
 
           {/* Learned rules */}
-          {greetingText && detailsOpen && learnedRules.length > 0 && (
+          {greetingText && detailsOpen && (
             <Reveal delay={600} style={{ marginLeft: 38, marginBottom: 22 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ flex: 1 }}>
@@ -1201,3 +1201,4 @@ export function TagCopilotPanel({
     </>
   );
 }
+
