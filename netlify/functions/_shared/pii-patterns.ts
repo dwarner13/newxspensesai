@@ -337,6 +337,11 @@ const CONTACT_DETECTORS: PiiDetector[] = [
       if (digitsOnly.length < 9) {
         return text; // Too short for a phone number
       }
+      // Exclude store/reference numbers followed by a dollar amount
+      // e.g. "33535 1.00" or "78037 15.74" from BMO transaction lines
+      if (/^\d{4,6}\s+\d+\.\d{2}$/.test(text.trim())) {
+        return text;
+      }
       if (/[,$]/.test(text)) {
         return text; // Likely a money amount with separators
       }

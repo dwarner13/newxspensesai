@@ -1064,26 +1064,33 @@ function parseBmoEverydayStatement(text: string): Array<{
   console.log('[BMO PARSER DEBUG] date matches:',
     lines.filter(l => /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{1,2}\b/i.test(l)).length);
 
-  let year = new Date().getFullYear();
-  for (const line of lines) {
-    const m = /For\s*the\s*period\s*ending\s*.*?(\d{4})/i.exec(line);
-    if (m) {
-      year = Number(m[1]);
-      break;
-    }
-  }
-
   const monthMap: Record<string, string> = {
     Jan: '01', Feb: '02', Mar: '03', Apr: '04',
     May: '05', Jun: '06', Jul: '07', Aug: '08',
     Sep: '09', Oct: '10', Nov: '11', Dec: '12',
   };
+
+  let year = new Date().getFullYear();
+  let periodEndMonth: number | null = null;
+  for (const line of lines) {
+    const mFull = /For\s*the\s*period\s*ending\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*[,\s]+(\d{4})/i.exec(line);
+    if (mFull) {
+      year = Number(mFull[2]);
+      periodEndMonth = Number(monthMap[mFull[1].slice(0, 3)] ?? '01');
+      break;
+    }
+    const mYear = /For\s*the\s*period\s*ending\s*.*?(\d{4})/i.exec(line);
+    if (mYear) {
+      year = Number(mYear[1]);
+      break;
+    }
+  }
   const dateHeadRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i;
   const amountRegex = /\d{1,3}(?:,\d{3})*(?:\.\d{2})|\d{4,7}\.\d{2}/g;
   const parseAmount = (raw: string): number => Number(raw.replace(/,/g, ''));
 
   const skipLine = (line: string): boolean =>
-    /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --/i.test(line);
+    /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --|primary chequing|chequing account|savings account|owner:|for the period|transit number|your branch|your plan|premium plan|security tip|direct banking|www\.bmo/i.test(line);
 
   const extractTxFromBody = (body: string): { description: string; amount: number; balance: number } | null => {
     const amounts = body.match(amountRegex) || [];
@@ -1129,7 +1136,12 @@ function parseBmoEverydayStatement(text: string): Array<{
 
     const month = monthMap[dateMatch[1]] || '01';
     const day = dateMatch[2].padStart(2, '0');
-    const isoDate = `${year}-${month}-${day}`;
+    // Cross-year: if statement ends Jan/Feb/Mar and transaction is in Oct/Nov/Dec, use prior year
+    const txMonthNum = Number(month);
+    const txYear = (periodEndMonth !== null && periodEndMonth <= 3 && txMonthNum >= 10)
+      ? year - 1
+      : year;
+    const isoDate = `${txYear}-${month}-${day}`;
     let body = line.replace(dateHeadRegex, '').trim();
     let rawLineText = line;
 
@@ -1184,8 +1196,8 @@ function parseBmoEverydayStatement(text: string): Array<{
       const diff = Math.abs(deltaAbs - parsedAbs);
       if (diff > 0.02) {
         // Parsed amount is wrong - use the delta instead
-        console.warn(`[BMO Parser] Amount mismatch: parsed=${parsedAbs} delta=${deltaAbs} on "${parsed.description.slice(0, 40)}" - using delta`);
-        signedAmount = deltaBasedAmount > 0 ? deltaAbs : -deltaAbs;
+        console.warn(`[BMO Parser] Amount mismatch: parsed=${parsedAbs} delta=${deltaAbs} on "${parsed.description.slice(0, 40)}" - using parsed (delta corrupted by PII)`);
+        signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
       } else {
         // Parsed amount agrees with delta - use parsed value with delta-derived sign
         signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
@@ -1643,9 +1655,15 @@ function parseCibcStatementLines(rawText: string): Array<{
         const cleanedDesc = cleanDescription(entry.description);
         if (!cleanedDesc) continue;
 
-        const isDeposit =
-          /deposit|payment received|refund|direct deposit|salary|payroll/i.test(cleanedDesc) ||
-          (/e-?transfer/i.test(cleanedDesc) && /money mart|payroll|deposit|received/i.test(cleanedDesc));
+        const isDeposit = (
+          /\bdirect deposit\b/i.test(cleanedDesc) ||
+          /\bmobile cheque deposit\b/i.test(cleanedDesc) ||
+          /\be-?transfer received\b/i.test(cleanedDesc) ||
+          /\bpayment received\b/i.test(cleanedDesc) ||
+          /\bcarbon rebate\b/i.test(cleanedDesc) ||
+          /\bgovernment (payment|deposit)\b/i.test(cleanedDesc) ||
+          /\bReturned Merchandise\b/i.test(cleanedDesc)
+        ) && !/massage|salon|spa|restaurant|casino|pharmacy|grocery|market|store|drug mart|esso|petro|shell|food|coffee/i.test(cleanedDesc);
         const isWithdrawal = /withdrawal|retail purchase|purchase|service charge|fee|debit|atm|cash/i.test(cleanedDesc);
         const isEtransfer = /e-?transfer/i.test(cleanedDesc);
 
@@ -1662,10 +1680,10 @@ function parseCibcStatementLines(rawText: string): Array<{
           amountCandidate = withdrawalQueue.shift();
         } else if (isEtransfer && depositQueue.length > 0) {
           amountCandidate = depositQueue.shift();
-        } else if (depositQueue.length > 0) {
-          amountCandidate = depositQueue.shift();
         } else if (withdrawalQueue.length > 0) {
           amountCandidate = withdrawalQueue.shift();
+        } else if (depositQueue.length > 0) {
+          amountCandidate = depositQueue.shift();
         }
         if (!amountCandidate || amountCandidate === 0) continue;
 
@@ -2283,7 +2301,7 @@ export function normalizeBankStatement(
     if (isFxOnlyContinuationLine(line)) continue;
     if (isSummaryLine(line)) continue;
 
-    if (lastBalance !== null && /DebitCardPurchase|Pre-Authorized|Pre-authorized|DirectDeposit|Payment/i.test(line)) {
+    if (lastBalance !== null && /Debit\s*Card\s*Purchase|Pre-?Authorized|Direct\s*Deposit|INTERAC|e-Transfer|Cheque\s*Deposit|Bill\s*Payment|Online\s*Bill|Mobile\s*Cheque|Debit\s*Purchase/i.test(line)) {
       const dateMatch = line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i);
       const numbers = line.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g);
       if (dateMatch && numbers && numbers.length === 1) {
@@ -2517,12 +2535,19 @@ export function normalizeBankStatement(
  * Check if line is a summary line (should be skipped)
  */
 function isSummaryLine(line: string): boolean {
+  // Catch spaceless OCR forms that bypass the word-based checks below
+  if (/closingtotals|openingbalance|closingbalance|balanceforward/i.test(line.replace(/\s/g, ''))) return true;
+  // Account header lines
+  if (/primary\s*chequing|savings\s*account|chequing\s*account/i.test(line) && /#\s*[\d\s-]{6,}/.test(line)) return true;
+  // Bare account number lines (e.g. ",2025 Primary Chequing Account #...")
+  if (/^\s*,?\d{4}\s+primary/i.test(line)) return true;
+
   const summaryKeywords = [
     'total', 'balance', 'summary', 'statement', 'account',
     'previous', 'new balance', 'available credit', 'minimum payment',
     'interest', 'fees', 'credits', 'debits'
   ];
-  
+
   const lower = line.toLowerCase();
   return summaryKeywords.some(keyword => lower.includes(keyword));
 }

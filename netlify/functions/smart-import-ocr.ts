@@ -438,8 +438,11 @@ function detectDocTypeFromNameAndText(name: string, text: string): OcrResult['do
   // not the single-total invoice extractor.
   if (/payments?\s+collected/i.test(text) || /freshbooks.*payment/i.test(lowerName)) return 'statement';
   if (/invoice/.test(lowerName) || /\binvoice\b/i.test(text)) return 'invoice';
+  // BMO Everyday Banking — must come before receipt check so "Closing Totals"
+  // doesn't cause a false-positive match on the bare "total" receipt pattern.
+  if (/everyday\s*banking|for\s*the\s*period\s*ending|opening\s*balance|closing\s*totals/i.test(text)) return 'statement';
   if (/statement|bank|credit.?card|account/.test(lowerName) || /\bstatement\b|\bopening balance\b|\bclosing balance\b|\btransaction\b/i.test(text)) return 'statement';
-  if (/receipt/.test(lowerName) || /\bsubtotal\b|\btip\b|\btotal\b/i.test(text)) return 'receipt';
+  if (/receipt/.test(lowerName) || /\bsubtotal\b|\btip\b/i.test(text)) return 'receipt';
   return 'unknown';
 }
 

@@ -463,7 +463,7 @@ async function processNormalizationInBackground(
       doc?.metadata && typeof doc.metadata === 'object'
         ? (doc.metadata as Record<string, any>)
         : {};
-    if (metadata.normalized_cached === true || doc?.normalized_json) {
+    if ((metadata.normalized_cached === true && (doc?.transaction_count ?? 0) > 0) || doc?.normalized_json) {
       console.log('[normalize-transactions] Skip normalize - already normalized');
       return {
         ok: true,
@@ -1253,6 +1253,9 @@ async function processNormalizationInBackground(
     }
 
     // Stamp normalization metadata (no migration safe)
+    // Only mark normalized_cached: true when transactions were actually staged.
+    // When 0 transactions were staged, record the attempt but leave the cache
+    // flag unset so the normalizer can re-run on the next trigger.
     try {
       const { data: latestDoc } = await sb
         .from('user_documents')
@@ -1263,17 +1266,33 @@ async function processNormalizationInBackground(
         latestDoc?.metadata && typeof latestDoc.metadata === 'object'
           ? (latestDoc.metadata as Record<string, any>)
           : (metadata || {});
-      await sb
-        .from('user_documents')
-        .update({
-          metadata: {
-            ...latestMetadata,
-            normalized_cached: true,
-            normalized_at: new Date().toISOString(),
-          },
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', documentId);
+      if (stagingRows.length > 0) {
+        await sb
+          .from('user_documents')
+          .update({
+            metadata: {
+              ...latestMetadata,
+              normalized_cached: true,
+              normalized_at: new Date().toISOString(),
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', documentId);
+      } else {
+        console.warn(`[normalize-transactions] 0 transactions staged for doc ${documentId} — NOT setting normalized_cached`);
+        await sb
+          .from('user_documents')
+          .update({
+            metadata: {
+              ...latestMetadata,
+              normalized_cached: false,
+              normalized_attempted_at: new Date().toISOString(),
+              normalized_count: 0,
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', documentId);
+      }
     } catch (e) {
       console.warn('[normalize-transactions] metadata stamp failed', e);
     }
