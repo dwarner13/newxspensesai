@@ -368,9 +368,10 @@ export const handler: Handler = async (event) => {
   } catch { /* non-blocking */ }
 
   // Third pass: known-expense merchant correction
-  // Targeted fix for delta-cascade false positives where commit-import.ts
-  // sets type=income for positive deltas on known expense merchants.
-  // These merchants can NEVER be income — always purchases.
+  // Runs a SEPARATE query — txs above only contains null/Other/Uncategorized.
+  // False-income transactions already have category='Business Income' so they
+  // never appear in txs. This pass explicitly fetches type=income rows and
+  // corrects known expense merchants that were miscategorized by delta cascade.
   const KNOWN_EXPENSE_MERCHANTS = [
     /golfzon/i,
     /golf\s*traders/i,
@@ -379,6 +380,10 @@ export const handler: Handler = async (event) => {
     /longshotz/i,
     /montgomery\s*glen/i,
     /sanpiper/i,
+    /silver\s*creek/i,
+    /twin\s*willows/i,
+    /westlock\s*golf/i,
+    /alberta\s*beach\s*golf/i,
     /mac.?s\s*conv/i,
     /beijing\s*house/i,
     /blackjacks/i,
@@ -400,6 +405,13 @@ export const handler: Handler = async (event) => {
     /popeyes/i,
     /krispykreme/i,
     /habaneros/i,
+    /five\s*guys/i,
+    /pizza\s*73/i,
+    /rollz\s*ice/i,
+    /second\s*cup/i,
+    /chopped\s*leaf/i,
+    /earls/i,
+    /d\s*and\s*t\s*cater/i,
     /lewis\s*massage/i,
     /shadified/i,
     /shoppers\s*drug/i,
@@ -413,7 +425,7 @@ export const handler: Handler = async (event) => {
     /winners/i,
     /petro.canada/i,
     /shell\s*c/i,
-    /esso/i,
+    /nisku\s*esso/i,
     /kollbrook/i,
     /northstar\s*hyundai/i,
     /northtown\s*registry/i,
@@ -422,11 +434,18 @@ export const handler: Handler = async (event) => {
     /castledowns\s*bingo/i,
     /borrowell/i,
     /ncube\s*and\s*landry/i,
-    /golf\s*traders/i,
+    /national\s*money/i,
+    /money\s*msp/i,
   ];
   try {
-    const knownExpenseFixes = txs.filter(tx =>
-      tx.type === 'income' &&
+    const { data: incomeRows } = await supabase
+      .from('transactions')
+      .select('id, merchant_name, amount, type')
+      .eq('user_id', userId)
+      .eq('type', 'income')
+      .not('merchant_name', 'is', null)
+      .limit(500);
+    const knownExpenseFixes = (incomeRows || []).filter(tx =>
       KNOWN_EXPENSE_MERCHANTS.some(re => re.test(tx.merchant_name || ''))
     );
     if (knownExpenseFixes.length > 0) {
