@@ -15,6 +15,13 @@ const BMO_BODY_KEYWORDS = [
   /ClosingBalance/i,
   /ClosingTotals/i,
   /OnlineBanking/i,
+  /OnlineBillPayment/i,
+  /OnlineTransfer/i,
+  /OnlinePurchase/i,
+  /PremiumPlanFee/i,
+  /ABMWithdrawal/i,
+  /RecurringPymnt/i,
+  /ReturnedMerchandise/i,
 ];
 
 /**

@@ -176,7 +176,7 @@ export const handler: Handler = async (event) => {
   // 1. Fetch uncategorized committed transactions (newest first, large batch)
   const { data: rows, error } = await supabase
     .from('transactions')
-    .select('id, merchant_name, merchant, amount, description')
+    .select('id, merchant_name, merchant, amount, description, type')
     .eq('user_id', userId)
     .or('category.is.null,category.eq.Uncategorized,category.eq.Other')
     .order('posted_at', { ascending: false })
@@ -334,6 +334,7 @@ export const handler: Handler = async (event) => {
 
   // Second pass: reclassify any remaining "Other" using merchant map
   let reclassified = 0;
+  let typeEnforced = 0;
   try {
     const { data: otherTxs } = await supabase
       .from('transactions')
@@ -366,11 +367,80 @@ export const handler: Handler = async (event) => {
     }
   } catch { /* non-blocking */ }
 
-  // Third pass: type enforcement REMOVED
-  // The type field is owned by the parser (set during OCR/commit based on
-  // debit vs credit column). Overriding it from category_type_rules was
-  // corrupting expense transactions into income and vice versa.
-  // Type must only be set by the parser, never by post-commit categorization.
+  // Third pass: known-expense merchant correction
+  // Targeted fix for delta-cascade false positives where commit-import.ts
+  // sets type=income for positive deltas on known expense merchants.
+  // These merchants can NEVER be income — always purchases.
+  const KNOWN_EXPENSE_MERCHANTS = [
+    /golfzon/i,
+    /golf\s*traders/i,
+    /canada\s*golf\s*card/i,
+    /lonespruce/i,
+    /longshotz/i,
+    /montgomery\s*glen/i,
+    /sanpiper/i,
+    /mac.?s\s*conv/i,
+    /beijing\s*house/i,
+    /blackjacks/i,
+    /\ba&w\b/i,
+    /mr\s*sub/i,
+    /wing\s*snob/i,
+    /o.?massage/i,
+    /nakhon/i,
+    /rona\+/i,
+    /eclipse\s*restaurant/i,
+    /kosmos\s*restaurant/i,
+    /ufo\s*pizza/i,
+    /saratoga\s*restaurant/i,
+    /coliseum\s*pizza/i,
+    /smittys/i,
+    /obyrnes/i,
+    /burger\s*king/i,
+    /dairy\s*queen/i,
+    /popeyes/i,
+    /krispykreme/i,
+    /habaneros/i,
+    /lewis\s*massage/i,
+    /shadified/i,
+    /shoppers\s*drug/i,
+    /sobeys/i,
+    /save\s*on\s*foods/i,
+    /safeway/i,
+    /loblaws/i,
+    /costco/i,
+    /walmart/i,
+    /canadian\s*tire/i,
+    /winners/i,
+    /petro.canada/i,
+    /shell\s*c/i,
+    /esso/i,
+    /kollbrook/i,
+    /northstar\s*hyundai/i,
+    /northtown\s*registry/i,
+    /bear\s*hills\s*casino/i,
+    /river\s*cree/i,
+    /castledowns\s*bingo/i,
+    /borrowell/i,
+    /ncube\s*and\s*landry/i,
+    /golf\s*traders/i,
+  ];
+  try {
+    const knownExpenseFixes = txs.filter(tx =>
+      tx.type === 'income' &&
+      KNOWN_EXPENSE_MERCHANTS.some(re => re.test(tx.merchant_name || ''))
+    );
+    if (knownExpenseFixes.length > 0) {
+      safeLog('info', `[tag-categorize-committed] Correcting ${knownExpenseFixes.length} known-expense merchants falsely set as income`, { userId });
+      for (const tx of knownExpenseFixes) {
+        await supabase.from('transactions').update({
+          type: 'expense',
+          amount: Math.abs(tx.amount) * -1,
+          updated_at: new Date().toISOString(),
+        }).eq('id', tx.id).eq('user_id', userId);
+        typeEnforced++;
+      }
+    }
+  } catch { /* non-blocking */ }
 
   return {
     statusCode: 200,

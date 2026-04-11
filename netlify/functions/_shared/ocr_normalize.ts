@@ -1171,7 +1171,16 @@ function parseBmoEverydayStatement(text: string): Array<{
     }
 
     const parsed = extractTxFromBody(body);
-    if (!parsed) { console.log(`[BMO SKIP] date=${isoDate} body="${body.slice(0,80)}"`); continue; }
+    if (!parsed) {
+      console.log(`[BMO SKIP] date=${isoDate} body="${body.slice(0,80)}"`);
+      // Keep lastBalance accurate so next transaction delta is correct
+      const skipAmounts = body.match(amountRegex);
+      if (skipAmounts && skipAmounts.length >= 1) {
+        const skippedBalance = parseAmount(skipAmounts[skipAmounts.length - 1]);
+        if (isFinite(skippedBalance)) lastBalance = skippedBalance;
+      }
+      continue;
+    }
 
     if (/opening balance|closing totals|closing balance/i.test(parsed.description)) {
       lastBalance = parsed.balance;
