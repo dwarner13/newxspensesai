@@ -1,4 +1,4 @@
-/**
+﻿/**
  * OCR Normalizer Module
  * 
  * Day 9: Convert ParsedDoc -> NormalizedTransaction[]
@@ -1093,7 +1093,10 @@ function parseBmoEverydayStatement(text: string): Array<{
     /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --|primary chequing|chequing account|savings account|owner:|for the period|transit number|your branch|your plan|premium plan|security tip|direct banking|www\.bmo|closingtotals|openingbalance|primary chequing account #|\d{4}\s+\d{3,4}-\d{3,4}|account #\s*\d|^\d{4,}-\d{3,}/i.test(line);
 
   const extractTxFromBody = (body: string): { description: string; amount: number; balance: number } | null => {
-    const amounts = body.match(amountRegex) || [];
+    // Strip FX rate notation (e.g. 5.00X1.406) before amount extraction to prevent
+    // the multiplier from being picked up as a transaction amount column.
+    const cleanBody = body.replace(/\b\d+\.\d+[Xx]\d+\.\d+\b/g, '');
+    const amounts = cleanBody.match(amountRegex) || [];
     if (amounts.length < 2) return null;
 
     // BMO has columns: Amounts deducted ($) | Amounts added ($) | Balance ($)
@@ -2724,6 +2727,7 @@ function removeDuplicates(
   
   return unique;
 }
+
 
 
 
