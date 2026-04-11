@@ -1104,7 +1104,8 @@ function parseBmoEverydayStatement(text: string): Array<{
     if (!isFinite(amount) || !isFinite(balance)) return null;
     // Sanity check: if parsed amount > $9,999 it is almost certainly the balance column
     // bleeding into the amount position due to crowded OCR. Reject the row.
-    if (amount > 9999) return null;
+    // Exception: allow up to $99,999 for large deposits (tax refunds, payroll, etc.)
+    if (amount > 99999) return null;
 
     // Note: amount validation is now done at the caller via balance-delta comparison.
     // The delta from previous balance is mathematically the source of truth.
