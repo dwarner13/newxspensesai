@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+ï»¿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { X, Send, Trash2 } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
@@ -239,6 +239,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityMonth, setActivityMonth] = useState('');
   const [learnedRules, setLearnedRules] = useState<any[]>([]);
+  const [autoFixing, setAutoFixing] = useState(false);
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState('');
   const [needsReviewCount, setNeedsReviewCount] = useState<number | null>(null);
@@ -787,7 +788,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding:'7px 14px', borderRadius:'8px 8px 0 0', fontSize:12, fontWeight:600, background:activeTab === tab.id ? '#111a2e' : 'transparent', border:`1px solid ${activeTab === tab.id ? '#1e2d4a' : 'transparent'}`, borderBottom:activeTab === tab.id ? '1px solid #111a2e' : 'none', color:activeTab === tab.id ? '#22d3ee' : '#7b8ba5', cursor:'pointer', marginBottom:-1, fontFamily:'inherit' }}>{tab.label}</button>
           ))}
         </div>
-        {/* GöÇGöÇ CHAT TAB GöÇGöÇ */}
+        {/* Gï¿½ï¿½Gï¿½ï¿½ CHAT TAB Gï¿½ï¿½Gï¿½ï¿½ */}
         {activeTab === 'chat' && (<>
         {/* ACTIVE TRANSACTION PILL */}
         {transaction && (
@@ -1042,7 +1043,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
           </button>
         </div>
         </>)}
-        {/* GöÇGöÇ ACTIVITY TAB GöÇGöÇ */}
+        {/* Gï¿½ï¿½Gï¿½ï¿½ ACTIVITY TAB Gï¿½ï¿½Gï¿½ï¿½ */}
         {activeTab === 'activity' && (
           <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'16px 20px' }}>
             <div style={{ display:'flex', gap:6, marginBottom:16, overflowX:'auto', scrollbarWidth:'none' as any }}>
@@ -1083,9 +1084,18 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
             })()}
           </div>
         )}
-        {/* GöÇGöÇ RULES TAB GöÇGöÇ */}
+        {/* Gï¿½ï¿½Gï¿½ï¿½ RULES TAB Gï¿½ï¿½Gï¿½ï¿½ */}
         {activeTab === 'rules' && (
           <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:'16px 20px' }}>
+            <div style={{ marginBottom:14 }}>
+              <button
+                onClick={handleAutoFix}
+                disabled={autoFixing}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, fontSize:12, fontWeight:700, background:autoFixing ? 'rgba(251,146,60,0.15)' : 'rgba(251,146,60,0.08)', border:'1px solid rgba(251,146,60,0.35)', color:'#fb923c', cursor:autoFixing ? 'default' : 'pointer', fontFamily:'inherit', width:'100%', justifyContent:'center' }}
+              >
+                {autoFixing ? 'âŸ³ Fixing...' : 'âš¡ Auto-Fix Income/Expense Errors'}
+              </button>
+            </div>
             {learnedRules.length === 0 ? (
               <div style={{ textAlign:'center', padding:'40px 0', color:'#7b8ba5', fontSize:13 }}>No rules saved yet - Tag saves rules when you fix a merchant.</div>
             ) : learnedRules.map((rule: any) => {
@@ -1130,5 +1140,8 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
     </>
   );
 }
+
+
+
 
 
