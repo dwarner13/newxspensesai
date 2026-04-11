@@ -281,6 +281,7 @@ export function TagCopilotPanel({
   const [learnedRules, setLearnedRules] = useState<LearnedRule[]>([]);
   const [rulesRefreshing, setRulesRefreshing] = useState(false);
   const [reapplying, setReapplying] = useState(false);
+  const [autoFixing, setAutoFixing] = useState(false);
   const [smartReviewIssues, setSmartReviewIssues] = useState<any[]>([]);
 
   const handleDeleteRule = async (rule: LearnedRule) => {
@@ -338,6 +339,40 @@ export function TagCopilotPanel({
       toast.error("Re-apply failed");
     } finally {
       setReapplying(false);
+    }
+  };
+
+  const handleAutoFix = async () => {
+    if (autoFixing) return;
+    setAutoFixing(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) { toast.error("Not logged in"); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { toast.error("Not logged in"); return; }
+      const res = await fetch("/.netlify/functions/tag-categorize-committed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ limit: 500 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        const fixed = data.typeEnforced || 0;
+        if (fixed > 0) {
+          toast.success(`Fixed ${fixed} income â†’ expense correction${fixed !== 1 ? 's' : ''}`);
+          window.dispatchEvent(new Event("tag:stats-refresh"));
+          window.dispatchEvent(new Event("transactions:refresh"));
+        } else {
+          toast.success("All transactions look correct â€” nothing to fix");
+        }
+      } else {
+        toast.error(data.error || "Auto-fix failed");
+      }
+    } catch {
+      toast.error("Auto-fix failed");
+    } finally {
+      setAutoFixing(false);
     }
   };
 
@@ -541,10 +576,10 @@ export function TagCopilotPanel({
     } else if (rulesCount > 0 && realCategories.length > 0) {
       const top = realCategories[0];
       const ruleWord = rulesCount === 1 ? "rule" : "rules";
-      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend — want me to check deductibility or break it down by merchant?`;
+      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend ï¿½ want me to check deductibility or break it down by merchant?`;
     } else if (realCategories.length > 0) {
       const top = realCategories[0];
-      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend — want me to check what's deductible or add a rule for any merchants?`;
+      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend ï¿½ want me to check what's deductible or add a rule for any merchants?`;
     } else {
       text = `${hi} - I'm your category intelligence engine. Ask me to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern.`;
     }
@@ -884,6 +919,30 @@ export function TagCopilotPanel({
                   }}
                 >
                   <RefreshCw size={12} style={{ animation: rulesRefreshing ? "tagSpin 0.9s linear infinite" : "none" }} />
+                </button>
+                <button
+                  onClick={handleAutoFix}
+                  disabled={autoFixing}
+                  title="Auto-fix income/expense errors from OCR delta cascade"
+                  style={{
+                    background: autoFixing ? "rgba(251,146,60,0.15)" : "rgba(251,146,60,0.08)",
+                    border: "1px solid rgba(251,146,60,0.35)",
+                    borderRadius: 6,
+                    padding: "4px 10px",
+                    color: "#fb923c",
+                    cursor: autoFixing ? "default" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    marginBottom: 14,
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    fontFamily: "'Syne',sans-serif",
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  <RefreshCw size={11} style={{ animation: autoFixing ? "tagSpin 0.9s linear infinite" : "none" }} />
+                  {autoFixing ? "Fixing..." : "Auto-Fix"}
                 </button>
               </div>
               <div style={{
