@@ -42,6 +42,31 @@ export default function PostLoginSplash({ userName = "there", onContinue, onOpen
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // Silent background auto-fix: correct income/expense errors on every login
+  useEffect(() => {
+    (async () => {
+      try {
+        const sb = getSupabase(); if (!sb) return;
+        const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+        const res = await fetch('/.netlify/functions/tag-categorize-committed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({ limit: 500 }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          const total = (data.typeEnforced || 0);
+          if (total > 0) {
+            // Dynamically import toast to avoid hard dependency
+            import('react-hot-toast').then(({ default: toast }) => {
+              toast.success('Auto-fixed ' + total + ' income/expense errors');
+            }).catch(() => {});
+          }
+        }
+      } catch { /* silent - never block splash */ }
+    })();
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
