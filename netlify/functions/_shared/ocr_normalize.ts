@@ -1086,7 +1086,7 @@ function parseBmoEverydayStatement(text: string): Array<{
     }
   }
   const dateHeadRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i;
-  const amountRegex = /\d{1,3}(?:,\d{3})*(?:\.\d{2})|\d{4,7}\.\d{2}/g;
+  const amountRegex = /\d{1,3}(?:,\d{3})*\.\d{2}/g;
   const parseAmount = (raw: string): number => Number(raw.replace(/,/g, ''));
 
   const skipLine = (line: string): boolean =>
