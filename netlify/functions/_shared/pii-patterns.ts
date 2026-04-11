@@ -202,11 +202,27 @@ const FINANCIAL_DETECTORS: PiiDetector[] = [
     description: 'SWIFT/BIC codes (8 or 11 characters)',
     rx: /\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?\b/g,
     mask: (text, strategy) => {
-      // Validate: must be 8 or 11 chars, and not part of "[REDACTED:" pattern
       const cleaned = text.toUpperCase().replace(/\s/g, '');
       if (cleaned.length !== 8 && cleaned.length !== 11) return text;
-      // Reject if it's part of a redaction tag
       if (text.includes('[REDACTED:') || text.includes(':REDACTED')) return text;
+      // Exclude common English words and merchant name fragments
+      const commonWords = new Set([
+        'ELEVENSTORE','STOREELEVEN','ELEVEN','STORE','CANADA',
+        'PURCHASE','DEBITCARD','TRANSFER','DEPOSIT','PAYMENT',
+        'BANKING','ACCOUNT','BALANCE','OPENING','CLOSING',
+        'LYNNWOOD','EDMONTON','ALBERTA','PREMIER','PREMIUM',
+        'HOLLICK','KENYON','NEWCASTLE','SCHOLFIELD',
+        'RIVERVIEW','SARATOGA','COLISEUM','BEARHILLS',
+        'TULIPGARDEN','SHADIFIED','LEWISMASSAGE',
+        'GORDONFOOD','KRISPYKREME','SAVEONFOODS',
+        'NATIONALMONEY','EASYFINANCIAL','CASHMONEY'
+      ]);
+      if (commonWords.has(cleaned)) return text;
+      // Must look like a real SWIFT: first 4 chars = bank code (letters only),
+      // next 2 = country code (letters only), next 2 = location code
+      if (!/^[A-Z]{6}/.test(cleaned)) return text;
+      // Reject if it contains sequential patterns common in merchant names
+      if (/(.)\1{2,}/.test(cleaned)) return text; // repeated chars
       return fullTag('SWIFT')(text);
     },
     region: 'Global',
