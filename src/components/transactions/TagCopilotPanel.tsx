@@ -691,9 +691,10 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
         body: JSON.stringify({ userId: session.user.id }),
       });
       const data = await res.json();
-      if (data.fixed !== undefined) {
-        if (data.fixed === 0) toast.success('All transactions look correct — nothing to fix');
-        else toast.success('Fixed ' + data.fixed + ' income → expense corrections');
+      if (data.ok) {
+        const total = (data.updated || 0) + (data.reclassified || 0) + (data.typeEnforced || 0);
+        if (total === 0) toast.success('All transactions look correct — nothing to fix');
+        else toast.success('Fixed ' + total + ' categorization errors');
       } else {
         toast.error(data.error || 'Auto-fix failed');
       }
@@ -1164,6 +1165,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
     </>
   );
 }
+
 
 
 
