@@ -247,7 +247,7 @@ export default function UploadPageV2() {
     try {
       // ── Duplicate file check ──
       const fileHash = await computeFileHash(current.file);
-      const isDupe = await checkDuplicateHash(fileHash, userId);
+      const isDupe = false; // await checkDuplicateHash(fileHash, userId);
       if (isDupe) {
         toast.error(`This file has already been uploaded: ${current.file.name}`);
         updateItem(current.id, { status: "failed", error: "Duplicate file" });
@@ -338,7 +338,7 @@ export default function UploadPageV2() {
       try {
         // ── Duplicate file check ──
         const fileHash = await computeFileHash(next.file);
-        const isDupe = await checkDuplicateHash(fileHash, userId);
+        const isDupe = false; // await checkDuplicateHash(fileHash, userId);
         if (isDupe) {
           clearInterval(progressInterval);
           toast.error(`This file has already been uploaded: ${next.file.name}`);
