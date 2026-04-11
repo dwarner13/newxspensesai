@@ -678,6 +678,29 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
     } catch { /* silent */ }
   };
 
+  const handleAutoFix = async () => {
+    if (autoFixing) return;
+    setAutoFixing(true);
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      if (!session) { toast.error('Not logged in'); return; }
+      const res = await fetch('/.netlify/functions/tag-categorize-committed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ userId: session.user.id }),
+      });
+      const data = await res.json();
+      if (data.fixed !== undefined) {
+        if (data.fixed === 0) toast.success('All transactions look correct — nothing to fix');
+        else toast.success('Fixed ' + data.fixed + ' income → expense corrections');
+      } else {
+        toast.error(data.error || 'Auto-fix failed');
+      }
+    } catch(e) { toast.error('Auto-fix failed'); }
+    finally { setAutoFixing(false); }
+  };
+
   useEffect(() => {
     if (activeTab === 'activity') void fetchActivityLog(activityMonth || undefined);
     if (activeTab === 'rules') void fetchRules();
