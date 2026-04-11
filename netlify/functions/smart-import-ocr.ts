@@ -1476,6 +1476,35 @@ async function runOCR(
     console.log('[OCR] PDF embedded text extraction disabled; using OCR.space');
   }
 
+  // 1.5) For PDFs, try Google Vision BEFORE OCR.space when API key is configured
+  // This gives much better results for BMO statements where pdf-parse strips spaces.
+  if (isPdf && hasVision && !enableEmbeddedPdfText) {
+    try {
+      console.log('[OCR] Trying Google Vision for PDF (primary path)');
+      const visionStart = Date.now();
+      const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
+      const gvResult = await withRetries('Google Vision PDF', () =>
+        callGoogleVisionOnPdf({
+          pdfBuffer: buf,
+          apiKey: process.env.GOOGLE_VISION_API_KEY as string,
+          timeoutMs,
+        })
+      );
+      const gvText = String(gvResult?.fullText || '').trim();
+      if (gvText.length >= 200) {
+        console.log('[OCR] Google Vision PDF primary path success', { chars: gvText.length });
+        return {
+          text: gvText,
+          provider: 'vision',
+          durationMs: Date.now() - visionStart,
+        };
+      }
+      console.warn('[OCR] Google Vision PDF returned short text, falling back to OCR.space');
+    } catch (visionErr: any) {
+      console.warn('[OCR] Google Vision PDF primary path failed, falling back:', visionErr?.message || String(visionErr));
+    }
+  }
+
   // 2) Prefer OCR.space first for images and PDFs when available
   if (hasOcrSpace) {
     console.log('[OCR] Using OCR.space backend');
