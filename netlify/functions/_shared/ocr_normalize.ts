@@ -1090,7 +1090,7 @@ function parseBmoEverydayStatement(text: string): Array<{
   const parseAmount = (raw: string): number => Number(raw.replace(/,/g, ''));
 
   const skipLine = (line: string): boolean =>
-    /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --|primary chequing|chequing account|savings account|owner:|for the period|transit number|your branch|your plan|premium plan|security tip|direct banking|www\.bmo/i.test(line);
+    /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --|primary chequing|chequing account|savings account|owner:|for the period|transit number|your branch|your plan|premium plan|security tip|direct banking|www\.bmo|closingtotals|openingbalance|primary chequing account #|\d{4}\s+\d{3,4}-\d{3,4}|account #\s*\d|^\d{4,}-\d{3,}/i.test(line);
 
   const extractTxFromBody = (body: string): { description: string; amount: number; balance: number } | null => {
     const amounts = body.match(amountRegex) || [];
@@ -1102,6 +1102,9 @@ function parseBmoEverydayStatement(text: string): Array<{
     const amount = parseAmount(amounts[amounts.length - 2]);
     const balance = parseAmount(amounts[amounts.length - 1]);
     if (!isFinite(amount) || !isFinite(balance)) return null;
+    // Sanity check: if parsed amount > $9,999 it is almost certainly the balance column
+    // bleeding into the amount position due to crowded OCR. Reject the row.
+    if (amount > 9999) return null;
 
     // Note: amount validation is now done at the caller via balance-delta comparison.
     // The delta from previous balance is mathematically the source of truth.
@@ -1184,28 +1187,13 @@ function parseBmoEverydayStatement(text: string): Array<{
       ? Math.abs(parsed.amount)
       : -Math.abs(parsed.amount);
 
-    // Balance-delta validation - the source of truth.
-    // If we have a previous balance, the delta MUST equal the transaction amount.
-    // If the parsed amount disagrees with the delta by more than $0.02, the OCR
-    // misread the amount column (likely picked up trailing digits of the balance).
-    // In that case, trust the delta - it's mathematically derived from the balances.
-    let signedAmount: number;
-    if (deltaBasedAmount !== null && deltaBasedAmount !== 0) {
-      const deltaAbs = Math.abs(deltaBasedAmount);
-      const parsedAbs = Math.abs(parsed.amount);
-      const diff = Math.abs(deltaAbs - parsedAbs);
-      if (diff > 0.02) {
-        // Parsed amount is wrong - use the delta instead
-        console.warn(`[BMO Parser] Amount mismatch: parsed=${parsedAbs} delta=${deltaAbs} on "${parsed.description.slice(0, 40)}" - using parsed (delta corrupted by PII)`);
-        signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
-      } else {
-        // Parsed amount agrees with delta - use parsed value with delta-derived sign
-        signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
-      }
-    } else {
-      // No previous balance available - fall back to description-based sign
-      signedAmount = signedAmountFromDesc;
-    }
+    // Use description-based sign detection only.
+    // Balance delta is unreliable because PII masking corrupts account numbers
+    // that look like amounts (e.g. 3999-660 becomes part of balance math).
+    // BMO descriptions are structured and reliable for sign determination.
+    const signedAmount = isIncomeDescription(parsed.description)
+      ? Math.abs(parsed.amount)
+      : -Math.abs(parsed.amount);
 
     const cleanedDesc = cleanDescription(parsed.description);
     if (!cleanedDesc) continue;
@@ -2093,9 +2081,21 @@ function filterStatementLinesForPrimaryAccount(lines: string[], includeAllAccoun
 
 function isIncomeDescription(description: string): boolean {
   const text = description.toLowerCase();
-  return (
-    /direct deposit|deposit|payroll|refund|reversal|interest|credit\b(?! card)|transfer from|e-?transfer.*(received|deposit)|payment received/.test(text)
-  );
+  if (/\bdirect deposit\b/.test(text)) return true;
+  if (/\bpayroll\b/.test(text)) return true;
+  if (/\bmobile cheque deposit\b/.test(text)) return true;
+  if (/\bcheque deposit\b/.test(text)) return true;
+  if (/interac e-?transfer received/i.test(text)) return true;
+  if (/\breturn(ed)? merchandise\b/.test(text)) return true;
+  if (/\bcda carbon rebate\b/.test(text)) return true;
+  if (/\bgovernment deposit\b/.test(text)) return true;
+  if (/\bdeposit\b/.test(text) && !/pre-?auth|bill payment|pre-authorized/i.test(text)) return true;
+  if (/\bpre-?authorized payment\b/.test(text)) return false;
+  if (/\bdebit card purchase\b/.test(text)) return false;
+  if (/\bonline bill payment\b/.test(text)) return false;
+  if (/interac e-?transfer sent/i.test(text)) return false;
+  if (/\bonline transfer\b/.test(text)) return false;
+  return false;
 }
 
 function buildStatementConfidence(params: {
