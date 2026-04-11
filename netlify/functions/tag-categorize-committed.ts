@@ -26,7 +26,7 @@ const headers = {
 const RULES: Array<{ contains: string[]; category: string }> = [
   { contains: ['gordon food', 'gordon foods'], category: 'Income' },
   { contains: ['celtic group'], category: 'Housing' },
-  { contains: ['b/m payt', 'b/m pay'], category: 'Housing' },
+  { contains: ['b/m payt', 'b/m pay', 'b/mpayt', 'b/mpay', 'mtg/hyp'], category: 'Housing' },
   { contains: ['td loan'], category: 'Transportation' },
   { contains: ['capital one'], category: 'Transfers' },
   { contains: ['bmo invinc'], category: 'Transfers' },
