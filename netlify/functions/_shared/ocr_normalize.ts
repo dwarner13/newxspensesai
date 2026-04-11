@@ -1187,13 +1187,33 @@ function parseBmoEverydayStatement(text: string): Array<{
       ? Math.abs(parsed.amount)
       : -Math.abs(parsed.amount);
 
-    // Use description-based sign detection only.
-    // Balance delta is unreliable because PII masking corrupts account numbers
-    // that look like amounts (e.g. 3999-660 becomes part of balance math).
-    // BMO descriptions are structured and reliable for sign determination.
-    const signedAmount = isIncomeDescription(parsed.description)
+    // Use balance delta as primary amount source — it is mathematically derived
+    // from the balance column which OCR preserves reliably. Fall back to
+    // description-based sign only when delta is unavailable or implausible.
+    const descSignedAmount = isIncomeDescription(parsed.description)
       ? Math.abs(parsed.amount)
       : -Math.abs(parsed.amount);
+    let signedAmount: number;
+    if (deltaBasedAmount !== null && deltaBasedAmount !== 0) {
+      const deltaAbs = Math.abs(deltaBasedAmount);
+      const parsedAbs = Math.abs(parsed.amount);
+      const diff = Math.abs(deltaAbs - parsedAbs);
+      if (diff > 0.02) {
+        // Amount column corrupted (OCR fused store# into amount).
+        // Use deltaAbs when it is a plausible transaction amount.
+        const deltaReasonable = deltaAbs >= 0.01 && deltaAbs <= 50_000;
+        if (deltaReasonable) {
+          console.warn('[BMO Parser] Amount mismatch: parsed=' + parsedAbs + ' delta=' + deltaAbs + ' - using delta (balance column)');
+          signedAmount = deltaBasedAmount;
+        } else {
+          signedAmount = descSignedAmount;
+        }
+      } else {
+        signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
+      }
+    } else {
+      signedAmount = descSignedAmount;
+    }
 
     const cleanedDesc = cleanDescription(parsed.description);
     if (!cleanedDesc) continue;

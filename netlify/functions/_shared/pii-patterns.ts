@@ -200,7 +200,7 @@ const FINANCIAL_DETECTORS: PiiDetector[] = [
   {
     name: 'swift_bic',
     description: 'SWIFT/BIC codes (8 or 11 characters)',
-    rx: /\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?\b/g,
+    rx: /\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?(?!\.\d)\b/g,
     mask: (text, strategy) => {
       const cleaned = text.toUpperCase().replace(/\s/g, '');
       if (cleaned.length !== 8 && cleaned.length !== 11) return text;
@@ -248,7 +248,7 @@ const GOVERNMENT_DETECTORS: PiiDetector[] = [
   {
     name: 'ssn_us_no_dash',
     description: 'US SSN without dashes (9 digits, leading 0-8)',
-    rx: /\b[0-8]\d{8}\b/g,
+    rx: /\b[0-8]\d{8}(?!\.\d)\b/g,
     mask: (text) => {
       // Extra validation: first 3 digits can't be 000, 666, or 900-999
       // But allow 123 which is valid
@@ -728,4 +728,6 @@ export function maskPIIInURL(url: string, strategy: MaskStrategy = 'full'): stri
     return url; // Invalid URL, return as-is
   }
 }
+
+
 
