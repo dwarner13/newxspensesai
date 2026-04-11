@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { X, Send, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 import type { CommittedTransaction } from '@/types/transactions';
@@ -1140,6 +1141,7 @@ export function TagCopilotPanel({ transaction, selectedTransaction, onClose, onC
     </>
   );
 }
+
 
 
 
