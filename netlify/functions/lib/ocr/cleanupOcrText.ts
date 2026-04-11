@@ -130,12 +130,13 @@ export function cleanupOcrText(input: unknown): string {
   // BMO statements that came out of pdf-parse without spaces need
   // word/number boundary restoration BEFORE the rest of the cleanup runs,
   // otherwise downstream regexes (date heads, amount columns) will not match.
-  if (looksLikeCrowdedBmoEverydayBanking(text)) {
+  const isBmo = looksLikeCrowdedBmoEverydayBanking(text);
+  if (isBmo) {
     text = restoreBmoSpaces(text);
   }
 
   // Remove invalid unicode/control chars and normalize noisy OCR spacing.
-  return text
+  text = text
     .replace(/[\uD800-\uDFFF]/g, '')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .replace(/\r\n/g, '\n')
@@ -144,8 +145,16 @@ export function cleanupOcrText(input: unknown): string {
     // Re-insert thousand-separator commas stripped by embedded_pdf_parse.
     // e.g. "4166.65" -> "4,166.65", "12181.33" -> "12,181.33"
     // Fixes amount parsing for ALL statement types downstream.
-    .replace(/\b(\d{4,7})\.(\d{2})\b/g, (_, int, dec) =>
-      Number(int).toLocaleString('en-CA') + '.' + dec
-    )
     .trim();
+
+  // Re-insert thousand-separator commas for non-BMO statements only.
+  // BMO: restoreBmoSpaces already fixed spacing. The comma inserter corrupts
+  // fused store#+amount strings (e.g. "335351.00" -> "335,351.00") which
+  // breaks balance-delta recovery for every row after a skipped 7-ELEVEN line.
+  if (!isBmo) {
+    text = text.replace(/\b(\d{4,7})\.(\d{2})\b/g, (_, int, dec) =>
+      Number(int).toLocaleString('en-CA') + '.' + dec
+    );
+  }
+  return text;
 }
