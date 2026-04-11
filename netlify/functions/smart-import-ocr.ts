@@ -1477,31 +1477,43 @@ async function runOCR(
   }
 
   // 1.5) For PDFs, try Google Vision BEFORE OCR.space when API key is configured
-  // This gives much better results for BMO statements where pdf-parse strips spaces.
+  // Uses files:annotate REST endpoint which works with API key (no service account needed).
   if (isPdf && hasVision && !enableEmbeddedPdfText) {
     try {
-      console.log('[OCR] Trying Google Vision for PDF (primary path)');
+      console.log('[OCR] Trying Google Vision for PDF via REST API (primary path)');
       const visionStart = Date.now();
       const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
-      const gvResult = await withRetries('Google Vision PDF', () =>
-        callGoogleVisionOnPdf({
-          pdfBuffer: buf,
-          apiKey: process.env.GOOGLE_VISION_API_KEY as string,
-          timeoutMs,
-        })
-      );
-      const gvText = String(gvResult?.fullText || '').trim();
-      if (gvText.length >= 200) {
-        console.log('[OCR] Google Vision PDF primary path success', { chars: gvText.length });
-        return {
-          text: gvText,
-          provider: 'vision',
-          durationMs: Date.now() - visionStart,
-        };
+      const base64Pdf = buf.toString('base64');
+      const apiKey = process.env.GOOGLE_VISION_API_KEY as string;
+      const visionUrl = `https://vision.googleapis.com/v1/files:annotate?key=${apiKey}`;
+      const visionBody = {
+        requests: [{
+          inputConfig: { content: base64Pdf, mimeType: 'application/pdf' },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+          pages: [1, 2, 3, 4, 5]
+        }]
+      };
+      const visionResp = await fetch(visionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(visionBody),
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+      if (visionResp.ok) {
+        const visionData = await visionResp.json() as any;
+        const pages = visionData?.responses?.[0]?.responses || [];
+        const gvText = pages.map((p: any) => p?.fullTextAnnotation?.text || '').join('\n').trim();
+        if (gvText.length >= 200) {
+          console.log('[OCR] Google Vision PDF REST success', { chars: gvText.length });
+          return { text: gvText, provider: 'vision', durationMs: Date.now() - visionStart };
+        }
+        console.warn('[OCR] Google Vision PDF REST returned short text, falling back');
+      } else {
+        const errText = await visionResp.text();
+        console.warn('[OCR] Google Vision PDF REST error', { status: visionResp.status, err: errText.slice(0, 200) });
       }
-      console.warn('[OCR] Google Vision PDF returned short text, falling back to OCR.space');
     } catch (visionErr: any) {
-      console.warn('[OCR] Google Vision PDF primary path failed, falling back:', visionErr?.message || String(visionErr));
+      console.warn('[OCR] Google Vision PDF REST failed, falling back:', visionErr?.message || String(visionErr));
     }
   }
 
