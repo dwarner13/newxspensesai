@@ -88,6 +88,7 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'AUDREY', category: 'Food & Dining', subcategory: 'Restaurants' },
   { key: 'DREAMHOST', category: 'Subscriptions', subcategory: 'Software' },
   { key: 'CLAUDE.AI', category: 'Subscriptions', subcategory: 'Software' },
+  { key: 'RAILWAY CA', category: 'Subscriptions', subcategory: 'Software' },
   { key: 'D AND T CATERING', category: 'Food & Dining', subcategory: 'Restaurants' },
   { key: "MAC'S CONVENIENCE", category: 'Food & Dining', subcategory: 'Convenience' },
   { key: 'LEDUC DINER', category: 'Food & Dining', subcategory: 'Restaurants' },
