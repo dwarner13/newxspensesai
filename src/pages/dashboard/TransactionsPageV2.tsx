@@ -111,8 +111,7 @@ export default function TransactionsPageV2() {
     }
     const searchParam = searchParams.get("search");
     if (searchParam) setSearchQuery(searchParam);
-    const importIdParam = searchParams.get("importId");
-    if (importIdParam) { setStatementFilter(importIdParam); setSearchParams(p => { p.delete("importId"); return p; }, { replace: true }); }
+
     const categoryParam = searchParams.get("category");
     if (categoryParam) { setTagCategoryFilter(categoryParam); setTagFilterLabel(categoryParam); }
   }, []);
