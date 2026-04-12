@@ -89,6 +89,13 @@ export default function TransactionsPageV2() {
     const filterParam = searchParams.get("filter");
     if (filterParam === "income") setFilter("income");
     else if (filterParam === "expenses") setFilter("expenses");
+    // Handle import_id from StatementProcessingOverlay (uses underscore) AND
+    // legacy importId (camelCase) from other navigation sources
+    const importIdParam = searchParams.get("import_id") || searchParams.get("importId");
+    if (importIdParam) {
+      setStatementFilter(importIdParam);
+      setSearchParams(p => { p.delete("import_id"); p.delete("importId"); return p; }, { replace: true });
+    }
     // Auto-open drawer from tag-inbox Answer button
     const autoOpenId = searchParams.get("autoOpen");
     if (autoOpenId) {
@@ -441,8 +448,13 @@ export default function TransactionsPageV2() {
   const uncategorizedCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
 
   if (isLoading) return (
-    <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8">
-      <div className="flex items-center gap-3 text-slate-400"><div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-600 border-t-slate-300" /> Loading transactions...</div>
+    <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div style={{ position: 'relative', width: 48, height: 48 }}>
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(34,211,238,0.1)' }} />
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: '#22d3ee', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+      <div style={{ fontSize: 14, color: '#64748b', fontWeight: 500 }}>Loading transactions...</div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 
@@ -729,6 +741,22 @@ export default function TransactionsPageV2() {
           )}
 
           {/* Date groups */}
+          {dateGroups.length === 0 && statementFilter !== 'all' && (
+            <div style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <div style={{ position: 'relative', width: 40, height: 40 }}>
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(34,211,238,0.1)' }} />
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: '#22d3ee', animation: 'spin 0.8s linear infinite' }} />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#e8ecf4' }}>Transactions loading...</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>Your statement was just processed — rows will appear in a moment.</div>
+              <button onClick={() => setStatementFilter('all')} style={{ marginTop: 4, fontSize: 12, color: '#22d3ee', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>View all transactions instead</button>
+            </div>
+          )}
+          {dateGroups.length === 0 && statementFilter === 'all' && !isLoading && (
+            <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 14, color: '#475569' }}>
+              No transactions found. Upload a statement to get started.
+            </div>
+          )}
           {dateGroups.map(g => (
             <div key={g.date}>
               <div className="flex items-center gap-3 pt-6 pb-2 px-5">
