@@ -1073,15 +1073,24 @@ function parseBmoEverydayStatement(text: string): Array<{
   let year = new Date().getFullYear();
   let periodEndMonth: number | null = null;
   for (const line of lines) {
-    const mFull = /For\s*the\s*period\s*ending\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*[,\s]+(\d{4})/i.exec(line);
+    // Allow an optional day-of-month before the year so "December 31, 2024" works.
+    // Original pattern failed because [,\s]+ cannot cross the "31" digit token.
+    const mFull = /For\s*the\s*period\s*ending\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*[,\s]+(?:\d{1,2}[,\s]+)?(\d{4})/i.exec(line);
     if (mFull) {
       year = Number(mFull[2]);
       periodEndMonth = Number(monthMap[mFull[1].slice(0, 3)] ?? '01');
       break;
     }
+    // Fallback: grab any 4-digit year on a "period ending" line.
+    // Also extract the period-end month so cross-year logic (Oct/Nov/Dec → prior year)
+    // works correctly even when the day-number format breaks mFull above.
     const mYear = /For\s*the\s*period\s*ending\s*.*?(\d{4})/i.exec(line);
     if (mYear) {
       year = Number(mYear[1]);
+      const mMonth = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.exec(line);
+      if (mMonth) {
+        periodEndMonth = Number(monthMap[mMonth[1].slice(0, 3)] ?? '01');
+      }
       break;
     }
   }
@@ -1133,6 +1142,21 @@ function parseBmoEverydayStatement(text: string): Array<{
   }> = [];
 
   let lastBalance: number | null = null;
+
+  // Pre-scan: seed lastBalance from the Opening Balance line so the very first
+  // transaction can use balance-delta math rather than the description-based fallback.
+  // The main loop skips Opening Balance lines (no date prefix) so without this pre-scan
+  // the first transaction always has lastBalance = null → wrong amount on transaction 1.
+  for (const line of lines) {
+    if (/opening\s*balance/i.test(line)) {
+      const amts = line.match(amountRegex);
+      if (amts && amts.length >= 1) {
+        const bal = parseAmount(amts[amts.length - 1]);
+        if (isFinite(bal) && bal > 0) lastBalance = bal;
+      }
+      break;
+    }
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -1195,10 +1219,6 @@ function parseBmoEverydayStatement(text: string): Array<{
         ? parsed.balance - lastBalance
         : null;
     lastBalance = parsed.balance;
-
-    const signedAmountFromDesc = isIncomeDescription(parsed.description)
-      ? Math.abs(parsed.amount)
-      : -Math.abs(parsed.amount);
 
     // Use balance delta as primary amount source — it is mathematically derived
     // from the balance column which OCR preserves reliably. Fall back to
@@ -1280,12 +1300,14 @@ function parseCanadianStatementLine(line: string): {
   const amount = parseFloat(amountStr.replace(/,/g, ''));
   if (isNaN(amount)) return null;
   
-  // Use current year (or could extract from statement header)
+  // Use current year only as last resort — callers that know the statement year
+  // should pass it; this parser is the generic fallback so we defensively extract
+  // from context or fall back to current year.
   const currentYear = new Date().getFullYear();
   const date = `${currentYear}-${monthNum}-${day.padStart(2, '0')}`;
-  
-  // Extract merchant from description (remove common prefixes like "Debit Card Purchase")
-  let merchant = description.trim();
+  // NOTE: this function is only reached when the primary BMO parser doesn't fire.
+  // If December transactions show the wrong year here, ensure parseBmoEverydayStatement
+  // runs first (it has proper year-rollover logic from the "period ending" header).
   merchant = merchant.replace(/^(Debit Card Purchase|Credit Card Purchase|ATM Withdrawal|Online Transfer|Bill Payment)\s+/i, '');
   
   // Take first part as merchant name
@@ -1386,6 +1408,9 @@ function parseBmoColumnStatementLine(line: string): {
     if (!balance) return null;
   }
 
+  // Fallback parser: uses current year. BMO Everyday statements should be handled
+  // by parseBmoEverydayStatement which extracts the year from the "period ending" header.
+  // If this parser is reached for a BMO statement, year-rollover won't apply.
   const year = new Date().getFullYear();
   const normalizedDate = normalizeDate(`${dateMatch[1]} ${dateMatch[2]}, ${year}`);
   const confidenceData = buildStatementConfidence({

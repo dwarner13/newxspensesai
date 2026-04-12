@@ -18,6 +18,7 @@ import { verifyAuth } from './_shared/verifyAuth.js';
 import { safeLog } from './_shared/safeLog.js';
 import { normalizeMerchant } from './_shared/merchantUtils.js';
 import { matchMerchantMap } from './_shared/merchantCategoryMap.js';
+import { applyDefaultRules } from './_shared/tagDefaultRules.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -77,8 +78,12 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
 
 function applyHardcodedOverride(merchant: string): { category: string; subcategory: string | null } | null {
   const upper = merchant.toUpperCase();
+  // Also compare with spaces and hyphens stripped so fused OCR output like
+  // "TIMHORTONS" still matches key "TIM HORTONS".
+  const upperCompact = upper.replace(/[\s\-]+/g, '');
   for (const override of HARDCODED_OVERRIDES) {
-    if (upper.includes(override.key)) {
+    const keyCompact = override.key.replace(/[\s\-]+/g, '');
+    if (upper.includes(override.key) || upperCompact.includes(keyCompact)) {
       return { category: override.category, subcategory: override.subcategory || null };
     }
   }
@@ -144,8 +149,12 @@ const RULES: Array<{ contains: string[]; category: string }> = [
 
 function applyInlineRules(merchant: string): string | null {
   const lower = merchant.toLowerCase();
+  // Also strip spaces/hyphens so "TIMHORTON" matches "tim horton"
+  const lowerCompact = lower.replace(/[\s\-]+/g, '');
   for (const rule of RULES) {
-    if (rule.contains.some(k => lower.includes(k))) return normalizeCanonicalCategory(rule.category);
+    if (rule.contains.some(k => lower.includes(k) || lowerCompact.includes(k.replace(/[\s\-]+/g, '')))) {
+      return normalizeCanonicalCategory(rule.category);
+    }
   }
   return null;
 }
@@ -528,7 +537,7 @@ export const handler: Handler = async (event) => {
   });
 
   // ── Step 5: Apply rules in priority order ──
-  // Priority: hardcoded overrides -> vendor memory -> DB rules -> merchant map -> inline rules
+  // Priority: hardcoded overrides -> vendor memory -> DB rules -> merchant map -> default rules -> inline rules
   const updates: Array<{ id: string; category: string; subcategory?: string | null; source: string; normalizedMerchant?: string | null }> = [];
   let skipped = 0;
 
@@ -577,7 +586,16 @@ export const handler: Handler = async (event) => {
       continue;
     }
 
-    // Priority 4: Inline rules
+    // Priority 4: Global default rules (tagDefaultRules.ts)
+    // Uses compact (space-stripped) matching so fused OCR names like "TIMHORTONS"
+    // still resolve correctly.
+    const defaultMatch = applyDefaultRules(merchant);
+    if (defaultMatch) {
+      updates.push({ id: tx.id, category: defaultMatch.category, subcategory: defaultMatch.subcategory ?? null, source: 'tag_rule' });
+      continue;
+    }
+
+    // Priority 5: Inline rules (legacy, kept for backward compat)
     const ruleCat = applyInlineRules(merchant);
     if (ruleCat) {
       updates.push({ id: tx.id, category: ruleCat, source: 'tag_rule' });
