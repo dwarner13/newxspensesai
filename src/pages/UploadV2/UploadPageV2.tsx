@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+﻿import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Send } from "lucide-react";
 import { StatementHistory } from '../../components/upload/StatementHistory';
@@ -10,6 +10,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
+import StatementProcessingOverlay, { StatementImportResult } from "@/components/upload/StatementProcessingOverlay";
+
+function buildStatementLabel(filename: string): string {
+  const f = (filename || '').toLowerCase().replace(/[_\-]/g, ' ');
+  const monthMap: Record<string, string> = {
+    jan: 'January', feb: 'February', mar: 'March', apr: 'April',
+    may: 'May', jun: 'June', jul: 'July', aug: 'August',
+    sep: 'September', oct: 'October', nov: 'November', dec: 'December',
+  };
+  const m = f.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s*(\d{4})\b/);
+  if (m) return `${monthMap[m[1]]} ${m[2]}`;
+  const issuer = detectIssuer(filename);
+  return issuer !== 'Unknown' ? `${issuer} Statement` : filename.replace(/\.[^.]+$/, '');
+}
 
 function detectIssuer(filename: string): string {
   const f = (filename || '').toLowerCase();
@@ -142,6 +156,18 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
       console.error('[UploadV2] apply-category-rules threw', err);
     }
 
+    // Fix3: Correct known-expense merchants falsely set as income by delta cascade
+    // Fire-and-forget â€” runs after commit so type corrections apply immediately
+    fetch('/.netlify/functions/tag-categorize-committed', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ limit: 500 }),
+    }).then(r => r.json()).then(d => {
+      console.log('[UploadV2] tag-categorize-committed result', d);
+    }).catch(err => {
+      console.error('[UploadV2] tag-categorize-committed error', err);
+    });
+
     // Tag the import with detected issuer - non-blocking
     const issuer = detectIssuer(file.name);
     fetch('/.netlify/functions/set-import-issuer', {
@@ -171,6 +197,12 @@ export default function UploadPageV2() {
   const [byteReceiptMsg, setByteReceiptMsg] = useState<string | null>(null);
   const [recentReceipts, setRecentReceipts] = useState<any[]>([]);
   const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
+
+  // ── Statement processing overlay ──────────────────────────────────────────
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [overlayStatementName, setOverlayStatementName] = useState('');
+  const [overlayImportResult, setOverlayImportResult] = useState<StatementImportResult | null>(null);
+  const [overlayImportId, setOverlayImportId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const receiptFileRef = useRef<HTMLInputElement>(null);
@@ -213,7 +245,7 @@ export default function UploadPageV2() {
     } catch { setByteReceiptMsg('Upload failed - try again.'); }
   };
 
-  const introText = "Drop as many statements as you want. I'll work through them one at a time — extract transactions, hand each off to Tag for categorization, then Prime reviews.";
+  const introText = "Drop as many statements as you want. I'll work through them one at a time â€” extract transactions, hand each off to Tag for categorization, then Prime reviews.";
   const [typed, typeDone] = useTypewriter(introText, 14, 400);
 
   const addFiles = useCallback((files: FileList | File[]) => {
@@ -245,7 +277,7 @@ export default function UploadPageV2() {
     updateItem(current.id, { status: "processing" });
 
     try {
-      // ── Duplicate file check ──
+      // â”€â”€ Duplicate file check â”€â”€
       const fileHash = await computeFileHash(current.file);
       const isDupe = false; // await checkDuplicateHash(fileHash, userId);
       if (isDupe) {
@@ -257,11 +289,11 @@ export default function UploadPageV2() {
 
       let importIdForSweep = '';
       if (isSpreadsheetFile(current.file.name)) {
-        // ── XLSX/CSV path - use dedicated spreadsheet processor ──
+        // â”€â”€ XLSX/CSV path - use dedicated spreadsheet processor â”€â”€
         const xlResult = await handleSpreadsheetUpload(current.file, userId, session?.access_token, fileHash);
         importIdForSweep = xlResult.import_id || '';
       } else {
-        // ── PDF/image path - use existing OCR pipeline ──
+        // â”€â”€ PDF/image path - use existing OCR pipeline â”€â”€
         const result = await runSmartImportPipeline({
           userId, file: current.file, fileName: current.file.name,
           mimeType: current.file.type || "application/octet-stream",
@@ -320,6 +352,12 @@ export default function UploadPageV2() {
       processingRef.current = true;
       updateItem(next.id, { status: "processing", progress: 0 });
 
+      // Open the full-screen processing overlay
+      setOverlayStatementName(buildStatementLabel(next.file.name));
+      setOverlayImportResult(null);
+      setOverlayImportId(null);
+      setOverlayOpen(true);
+
       // Progress simulation - climbs to 85% during processing
       const progressInterval = setInterval(() => {
         const currentItem = queueRef.current.find(q => q.id === next.id);
@@ -336,7 +374,7 @@ export default function UploadPageV2() {
       }, 800);
 
       try {
-        // ── Duplicate file check ──
+        // â”€â”€ Duplicate file check â”€â”€
         const fileHash = await computeFileHash(next.file);
         const isDupe = false; // await checkDuplicateHash(fileHash, userId);
         if (isDupe) {
@@ -384,7 +422,7 @@ export default function UploadPageV2() {
         clearInterval(progressInterval);
         updateItem(next.id, { status: "categorizing", progress: 90 });
 
-        // ── Poll imports table for the real committed import_id ──
+        // â”€â”€ Poll imports table for the real committed import_id â”€â”€
         // Replaces fixed 5s sleep. Polls every 3s up to 10 attempts (30s max),
         // waiting for a row with status='committed' created after uploadStartedAt.
         if (!importId && session?.access_token) {
@@ -411,7 +449,7 @@ export default function UploadPageV2() {
           }
         }
 
-        // ── Apply category rules to all uncategorized transactions ──
+        // â”€â”€ Apply category rules to all uncategorized transactions â”€â”€
         // ALWAYS runs, even if pipeline threw - general cleanup mode will still
         // catch rows that landed in the transactions table from a partial commit.
         console.log('[UploadV2] apply-category-rules gate:', { hasToken: !!session?.access_token, importId, pipelineError: !!pipelineError });
@@ -449,6 +487,13 @@ export default function UploadPageV2() {
           // Query the real committed count from transactions table
           const txCount = await getCommittedTxCount(importId, userId);
           updateItem(next.id, { status: "complete", txCount, progress: 100 });
+
+          // Flip overlay to Tag summary phase
+          setOverlayImportId(importId || null);
+          setOverlayImportResult({
+            transactionCount: txCount,
+            importId: importId || undefined,
+          });
         }
       } catch (err: unknown) {
         clearInterval(progressInterval);
@@ -474,13 +519,25 @@ export default function UploadPageV2() {
     totalTx: queue.reduce((s, q) => s + (q.txCount || 0), 0),
   };
 
-  const byteStatus = stats.processing > 0 ? `Processing ${stats.complete + 1} of ${stats.total}...` : stats.total === 0 ? "Idle — waiting for files" : allDone ? "All done!" : "Ready";
+  const byteStatus = stats.processing > 0 ? `Processing ${stats.complete + 1} of ${stats.total}...` : stats.total === 0 ? "Idle â€” waiting for files" : allDone ? "All done!" : "Ready";
   const tagStatus = queue.some(q => q.status === "categorizing") ? "Categorizing..." : stats.processing > 0 ? "Waiting for Byte..." : allDone ? "All categorized!" : "Standing by";
   const primeStatus = allDone ? "Ready for briefing" : stats.processing > 0 ? "Waiting..." : "Standing by";
 
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+      {/* Statement processing overlay — full screen, cinematic */}
+      <StatementProcessingOverlay
+        isOpen={overlayOpen}
+        statementName={overlayStatementName}
+        importResult={overlayImportResult}
+        importId={overlayImportId}
+        onClose={() => {
+          setOverlayOpen(false);
+          setOverlayImportResult(null);
+        }}
+      />
       <div style={{ fontFamily: "'Plus Jakarta Sans'", color: T.text, padding: "28px 36px", paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))", maxWidth: 900, margin: "0 auto" }}>
         {/* Header */}
         <Reveal delay={0}>
@@ -526,7 +583,7 @@ export default function UploadPageV2() {
             <div style={{ fontSize: 36, marginBottom: 12 }}>{"\uD83D\uDCC4"}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6 }}>Drop statements here</div>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 8 }}>or click to browse</div>
-            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG — add as many as you want</div>
+            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG â€” add as many as you want</div>
           </div>
           <input ref={fileRef} type="file" accept={ACCEPT} multiple style={{ display: "none" }}
             onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
@@ -689,7 +746,7 @@ export default function UploadPageV2() {
       <StatementHistory />
       </>)}
 
-      {/* ── RECEIPT MODE ── */}
+      {/* â”€â”€ RECEIPT MODE â”€â”€ */}
       {uploadMode === 'receipt' && (
         <div>
           <input ref={receiptCameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={async e => { if (e.target.files?.[0]) await handleReceiptUpload(e.target.files[0]); e.target.value = ''; }} />
