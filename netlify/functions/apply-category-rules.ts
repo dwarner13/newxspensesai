@@ -48,7 +48,7 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'EASYFINANCIAL', category: 'Debt Payments', subcategory: 'Loan Payment' },
   { key: 'CELTIC GROUP', category: 'Debt Payments' },
   { key: 'TD LOAN', category: 'Debt Payments', subcategory: 'Loan Payment' },
-  { key: 'BMO INV', category: 'Transfers' },
+  { key: 'BMO INV', category: 'Transfers', subcategory: 'Investments' },
   { key: 'B/M PAYT', category: 'Housing', subcategory: 'Mortgage' },
   { key: 'NATIONAL MONEY', category: 'Debt Payments' },
   { key: 'FLEXITI', category: 'Debt Payments', subcategory: 'Credit Card' },
