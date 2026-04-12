@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tag-action - Natural language category change handler for Tag chat.
  *
  * Intents:
@@ -88,7 +88,7 @@ function normalizeCanonicalCategory(input: string): string {
   return CATEGORY_ALIASES[key] || 'Other';
 }
 
-// ── Intent classifier ────────────────────────────────────────────────────────
+// â”€â”€ Intent classifier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns null if message is a question, not an action request
 export function classifyTagIntent(message: string): {
   matchValue: string;
@@ -187,7 +187,7 @@ export const handler: Handler = async (event) => {
 
   const normalized = matchValue.trim().toUpperCase();
 
-  // ── PREVIEW ────────────────────────────────────────────────────────────────
+  // â”€â”€ PREVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (intent === 'preview') {
     try {
       let query = supabase
@@ -234,7 +234,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // ── COMMIT ─────────────────────────────────────────────────────────────────
+  // â”€â”€ COMMIT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (intent === 'commit') {
     const { affectedIds } = body;
     if (!Array.isArray(affectedIds) || affectedIds.length === 0) {
@@ -307,7 +307,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // ── SAVE_RULE ──────────────────────────────────────────────────────────────
+  // â”€â”€ SAVE_RULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (intent === 'save_rule') {
     try {
       const ruleSubcategory = body.targetSubcategory ?? body.subcategory ?? parsedTarget.subcategory ?? null;
@@ -380,6 +380,35 @@ export const handler: Handler = async (event) => {
       safeLog('tag-action.save_rule', { userId, matchValue: normalized, targetCategory: parsedTarget.category, matchType });
 
       return ok({ ok: true, intent: 'save_rule', rule: { merchant: normalized, category: parsedTarget.category }, backfill_count: backfillCount });
+    } catch (e: any) {
+      return err(e.message, 500);
+    }
+  }
+
+  // ── FIX_TYPE ──────────────────────────────────────────────────────────────
+  // Flips a single transaction between income / expense without touching rules
+  if (intent === 'fix_type') {
+    const { transactionId, newType } = body;
+    if (!transactionId) return err('Missing transactionId');
+    if (!['income', 'expense'].includes(newType)) return err('newType must be "income" or "expense"');
+    try {
+      const updatePayload: Record<string, any> = {
+        type: newType,
+        updated_at: new Date().toISOString(),
+      };
+      // When flipping to income, auto-correct category so it doesn't stay as "Groceries" etc.
+      if (newType === 'income') {
+        updatePayload.category = 'Income';
+        updatePayload.category_source = 'user_type_fix';
+      }
+      const { error } = await supabase
+        .from('transactions')
+        .update(updatePayload)
+        .eq('id', transactionId)
+        .eq('user_id', userId);
+      if (error) return err(error.message, 500);
+      safeLog('tag-action.fix_type', { userId, transactionId, newType });
+      return ok({ ok: true, intent: 'fix_type', transactionId, newType });
     } catch (e: any) {
       return err(e.message, 500);
     }

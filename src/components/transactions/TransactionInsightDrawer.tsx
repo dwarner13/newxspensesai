@@ -4,7 +4,6 @@ import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
-// StatementPdfViewer deferred - import removed for now
 
 type DrawerTransaction =
   | { kind: 'committed'; transaction: CommittedTransaction }
@@ -28,21 +27,21 @@ interface TransactionInsightDrawerProps {
 }
 
 const TAX_INFO: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  Transportation:  { label: '\u2713 Deductible \u2014 CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Housing:         { label: '\u2713 Deductible \u2014 home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Utilities:       { label: '\u2713 Deductible \u2014 business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Healthcare:      { label: '\u2713 Deductible \u2014 medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Education:       { label: '\u2713 Deductible \u2014 training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Insurance:       { label: '\u2713 Deductible \u2014 business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Subscriptions:   { label: '\u2713 Likely deductible \u2014 if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  'Bank Fees':     { label: '\u2713 Deductible \u2014 bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Travel:          { label: '~ Partially deductible \u2014 business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  'Food & Dining': { label: '~ 50% deductible \u2014 meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Shopping:        { label: '~ May be deductible \u2014 business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Income:          { label: '\u2192 Taxable income \u2014 report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
-  Transfers:       { label: '\u2717 Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  Savings:         { label: '\u2717 Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  'Debt Payments': { label: '\u2192 Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
+  Transportation:  { label: '? Deductible � CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Housing:         { label: '? Deductible � home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Utilities:       { label: '? Deductible � business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Healthcare:      { label: '? Deductible � medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Education:       { label: '? Deductible � training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Insurance:       { label: '? Deductible � business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Subscriptions:   { label: '? Likely deductible � if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  'Bank Fees':     { label: '? Deductible � bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
+  Travel:          { label: '~ Partially deductible � business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  'Food & Dining': { label: '~ 50% deductible � meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  Shopping:        { label: '~ May be deductible � business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
+  Income:          { label: '� Taxable income � report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
+  Transfers:       { label: '� Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
+  Savings:         { label: '� Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
+  'Debt Payments': { label: '� Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
 };
 const QUICK_CATS = [
   { label: 'Gas', category: 'Transportation', emoji: '?' },
@@ -61,15 +60,6 @@ const ALL_CATS = [
   'Savings','Debt Payments','Insurance','Education','Travel','Other',
 ];
 
-const INCOME_PAT = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
-
-function isIncomeTx(tx: CommittedTransaction): boolean {
-  const cat = (tx.category || '').toLowerCase();
-  const m = (tx.merchant_name || '').toUpperCase().trim();
-  const t = ((tx as any).type || '').toLowerCase();
-  return t === 'income' || cat === 'income' || cat === 'business income' || INCOME_PAT.test(m);
-}
-
 function normalizeMerchant(v: string) { return v.toLowerCase().replace(/\s+/g, ' ').trim(); }
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -83,10 +73,6 @@ export function TransactionInsightDrawer({
   const [localCategory, setLocalCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [statementLabel, setStatementLabel] = useState<string | null>(null);
-  const [editingAmount, setEditingAmount] = useState(false);
-  const [amountInput, setAmountInput] = useState('');
-  const [savingAmount, setSavingAmount] = useState(false);
-  const [localAmount, setLocalAmount] = useState<number | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
   const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
@@ -100,6 +86,8 @@ export function TransactionInsightDrawer({
   const [newSubcategoryText, setNewSubcategoryText] = useState('');
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   const [linkedReceipt, setLinkedReceipt] = useState<any>(null);
+  const [localType, setLocalType] = useState<'income' | 'expense'>('expense');
+  const [isFlippingType, setIsFlippingType] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -117,16 +105,17 @@ export function TransactionInsightDrawer({
     setSplitMode(false);
     setAddingSubcategory(false);
     setPendingRuleCategory(null);
-    setEditingAmount(false);
-    setLocalAmount(null);
     if (!row) { setLocalCategory(''); setLocalSubcategory(''); return; }
     if (row.kind === 'committed') {
       setLocalCategory(row.transaction.category || 'Uncategorized');
       setLocalSubcategory((row.transaction as any).subcategory || '');
+      const rawType = ((row.transaction as any).type || '').toLowerCase();
+      setLocalType(rawType === 'income' ? 'income' : 'expense');
     } else {
       const dj = row.transaction.data_json as Record<string, unknown>;
       setLocalCategory(String(row.transaction.tag_category || dj.category || 'Uncategorized'));
       setLocalSubcategory(String((dj as any).subcategory || ''));
+      setLocalType('expense');
     }
   }, [row?.kind === 'committed' ? (row as any).transaction.id : null]);
 
@@ -213,7 +202,7 @@ export function TransactionInsightDrawer({
           }
         }
       } catch { /* ignore */ }
-      setStatementLabel(`Statement #${importId.slice(-6)}`);
+      setStatementLabel(`Statement �${importId.slice(-6)}`);
     })();
   }, [row]);
 
@@ -225,11 +214,10 @@ export function TransactionInsightDrawer({
   }, [row]);
 
   const amount = useMemo(() => {
-    if (localAmount !== null) return localAmount;
     if (!row) return 0;
     if (row.kind === 'committed') return Number(row.transaction.amount || 0);
     return Number((row.transaction.data_json as any)?.amount || 0);
-  }, [row, localAmount]);
+  }, [row]);
 
   const postedAt = useMemo(() => {
     if (!row) return '';
@@ -240,9 +228,10 @@ export function TransactionInsightDrawer({
     return String((row.transaction.data_json as any)?.date || '');
   }, [row]);
 
-  const isIncome = row?.kind === 'committed' ? isIncomeTx(row.transaction) : false;
-  const amountColor = isIncome ? '#10b981' : '#ef4444';
-  const amountPrefix = isIncome ? '+' : '-';
+  // localType overrides the static isIncome once the drawer has initialised
+  const effectiveIsIncome = localType === 'income';
+  const amountColor = effectiveIsIncome ? '#10b981' : '#ef4444';
+  const amountPrefix = effectiveIsIncome ? '+' : '-';
 
   const formattedDate = useMemo(() => {
     if (!postedAt) return null;
@@ -265,35 +254,6 @@ export function TransactionInsightDrawer({
 
   // Quick category tap
   const [pendingRuleCategory, setPendingRuleCategory] = useState<string | null>(null);
-
-  const saveAmount = async () => {
-    if (!row || row.kind !== 'committed') return;
-    const newAmt = parseFloat(amountInput);
-    if (!isFinite(newAmt) || newAmt <= 0) {
-      toast.error('Enter a valid positive amount');
-      return;
-    }
-    setSavingAmount(true);
-    try {
-      const supabase = getSupabase();
-      if (!supabase) throw new Error('No supabase client');
-      // Preserve sign: if original was negative (expense), keep negative
-      const original = Number(row.transaction.amount || 0);
-      const signedAmount = original < 0 ? -newAmt : newAmt;
-      const { error } = await supabase
-        .from('transactions')
-        .update({ amount: signedAmount, updated_at: new Date().toISOString() })
-        .eq('id', row.transaction.id);
-      if (error) throw error;
-      setLocalAmount(signedAmount);
-      setEditingAmount(false);
-      toast.success('Amount updated');
-    } catch (err: any) {
-      toast.error(err.message || 'Could not update amount');
-    } finally {
-      setSavingAmount(false);
-    }
-  };
 
   const applyCategory = async (category: string) => {
     if (!row || row.kind !== 'committed') return;
@@ -392,6 +352,35 @@ export function TransactionInsightDrawer({
     } catch { toast.error('Could not save subcategory'); }
   };
 
+  // Type flip (income ↔ expense)
+  const flipType = async (newType: 'income' | 'expense') => {
+    if (!row || row.kind !== 'committed' || isFlippingType) return;
+    if (localType === newType) return;
+    setIsFlippingType(true);
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
+      const res = await fetch('/.netlify/functions/tag-action', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ intent: 'fix_type', transactionId: row.transaction.id, newType }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setLocalType(newType);
+      // Auto-correct category display when flipping to income
+      if (newType === 'income') {
+        setLocalCategory('Income');
+        onCommittedCategorySaved?.(row.transaction.id, 'Income');
+      }
+      toast.success(`Marked as ${newType}`);
+    } catch {
+      toast.error('Could not update type');
+    } finally {
+      setIsFlippingType(false);
+    }
+  };
+
   // AI chat
   const sendChat = async () => {
     const text = chatInput.trim();
@@ -447,7 +436,7 @@ export function TransactionInsightDrawer({
         fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 -8px 60px rgba(0,0,0,0.6)',
       } : {
         position: 'fixed', top: 0, right: 0, bottom: 0,
-        zIndex: 201, width: 520, maxWidth: '100%',
+        zIndex: 201, width: '100%', maxWidth: 420,
         display: 'flex', flexDirection: 'column', background: '#080f1e',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
         fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '-8px 0 60px rgba(0,0,0,0.5)',
@@ -459,56 +448,26 @@ export function TransactionInsightDrawer({
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
           </div>
         )}
-        {/* Accent bar */}
-        <div style={{ height: 3, background: `linear-gradient(90deg, ${amountColor} 0%, ${amountColor}44 100%)`, flexShrink: 0 }} />
-        {/* HERO HEADER */}
-        <div style={{ padding: '24px 24px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, background: `radial-gradient(circle at 0% 0%, ${amountColor}0d 0%, transparent 60%)` }}>
+        {/* HEADER */}
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
-            {editingAmount ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                <span style={{ fontSize: isMobile ? 30 : 40, fontWeight: 800, color: amountColor }}>{amountPrefix}$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  autoFocus
-                  value={amountInput}
-                  onChange={e => setAmountInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') void saveAmount(); if (e.key === 'Escape') setEditingAmount(false); }}
-                  style={{ flex: 1, maxWidth: 180, fontSize: isMobile ? 30 : 40, fontWeight: 800, padding: '4px 10px', borderRadius: 8, background: '#0b1220', border: `1px solid ${amountColor}55`, color: amountColor, outline: 'none', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums' }}
-                />
-                <button onClick={() => void saveAmount()} disabled={savingAmount} style={{ padding: '8px 14px', borderRadius: 8, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingAmount ? '...' : 'Save'}</button>
-                <button onClick={() => setEditingAmount(false)} style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
-                <div style={{ fontSize: isMobile ? 36 : 48, fontWeight: 800, color: amountColor, letterSpacing: -1.5, lineHeight: 1, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 30px ${amountColor}33` }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
-                {row.kind === 'committed' && (
-                  <button onClick={() => { setAmountInput(Math.abs(amount).toFixed(2)); setEditingAmount(true); }} style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginTop: 6 }} title="Fix parser error">Edit</button>
-                )}
-              </div>
-            )}
-            {/* Date + meta (muted, below amount) */}
-            <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
+            <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 800, color: amountColor, marginTop: 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+            {/* Meta row */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {formattedDate && (
-                <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>{formattedDate}</span>
+                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{formattedDate}</span>
               )}
-              {statementLabel && statementLabel !== formattedDate && !statementLabel.includes('2024') && !statementLabel.includes('2025') && !statementLabel.includes('2026') && (
-                <>
-                  <span style={{ fontSize: 12, color: '#334155' }}>-</span>
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>{statementLabel}</span>
-                </>
+              {statementLabel && !/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(statementLabel) && statementLabel !== formattedDate && (
+                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{statementLabel}</span>
               )}
               {merchantMonthSpend > 0 && (
-                <>
-                  <span style={{ fontSize: 12, color: '#334155' }}>-</span>
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>${fmt(merchantMonthSpend)} this month</span>
-                </>
+                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{fmt(merchantMonthSpend)} this month</span>
               )}
             </div>
           </div>
-          <button type="button" onClick={onClose} style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-            <X style={{ width: 18, height: 18 }} />
+          <button type="button" onClick={onClose} style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
 
@@ -524,7 +483,14 @@ export function TransactionInsightDrawer({
             </div>
           )}
 
-          {/* RECEIPT ATTACHED (stays full-width if a receipt exists) */}
+          {/* TAG RULE BADGE */}
+          {row.kind === 'committed' && ['tag_rule', 'user_rule', 'rule'].includes((row.transaction as any).category_source) && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 12, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)', fontSize: 10, fontWeight: 700, color: '#22d3ee', width: 'fit-content' }}>
+              {'\u26A1'} Tag rule
+            </div>
+          )}
+
+          {/* RECEIPT ATTACHED */}
           {linkedReceipt && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)' }}>
               <span style={{ fontSize: 18 }}>{'\uD83E\uDDFE'}</span>
@@ -535,157 +501,75 @@ export function TransactionInsightDrawer({
               <button onClick={() => window.open(linkedReceipt.file_url || linkedReceipt.image_url, '_blank')} style={{ fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' as const }}>View {'\uD83E\uDDFE'}</button>
             </div>
           )}
+          {/* ATTACH RECEIPT */}
+          {!linkedReceipt && row?.kind === 'committed' && (
+            <div>
+              <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} id={`receipt-attach-${(row.transaction as any).id}`} onChange={async (e) => {
+                const file = e.target.files?.[0]; if (!file) return;
+                const txId = (row.transaction as any).id;
+                try {
+                  const { getSupabase } = await import('../../lib/supabase');
+                  const sb = getSupabase(); if (!sb) return;
+                  const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+                  const reader = new FileReader();
+                  reader.onload = async () => {
+                    const base64 = (reader.result as string).split(',')[1];
+                    const res = await fetch('/.netlify/functions/receipt-upload', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name, transaction_id: txId }) });
+                    const data = await res.json();
+                    if (data.ok) { setLinkedReceipt({ id: data.receipt_id, merchant_name: data.merchant_name, amount: data.amount, file_url: data.file_url, match_status: 'matched' }); }
+                  };
+                  reader.readAsDataURL(file);
+                } catch { /* silent */ }
+                e.target.value = '';
+              }} />
+              <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#475569', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>{'\uD83E\uDDFE'} Attach Receipt</label>
+            </div>
+          )}
 
-          {/* ACTION ROW — Tag rule + Attach Receipt + Mark Duplicate */}
-          {(() => {
-            const showTagRule = row.kind === 'committed' && ['tag_rule', 'user_rule', 'rule'].includes((row.transaction as any).category_source);
-            const showAttach = !linkedReceipt && row?.kind === 'committed';
-            const showMarkDupe = row?.kind === 'committed' && (row.transaction as any).category !== 'Duplicate';
-            if (!showTagRule && !showAttach && !showMarkDupe) return null;
-            const btnBase: React.CSSProperties = {
-              flex: 1, height: 38, fontSize: 13, fontWeight: 700,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
-              background: 'rgba(15,23,42,0.5)',
-            };
-            return (
-              <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                {showTagRule && (
-                  <div style={{ ...btnBase, color: '#22d3ee', border: '1px solid rgba(34,211,238,0.35)' }}>
-                    {'\u26A1'} Tag rule active
-                  </div>
-                )}
-                {showAttach && (
-                  <>
-                    <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} id={`receipt-attach-${(row.transaction as any).id}`} onChange={async (e) => {
-                      const file = e.target.files?.[0]; if (!file) return;
-                      const txId = (row.transaction as any).id;
-                      try {
-                        const { getSupabase } = await import('../../lib/supabase');
-                        const sb = getSupabase(); if (!sb) return;
-                        const { data: { session } } = await sb.auth.getSession(); if (!session) return;
-                        const reader = new FileReader();
-                        reader.onload = async () => {
-                          const base64 = (reader.result as string).split(',')[1];
-                          const res = await fetch('/.netlify/functions/receipt-upload', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name, transaction_id: txId }) });
-                          const data = await res.json();
-                          if (data.ok) { setLinkedReceipt({ id: data.receipt_id, merchant_name: data.merchant_name, amount: data.amount, file_url: data.file_url, match_status: 'matched' }); }
-                        };
-                        reader.readAsDataURL(file);
-                      } catch { /* silent */ }
-                      e.target.value = '';
-                    }} />
-                    <label htmlFor={`receipt-attach-${(row.transaction as any).id}`} style={{ ...btnBase, color: '#34d399', border: '1px solid rgba(52,211,153,0.35)' }}>
-                      {'\uD83E\uDDFE'} Attach Receipt
-                    </label>
-                  </>
-                )}
-                {showMarkDupe && (
-                  <button
-                    onClick={async () => {
-                      const txId = (row.transaction as any).id;
-                      try {
-                        const { getSupabase } = await import('../../lib/supabase');
-                        const sb = getSupabase(); if (!sb) return;
-                        // Try is_duplicate column first, fall back to category-only
-                        const { error } = await sb
-                          .from('transactions')
-                          .update({ is_duplicate: true, category: 'Duplicate', category_source: 'user_mark' })
-                          .eq('id', txId);
-                        if (error && /column.*is_duplicate/i.test(error.message || '')) {
-                          await sb
-                            .from('transactions')
-                            .update({ category: 'Duplicate', category_source: 'user_mark' })
-                            .eq('id', txId);
-                        }
-                        toast.success('Marked as duplicate');
-                        if (onCommittedCategorySaved) onCommittedCategorySaved(txId, 'Duplicate');
-                        onClose();
-                      } catch (e: any) {
-                        toast.error('Failed to mark duplicate');
-                      }
-                    }}
-                    style={{ ...btnBase, color: '#f87171', border: '1px solid rgba(248,113,113,0.4)' }}
-                  >
-                    {'\u2716'} Mark Duplicate
-                  </button>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* TAG INTELLIGENCE CARD */}
-          <div style={{ borderRadius: 14, background: 'linear-gradient(135deg, rgba(34,211,238,0.08) 0%, rgba(34,211,238,0.02) 100%)', border: '1px solid rgba(34,211,238,0.2)', borderLeft: '3px solid rgba(34,211,238,0.7)', boxShadow: '0 4px 20px rgba(34,211,238,0.08)', overflow: 'visible' }}>
+          {/* TAG VERDICT */}
+          <div style={{ borderRadius: 14, background: 'rgba(34,211,153,0.05)', border: '1px solid rgba(34,211,153,0.15)' }}>
             {/* Verdict row */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '16px 18px', borderBottom: '1px solid rgba(34,211,238,0.08)' }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.08) 100%)', border: '1px solid rgba(34,211,238,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#22d3ee', flexShrink: 0, boxShadow: '0 0 16px rgba(34,211,238,0.2)' }}>T</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid rgba(34,211,153,0.08)' }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 17, fontWeight: 800, color: '#f1f5f9', letterSpacing: -0.3 }}>{localCategory}</div>
-                {localSubcategory && (
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2, fontWeight: 500 }}>{localSubcategory}</div>
-                )}
-                {/* Confidence progress bar */}
-                {confidence != null && confidence > 0 && (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#64748b', marginBottom: 4, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                      <span>Confidence</span>
-                      <span style={{ color: confidence >= 80 ? '#34d399' : confidence >= 60 ? '#fbbf24' : '#f87171' }}>{confidence}%</span>
-                    </div>
-                    <div style={{ width: '100%', height: 5, borderRadius: 3, background: 'rgba(148,163,184,0.12)', overflow: 'hidden' }}>
-                      <div style={{
-                        width: `${confidence}%`, height: '100%', borderRadius: 3,
-                        background: confidence >= 80
-                          ? 'linear-gradient(90deg, #22d3ee, #34d399)'
-                          : confidence >= 60
-                          ? 'linear-gradient(90deg, #22d3ee, #fbbf24)'
-                          : 'linear-gradient(90deg, #fbbf24, #f87171)',
-                        transition: 'width 0.4s ease',
-                      }} />
-                    </div>
-                  </div>
-                )}
-                {/* Seen/learned badge */}
-                {seenCount > 0 && (
-                  <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 999, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.22)', fontSize: 10, fontWeight: 700, color: '#22d3ee', letterSpacing: 0.3 }}>
-                    Seen {seenCount}x - learned
-                  </div>
-                )}
-                {/* Prominent deductible badge */}
-                {TAX_INFO[localCategory] && TAX_INFO[localCategory].label.includes('Deductible') && !TAX_INFO[localCategory].label.includes('Not') && (
-                  <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'linear-gradient(135deg, rgba(251,191,36,0.18) 0%, rgba(251,191,36,0.06) 100%)', border: '1px solid rgba(251,191,36,0.35)', fontSize: 11, fontWeight: 800, color: '#fbbf24', letterSpacing: 0.3, boxShadow: '0 2px 10px rgba(251,191,36,0.15)' }}>
-                    * Tax Deductible
-                  </div>
-                )}
-                {TAX_INFO[localCategory] && (
-                  <div style={{ marginTop: 8, fontSize: 10, color: TAX_INFO[localCategory].color, fontWeight: 600, letterSpacing: 0.2 }}>
-                    {TAX_INFO[localCategory].label}
-                  </div>
-                )}
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{localCategory}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                  {tagInsightLoading ? 'Analyzing?' : [
+                    confidence != null && confidence > 0 && `${confidence}% confidence`,
+                    seenCount > 0 && `Seen ${seenCount}x`,
+                    tagInsight?.categorySource && tagInsight.categorySource !== 'unknown' && tagInsight.categorySource,
+                  ].filter(Boolean).join(' � ') || 'Current category'}
+                </div>
+                            {TAX_INFO[localCategory] && (
+                <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 10, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
+                  {TAX_INFO[localCategory].label}
+                </div>
+              )}
               </div>
               {tagInsight?.isAmountAnomaly && (
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '3px 8px', flexShrink: 0 }}>! Unusual</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '2px 6px', flexShrink: 0 }}>?? Unusual</span>
               )}
             </div>
             {/* Tag message */}
             {(tagInsightLoading || tagInsight?.message) && (
-              <div style={{ padding: '14px 18px', fontSize: 12.5, color: '#cbd5e1', lineHeight: 1.65, overflow: 'visible', whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                {tagInsightLoading ? 'Analyzing this transaction...' : tagInsight?.message}
+              <div style={{ padding: '10px 14px', fontSize: 12, color: '#cbd5e1', lineHeight: 1.6 }}>
+                {tagInsightLoading ? 'Analyzing this transaction?' : tagInsight?.message}
               </div>
             )}
             {/* Proactive insights */}
-            {tagInsight?.proactiveInsights?.map((insight, i) => (
-              <div key={i} style={{ padding: '10px 18px', borderTop: '1px solid rgba(34,211,238,0.08)', fontSize: 11.5, color: '#94a3b8', lineHeight: 1.55, overflow: 'visible', whiteSpace: 'normal', wordBreak: 'break-word' }}>{insight}</div>
-            ))}
+            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[?���?]/g, "�"); return (
+              <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{cleanInsight}</div>
+            ); })}
           </div>
 
           {/* SUBCATEGORY */}
           {localCategory && localCategory !== 'Uncategorized' && subcategoryOptions.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ fontSize: 11, color: '#475569', width: 80, flexShrink: 0 }}>Subcategory</div>
-              <select value={localSubcategory} onChange={e => void handleSubcategoryChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 10, background: '#0b1220', border: '1px solid #1e2d4a', color: '#e8ecf4', fontSize: 13, cursor: 'pointer', appearance: 'auto' as any, fontFamily: 'inherit' }}>
-                <option value="" style={{ background: '#111a2e', color: '#e8ecf4' }}>-- select --</option>
-                {subcategoryOptions.map(s => <option key={s} value={s} style={{ background: '#111a2e', color: '#e8ecf4' }}>{s}</option>)}
-                <option value="__add_new__" style={{ background: '#111a2e', color: '#22d3ee' }}>+ Add new...</option>
+              <select value={localSubcategory} onChange={e => void handleSubcategoryChange(e.target.value)} style={{ flex: 1, padding: '4px 8px', borderRadius: 8, background: '#0b1220', border: '1px solid #1e2d4a', color: localSubcategory ? '#f1f5f9' : '#475569', fontSize: 12, fontFamily: 'inherit' }}>
+                <option value="">-- select --</option>
+                {subcategoryOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="__add_new__">+ Add new...</option>
               </select>
             </div>
           )}
@@ -693,6 +577,27 @@ export function TransactionInsightDrawer({
             <div style={{ display: 'flex', gap: 6 }}>
               <input autoFocus placeholder="e.g. Hair & Grooming" value={newSubcategoryText} onChange={e => setNewSubcategoryText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void saveNewSubcategory(); if (e.key === 'Escape') setAddingSubcategory(false); }} style={{ flex: 1, padding: '6px 10px', borderRadius: 8, background: '#0b1220', border: '1px solid rgba(34,211,238,0.4)', color: '#f1f5f9', fontSize: 12, outline: 'none' }} />
               <button onClick={() => void saveNewSubcategory()} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>Save</button>
+            </div>
+          )}
+
+          {/* TYPE TOGGLE */}
+          {row.kind === 'committed' && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8', marginBottom: 8 }}>Transaction type</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {(['expense', 'income'] as const).map(t => {
+                  const active = localType === t;
+                  const activeColor = t === 'income' ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.14)';
+                  const activeBorder = t === 'income' ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)';
+                  const activeText = t === 'income' ? '#10b981' : '#ef4444';
+                  return (
+                    <button key={t} type="button" onClick={() => void flipType(t)} disabled={isFlippingType}
+                      style={{ padding: '7px 20px', borderRadius: 20, fontSize: 13, fontWeight: 700, cursor: isFlippingType ? 'not-allowed' : 'pointer', transition: 'all 0.15s', background: active ? activeColor : 'rgba(255,255,255,0.04)', border: `1px solid ${active ? activeBorder : 'rgba(255,255,255,0.08)'}`, color: active ? activeText : '#475569', opacity: isFlippingType ? 0.6 : 1 }}>
+                      {t === 'income' ? '↑ Income' : '↓ Expense'}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -847,7 +752,6 @@ export function TransactionInsightDrawer({
           )}
         </div>
       </div>
-
     </>
   );
 }
