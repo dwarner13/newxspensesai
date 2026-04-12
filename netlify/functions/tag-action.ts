@@ -392,6 +392,17 @@ export const handler: Handler = async (event) => {
     if (!transactionId) return err('Missing transactionId');
     if (!['income', 'expense'].includes(newType)) return err('newType must be "income" or "expense"');
     try {
+      // 1. Fetch current state so we can log the before value
+      const { data: current } = await supabase
+        .from('transactions')
+        .select('type, merchant_name, amount, category')
+        .eq('id', transactionId)
+        .eq('user_id', userId)
+        .single();
+
+      const oldType = (current?.type || 'expense').toLowerCase();
+
+      // 2. Update the transaction
       const updatePayload: Record<string, any> = {
         type: newType,
         updated_at: new Date().toISOString(),
@@ -407,8 +418,21 @@ export const handler: Handler = async (event) => {
         .eq('id', transactionId)
         .eq('user_id', userId);
       if (error) return err(error.message, 500);
-      safeLog('tag-action.fix_type', { userId, transactionId, newType });
-      return ok({ ok: true, intent: 'fix_type', transactionId, newType });
+
+      // 3. Write to tag_activity_log so the Activity Log tab shows the change
+      await supabase.from('tag_activity_log').insert({
+        user_id: userId,
+        action_type: 'type_fix',
+        merchant_name: current?.merchant_name || null,
+        transaction_id: transactionId,
+        old_value: oldType,
+        new_value: newType,
+        note: `Type changed: ${oldType} → ${newType}${newType === 'income' ? ' (category set to Income)' : ''}`,
+        created_at: new Date().toISOString(),
+      }).catch(() => { /* non-blocking — log table may not have all columns yet */ });
+
+      safeLog('tag-action.fix_type', { userId, transactionId, oldType, newType });
+      return ok({ ok: true, intent: 'fix_type', transactionId, oldType, newType });
     } catch (e: any) {
       return err(e.message, 500);
     }

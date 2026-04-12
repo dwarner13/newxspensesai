@@ -373,6 +373,8 @@ export function TransactionInsightDrawer({
         setLocalCategory('Income');
         onCommittedCategorySaved?.(row.transaction.id, 'Income');
       }
+      // Fire refresh event so the transactions list re-fetches without F5
+      window.dispatchEvent(new Event('transactions:refresh'));
       toast.success(`Marked as ${newType}`);
     } catch {
       toast.error('Could not update type');
