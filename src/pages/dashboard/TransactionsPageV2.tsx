@@ -34,9 +34,13 @@ function isIncomeTx(t: CommittedTransaction): boolean {
   const cat = (t.category || '').toLowerCase();
   const merchant = (t.merchant_name || '').toUpperCase().trim();
   const txType = ((t as Record<string, unknown>).type as string || '').toLowerCase();
-  // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign � expenses are stored as negative values
-  return txType === 'income' || cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
+  // type field is set by commit-import from balance-delta math — most reliable signal.
+  // Always trust it when present so "Debit Card Purchase, FLAME & BARREL" (type=expense)
+  // never shows as income even if category_rules tagged the merchant as Business Income.
+  if (txType === 'income') return true;
+  if (txType === 'expense') return false;
+  // Fallback when type field is not set (older imports)
+  return cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

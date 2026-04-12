@@ -68,6 +68,8 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'CANADA RIT', category: 'Income', subcategory: 'Tax Refund' },
   { key: 'MANULIFE', category: 'Income', subcategory: 'Insurance' },
   { key: 'GORDON FOOD SER', category: 'Income', subcategory: 'Employment' },
+  { key: 'RIVER CITY HYUNDAI', category: 'Transportation', subcategory: 'Auto Service' },
+  { key: 'RIVER CREE RESORT', category: 'Entertainment', subcategory: 'Gaming' },
   { key: 'RIVER CREE', category: 'Entertainment', subcategory: 'Gaming' },
   { key: 'BEAR HILLS CASINO', category: 'Entertainment', subcategory: 'Gaming' },
   { key: 'SPECSAVERS', category: 'Healthcare', subcategory: 'Vision' },
