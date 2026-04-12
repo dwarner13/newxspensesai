@@ -103,6 +103,65 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'LEWIS ESTATES', category: 'Entertainment', subcategory: 'Golf' },
 ];
 
+
+// --- Income / type override rules -----------------------------------------
+const INCOME_TYPE_RULES: Array<{
+  key: string;
+  matchType: 'contains' | 'exact' | 'regex';
+  type: 'income' | 'expense';
+  category: string;
+  subcategory?: string;
+}> = [
+  { key: 'GORDON FOOD SER AP',       matchType: 'contains', type: 'expense', category: 'Transfers',     subcategory: 'Pre-Authorized Payment' },
+  { key: 'PRE-AUTH.*GORDON',         matchType: 'regex',    type: 'expense', category: 'Transfers',     subcategory: 'Pre-Authorized Payment' },
+  { key: 'IND ALL SAVING',           matchType: 'contains', type: 'expense', category: 'Transfers',     subcategory: 'Investments' },
+  { key: 'BMO INV',                  matchType: 'contains', type: 'expense', category: 'Transfers',     subcategory: 'Investments' },
+  { key: 'BORROWELL',                matchType: 'contains', type: 'expense', category: 'Debt Payments', subcategory: 'Loan Payment' },
+  { key: 'TF 3049',                  matchType: 'contains', type: 'expense', category: 'Transfers',     subcategory: 'e-Transfer' },
+  { key: 'EASYFINANCIAL',            matchType: 'contains', type: 'expense', category: 'Debt Payments', subcategory: 'Loan Payment' },
+  { key: 'CASH MONEY',               matchType: 'contains', type: 'expense', category: 'Debt Payments', subcategory: 'Loan Payment' },
+  { key: 'SPRINGFINANCIAL',          matchType: 'contains', type: 'expense', category: 'Debt Payments', subcategory: 'Loan Payment' },
+  { key: 'NATIONAL MONEY',           matchType: 'contains', type: 'expense', category: 'Debt Payments', subcategory: 'Loan Payment' },
+  { key: 'FLEXITI',                  matchType: 'contains', type: 'expense', category: 'Debt Payments', subcategory: 'Credit Card Payment' },
+  { key: 'CAPITAL ONE',              matchType: 'contains', type: 'expense', category: 'Debt Payments', subcategory: 'Credit Card Payment' },
+  { key: 'CANADIAN TIRE BANK',       matchType: 'contains', type: 'expense', category: 'Debt Payments', subcategory: 'Credit Card Payment' },
+  { key: 'CELTIC GROUP',             matchType: 'contains', type: 'expense', category: 'Rent or Lease',  subcategory: 'Rent' },
+  { key: 'B/M PAYT',                 matchType: 'contains', type: 'expense', category: 'Rent or Lease',  subcategory: 'Mortgage' },
+  { key: 'INTERAC E-TRANSFER SENT',  matchType: 'contains', type: 'expense', category: 'Transfers',      subcategory: 'e-Transfer Sent' },
+  { key: 'GORDON FOOD SER PAY',      matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Employment' },
+  { key: 'GORDON FOOD SERVICE',      matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Employment' },
+  { key: 'MANULIFE',                 matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Insurance Benefit' },
+  { key: 'CANADA RIT',               matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Tax Refund' },
+  { key: 'CDACARBONREBATE',          matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Government Rebate' },
+  { key: 'CDA CARBON',               matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Government Rebate' },
+  { key: 'GST/HST CREDIT',           matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Government Benefit' },
+  { key: 'MOBILE CHEQUE DEPOSIT',    matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Cheque Deposit' },
+  { key: 'INTERAC E-TRANSFER RECEIVED', matchType: 'contains', type: 'income', category: 'Income',      subcategory: 'e-Transfer Received' },
+  { key: 'ROWNMI',                   matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'Business Revenue' },
+  { key: 'ETRNSFR RCVD',             matchType: 'contains', type: 'income',  category: 'Income',         subcategory: 'e-Transfer Received' },
+];
+
+function applyIncomeTypeRule(merchant: string): {
+  type: 'income' | 'expense';
+  category: string;
+  subcategory: string | null;
+} | null {
+  const upper = merchant.toUpperCase();
+  for (const rule of INCOME_TYPE_RULES) {
+    let matched = false;
+    switch (rule.matchType) {
+      case 'contains': matched = upper.includes(rule.key.toUpperCase()); break;
+      case 'exact':    matched = upper === rule.key.toUpperCase(); break;
+      case 'regex':
+        try { matched = new RegExp(rule.key, 'i').test(merchant); } catch { matched = false; }
+        break;
+    }
+    if (matched) {
+      return { type: rule.type, category: rule.category, subcategory: rule.subcategory || null };
+    }
+  }
+  return null;
+}
 function applyHardcodedOverride(merchant: string): { category: string; subcategory: string | null } | null {
   const upper = merchant.toUpperCase();
   // Also compare with spaces and hyphens stripped so fused OCR output like
@@ -578,6 +637,13 @@ export const handler: Handler = async (event) => {
 
     if (!needsWork && !importId) { skipped++; continue; }
 
+    // Priority -1: Income/type override rules
+    const typeRule = applyIncomeTypeRule(merchant);
+    if (typeRule) {
+      updates.push({ id: tx.id, ...(typeRule as any), source: 'income_type_rule' });
+      continue;
+    }
+
     // Priority 0: Hardcoded overrides (always win)
     const hardcoded = applyHardcodedOverride(merchant);
     if (hardcoded) {
@@ -650,6 +716,9 @@ export const handler: Handler = async (event) => {
           category_source: u.source,
           updated_at: new Date().toISOString(),
         };
+        if ((u as any).type && u.source === 'income_type_rule') {
+          payload.type = (u as any).type;
+        }
         if (Object.prototype.hasOwnProperty.call(u, 'subcategory')) {
           payload.subcategory = u.subcategory ?? null;
           if (u.subcategory) payload.subcategory_source = u.source;

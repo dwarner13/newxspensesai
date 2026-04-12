@@ -32,11 +32,12 @@ interface SectionDef {
 
 const SECTIONS: SectionDef[] = [
   { id: "income", icon: "\uD83D\uDCB0", title: "Income", matchFn: (tx) => tx.type === "income" },
-  { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" },
-  { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => tx.category === "Rent or Lease" },
+  { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" || tx.category === "Automotive" || ["Gas & Fuel", "Parking", "Vehicle Maintenance", "Vehicle Registration", "Car Loan", "Car Wash"].includes(tx.subcategory || "") },
+  { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => tx.category === "Rent or Lease" || tx.category === "Utilities" || tx.category === "Housing" },
   { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Food & Dining" || tx.category === "Entertainment" },
-  { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" },
+  { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" || tx.category === "Advertising" || tx.category === "Technology" || tx.category === "Office Supplies" || tx.category === "Professional Services" },
   { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal Care" || tx.category === "Groceries" || tx.category === "Debt Payments" || tx.category === "Transfers" || tx.category === "Shopping" || tx.category === "Healthcare" || tx.category === "Needs Review" },
+  { id: "other", icon: "\uD83D\uDCE6", title: "Other / Uncategorized", matchFn: (tx) => tx.type === "expense" },
 ];
 
 /* ── Subcategory bucket definitions per section ── */
@@ -105,6 +106,7 @@ const SECTION_BUCKETS: Record<string, Bucket[]> = {
   meals: MEALS_BUCKETS,
   business: BUSINESS_BUCKETS,
   personal: PERSONAL_BUCKETS,
+  other: [],
 };
 
 /* ── Helpers ── */
@@ -124,15 +126,33 @@ function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
   map.set("Other", { count: 0, total: 0 });
 
   for (const tx of txs) {
-    const merch = (tx.merchant || tx.subcategory || "").toLowerCase();
+    const merch = (tx.merchant || "").toLowerCase();
+    const subcat = (tx.subcategory || "").toLowerCase();
     let matched = false;
-    for (const b of buckets) {
-      if (b.keywords.some((kw) => merch.includes(kw.toLowerCase()))) {
-        const entry = map.get(b.label)!;
-        entry.count += 1;
-        entry.total += Math.abs(tx.amount);
-        matched = true;
-        break;
+
+    // First pass: try subcategory → bucket label match (exact)
+    if (subcat) {
+      for (const b of buckets) {
+        if (b.label.toLowerCase() === subcat || b.keywords.some((kw) => subcat === kw.toLowerCase())) {
+          const entry = map.get(b.label)!;
+          entry.count += 1;
+          entry.total += Math.abs(tx.amount);
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    // Second pass: keyword matching against merchant name
+    if (!matched) {
+      for (const b of buckets) {
+        if (b.keywords.some((kw) => merch.includes(kw.toLowerCase()))) {
+          const entry = map.get(b.label)!;
+          entry.count += 1;
+          entry.total += Math.abs(tx.amount);
+          matched = true;
+          break;
+        }
       }
     }
     if (!matched) {
@@ -461,6 +481,9 @@ export default function TaxWorkspacePage() {
         const sectionTotal = res?.total ?? 0;
         const isExpanded = expandedSections.has(section.id);
         const headerColor = section.id === "income" ? THEME.green : section.id === "personal" ? THEME.textDim : THEME.accent;
+
+        // Hide "other" section if it has no transactions
+        if (section.id === "other" && txs.length === 0) return null;
 
         return (
           <SectionCard
