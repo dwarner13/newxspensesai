@@ -3570,11 +3570,12 @@ export const handler: Handler = async (event, context) => {
           if (stagedCount === 0) { console.warn("[smart-import-ocr] no staged rows after 60s, giving up"); return; }
           console.log("[smart-import-ocr] found", stagedCount, "staged rows, committing import:", imp.id);
           // Step 1: approve-import (required before commit)
+          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
           const approveUrl = `${netlifyUrl}/.netlify/functions/approve-import`;
           try {
             const approveResp = await fetch(approveUrl, {
               method: "POST",
-              headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId },
+              headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId, "Authorization": `Bearer ${serviceKey}` },
               body: JSON.stringify({ importId: imp.id, userId: effectiveUserId }),
             });
             if (!approveResp.ok) {
@@ -3590,7 +3591,7 @@ export const handler: Handler = async (event, context) => {
           try {
             const commitResp = await fetch(commitUrl, {
               method: "POST",
-              headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId },
+              headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId, "Authorization": `Bearer ${serviceKey}` },
               body: JSON.stringify({ importId: imp.id, userId: effectiveUserId }),
             });
             if (!commitResp.ok) {
