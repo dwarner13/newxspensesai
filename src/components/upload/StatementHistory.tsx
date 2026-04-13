@@ -52,9 +52,10 @@ export function StatementHistory() {
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [confirmBulk, setConfirmBulk] = useState(false);
 
   const fetchImports = async () => {
     if (!userId) return;
@@ -74,40 +75,35 @@ export function StatementHistory() {
 
   useEffect(() => { fetchImports(); }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const deleteImport = async (importId: string) => {
-    const sb = getSupabase();
-    if (!sb || !userId) return;
-    setDeleting(prev => new Set(prev).add(importId));
-    try {
-      await sb.from("transactions").delete().eq("import_id", importId).eq("user_id", userId);
-      await sb.from("imports").delete().eq("id", importId).eq("user_id", userId);
-      setImports(prev => prev.filter(i => i.id !== importId));
-    } catch (e) {
-      console.error("[StatementHistory] delete failed", e);
-    } finally {
-      setDeleting(prev => { const next = new Set(prev); next.delete(importId); return next; });
-      setConfirmDelete(null);
-    }
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
-  const deleteAllEmpty = async () => {
+  const selectAll = () => setSelected(new Set(imports.map(i => i.id)));
+  const selectAllEmpty = () => setSelected(new Set(
+    imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed").map(i => i.id)
+  ));
+  const clearSelection = () => { setSelected(new Set()); setSelectMode(false); setConfirmBulk(false); };
+
+  const deleteSelected = async () => {
     const sb = getSupabase();
-    if (!sb || !userId) return;
-    const emptyIds = imports
-      .filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed")
-      .map(i => i.id);
-    if (emptyIds.length === 0) return;
-    setBulkDeleting(true);
+    if (!sb || !userId || selected.size === 0) return;
+    setDeleting(true);
     try {
-      for (const id of emptyIds) {
+      for (const id of Array.from(selected)) {
         await sb.from("transactions").delete().eq("import_id", id).eq("user_id", userId);
         await sb.from("imports").delete().eq("id", id).eq("user_id", userId);
       }
-      setImports(prev => prev.filter(i => !emptyIds.includes(i.id)));
+      setImports(prev => prev.filter(i => !selected.has(i.id)));
+      clearSelection();
     } catch (e) {
-      console.error("[StatementHistory] bulk delete failed", e);
+      console.error("[StatementHistory] delete failed", e);
     } finally {
-      setBulkDeleting(false);
+      setDeleting(false);
     }
   };
 
@@ -136,6 +132,7 @@ export function StatementHistory() {
   }, [folders.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleFolder = (key: string) => {
+    if (selectMode) return; // don't collapse folders while selecting
     setOpenFolders(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   };
 
@@ -155,29 +152,86 @@ export function StatementHistory() {
 
   return (
     <div style={{ marginTop: 32 }}>
+      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.1em" }}>Statement History</div>
         <div style={{ flex: 1, height: 1, background: T.border }} />
-        {emptyCount > 0 && (
+        {!selectMode ? (
           <button
-            onClick={deleteAllEmpty}
-            disabled={bulkDeleting}
-            style={{ fontSize: 11, fontWeight: 700, color: T.red, background: `${T.red}12`, border: `1px solid ${T.red}30`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", opacity: bulkDeleting ? 0.5 : 1, whiteSpace: "nowrap" }}
+            onClick={() => { setSelectMode(true); setOpenFolders(new Set(folders.map(f => f.key))); }}
+            style={{ fontSize: 11, fontWeight: 700, color: T.dim, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}
           >
-            {bulkDeleting ? "Deleting…" : `🗑 Delete ${emptyCount} empty`}
+            Select
+          </button>
+        ) : (
+          <button
+            onClick={clearSelection}
+            style={{ fontSize: 11, fontWeight: 700, color: T.dim, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}
+          >
+            Cancel
           </button>
         )}
         <div style={{ fontSize: 11, color: T.dim }}>{imports.length} import{imports.length !== 1 ? "s" : ""}</div>
       </div>
+
+      {/* Select mode toolbar */}
+      {selectMode && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, padding: "10px 14px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }}>
+          <span style={{ fontSize: 12, color: T.dim, flex: 1 }}>
+            {selected.size === 0 ? "Tap rows to select" : `${selected.size} selected`}
+          </span>
+          <button onClick={selectAllEmpty} style={{ fontSize: 11, fontWeight: 600, color: T.amber, background: `${T.amber}12`, border: `1px solid ${T.amber}30`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>
+            Select empty ({emptyCount})
+          </button>
+          <button onClick={selectAll} style={{ fontSize: 11, fontWeight: 600, color: T.dim, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>
+            Select all
+          </button>
+          {selected.size > 0 && !confirmBulk && (
+            <button
+              onClick={() => setConfirmBulk(true)}
+              style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: T.red, border: "none", borderRadius: 6, padding: "4px 14px", cursor: "pointer" }}
+            >
+              🗑 Delete {selected.size}
+            </button>
+          )}
+          {confirmBulk && (
+            <>
+              <span style={{ fontSize: 11, color: T.red, fontWeight: 700 }}>Sure? This can't be undone.</span>
+              <button
+                onClick={deleteSelected}
+                disabled={deleting}
+                style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: T.red, border: "none", borderRadius: 6, padding: "4px 14px", cursor: "pointer", opacity: deleting ? 0.5 : 1 }}
+              >
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button
+                onClick={() => setConfirmBulk(false)}
+                style={{ fontSize: 11, fontWeight: 600, color: T.dim, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {folders.map(folder => {
           const isOpen = openFolders.has(folder.key);
           const color = issuerColor(folder.issuer);
           const emoji = issuerEmoji(folder.issuer);
+          const folderAllSelected = folder.imports.every(i => selected.has(i.id));
           return (
             <div key={folder.key} style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${isOpen ? color + "33" : T.border}`, background: T.surface, transition: "border-color 0.2s" }}>
               <button onClick={() => toggleFolder(folder.key)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                {selectMode && (
+                  <div
+                    onClick={e => { e.stopPropagation(); folderAllSelected ? folder.imports.forEach(i => setSelected(prev => { const n = new Set(prev); n.delete(i.id); return n; })) : folder.imports.forEach(i => setSelected(prev => new Set(prev).add(i.id))); }}
+                    style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${folderAllSelected ? T.red : T.border}`, background: folderAllSelected ? T.red : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}
+                  >
+                    {folderAllSelected && <span style={{ color: "#fff", fontSize: 11, lineHeight: 1 }}>✓</span>}
+                  </div>
+                )}
                 <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: `${color}14`, border: `1.5px solid ${color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{emoji}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{folder.label}</div>
@@ -187,7 +241,7 @@ export function StatementHistory() {
                     {` · ${formatDate(folder.earliest)} – ${formatDate(folder.latest)}`}
                   </div>
                 </div>
-                <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>▾</div>
+                {!selectMode && <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>▾</div>}
               </button>
 
               {isOpen && (
@@ -197,14 +251,19 @@ export function StatementHistory() {
                     const raw = imp.file_url ? imp.file_url.split("/").pop() || imp.id : imp.id;
                     const name = raw.replace(/\.pdf$/i, "").replace(/[-_]/g, " ");
                     const isEmpty = !imp.committed_count || imp.committed_count === 0;
-                    const isConfirming = confirmDelete === imp.id;
-                    const isBeingDeleted = deleting.has(imp.id);
+                    const isChecked = selected.has(imp.id);
 
                     return (
                       <div
                         key={imp.id}
-                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none", background: isConfirming ? `${T.red}08` : "transparent", transition: "background 0.15s" }}
+                        onClick={() => selectMode && toggleSelect(imp.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none", background: isChecked ? `${T.red}10` : "transparent", transition: "background 0.15s", cursor: selectMode ? "pointer" : "default" }}
                       >
+                        {selectMode && (
+                          <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${isChecked ? T.red : T.border}`, background: isChecked ? T.red : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {isChecked && <span style={{ color: "#fff", fontSize: 11, lineHeight: 1 }}>✓</span>}
+                          </div>
+                        )}
                         <div style={{ fontSize: 14, flexShrink: 0 }}>📄</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
@@ -216,37 +275,11 @@ export function StatementHistory() {
                             }
                           </div>
                         </div>
-
                         <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${badge.color}15`, border: `1px solid ${badge.color}30`, color: badge.color, letterSpacing: "0.05em", flexShrink: 0 }}>
                           {badge.label.toUpperCase()}
                         </span>
-
-                        {isConfirming ? (
-                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                            <button
-                              onClick={() => deleteImport(imp.id)}
-                              disabled={isBeingDeleted}
-                              style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: T.red, border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer", opacity: isBeingDeleted ? 0.5 : 1 }}
-                            >
-                              {isBeingDeleted ? "…" : "Confirm"}
-                            </button>
-                            <button
-                              onClick={() => setConfirmDelete(null)}
-                              style={{ fontSize: 11, fontWeight: 600, color: T.dim, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDelete(imp.id)}
-                            title="Delete this import"
-                            style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", color: isEmpty ? T.red : T.dim, opacity: isEmpty ? 0.9 : 0.35, padding: "2px 4px", flexShrink: 0, lineHeight: 1, transition: "opacity 0.15s" }}
-                            onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
-                            onMouseLeave={e => (e.currentTarget.style.opacity = isEmpty ? "0.9" : "0.35")}
-                          >
-                            🗑
-                          </button>
+                        {isEmpty && !selectMode && (
+                          <span style={{ fontSize: 10, color: T.red, fontWeight: 700, flexShrink: 0 }}>⚠</span>
                         )}
                       </div>
                     );
