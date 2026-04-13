@@ -140,7 +140,7 @@ export function StatementHistory() {
                 <div style={{ borderTop: `1px solid ${T.border}` }}>
                   {folder.imports.map((imp, idx) => {
                     const badge = statusBadge(imp.status);
-                    const name = imp.filename || imp.file_url?.split('/').pop()?.split('?')[0] || imp.id.slice(0,8) + '...';
+                    const raw = imp.file_url ? imp.file_url.split("/").pop() || imp.id : imp.id; const name = raw.replace(/\.pdf$/i, "").replace(/[-_]/g, " ");
                     return (
                       <div key={imp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none" }}>
                         <div style={{ fontSize: 14, flexShrink: 0 }}>📄</div>
@@ -164,3 +164,4 @@ export function StatementHistory() {
     </div>
   );
 }
+
