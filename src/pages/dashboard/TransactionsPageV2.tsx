@@ -476,6 +476,9 @@ export default function TransactionsPageV2() {
   }, [filtered, visibleCount]);
 
   const uncategorizedCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
+  const isStatementMode = statementFilter !== 'all';
+  const activeStatement = isStatementMode ? stmtOptions.find(s => s.id === statementFilter) : null;
+  const activeStatementLabel = activeStatement?.label || 'Statement';
 
   if (isLoading) return (
     <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -506,12 +509,24 @@ export default function TransactionsPageV2() {
       <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-3">
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0 }}>Transactions</h1>
-            {statementFilter !== 'all' && (
-              <p className="text-[13px] mt-0.5" style={{ color: '#c8a64e' }}>{stmtOptions.find(s => s.id === statementFilter)?.label || 'Statement'} &middot; {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}</p>
+            {isStatementMode ? (
+              <div>
+                <button
+                  onClick={() => { setStatementFilter('all'); setAccountFilter('all'); }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', letterSpacing: 0.2 }}
+                >
+                  ← All Transactions
+                </button>
+                <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0, lineHeight: 1.2 }}>{activeStatementLabel}</h1>
+                <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0', fontWeight: 500 }}>
+                  {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            ) : (
+              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0 }}>Transactions</h1>
             )}
             <style>{`.acct-scroll::-webkit-scrollbar{display:none}`}</style>
-            <div
+            {!isStatementMode && <div
               className="acct-scroll mt-3"
               style={{
                 display: 'flex',
@@ -613,7 +628,7 @@ export default function TransactionsPageV2() {
                   );
                 });
               })()}
-            </div>
+            </div>}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-colors"><Download className="h-4 w-4" />Export</button>
@@ -639,8 +654,8 @@ export default function TransactionsPageV2() {
           ))}
         </div>
 
-        {/* TWO COLUMN: Donut + AI Insights */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+        {/* TWO COLUMN: Donut + AI Insights — hidden in statement mode */}
+        {!isStatementMode && <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
           {/* Donut */}
           <div className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-4">Spending by category</div>
@@ -686,7 +701,7 @@ export default function TransactionsPageV2() {
               ))}
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* FILTER BAR */}
         <div ref={listRef} className="flex items-center justify-between mb-5">
@@ -698,21 +713,14 @@ export default function TransactionsPageV2() {
             ))}
           </div>
           <div className="relative">
-            <button
+            {/* In statement mode hide the dropdown — the header already shows the name */}
+            {!isStatementMode && <button
               onClick={() => setStmtDropdownOpen(v => !v)}
-              className={`flex items-center gap-2 px-4 py-2 text-[13px] font-bold rounded-lg border transition-colors ${
-                statementFilter !== 'all'
-                  ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
-                  : 'text-slate-400 bg-slate-800/40 border-slate-700/30 hover:text-slate-300'
-              }`}
+              className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold rounded-lg border text-slate-400 bg-slate-800/40 border-slate-700/30 hover:text-slate-300 transition-colors"
             >
-              <span className="truncate max-w-[200px]">
-                {statementFilter === 'all'
-                  ? 'All Statements'
-                  : stmtOptions.find(s => s.id === statementFilter)?.label || 'Statement'}
-              </span>
+              <span className="truncate max-w-[200px]">All Statements</span>
               <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${stmtDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
+            </button>}
             {stmtDropdownOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setStmtDropdownOpen(false)} />

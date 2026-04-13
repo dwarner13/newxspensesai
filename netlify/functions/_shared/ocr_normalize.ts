@@ -249,7 +249,8 @@ export function normalizeOcrResult(
   const preferAi = preferAiForCibc || preferAiForStatements;
   const lowCoverageBase = !isCreditCard && dateLineCount >= 5 && bankTransactions.length < Math.max(3, Math.floor(dateLineCount * 0.4));
   const lowCoverageCibc = isCibcStatement && bankTransactions.length < Math.max(6, Math.floor(dateLineCount * 0.6));
-  const lowCoverage = lowCoverageBase || lowCoverageCibc;
+  const lowCoverageCreditCard = isCreditCard && !!openaiClient && bankTransactions.length < Math.max(3, Math.floor((dateLineCount || 10) * 0.5));
+  const lowCoverage = lowCoverageBase || lowCoverageCibc || lowCoverageCreditCard;
   const mappedBankTransactions = bankTransactions.map(tx => ({
     userId,
     kind: 'bank' as const,
@@ -275,7 +276,7 @@ export function normalizeOcrResult(
 
   // Primary parser found 0 transactions (or too few for credit card) - use AI fallback if OpenAI client is available
   if (openaiClient) {
-    if (isCorruptedText(normalizedText)) {
+    if (isCorruptedText(normalizedText) && !isCreditCard) {
       console.warn('[Byte OCR WARNING] corrupted_text_detected', {
         sourceTextPath,
         sourceValueType,
