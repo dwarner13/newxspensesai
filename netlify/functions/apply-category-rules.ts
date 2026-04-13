@@ -103,6 +103,7 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'LEWIS ESTATES', category: 'Entertainment', subcategory: 'Golf' },
   // Triangle / Canadian Tire card-specific
   { key: 'INTEREST CHARGES', category: 'Bank Fees', subcategory: 'Interest' },
+  { key: 'CANADIAN TIRE BANK', category: 'Bank Fees', subcategory: 'Interest' },
   { key: 'CTFS.COM', category: 'Transfers', subcategory: 'Credit Card Payment' },
   { key: 'CTFS.COM/PAYMENTS', category: 'Transfers', subcategory: 'Credit Card Payment' },
   { key: 'CDN TIRE STORE', category: 'Shopping', subcategory: 'Home & Garden' },
@@ -118,7 +119,7 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'APPLE.COM/BILL', category: 'Subscriptions', subcategory: 'Software' },
   { key: 'GOOGLE ONE', category: 'Subscriptions', subcategory: 'Software' },
   { key: 'MICROSOFT', category: 'Subscriptions', subcategory: 'Software' },
-  // Credit card payments (other issuers)
+  // Credit card payments
   { key: 'CAPITAL ONE PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
   { key: 'RBC PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
   { key: 'TD VISA', category: 'Transfers', subcategory: 'Credit Card Payment' },
