@@ -22,15 +22,15 @@ function issuerColor(issuer: string): string {
 
 function issuerEmoji(issuer: string): string {
   const s = issuer.toLowerCase();
-  if (s.includes("bmo")) return "\uD83C\uDFE6";
-  if (s.includes("cibc")) return "\uD83C\uDFE6";
-  if (s.includes("capital one")) return "\uD83D\uDCB3";
-  if (s.includes("rbc")) return "\uD83C\uDFE6";
-  if (s.includes("td")) return "\uD83C\uDFE6";
-  if (s.includes("amex") || s.includes("american express")) return "\uD83D\uDCB3";
-  if (s.includes("scotiabank") || s.includes("scotia")) return "\uD83C\uDFE6";
-  if (s.includes("canadian tire")) return "\uD83C\uDFEA";
-  return "\uD83D\uDCC1";
+  if (s.includes("bmo")) return "🏦";
+  if (s.includes("cibc")) return "🏦";
+  if (s.includes("capital one")) return "💳";
+  if (s.includes("rbc")) return "🏦";
+  if (s.includes("td")) return "🏦";
+  if (s.includes("amex") || s.includes("american express")) return "💳";
+  if (s.includes("scotiabank") || s.includes("scotia")) return "🏦";
+  if (s.includes("canadian tire")) return "🏪";
+  return "📁";
 }
 
 function formatDate(iso: string): string {
@@ -134,16 +134,16 @@ export function StatementHistory() {
                     {` \u00B7 ${formatDate(folder.earliest)} \u2013 ${formatDate(folder.latest)}`}
                   </div>
                 </div>
-                <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>\u25BE</div>
+                <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>▾</div>
               </button>
               {isOpen && (
                 <div style={{ borderTop: `1px solid ${T.border}` }}>
                   {folder.imports.map((imp, idx) => {
                     const badge = statusBadge(imp.status);
-                    const name = imp.filename || imp.id;
+                    const name = imp.filename || imp.file_url?.split('/').pop()?.split('?')[0] || imp.id.slice(0,8) + '...';
                     return (
                       <div key={imp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none" }}>
-                        <div style={{ fontSize: 14, flexShrink: 0 }}>\uD83D\uDCC4</div>
+                        <div style={{ fontSize: 14, flexShrink: 0 }}>📄</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
                           <div style={{ fontSize: 10, color: T.dim, marginTop: 1 }}>
