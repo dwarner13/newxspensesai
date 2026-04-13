@@ -9,9 +9,10 @@ import { useAuth } from "@/contexts/AuthContext";
 interface Transaction {
   category: string | null;
   merchant: string | null;
-  amount: number; // negative for expenses
-  type: string; // "expense" | "income"
-  date: string; // "YYYY-MM-DD"
+  merchant_name: string | null;
+  amount: number;
+  type: string;
+  date: string;
   subcategory: string | null;
 }
 
@@ -48,13 +49,13 @@ interface Bucket {
 }
 
 const VEHICLE_BUCKETS: Bucket[] = [
-  { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky"] },
-  { label: "Car Payments", keywords: ["td loan", "car payment", "auto loan", "lns/pre"] },
+  { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky", "gas & fuel", "kollbrook", "canco petroleum", "circle k"] },
+  { label: "Car Payments", keywords: ["td loan", "car payment", "auto loan", "lns/pre", "car loan"] },
   { label: "Registration", keywords: ["registry", "registration", "northtown registry"] },
   { label: "Insurance", keywords: ["car insurance", "vehicle insurance", "auto insurance"] },
-  { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "canadian tire auto", "maintenance"] },
+  { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "canadian tire auto", "maintenance", "auto service", "vehicle maintenance", "jiffy lube", "revolution moto", "river city hyundai"] },
   { label: "Parking", keywords: ["parking", "impark", "parkade"] },
-  { label: "Car Wash", keywords: ["car wash"] },
+  { label: "Car Wash", keywords: ["car wash", "kenyon", "triangle cp"] },
 ];
 
 const MEALS_BUCKETS: Bucket[] = [
@@ -126,7 +127,7 @@ function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
   map.set("Other", { count: 0, total: 0 });
 
   for (const tx of txs) {
-    const merch = (tx.merchant || "").toLowerCase();
+    const merch = (tx.merchant_name || tx.merchant || "").toLowerCase();
     const subcat = (tx.subcategory || "").toLowerCase();
     let matched = false;
 
@@ -249,7 +250,7 @@ export default function TaxWorkspacePage() {
       if (!supabase) { setLoading(false); return; }
       const { data, error } = await supabase
         .from("transactions")
-        .select("category, merchant, amount, type, date, subcategory")
+        .select("category, merchant, merchant_name, amount, type, date, subcategory")
         .eq("user_id", userId)
         .gte("date", `${year}-01-01`)
         .lt("date", `${year + 1}-01-01`)
