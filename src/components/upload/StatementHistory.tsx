@@ -1,121 +1,190 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getSupabase } from '@/lib/supabase';
+﻿import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { getSupabase } from "@/lib/supabase";
 
-const T = { bg:'#0b1220',surface:'#111a2e',border:'#1e2d4a',text:'#e8ecf4',muted:'#94a3b8',dim:'#64748b',green:'#34d399',red:'#f87171',cyan:'#22d3ee',amber:'#fbbf24' };
+const T = {
+  bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
+  text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8",
+  accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee",
+  red: "#f87171", amber: "#fbbf24", purple: "#a78bfa",
+};
 
-type StatementRow = { id:string; filename:string; status:string; txn_count:number; earliest:string|null; latest:string|null; uploaded_at:string };
-
-function statusColor(s:string){if(s==='committed')return T.green;if(s==='normalizing'||s==='parsing'||s==='parsed')return T.amber;if(s==='failed'||s==='error')return T.red;return T.cyan;}
-function statusLabel(s:string){if(s==='committed')return 'Committed';if(s==='normalizing')return 'Processing';if(s==='parsing')return 'Parsing';if(s==='parsed')return 'Parsed';if(s==='failed'||s==='error')return 'Failed';return s;}
-function statusDot(s:string){if(s==='committed')return String.fromCharCode(10003);if(s==='failed'||s==='error')return String.fromCharCode(10005);return String.fromCharCode(9675);}
-function formatDate(d:string|null){if(!d)return'--';return new Date(d).toLocaleDateString('en-CA',{month:'short',day:'numeric'});}
-
-function SRow({row,i,isLast,onDelete}:{row:StatementRow;i:number;isLast:boolean;onDelete:(id:string)=>void}){
-  const navigate=useNavigate();
-  const isCommitted=row.status==='committed';
-  const [confirmDelete,setConfirmDelete]=useState(false);
-  return(
-    <div onClick={()=>isCommitted&&navigate('/dashboard/transactions?importId='+row.id)}
-      style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',padding:'11px 16px',
-        borderBottom:isLast?'none':'1px solid '+T.border,
-        background:i%2===0?T.bg:T.surface+'60',alignItems:'center',cursor:isCommitted?'pointer':'default'}}>
-      <div style={{fontSize:13,color:isCommitted?T.text:T.muted,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:8}}>
-        {row.filename}
-      </div>
-      <div style={{display:'flex',alignItems:'center',gap:5}}>
-        <span style={{fontSize:12,fontWeight:800,color:statusColor(row.status)}}>{statusDot(row.status)}</span>
-        <span style={{fontSize:11,fontWeight:700,color:statusColor(row.status)}}>{statusLabel(row.status)}</span>
-      </div>
-      <div style={{fontSize:12,color:row.txn_count>0?T.text:T.dim}}>{row.txn_count>0?row.txn_count+' txns':'--'}</div>
-      <div style={{fontSize:11,color:T.muted}}>{row.earliest?formatDate(row.earliest)+' – '+formatDate(row.latest):'--'}</div>
-      <div onClick={e=>e.stopPropagation()}>
-        {confirmDelete?(
-          <div style={{display:'flex',gap:4}}>
-            <button onClick={()=>onDelete(row.id)} style={{fontSize:10,fontWeight:700,color:'#fff',background:T.red,border:'none',borderRadius:6,padding:'3px 8px',cursor:'pointer'}}>Confirm</button>
-            <button onClick={()=>setConfirmDelete(false)} style={{fontSize:10,fontWeight:700,color:T.muted,background:'transparent',border:'1px solid '+T.border,borderRadius:6,padding:'3px 8px',cursor:'pointer'}}>Cancel</button>
-          </div>
-        ):(
-          <button onClick={()=>setConfirmDelete(true)} style={{fontSize:10,fontWeight:700,color:T.red,background:'transparent',border:'1px solid '+T.red+'44',borderRadius:6,padding:'3px 8px',cursor:'pointer'}}>Delete</button>
-        )}
-      </div>
-    </div>
-  );
+interface ImportRow {
+  id: string;
+  issuer: string | null;
+  original_name: string | null;
+  status: string | null;
+  created_at: string;
+  committed_count: number | null;
 }
 
-export function StatementHistory(){
-  const [rows,setRows]=useState<StatementRow[]>([]);
-  const [loading,setLoading]=useState(true);
-  const [archiveOpen,setArchiveOpen]=useState(false);
+interface FolderGroup {
+  key: string;
+  label: string;
+  issuer: string;
+  year: number;
+  imports: ImportRow[];
+  totalTx: number;
+  earliest: string;
+  latest: string;
+}
 
-  useEffect(()=>{
-    async function load(){
-      try{
-        const sb=getSupabase();if(!sb)return;
-        const{data:imports}=await sb.from('imports').select('id,filename,file_url,status,created_at').order('created_at',{ascending:false}).limit(50);
-        if(!imports||imports.length===0){setLoading(false);return;}
-        const results:StatementRow[]=await Promise.all(imports.map(async(imp:any)=>{
-          const filename=imp.filename||decodeURIComponent((imp.file_url||'').split('/').pop()||'')||'Unknown';
-          const{count,data:txData}=await sb.from('transactions').select('date',{count:'exact'}).eq('import_id',imp.id).order('date',{ascending:true});
-          const dates=(txData||[]).map((t:any)=>t.date).filter(Boolean).sort();
-          return{id:imp.id,filename:decodeURIComponent(filename),status:imp.status||'unknown',txn_count:count||0,earliest:dates[0]||null,latest:dates[dates.length-1]||null,uploaded_at:imp.created_at};
-        }));
-        setRows(results);
-      }finally{setLoading(false);}
-    }
-    load();
-  },[]);
+function issuerColor(issuer: string): string {
+  const s = issuer.toLowerCase();
+  if (s.includes("bmo"))          return T.green;
+  if (s.includes("cibc"))         return T.cyan;
+  if (s.includes("capital one"))  return "#f97316";
+  if (s.includes("rbc"))          return T.red;
+  if (s.includes("td"))           return "#10b981";
+  if (s.includes("amex") || s.includes("american express")) return T.purple;
+  if (s.includes("scotiabank") || s.includes("scotia")) return T.amber;
+  if (s.includes("canadian tire")) return T.accent;
+  return T.muted;
+}
 
-  async function handleDelete(id:string){
-    const sb=getSupabase();if(!sb)return;
-    // Grab the linked document_id before deleting the import
-    const{data:imp}=await sb.from('imports').select('document_id').eq('id',id).maybeSingle();
-    await sb.from('transactions').delete().eq('import_id',id);
-    await sb.from('transactions_staging').delete().eq('import_id',id);
-    await sb.from('import_summaries').delete().eq('import_id',id);
-    await sb.from('imports').delete().eq('id',id);
-    // Cascade to user_documents (linked via imports.document_id)
-    if(imp?.document_id){
-      await sb.from('user_documents').delete().eq('id',imp.document_id);
+function issuerEmoji(issuer: string): string {
+  const s = issuer.toLowerCase();
+  if (s.includes("bmo"))         return "\uD83C\uDFE6";
+  if (s.includes("cibc"))        return "\uD83C\uDFE6";
+  if (s.includes("capital one")) return "\uD83D\uDCB3";
+  if (s.includes("rbc"))         return "\uD83C\uDFE6";
+  if (s.includes("td"))          return "\uD83C\uDFE6";
+  if (s.includes("amex") || s.includes("american express")) return "\uD83D\uDCB3";
+  if (s.includes("scotiabank") || s.includes("scotia")) return "\uD83C\uDFE6";
+  if (s.includes("canadian tire")) return "\uD83C\uDFEA";
+  return "\uD83D\uDCC1";
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+}
+
+function statusBadge(status: string | null) {
+  if (status === "committed") return { label: "Committed", color: T.green };
+  if (status === "approved")  return { label: "Approved",  color: T.cyan };
+  if (status === "pending")   return { label: "Pending",   color: T.amber };
+  if (status === "failed")    return { label: "Failed",    color: T.red };
+  return { label: status || "\u2014", color: T.dim };
+}
+
+export function StatementHistory() {
+  const { userId } = useAuth();
+  const [imports, setImports] = useState<ImportRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      setLoading(true);
+      const sb = getSupabase();
+      if (!sb) { setLoading(false); return; }
+      const { data, error } = await sb
+        .from("imports")
+        .select("id, issuer, original_name, status, created_at, committed_count")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (!error && data) setImports(data as ImportRow[]);
+      setLoading(false);
+    })();
+  }, [userId]);
+
+  const folders: FolderGroup[] = (() => {
+    const map = new Map<string, FolderGroup>();
+    for (const imp of imports) {
+      const issuer = imp.issuer || "Unknown";
+      const year = new Date(imp.created_at).getFullYear();
+      const key = `${issuer}-${year}`;
+      if (!map.has(key)) {
+        map.set(key, { key, label: `${issuer} ${year}`, issuer, year, imports: [], totalTx: 0, earliest: imp.created_at, latest: imp.created_at });
+      }
+      const g = map.get(key)!;
+      g.imports.push(imp);
+      g.totalTx += imp.committed_count || 0;
+      if (imp.created_at < g.earliest) g.earliest = imp.created_at;
+      if (imp.created_at > g.latest)   g.latest   = imp.created_at;
     }
-    setRows(rows.filter(r=>r.id!==id));
+    return Array.from(map.values()).sort((a, b) =>
+      b.year !== a.year ? b.year - a.year : a.issuer.localeCompare(b.issuer)
+    );
+  })();
+
+  useEffect(() => {
+    if (folders.length > 0 && openFolders.size === 0) {
+      setOpenFolders(new Set([folders[0].key]));
+    }
+  }, [folders.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleFolder = (key: string) => {
+    setOpenFolders(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div style={{ marginTop: 32, padding: "20px", borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
+        <div style={{ fontSize: 12, color: T.dim }}>Loading statement history\u2026</div>
+      </div>
+    );
   }
 
-  if(loading)return <div style={{marginTop:32,padding:'16px 20px',borderRadius:14,background:T.surface,border:'1px solid '+T.border,color:T.dim,fontSize:12}}>Loading statement history...</div>;
-  if(rows.length===0)return null;
+  if (imports.length === 0) return null;
 
-  const active=rows.filter(r=>r.status!=='committed');
-  const committed=rows.filter(r=>r.status==='committed');
-  const recent=committed.slice(0,3);
-  const archived=committed.slice(3);
-  const visible=[...active,...recent];
-
-  return(
-    <div style={{marginTop:32}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:'uppercase',letterSpacing:'0.12em'}}>Statement History</div>
-        <div style={{fontSize:11,color:T.dim}}>{committed.length} committed &middot; {active.length} active</div>
+  return (
+    <div style={{ marginTop: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.1em" }}>Statement History</div>
+        <div style={{ flex: 1, height: 1, background: T.border }} />
+        <div style={{ fontSize: 11, color: T.dim }}>{imports.length} import{imports.length !== 1 ? "s" : ""}</div>
       </div>
-      <div style={{borderRadius:14,border:'1px solid '+T.border,overflow:'hidden'}}>
-        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',padding:'9px 16px',background:T.surface,borderBottom:'1px solid '+T.border}}>
-          {['File','Status','Transactions','Date Range',''].map(h=>(
-            <div key={h} style={{fontSize:10,fontWeight:700,color:T.dim,textTransform:'uppercase',letterSpacing:'0.1em'}}>{h}</div>
-          ))}
-        </div>
-        {visible.map((row,i)=><SRow key={row.id} row={row} i={i} isLast={i===visible.length-1&&archived.length===0} onDelete={handleDelete}/>)}
-        {archived.length>0&&(
-          <>
-            <div onClick={()=>setArchiveOpen(v=>!v)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px',background:T.surface+'cc',borderTop:'1px solid '+T.border,cursor:'pointer'}}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:11,color:T.dim,display:'inline-block',transform:archiveOpen?'rotate(90deg)':'none',transition:'transform 0.2s'}}>▶</span>
-                <span style={{fontSize:12,fontWeight:600,color:T.muted}}>Archive</span>
-                <span style={{fontSize:11,padding:'1px 7px',borderRadius:10,background:T.border,color:T.dim,fontWeight:600}}>{archived.length}</span>
-              </div>
-              <span style={{fontSize:11,color:T.dim}}>{archiveOpen?'Collapse':'Show older statements'}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {folders.map(folder => {
+          const isOpen = openFolders.has(folder.key);
+          const color  = issuerColor(folder.issuer);
+          const emoji  = issuerEmoji(folder.issuer);
+          return (
+            <div key={folder.key} style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${isOpen ? color + "33" : T.border}`, background: T.surface, transition: "border-color 0.2s" }}>
+              <button onClick={() => toggleFolder(folder.key)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: `${color}14`, border: `1.5px solid ${color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{emoji}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{folder.label}</div>
+                  <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
+                    {folder.imports.length} statement{folder.imports.length !== 1 ? "s" : ""}
+                    {folder.totalTx > 0 && ` \u00B7 ${folder.totalTx.toLocaleString()} transactions`}
+                    {` \u00B7 ${formatDate(folder.earliest)} \u2013 ${formatDate(folder.latest)}`}
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>\u25BE</div>
+              </button>
+              {isOpen && (
+                <div style={{ borderTop: `1px solid ${T.border}` }}>
+                  {folder.imports.map((imp, idx) => {
+                    const badge = statusBadge(imp.status);
+                    const name  = imp.original_name || imp.id;
+                    return (
+                      <div key={imp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                        <div style={{ fontSize: 14, flexShrink: 0 }}>\uD83D\uDCC4</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                          <div style={{ fontSize: 10, color: T.dim, marginTop: 1 }}>
+                            {new Date(imp.created_at).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}
+                            {imp.committed_count != null && imp.committed_count > 0 && ` \u00B7 ${imp.committed_count} tx`}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${badge.color}15`, border: `1px solid ${badge.color}30`, color: badge.color, letterSpacing: "0.05em", flexShrink: 0 }}>{badge.label.toUpperCase()}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            {archiveOpen&&archived.map((row,i)=><SRow key={row.id} row={row} i={i} isLast={i===archived.length-1} onDelete={handleDelete}/>)}
-          </>
-        )}
+          );
+        })}
       </div>
     </div>
   );
