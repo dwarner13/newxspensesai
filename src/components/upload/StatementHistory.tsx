@@ -4,7 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24", purple: "#a78bfa" };
 
-interface ImportRow { id: string; issuer: string | null; filename: string | null; status: string | null; created_at: string; committed_count: number | null; }
+interface ImportRow { id: string; issuer: string | null; filename: string | null; file_url: string | null; status: string | null; created_at: string; committed_count: number | null; }
 interface FolderGroup { key: string; label: string; issuer: string; year: number; imports: ImportRow[]; totalTx: number; earliest: string; latest: string; }
 
 function issuerColor(issuer: string): string {
@@ -60,7 +60,7 @@ export function StatementHistory() {
       if (!sb) { setLoading(false); return; }
       const { data, error } = await sb
         .from("imports")
-        .select("id, issuer, filename, status, created_at, committed_count")
+        .select("id, issuer, filename, file_url, status, created_at, committed_count")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(200);
@@ -164,5 +164,6 @@ export function StatementHistory() {
     </div>
   );
 }
+
 
 
