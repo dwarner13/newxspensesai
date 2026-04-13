@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 
@@ -41,9 +41,10 @@ function formatDate(iso: string): string {
 function statusBadge(status: string | null) {
   if (status === "committed") return { label: "Committed", color: T.green };
   if (status === "approved") return { label: "Approved", color: T.cyan };
+  if (status === "parsed") return { label: "Parsed", color: T.cyan };
   if (status === "pending") return { label: "Pending", color: T.amber };
   if (status === "failed") return { label: "Failed", color: T.red };
-  return { label: status || "\u2014", color: T.dim };
+  return { label: status || "—", color: T.dim };
 }
 
 export function StatementHistory() {
@@ -51,24 +52,64 @@ export function StatementHistory() {
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  useEffect(() => {
+  const fetchImports = async () => {
     if (!userId) return;
-    (async () => {
-      setLoading(true);
-      const sb = getSupabase();
-      if (!sb) { setLoading(false); return; }
-      const { data, error } = await sb
-        .from("imports")
-        .select("id, issuer, filename, file_url, status, created_at, committed_count")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(200);
-      console.log("[StatementHistory] query result:", { count: data?.length, error });
-      if (!error && data) setImports(data as ImportRow[]);
-      setLoading(false);
-    })();
-  }, [userId]);
+    setLoading(true);
+    const sb = getSupabase();
+    if (!sb) { setLoading(false); return; }
+    const { data, error } = await sb
+      .from("imports")
+      .select("id, issuer, filename, file_url, status, created_at, committed_count")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    console.log("[StatementHistory] query result:", { count: data?.length, error });
+    if (!error && data) setImports(data as ImportRow[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchImports(); }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const deleteImport = async (importId: string) => {
+    const sb = getSupabase();
+    if (!sb || !userId) return;
+    setDeleting(prev => new Set(prev).add(importId));
+    try {
+      await sb.from("transactions").delete().eq("import_id", importId).eq("user_id", userId);
+      await sb.from("imports").delete().eq("id", importId).eq("user_id", userId);
+      setImports(prev => prev.filter(i => i.id !== importId));
+    } catch (e) {
+      console.error("[StatementHistory] delete failed", e);
+    } finally {
+      setDeleting(prev => { const next = new Set(prev); next.delete(importId); return next; });
+      setConfirmDelete(null);
+    }
+  };
+
+  const deleteAllEmpty = async () => {
+    const sb = getSupabase();
+    if (!sb || !userId) return;
+    const emptyIds = imports
+      .filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed")
+      .map(i => i.id);
+    if (emptyIds.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of emptyIds) {
+        await sb.from("transactions").delete().eq("import_id", id).eq("user_id", userId);
+        await sb.from("imports").delete().eq("id", id).eq("user_id", userId);
+      }
+      setImports(prev => prev.filter(i => !emptyIds.includes(i.id)));
+    } catch (e) {
+      console.error("[StatementHistory] bulk delete failed", e);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   const folders: FolderGroup[] = (() => {
     const map = new Map<string, FolderGroup>();
@@ -98,9 +139,11 @@ export function StatementHistory() {
     setOpenFolders(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   };
 
+  const emptyCount = imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed").length;
+
   if (loading) return (
     <div style={{ marginTop: 32, padding: "20px", borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
-      <div style={{ fontSize: 12, color: T.dim }}>Loading statement history\u2026</div>
+      <div style={{ fontSize: 12, color: T.dim }}>Loading statement history…</div>
     </div>
   );
 
@@ -115,8 +158,18 @@ export function StatementHistory() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.1em" }}>Statement History</div>
         <div style={{ flex: 1, height: 1, background: T.border }} />
+        {emptyCount > 0 && (
+          <button
+            onClick={deleteAllEmpty}
+            disabled={bulkDeleting}
+            style={{ fontSize: 11, fontWeight: 700, color: T.red, background: `${T.red}12`, border: `1px solid ${T.red}30`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", opacity: bulkDeleting ? 0.5 : 1, whiteSpace: "nowrap" }}
+          >
+            {bulkDeleting ? "Deleting…" : `🗑 Delete ${emptyCount} empty`}
+          </button>
+        )}
         <div style={{ fontSize: 11, color: T.dim }}>{imports.length} import{imports.length !== 1 ? "s" : ""}</div>
       </div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {folders.map(folder => {
           const isOpen = openFolders.has(folder.key);
@@ -130,28 +183,71 @@ export function StatementHistory() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{folder.label}</div>
                   <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
                     {folder.imports.length} statement{folder.imports.length !== 1 ? "s" : ""}
-                    {folder.totalTx > 0 && ` \u00B7 ${folder.totalTx.toLocaleString()} transactions`}
-                    {` \u00B7 ${formatDate(folder.earliest)} \u2013 ${formatDate(folder.latest)}`}
+                    {folder.totalTx > 0 && ` · ${folder.totalTx.toLocaleString()} transactions`}
+                    {` · ${formatDate(folder.earliest)} – ${formatDate(folder.latest)}`}
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>▾</div>
               </button>
+
               {isOpen && (
                 <div style={{ borderTop: `1px solid ${T.border}` }}>
                   {folder.imports.map((imp, idx) => {
                     const badge = statusBadge(imp.status);
-                    const raw = imp.file_url ? imp.file_url.split("/").pop() || imp.id : imp.id; const name = raw.replace(/\.pdf$/i, "").replace(/[-_]/g, " ");
+                    const raw = imp.file_url ? imp.file_url.split("/").pop() || imp.id : imp.id;
+                    const name = raw.replace(/\.pdf$/i, "").replace(/[-_]/g, " ");
+                    const isEmpty = !imp.committed_count || imp.committed_count === 0;
+                    const isConfirming = confirmDelete === imp.id;
+                    const isBeingDeleted = deleting.has(imp.id);
+
                     return (
-                      <div key={imp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                      <div
+                        key={imp.id}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none", background: isConfirming ? `${T.red}08` : "transparent", transition: "background 0.15s" }}
+                      >
                         <div style={{ fontSize: 14, flexShrink: 0 }}>📄</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
                           <div style={{ fontSize: 10, color: T.dim, marginTop: 1 }}>
                             {new Date(imp.created_at).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}
-                            {imp.committed_count != null && imp.committed_count > 0 && ` \u00B7 ${imp.committed_count} tx`}
+                            {imp.committed_count != null && imp.committed_count > 0
+                              ? ` · ${imp.committed_count} tx`
+                              : <span style={{ color: T.red }}> · 0 transactions</span>
+                            }
                           </div>
                         </div>
-                        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${badge.color}15`, border: `1px solid ${badge.color}30`, color: badge.color, letterSpacing: "0.05em", flexShrink: 0 }}>{badge.label.toUpperCase()}</span>
+
+                        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${badge.color}15`, border: `1px solid ${badge.color}30`, color: badge.color, letterSpacing: "0.05em", flexShrink: 0 }}>
+                          {badge.label.toUpperCase()}
+                        </span>
+
+                        {isConfirming ? (
+                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                            <button
+                              onClick={() => deleteImport(imp.id)}
+                              disabled={isBeingDeleted}
+                              style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: T.red, border: "none", borderRadius: 6, padding: "3px 10px", cursor: "pointer", opacity: isBeingDeleted ? 0.5 : 1 }}
+                            >
+                              {isBeingDeleted ? "…" : "Confirm"}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(null)}
+                              style={{ fontSize: 11, fontWeight: 600, color: T.dim, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDelete(imp.id)}
+                            title="Delete this import"
+                            style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", color: isEmpty ? T.red : T.dim, opacity: isEmpty ? 0.9 : 0.35, padding: "2px 4px", flexShrink: 0, lineHeight: 1, transition: "opacity 0.15s" }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = isEmpty ? "0.9" : "0.35")}
+                          >
+                            🗑
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -164,6 +260,3 @@ export function StatementHistory() {
     </div>
   );
 }
-
-
-
