@@ -249,8 +249,7 @@ export function normalizeOcrResult(
   const preferAi = preferAiForCibc || preferAiForStatements;
   const lowCoverageBase = !isCreditCard && dateLineCount >= 5 && bankTransactions.length < Math.max(3, Math.floor(dateLineCount * 0.4));
   const lowCoverageCibc = isCibcStatement && bankTransactions.length < Math.max(6, Math.floor(dateLineCount * 0.6));
-  const lowCoverageCreditCard = isCreditCard && dateLineCount >= 5 && bankTransactions.length < Math.max(5, Math.floor(dateLineCount * 0.5));
-  const lowCoverage = lowCoverageBase || lowCoverageCibc || lowCoverageCreditCard;
+  const lowCoverage = lowCoverageBase || lowCoverageCibc;
   const mappedBankTransactions = bankTransactions.map(tx => ({
     userId,
     kind: 'bank' as const,
