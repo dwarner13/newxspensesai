@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 
@@ -53,6 +54,7 @@ function statusBadge(status: string | null) {
 
 export function StatementHistory() {
   const { userId } = useAuth();
+  const navigate = useNavigate();
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
@@ -117,15 +119,40 @@ export function StatementHistory() {
     for (const imp of imports) {
       // Use filename to detect card variant for better grouping
       const rawName = (imp.file_url?.split("/").pop() || imp.filename || "").toLowerCase();
-      let issuer = imp.issuer || "Unknown";
-      // Distinguish Triangle World Elite from regular Triangle Mastercard
-      if (/world.?elite/i.test(rawName) && /triangle|canadian.?tire/i.test(issuer)) {
-        issuer = "Triangle World Elite";
-      } else if (/triangle|canadian.?tire/i.test(issuer) && !/world.?elite/i.test(issuer)) {
-        issuer = "Triangle Mastercard";
+      let issuer = imp.issuer || "";
+
+      // If issuer is missing from DB, try to detect from filename
+      if (!issuer || issuer === "Unknown") {
+        if (/world.?elite/i.test(rawName)) {
+          issuer = "Triangle World Elite";
+        } else if (/triangle|canadian.?tire/i.test(rawName)) {
+          issuer = "Triangle Mastercard";
+        } else if (/rbc|royal.?bank/i.test(rawName)) {
+          issuer = "RBC";
+        } else if (/capital.?one/i.test(rawName)) {
+          issuer = "Capital One";
+        } else if (/bmo|bank.?of.?montreal/i.test(rawName)) {
+          issuer = "BMO";
+        } else if (/td.?bank|td.?canada/i.test(rawName)) {
+          issuer = "TD Bank";
+        } else if (/cibc/i.test(rawName)) {
+          issuer = "CIBC";
+        } else if (/scotiabank|scotia/i.test(rawName)) {
+          issuer = "Scotiabank";
+        } else if (/6075/i.test(rawName)) {
+          issuer = "Unknown Card";
+        } else {
+          issuer = "Unknown";
+        }
+      } else {
+        // Issuer exists — refine Triangle variants and normalize
+        if (/world.?elite/i.test(rawName) && /triangle|canadian.?tire/i.test(issuer)) {
+          issuer = "Triangle World Elite";
+        } else if (/triangle|canadian.?tire/i.test(issuer) && !/world.?elite/i.test(issuer)) {
+          issuer = "Triangle Mastercard";
+        }
+        if (/rbc|royal.?bank/i.test(issuer)) issuer = "RBC";
       }
-      // Distinguish RBC card types if needed
-      if (/rbc|royal.?bank/i.test(issuer)) issuer = "RBC";
       const year = new Date(imp.created_at).getFullYear();
       const key = `${issuer}-${year}`;
       if (!map.has(key)) {
@@ -316,8 +343,14 @@ export function StatementHistory() {
                     return (
                       <div
                         key={imp.id}
-                        onClick={() => selectMode && toggleSelect(imp.id)}
-                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none", background: isChecked ? `${T.red}10` : "transparent", transition: "background 0.15s", cursor: selectMode ? "pointer" : "default" }}
+                        onClick={() => {
+                          if (selectMode) {
+                            toggleSelect(imp.id);
+                          } else {
+                            navigate(`/dashboard/transactions?import_id=${imp.id}`);
+                          }
+                        }}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none", background: isChecked ? `${T.red}10` : "transparent", transition: "background 0.15s", cursor: "pointer" }}
                       >
                         {selectMode && (
                           <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${isChecked ? T.red : T.border}`, background: isChecked ? T.red : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
