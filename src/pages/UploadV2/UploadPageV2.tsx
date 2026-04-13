@@ -173,7 +173,7 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
     fetch('/.netlify/functions/set-import-issuer', {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ importId: data.import_id, issuer }),
+      body: JSON.stringify({ importId: data.import_id }),
     }).catch(err => console.warn('set-import-issuer failed (non-blocking):', err));
   }
 
@@ -1033,3 +1033,4 @@ export default function UploadPageV2() {
     </>
   );
 }
+
