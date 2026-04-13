@@ -215,6 +215,7 @@ export default function UploadPageV2() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [allDone, setAllDone] = useState(false);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [sweepSuggestion, setSweepSuggestion] = useState<any>(null);
   const [bytePanelOpen, setBytePanelOpen] = useState(false);
   const [byteInput, setByteInput] = useState('');
@@ -331,7 +332,7 @@ export default function UploadPageV2() {
     if (!current) {
       // Check if everything is done
       if (queue.length > 0 && queue.every(q => q.status === "complete" || q.status === "failed")) {
-        setAllDone(true);
+        setAllDone(true); setHistoryRefreshKey(k => k + 1);
       }
       return;
     }
@@ -420,7 +421,7 @@ export default function UploadPageV2() {
     const processNextInQueue = async (): Promise<void> => {
       const currentQueue = queueRef.current;
       const next = currentQueue.find(q => q.status === "queued");
-      if (!next) { setAllDone(true); return; }
+      if (!next) { setAllDone(true); setHistoryRefreshKey(k => k + 1); return; }
       processingRef.current = true;
       updateItem(next.id, { status: "processing", progress: 0 });
 
@@ -837,7 +838,7 @@ export default function UploadPageV2() {
           </Reveal>
         )}
       {/* Statement History */}
-      <StatementHistory />
+      <StatementHistory key={historyRefreshKey} />
       </>)}
 
       {/* â”€â”€ RECEIPT MODE â”€â”€ */}
