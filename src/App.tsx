@@ -353,6 +353,8 @@ function App() {
                         
                         {/* Reports route - redirect to dashboard */}
                         <Route path="/reports" element={<Navigate to="/dashboard/reports" replace />} />
+                        {/* Transactions route - redirect to dashboard (catches stale navigate('/transactions') calls) */}
+                        <Route path="/transactions" element={<Navigate to="/dashboard/transactions" replace />} />
                         
                         {/* OCR Tester routes */}
                         <Route path="/test/ocr" element={<Navigate to="/ocr-tester" replace />} />
