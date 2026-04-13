@@ -317,7 +317,12 @@ export default function UploadPageV2() {
   }, []);
 
   const updateItem = useCallback((id: string, patch: Partial<QueueItem>) => {
-    setQueue(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
+    setQueue(prev => {
+      const next = prev.map(item => item.id === id ? { ...item, ...patch } : item);
+      // Keep ref in sync immediately so recursive processNextInQueue sees updated statuses
+      queueRef.current = next;
+      return next;
+    });
   }, []);
 
   const processNext = useCallback(async () => {
@@ -411,6 +416,7 @@ export default function UploadPageV2() {
   // Auto-process: after each item completes, start next
   const processAll = useCallback(async () => {
     if (!userId) { toast.error("Not authenticated"); return; }
+    console.log('[UploadV2] queue length on start:', queueRef.current.length, queueRef.current.map(q => `${q.file.name}:${q.status}`));
     const processNextInQueue = async (): Promise<void> => {
       const currentQueue = queueRef.current;
       const next = currentQueue.find(q => q.status === "queued");
@@ -557,7 +563,8 @@ export default function UploadPageV2() {
           // Query the real committed count from transactions table.
           // Retry up to 5 times (every 2s) if count is 0 — the commit step
           // may still be writing rows asynchronously.
-          let txCount = await getCommittedTxCount(importId, userId);
+          console.log('[UploadV2] querying txCount for importId:', importId);
+          let txCount = importId ? await getCommittedTxCount(importId, userId) : 0;
           if (txCount === 0 && importId) {
             for (let retry = 0; retry < 5 && txCount === 0; retry++) {
               await new Promise(r => setTimeout(r, 2000));
