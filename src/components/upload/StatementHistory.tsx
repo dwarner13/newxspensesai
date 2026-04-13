@@ -4,7 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24", purple: "#a78bfa" };
 
-interface ImportRow { id: string; issuer: string | null; original_name: string | null; status: string | null; created_at: string; committed_count: number | null; }
+interface ImportRow { id: string; issuer: string | null; filename: string | null; status: string | null; created_at: string; committed_count: number | null; }
 interface FolderGroup { key: string; label: string; issuer: string; year: number; imports: ImportRow[]; totalTx: number; earliest: string; latest: string; }
 
 function issuerColor(issuer: string): string {
@@ -60,7 +60,7 @@ export function StatementHistory() {
       if (!sb) { setLoading(false); return; }
       const { data, error } = await sb
         .from("imports")
-        .select("id, issuer, original_name, status, created_at, committed_count")
+        .select("id, issuer, filename, status, created_at, committed_count")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(200);
@@ -140,7 +140,7 @@ export function StatementHistory() {
                 <div style={{ borderTop: `1px solid ${T.border}` }}>
                   {folder.imports.map((imp, idx) => {
                     const badge = statusBadge(imp.status);
-                    const name = imp.original_name || imp.id;
+                    const name = imp.filename || imp.id;
                     return (
                       <div key={imp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none" }}>
                         <div style={{ fontSize: 14, flexShrink: 0 }}>\uD83D\uDCC4</div>
