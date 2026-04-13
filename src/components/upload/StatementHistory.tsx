@@ -2,40 +2,18 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 
-const T = {
-  bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a",
-  text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8",
-  accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee",
-  red: "#f87171", amber: "#fbbf24", purple: "#a78bfa",
-};
+const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24", purple: "#a78bfa" };
 
-interface ImportRow {
-  id: string;
-  issuer: string | null;
-  original_name: string | null;
-  status: string | null;
-  created_at: string;
-  committed_count: number | null;
-}
-
-interface FolderGroup {
-  key: string;
-  label: string;
-  issuer: string;
-  year: number;
-  imports: ImportRow[];
-  totalTx: number;
-  earliest: string;
-  latest: string;
-}
+interface ImportRow { id: string; issuer: string | null; original_name: string | null; status: string | null; created_at: string; committed_count: number | null; }
+interface FolderGroup { key: string; label: string; issuer: string; year: number; imports: ImportRow[]; totalTx: number; earliest: string; latest: string; }
 
 function issuerColor(issuer: string): string {
   const s = issuer.toLowerCase();
-  if (s.includes("bmo"))          return T.green;
-  if (s.includes("cibc"))         return T.cyan;
-  if (s.includes("capital one"))  return "#f97316";
-  if (s.includes("rbc"))          return T.red;
-  if (s.includes("td"))           return "#10b981";
+  if (s.includes("bmo")) return T.green;
+  if (s.includes("cibc")) return T.cyan;
+  if (s.includes("capital one")) return "#f97316";
+  if (s.includes("rbc")) return T.red;
+  if (s.includes("td")) return "#10b981";
   if (s.includes("amex") || s.includes("american express")) return T.purple;
   if (s.includes("scotiabank") || s.includes("scotia")) return T.amber;
   if (s.includes("canadian tire")) return T.accent;
@@ -44,11 +22,11 @@ function issuerColor(issuer: string): string {
 
 function issuerEmoji(issuer: string): string {
   const s = issuer.toLowerCase();
-  if (s.includes("bmo"))         return "\uD83C\uDFE6";
-  if (s.includes("cibc"))        return "\uD83C\uDFE6";
+  if (s.includes("bmo")) return "\uD83C\uDFE6";
+  if (s.includes("cibc")) return "\uD83C\uDFE6";
   if (s.includes("capital one")) return "\uD83D\uDCB3";
-  if (s.includes("rbc"))         return "\uD83C\uDFE6";
-  if (s.includes("td"))          return "\uD83C\uDFE6";
+  if (s.includes("rbc")) return "\uD83C\uDFE6";
+  if (s.includes("td")) return "\uD83C\uDFE6";
   if (s.includes("amex") || s.includes("american express")) return "\uD83D\uDCB3";
   if (s.includes("scotiabank") || s.includes("scotia")) return "\uD83C\uDFE6";
   if (s.includes("canadian tire")) return "\uD83C\uDFEA";
@@ -62,9 +40,9 @@ function formatDate(iso: string): string {
 
 function statusBadge(status: string | null) {
   if (status === "committed") return { label: "Committed", color: T.green };
-  if (status === "approved")  return { label: "Approved",  color: T.cyan };
-  if (status === "pending")   return { label: "Pending",   color: T.amber };
-  if (status === "failed")    return { label: "Failed",    color: T.red };
+  if (status === "approved") return { label: "Approved", color: T.cyan };
+  if (status === "pending") return { label: "Pending", color: T.amber };
+  if (status === "failed") return { label: "Failed", color: T.red };
   return { label: status || "\u2014", color: T.dim };
 }
 
@@ -86,6 +64,7 @@ export function StatementHistory() {
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(200);
+      console.log("[StatementHistory] query result:", { count: data?.length, error });
       if (!error && data) setImports(data as ImportRow[]);
       setLoading(false);
     })();
@@ -104,11 +83,9 @@ export function StatementHistory() {
       g.imports.push(imp);
       g.totalTx += imp.committed_count || 0;
       if (imp.created_at < g.earliest) g.earliest = imp.created_at;
-      if (imp.created_at > g.latest)   g.latest   = imp.created_at;
+      if (imp.created_at > g.latest) g.latest = imp.created_at;
     }
-    return Array.from(map.values()).sort((a, b) =>
-      b.year !== a.year ? b.year - a.year : a.issuer.localeCompare(b.issuer)
-    );
+    return Array.from(map.values()).sort((a, b) => b.year !== a.year ? b.year - a.year : a.issuer.localeCompare(b.issuer));
   })();
 
   useEffect(() => {
@@ -118,22 +95,20 @@ export function StatementHistory() {
   }, [folders.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleFolder = (key: string) => {
-    setOpenFolders(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
+    setOpenFolders(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   };
 
-  if (loading) {
-    return (
-      <div style={{ marginTop: 32, padding: "20px", borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
-        <div style={{ fontSize: 12, color: T.dim }}>Loading statement history\u2026</div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div style={{ marginTop: 32, padding: "20px", borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
+      <div style={{ fontSize: 12, color: T.dim }}>Loading statement history\u2026</div>
+    </div>
+  );
 
-  if (imports.length === 0) return null;
+  if (imports.length === 0) return (
+    <div style={{ marginTop: 32, padding: "20px", borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
+      <div style={{ fontSize: 12, color: T.dim }}>No statements uploaded yet.</div>
+    </div>
+  );
 
   return (
     <div style={{ marginTop: 32 }}>
@@ -145,8 +120,8 @@ export function StatementHistory() {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {folders.map(folder => {
           const isOpen = openFolders.has(folder.key);
-          const color  = issuerColor(folder.issuer);
-          const emoji  = issuerEmoji(folder.issuer);
+          const color = issuerColor(folder.issuer);
+          const emoji = issuerEmoji(folder.issuer);
           return (
             <div key={folder.key} style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${isOpen ? color + "33" : T.border}`, background: T.surface, transition: "border-color 0.2s" }}>
               <button onClick={() => toggleFolder(folder.key)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
@@ -165,7 +140,7 @@ export function StatementHistory() {
                 <div style={{ borderTop: `1px solid ${T.border}` }}>
                   {folder.imports.map((imp, idx) => {
                     const badge = statusBadge(imp.status);
-                    const name  = imp.original_name || imp.id;
+                    const name = imp.original_name || imp.id;
                     return (
                       <div key={imp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none" }}>
                         <div style={{ fontSize: 14, flexShrink: 0 }}>\uD83D\uDCC4</div>
