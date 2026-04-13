@@ -254,7 +254,8 @@ export default function TaxWorkspacePage() {
         .eq("user_id", userId)
         .gte("date", `${year}-01-01`)
         .lt("date", `${year + 1}-01-01`)
-        .order("date", { ascending: false });
+        .order("date", { ascending: false })
+        .limit(5000);
       if (!cancelled) {
         if (error) console.error("[TaxWorkspace] fetch error:", error);
         setTransactions((data as Transaction[]) || []);
