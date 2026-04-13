@@ -129,6 +129,7 @@
     "framer-motion": "^11.0.8",
     "jose": "^5.2.0",
     "jotai": "^2.6.4",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.314.0",
     "openai": "^4.73.0",
     "papaparse": "^5.5.3",

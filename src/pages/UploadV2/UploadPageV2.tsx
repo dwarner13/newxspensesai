@@ -11,6 +11,7 @@ import { getSupabase } from "@/lib/supabase";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import StatementProcessingOverlay, { StatementImportResult } from "@/components/upload/StatementProcessingOverlay";
+import JSZip from "jszip";
 
 function buildStatementLabel(filename: string): string {
   const f = (filename || '').toLowerCase().replace(/[_\-]/g, ' ');
@@ -81,7 +82,31 @@ async function getCommittedTxCount(importId: string, userId: string): Promise<nu
 }
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24" };
-const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,.xlsx,.xls,image/*";
+const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.zip,image/*";
+
+const VALID_EXTENSIONS = new Set(['pdf', 'csv', 'jpg', 'jpeg', 'png', 'webp', 'xlsx', 'xls']);
+const JUNK_PATTERNS = [/__macosx/i, /thumbs\.db$/i, /\.ds_store$/i, /desktop\.ini$/i];
+
+async function extractZip(zipFile: File): Promise<File[]> {
+  const zip = await JSZip.loadAsync(zipFile);
+  const extracted: File[] = [];
+  for (const [path, entry] of Object.entries(zip.files)) {
+    if (entry.dir) continue;
+    if (JUNK_PATTERNS.some(p => p.test(path))) continue;
+    const fileName = path.split('/').pop() || '';
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+    if (!VALID_EXTENSIONS.has(ext)) continue;
+    const blob = await entry.async('blob');
+    const mimeMap: Record<string, string> = {
+      pdf: 'application/pdf', csv: 'text/csv',
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      xls: 'application/vnd.ms-excel',
+    };
+    extracted.push(new File([blob], fileName, { type: mimeMap[ext] || '' }));
+  }
+  return extracted;
+}
 
 function isSpreadsheetFile(name: string): boolean {
   const ext = name.toLowerCase().split(".").pop() || "";
@@ -248,8 +273,41 @@ export default function UploadPageV2() {
   const introText = "Drop as many statements as you want. I'll work through them one at a time â€” extract transactions, hand each off to Tag for categorization, then Prime reviews.";
   const [typed, typeDone] = useTypewriter(introText, 14, 400);
 
-  const addFiles = useCallback((files: FileList | File[]) => {
-    const items: QueueItem[] = Array.from(files).map(f => ({
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const allFiles = Array.from(files);
+    const regularFiles: File[] = [];
+    const zipFiles: File[] = [];
+
+    for (const f of allFiles) {
+      if (f.name.toLowerCase().endsWith('.zip')) {
+        zipFiles.push(f);
+      } else {
+        regularFiles.push(f);
+      }
+    }
+
+    // Extract zip files in the browser
+    for (const zf of zipFiles) {
+      const toastId = toast.loading(`Extracting ${zf.name}...`);
+      try {
+        const extracted = await extractZip(zf);
+        toast.dismiss(toastId);
+        if (extracted.length > 0) {
+          toast.success(`Found ${extracted.length} file${extracted.length !== 1 ? 's' : ''} in ${zf.name}`);
+          regularFiles.push(...extracted);
+        } else {
+          toast.error(`No supported files found in ${zf.name}`);
+        }
+      } catch (err) {
+        toast.dismiss(toastId);
+        toast.error(`Failed to extract ${zf.name}`);
+        console.error('[UploadV2] zip extraction failed:', err);
+      }
+    }
+
+    if (regularFiles.length === 0) return;
+
+    const items: QueueItem[] = regularFiles.map(f => ({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       file: f,
       status: "queued" as const,

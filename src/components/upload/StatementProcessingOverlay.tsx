@@ -110,7 +110,7 @@ export const StatementProcessingOverlay: React.FC<Props> = ({
       setVisible(false);
       onClose();
       const params = importId ? `?import_id=${importId}` : '';
-      navigate(`/transactions${params}`);
+      navigate(`/dashboard/transactions${params}`);
     }, 400);
   };
 
