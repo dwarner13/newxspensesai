@@ -56,6 +56,7 @@ export function StatementHistory() {
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+  const [folderMenu, setFolderMenu] = useState<string | null>(null); // folder key with open menu
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -237,7 +238,8 @@ export function StatementHistory() {
           const folderAllSelected = folder.imports.every(i => selected.has(i.id));
           return (
             <div key={folder.key} style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${isOpen ? color + "33" : T.border}`, background: T.surface, transition: "border-color 0.2s" }}>
-              <button onClick={() => toggleFolder(folder.key)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+              <div style={{ display: "flex", alignItems: "center", position: "relative" }}>
+              <button onClick={() => toggleFolder(folder.key)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
                 {selectMode && (
                   <div
                     onClick={e => { e.stopPropagation(); folderAllSelected ? folder.imports.forEach(i => setSelected(prev => { const n = new Set(prev); n.delete(i.id); return n; })) : folder.imports.forEach(i => setSelected(prev => new Set(prev).add(i.id))); }}
@@ -257,6 +259,50 @@ export function StatementHistory() {
                 </div>
                 {!selectMode && <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>▾</div>}
               </button>
+              {/* 3-dot folder menu */}
+              {!selectMode && (
+                <div style={{ position: "relative", flexShrink: 0 }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); setFolderMenu(folderMenu === folder.key ? null : folder.key); }}
+                    style={{ padding: "14px 14px 14px 4px", background: "none", border: "none", cursor: "pointer", color: T.dim, fontSize: 16, lineHeight: 1 }}
+                  >⋯</button>
+                  {folderMenu === folder.key && (
+                    <>
+                      <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setFolderMenu(null)} />
+                      <div style={{ position: "absolute", right: 0, top: "100%", zIndex: 50, minWidth: 200, borderRadius: 10, background: "#0f1a2e", border: `1px solid ${T.border}`, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", overflow: "hidden" }}>
+                        <button
+                          onClick={() => { folder.imports.forEach(i => setSelected(prev => new Set(prev).add(i.id))); setSelectMode(true); setOpenFolders(new Set([folder.key])); setFolderMenu(null); }}
+                          style={{ width: "100%", textAlign: "left", padding: "10px 16px", fontSize: 12, fontWeight: 600, color: T.muted, background: "none", border: "none", borderBottom: `1px solid ${T.border}`, cursor: "pointer" }}
+                        >☑ Select all in folder</button>
+                        <button
+                          onClick={() => {
+                            const emptyInFolder = folder.imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed");
+                            emptyInFolder.forEach(i => setSelected(prev => new Set(prev).add(i.id)));
+                            setSelectMode(true);
+                            setOpenFolders(new Set([folder.key]));
+                            setFolderMenu(null);
+                          }}
+                          style={{ width: "100%", textAlign: "left", padding: "10px 16px", fontSize: 12, fontWeight: 600, color: T.amber, background: "none", border: "none", borderBottom: `1px solid ${T.border}`, cursor: "pointer" }}
+                        >⚠ Select empty in folder</button>
+                        <button
+                          onClick={async () => {
+                            setFolderMenu(null);
+                            const sb = getSupabase();
+                            if (!sb || !userId) return;
+                            for (const imp of folder.imports) {
+                              await sb.from("transactions").delete().eq("import_id", imp.id).eq("user_id", userId);
+                              await sb.from("imports").delete().eq("id", imp.id).eq("user_id", userId);
+                            }
+                            setImports(prev => prev.filter(i => !folder.imports.map(f => f.id).includes(i.id)));
+                          }}
+                          style={{ width: "100%", textAlign: "left", padding: "10px 16px", fontSize: 12, fontWeight: 700, color: T.red, background: "none", border: "none", cursor: "pointer" }}
+                        >🗑 Delete entire folder</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              </div>
 
               {isOpen && (
                 <div style={{ borderTop: `1px solid ${T.border}` }}>
