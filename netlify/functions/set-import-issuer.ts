@@ -14,18 +14,11 @@ async function detectIssuerFromData(fileUrl: string, descriptions: string[]): Pr
   const client = new Anthropic();
   const sample = descriptions.slice(0, 15).join('\n');
   const msg = await client.messages.create({
-    model: 'claude-opus-4-5',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 64,
     messages: [{
       role: 'user',
-      content: `You are identifying a financial institution from credit card or bank statement data.
-
-File path: ${fileUrl}
-
-Sample transaction descriptions:
-${sample}
-
-Reply with ONLY the institution name, nothing else. Examples: "BMO", "CIBC", "TD", "RBC", "Canadian Tire", "Capital One", "Amex", "Scotiabank", "National Bank". If unsure, reply "Unknown".`
+      content: `You are identifying a financial institution from credit card or bank statement data.\n\nFile path: ${fileUrl}\n\nSample transaction descriptions:\n${sample}\n\nReply with ONLY the institution name, nothing else. Examples: "BMO", "CIBC", "TD", "RBC", "Canadian Tire", "Capital One", "Amex", "Scotiabank", "National Bank". If unsure, reply "Unknown".`
     }]
   });
   const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : 'Unknown';
@@ -49,27 +42,11 @@ export const handler: Handler = async (event) => {
   const sb = serverSupabase();
   let issuer = explicitIssuer;
 
-  // Auto-detect if no issuer provided
   if (!issuer) {
     try {
-      // Get file_url from imports
-      const { data: imp } = await sb
-        .from('imports')
-        .select('file_url')
-        .eq('id', importId)
-        .single();
-
-      // Get sample descriptions from transactions_staging
-      const { data: rows } = await sb
-        .from('transactions_staging')
-        .select('data_json')
-        .eq('import_id', importId)
-        .limit(20);
-
-      const descriptions = (rows || [])
-        .map((r: any) => r.data_json?.description || r.data_json?.merchant || '')
-        .filter(Boolean);
-
+      const { data: imp } = await sb.from('imports').select('file_url').eq('id', importId).single();
+      const { data: rows } = await sb.from('transactions_staging').select('data_json').eq('import_id', importId).limit(20);
+      const descriptions = (rows || []).map((r: any) => r.data_json?.description || r.data_json?.merchant || '').filter(Boolean);
       issuer = await detectIssuerFromData(imp?.file_url || '', descriptions);
       console.log('[set-import-issuer] auto-detected:', issuer);
     } catch (err) {
