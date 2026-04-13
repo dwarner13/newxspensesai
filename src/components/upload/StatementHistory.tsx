@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 
@@ -54,7 +53,6 @@ function statusBadge(status: string | null) {
 
 export function StatementHistory() {
   const { userId } = useAuth();
-  const navigate = useNavigate();
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
@@ -121,7 +119,7 @@ export function StatementHistory() {
       const rawName = (imp.file_url?.split("/").pop() || imp.filename || "").toLowerCase();
       let issuer = imp.issuer || "";
 
-      // If issuer is missing from DB, try to detect from filename
+      // If issuer is missing from DB, detect from filename
       if (!issuer || issuer === "Unknown") {
         if (/world.?elite/i.test(rawName)) {
           issuer = "Triangle World Elite";
@@ -347,7 +345,7 @@ export function StatementHistory() {
                           if (selectMode) {
                             toggleSelect(imp.id);
                           } else {
-                            navigate(`/dashboard/transactions?import_id=${imp.id}`);
+                            window.location.href = `/dashboard/transactions?import_id=${imp.id}`;
                           }
                         }}
                         style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none", background: isChecked ? `${T.red}10` : "transparent", transition: "background 0.15s", cursor: "pointer" }}
