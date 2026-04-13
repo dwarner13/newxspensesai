@@ -17,6 +17,8 @@ function issuerColor(issuer: string): string {
   if (s.includes("amex") || s.includes("american express")) return T.purple;
   if (s.includes("scotiabank") || s.includes("scotia")) return T.amber;
   if (s.includes("canadian tire")) return T.accent;
+  if (s.includes("triangle world elite")) return "#f97316";
+  if (s.includes("triangle mastercard")) return T.accent;
   return T.muted;
 }
 
@@ -30,6 +32,8 @@ function issuerEmoji(issuer: string): string {
   if (s.includes("amex") || s.includes("american express")) return "💳";
   if (s.includes("scotiabank") || s.includes("scotia")) return "🏦";
   if (s.includes("canadian tire")) return "🏪";
+  if (s.includes("triangle world elite")) return "💳";
+  if (s.includes("triangle mastercard")) return "🏪";
   return "📁";
 }
 
@@ -110,7 +114,17 @@ export function StatementHistory() {
   const folders: FolderGroup[] = (() => {
     const map = new Map<string, FolderGroup>();
     for (const imp of imports) {
-      const issuer = imp.issuer || "Unknown";
+      // Use filename to detect card variant for better grouping
+      const rawName = (imp.file_url?.split("/").pop() || imp.filename || "").toLowerCase();
+      let issuer = imp.issuer || "Unknown";
+      // Distinguish Triangle World Elite from regular Triangle Mastercard
+      if (/world.?elite/i.test(rawName) && /triangle|canadian.?tire/i.test(issuer)) {
+        issuer = "Triangle World Elite";
+      } else if (/triangle|canadian.?tire/i.test(issuer) && !/world.?elite/i.test(issuer)) {
+        issuer = "Triangle Mastercard";
+      }
+      // Distinguish RBC card types if needed
+      if (/rbc|royal.?bank/i.test(issuer)) issuer = "RBC";
       const year = new Date(imp.created_at).getFullYear();
       const key = `${issuer}-${year}`;
       if (!map.has(key)) {
