@@ -307,8 +307,16 @@ export default function UploadPageV2() {
 
       updateItem(current.id, { status: "categorizing" });
       await new Promise(r => setTimeout(r, 1500));
-      // Query the real committed count from transactions table
-      const txCount = await getCommittedTxCount(importIdForSweep, userId);
+      // Query the real committed count from transactions table.
+      // Retry if 0 — commit may still be writing rows.
+      let txCount = await getCommittedTxCount(importIdForSweep, userId);
+      if (txCount === 0 && importIdForSweep) {
+        for (let retry = 0; retry < 5 && txCount === 0; retry++) {
+          await new Promise(r => setTimeout(r, 2000));
+          txCount = await getCommittedTxCount(importIdForSweep, userId);
+          console.log(`[UploadV2] txCount retry ${retry + 1}: ${txCount}`);
+        }
+      }
       updateItem(current.id, { status: "complete", txCount });
 
       // Trigger post-import fixup (filename, committed_at, Tag sweep, auto-commit)
@@ -352,11 +360,15 @@ export default function UploadPageV2() {
       processingRef.current = true;
       updateItem(next.id, { status: "processing", progress: 0 });
 
-      // Open the full-screen processing overlay
+      // Open the full-screen processing overlay only for single-file uploads.
+      // Multi-file: the queue list UI shows per-file status; the overlay would
+      // block the page and its "View Transactions" button kills the queue.
       setOverlayStatementName(buildStatementLabel(next.file.name));
       setOverlayImportResult(null);
       setOverlayImportId(null);
-      setOverlayOpen(true);
+      if (queueRef.current.length <= 1) {
+        setOverlayOpen(true);
+      }
 
       // Progress simulation - climbs to 85% during processing
       const progressInterval = setInterval(() => {
@@ -484,8 +496,17 @@ export default function UploadPageV2() {
         if (pipelineError) {
           updateItem(next.id, { status: "failed", error: pipelineError instanceof Error ? pipelineError.message : "Pipeline failed" });
         } else {
-          // Query the real committed count from transactions table
-          const txCount = await getCommittedTxCount(importId, userId);
+          // Query the real committed count from transactions table.
+          // Retry up to 5 times (every 2s) if count is 0 — the commit step
+          // may still be writing rows asynchronously.
+          let txCount = await getCommittedTxCount(importId, userId);
+          if (txCount === 0 && importId) {
+            for (let retry = 0; retry < 5 && txCount === 0; retry++) {
+              await new Promise(r => setTimeout(r, 2000));
+              txCount = await getCommittedTxCount(importId, userId);
+              console.log(`[UploadV2] txCount retry ${retry + 1}: ${txCount}`);
+            }
+          }
           updateItem(next.id, { status: "complete", txCount, progress: 100 });
 
           // Flip overlay to Tag summary phase
@@ -700,7 +721,10 @@ export default function UploadPageV2() {
 
               {/* Actions */}
               {item.status === "queued" && <button onClick={() => removeItem(item.id)} style={{ fontSize: 11, color: T.dim, background: "none", border: "none", cursor: "pointer" }}>Remove</button>}
-              {item.status === "complete" && <button onClick={() => navigate("/dashboard/transactions?from=upload")} style={{ fontSize: 11, fontWeight: 600, color: T.green, background: "none", border: "none", cursor: "pointer" }}>View {"\u2192"}</button>}
+              {item.status === "complete" && <button onClick={() => {
+                const iss = detectIssuer(item.file.name);
+                navigate(iss !== 'Unknown' ? `/dashboard/transactions?from=upload&issuer=${encodeURIComponent(iss)}` : "/dashboard/transactions?from=upload");
+              }} style={{ fontSize: 11, fontWeight: 600, color: T.green, background: "none", border: "none", cursor: "pointer" }}>View {"\u2192"}</button>}
               {item.status === "failed" && <button onClick={() => retryItem(item.id)} style={{ fontSize: 11, fontWeight: 600, color: T.accent, background: "none", border: "none", cursor: "pointer" }}>Retry</button>}
             </div>
           ))}
@@ -735,7 +759,12 @@ export default function UploadPageV2() {
                 {stats.failed > 0 && <span style={{ color: T.red }}> {"\u2022"} {stats.failed} failed</span>}
               </div>
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => navigate("/dashboard/transactions?from=upload")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: T.bg, cursor: "pointer", boxShadow: `0 4px 16px ${T.accent}35` }}>View Transactions</button>
+                <button onClick={() => {
+                  // Redirect to issuer filter if we can detect it from the first completed file
+                  const completedFile = queue.find(q => q.status === 'complete');
+                  const iss = completedFile ? detectIssuer(completedFile.file.name) : 'Unknown';
+                  navigate(iss !== 'Unknown' ? `/dashboard/transactions?from=upload&issuer=${encodeURIComponent(iss)}` : "/dashboard/transactions?from=upload");
+                }} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: T.bg, cursor: "pointer", boxShadow: `0 4px 16px ${T.accent}35` }}>View Transactions</button>
                 <button onClick={() => navigate("/dashboard/categories")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Review Categories</button>
                 <button onClick={() => { setQueue([]); setAllDone(false); }} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Start New Batch</button>
               </div>

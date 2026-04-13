@@ -54,13 +54,24 @@ export default function TransactionsPageV2() {
   const location = useLocation();
   const { fullName } = useProfile();
   const firstName = fullName?.split(' ')[0] || '';
+  // Read import_id and issuer from URL synchronously so the initial filter is in sync
+  const initialParams = (() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      return {
+        importId: sp.get('import_id') || sp.get('importId') || null,
+        issuer: sp.get('issuer') || null,
+      };
+    } catch { return { importId: null, issuer: null }; }
+  })();
   const { transactions, isLoading, refetch } = useTransactions();
   const { imports } = useImportList();
   const { openChat } = useUnifiedChatLauncher();
   const [filter, setFilter] = useState<'all' | 'expenses' | 'income'>('all');
   const listRef = useRef<HTMLDivElement>(null);
-  const [statementFilter, setStatementFilter] = useState<string>('all');
+  const [statementFilter, setStatementFilter] = useState<string>(initialParams.importId || 'all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
+  const [issuerFilter, setIssuerFilter] = useState<string>(initialParams.issuer || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [tagFilterLabel, setTagFilterLabel] = useState('');
   const [tagCategoryFilter, setTagCategoryFilter] = useState('');
@@ -86,13 +97,19 @@ export default function TransactionsPageV2() {
   useEffect(() => {
     if (searchParams.get("from") === "upload") {
       setShowProcessingBanner(true);
-      setSearchParams({}, { replace: true });
+      // Preserve issuer param when clearing "from"
+      setSearchParams(p => { p.delete("from"); return p; }, { replace: true });
       // Auto-dismiss banner after 12 seconds
       setTimeout(() => setShowProcessingBanner(false), 12000);
     }
     const filterParam = searchParams.get("filter");
     if (filterParam === "income") setFilter("income");
     else if (filterParam === "expenses") setFilter("expenses");
+    // Handle ?issuer= param (from upload redirect or bookmarks)
+    const issuerParam = searchParams.get("issuer");
+    if (issuerParam) {
+      setIssuerFilter(issuerParam);
+    }
     // Handle import_id from StatementProcessingOverlay (uses underscore) AND
     // legacy importId (camelCase) from other navigation sources
     const importIdParam = searchParams.get("import_id") || searchParams.get("importId");
@@ -321,6 +338,16 @@ export default function TransactionsPageV2() {
     return Array.from(groups.values()).sort((a, b) => b.statementCount - a.statementCount);
   }, [imports, transactions]);
 
+  // Resolve ?issuer= URL param into an accountFilter once accounts are loaded
+  useEffect(() => {
+    if (!issuerFilter || accounts.length === 0) return;
+    const match = accounts.find(a => a.name.toLowerCase().includes(issuerFilter.toLowerCase()));
+    if (match) {
+      setAccountFilter(match.id);
+      setIssuerFilter(''); // consumed — don't re-trigger
+    }
+  }, [issuerFilter, accounts]);
+
   // Filtering
   const filtered = useMemo(() => {
     let list = transactions;
@@ -470,7 +497,7 @@ export default function TransactionsPageV2() {
             <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#22d3ee18", border: "1.5px solid #22d3ee44", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>?</div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#22d3ee" }}>Your statement is processing</div>
-              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Transactions will appear within a moment � no need to refresh.</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Transactions will appear within a moment � no need to refresh.</div>
             </div>
           </div>
           <button onClick={() => setShowProcessingBanner(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16, padding: "0 4px", lineHeight: 1 }}>?</button>
@@ -540,7 +567,20 @@ export default function TransactionsPageV2() {
                   return (
                     <button
                       key={a.id}
-                      onClick={() => setAccountFilter(a.id)}
+                      onClick={() => {
+                        setAccountFilter(a.id);
+                        // Update URL so the filter is bookmarkable
+                        const sp = new URLSearchParams(window.location.search);
+                        if (a.id === 'all') { sp.delete('issuer'); }
+                        else {
+                          // Extract issuer name from account id (format: "BMO|Chequing")
+                          const issuerName = a.id.split('|')[0] || '';
+                          sp.set('issuer', issuerName);
+                        }
+                        sp.delete('import_id'); sp.delete('importId');
+                        const qs = sp.toString();
+                        window.history.replaceState({}, '', `${window.location.pathname}${qs ? '?' + qs : ''}`);
+                      }}
                       className="rounded-xl text-left transition-colors"
                       style={{
                         flex: '0 0 180px',
@@ -744,15 +784,29 @@ export default function TransactionsPageV2() {
           )}
 
           {/* Date groups */}
-          {dateGroups.length === 0 && statementFilter !== 'all' && (
+          {/* Loading spinner — shown when data is still loading regardless of filter */}
+          {dateGroups.length === 0 && isLoading && (
             <div style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
               <div style={{ position: 'relative', width: 40, height: 40 }}>
                 <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(34,211,238,0.1)' }} />
                 <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: '#22d3ee', animation: 'spin 0.8s linear infinite' }} />
               </div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#e8ecf4' }}>Transactions loading...</div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>Your statement was just processed — rows will appear in a moment.</div>
-              <button onClick={() => setStatementFilter('all')} style={{ marginTop: 4, fontSize: 12, color: '#22d3ee', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>View all transactions instead</button>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#e8ecf4' }}>Loading transactions...</div>
+              {statementFilter !== 'all' && (
+                <div style={{ fontSize: 12, color: '#64748b' }}>Your statement was just processed — rows will appear in a moment.</div>
+              )}
+            </div>
+          )}
+          {/* Empty state for import_id filter — data loaded but 0 results */}
+          {dateGroups.length === 0 && !isLoading && statementFilter !== 'all' && (
+            <div style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <div style={{ fontSize: 32 }}>📭</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#e8ecf4' }}>No transactions found for this import</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>The statement may still be processing, or transactions haven't been committed yet.</div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                <button onClick={() => { void refetch(); }} style={{ fontSize: 12, color: '#22d3ee', background: 'none', border: '1px solid rgba(34,211,238,0.3)', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Retry</button>
+                <button onClick={() => setStatementFilter('all')} style={{ fontSize: 12, color: '#22d3ee', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>View all transactions instead</button>
+              </div>
             </div>
           )}
           {dateGroups.length === 0 && statementFilter === 'all' && !isLoading && (

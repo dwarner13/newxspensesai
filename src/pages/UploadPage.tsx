@@ -219,7 +219,7 @@ const UploadPage = () => {
         );
         
         setTimeout(() => {
-          navigate('/transactions');
+          navigate('/dashboard/transactions');
         }, 2000);
       }
     } catch (error) {
@@ -372,7 +372,7 @@ const UploadPage = () => {
                   </div>
                   <button 
                     className="btn-primary" 
-                    onClick={() => navigate('/transactions')}
+                    onClick={() => navigate('/dashboard/transactions')}
                   >
                     View Transactions
                   </button>
