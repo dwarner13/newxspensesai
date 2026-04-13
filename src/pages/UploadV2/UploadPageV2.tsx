@@ -235,6 +235,8 @@ export default function UploadPageV2() {
   const receiptCameraRef = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
   const processingRef = useRef(false);
+  const pausedRef = useRef(false);
+  const [isPaused, setIsPaused] = useState(false);
   const queueRef = useRef<QueueItem[]>([]);
   queueRef.current = queue;
 
@@ -695,7 +697,16 @@ export default function UploadPageV2() {
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={clearQueued} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.dim, cursor: "pointer" }}>Clear Queue</button>
                 <button onClick={() => fileRef.current?.click()} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Add More</button>
-                {stats.queued > 0 && (
+                {stats.processing > 0 && !isPaused && (
+                  <button onClick={() => { pausedRef.current = true; setIsPaused(true); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.amber}18`, border: `1px solid ${T.amber}40`, color: T.amber, cursor: "pointer" }}>⏸ Pause</button>
+                )}
+                {isPaused && (
+                  <button onClick={() => { pausedRef.current = false; setIsPaused(false); processAll(); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.green}18`, border: `1px solid ${T.green}40`, color: T.green, cursor: "pointer" }}>▶ Resume</button>
+                )}
+                {stats.processing > 0 && (
+                  <button onClick={() => { pausedRef.current = true; setIsPaused(false); setQueue(prev => prev.filter(q => q.status !== "queued")); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.red}18`, border: `1px solid ${T.red}40`, color: T.red, cursor: "pointer" }}>✕ Cancel Queued</button>
+                )}
+                {stats.queued > 0 && !isPaused && (
                   <button onClick={processAll} style={{ padding: "7px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: T.bg, cursor: "pointer", boxShadow: `0 4px 16px ${T.accent}35` }}>Process All {"\u2192"}</button>
                 )}
               </div>
