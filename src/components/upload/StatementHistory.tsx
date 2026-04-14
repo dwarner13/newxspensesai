@@ -125,8 +125,8 @@ export function StatementHistory() {
           issuer = "Triangle World Elite";
         } else if (/triangle|canadian.?tire/i.test(rawName)) {
           issuer = "Triangle Mastercard";
-        } else if (/rbc|royal.?bank/i.test(rawName)) {
-          issuer = "RBC";
+        } else if (/rbc|royal.?bank|visa.?statement.?7223/i.test(rawName)) {
+          issuer = "RBC Visa";
         } else if (/capital.?one/i.test(rawName)) {
           issuer = "Capital One";
         } else if (/bmo|bank.?of.?montreal/i.test(rawName)) {
@@ -149,9 +149,10 @@ export function StatementHistory() {
         } else if (/triangle|canadian.?tire/i.test(issuer) && !/world.?elite/i.test(issuer)) {
           issuer = "Triangle Mastercard";
         }
-        if (/rbc|royal.?bank/i.test(issuer)) issuer = "RBC";
+        if (/rbc|royal.?bank/i.test(issuer)) issuer = /visa/i.test(rawName) || /visa/i.test(issuer) ? "RBC Visa" : "RBC";
       }
-      const year = new Date(imp.created_at).getFullYear();
+      const filenameYearMatch = rawName.match(/20\d{2}/);
+      const year = filenameYearMatch ? parseInt(filenameYearMatch[0], 10) : new Date(imp.created_at).getFullYear();
       const key = `${issuer}-${year}`;
       if (!map.has(key)) {
         map.set(key, { key, label: `${issuer} ${year}`, issuer, year, imports: [], totalTx: 0, earliest: imp.created_at, latest: imp.created_at });

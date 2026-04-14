@@ -42,6 +42,7 @@ interface ExtractionResult {
   rawText: string;
   confidence: number;
   source: 'google_vision' | 'claude_vision';
+  institution?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +214,18 @@ CRITICAL RULES:
 - If a 7-Eleven purchase shows as $500+, you are reading the Balance column by mistake.
 - Preserve spaces in merchant names: "SAVE ON FOODS" not "SAVEONFOODS", "CANADIAN TIRE" not "CANADIANTIRE".
 - Debits/withdrawals/purchases = negative amounts. Deposits/credits/income = positive amounts.
+
+RBC VISA / CREDIT CARD STATEMENT RULES:
+- RBC Visa statements have only ONE "AMOUNT ($)" column. Positive amounts are charges (type: "debit", amount should be negative in output). Negative amounts (prefixed with -) are payments/credits (type: "credit", amount should be positive in output).
+- Lines starting with "Foreign Currency - USD" are metadata describing the currency conversion for the transaction ABOVE them. Do NOT create a separate transaction for foreign currency lines. Always use the CANADIAN DOLLAR amount from the main transaction line, not the USD amount.
+- Lines that are just long numeric strings (e.g. "74510204352610287899203") are internal reference numbers — skip them entirely, they are not transactions.
+- IGNORE these sections completely — they are NOT transactions and contain NO transaction data: "CALCULATING YOUR BALANCE", "PAYMENTS & INTEREST RATES", "IMPORTANT INFORMATION", "AVION POINTS", "CONTACT US", "INTEREST RATE CHART", "Time to Pay", the payment stub/remittance slip at the bottom, and any text after "TOTAL ACCOUNT BALANCE".
+- "BALANCEPROTECTOR PREMIUM" is a bank fee (category: Utilities), not a plan name.
+- "OVERLIMIT FEE" and "CASH - SERVICE CHARGE" are bank fees (category: Utilities).
+- "PAYMENT - THANK YOU / PAIEMENT - MERCI" is always a payment/credit. The statement shows it as a negative amount. Output it as type: "credit" with a positive amount.
+- The statement period is shown as "STATEMENT FROM [date] TO [date]" — use those dates for the period field.
+- For merchant names: strip the city/province suffix (e.g. "EDMONTON AB", "BRAMPTON ON") and any trailing reference numbers. Keep the core merchant name readable.
+
 If any field is unclear, use null. Never guess amounts or dates.`;
 
 async function extractWithClaudeVision(base64: string, mimeType: string): Promise<Omit<ExtractionResult, 'source' | 'rawText' | 'confidence'>> {
@@ -285,6 +298,7 @@ async function extractWithClaudeVision(base64: string, mimeType: string): Promis
       closingBalance: parsed.accountSummary?.closingBalance ?? null,
     },
     transactions,
+    institution: parsed.institution || null,
   };
 }
 
@@ -311,7 +325,7 @@ Format:
   ]
 }
 CRITICAL: Bank statements have multiple number columns (Amounts Deducted, Amounts Added, Balance).
-Use ONLY the Deducted or Added column for amounts. NEVER use the Balance column � it is the running total, not the transaction amount.
+Use ONLY the Deducted or Added column for amounts. NEVER use the Balance column � it is the running total, not the transaction amount.
 If a convenience store purchase appears as $500+, you are reading the Balance column by mistake.
 Preserve spaces in merchant names: "SAVE ON FOODS" not "SAVEONFOODS".
 Return ONLY the JSON object described above with no other text.
@@ -549,6 +563,7 @@ export const handler: Handler = async (event) => {
           flagged_count: flaggedCount,
           employee: 'byte',
           version: 1,
+          ...(extraction.institution ? { institution: extraction.institution } : {}),
         },
         { onConflict: 'import_id' }
       );
