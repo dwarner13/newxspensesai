@@ -19,16 +19,17 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 // Simple rule-based categories
 const CATEGORY_RULES: Record<string, RegExp> = {
-  'Dining': /(restaurant|cafe|coffee|starbucks|mcdonald|pizza|burger|food|dining|uber eats|doordash)/i,
-  'Groceries': /(grocery|supermarket|walmart|costco|whole foods|safeway|kroger|trader joe)/i,
-  'Transportation': /(uber|lyft|taxi|gas|fuel|transit|parking|metro|subway)/i,
+  'Food & Dining': /(restaurant|cafe|coffee|starbucks|mcdonald|pizza|burger|food|dining|uber eats|doordash|tim horton|second cup)/i,
+  'Groceries': /(grocery|supermarket|walmart|costco|whole foods|safeway|kroger|trader joe|sobeys|save on foods|loblaws)/i,
+  'Transportation': /(uber|lyft|taxi|gas|fuel|transit|parking|metro|subway|petro|shell|esso)/i,
   'Shopping': /(amazon|ebay|target|best buy|apple store|shopping|retail)/i,
-  'Entertainment': /(netflix|spotify|movie|theater|concert|gaming|steam|playstation)/i,
-  'Utilities': /(electric|gas|water|internet|phone|bell|rogers|telus|hydro)/i,
-  'Healthcare': /(pharmacy|doctor|dental|hospital|medical|health|prescription)/i,
-  'Travel': /(hotel|airline|flight|airbnb|booking|expedia|travel)/i,
-  'Office Supplies': /(staples|office|supplies|paper|ink|printer)/i,
-  'Subscription': /(subscription|membership|monthly|annual|recurring)/i,
+  'Entertainment': /(netflix|spotify|movie|theater|concert|gaming|steam|playstation|disney)/i,
+  'Utilities': /(electric|water|internet|bell|rogers|telus|hydro|shaw|fido|koodo)/i,
+  'Healthcare': /(pharmacy|doctor|dental|hospital|medical|health|prescription|shoppers drug|rexall)/i,
+  'Travel': /(hotel|airline|flight|airbnb|booking|expedia|travel|westjet|air canada)/i,
+  'Subscriptions': /(subscription|membership|monthly|annual|recurring|adobe|microsoft|google one|apple.com|netlify|dreamhost|canva|openai|cursor)/i,
+  'Bank Fees': /(service fee|service charge|interest charge|overdraft|nsf|balance protector|annual fee)/i,
+  'Transfers': /(payment|e-transfer|interac|transfer)/i,
 };
 
 export type CategorizationResult = {
@@ -100,15 +101,9 @@ export async function categorizeTransaction(
     }
   }
 
-  // Step 2b: Income detection - positive amounts or income-type keywords
-  // Self-employed income sources (FreshBooks payments, client cheques, etc.)
-  if (amount > 0) {
-    return {
-      category: 'Business Income',
-      confidence: 0.85,
-      source: 'rule'
-    };
-  }
+  // Step 2b: Do NOT use amount sign to infer income — credit card purchases
+  // are always positive amounts in our pipeline. Amount sign is not a reliable
+  // income indicator. Fall through to AI for unknown merchants.
   
   // Step 3: Check user's vendor memory (optional, skip for now)
   // TODO: Query categorization_rules table for user-specific patterns
@@ -122,7 +117,7 @@ export async function categorizeTransaction(
         messages: [
           {
             role: 'system',
-            content: 'Categorize this transaction into ONE category: Business Income, Client Payment, Dining, Groceries, Transportation, Shopping, Entertainment, Utilities, Healthcare, Travel, Office Supplies, Subscription, or Other. If the transaction is income/revenue/payment received from a client, use "Business Income" or "Client Payment". Reply with ONLY the category name.'
+            content: 'Categorize this transaction into ONE category: Income, Groceries, Food & Dining, Transportation, Shopping, Entertainment, Utilities, Healthcare, Travel, Subscriptions, Bank Fees, Transfers, Personal Care, Insurance, Debt Payments, or Needs Review. Reply with ONLY the category name, nothing else.'
           },
           {
             role: 'user',
@@ -131,7 +126,7 @@ export async function categorizeTransaction(
         ]
       });
       
-      const category = response.choices[0]?.message?.content?.trim() || 'Other';
+      const category = response.choices[0]?.message?.content?.trim() || 'Needs Review';
       
       return {
         category,
