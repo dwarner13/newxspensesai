@@ -136,7 +136,10 @@ export function StatementHistory() {
     for (const imp of imports) {
       const rawName = (imp.file_url?.split("/").pop() || imp.filename || "").toLowerCase();
       const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
-      let issuer = meta?.institution || imp.issuer || "";
+      const rawInstitution = meta?.institution || "";
+      const knownBanks = ["bmo","rbc","td","cibc","scotiabank","capital one","triangle","world elite","amex","american express","national bank","hsbc","desjardins","simplii","tangerine","pc financial","ctfs","canadian tire"];
+      const institutionValid = rawInstitution.length > 0 && rawInstitution.length < 50 && knownBanks.some(b => rawInstitution.toLowerCase().includes(b));
+      let issuer = (institutionValid ? rawInstitution : null) || imp.issuer || "";
 
       if (!issuer || issuer === "Unknown") {
         if (/world.?elite/i.test(rawName)) {
@@ -406,5 +409,6 @@ export function StatementHistory() {
     </div>
   );
 }
+
 
 
