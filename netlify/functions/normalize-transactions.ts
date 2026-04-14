@@ -912,7 +912,7 @@ async function processNormalizationInBackground(
           console.log('[normalize-transactions] Credit card AI bypass produced ' + aiDirect.length + ' transactions');
           normalizedTransactions = aiDirect.map(function(tx) { return {
             userId: userIdText,
-            kind: 'bank',
+            kind: 'credit_card', // was 'bank' — caused positive amounts to be labeled 'Credit' not 'Purchase'
             date: tx.date,
             merchant: tx.merchant,
             amount: tx.amount,
