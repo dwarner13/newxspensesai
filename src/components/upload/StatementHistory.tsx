@@ -137,7 +137,7 @@ export function StatementHistory() {
       const rawName = (imp.file_url?.split("/").pop() || imp.filename || "").toLowerCase();
       const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
       const rawInstitution = meta?.institution || "";
-      const knownBanks = ["bmo","rbc","td","cibc","scotiabank","capital one","triangle","world elite","amex","american express","national bank","hsbc","desjardins","simplii","tangerine","pc financial","ctfs","canadian tire"];
+      const knownBanks = ["bmo","rbc","td","cibc","scotiabank","capital one","triangle","world elite","ctbc","amex","american express","national bank","hsbc","desjardins","simplii","tangerine","pc financial","ctfs","canadian tire"];
       const institutionValid = rawInstitution.length > 0 && rawInstitution.length < 50 && knownBanks.some(b => rawInstitution.toLowerCase().includes(b));
       let issuer = (institutionValid ? rawInstitution : null) || imp.issuer || "";
 
@@ -409,6 +409,8 @@ export function StatementHistory() {
     </div>
   );
 }
+
+
 
 
 
