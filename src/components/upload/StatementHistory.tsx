@@ -351,11 +351,12 @@ export function StatementHistory() {
                   {folder.imports.map((imp, idx) => {
                     const badge = statusBadge(imp.status);
                     const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
+                    const knownInstitution = meta?.institution && meta.institution.length < 50 && ["bmo","rbc","td","cibc","scotiabank","capital one","triangle","world elite","amex","national bank","simplii","tangerine","pc financial","ctfs","canadian tire"].some(b => meta.institution!.toLowerCase().includes(b));
                     let name: string;
-                    if (meta?.institution && meta?.statement_period) {
+                    if (knownInstitution && meta?.statement_period) {
                       name = `${meta.institution}${meta.account_last4 ? ` \u00B7\u00B7\u00B7${meta.account_last4}` : ""} \u00B7 ${meta.statement_period}`;
-                    } else if (meta?.institution) {
-                      name = meta.institution;
+                    } else if (knownInstitution) {
+                      name = meta!.institution!;
                     } else {
                       const raw = imp.file_url ? imp.file_url.split("/").pop() || imp.id : imp.id;
                       name = raw.replace(/\.pdf$/i, "").replace(/[-_]/g, " ");
@@ -409,6 +410,8 @@ export function StatementHistory() {
     </div>
   );
 }
+
+
 
 
 
