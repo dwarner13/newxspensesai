@@ -84,6 +84,10 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
   "registry": { category: "Transportation", subcategory: "Vehicle Services" },
 
   // ── PERSONAL CARE ───────────────────────────────────────────
+  "la fitness": { category: "Personal Care", subcategory: "Gym & Fitness" },
+  "lafitness": { category: "Personal Care", subcategory: "Gym & Fitness" },
+  "q hair design": { category: "Personal Care", subcategory: "Hair & Beauty" },
+  "q hair": { category: "Personal Care", subcategory: "Hair & Beauty" },
   "shadified": { category: "Personal Care", subcategory: "Hair & Beauty" },
   "hair cuts": { category: "Personal Care", subcategory: "Hair & Beauty" },
   "lewis massage": { category: "Personal Care", subcategory: "Massage & Wellness" },
@@ -102,6 +106,8 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
   "lysta tailor": { category: "Personal Care", subcategory: "Clothing" },
 
   // ── HEALTHCARE ──────────────────────────────────────────────
+  "unimeal": { category: "Healthcare", subcategory: "Supplements" },
+  "sa v support": { category: "Healthcare", subcategory: "Supplements" },
   "callingwood chiro": { category: "Healthcare", subcategory: "Chiropractic" },
   "calling wood chiro": { category: "Healthcare", subcategory: "Chiropractic" },
   "specsavers": { category: "Healthcare", subcategory: "Vision" },
@@ -138,11 +144,15 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
   "aiprm": { category: "Subscriptions", subcategory: "Software & AI" },
   "openai": { category: "Subscriptions", subcategory: "Software & AI" },
   "cursor": { category: "Subscriptions", subcategory: "Software & AI" },
+  "paddle.net": { category: "Subscriptions", subcategory: "Software & AI" },
+  "paddle net": { category: "Subscriptions", subcategory: "Software & AI" },
   "adobe": { category: "Subscriptions", subcategory: "Software & AI" },
   "microsoft": { category: "Subscriptions", subcategory: "Software & AI" },
   "google": { category: "Subscriptions", subcategory: "Software & AI" },
 
   // ── BANK FEES ───────────────────────────────────────────────
+  "balanceprotector": { category: "Bank Fees", subcategory: "Balance Protection" },
+  "balance protector": { category: "Bank Fees", subcategory: "Balance Protection" },
   "bmo inv": { category: "Bank Fees", subcategory: "Banking" },
   "bmo invinc": { category: "Bank Fees", subcategory: "Banking" },
   "premium plan": { category: "Bank Fees", subcategory: "Banking" },
@@ -200,7 +210,8 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
 };
 
 export function matchMerchantMap(merchantName: string): { category: string; subcategory?: string } | null {
-  const normalized = normalizeMerchant(merchantName);
+  // normalizeMerchant returns UPPERCASE — lowercase here so patterns (lowercase) actually match
+  const normalized = normalizeMerchant(merchantName).toLowerCase();
   // Also strip all spaces for OCR-mangled names like "SHADI FIED" -> "shadified"
   const noSpaces = normalized.replace(/\s+/g, '');
   for (const [pattern, result] of Object.entries(MERCHANT_CATEGORY_MAP)) {
