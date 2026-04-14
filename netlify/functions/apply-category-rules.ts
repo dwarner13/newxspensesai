@@ -138,7 +138,43 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   // Credit card payments
   { key: 'CAPITAL ONE PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
   { key: 'RBC PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
+  { key: 'PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
+  { key: 'PAYBACK WITH POINTS', category: 'Transfers', subcategory: 'Points Redemption' },
+  { key: 'SS EDMONTON', category: 'Groceries' },
+  { key: 'IMPERIAL PFS', category: 'Insurance', subcategory: 'Business Insurance' },
   { key: 'TD VISA', category: 'Transfers', subcategory: 'Credit Card Payment' },
+  // Subscriptions
+  { key: 'CANVA', category: 'Subscriptions', subcategory: 'Software' },
+  { key: 'EVERLANCE', category: 'Subscriptions', subcategory: 'Software' },
+  { key: 'PREM-PLAN', category: 'Subscriptions', subcategory: 'Software' },
+  { key: 'PREM PATALARO', category: 'Subscriptions', subcategory: 'Software' },
+  { key: 'APPLE.COM', category: 'Subscriptions', subcategory: 'Software' },
+  // Bank Fees
+  { key: 'CASH ADVANCE INTEREST', category: 'Bank Fees', subcategory: 'Interest' },
+  { key: 'PURCHASE INTEREST', category: 'Bank Fees', subcategory: 'Interest' },
+  { key: 'CASH SERVICE CHARGE', category: 'Bank Fees', subcategory: 'Cash Advance Fee' },
+  { key: 'CASH - SERVICE CHARGE', category: 'Bank Fees', subcategory: 'Cash Advance Fee' },
+  { key: 'CASH ADVANCE FEE', category: 'Bank Fees', subcategory: 'Cash Advance Fee' },
+  { key: 'OVERLIMIT FEE', category: 'Bank Fees', subcategory: 'Overlimit Fee' },
+  { key: 'FOREIGN TRANSACTION', category: 'Bank Fees', subcategory: 'Foreign Transaction Fee' },
+  { key: 'CAPITAL ONE MEMBER FEE', category: 'Bank Fees', subcategory: 'Annual Fee' },
+  // ATM
+  { key: 'ATM CASH ADVANCE', category: 'Bank Fees', subcategory: 'Cash Advance Fee' },
+  { key: 'ATM CASH ADV', category: 'Bank Fees', subcategory: 'Cash Advance Fee' },
+  // Transportation
+  { key: 'COSTCO GAS', category: 'Transportation', subcategory: 'Gas & Fuel' },
+  { key: 'MYALBERTA FINE', category: 'Transportation', subcategory: 'Traffic Fine' },
+  { key: 'AHS RAH PARKING', category: 'Transportation', subcategory: 'Parking' },
+  // Healthcare
+  { key: 'ROYAL ALEXANDRA HOSP', category: 'Healthcare', subcategory: 'Medical' },
+  { key: 'SIMPLY HEALTH', category: 'Healthcare' },
+  // Entertainment
+  { key: 'LANDMARK WEB TICKETING', category: 'Entertainment', subcategory: 'Events' },
+  // Business Expenses
+  { key: 'MARK A CHANDRA', category: 'Business Expenses', subcategory: 'Professional Services' },
+  { key: 'J DICK MCALLISTER', category: 'Business Expenses', subcategory: 'Professional Services' },
+  // Personal Care
+  { key: 'Q-NAILS', category: 'Personal Care', subcategory: 'Nail Care' },
 ];
 
 function applyHardcodedOverride(merchant: string): { category: string; subcategory: string | null } | null {

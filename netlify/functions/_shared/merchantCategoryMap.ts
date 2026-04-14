@@ -7,6 +7,8 @@ import { normalizeMerchant } from './merchantUtils.js';
 
 export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcategory?: string }> = {
   // ── GROCERIES ──────────────────────────────────────────────
+  "ss edmonton": { category: "Groceries" },
+  "imperial pfs": { category: "Insurance", subcategory: "Business Insurance" },
   "sobeys": { category: "Groceries" },
   "save on foods": { category: "Groceries" },
   "safeway": { category: "Groceries" },
@@ -209,6 +211,33 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
   "cheque deposit": { category: "Income", subcategory: "Employment" },
   "shadi fied": { category: "Personal Care", subcategory: "Hair & Beauty" },
   "ind all saving": { category: "Savings" },
+  // ── CAPITAL ONE / CREDIT CARD SPECIFIC ──────────────────────
+  "payment": { category: "Transfers", subcategory: "Credit Card Payment" },
+  "payback with points": { category: "Transfers", subcategory: "Points Redemption" },
+  "canva": { category: "Subscriptions", subcategory: "Software" },
+  "everlance": { category: "Subscriptions", subcategory: "Software" },
+  "prem-plan": { category: "Subscriptions", subcategory: "Software" },
+  "prem patalaro": { category: "Subscriptions", subcategory: "Software" },
+  "apple.com": { category: "Subscriptions", subcategory: "Software" },
+  "cash advance interest": { category: "Bank Fees", subcategory: "Interest" },
+  "purchase interest": { category: "Bank Fees", subcategory: "Interest" },
+  "cash service charge": { category: "Bank Fees", subcategory: "Cash Advance Fee" },
+  "cash advance fee": { category: "Bank Fees", subcategory: "Cash Advance Fee" },
+  "overlimit fee": { category: "Bank Fees", subcategory: "Overlimit Fee" },
+  "foreign transaction": { category: "Bank Fees", subcategory: "Foreign Transaction Fee" },
+  "capital one member fee": { category: "Bank Fees", subcategory: "Annual Fee" },
+  "atm cash advance": { category: "Bank Fees", subcategory: "Cash Advance Fee" },
+  "atm cash adv": { category: "Bank Fees", subcategory: "Cash Advance Fee" },
+  "costco gas": { category: "Transportation", subcategory: "Gas & Fuel" },
+  "myalberta fine": { category: "Transportation", subcategory: "Traffic Fine" },
+  "ahs rah parking": { category: "Transportation", subcategory: "Parking" },
+  "royal alexandra": { category: "Healthcare", subcategory: "Medical" },
+  "simply health": { category: "Healthcare" },
+  "landmark web ticketing": { category: "Entertainment", subcategory: "Events" },
+  "mark a chandra": { category: "Business Expenses", subcategory: "Professional Services" },
+  "j dick mcallister": { category: "Business Expenses", subcategory: "Professional Services" },
+  "q-nails": { category: "Personal Care", subcategory: "Nail Care" },
+  "q nails": { category: "Personal Care", subcategory: "Nail Care" },
 };
 
 export function matchMerchantMap(merchantName: string): { category: string; subcategory?: string } | null {
