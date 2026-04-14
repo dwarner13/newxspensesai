@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Normalize Transactions Netlify Function
  * 
  * Converts OCR text from user_documents into normalized transactions
@@ -117,7 +117,12 @@ async function fetchDocumentWithCompatibility(sb: any, documentId: string): Prom
 
 function parseStatementSummary(text: string): ExtractedSummary {
   const normalized = text || '';
-  const periodMatch = normalized.match(/Statement Period:\s*([A-Za-z]{3}\s+\d{1,2},\s*\d{4})\s*-\s*([A-Za-z]{3}\s+\d{1,2},\s*\d{4})/i);
+  const periodMatch =
+    normalized.match(/Statement Period:?\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s*(?:to|-)\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
+    normalized.match(/(?:statement|billing|account)\s+period:?\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s*(?:to|-)\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
+    normalized.match(/(?:from|period:?)\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s+to\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
+    normalized.match(/(\d{1,2}\s+[A-Za-z]+\s+\d{4})\s*(?:to|-)\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i) ||
+    normalized.match(/([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s*-\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i);
   const newBalanceMatch = normalized.match(/New Balance\s*\$?([0-9,]+\.\d{2})/i);
   const minPaymentMatch = normalized.match(/Minimum Payment Due\s*\$?([0-9,]+\.\d{2})/i);
   const dueDateMatch = normalized.match(/Payment Due Date\s*([A-Za-z]{3,9}\s+\d{1,2},\s*\d{4})/i);
@@ -161,7 +166,7 @@ function parseStatementSummary(text: string): ExtractedSummary {
 function isLikelyCorruptedText(value: string): boolean {
   const text = String(value || '');
   if (!text || text.trim().length < 40) return false;
-  const suspiciousChars = (text.match(/[�\u2500-\u257F\u2580-\u259F]/g) || []).length;
+  const suspiciousChars = (text.match(/[ï¿½\u2500-\u257F\u2580-\u259F]/g) || []).length;
   const controlChars = (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g) || []).length;
   const alphaChars = (text.match(/[A-Za-z]/g) || []).length;
   const ratioNoise = (suspiciousChars + controlChars) / text.length;
@@ -912,7 +917,7 @@ async function processNormalizationInBackground(
           console.log('[normalize-transactions] Credit card AI bypass produced ' + aiDirect.length + ' transactions');
           normalizedTransactions = aiDirect.map(function(tx) { return {
             userId: userIdText,
-            kind: 'credit_card', // was 'bank' — caused positive amounts to be labeled 'Credit' not 'Purchase'
+            kind: 'credit_card', // was 'bank' â€” caused positive amounts to be labeled 'Credit' not 'Purchase'
             date: tx.date,
             merchant: tx.merchant,
             amount: tx.amount,
@@ -1309,7 +1314,7 @@ async function processNormalizationInBackground(
           })
           .eq('id', documentId);
       } else {
-        console.warn(`[normalize-transactions] 0 transactions staged for doc ${documentId} — NOT setting normalized_cached`);
+        console.warn(`[normalize-transactions] 0 transactions staged for doc ${documentId} â€” NOT setting normalized_cached`);
         await sb
           .from('user_documents')
           .update({
@@ -1578,3 +1583,4 @@ export const handler: Handler = async (event, context) => {
 
 
 // cache-bust-20260413-1746
+
