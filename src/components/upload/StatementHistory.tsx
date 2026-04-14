@@ -137,7 +137,7 @@ export function StatementHistory() {
       const rawName = (imp.file_url || imp.filename || "").toLowerCase();
       const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
       const rawInstitution = meta?.institution || "";
-      const knownBanks = ["bmo","rbc","td","cibc","scotiabank","capital one","triangle","world elite","your triangle","ctbc","amex","american express","national bank","hsbc","desjardins","simplii","tangerine","pc financial","ctfs","canadian tire"];
+      const knownBanks = ["bmo","rbc","td","cibc","scotiabank","capital one","triangle","world elite","your triangle","ctbc","amex","visa","american express","national bank","hsbc","desjardins","simplii","tangerine","pc financial","ctfs","canadian tire"];
       const institutionValid = rawInstitution.length > 0 && rawInstitution.length < 50 && knownBanks.some(b => rawInstitution.toLowerCase().includes(b));
       let issuer = (institutionValid ? rawInstitution : null) || imp.issuer || "";
 
@@ -158,6 +158,8 @@ export function StatementHistory() {
           issuer = "CIBC";
         } else if (/scotiabank|scotia/i.test(rawName)) {
           issuer = "Scotiabank";
+        } else if (/visa.?statement|7223/i.test(rawName)) {
+          issuer = "RBC";
         } else if (/6075/i.test(rawName)) {
           issuer = "Unknown Card";
         } else {
@@ -410,6 +412,7 @@ export function StatementHistory() {
     </div>
   );
 }
+
 
 
 
