@@ -1161,14 +1161,19 @@ export const handler: Handler = async (event, context) => {
         const description = String(tx.description || tx.memo || '').toUpperCase().trim();
         const INCOME_EXACT = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
         const INCOME_CONTAINS = /\b(PAYMENT RECEIVED|PAYMENT THANK YOU|CREDIT ADJUSTMENT|REFUND|DEPOSIT|E-TRANSFER IN|PAYROLL)\b/;
-        const isIncome = INCOME_EXACT.test(merchant) ||
-                        INCOME_CONTAINS.test(merchant) ||
-                        INCOME_CONTAINS.test(description) ||
-                        tx.type === 'income' ||
-                        tx.type === 'credit' ||
-                        tx.type === 'Credit' ||
-                        tx.direction === 'in' ||
-                        tx.is_credit === true;
+        // For credit card statements, positive amounts are PURCHASES (expenses), not income.
+        // Only treat as income if: merchant matches income pattern, or type is explicitly 'income',
+        // or direction is 'in'. Never use type='Credit' or type='credit' as income indicator —
+        // those are credit card transaction labels, not income signals.
+        const isCreditCardStatement = tx.statementType === 'credit_card';
+        const isIncome = !isCreditCardStatement && (
+          INCOME_EXACT.test(merchant) ||
+          INCOME_CONTAINS.test(merchant) ||
+          INCOME_CONTAINS.test(description)
+        ) ||
+          tx.type === 'income' ||
+          tx.direction === 'in' ||
+          tx.is_credit === true;
         
         // If transaction doesn't have a category, use Tag learning to categorize it
         let category = tx.category || tx.category_suggested;
@@ -1224,7 +1229,7 @@ export const handler: Handler = async (event, context) => {
           amount: signedAmount,
           type: isIncome ? 'income' : 'expense',
           category: isIncome
-            ? (category && category !== 'Uncategorized' && category !== 'Other' ? category : 'Business Income')
+            ? (category && category !== 'Uncategorized' && category !== 'Other' ? category : 'Income')
             : (category || 'Uncategorized'),
           category_source: categorySource || (tx.category_source as string | null) || null,
           source_type: 'smart_import',
