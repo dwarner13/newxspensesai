@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24", purple: "#a78bfa" };
 
-interface ImportRow { id: string; issuer: string | null; filename: string | null; file_url: string | null; status: string | null; created_at: string; committed_count: number | null; }
+interface ImportRow { id: string; document_id: string | null; issuer: string | null; filename: string | null; file_url: string | null; status: string | null; created_at: string; committed_count: number | null; }
+interface DocMeta { institution?: string; account_last4?: string; statement_period?: string; }
 interface FolderGroup { key: string; label: string; issuer: string; year: number; imports: ImportRow[]; totalTx: number; earliest: string; latest: string; }
 
 function issuerColor(issuer: string): string {
@@ -56,10 +57,11 @@ export function StatementHistory() {
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
-  const [folderMenu, setFolderMenu] = useState<string | null>(null); // folder key with open menu
+  const [folderMenu, setFolderMenu] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [docMetas, setDocMetas] = useState<Map<string, DocMeta>>(new Map());
   const [confirmBulk, setConfirmBulk] = useState(false);
 
   const fetchImports = async () => {
@@ -69,12 +71,29 @@ export function StatementHistory() {
     if (!sb) { setLoading(false); return; }
     const { data, error } = await sb
       .from("imports")
-      .select("id, issuer, filename, file_url, status, created_at, committed_count")
+      .select("id, document_id, issuer, filename, file_url, status, created_at, committed_count")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(200);
     console.log("[StatementHistory] query result:", { count: data?.length, error });
-    if (!error && data) setImports(data as ImportRow[]);
+    if (!error && data) {
+      setImports(data as ImportRow[]);
+      const docIds = (data as ImportRow[]).map(i => i.document_id).filter(Boolean) as string[];
+      if (docIds.length > 0) {
+        const { data: docs } = await sb
+          .from("user_documents")
+          .select("id, metadata")
+          .in("id", docIds);
+        if (docs) {
+          const metaMap = new Map<string, DocMeta>();
+          for (const doc of docs) {
+            const m = doc.metadata?.account_summary ?? doc.metadata;
+            if (m?.institution) metaMap.set(doc.id, m as DocMeta);
+          }
+          setDocMetas(metaMap);
+        }
+      }
+    }
     setLoading(false);
   };
 
@@ -115,18 +134,17 @@ export function StatementHistory() {
   const folders: FolderGroup[] = (() => {
     const map = new Map<string, FolderGroup>();
     for (const imp of imports) {
-      // Use filename to detect card variant for better grouping
       const rawName = (imp.file_url?.split("/").pop() || imp.filename || "").toLowerCase();
-      let issuer = imp.issuer || "";
+      const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
+      let issuer = meta?.institution || imp.issuer || "";
 
-      // If issuer is missing from DB, detect from filename
       if (!issuer || issuer === "Unknown") {
         if (/world.?elite/i.test(rawName)) {
           issuer = "Triangle World Elite";
         } else if (/triangle|canadian.?tire/i.test(rawName)) {
           issuer = "Triangle Mastercard";
-        } else if (/rbc|royal.?bank|visa.?statement.?7223/i.test(rawName)) {
-          issuer = "RBC Visa";
+        } else if (/rbc|royal.?bank/i.test(rawName)) {
+          issuer = "RBC";
         } else if (/capital.?one/i.test(rawName)) {
           issuer = "Capital One";
         } else if (/bmo|bank.?of.?montreal/i.test(rawName)) {
@@ -143,16 +161,14 @@ export function StatementHistory() {
           issuer = "Unknown";
         }
       } else {
-        // Issuer exists — refine Triangle variants and normalize
         if (/world.?elite/i.test(rawName) && /triangle|canadian.?tire/i.test(issuer)) {
           issuer = "Triangle World Elite";
         } else if (/triangle|canadian.?tire/i.test(issuer) && !/world.?elite/i.test(issuer)) {
           issuer = "Triangle Mastercard";
         }
-        if (/rbc|royal.?bank/i.test(issuer)) issuer = /visa/i.test(rawName) || /visa/i.test(issuer) ? "RBC Visa" : "RBC";
+        if (/rbc|royal.?bank/i.test(issuer)) issuer = "RBC";
       }
-      const filenameYearMatch = rawName.match(/20\d{2}/);
-      const year = filenameYearMatch ? parseInt(filenameYearMatch[0], 10) : new Date(imp.created_at).getFullYear();
+      const year = new Date(imp.created_at).getFullYear();
       const key = `${issuer}-${year}`;
       if (!map.has(key)) {
         map.set(key, { key, label: `${issuer} ${year}`, issuer, year, imports: [], totalTx: 0, earliest: imp.created_at, latest: imp.created_at });
@@ -173,7 +189,7 @@ export function StatementHistory() {
   }, [folders.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleFolder = (key: string) => {
-    if (selectMode) return; // don't collapse folders while selecting
+    if (selectMode) return;
     setOpenFolders(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   };
 
@@ -193,7 +209,6 @@ export function StatementHistory() {
 
   return (
     <div style={{ marginTop: 32 }}>
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.1em" }}>Statement History</div>
         <div style={{ flex: 1, height: 1, background: T.border }} />
@@ -215,7 +230,6 @@ export function StatementHistory() {
         <div style={{ fontSize: 11, color: T.dim }}>{imports.length} import{imports.length !== 1 ? "s" : ""}</div>
       </div>
 
-      {/* Select mode toolbar */}
       {selectMode && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, padding: "10px 14px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }}>
           <span style={{ fontSize: 12, color: T.dim, flex: 1 }}>
@@ -285,7 +299,6 @@ export function StatementHistory() {
                 </div>
                 {!selectMode && <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>▾</div>}
               </button>
-              {/* 3-dot folder menu */}
               {!selectMode && (
                 <div style={{ position: "relative", flexShrink: 0 }}>
                   <button
@@ -334,8 +347,16 @@ export function StatementHistory() {
                 <div style={{ borderTop: `1px solid ${T.border}` }}>
                   {folder.imports.map((imp, idx) => {
                     const badge = statusBadge(imp.status);
-                    const raw = imp.file_url ? imp.file_url.split("/").pop() || imp.id : imp.id;
-                    const name = raw.replace(/\.pdf$/i, "").replace(/[-_]/g, " ");
+                    const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
+                    let name: string;
+                    if (meta?.institution && meta?.statement_period) {
+                      name = `${meta.institution}${meta.account_last4 ? ` \u00B7\u00B7\u00B7${meta.account_last4}` : ""} \u00B7 ${meta.statement_period}`;
+                    } else if (meta?.institution) {
+                      name = meta.institution;
+                    } else {
+                      const raw = imp.file_url ? imp.file_url.split("/").pop() || imp.id : imp.id;
+                      name = raw.replace(/\.pdf$/i, "").replace(/[-_]/g, " ");
+                    }
                     const isEmpty = !imp.committed_count || imp.committed_count === 0;
                     const isChecked = selected.has(imp.id);
 
