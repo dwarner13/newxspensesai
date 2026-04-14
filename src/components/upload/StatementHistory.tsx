@@ -168,7 +168,7 @@ export function StatementHistory() {
         }
         if (/rbc|royal.?bank/i.test(issuer)) issuer = "RBC";
       }
-      const year = new Date(imp.created_at).getFullYear();
+      const year = meta?.statement_period ? parseInt(meta.statement_period.match(/\d{4}/)?.[0] || String(new Date(imp.created_at).getFullYear())) : new Date(imp.created_at).getFullYear();
       const key = `${issuer}-${year}`;
       if (!map.has(key)) {
         map.set(key, { key, label: `${issuer} ${year}`, issuer, year, imports: [], totalTx: 0, earliest: imp.created_at, latest: imp.created_at });
@@ -406,3 +406,4 @@ export function StatementHistory() {
     </div>
   );
 }
+
