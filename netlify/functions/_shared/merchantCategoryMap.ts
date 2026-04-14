@@ -74,8 +74,9 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
   "koll brook": { category: "Transportation", subcategory: "Gas & Fuel" },
   "wheelers hwy": { category: "Transportation", subcategory: "Gas & Fuel" },
   "wheeler": { category: "Transportation", subcategory: "Gas & Fuel" },
-  "7-eleven": { category: "Transportation", subcategory: "Gas & Fuel" },
-  "7 eleven": { category: "Transportation", subcategory: "Gas & Fuel" },
+  "7-eleven": { category: "Food & Dining", subcategory: "Coffee & Drinks" },
+  "7 eleven": { category: "Food & Dining", subcategory: "Coffee & Drinks" },
+  "mac's convenience": { category: "Food & Dining", subcategory: "Coffee & Drinks" },
   "air-serv": { category: "Transportation", subcategory: "Vehicle Services" },
   "northtown registry": { category: "Transportation", subcategory: "Vehicle Services" },
   "north town registry": { category: "Transportation", subcategory: "Vehicle Services" },
@@ -173,8 +174,9 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
   "b/m payt": { category: "Housing", subcategory: "Rent or Mortgage" },
   "epcor": { category: "Housing", subcategory: "Utilities" },
   "atco": { category: "Housing", subcategory: "Utilities" },
-  "telus": { category: "Housing", subcategory: "Utilities" },
-  "shaw": { category: "Housing", subcategory: "Utilities" },
+  "telus": { category: "Utilities", subcategory: "Phone & Internet" },
+  "rogers": { category: "Utilities", subcategory: "Phone & Internet" },
+  "shaw": { category: "Utilities", subcategory: "Phone & Internet" },
 
   // ── TRANSFERS ───────────────────────────────────────────────
   "interac": { category: "Transfers", subcategory: "e-Transfer" },

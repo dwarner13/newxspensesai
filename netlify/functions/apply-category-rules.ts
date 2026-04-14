@@ -100,7 +100,12 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: "MAC'S CONVENIENCE", category: 'Food & Dining', subcategory: 'Convenience' },
   { key: 'LEDUC DINER', category: 'Food & Dining', subcategory: 'Restaurants' },
   { key: 'UFO PIZZA', category: 'Food & Dining', subcategory: 'Restaurants' },
+  { key: '7-ELEVEN', category: 'Food & Dining', subcategory: 'Coffee & Drinks' },
+  { key: '7 ELEVEN', category: 'Food & Dining', subcategory: 'Coffee & Drinks' },
+  { key: "MAC'S CONVENIENCE", category: 'Food & Dining', subcategory: 'Coffee & Drinks' },
+  { key: 'ROGERS', category: 'Utilities', subcategory: 'Phone & Internet' },
   { key: 'TELUS COMM', category: 'Utilities', subcategory: 'Phone & Internet' },
+  { key: 'TELUS', category: 'Utilities', subcategory: 'Phone & Internet' },
   { key: 'RIVER CREE RESORT', category: 'Entertainment', subcategory: 'Gaming' },
   { key: 'RIVER CREE', category: 'Entertainment', subcategory: 'Gaming' },
   { key: 'BEAR HILLS CASINO', category: 'Entertainment', subcategory: 'Gaming' },
@@ -495,16 +500,19 @@ export const handler: Handler = async (event) => {
   const delayMs = importId ? 2000 : 3000;
 
   // JS-side filter - guarantees no .or() syntax issues block matching
-  const NEEDS_CATEGORIZATION = new Set(['', 'other', 'uncategorized', 'needs review']);
-  const needsCategorization = (cat: unknown): boolean => {
-    if (cat == null) return true;
-    return NEEDS_CATEGORIZATION.has(String(cat).trim().toLowerCase());
+  // Also re-process any transaction where category_source='ai' — smart-import-sync
+  // auto-assigns AI categories that may be wrong; hardcoded overrides should always win.
+  const NEEDS_CATEGORIZATION = new Set(['', 'other', 'uncategorized', 'needs review', 'business income']);
+  const needsCategorization = (row: { category?: unknown; category_source?: unknown }): boolean => {
+    if (row.category == null) return true;
+    if (row.category_source === 'ai') return true; // always let rules override AI-assigned cats
+    return NEEDS_CATEGORIZATION.has(String(row.category).trim().toLowerCase());
   };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let query = supabase
       .from('transactions')
-      .select('id, merchant_name, merchant, amount, description, category')
+      .select('id, merchant_name, merchant, amount, description, category, category_source')
       .eq('user_id', userId)
       .order('posted_at', { ascending: false })
       .limit(limit);
@@ -523,7 +531,7 @@ export const handler: Handler = async (event) => {
     }
 
     const allRows = rows || [];
-    txs = importId ? allRows : allRows.filter(r => needsCategorization(r.category));
+    txs = importId ? allRows : allRows.filter(r => needsCategorization(r));
     console.log('[apply-category-rules] FETCHED', { uidPrefix, importId, attempt, fetched: allRows.length, afterFilter: txs.length });
 
     if (txs.length > 0) break;
@@ -541,7 +549,7 @@ export const handler: Handler = async (event) => {
     console.warn('[apply-category-rules] importId returned 0 rows - falling back to user-wide cleanup', { uidPrefix, importId });
     const { data: fallbackRows, error: fallbackErr } = await supabase
       .from('transactions')
-      .select('id, merchant_name, merchant, amount, description, category')
+      .select('id, merchant_name, merchant, amount, description, category, category_source')
       .eq('user_id', userId)
       .order('posted_at', { ascending: false })
       .limit(limit);
@@ -549,7 +557,7 @@ export const handler: Handler = async (event) => {
       console.error('[apply-category-rules] FALLBACK FETCH ERROR', { uidPrefix, error: fallbackErr.message });
     } else {
       const all = fallbackRows || [];
-      txs = all.filter(r => needsCategorization(r.category));
+      txs = all.filter(r => needsCategorization(r));
       console.log('[apply-category-rules] FALLBACK FETCHED', { uidPrefix, fetched: all.length, afterFilter: txs.length });
     }
   }
