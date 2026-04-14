@@ -87,7 +87,7 @@ export function StatementHistory() {
         if (docs) {
           const metaMap = new Map<string, DocMeta>();
           for (const doc of docs) {
-            const m = doc.metadata?.account_summary ?? doc.metadata;
+            const m = doc.metadata?.statement_summary ?? doc.metadata;
             if (m?.institution) metaMap.set(doc.id, m as DocMeta);
           }
           setDocMetas(metaMap);
@@ -406,4 +406,5 @@ export function StatementHistory() {
     </div>
   );
 }
+
 
