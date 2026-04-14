@@ -117,7 +117,7 @@ async function fetchDocumentWithCompatibility(sb: any, documentId: string): Prom
 
 function parseStatementSummary(text: string): ExtractedSummary {
   const normalized = text || '';
-  const bmoEndMatch = normalized.match(/For the period ending\s+([A-Za-z]+ \d{1,2},?\s*\d{4})/i);
+  const bmoEndMatch = normalized.match(/For\s*the\s*period\s*ending\s+([A-Za-z]+ \d{1,2},?\s*\d{4})/i);
   const periodMatch = bmoEndMatch ? [null, bmoEndMatch[1], bmoEndMatch[1]] :
     normalized.match(/Statement Period:?\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s*(?:to|-)\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
     normalized.match(/(?:statement|billing|account)\s+period:?\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s*(?:to|-)\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
@@ -1584,5 +1584,6 @@ export const handler: Handler = async (event, context) => {
 
 
 // cache-bust-20260413-1746
+
 
 
