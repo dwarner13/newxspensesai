@@ -134,46 +134,11 @@ export function StatementHistory() {
   const folders: FolderGroup[] = (() => {
     const map = new Map<string, FolderGroup>();
     for (const imp of imports) {
-      const rawName = (imp.file_url || imp.filename || "").toLowerCase();
       const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
-      const rawInstitution = meta?.institution || "";
-      const knownBanks = ["bmo","rbc","td","cibc","scotiabank","capital one","triangle","world elite","your triangle","ctbc","amex","visa","american express","national bank","hsbc","desjardins","simplii","tangerine","pc financial","ctfs","canadian tire"];
-      const institutionValid = rawInstitution.length > 0 && rawInstitution.length < 50 && knownBanks.some(b => rawInstitution.toLowerCase().includes(b));
-      let issuer = (institutionValid ? rawInstitution : null) || imp.issuer || "";
-
-      if (!issuer || issuer === "Unknown") {
-        if (/world.?elite/i.test(rawName)) {
-          issuer = "Triangle World Elite";
-        } else if (/triangle|canadian.?tire/i.test(rawName)) {
-          issuer = "Triangle Mastercard";
-        } else if (/rbc|royal.?bank/i.test(rawName)) {
-          issuer = "RBC";
-        } else if (/capital.?one/i.test(rawName)) {
-          issuer = "Capital One";
-        } else if (/bmo|bank.?of.?montreal/i.test(rawName)) {
-          issuer = "BMO";
-        } else if (/td.?bank|td.?canada/i.test(rawName)) {
-          issuer = "TD Bank";
-        } else if (/cibc/i.test(rawName)) {
-          issuer = "CIBC";
-        } else if (/scotiabank|scotia/i.test(rawName)) {
-          issuer = "Scotiabank";
-        } else if (/visa.?statement|7223/i.test(rawName)) {
-          issuer = "RBC";
-        } else if (/6075/i.test(rawName)) {
-          issuer = "Unknown Card";
-        } else {
-          issuer = "Unknown";
-        }
-      } else {
-        if (/world.?elite/i.test(rawName) && /triangle|canadian.?tire/i.test(issuer)) {
-          issuer = "Triangle World Elite";
-        } else if (/triangle|canadian.?tire/i.test(issuer) && !/world.?elite/i.test(issuer)) {
-          issuer = "Triangle Mastercard";
-        }
-        if (/rbc|royal.?bank/i.test(issuer)) issuer = "RBC";
-      }
-      const year = meta?.statement_period ? parseInt(meta.statement_period.match(/\d{4}/)?.[0] || String(new Date(imp.created_at).getFullYear())) : new Date(imp.created_at).getFullYear();
+      const issuer = detectIssuer(imp, meta);
+      const year = meta?.statement_period
+        ? parseInt(meta.statement_period.match(/\d{4}/)?.[0] || String(new Date(imp.created_at).getFullYear()))
+        : new Date(imp.created_at).getFullYear();
       const key = `${issuer}-${year}`;
       if (!map.has(key)) {
         map.set(key, { key, label: `${issuer} ${year}`, issuer, year, imports: [], totalTx: 0, earliest: imp.created_at, latest: imp.created_at });
@@ -412,6 +377,7 @@ export function StatementHistory() {
     </div>
   );
 }
+
 
 
 
