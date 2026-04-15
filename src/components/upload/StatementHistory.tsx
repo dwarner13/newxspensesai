@@ -173,7 +173,7 @@ export function StatementHistory() {
       const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
       const issuer = detectIssuer(imp, meta);
       const year = meta?.statement_period
-        ? parseInt(meta.statement_period.match(/\d{4}/)?.[0] || String(new Date(imp.created_at).getFullYear()))
+        ? parseInt(meta.statement_period.match(/\d{4}/g)?.pop() || String(new Date(imp.created_at).getFullYear()))
         : new Date(imp.created_at).getFullYear();
       const key = `${issuer}-${year}`;
       if (!map.has(key)) {
@@ -331,3 +331,4 @@ export function StatementHistory() {
     </div>
   );
 }
+
