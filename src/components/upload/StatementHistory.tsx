@@ -185,7 +185,7 @@ export function StatementHistory() {
       if (imp.created_at < g.earliest) g.earliest = imp.created_at;
       if (imp.created_at > g.latest) g.latest = imp.created_at;
       const pEnd = meta?.statement_period ? meta.statement_period.split(/[-–]/).pop()?.trim() || null : null;
-      if (pEnd) { if (!g.earliestPeriod || pEnd < g.earliestPeriod) g.earliestPeriod = pEnd; if (!g.latestPeriod || pEnd > g.latestPeriod) g.latestPeriod = pEnd; }
+      if (pEnd) { const pEndDate = new Date(pEnd).getTime(); const curEarliestDate = g.earliestPeriod ? new Date(g.earliestPeriod).getTime() : Infinity; const curLatestDate = g.latestPeriod ? new Date(g.latestPeriod).getTime() : -Infinity; if (pEndDate < curEarliestDate) g.earliestPeriod = pEnd; if (pEndDate > curLatestDate) g.latestPeriod = pEnd; }
     }
     return Array.from(map.values()).sort((a, b) => b.year !== a.year ? b.year - a.year : a.issuer.localeCompare(b.issuer));
   })();
@@ -333,6 +333,7 @@ export function StatementHistory() {
     </div>
   );
 }
+
 
 
 
