@@ -52,7 +52,7 @@ const VEHICLE_BUCKETS: Bucket[] = [
   { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky", "gas & fuel", "kollbrook", "canco petroleum", "circle k"] },
   { label: "Car Payments", keywords: ["td loan", "car payment", "auto loan", "lns/pre", "car loan"] },
   { label: "Registration", keywords: ["registry", "registration", "northtown registry"] },
-  { label: "Insurance", keywords: ["car insurance", "vehicle insurance", "auto insurance"] },
+  { label: "Insurance", keywords: ["economical", "peace hills", "car insurance", "vehicle insurance", "auto insurance"] },
   { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "canadian tire auto", "maintenance", "auto service", "vehicle maintenance", "jiffy lube", "revolution moto", "river city hyundai"] },
   { label: "Parking", keywords: ["parking", "impark", "parkade"] },
   { label: "Car Wash", keywords: ["car wash", "kenyon", "triangle cp"] },
@@ -69,13 +69,13 @@ const MEALS_BUCKETS: Bucket[] = [
 ];
 
 const HOME_BUCKETS: Bucket[] = [
-  { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "celtic group", "rent", "rnt payt"] },
-  { label: "Condo Fees", keywords: ["condo fee", "strata", "hoa"] },
+  { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "mtg/hyp", "rent", "rnt payt"] },
+  { label: "Condo Fees", keywords: ["celtic group", "condo fee", "strata", "hoa"] },
   { label: "Utilities - Electric", keywords: ["epcor", "electricity", "electric"] },
   { label: "Utilities - Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
   { label: "Utilities - Water", keywords: ["epcor water", "water bill"] },
   { label: "Internet", keywords: ["telus", "shaw", "internet"] },
-  { label: "Home Insurance", keywords: ["home insurance", "property insurance", "tenant insurance"] },
+  { label: "Home Insurance", keywords: ["sandbox mutual", "home insurance", "property insurance", "tenant insurance"] },
 ];
 
 const BUSINESS_BUCKETS: Bucket[] = [
@@ -174,6 +174,16 @@ function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
     rows.push({ label: "Other", count: other.count, amount: other.total });
   }
   return rows;
+}
+
+function normalizeMerchant(name: string): string {
+  const n = (name || "").replace(/\s+/g, " ").trim();
+  if (/gordon.?food|gfsedmonton/i.test(n)) return "Gordon Food Services";
+  if (/INTERACe-Transfer Received/i.test(n)) return "INTERAC e-Transfer Received";
+  if (/INTERACe-Transfer Sent/i.test(n)) return "INTERAC e-Transfer Sent";
+  if (/CDACARBONREBATE/i.test(n)) return "CDA Carbon Rebate";
+  if (/MANULIFE/i.test(n)) return "Manulife";
+  return n;
 }
 
 /** For income: group by merchant name (payer/client) */
@@ -631,6 +641,8 @@ function SubcategoryTable({ rows, color, isMobile, isIncome }: { rows: SubRow[];
 const COL_HDR: React.CSSProperties = {
   fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700,
 };
+
+
 
 
 
