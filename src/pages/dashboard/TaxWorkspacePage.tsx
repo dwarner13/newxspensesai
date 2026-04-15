@@ -33,7 +33,7 @@ interface SectionDef {
 
 const SECTIONS: SectionDef[] = [
   { id: "income", icon: "\uD83D\uDCB0", title: "Income", matchFn: (tx) => tx.category === "Income" },
-  { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" || tx.category === "Automotive" || (tx.category === "Debt Payments" && tx.subcategory === "Car Payment") },
+  { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" || tx.category === "Automotive" || (tx.category === "Debt Payments" && tx.subcategory === "Car Payment") || (tx.category === "Insurance" && tx.subcategory === "Vehicle Insurance") },
   { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => (tx.category === "Utilities" && tx.subcategory !== "Cell Phone" && tx.subcategory !== "Phone & Internet") || tx.category === "Housing" || (tx.category === "Transfers" && ["Condo Fees", "Mortgage (Split)", "Condo Fees (Split)"].includes(tx.subcategory || "")) || (tx.category === "Insurance" && ["Home Insurance"].includes(tx.subcategory || "")) },
   { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Food & Dining" || tx.category === "Entertainment" },
   { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" || tx.category === "Business Expenses" || tx.category === "Advertising" || tx.category === "Technology" },
@@ -631,6 +631,7 @@ function SubcategoryTable({ rows, color, isMobile, isIncome }: { rows: SubRow[];
 const COL_HDR: React.CSSProperties = {
   fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700,
 };
+
 
 
 
