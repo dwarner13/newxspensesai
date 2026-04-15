@@ -6,7 +6,7 @@ const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#f0f4ff
 
 interface ImportRow { id: string; document_id: string | null; issuer: string | null; filename: string | null; file_url: string | null; status: string | null; created_at: string; committed_count: number | null; }
 interface DocMeta { institution?: string; account_last4?: string; statement_period?: string; }
-interface FolderGroup { key: string; label: string; issuer: string; year: number; imports: ImportRow[]; totalTx: number; earliest: string; latest: string; }
+interface FolderGroup { key: string; label: string; issuer: string; year: number; imports: ImportRow[]; totalTx: number; earliest: string; latest: string; earliestPeriod: string | null; latestPeriod: string | null; }
 
 function normalizeIssuer(raw: string): string {
   const l = raw.toLowerCase();
@@ -177,7 +177,7 @@ export function StatementHistory() {
         : new Date(imp.created_at).getFullYear();
       const key = `${issuer}-${year}`;
       if (!map.has(key)) {
-        map.set(key, { key, label: `${issuer} ${year}`, issuer, year, imports: [], totalTx: 0, earliest: imp.created_at, latest: imp.created_at });
+        map.set(key, { key, label: `${issuer} ${year}`, issuer, year, imports: [], totalTx: 0, earliest: imp.created_at, latest: imp.created_at, earliestPeriod: null, latestPeriod: null });
       }
       const g = map.get(key)!;
       g.imports.push(imp);
@@ -265,7 +265,7 @@ export function StatementHistory() {
                     <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
                       {folder.imports.length} statement{folder.imports.length !== 1 ? "s" : ""}
                       {folder.totalTx > 0 && ` · ${folder.totalTx.toLocaleString()} transactions`}
-                      {` · ${formatDate(folder.earliest)} – ${formatDate(folder.latest)}`}
+                      {folder.earliestPeriod ? ` · ${folder.earliestPeriod}${folder.latestPeriod !== folder.earliestPeriod ? ` – ${folder.latestPeriod}` : ``}` : ` · ${formatDate(folder.earliest)} – ${formatDate(folder.latest)}`}
                     </div>
                   </div>
                   {!selectMode && <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>▾</div>}
@@ -331,4 +331,6 @@ export function StatementHistory() {
     </div>
   );
 }
+
+
 
