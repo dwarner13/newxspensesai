@@ -151,7 +151,7 @@ function parseStatementSummary(text: string): ExtractedSummary {
     docType: 'statement',
     institution: (issuerLineMatch?.[1] || inferIssuerFromText() || '').trim() || undefined,
     account_last4: endingMatch?.[1] || undefined,
-    statement_period: periodMatch ? `${periodMatch[1]} - ${periodMatch[2]}` : undefined,
+    statement_period: periodMatch ? (periodMatch[2] ? `${periodMatch[1]} - ${periodMatch[2]}` : periodMatch[1]) : undefined,
     new_balance: newBalanceMatch ? newBalanceMatch[1] : undefined,
     minimum_payment_due: minPaymentMatch ? minPaymentMatch[1] : undefined,
     due_date: dueDateMatch ? dueDateMatch[1] : undefined,
@@ -1586,4 +1586,10 @@ export const handler: Handler = async (event, context) => {
 // cache-bust-20260413-1746
 
 
+  const periodMatch =
+    normalized.match(/Statement Period:?\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s*(?:to|-)\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
+    normalized.match(/For\s*the\s*period:?\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s+to\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
+    normalized.match(/For\s*the\s*period\s*ending\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
+    normalized.match(/STATEMENT\s+FROM\s+([A-Za-z]+\s+\d{1,2})\s+TO\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i) ||
+    normalized.match(/(?:billing|account)\s+period:?\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s*(?:to|-)\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i);
 
