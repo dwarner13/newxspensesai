@@ -184,6 +184,8 @@ export function StatementHistory() {
       g.totalTx += imp.committed_count || 0;
       if (imp.created_at < g.earliest) g.earliest = imp.created_at;
       if (imp.created_at > g.latest) g.latest = imp.created_at;
+      const pEnd = meta?.statement_period ? meta.statement_period.split(/[-–]/).pop()?.trim() || null : null;
+      if (pEnd) { if (!g.earliestPeriod || pEnd < g.earliestPeriod) g.earliestPeriod = pEnd; if (!g.latestPeriod || pEnd > g.latestPeriod) g.latestPeriod = pEnd; }
     }
     return Array.from(map.values()).sort((a, b) => b.year !== a.year ? b.year - a.year : a.issuer.localeCompare(b.issuer));
   })();
@@ -265,7 +267,7 @@ export function StatementHistory() {
                     <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
                       {folder.imports.length} statement{folder.imports.length !== 1 ? "s" : ""}
                       {folder.totalTx > 0 && ` · ${folder.totalTx.toLocaleString()} transactions`}
-                      {folder.earliestPeriod ? ` · ${folder.earliestPeriod}${folder.latestPeriod !== folder.earliestPeriod ? ` – ${folder.latestPeriod}` : ``}` : ` · ${formatDate(folder.earliest)} – ${formatDate(folder.latest)}`}
+                      {folder.earliestPeriod ? ` · ${folder.earliestPeriod === folder.latestPeriod ? folder.earliestPeriod : `${folder.earliestPeriod} – ${folder.latestPeriod}`}` : ` · ${formatDate(folder.earliest)} – ${formatDate(folder.latest)}`}
                     </div>
                   </div>
                   {!selectMode && <div style={{ fontSize: 12, color: T.dim, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>▾</div>}
@@ -331,6 +333,9 @@ export function StatementHistory() {
     </div>
   );
 }
+
+
+
 
 
 
