@@ -51,7 +51,7 @@ interface Bucket {
 const VEHICLE_BUCKETS: Bucket[] = [
   { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky", "gas & fuel", "kollbrook", "canco petroleum", "circle k"] },
   { label: "Car Payments", keywords: ["td loan", "car payment", "auto loan", "lns/pre", "car loan"] },
-  { label: "Registration", keywords: ["registry", "registration", "northtown registry"] },
+  { label: "Registration", keywords: ["registry", "registration", "northtown", "registryser", "vehicle registration"] },
   { label: "Insurance", keywords: ["economical", "peace hills", "car insurance", "vehicle insurance", "auto insurance"] },
   { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "canadian tire auto", "maintenance", "auto service", "vehicle maintenance", "jiffy lube", "revolution moto", "river city hyundai"] },
   { label: "Parking", keywords: ["parking", "impark", "parkade"] },
@@ -69,8 +69,8 @@ const MEALS_BUCKETS: Bucket[] = [
 ];
 
 const HOME_BUCKETS: Bucket[] = [
-  { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "mtg/hyp", "rent", "rnt payt"] },
-  { label: "Condo Fees", keywords: ["celtic group", "condo fee", "strata", "hoa"] },
+  { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "mtg/hyp", "rent", "rnt payt", "mortgage (split)"] },
+  { label: "Condo Fees", keywords: ["celtic group", "condo fee", "strata", "hoa", "condo fees (split)", "condo fees"] },
   { label: "Utilities - Electric", keywords: ["epcor", "electricity", "electric"] },
   { label: "Utilities - Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
   { label: "Utilities - Water", keywords: ["epcor water", "water bill"] },
@@ -641,6 +641,8 @@ function SubcategoryTable({ rows, color, isMobile, isIncome }: { rows: SubRow[];
 const COL_HDR: React.CSSProperties = {
   fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700,
 };
+
+
 
 
 
