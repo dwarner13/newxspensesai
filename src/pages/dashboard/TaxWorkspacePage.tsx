@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+﻿import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { THEME } from "../PrimeChatV2/agentConfig";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 
-/* ── Types matching actual DB schema ── */
+/* â”€â”€ Types matching actual DB schema â”€â”€ */
 
 interface Transaction {
   category: string | null;
@@ -29,19 +29,19 @@ interface SectionDef {
   matchFn: (tx: Transaction) => boolean;
 }
 
-/* ── Section definitions using EXACT category strings from DB ── */
+/* â”€â”€ Section definitions using EXACT category strings from DB â”€â”€ */
 
 const SECTIONS: SectionDef[] = [
-  { id: "income", icon: "\uD83D\uDCB0", title: "Income", matchFn: (tx) => tx.type === "income" },
+  { id: "income", icon: "\uD83D\uDCB0", title: "Income", matchFn: (tx) => tx.category === "Income" },
   { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" || tx.category === "Automotive" || ["Gas & Fuel", "Parking", "Vehicle Maintenance", "Vehicle Registration", "Car Loan", "Car Wash"].includes(tx.subcategory || "") },
   { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => tx.category === "Rent or Lease" || tx.category === "Utilities" || tx.category === "Housing" },
   { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Food & Dining" || tx.category === "Entertainment" },
   { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" || tx.category === "Advertising" || tx.category === "Technology" || tx.category === "Office Supplies" || tx.category === "Professional Services" },
   { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal Care" || tx.category === "Groceries" || tx.category === "Debt Payments" || tx.category === "Transfers" || tx.category === "Shopping" || tx.category === "Healthcare" || tx.category === "Needs Review" },
-  { id: "other", icon: "\uD83D\uDCE6", title: "Other / Uncategorized", matchFn: (tx) => tx.type === "expense" },
+  { id: "other", icon: "\uD83D\uDCE6", title: "Other / Uncategorized", matchFn: (tx) => tx.category !== "Income" && tx.category !== "Transportation" && tx.category !== "Utilities" && tx.category !== "Housing" && tx.category !== "Food & Dining" && tx.category !== "Entertainment" && tx.category !== "Subscriptions" && tx.category !== "Bank Fees" && tx.category !== "Personal Care" && tx.category !== "Groceries" && tx.category !== "Debt Payments" && tx.category !== "Transfers" && tx.category !== "Shopping" && tx.category !== "Healthcare" && tx.category !== "Needs Review" && tx.category !== "Business Expenses" && tx.category !== "Insurance" && tx.category !== "Travel" },
 ];
 
-/* ── Subcategory bucket definitions per section ── */
+/* â”€â”€ Subcategory bucket definitions per section â”€â”€ */
 
 interface Bucket {
   label: string;
@@ -110,7 +110,7 @@ const SECTION_BUCKETS: Record<string, Bucket[]> = {
   other: [],
 };
 
-/* ── Helpers ── */
+/* â”€â”€ Helpers â”€â”€ */
 
 const fmt = (n: number) =>
   n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -131,7 +131,7 @@ function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
     const subcat = (tx.subcategory || "").toLowerCase();
     let matched = false;
 
-    // First pass: try subcategory → bucket label match (exact)
+    // First pass: try subcategory â†’ bucket label match (exact)
     if (subcat) {
       for (const b of buckets) {
         if (b.label.toLowerCase() === subcat || b.keywords.some((kw) => subcat === kw.toLowerCase())) {
@@ -191,7 +191,7 @@ function groupByMerchant(txs: Transaction[]): SubRow[] {
     .map(([label, v]) => ({ label, count: v.count, amount: v.total }));
 }
 
-/* ── CSV export ── */
+/* â”€â”€ CSV export â”€â”€ */
 
 function exportCSV(
   year: number,
@@ -216,9 +216,9 @@ function exportCSV(
   URL.revokeObjectURL(url);
 }
 
-/* ══════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    Main component
-   ══════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 export default function TaxWorkspacePage() {
   const { userId } = useAuth();
@@ -344,7 +344,7 @@ export default function TaxWorkspacePage() {
     }
   }, [userId, year, vehicleKm]);
 
-  /* ── Render ── */
+  /* â”€â”€ Render â”€â”€ */
 
   if (loading) {
     return (
@@ -362,7 +362,7 @@ export default function TaxWorkspacePage() {
       color: THEME.text,
     }}>
 
-      {/* ══════ HEADER ══════ */}
+      {/* â•â•â•â•â•â• HEADER â•â•â•â•â•â• */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginBottom: 6 }}>
           <h1 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: "white", margin: 0 }}>Tax Summary</h1>
@@ -416,13 +416,13 @@ export default function TaxWorkspacePage() {
         </div>
       </div>
 
-      {/* ══════ DISCLAIMER ══════ */}
+      {/* â•â•â•â•â•â• DISCLAIMER â•â•â•â•â•â• */}
       <div style={{ padding: '10px 16px', borderRadius: 10, marginBottom: 20, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <span style={{ fontSize: 14, flexShrink: 0 }}>{"\u26A0\uFE0F"}</span>
         <span style={{ fontSize: 12, color: '#7b8ba5', lineHeight: 1.5 }}>XspensesAI organizes your financial data to help you work with your accountant more efficiently. We are not accountants, financial advisors, or tax professionals. Nothing in this app constitutes financial, tax, or legal advice.</span>
       </div>
 
-      {/* ══════ NEEDS REVIEW BANNER ══════ */}
+      {/* â•â•â•â•â•â• NEEDS REVIEW BANNER â•â•â•â•â•â• */}
       {needsReviewCount > 0 && (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -448,7 +448,7 @@ export default function TaxWorkspacePage() {
         </div>
       )}
 
-      {/* ══════ SUMMARY CARDS ══════ */}
+      {/* â•â•â•â•â•â• SUMMARY CARDS â•â•â•â•â•â• */}
       <div style={{
         display: "grid",
         gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
@@ -475,7 +475,7 @@ export default function TaxWorkspacePage() {
         ))}
       </div>
 
-      {/* ══════ ALL SECTIONS ══════ */}
+      {/* â•â•â•â•â•â• ALL SECTIONS â•â•â•â•â•â• */}
       {SECTIONS.map((section) => {
         const res = sectionResults.get(section.id);
         const txs = res?.txs ?? [];
@@ -540,7 +540,7 @@ export default function TaxWorkspacePage() {
         );
       })}
 
-      {/* ══════ FOOTER ══════ */}
+      {/* â•â•â•â•â•â• FOOTER â•â•â•â•â•â• */}
       <div style={{
         marginTop: 32, padding: "16px 20px", borderRadius: 12,
         background: THEME.surface, border: `1px solid ${THEME.border}`,
@@ -554,9 +554,9 @@ export default function TaxWorkspacePage() {
   );
 }
 
-/* ══════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    Sub-components
-   ══════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function SectionCard({ icon, title, total, count, color, expanded, onToggle, isMobile, children }: {
   icon: string; title: string; total: number; count: number; color: string;
@@ -631,6 +631,7 @@ function SubcategoryTable({ rows, color, isMobile, isIncome }: { rows: SubRow[];
 const COL_HDR: React.CSSProperties = {
   fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700,
 };
+
 
 
 
