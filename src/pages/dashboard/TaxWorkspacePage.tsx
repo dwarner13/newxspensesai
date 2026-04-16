@@ -20,6 +20,7 @@ interface SubRow {
   label: string;
   count: number;
   amount: number; // always positive for display
+  txDetails?: { merchant: string; amount: number; date: string }[]; // populated for "Other" bucket
 }
 
 interface SectionDef {
@@ -126,9 +127,9 @@ const fmt = (n: number) =>
  */
 function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
   // Initialise all buckets to 0
-  const map = new Map<string, { count: number; total: number }>();
-  for (const b of buckets) map.set(b.label, { count: 0, total: 0 });
-  map.set("Other", { count: 0, total: 0 });
+  const map = new Map<string, { count: number; total: number; details: { merchant: string; amount: number; date: string }[] }>();
+  for (const b of buckets) map.set(b.label, { count: 0, total: 0, details: [] });
+  map.set("Other", { count: 0, total: 0, details: [] });
 
   for (const tx of txs) {
     const merch = (tx.merchant_name || tx.merchant || "").toLowerCase();
@@ -160,10 +161,16 @@ function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
         }
       }
     }
+
     if (!matched) {
       const entry = map.get("Other")!;
       entry.count += 1;
       entry.total += Math.abs(tx.amount);
+      entry.details.push({
+        merchant: tx.merchant_name || tx.merchant || "(unknown)",
+        amount: Math.abs(tx.amount),
+        date: tx.date,
+      });
     }
   }
 
@@ -175,7 +182,7 @@ function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
   }
   const other = map.get("Other")!;
   if (other.total > 0 || other.count > 0) {
-    rows.push({ label: "Other", count: other.count, amount: other.total });
+    rows.push({ label: "Other", count: other.count, amount: other.total, txDetails: other.details });
   }
   return rows;
 }
@@ -538,19 +545,8 @@ export default function TaxWorkspacePage() {
                   if (section.id === "income") {
                     // Income: search by payer name
                     params.set("search", label);
-                  } else if (label === "Other") {
-                    // Other: search by section category keywords
-                    const categoryMap: Record<string, string> = {
-                      vehicle: "Transportation",
-                      home: "Home / Rent / Lease",
-                      meals: "Food & Dining",
-                      business: "Subscriptions",
-                      personal: "Personal Care",
-                    };
-                    const cat = categoryMap[section.id];
-                    if (cat) params.set("search", cat);
                   } else {
-                    // Named bucket: filter by subcategory
+                    // Named bucket: filter by subcategory label
                     params.set("subcategory", label);
                   }
                   navigate(`/dashboard/transactions?${params.toString()}`);
@@ -644,7 +640,11 @@ function SectionCard({ icon, title, total, count, color, expanded, onToggle, isM
   );
 }
 
-function SubcategoryTable({ rows, color, isMobile, isIncome, onRowClick }: { rows: SubRow[]; color: string; isMobile: boolean; isIncome: boolean; onRowClick?: (label: string) => void }) {
+function SubcategoryTable({ rows, color, isMobile, isIncome, onRowClick }: {
+  rows: SubRow[]; color: string; isMobile: boolean; isIncome: boolean;
+  onRowClick?: (label: string) => void;
+}) {
+  const [expandedOther, setExpandedOther] = useState(false);
   if (rows.length === 0) return null;
   const colLabel = isIncome ? "Client / Payer" : "Subcategory";
   return (
@@ -659,32 +659,79 @@ function SubcategoryTable({ rows, color, isMobile, isIncome, onRowClick }: { row
         <div style={{ ...COL_HDR, textAlign: "right" }}>Amount</div>
       </div>
       {/* Rows */}
-      {rows.map((row, i) => (
-        <div
-          key={row.label + i}
-          onClick={() => row.amount > 0 && onRowClick?.(row.label)}
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr 100px" : "1fr 110px",
-            gap: 8, padding: "9px 0",
-            borderBottom: i < rows.length - 1 ? `1px solid ${THEME.border}44` : "none",
-            alignItems: "center",
-            cursor: row.amount > 0 && onRowClick ? "pointer" : "default",
-            borderRadius: 6,
-            transition: "background 0.15s",
-          }}
-          onMouseEnter={(e) => { if (row.amount > 0 && onRowClick) e.currentTarget.style.background = `${color}08`; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 600, color: row.amount > 0 ? THEME.text : THEME.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
-            {row.label}
-            {row.amount > 0 && onRowClick && <span style={{ fontSize: 10, color: color, opacity: 0.7 }}>→</span>}
+      {rows.map((row, i) => {
+        const isOtherWithDetails = row.label === "Other" && row.txDetails && row.txDetails.length > 0;
+        return (
+          <div key={row.label + i}>
+            <div
+              onClick={() => {
+                if (!row.amount) return;
+                if (isOtherWithDetails) {
+                  setExpandedOther((v) => !v);
+                } else {
+                  onRowClick?.(row.label);
+                }
+              }}
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr 100px" : "1fr 110px",
+                gap: 8, padding: "9px 0",
+                borderBottom: (!expandedOther || !isOtherWithDetails) && i < rows.length - 1
+                  ? `1px solid ${THEME.border}44` : "none",
+                alignItems: "center",
+                cursor: row.amount > 0 && (onRowClick || isOtherWithDetails) ? "pointer" : "default",
+                borderRadius: 6,
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => { if (row.amount > 0) e.currentTarget.style.background = `${color}08`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: row.amount > 0 ? THEME.text : THEME.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
+                {row.label}
+                {row.amount > 0 && (onRowClick || isOtherWithDetails) && (
+                  <span style={{ fontSize: 10, color, opacity: 0.7 }}>
+                    {isOtherWithDetails ? (expandedOther ? "▲" : "▼") : "→"}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: row.amount > 0 ? color : THEME.textDim, textAlign: "right", whiteSpace: "nowrap" }}>
+                ${fmt(row.amount)}
+              </div>
+            </div>
+
+            {/* Inline expansion for "Other" bucket */}
+            {isOtherWithDetails && expandedOther && (
+              <div style={{
+                marginBottom: 8, borderRadius: 8,
+                background: `${THEME.bg}`, border: `1px solid ${THEME.border}44`,
+                overflow: "hidden",
+              }}>
+                {row.txDetails!.map((tx, j) => (
+                  <div key={j} style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr 70px" : "1fr 100px 90px",
+                    gap: 8, padding: "7px 12px",
+                    borderBottom: j < row.txDetails!.length - 1 ? `1px solid ${THEME.border}22` : "none",
+                    alignItems: "center",
+                  }}>
+                    <div style={{ fontSize: 12, color: THEME.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {tx.merchant}
+                    </div>
+                    {!isMobile && (
+                      <div style={{ fontSize: 11, color: THEME.textDim, whiteSpace: "nowrap" }}>
+                        {tx.date}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, fontWeight: 700, color, textAlign: "right", whiteSpace: "nowrap" }}>
+                      ${fmt(tx.amount)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: row.amount > 0 ? color : THEME.textDim, textAlign: "right", whiteSpace: "nowrap" }}>
-            ${fmt(row.amount)}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -692,7 +739,3 @@ function SubcategoryTable({ rows, color, isMobile, isIncome, onRowClick }: { row
 const COL_HDR: React.CSSProperties = {
   fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700,
 };
-
-
-
-
