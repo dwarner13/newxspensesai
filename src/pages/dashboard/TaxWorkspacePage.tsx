@@ -202,6 +202,54 @@ function groupByMerchant(txs: Transaction[]): SubRow[] {
     .map(([label, v]) => ({ label, count: v.count, amount: v.total }));
 }
 
+/* ── Bucket label → DB filter mapping ── */
+
+const BUCKET_FILTER_MAP: Record<string, { category?: string; subcategory?: string }> = {
+  // Vehicle
+  "Gas / Fuel":               { subcategory: "Gas & Fuel" },
+  "Car Payments":             { subcategory: "Car Loan" },
+  "Registration":             { subcategory: "Vehicle Registration" },
+  "Insurance":                { subcategory: "Vehicle Insurance" },
+  "Repairs / Maintenance":    { subcategory: "Vehicle Maintenance" },
+  "Parking":                  { subcategory: "Parking" },
+  "Car Wash":                 { subcategory: "Car Wash" },
+  // Home
+  "Mortgage / Rent":          { subcategory: "Mortgage / Rent" },
+  "Condo Fees":               { subcategory: "Condo Fees" },
+  "Utilities - Electric":     { category: "Utilities" },
+  "Utilities - Gas / Heat":   { category: "Utilities" },
+  "Utilities - Water":        { category: "Utilities" },
+  "Internet":                 { category: "Utilities" },
+  "Home Insurance":           { subcategory: "Home Insurance" },
+  // Meals
+  "Coffee":                   { category: "Food & Dining" },
+  "Restaurants / Dining":     { category: "Food & Dining" },
+  "Fast Food / Takeout":      { category: "Food & Dining" },
+  "Groceries / Convenience":  { category: "Food & Dining" },
+  "Entertainment":            { category: "Entertainment" },
+  "Alcohol":                  { category: "Food & Dining" },
+  "Supplements / Health Food":{ category: "Food & Dining" },
+  // Business
+  "Advertising / Marketing":  { category: "Advertising" },
+  "Software / Subscriptions": { category: "Subscriptions" },
+  "Professional Fees":        { category: "Professional Services" },
+  "Bank Fees":                { category: "Bank Fees" },
+  "Business Insurance":       { subcategory: "Business Insurance" },
+  // Personal
+  "Dental":                   { subcategory: "Dental" },
+  "Pharmacy / Medical":       { category: "Healthcare" },
+  "Groceries":                { category: "Groceries" },
+  "Grooming / Salon":         { category: "Personal Care" },
+  "Wellness / Massage":       { category: "Personal Care" },
+  "Cash / ATM":               { subcategory: "ATM" },
+  "Travel & Leisure":         { category: "Travel" },
+  "Transfers":                { category: "Transfers" },
+  "Loan Payments":            { category: "Debt Payments" },
+  "Credit Card Payments":     { category: "Debt Payments" },
+  "Investments":              { category: "Transfers" },
+  "Shopping":                 { category: "Shopping" },
+};
+
 /* ── CSV export ── */
 
 function exportCSV(
@@ -543,11 +591,12 @@ export default function TaxWorkspacePage() {
                 onRowClick={(label) => {
                   const params = new URLSearchParams();
                   if (section.id === "income") {
-                    // Income: search by payer name
                     params.set("search", label);
                   } else {
-                    // Named bucket: filter by subcategory label
-                    params.set("subcategory", label);
+                    const filter = BUCKET_FILTER_MAP[label];
+                    if (filter?.category) params.set("category", filter.category);
+                    else if (filter?.subcategory) params.set("subcategory", filter.subcategory);
+                    else params.set("search", label); // fallback
                   }
                   navigate(`/dashboard/transactions?${params.toString()}`);
                 }}
