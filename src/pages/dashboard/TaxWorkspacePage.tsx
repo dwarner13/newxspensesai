@@ -83,12 +83,12 @@ const HOME_BUCKETS: Bucket[] = [
 ];
 
 const BUSINESS_BUCKETS: Bucket[] = [
-  { label: "Advertising / Marketing", keywords: ["dreamhost", "seo", "amazon prime business", "amazon", "google ads", "facebook", "advertising"] },
-  { label: "Software / Subscriptions", keywords: ["cursor", "openai", "youtube", "everlance", "ranked ai", "adobe", "microsoft", "canva", "zoom", "slack", "notion", "dropbox", "chatgpt", "2nd site", "stackblitz", "dodopay"] },
-  { label: "Professional Fees", keywords: ["accounting", "ncube", "2nd site", "legal", "bookkeeping", "consulting"] },
-  { label: "Bank Fees", keywords: ["premium plan", "handling chg", "interest charge", "service charge", "bank fee", "nsf", "overdraft"] },
+  { label: "Advertising / Marketing", keywords: ["advertising", "marketing", "dreamhost", "seo", "amazon prime business", "amazon", "google ads", "facebook"] },
+  { label: "Software / Subscriptions", keywords: ["software", "subscriptions", "cursor", "openai", "youtube", "everlance", "ranked ai", "adobe", "microsoft", "canva", "zoom", "slack", "notion", "dropbox", "chatgpt", "2nd site", "stackblitz", "dodopay", "netlify", "paddle.net", "paddle.com", "netflix", "aiprm", "envato", "supabase", "anthropic", "github", "vercel", "cloudflare", "figma", "zapier", "airtable", "linear", "fastmail", "n8n"] },
+  { label: "Professional Fees", keywords: ["professional fees", "professional services", "accounting", "ncube", "2nd site", "legal", "bookkeeping", "consulting"] },
+  { label: "Bank Fees", keywords: ["bank fees", "bank fee", "premium plan", "handling chg", "interest charge", "service charge", "nsf", "overdraft"] },
   { label: "Business Insurance", keywords: ["imperial pfs", "business insurance", "liability"] },
-  { label: "Phone / Cell", keywords: ["rogers", "fido", "koodo", "virgin mobile", "bell", "freedom mobile", "public mobile", "chatr", "cell phone"] },
+  { label: "Phone / Cell", keywords: ["phone / cell", "rogers", "fido", "koodo", "virgin mobile", "bell", "freedom mobile", "public mobile", "chatr", "cell phone"] },
 ];
 
 const PERSONAL_BUCKETS: Bucket[] = [
