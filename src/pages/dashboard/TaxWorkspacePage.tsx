@@ -63,8 +63,8 @@ const VEHICLE_BUCKETS: Bucket[] = [
 ];
 
 const MEALS_BUCKETS: Bucket[] = [
-  { label: "Coffee", keywords: ["tim hortons", "starbucks", "booster juice", "second cup", "good earth"] },
-  { label: "Restaurants / Dining", keywords: ["pizza", "restaurant", "pub", "grill", "diner", "kitchen", "smittys", "wendys", "mcdonalds", "popeyes", "mr sub", "halong bay", "sushi", "thai", "wok", "buffet", "a&w", "subway", "kfc", "burger", "boston pizza", "earls", "cactus", "moxies", "original joe", "joey", "montanas"] },
+  { label: "Coffee", keywords: ["tim hortons", "starbucks", "booster juice", "second cup", "good earth", "coffee", "coffee & drinks"] },
+  { label: "Restaurants / Dining", keywords: ["pizza", "restaurant", "restaurants", "pub", "grill", "diner", "kitchen", "smittys", "wendys", "mcdonalds", "popeyes", "mr sub", "halong bay", "sushi", "thai", "wok", "buffet", "a&w", "subway", "kfc", "burger", "boston pizza", "earls", "cactus", "moxies", "original joe", "joey", "montanas", "restaurants / dining"] },
   { label: "Fast Food / Takeout", keywords: ["uber eats", "doordash", "skip the dishes", "instacart"] },
   { label: "Groceries / Convenience", keywords: ["7-eleven", "7 eleven", "mac's", "circle k"] },
   { label: "Entertainment", keywords: ["movie", "concert", "sport", "fitness", "theatre", "cinema", "netflix", "spotify"] },
