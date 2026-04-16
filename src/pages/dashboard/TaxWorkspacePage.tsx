@@ -88,7 +88,8 @@ const BUSINESS_BUCKETS: Bucket[] = [
 
 const PERSONAL_BUCKETS: Bucket[] = [
   { label: "Dental", keywords: ["chandra", "mcallister", "dental", "dentist", "orthodon"] },
-  { label: "Pharmacy / Medical", keywords: ["shoppers drug mart", "pharmacy", "medical", "healthcare", "clinic", "doctor"] }, "save on", "safeway", "loblaws", "walmart", "mac's", "superstore", "costco", "no frills", "freshco"] },
+  { label: "Pharmacy / Medical", keywords: ["shoppers drug mart", "pharmacy", "medical", "healthcare", "clinic", "doctor"] },
+  { label: "Groceries", keywords: ["sobeys", "save on", "safeway", "loblaws", "walmart", "mac's", "superstore", "costco", "no frills", "freshco"] },
   { label: "Grooming / Salon", keywords: ["shadified", "salon", "barber", "hair", "q hair", "grooming"] },
   { label: "Wellness / Massage", keywords: ["massage", "ting ting", "yo yo", "lewis massage", "tulip garden", "songblossom", "spa", "wellness"] },
   { label: "Cash / ATM", keywords: ["abm withdrawal", "abmwithdrawal", "other bank abm", "atm withdrawal"] },
@@ -183,7 +184,7 @@ function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
 function groupByMerchant(txs: Transaction[]): SubRow[] {
   const map = new Map<string, { count: number; total: number }>();
   for (const tx of txs) {
-    const key = tx.merchant?.trim() || "(unknown payer)";
+    const key = tx.merchant?.trim() || tx.merchant_name?.trim() || "(unknown payer)";
     const entry = map.get(key) || { count: 0, total: 0 };
     entry.count += 1;
     entry.total += Math.abs(tx.amount);
