@@ -52,7 +52,7 @@ const VEHICLE_BUCKETS: Bucket[] = [
   { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky", "gas & fuel", "kollbrook", "canco petroleum", "circle k"] },
   { label: "Car Payments", keywords: ["td loan", "car payment", "auto loan", "lns/pre", "car loan"] },
   { label: "Registration", keywords: ["registry", "registration", "northtown registry"] },
-  { label: "Insurance", keywords: ["car insurance", "vehicle insurance", "auto insurance"] },
+  { label: "Insurance", keywords: ["economical", "peace hills", "imperial pfs", "vehicle insurance", "auto insurance", "car insurance"] },
   { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "canadian tire auto", "maintenance", "auto service", "vehicle maintenance", "jiffy lube", "revolution moto", "river city hyundai"] },
   { label: "Parking", keywords: ["parking", "impark", "parkade"] },
   { label: "Car Wash", keywords: ["car wash", "kenyon", "triangle cp"] },
@@ -75,7 +75,7 @@ const HOME_BUCKETS: Bucket[] = [
   { label: "Utilities - Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
   { label: "Utilities - Water", keywords: ["epcor water", "water bill"] },
   { label: "Internet", keywords: ["telus", "shaw", "internet"] },
-  { label: "Home Insurance", keywords: ["home insurance", "property insurance", "tenant insurance"] },
+  { label: "Home Insurance", keywords: ["sandbox mutual", "home insurance", "property insurance", "tenant insurance"] },
 ];
 
 const BUSINESS_BUCKETS: Bucket[] = [
