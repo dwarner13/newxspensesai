@@ -131,6 +131,9 @@ export default function TransactionsPageV2() {
 
     const categoryParam = searchParams.get("category");
     if (categoryParam) { setTagCategoryFilter(categoryParam); setTagFilterLabel(categoryParam); }
+
+    const subcategoryParam = searchParams.get("subcategory");
+    if (subcategoryParam) { setTagSubcategoryFilter(subcategoryParam); setTagFilterLabel(subcategoryParam); }
   }, []);
   // Refetch on window focus AND on a 'transactions:refresh' custom event
   // fired by Tag after any write (rule save, bulk apply, delete rule).
@@ -636,8 +639,8 @@ export default function TransactionsPageV2() {
           </div>
         </div>
 
-        {/* STAT CARDS */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {/* STAT CARDS — hidden in statement mode */}
+        {!isStatementMode && <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
             { label: 'Total Spent', value: `$${fmt(totalSpent)}`, color: 'text-red-400', icon: <ArrowUpRight className="h-3.5 w-3.5 text-red-400" />, tab: 'expenses' as const },
             { label: 'Total Income', value: `$${fmt(totalIncome)}`, color: 'text-emerald-400', icon: <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400" />, tab: 'income' as const },
@@ -652,7 +655,7 @@ export default function TransactionsPageV2() {
               <div className={`text-[18px] md:text-[26px] font-extrabold ${c.color}`}>{c.value}</div>
             </div>
           ))}
-        </div>
+        </div>}
 
         {/* TWO COLUMN: Donut + AI Insights — hidden in statement mode */}
         {!isStatementMode && <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
@@ -771,12 +774,12 @@ export default function TransactionsPageV2() {
           {tagFilterLabel && (searchQuery === tagFilterLabel || tagCategoryFilter || tagSubcategoryFilter) && (
             <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-800/60 bg-cyan-500/5">
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30">
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#22d3ee', letterSpacing: '0.1em', textTransform: 'uppercase' }}>TAG</span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#22d3ee', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tagSubcategoryFilter && !tagCategoryFilter ? '📊 TAX' : 'TAG'}</span>
                 <span style={{ fontSize: 12, color: '#e8ecf4', fontWeight: 600 }}>{tagFilterLabel}</span>
                 <button onClick={() => { setSearchQuery(''); setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); }}
                   style={{ marginLeft: 2, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
               </div>
-              <span style={{ fontSize: 11, color: '#475569' }}>Tag filtered your results</span>
+              <span style={{ fontSize: 11, color: '#475569' }}>{tagSubcategoryFilter && !tagCategoryFilter ? 'Filtered from Tax Summary' : 'Tag filtered your results'}</span>
             </div>
           )}
 
