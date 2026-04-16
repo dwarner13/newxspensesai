@@ -528,7 +528,21 @@ export default function TaxWorkspacePage() {
                 No transactions found for {year}.
               </div>
             ) : (
-              <SubcategoryTable rows={subRows} color={headerColor} isMobile={isMobile} isIncome={section.id === "income"} />
+              <SubcategoryTable
+                rows={subRows}
+                color={headerColor}
+                isMobile={isMobile}
+                isIncome={section.id === "income"}
+                onRowClick={(label) => {
+                  const params = new URLSearchParams();
+                  if (label === "Other") {
+                    params.set("category", section.title);
+                  } else {
+                    params.set("subcategory", label);
+                  }
+                  navigate(`/dashboard/transactions?${params.toString()}`);
+                }}
+              />
             )}
 
             {/* Vehicle KM inputs (raw numbers for accountant) */}
@@ -617,7 +631,7 @@ function SectionCard({ icon, title, total, count, color, expanded, onToggle, isM
   );
 }
 
-function SubcategoryTable({ rows, color, isMobile, isIncome }: { rows: SubRow[]; color: string; isMobile: boolean; isIncome: boolean }) {
+function SubcategoryTable({ rows, color, isMobile, isIncome, onRowClick }: { rows: SubRow[]; color: string; isMobile: boolean; isIncome: boolean; onRowClick?: (label: string) => void }) {
   if (rows.length === 0) return null;
   const colLabel = isIncome ? "Client / Payer" : "Subcategory";
   return (
@@ -633,15 +647,25 @@ function SubcategoryTable({ rows, color, isMobile, isIncome }: { rows: SubRow[];
       </div>
       {/* Rows */}
       {rows.map((row, i) => (
-        <div key={row.label + i} style={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr 100px" : "1fr 110px",
-          gap: 8, padding: "9px 0",
-          borderBottom: i < rows.length - 1 ? `1px solid ${THEME.border}44` : "none",
-          alignItems: "center",
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: row.amount > 0 ? THEME.text : THEME.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div
+          key={row.label + i}
+          onClick={() => row.amount > 0 && onRowClick?.(row.label)}
+          style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr 100px" : "1fr 110px",
+            gap: 8, padding: "9px 0",
+            borderBottom: i < rows.length - 1 ? `1px solid ${THEME.border}44` : "none",
+            alignItems: "center",
+            cursor: row.amount > 0 && onRowClick ? "pointer" : "default",
+            borderRadius: 6,
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(e) => { if (row.amount > 0 && onRowClick) e.currentTarget.style.background = `${color}08`; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: row.amount > 0 ? THEME.text : THEME.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
             {row.label}
+            {row.amount > 0 && onRowClick && <span style={{ fontSize: 10, color: color, opacity: 0.7 }}>→</span>}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: row.amount > 0 ? color : THEME.textDim, textAlign: "right", whiteSpace: "nowrap" }}>
             ${fmt(row.amount)}
