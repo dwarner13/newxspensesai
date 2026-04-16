@@ -57,6 +57,8 @@ const VEHICLE_BUCKETS: Bucket[] = [
   { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "canadian tire auto", "maintenance", "auto service", "vehicle maintenance", "jiffy lube", "revolution moto", "river city hyundai"] },
   { label: "Parking", keywords: ["parking", "impark", "parkade"] },
   { label: "Car Wash", keywords: ["car wash", "kenyon", "triangle cp"] },
+  { label: "Car Rental", keywords: ["enterprise", "avis", "budget rent", "hertz", "national car", "car rental"] },
+  { label: "Rideshare / Taxi", keywords: ["uber", "lyft", "taxi", "rideshare"] },
 ];
 
 const MEALS_BUCKETS: Bucket[] = [
@@ -76,6 +78,7 @@ const HOME_BUCKETS: Bucket[] = [
   { label: "Utilities - Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
   { label: "Utilities - Water", keywords: ["epcor water", "water bill"] },
   { label: "Internet", keywords: ["telus", "shaw", "internet"] },
+  { label: "Phone / Cell", keywords: ["rogers", "fido", "koodo", "virgin mobile", "bell", "freedom mobile", "public mobile", "chatr", "cell phone"] },
   { label: "Home Insurance", keywords: ["sandbox mutual", "home insurance", "property insurance", "tenant insurance"] },
 ];
 
@@ -213,6 +216,8 @@ const BUCKET_FILTER_MAP: Record<string, { category?: string; subcategory?: strin
   "Repairs / Maintenance":    { subcategory: "Vehicle Maintenance" },
   "Parking":                  { subcategory: "Parking" },
   "Car Wash":                 { subcategory: "Car Wash" },
+  "Car Rental":               { subcategory: "Car Rental" },
+  "Rideshare / Taxi":         { subcategory: "Rideshare" },
   // Home
   "Mortgage / Rent":          { subcategory: "Mortgage / Rent" },
   "Condo Fees":               { subcategory: "Condo Fees" },
@@ -220,6 +225,7 @@ const BUCKET_FILTER_MAP: Record<string, { category?: string; subcategory?: strin
   "Utilities - Gas / Heat":   { category: "Utilities" },
   "Utilities - Water":        { category: "Utilities" },
   "Internet":                 { category: "Utilities" },
+  "Phone / Cell":             { subcategory: "Phone / Cell" },
   "Home Insurance":           { subcategory: "Home Insurance" },
   // Meals
   "Coffee":                   { category: "Food & Dining" },
