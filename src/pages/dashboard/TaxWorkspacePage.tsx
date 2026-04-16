@@ -701,6 +701,61 @@ function SectionCard({ icon, title, total, count, color, expanded, onToggle, isM
   );
 }
 
+function MerchantGroup({ mg, color, isMobile, isLast }: {
+  mg: { merchant: string; total: number; txs: { merchant: string; amount: number; date: string }[] | undefined };
+  color: string; isMobile: boolean; isLast: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const txs = mg.txs || [];
+  return (
+    <div>
+      {/* Merchant row */}
+      <div
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr 70px" : "1fr 110px",
+          gap: 8, padding: "8px 14px",
+          borderBottom: !open && !isLast ? `1px solid ${THEME.border}22` : "none",
+          alignItems: "center", cursor: "pointer",
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = `${color}06`; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 600, color: THEME.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ fontSize: 9, color, opacity: 0.5 }}>{open ? "▲" : "▼"}</span>
+          {mg.merchant}
+          <span style={{ fontSize: 10, color: THEME.textDim, fontWeight: 400 }}>({txs.length})</span>
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 700, color, textAlign: "right", whiteSpace: "nowrap" }}>
+          ${fmt(mg.total)}
+        </div>
+      </div>
+
+      {/* Individual transactions */}
+      {open && (
+        <div style={{ background: `${color}04`, borderBottom: !isLast ? `1px solid ${THEME.border}22` : "none" }}>
+          {txs.map((tx, k) => (
+            <div key={k} style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr 70px" : "1fr 110px",
+              gap: 8, padding: "5px 24px",
+              borderBottom: k < txs.length - 1 ? `1px solid ${THEME.border}11` : "none",
+              alignItems: "center",
+            }}>
+              <div style={{ fontSize: 11, color: THEME.textDim, whiteSpace: "nowrap" }}>{tx.date}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: THEME.textMuted, textAlign: "right", whiteSpace: "nowrap" }}>
+                ${fmt(tx.amount)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SubcategoryTable({ rows, color, isMobile, isIncome }: {
   rows: SubRow[]; color: string; isMobile: boolean; isIncome: boolean;
 }) {
