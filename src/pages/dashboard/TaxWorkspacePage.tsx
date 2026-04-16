@@ -36,9 +36,9 @@ const SECTIONS: SectionDef[] = [
   { id: "income", icon: "\uD83D\uDCB0", title: "Income", matchFn: (tx) => tx.type === "income" },
   { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" || tx.category === "Automotive" || tx.subcategory === "Vehicle Insurance" || ["Gas & Fuel", "Parking", "Vehicle Maintenance", "Vehicle Registration", "Car Loan", "Car Wash"].includes(tx.subcategory || "") },
   { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => tx.category === "Rent or Lease" || tx.category === "Utilities" || tx.category === "Housing" || tx.category === "Home / Rent / Lease" || tx.subcategory === "Mortgage / Rent" || tx.subcategory === "Condo Fees" || tx.subcategory === "Home Insurance" },
-  { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Food & Dining" || tx.category === "Entertainment" },
+  { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Food & Dining" || (tx.category === "Entertainment" && tx.subcategory !== "Golf" && tx.subcategory !== "Gambling" && tx.subcategory !== "Events / Tickets") },
   { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" || tx.category === "Advertising" || tx.category === "Technology" || tx.category === "Office Supplies" || tx.category === "Professional Services" || tx.category === "Business Expenses" },
-  { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal Care" || tx.category === "Groceries" || tx.category === "Debt Payments" || tx.category === "Transfers" || tx.category === "Shopping" || tx.category === "Healthcare" || tx.category === "Needs Review" },
+  { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal Care" || tx.category === "Groceries" || tx.category === "Debt Payments" || tx.category === "Transfers" || tx.category === "Shopping" || tx.category === "Healthcare" || tx.category === "Needs Review" || tx.subcategory === "Golf" || tx.subcategory === "Gambling" || tx.subcategory === "Events / Tickets" },
   { id: "other", icon: "\uD83D\uDCE6", title: "Other / Uncategorized", matchFn: (tx) => tx.type === "expense" },
 ];
 
@@ -59,13 +59,14 @@ const VEHICLE_BUCKETS: Bucket[] = [
   { label: "Car Wash", keywords: ["car wash", "kenyon", "triangle cp"] },
   { label: "Car Rental", keywords: ["enterprise", "avis", "budget rent", "hertz", "national car", "car rental"] },
   { label: "Rideshare / Taxi", keywords: ["uber", "lyft", "taxi", "rideshare"] },
+  { label: "Traffic Fines", keywords: ["myalberta fine", "traffic fine", "photo radar", "parking fine"] },
 ];
 
 const MEALS_BUCKETS: Bucket[] = [
   { label: "Coffee", keywords: ["tim hortons", "starbucks", "booster juice", "second cup", "good earth"] },
   { label: "Restaurants / Dining", keywords: ["pizza", "restaurant", "pub", "grill", "diner", "kitchen", "smittys", "wendys", "mcdonalds", "popeyes", "mr sub", "halong bay", "sushi", "thai", "wok", "buffet", "a&w", "subway", "kfc", "burger", "boston pizza", "earls", "cactus", "moxies", "original joe", "joey", "montanas"] },
   { label: "Fast Food / Takeout", keywords: ["uber eats", "doordash", "skip the dishes", "instacart"] },
-  { label: "Groceries / Convenience", keywords: ["7-eleven", "mac's", "circle k"] },
+  { label: "Groceries / Convenience", keywords: ["7-eleven", "7 eleven", "mac's", "circle k"] },
   { label: "Entertainment", keywords: ["movie", "concert", "sport", "fitness", "theatre", "cinema", "netflix", "spotify"] },
   { label: "Alcohol", keywords: ["liquor", "econo liquor", "beer", "wine", "alcanna", "wine and beyond"] },
   { label: "Supplements / Health Food", keywords: ["supplement", "ls supplement", "popeye supplement", "gnc", "nutrition"] },
@@ -78,7 +79,6 @@ const HOME_BUCKETS: Bucket[] = [
   { label: "Utilities - Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
   { label: "Utilities - Water", keywords: ["epcor water", "water bill"] },
   { label: "Internet", keywords: ["telus", "shaw", "internet"] },
-  { label: "Phone / Cell", keywords: ["rogers", "fido", "koodo", "virgin mobile", "bell", "freedom mobile", "public mobile", "chatr", "cell phone"] },
   { label: "Home Insurance", keywords: ["sandbox mutual", "home insurance", "property insurance", "tenant insurance"] },
 ];
 
@@ -88,6 +88,7 @@ const BUSINESS_BUCKETS: Bucket[] = [
   { label: "Professional Fees", keywords: ["accounting", "ncube", "2nd site", "legal", "bookkeeping", "consulting"] },
   { label: "Bank Fees", keywords: ["premium plan", "handling chg", "interest charge", "service charge", "bank fee", "nsf", "overdraft"] },
   { label: "Business Insurance", keywords: ["imperial pfs", "business insurance", "liability"] },
+  { label: "Phone / Cell", keywords: ["rogers", "fido", "koodo", "virgin mobile", "bell", "freedom mobile", "public mobile", "chatr", "cell phone"] },
 ];
 
 const PERSONAL_BUCKETS: Bucket[] = [
@@ -103,6 +104,9 @@ const PERSONAL_BUCKETS: Bucket[] = [
   { label: "Credit Card Payments", keywords: ["capital one", "canadian tire bank", "cc payment"] },
   { label: "Investments", keywords: ["bmo inv inc", "tfsa", "rrsp", "wealthsimple", "questrade", "investment"] },
   { label: "Shopping", keywords: ["winners", "dollar tree", "shoppers drug mart", "marshalls", "homesense"] },
+  { label: "Golf", keywords: ["alberta beach golf", "ls alberta beach", "twin willows", "glendale golf", "golfzon", "golf traders", "golf town", "golf avenue", "golf av", "sezzle*golf", "canada golf card", "lewis estates golf", "montgomery glen", "sanpiper golf", "silver creek golf", "leduc golf", "leducgolfclub", "lonespruce", "longshotz", "golf club"] },
+  { label: "Gambling", keywords: ["bingo", "castledowns", "west end bingo", "river cree", "bear hills", "bearhills", "casino"] },
+  { label: "Events / Tickets", keywords: ["landmark web", "ticketmaster", "eventbrite"] },
 ];
 
 const INCOME_BUCKETS: Bucket[] = []; // Income groups by merchant (no predefined buckets)
@@ -218,6 +222,7 @@ const BUCKET_FILTER_MAP: Record<string, { category?: string; subcategory?: strin
   "Car Wash":                 { subcategory: "Car Wash" },
   "Car Rental":               { subcategory: "Car Rental" },
   "Rideshare / Taxi":         { subcategory: "Rideshare" },
+  "Traffic Fines":            { subcategory: "Traffic Fines" },
   // Home
   "Mortgage / Rent":          { subcategory: "Mortgage / Rent" },
   "Condo Fees":               { subcategory: "Condo Fees" },
@@ -225,7 +230,6 @@ const BUCKET_FILTER_MAP: Record<string, { category?: string; subcategory?: strin
   "Utilities - Gas / Heat":   { category: "Utilities" },
   "Utilities - Water":        { category: "Utilities" },
   "Internet":                 { category: "Utilities" },
-  "Phone / Cell":             { subcategory: "Phone / Cell" },
   "Home Insurance":           { subcategory: "Home Insurance" },
   // Meals
   "Coffee":                   { category: "Food & Dining" },
@@ -241,6 +245,7 @@ const BUCKET_FILTER_MAP: Record<string, { category?: string; subcategory?: strin
   "Professional Fees":        { category: "Professional Services" },
   "Bank Fees":                { category: "Bank Fees" },
   "Business Insurance":       { subcategory: "Business Insurance" },
+  "Phone / Cell":             { subcategory: "Phone / Cell" },
   // Personal
   "Dental":                   { subcategory: "Dental" },
   "Pharmacy / Medical":       { category: "Healthcare" },
@@ -254,6 +259,9 @@ const BUCKET_FILTER_MAP: Record<string, { category?: string; subcategory?: strin
   "Credit Card Payments":     { category: "Debt Payments" },
   "Investments":              { category: "Transfers" },
   "Shopping":                 { category: "Shopping" },
+  "Golf":                     { subcategory: "Golf" },
+  "Gambling":                 { subcategory: "Gambling" },
+  "Events / Tickets":         { subcategory: "Events / Tickets" },
 };
 
 /* ── CSV export ── */
