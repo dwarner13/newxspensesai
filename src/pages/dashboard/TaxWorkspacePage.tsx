@@ -36,7 +36,7 @@ const SECTIONS: SectionDef[] = [
   { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" || tx.category === "Automotive" || tx.subcategory === "Vehicle Insurance" || ["Gas & Fuel", "Parking", "Vehicle Maintenance", "Vehicle Registration", "Car Loan", "Car Wash"].includes(tx.subcategory || "") },
   { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => tx.category === "Rent or Lease" || tx.category === "Utilities" || tx.category === "Housing" || tx.category === "Home / Rent / Lease" || tx.subcategory === "Mortgage / Rent" || tx.subcategory === "Condo Fees" || tx.subcategory === "Home Insurance" },
   { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Food & Dining" || tx.category === "Entertainment" },
-  { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" || tx.category === "Advertising" || tx.category === "Technology" || tx.category === "Office Supplies" || tx.category === "Professional Services" },
+  { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" || tx.category === "Advertising" || tx.category === "Technology" || tx.category === "Office Supplies" || tx.category === "Professional Services" || tx.category === "Business Expenses" },
   { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal Care" || tx.category === "Groceries" || tx.category === "Debt Payments" || tx.category === "Transfers" || tx.category === "Shopping" || tx.category === "Healthcare" || tx.category === "Needs Review" },
   { id: "other", icon: "\uD83D\uDCE6", title: "Other / Uncategorized", matchFn: (tx) => tx.type === "expense" },
 ];
@@ -80,7 +80,7 @@ const HOME_BUCKETS: Bucket[] = [
 
 const BUSINESS_BUCKETS: Bucket[] = [
   { label: "Advertising / Marketing", keywords: ["dreamhost", "seo", "amazon prime business", "amazon", "google ads", "facebook", "advertising"] },
-  { label: "Software / Subscriptions", keywords: ["cursor", "openai", "youtube", "everlance", "ranked ai", "adobe", "microsoft", "canva", "zoom", "slack", "notion", "dropbox", "chatgpt"] },
+  { label: "Software / Subscriptions", keywords: ["cursor", "openai", "youtube", "everlance", "ranked ai", "adobe", "microsoft", "canva", "zoom", "slack", "notion", "dropbox", "chatgpt", "2nd site", "stackblitz", "dodopay"] },
   { label: "Professional Fees", keywords: ["accounting", "ncube", "2nd site", "legal", "bookkeeping", "consulting"] },
   { label: "Bank Fees", keywords: ["premium plan", "handling chg", "interest charge", "service charge", "bank fee", "nsf", "overdraft"] },
   { label: "Business Insurance", keywords: ["imperial pfs", "business insurance", "liability"] },
@@ -90,6 +90,8 @@ const PERSONAL_BUCKETS: Bucket[] = [
   { label: "Groceries", keywords: ["sobeys", "save on", "safeway", "loblaws", "walmart", "mac's", "superstore", "costco", "no frills", "freshco"] },
   { label: "Grooming / Salon", keywords: ["shadified", "salon", "barber", "hair", "q hair", "grooming"] },
   { label: "Wellness / Massage", keywords: ["massage", "ting ting", "yo yo", "lewis massage", "tulip garden", "songblossom", "spa", "wellness"] },
+  { label: "Cash / ATM", keywords: ["abm withdrawal", "abmwithdrawal", "other bank abm", "atm withdrawal"] },
+  { label: "Travel & Leisure", keywords: ["passport", "holiday inn", "hotel", "balgonie", "travel", "casino"] },
   { label: "Transfers", keywords: ["interac etrnsfr sent", "e-transfer", "etransfer"] },
   { label: "Loan Payments", keywords: ["easyfinancial", "cash money", "springfinancial", "national money", "flexiti"] },
   { label: "Credit Card Payments", keywords: ["capital one", "canadian tire bank", "cc payment"] },
