@@ -739,13 +739,18 @@ function MerchantGroup({ mg, color, isMobile, isLast }: {
           {txs.map((tx, k) => (
             <div key={k} style={{
               display: "grid",
-              gridTemplateColumns: isMobile ? "1fr 70px" : "1fr 110px",
+              gridTemplateColumns: isMobile ? "1fr 70px" : "1fr 130px 90px",
               gap: 8, padding: "5px 24px",
               borderBottom: k < txs.length - 1 ? `1px solid ${THEME.border}11` : "none",
               alignItems: "center",
             }}>
-              <div style={{ fontSize: 11, color: THEME.textDim, whiteSpace: "nowrap" }}>{tx.date}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: THEME.textMuted, textAlign: "right", whiteSpace: "nowrap" }}>
+              <div style={{ fontSize: 11, color: THEME.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {tx.merchant}
+              </div>
+              {!isMobile && (
+                <div style={{ fontSize: 11, color: THEME.textDim, whiteSpace: "nowrap" }}>{tx.date}</div>
+              )}
+              <div style={{ fontSize: 11, fontWeight: 600, color, textAlign: "right", whiteSpace: "nowrap" }}>
                 ${fmt(tx.amount)}
               </div>
             </div>
