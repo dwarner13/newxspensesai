@@ -184,7 +184,7 @@ function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
 function groupByMerchant(txs: Transaction[]): SubRow[] {
   const map = new Map<string, { count: number; total: number }>();
   for (const tx of txs) {
-    const key = tx.merchant?.trim() || tx.merchant_name?.trim() || "(unknown payer)";
+    const key = tx.merchant_name?.trim() || tx.merchant?.trim() || "(unknown payer)";
     const entry = map.get(key) || { count: 0, total: 0 };
     entry.count += 1;
     entry.total += Math.abs(tx.amount);
