@@ -236,6 +236,8 @@ export default function TaxWorkspacePage() {
     new Set(SECTIONS.map((s) => s.id)),
   );
   const [vehicleKm, setVehicleKm] = useState({ total: "", business: "" });
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth <= 768);
@@ -270,7 +272,7 @@ export default function TaxWorkspacePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [userId, year]);
+  }, [userId, year, refreshKey]);
 
   // Assign each tx to FIRST matching section (no double-counting)
   const sectionResults = useMemo(() => {
@@ -381,6 +383,24 @@ export default function TaxWorkspacePage() {
           >
             {[2026, 2025, 2024, 2023].map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
+          <button
+            onClick={() => { setIsRefreshing(true); setRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 1500); }}
+            title="Refresh data"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              gap: 6, padding: isMobile ? "6px 10px" : "6px 14px",
+              borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: THEME.surface, border: `1px solid ${THEME.border}`,
+              color: isRefreshing ? THEME.accent : THEME.textMuted,
+              cursor: isRefreshing ? "wait" : "pointer", outline: "none",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = THEME.accent; e.currentTarget.style.color = THEME.accent; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.color = isRefreshing ? THEME.accent : THEME.textMuted; }}
+          >
+            <span style={{ display: "inline-block", transition: "transform 0.6s", transform: isRefreshing ? "rotate(360deg)" : "rotate(0deg)", fontSize: 15 }}>↻</span>
+            {!isMobile && <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>}
+          </button>
           <span style={{ fontSize: 12, color: THEME.textDim }}>
             {transactions.length} transactions loaded
           </span>
