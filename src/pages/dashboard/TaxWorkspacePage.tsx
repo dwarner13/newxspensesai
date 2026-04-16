@@ -87,7 +87,8 @@ const BUSINESS_BUCKETS: Bucket[] = [
 ];
 
 const PERSONAL_BUCKETS: Bucket[] = [
-  { label: "Groceries", keywords: ["sobeys", "save on", "safeway", "loblaws", "walmart", "mac's", "superstore", "costco", "no frills", "freshco"] },
+  { label: "Dental", keywords: ["chandra", "mcallister", "dental", "dentist", "orthodon"] },
+  { label: "Pharmacy / Medical", keywords: ["shoppers drug mart", "pharmacy", "medical", "healthcare", "clinic", "doctor"] }, "save on", "safeway", "loblaws", "walmart", "mac's", "superstore", "costco", "no frills", "freshco"] },
   { label: "Grooming / Salon", keywords: ["shadified", "salon", "barber", "hair", "q hair", "grooming"] },
   { label: "Wellness / Massage", keywords: ["massage", "ting ting", "yo yo", "lewis massage", "tulip garden", "songblossom", "spa", "wellness"] },
   { label: "Cash / ATM", keywords: ["abm withdrawal", "abmwithdrawal", "other bank abm", "atm withdrawal"] },
