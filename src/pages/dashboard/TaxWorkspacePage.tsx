@@ -535,9 +535,22 @@ export default function TaxWorkspacePage() {
                 isIncome={section.id === "income"}
                 onRowClick={(label) => {
                   const params = new URLSearchParams();
-                  if (label === "Other") {
-                    params.set("category", section.title);
+                  if (section.id === "income") {
+                    // Income: search by payer name
+                    params.set("search", label);
+                  } else if (label === "Other") {
+                    // Other: search by section category keywords
+                    const categoryMap: Record<string, string> = {
+                      vehicle: "Transportation",
+                      home: "Home / Rent / Lease",
+                      meals: "Food & Dining",
+                      business: "Subscriptions",
+                      personal: "Personal Care",
+                    };
+                    const cat = categoryMap[section.id];
+                    if (cat) params.set("search", cat);
                   } else {
+                    // Named bucket: filter by subcategory
                     params.set("subcategory", label);
                   }
                   navigate(`/dashboard/transactions?${params.toString()}`);
