@@ -38,7 +38,7 @@ const SECTIONS: SectionDef[] = [
   { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => tx.category === "Rent or Lease" || tx.category === "Utilities" || tx.category === "Housing" || tx.category === "Home / Rent / Lease" || tx.subcategory === "Mortgage / Rent" || tx.subcategory === "Condo Fees" || tx.subcategory === "Home Insurance" },
   { id: "meals", icon: "\uD83C\uDF7D\uFE0F", title: "Meals & Entertainment", matchFn: (tx) => tx.category === "Food & Dining" || (tx.category === "Entertainment" && tx.subcategory !== "Golf" && tx.subcategory !== "Gambling" && tx.subcategory !== "Events / Tickets") },
   { id: "business", icon: "\uD83D\uDCBC", title: "Business Expenses", matchFn: (tx) => tx.category === "Subscriptions" || tx.category === "Bank Fees" || tx.category === "Advertising" || tx.category === "Technology" || tx.category === "Office Supplies" || tx.category === "Professional Services" || tx.category === "Business Expenses" },
-  { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal Care" || tx.category === "Groceries" || tx.category === "Debt Payments" || tx.category === "Transfers" || tx.category === "Shopping" || tx.category === "Healthcare" || tx.category === "Needs Review" || tx.subcategory === "Golf" || tx.subcategory === "Gambling" || tx.subcategory === "Events / Tickets" },
+  { id: "personal", icon: "\uD83D\uDC64", title: "Personal", matchFn: (tx) => tx.category === "Personal Care" || tx.category === "Groceries" || tx.category === "Debt Payments" || tx.category === "Transfers" || tx.category === "Shopping" || tx.category === "Healthcare" || tx.category === "Needs Review" || tx.category === "Travel" || tx.subcategory === "Golf" || tx.subcategory === "Gambling" || tx.subcategory === "Events / Tickets" || tx.subcategory === "Investments" || tx.subcategory === "Online Shopping" || tx.subcategory === "Clothing" || tx.subcategory === "General Shopping" || tx.subcategory === "Hardware / Auto" || tx.subcategory === "Fitness" || tx.subcategory === "Supplements" },
   { id: "other", icon: "\uD83D\uDCE6", title: "Other / Uncategorized", matchFn: (tx) => tx.type === "expense" },
 ];
 
@@ -92,21 +92,23 @@ const BUSINESS_BUCKETS: Bucket[] = [
 ];
 
 const PERSONAL_BUCKETS: Bucket[] = [
-  { label: "Dental", keywords: ["chandra", "mcallister", "dental", "dentist", "orthodon"] },
-  { label: "Pharmacy / Medical", keywords: ["shoppers drug mart", "pharmacy", "medical", "healthcare", "clinic", "doctor"] },
-  { label: "Groceries", keywords: ["sobeys", "save on", "safeway", "loblaws", "walmart", "mac's", "superstore", "costco", "no frills", "freshco"] },
-  { label: "Grooming / Salon", keywords: ["shadified", "salon", "barber", "hair", "q hair", "grooming"] },
-  { label: "Wellness / Massage", keywords: ["massage", "ting ting", "yo yo", "lewis massage", "tulip garden", "songblossom", "spa", "wellness"] },
-  { label: "Cash / ATM", keywords: ["abm withdrawal", "abmwithdrawal", "other bank abm", "atm withdrawal"] },
-  { label: "Travel & Leisure", keywords: ["passport", "holiday inn", "hotel", "balgonie", "travel", "casino"] },
-  { label: "Transfers", keywords: ["interac etrnsfr sent", "e-transfer", "etransfer"] },
-  { label: "Loan Payments", keywords: ["easyfinancial", "cash money", "springfinancial", "national money", "flexiti"] },
-  { label: "Credit Card Payments", keywords: ["capital one", "canadian tire bank", "cc payment"] },
-  { label: "Investments", keywords: ["bmo inv inc", "tfsa", "rrsp", "wealthsimple", "questrade", "investment"] },
-  { label: "Shopping", keywords: ["winners", "dollar tree", "shoppers drug mart", "marshalls", "homesense"] },
-  { label: "Golf", keywords: ["alberta beach golf", "ls alberta beach", "twin willows", "glendale golf", "golfzon", "golf traders", "golf town", "golf avenue", "golf av", "sezzle*golf", "canada golf card", "lewis estates golf", "montgomery glen", "sanpiper golf", "silver creek golf", "leduc golf", "leducgolfclub", "lonespruce", "longshotz", "golf club"] },
-  { label: "Gambling", keywords: ["bingo", "castledowns", "west end bingo", "river cree", "bear hills", "bearhills", "casino"] },
-  { label: "Events / Tickets", keywords: ["landmark web", "ticketmaster", "eventbrite"] },
+  { label: "Dental", keywords: ["dental", "chandra", "mcallister", "dentist", "orthodon"] },
+  { label: "Pharmacy / Medical", keywords: ["pharmacy / medical", "medical", "healthcare", "pharmacy", "shoppers drug mart", "rexall", "clinic", "doctor", "beaumaris", "callingwood", "royal alexandra", "specsavers", "vitality health"] },
+  { label: "Groceries", keywords: ["groceries", "sobeys", "save on", "saveonfoods", "safeway", "loblaws", "walmart", "wal-mart", "wmt suprctr", "mac's", "superstore", "costco", "no frills", "freshco", "dollarama", "dollar tree", "intercity packers", "lm st albert"] },
+  { label: "Grooming / Salon", keywords: ["grooming / salon", "grooming", "salon", "barber", "hair", "q-nails", "nails spot", "nails", "cutbypat", "ss edmonton", "shadified", "q hair"] },
+  { label: "Fitness", keywords: ["fitness", "la fitness", "simply health", "yoga", "gym"] },
+  { label: "Supplements", keywords: ["supplements", "supplement", "ls supplement", "lssupplementworld", "unimeal", "v support unimeal", "vsa_support", "popeye", "gnc", "nutrition"] },
+  { label: "Wellness / Massage", keywords: ["wellness / massage", "massage", "ting ting", "yo yo", "lewis massage", "tulip garden", "songblossom", "spa", "wellness"] },
+  { label: "Cash / ATM", keywords: ["cash / atm", "abm withdrawal", "abmwithdrawal", "other bank abm", "atm withdrawal", "rbc atm"] },
+  { label: "Travel & Leisure", keywords: ["travel & leisure", "passport", "holiday inn", "hotel", "balgonie", "travel", "sportsnet", "rmi-sportsnet"] },
+  { label: "Transfers", keywords: ["transfers", "payment", "interac etrnsfr sent", "e-transfer", "etransfer", "online transfer", "payback with points"] },
+  { label: "Loan Payments", keywords: ["loan payments", "lend direct", "lenddirect", "borrowell", "easyfinancial", "cash money", "springfinancial", "national money", "nationalmoney", "flexiti"] },
+  { label: "Credit Card Payments", keywords: ["credit card payments", "ctfs", "capital one", "canadian tire bank", "cc payment"] },
+  { label: "Investments", keywords: ["investments", "investment", "bmo inv", "bmoinv", "tfsa", "rrsp", "wealthsimple", "questrade"] },
+  { label: "Shopping", keywords: ["general shopping", "hardware / auto", "online shopping", "clothing", "shopping", "winners", "marshalls", "homesense", "amazon", "amzn", "best buy", "pandora", "sport chek", "american eagle", "shoe company", "mountain warehouse", "urban kids", "mark's", "rona", "canadian tire", "cdn tire", "great computers"] },
+  { label: "Golf", keywords: ["golf", "alberta beach golf", "ls alberta beach", "twin willows", "glendale golf", "golfzon", "golf traders", "golf town", "golf avenue", "golf av", "sezzle*golf", "canada golf card", "lewis estates golf", "montgomery glen", "sanpiper golf", "silver creek golf", "leduc golf", "leducgolfclub", "lonespruce", "longshotz", "golf club"] },
+  { label: "Gambling", keywords: ["gambling", "bingo", "castledowns", "west end bingo", "river cree", "bear hills", "bearhills", "casino"] },
+  { label: "Events / Tickets", keywords: ["events / tickets", "landmark web", "ticketmaster", "eventbrite"] },
 ];
 
 const INCOME_BUCKETS: Bucket[] = []; // Income groups by merchant (no predefined buckets)
@@ -728,8 +730,27 @@ function SubcategoryTable({ rows, color, isMobile, isIncome }: {
       {rows.map((row, i) => {
         const hasDetails = row.txDetails && row.txDetails.length > 0;
         const isExpanded = expandedRows.has(row.label);
+
+        // Group txDetails by merchant
+        const merchantGroups: { merchant: string; total: number; txs: typeof row.txDetails }[] = [];
+        if (hasDetails) {
+          const mgMap = new Map<string, { total: number; txs: { merchant: string; amount: number; date: string }[] }>();
+          for (const tx of row.txDetails!) {
+            const entry = mgMap.get(tx.merchant) || { total: 0, txs: [] };
+            entry.total += tx.amount;
+            entry.txs.push(tx);
+            mgMap.set(tx.merchant, entry);
+          }
+          merchantGroups.push(
+            ...Array.from(mgMap.entries())
+              .sort((a, b) => b[1].total - a[1].total)
+              .map(([merchant, v]) => ({ merchant, total: v.total, txs: v.txs }))
+          );
+        }
+
         return (
           <div key={row.label + i}>
+            {/* Subcategory row */}
             <div
               onClick={() => { if (row.amount > 0 && hasDetails) toggleRow(row.label); }}
               style={{
@@ -755,30 +776,11 @@ function SubcategoryTable({ rows, color, isMobile, isIncome }: {
               </div>
             </div>
 
+            {/* Merchant group level */}
             {hasDetails && isExpanded && (
-              <div style={{
-                marginBottom: 8, borderRadius: 8,
-                background: THEME.bg, border: `1px solid ${THEME.border}44`,
-                overflow: "hidden",
-              }}>
-                {row.txDetails!.map((tx, j) => (
-                  <div key={j} style={{
-                    display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr 70px" : "1fr 110px 90px",
-                    gap: 8, padding: "7px 12px",
-                    borderBottom: j < row.txDetails!.length - 1 ? `1px solid ${THEME.border}22` : "none",
-                    alignItems: "center",
-                  }}>
-                    <div style={{ fontSize: 12, color: THEME.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {tx.merchant}
-                    </div>
-                    {!isMobile && (
-                      <div style={{ fontSize: 11, color: THEME.textDim, whiteSpace: "nowrap" }}>{tx.date}</div>
-                    )}
-                    <div style={{ fontSize: 12, fontWeight: 700, color, textAlign: "right", whiteSpace: "nowrap" }}>
-                      ${fmt(tx.amount)}
-                    </div>
-                  </div>
+              <div style={{ marginBottom: 8, borderRadius: 8, background: THEME.bg, border: `1px solid ${THEME.border}44`, overflow: "hidden" }}>
+                {merchantGroups.map((mg, mi) => (
+                  <MerchantGroup key={mg.merchant + mi} mg={mg} color={color} isMobile={isMobile} isLast={mi === merchantGroups.length - 1} />
                 ))}
               </div>
             )}
