@@ -301,7 +301,7 @@ export default function TaxWorkspacePage() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(SECTIONS.map((s) => s.id)),
   );
-  const [vehicleKm, setVehicleKm] = useState({ opening: "", closing: "", business: "" });
+  const [vehicleKm, setVehicleKm] = useState({ opening: "", closing: "", businessGFS: "", businessROWNMI: "" });
   const [kmSaved, setKmSaved] = useState(false);
   const [kmSaving, setKmSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -330,7 +330,8 @@ export default function TaxWorkspacePage() {
         setVehicleKm({
           opening: saved.opening || "",
           closing: saved.closing || "",
-          business: saved.business || "",
+          businessGFS: saved.businessGFS || "",
+          businessROWNMI: saved.businessROWNMI || "",
         });
       }
     })();
@@ -442,7 +443,9 @@ export default function TaxWorkspacePage() {
             opening_odometer: parseFloat(vehicleKm.opening) || 0,
             closing_odometer: parseFloat(vehicleKm.closing) || 0,
             total_km: Math.max(0, (parseFloat(vehicleKm.closing) || 0) - (parseFloat(vehicleKm.opening) || 0)),
-            business_km: parseFloat(vehicleKm.business) || 0,
+            business_km_gfs: parseFloat(vehicleKm.businessGFS) || 0,
+            business_km_rownmi: parseFloat(vehicleKm.businessROWNMI) || 0,
+            business_km: (parseFloat(vehicleKm.businessGFS) || 0) + (parseFloat(vehicleKm.businessROWNMI) || 0),
           },
         }),
       });
@@ -659,26 +662,37 @@ export default function TaxWorkspacePage() {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
                   {([
-                    { label: "Opening Odometer", key: "opening" as const, placeholder: "e.g. 42000" },
-                    { label: "Closing Odometer", key: "closing" as const, placeholder: "e.g. 67000" },
-                    { label: "Business KM", key: "business" as const, placeholder: "e.g. 18000" },
+                    { label: "Opening Odometer", key: "opening" as const, placeholder: "e.g. 170210" },
+                    { label: "Closing Odometer", key: "closing" as const, placeholder: "e.g. 229677" },
+                    { label: "Business KM — GFS (T777)", key: "businessGFS" as const, placeholder: "e.g. 35000" },
+                    { label: "Business KM — ROWNMI (T2125)", key: "businessROWNMI" as const, placeholder: "e.g. 7321" },
                   ] as const).map((field) => (
                     <label key={field.key} style={{ fontSize: 12, color: THEME.textMuted, display: "flex", alignItems: "center", gap: 8 }}>
                       {field.label}:
                       <input type="number" value={vehicleKm[field.key]}
                         onChange={(e) => setVehicleKm((v) => ({ ...v, [field.key]: e.target.value }))}
                         placeholder={field.placeholder}
-                        style={{ width: 120, padding: "5px 8px", borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.border}`, color: THEME.text, fontSize: 13, outline: "none" }}
+                        style={{ width: 130, padding: "5px 8px", borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.border}`, color: THEME.text, fontSize: 13, outline: "none" }}
                       />
                     </label>
                   ))}
                 </div>
                 {vehicleKm.opening && vehicleKm.closing && Number(vehicleKm.closing) > Number(vehicleKm.opening) && (
-                  <div style={{ fontSize: 12, color: THEME.accent, fontWeight: 600, marginTop: 8 }}>
-                    Total KM driven: {(Number(vehicleKm.closing) - Number(vehicleKm.opening)).toLocaleString()} km
-                    {vehicleKm.business && Number(vehicleKm.business) > 0 && (
-                      <span style={{ color: THEME.textMuted, fontWeight: 400, marginLeft: 16 }}>
-                        Business use: {((Number(vehicleKm.business) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}%
+                  <div style={{ fontSize: 12, color: THEME.accent, fontWeight: 600, marginTop: 8, display: "flex", gap: 20, flexWrap: "wrap" }}>
+                    <span>Total KM: {(Number(vehicleKm.closing) - Number(vehicleKm.opening)).toLocaleString()} km</span>
+                    {vehicleKm.businessGFS && Number(vehicleKm.businessGFS) > 0 && (
+                      <span style={{ color: THEME.textMuted, fontWeight: 400 }}>
+                        GFS: {Number(vehicleKm.businessGFS).toLocaleString()} km ({((Number(vehicleKm.businessGFS) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}%)
+                      </span>
+                    )}
+                    {vehicleKm.businessROWNMI && Number(vehicleKm.businessROWNMI) > 0 && (
+                      <span style={{ color: THEME.textMuted, fontWeight: 400 }}>
+                        ROWNMI: {Number(vehicleKm.businessROWNMI).toLocaleString()} km ({((Number(vehicleKm.businessROWNMI) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}%)
+                      </span>
+                    )}
+                    {(vehicleKm.businessGFS || vehicleKm.businessROWNMI) && (
+                      <span style={{ color: THEME.green, fontWeight: 700 }}>
+                        Total business: {((Number(vehicleKm.businessGFS) || 0) + (Number(vehicleKm.businessROWNMI) || 0)).toLocaleString()} km ({((((Number(vehicleKm.businessGFS) || 0) + (Number(vehicleKm.businessROWNMI) || 0)) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}%)
                       </span>
                     )}
                   </div>
