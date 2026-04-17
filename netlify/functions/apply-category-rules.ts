@@ -136,6 +136,8 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'GOOGLE ONE', category: 'Subscriptions', subcategory: 'Software' },
   { key: 'MICROSOFT', category: 'Subscriptions', subcategory: 'Software' },
   // Credit card payments
+  { key: 'MASTERCARD', category: 'Transfers', subcategory: 'Credit Card Payment' },
+  { key: 'VISA PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
   { key: 'CAPITAL ONE PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
   { key: 'RBC PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
   { key: 'PAYMENT', category: 'Transfers', subcategory: 'Credit Card Payment' },
