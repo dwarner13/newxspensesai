@@ -301,7 +301,7 @@ export default function TaxWorkspacePage() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(SECTIONS.map((s) => s.id)),
   );
-  const [vehicleKm, setVehicleKm] = useState({ opening: "", closing: "", businessGFS: "", businessROWNMI: "" });
+  const [vehicleKm, setVehicleKm] = useState({ opening: "", closing: "", businessGFS: "", businessROWNMI: "", make: "", model: "", year: "" });
   const [kmSaved, setKmSaved] = useState(false);
   const [kmSaving, setKmSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -332,6 +332,9 @@ export default function TaxWorkspacePage() {
           closing: saved.closing || "",
           businessGFS: saved.businessGFS || "",
           businessROWNMI: saved.businessROWNMI || "",
+          make: saved.make || "",
+          model: saved.model || "",
+          year: saved.year || "",
         });
       }
     })();
@@ -659,6 +662,37 @@ export default function TaxWorkspacePage() {
               }}>
                 <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, fontWeight: 700, color: THEME.accent, marginBottom: 14 }}>
                   🚗 Vehicle KM Log
+                </div>
+
+                {/* Vehicle info row */}
+                <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${THEME.border}44` }}>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: THEME.textDim, fontWeight: 600, marginBottom: 8 }}>Vehicle Information</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {([
+                      { label: "Year", key: "year" as const, placeholder: "e.g. 2021", width: 90 },
+                      { label: "Make", key: "make" as const, placeholder: "e.g. Hyundai", width: 130 },
+                      { label: "Model", key: "model" as const, placeholder: "e.g. Elantra", width: 130 },
+                    ] as const).map((field) => (
+                      <div key={field.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={{ fontSize: 11, color: THEME.textMuted }}>{field.label}</span>
+                        <input
+                          type={field.key === "year" ? "number" : "text"}
+                          value={vehicleKm[field.key]}
+                          onChange={(e) => setVehicleKm((v) => ({ ...v, [field.key]: e.target.value }))}
+                          placeholder={field.placeholder}
+                          style={{ width: field.width, padding: "6px 10px", borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.border}`, color: THEME.text, fontSize: 13, outline: "none" }}
+                        />
+                      </div>
+                    ))}
+                    {vehicleKm.year && vehicleKm.make && vehicleKm.model && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "flex-end" }}>
+                        <span style={{ fontSize: 11, color: THEME.textMuted }}>Vehicle</span>
+                        <div style={{ padding: "6px 12px", borderRadius: 6, background: `${THEME.accent}15`, border: `1px solid ${THEME.accent}30`, fontSize: 13, fontWeight: 700, color: THEME.accent }}>
+                          {vehicleKm.year} {vehicleKm.make} {vehicleKm.model}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Odometer row */}
