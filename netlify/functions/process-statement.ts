@@ -470,29 +470,13 @@ export const handler: Handler = async (event) => {
 
     console.log(`[process-statement] pdf-parse confidence=${confidence.toFixed(3)}`);
 
-    if (confidence >= 0.85) {
-      // Primary path: text-based PDF — try heuristic parser
-      const parsed = parseTransactionsFromText(rawText);
-      if (parsed.transactions.length > 0) {
-        extraction = {
-          ...parsed,
-          rawText,
-          confidence,
-          source: 'google_vision', // primary extraction path per spec
-        };
-        console.log(`[process-statement] primary path: ${extraction.transactions.length} transactions`);
-      } else {
-        // Heuristic parser found 0 transactions despite high-confidence text — fall back to Claude Vision → OpenAI
-        console.log(`[process-statement] heuristic parser returned 0 transactions, trying Claude Vision`);
-        extraction = await tryClaudeThenOpenAI(base64!, mimeType || 'application/pdf', rawText);
-        console.log(`[process-statement] ai fallback: ${extraction.transactions.length} transactions via ${extraction.source}`);
-      }
-    } else {
-      // Fallback: Claude Vision → OpenAI (low confidence or pdf-parse failure)
-      console.log(`[process-statement] confidence=${confidence.toFixed(3)} below threshold, trying Claude Vision`);
-      extraction = await tryClaudeThenOpenAI(base64, mimeType || 'application/pdf', rawText);
-      console.log(`[process-statement] ai fallback: ${extraction.transactions.length} transactions via ${extraction.source}`);
-    }
+    // Always use Claude Vision → OpenAI for extraction.
+    // pdf-parse rawText is kept for storage and as OpenAI fallback context,
+    // but the heuristic regex parser (parseTransactionsFromText) is bypassed
+    // because it misreads balance columns as transaction amounts.
+    console.log(`[process-statement] using Claude Vision (skipping heuristic parser)`);
+    extraction = await tryClaudeThenOpenAI(base64, mimeType || 'application/pdf', rawText);
+    console.log(`[process-statement] extraction: ${extraction.transactions.length} transactions via ${extraction.source}`);
 
     // Step 3: Validate & clean
     let flaggedCount = 0;

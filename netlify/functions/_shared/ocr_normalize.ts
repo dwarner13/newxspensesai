@@ -334,7 +334,7 @@ export function normalizeOcrResult(
           docId: undefined,
           // Tag as AI fallback (can be used for metadata)
         }));
-        if (aiMapped.length > mappedBankTransactions.length) {
+        if (aiMapped.length >= mappedBankTransactions.length) {
           return aiMapped;
         }
         return mappedBankTransactions;

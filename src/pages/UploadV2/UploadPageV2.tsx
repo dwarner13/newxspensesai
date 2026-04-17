@@ -555,6 +555,32 @@ export default function UploadPageV2() {
           } catch (err) {
             console.error('[UploadV2] apply-category-rules threw', err);
           }
+
+          // ── Delayed second pass ──────────────────────────────────────────
+          // smart-import-sync AI sweep runs fire-and-forget inside the pipeline
+          // and may overwrite our categories AFTER the first apply-category-rules
+          // call. Wait 10s then re-run so hardcoded rules always win.
+          setTimeout(async () => {
+            if (!session?.access_token) return;
+            try {
+              const rulesBody2: Record<string, unknown> = { limit: 500 };
+              if (importId) rulesBody2.import_id = importId;
+              console.log('[UploadV2] apply-category-rules second pass', rulesBody2);
+              const res2 = await fetch('/.netlify/functions/apply-category-rules', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-user-id': userId,
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify(rulesBody2),
+              });
+              const data2 = await res2.json().catch(() => ({}));
+              console.log('[UploadV2] apply-category-rules second pass result', data2);
+            } catch (err2) {
+              console.error('[UploadV2] apply-category-rules second pass threw', err2);
+            }
+          }, 10000);
         } else {
           console.warn('[UploadV2] Skipping apply-category-rules - missing token');
         }

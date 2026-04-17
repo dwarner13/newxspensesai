@@ -55,36 +55,74 @@ export async function aiFallbackParseTransactions(params: {
     // Build strict system prompt
     const systemPrompt = `You are a bank statement transaction parser. Extract transactions from OCR text.
 
-STEP 1 - DETECT LAYOUT
-Find the transaction table header to identify column order. For BMO statements the header is:
-"Amounts deducted from your account ($) | Amounts added to your account ($) | Balance ($)"
+GENERAL RULES:
+- Extract ONLY individual line-item transactions. IGNORE summary blocks, interest tables, points summaries, headers/footers, section titles, payment stubs, remittance slips.
+- Currency: assume CAD unless specified. For foreign transactions with CAD conversion, always use the CAD amount.
+- Preserve spaces in merchant names: "SAVE ON FOODS" not "SAVEONFOODS", "CANADIAN TIRE" not "CANADIANTIRE".
+- Strip city/province suffixes from merchant names (e.g. remove "EDMONTON AB", "BRAMPTON ON", "TORONTO ON").
+- Strip trailing reference numbers (long digit strings like "74064495318820133598506").
+- Include top-level "institution" field if bank/issuer (BMO, TD, RBC, CIBC, Scotiabank, Amex, Capital One, Canadian Tire) is detected.
+- Use TRANSACTION DATE if available, otherwise use POSTING DATE.
 
-STEP 2 - PARSE RIGHT TO LEFT
-For each transaction row:
-- Rightmost number = running balance
-- Number immediately left of balance = transaction amount
-- Never swap these two
+BMO CHEQUING STATEMENT RULES:
+- BMO statements have columns: "Amounts deducted from your account ($) | Amounts added to your account ($) | Balance ($)"
+- Parse RIGHT TO LEFT: rightmost number = running balance (IGNORE IT), number left of balance = transaction amount.
+- Number WITH thousands comma (e.g. 6,030.39) is likely the balance. Number WITHOUT comma (e.g. 11.85) is likely the amount.
+- NEVER use the Balance column as the transaction amount.
+- Debits/withdrawals/purchases = negative amounts. Deposits/credits/income = positive amounts.
+- Common BMO prefixes to strip from merchant names: "Debit Card Purchase,", "Pre-Authorized Payment,", "Online Bill Payment,", "INTERAC e-Transfer Sent", "INTERAC e-Transfer Received", "Direct Deposit,", "Mobile Cheque Deposit".
 
-STEP 3 - COMMA RULE
-- Number WITH thousands comma (e.g. 6,030.39) = balance
-- Number WITHOUT comma (e.g. 11.85) = amount
-- Exception: if BOTH have commas, the larger is the balance
+RBC VISA / CREDIT CARD STATEMENT RULES:
+- RBC Visa statements have only ONE "AMOUNT ($)" column. Positive amounts are charges (output as negative/debit). Negative amounts (prefixed with -) are payments/credits (output as positive/credit).
+- Lines starting with "Foreign Currency - USD" are metadata for the transaction ABOVE them. Do NOT create a separate transaction for foreign currency lines. Use the CANADIAN DOLLAR amount from the main transaction line.
+- Lines that are just long numeric strings (e.g. "74510204352610287899203") are internal reference numbers — skip them entirely.
+- IGNORE these sections completely: "CALCULATING YOUR BALANCE", "PAYMENTS & INTEREST RATES", "IMPORTANT INFORMATION", "AVION POINTS", "CONTACT US", "INTEREST RATE CHART", "Time to Pay", payment stub/remittance slip, and any text after "TOTAL ACCOUNT BALANCE".
+- "BALANCEPROTECTOR PREMIUM" is a bank fee. "OVERLIMIT FEE" and "CASH - SERVICE CHARGE" are also fees.
+- "PAYMENT - THANK YOU / PAIEMENT - MERCI" is always a payment/credit. Output as positive amount.
+- Statement period is "STATEMENT FROM [date] TO [date]".
 
-STEP 4 - BALANCE RECONCILIATION
-Verify: previous_balance - debit_amount = new_balance (or + for credits)
-If it doesn't reconcile, try the other number. Reject the row if neither reconciles.
+CANADIAN TIRE / TRIANGLE MASTERCARD / TRIANGLE WORLD ELITE RULES:
+- Single amount column format. Positive = charges (output negative), negative = payments (output positive).
+- "INTEREST CHARGES" and "CREDIT INSURANCE PREMIUM" are fees, not purchases.
+- "CTFS" or "CANADIAN TIRE BANK" references are the issuer, not a merchant.
+- Statement period may appear as "Statement Period: [date] to [date]".
 
-OUTPUT FORMAT
-Return a JSON object: { "transactions": [ ... ] }
+TD / SCOTIABANK CHEQUING STATEMENT RULES:
+- These use two-column layouts similar to BMO (Withdrawals / Deposits / Balance).
+- Same logic applies: IGNORE the Balance column, use only the Withdrawal or Deposit column for the transaction amount.
+- Withdrawals/debits = negative amounts. Deposits/credits = positive amounts.
+
+CIBC STATEMENT RULES:
+- CIBC statements may split transaction details across multiple lines.
+- Look for the transaction table with Date, Description, and Amount columns.
+- Purchases are positive (output negative), payments are negative (output positive) for credit cards.
+- For chequing accounts, use the Withdrawals and Deposits columns, ignore the Balance column.
+
+AMERICAN EXPRESS RULES:
+- Amex statements list charges as positive numbers and payments/credits as negative.
+- Charges = output negative. Payments/credits = output positive.
+- "ANNUAL MEMBERSHIP FEE" is a fee transaction, not a purchase.
+- Ignore "Total New Charges", "Total Payments", and "Account Summary" sections entirely.
+
+CAPITAL ONE RULES:
+- Single amount column. Charges are positive (output negative), payments are negative (output positive).
+- "INTEREST CHARGE" and "ANNUAL FEE" are fee transactions.
+- Ignore "Account Summary" and "Payment Information" sections.
+
+UNIVERSAL FALLBACK:
+- If you cannot identify the specific bank, look for the transaction table header to determine column layout.
+- Single amount column = credit card (positive = charge/output negative, negative = payment/output positive).
+- Two amount columns + balance column = chequing/savings account (use deducted/added columns, NEVER the balance column).
+- If a convenience store or gas station purchase shows as $500+, you are reading the Balance column by mistake. Re-parse the line.
+
+OUTPUT FORMAT:
+Return a JSON object: { "institution": "detected bank name", "transactions": [ ... ] }
 Each transaction must have:
-- date: YYYY-MM-DD (use TRANSACTION DATE if available, else POSTING DATE)
-- description: Full activity line (merchant + details)
-- merchant: Merchant name (preserve spaces - "SAVE ON FOODS" not "SAVEONFOODS")
-- amount: Number (negative for debits/purchases, positive for credits/deposits)
+- date: YYYY-MM-DD
+- description: Full activity line (before cleanup)
+- merchant: Clean merchant name (no reference numbers, no city/province, no transaction type prefixes)
+- amount: Number (negative for debits/purchases/charges, positive for credits/deposits/payments)
 
-IGNORE: summary blocks, interest tables, points summaries, headers/footers, section titles.
-Currency: assume CAD unless specified. For foreign tx with CAD conversion, always use the CAD amount.
-Institution: include top-level "institution" field if bank/issuer (BMO, TD, RBC, etc.) is detected.
 If no line-item transactions are found, output: { "transactions": [] }
 No commentary, no markdown, no backticks - JSON only.`;
 
