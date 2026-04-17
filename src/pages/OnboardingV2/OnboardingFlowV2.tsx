@@ -28,13 +28,23 @@ const PRIORITIES = ["Track spending", "Tax deductions", "Saving goals", "Pay off
 
 export default function OnboardingFlowV2() {
   const navigate = useNavigate();
-  const { userId, refreshProfile } = useAuth();
+  const { userId, user, refreshProfile } = useAuth();
   const [step, setStep] = useState(0);
   const [visibleAgents, setVisibleAgents] = useState(0);
   const [showStartBtn, setShowStartBtn] = useState(false);
 
   // Step 1
   const [displayName, setDisplayName] = useState("");
+
+  // Pre-fill name from signup so user doesn't have to retype it
+  useEffect(() => {
+    if (!user) return;
+    const savedName =
+      (user as any).user_metadata?.display_name ||
+      (user as any).user_metadata?.full_name ||
+      (user as any).user_metadata?.name || "";
+    if (savedName) setDisplayName(savedName);
+  }, [user]);
   // Step 2
   const [mode, setMode] = useState("personal");
   const [currency, setCurrency] = useState("CAD");
@@ -144,8 +154,8 @@ export default function OnboardingFlowV2() {
       {step === 1 && (
         <div style={{ maxWidth: 440, width: "100%", textAlign: "center" }}>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: C.accent, fontWeight: 700, marginBottom: 12 }}>Step 1 of 3</div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>What Should We Call You?</h2>
-          <p style={{ fontSize: 13, color: C.dim, marginBottom: 28 }}>Your agents will use this name</p>
+          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Confirm Your Name</h2>
+          <p style={{ fontSize: 13, color: C.dim, marginBottom: 28 }}>Your agents will use this to address you</p>
 
           <input
             type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}

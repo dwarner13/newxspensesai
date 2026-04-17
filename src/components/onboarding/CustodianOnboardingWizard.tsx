@@ -17,6 +17,29 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Pre-fill name + country from existing profile so user doesn't retype
+  useEffect(() => {
+    const sb = getSupabase();
+    if (!sb) return;
+    sb.auth.getUser().then(({ data }) => {
+      if (!data?.user) return;
+      const uid = data.user.id;
+      // Pre-fill name from auth metadata first (fastest)
+      const metaName =
+        data.user.user_metadata?.display_name ||
+        data.user.user_metadata?.full_name ||
+        data.user.user_metadata?.name || '';
+      if (metaName) setAnswers(a => ({ ...a, name: metaName }));
+      // Then check profile for name + country
+      sb.from('profiles').select('display_name, metadata').eq('id', uid).single().then(({ data: prof }) => {
+        if (!prof) return;
+        if (prof.display_name) setAnswers(a => ({ ...a, name: prof.display_name }));
+        const country = (prof.metadata as any)?.country || (prof.metadata as any)?.onboarding?.country || '';
+        if (country) setAnswers(a => ({ ...a, country }));
+      });
+    });
+  }, []);
+
   // Detect country from timezone
   useEffect(() => {
     try {

@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { admin } from "./_shared/supabase.js";
 // PDF generation — dynamic imports keep cold-start fast
-// Requires: npm install @sparticuz/chromium puppeteer-core
+// Requires: pnpm add @sparticuz/chromium-min puppeteer-core
 
 /* ──────────────────────────────────────────────────────────────
    POST /.netlify/functions/generate-tax-report
@@ -544,12 +544,12 @@ export const handler: Handler = async (event) => {
     // ── PDF export ──
     if ((body.format || "html") === "pdf") {
       try {
-        const chromium = (await import("@sparticuz/chromium")).default;
+        const chromium = (await import("@sparticuz/chromium-min")).default;
         const puppeteer = (await import("puppeteer-core")).default;
         const browser = await puppeteer.launch({
           args: chromium.args,
           defaultViewport: chromium.defaultViewport,
-          executablePath: await chromium.executablePath(),
+          executablePath: await chromium.executablePath("https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar"),
           headless: chromium.headless,
         });
         try {
