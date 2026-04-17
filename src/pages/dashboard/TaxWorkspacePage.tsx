@@ -302,6 +302,8 @@ export default function TaxWorkspacePage() {
     new Set(SECTIONS.map((s) => s.id)),
   );
   const [vehicleKm, setVehicleKm] = useState({ opening: "", closing: "", business: "" });
+  const [kmSaved, setKmSaved] = useState(false);
+  const [kmSaving, setKmSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -311,6 +313,28 @@ export default function TaxWorkspacePage() {
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
+
+  // Load saved odometer readings from profiles.settings
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("settings")
+        .eq("id", userId)
+        .single();
+      if (data?.settings?.vehicle_km?.[year]) {
+        const saved = data.settings.vehicle_km[year];
+        setVehicleKm({
+          opening: saved.opening || "",
+          closing: saved.closing || "",
+          business: saved.business || "",
+        });
+      }
+    })();
+  }, [userId, year]);
 
   // Fetch transactions for selected year
   useEffect(() => {
@@ -379,6 +403,26 @@ export default function TaxWorkspacePage() {
       return next;
     });
   }, []);
+
+  const saveVehicleKm = async () => {
+    if (!userId) return;
+    setKmSaving(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      // Read existing settings first to merge
+      const { data } = await supabase.from("profiles").select("settings").eq("id", userId).single();
+      const existing = data?.settings || {};
+      const vehicle_km = { ...(existing.vehicle_km || {}), [year]: vehicleKm };
+      await supabase.from("profiles").update({ settings: { ...existing, vehicle_km } }).eq("id", userId);
+      setKmSaved(true);
+      setTimeout(() => setKmSaved(false), 3000);
+    } catch (err) {
+      console.error("[TaxWorkspace] save km error:", err);
+    } finally {
+      setKmSaving(false);
+    }
+  };
 
   const handleExportCSV = useCallback(() => {
     exportCSV(year, sectionResults);
@@ -639,8 +683,22 @@ export default function TaxWorkspacePage() {
                     )}
                   </div>
                 )}
-                <div style={{ fontSize: 11, color: THEME.textDim, marginTop: 6 }}>
-                  Enter Jan 1 opening and Dec 31 closing odometer readings. Your accountant will use these to calculate your vehicle expense deduction.
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: THEME.textDim }}>
+                    Enter Jan 1 opening and Dec 31 closing odometer readings. Your accountant will use these to calculate your vehicle expense deduction.
+                  </div>
+                  <button
+                    onClick={saveVehicleKm}
+                    disabled={kmSaving}
+                    style={{
+                      padding: "6px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, flexShrink: 0, marginLeft: 16,
+                      background: kmSaved ? THEME.green : THEME.accent,
+                      border: "none", color: "#0b1220", cursor: kmSaving ? "wait" : "pointer",
+                      opacity: kmSaving ? 0.7 : 1, transition: "all 0.2s",
+                    }}
+                  >
+                    {kmSaved ? "✓ Saved" : kmSaving ? "Saving..." : "Save"}
+                  </button>
                 </div>
               </div>
             )}
