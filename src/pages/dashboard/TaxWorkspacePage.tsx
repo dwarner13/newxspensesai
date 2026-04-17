@@ -442,6 +442,7 @@ export default function TaxWorkspacePage() {
         headers: { "Content-Type": "application/json", "x-user-id": userId },
         body: JSON.stringify({
           year,
+          format: "pdf",
           vehicle_config: {
             opening_odometer: parseFloat(vehicleKm.opening) || 0,
             closing_odometer: parseFloat(vehicleKm.closing) || 0,
@@ -452,13 +453,15 @@ export default function TaxWorkspacePage() {
           },
         }),
       });
-      if (!res.ok) throw new Error("Report generation failed");
-      const html = await res.text();
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "unknown error");
+        throw new Error(`Report generation failed: ${errText}`);
+      }
+      const pdfBlob = await res.blob();
+      const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `tax-report-${year}.html`;
+      a.download = `tax-report-${year}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -553,7 +556,7 @@ export default function TaxWorkspacePage() {
             onMouseEnter={(e) => { if (!exportingReport) { e.currentTarget.style.borderColor = THEME.accent; } }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; }}
           >
-            {exportingReport ? "Generating..." : "Export Report (HTML)"}
+            {exportingReport ? "Generating PDF..." : "Download PDF Report"}
           </button>
         </div>
       </div>

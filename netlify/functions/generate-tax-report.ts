@@ -1,5 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { admin } from "./_shared/supabase.js";
+// PDF generation — dynamic imports keep cold-start fast
+// Requires: npm install @sparticuz/chromium puppeteer-core
 
 /* ──────────────────────────────────────────────────────────────
    POST /.netlify/functions/generate-tax-report
@@ -539,6 +541,49 @@ export const handler: Handler = async (event) => {
       vehicleCfg: { opening_km, closing_km, total_km, business_km, business_km_gfs, business_km_rownmi, make: vehicle_make, model: vehicle_model, vehicle_year: vehicle_year_str },
     });
 
+    // ── PDF export ──
+    if ((body.format || "html") === "pdf") {
+      try {
+        const chromium = (await import("@sparticuz/chromium")).default;
+        const puppeteer = (await import("puppeteer-core")).default;
+        const browser = await puppeteer.launch({
+          args: chromium.args,
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath(),
+          headless: chromium.headless,
+        });
+        try {
+          const page = await browser.newPage();
+          await page.setContent(html, { waitUntil: "networkidle0" });
+          const pdfBuffer = await page.pdf({
+            format: "Letter",
+            printBackground: true,
+            margin: { top: "0.65in", right: "0.65in", bottom: "0.65in", left: "0.65in" },
+          });
+          return {
+            statusCode: 200,
+            headers: {
+              ...CORS,
+              "Content-Type": "application/pdf",
+              "Content-Disposition": `attachment; filename="tax-summary-${year}.pdf"`,
+            },
+            body: Buffer.from(pdfBuffer).toString("base64"),
+            isBase64Encoded: true,
+          };
+        } finally {
+          await browser.close();
+        }
+      } catch (pdfErr: any) {
+        console.error("[generate-tax-report] PDF error:", pdfErr);
+        return {
+          statusCode: 500,
+          headers: { ...CORS, "Content-Type": "application/json" },
+          body: JSON.stringify({ ok: false, error: "PDF generation failed: " + (pdfErr?.message || "unknown") }),
+        };
+      }
+    }
+
+    // ── HTML fallback ──
     return {
       statusCode: 200,
       headers: {
