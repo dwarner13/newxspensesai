@@ -654,58 +654,87 @@ export default function TaxWorkspacePage() {
             {/* Vehicle KM inputs (raw numbers for accountant) */}
             {section.id === "vehicle" && (
               <div style={{
-                marginTop: 16, padding: "14px 16px", borderRadius: 12,
-                background: `${THEME.accent}08`, border: `1px solid ${THEME.accent}15`,
+                marginTop: 16, padding: "16px 20px", borderRadius: 12,
+                background: `${THEME.accent}08`, border: `1px solid ${THEME.accent}20`,
               }}>
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, fontWeight: 700, color: THEME.accent, marginBottom: 12 }}>
-                  Vehicle KM Log
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, fontWeight: 700, color: THEME.accent, marginBottom: 14 }}>
+                  🚗 Vehicle KM Log
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
-                  {([
-                    { label: "Opening Odometer", key: "opening" as const, placeholder: "e.g. 170210" },
-                    { label: "Closing Odometer", key: "closing" as const, placeholder: "e.g. 229677" },
-                    { label: "Business KM — GFS (T777)", key: "businessGFS" as const, placeholder: "e.g. 35000" },
-                    { label: "Business KM — ROWNMI (T2125)", key: "businessROWNMI" as const, placeholder: "e.g. 7321" },
-                  ] as const).map((field) => (
-                    <label key={field.key} style={{ fontSize: 12, color: THEME.textMuted, display: "flex", alignItems: "center", gap: 8 }}>
-                      {field.label}:
-                      <input type="number" value={vehicleKm[field.key]}
-                        onChange={(e) => setVehicleKm((v) => ({ ...v, [field.key]: e.target.value }))}
-                        placeholder={field.placeholder}
-                        style={{ width: 130, padding: "5px 8px", borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.border}`, color: THEME.text, fontSize: 13, outline: "none" }}
-                      />
-                    </label>
-                  ))}
-                </div>
-                {vehicleKm.opening && vehicleKm.closing && Number(vehicleKm.closing) > Number(vehicleKm.opening) && (
-                  <div style={{ fontSize: 12, color: THEME.accent, fontWeight: 600, marginTop: 8, display: "flex", gap: 20, flexWrap: "wrap" }}>
-                    <span>Total KM: {(Number(vehicleKm.closing) - Number(vehicleKm.opening)).toLocaleString()} km</span>
-                    {vehicleKm.businessGFS && Number(vehicleKm.businessGFS) > 0 && (
-                      <span style={{ color: THEME.textMuted, fontWeight: 400 }}>
-                        GFS: {Number(vehicleKm.businessGFS).toLocaleString()} km ({((Number(vehicleKm.businessGFS) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}%)
-                      </span>
-                    )}
-                    {vehicleKm.businessROWNMI && Number(vehicleKm.businessROWNMI) > 0 && (
-                      <span style={{ color: THEME.textMuted, fontWeight: 400 }}>
-                        ROWNMI: {Number(vehicleKm.businessROWNMI).toLocaleString()} km ({((Number(vehicleKm.businessROWNMI) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}%)
-                      </span>
-                    )}
-                    {(vehicleKm.businessGFS || vehicleKm.businessROWNMI) && (
-                      <span style={{ color: THEME.green, fontWeight: 700 }}>
-                        Total business: {((Number(vehicleKm.businessGFS) || 0) + (Number(vehicleKm.businessROWNMI) || 0)).toLocaleString()} km ({((((Number(vehicleKm.businessGFS) || 0) + (Number(vehicleKm.businessROWNMI) || 0)) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}%)
-                      </span>
+
+                {/* Odometer row */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: THEME.textDim, fontWeight: 600, marginBottom: 8 }}>Odometer Readings</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {([
+                      { label: "Opening (Jan 1)", key: "opening" as const, placeholder: "e.g. 170210" },
+                      { label: "Closing (Dec 31)", key: "closing" as const, placeholder: "e.g. 229677" },
+                    ] as const).map((field) => (
+                      <div key={field.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={{ fontSize: 11, color: THEME.textMuted }}>{field.label}</span>
+                        <input type="number" value={vehicleKm[field.key]}
+                          onChange={(e) => setVehicleKm((v) => ({ ...v, [field.key]: e.target.value }))}
+                          placeholder={field.placeholder}
+                          style={{ width: 140, padding: "6px 10px", borderRadius: 6, background: THEME.bg, border: `1px solid ${THEME.border}`, color: THEME.text, fontSize: 13, outline: "none" }}
+                        />
+                      </div>
+                    ))}
+                    {vehicleKm.opening && vehicleKm.closing && Number(vehicleKm.closing) > Number(vehicleKm.opening) && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "flex-end" }}>
+                        <span style={{ fontSize: 11, color: THEME.textMuted }}>Total KM</span>
+                        <div style={{ padding: "6px 10px", borderRadius: 6, background: `${THEME.accent}15`, border: `1px solid ${THEME.accent}30`, fontSize: 13, fontWeight: 700, color: THEME.accent, minWidth: 120 }}>
+                          {(Number(vehicleKm.closing) - Number(vehicleKm.opening)).toLocaleString()} km
+                        </div>
+                      </div>
                     )}
                   </div>
-                )}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                </div>
+
+                {/* Business KM row */}
+                <div style={{ marginBottom: 12, paddingTop: 12, borderTop: `1px solid ${THEME.border}44` }}>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: THEME.textDim, fontWeight: 600, marginBottom: 8 }}>Business KM by Purpose</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {([
+                      { label: "GFS Sales (T777)", key: "businessGFS" as const, placeholder: "e.g. 35000", color: "#60a5fa" },
+                      { label: "ROWNMI Clients (T2125)", key: "businessROWNMI" as const, placeholder: "e.g. 7321", color: "#34d399" },
+                    ] as const).map((field) => (
+                      <div key={field.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={{ fontSize: 11, color: field.color, fontWeight: 600 }}>{field.label}</span>
+                        <input type="number" value={vehicleKm[field.key]}
+                          onChange={(e) => setVehicleKm((v) => ({ ...v, [field.key]: e.target.value }))}
+                          placeholder={field.placeholder}
+                          style={{ width: 160, padding: "6px 10px", borderRadius: 6, background: THEME.bg, border: `1px solid ${field.color}40`, color: THEME.text, fontSize: 13, outline: "none" }}
+                        />
+                        {vehicleKm[field.key] && vehicleKm.opening && vehicleKm.closing && Number(vehicleKm.closing) > Number(vehicleKm.opening) && (
+                          <span style={{ fontSize: 10, color: field.color, opacity: 0.8 }}>
+                            {((Number(vehicleKm[field.key]) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}% of total
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {(vehicleKm.businessGFS || vehicleKm.businessROWNMI) && vehicleKm.opening && vehicleKm.closing && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "flex-start", paddingTop: 0 }}>
+                        <span style={{ fontSize: 11, color: THEME.textMuted }}>Combined Business</span>
+                        <div style={{ padding: "6px 10px", borderRadius: 6, background: `${THEME.green}15`, border: `1px solid ${THEME.green}30`, fontSize: 13, fontWeight: 700, color: THEME.green, minWidth: 140 }}>
+                          {((Number(vehicleKm.businessGFS) || 0) + (Number(vehicleKm.businessROWNMI) || 0)).toLocaleString()} km
+                        </div>
+                        <span style={{ fontSize: 10, color: THEME.green, opacity: 0.8 }}>
+                          {((((Number(vehicleKm.businessGFS) || 0) + (Number(vehicleKm.businessROWNMI) || 0)) / (Number(vehicleKm.closing) - Number(vehicleKm.opening))) * 100).toFixed(1)}% business use
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer row */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: `1px solid ${THEME.border}44` }}>
                   <div style={{ fontSize: 11, color: THEME.textDim }}>
-                    Enter Jan 1 opening and Dec 31 closing odometer readings. Your accountant will use these to calculate your vehicle expense deduction.
+                    T777 requires T2200 from GFS · T2125 for ROWNMI self-employment
                   </div>
                   <button
                     onClick={saveVehicleKm}
                     disabled={kmSaving}
                     style={{
-                      padding: "6px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, flexShrink: 0, marginLeft: 16,
+                      padding: "7px 20px", borderRadius: 8, fontSize: 12, fontWeight: 700,
                       background: kmSaved ? THEME.green : THEME.accent,
                       border: "none", color: "#0b1220", cursor: kmSaving ? "wait" : "pointer",
                       opacity: kmSaving ? 0.7 : 1, transition: "all 0.2s",
