@@ -175,7 +175,7 @@ function buildHTML(params: {
   incomeRows: SubRow[];
   totalIncome: number;
   sectionResults: { id: string; title: string; note?: string; rows: SubRow[]; total: number }[];
-  vehicleCfg: { opening_km: number; closing_km: number; total_km: number; business_km: number };
+  vehicleCfg: { opening_km: number; closing_km: number; total_km: number; business_km: number; business_km_gfs: number; business_km_rownmi: number; make: string; model: string; vehicle_year: string };
 }): string {
   const { year, preparedDate, userName, incomeRows, totalIncome, sectionResults, vehicleCfg } = params;
 
@@ -317,31 +317,52 @@ function buildHTML(params: {
 
   <!-- Vehicle KM Log -->
   ${vehicleSection && vehicleSection.total > 0 ? `
-  <div style="margin-top:20px;padding:14px 16px;border:1px solid #e8d89a;border-radius:8px;background:#fffbf0">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${gold};margin-bottom:10px">Vehicle Odometer Log</div>
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <tr>
-        <td style="padding:4px 0;color:#555">Opening Odometer (Jan 1)</td>
-        <td style="text-align:right;font-weight:600">${vehicleCfg.opening_km > 0 ? vehicleCfg.opening_km.toLocaleString() + " km" : "— not entered —"}</td>
+  <div style="margin-top:20px;padding:16px 18px;border:1px solid #e8d89a;border-radius:8px;background:#fffbf0">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${gold};margin-bottom:12px">Vehicle Log</div>
+
+    ${vehicleCfg.vehicle_year || vehicleCfg.make || vehicleCfg.model ? `
+    <div style="margin-bottom:12px;padding:8px 12px;background:#fff;border-radius:6px;border:1px solid #e8d89a;display:inline-block">
+      <span style="font-size:13px;font-weight:700;color:#333">${esc(vehicleCfg.vehicle_year)} ${esc(vehicleCfg.make)} ${esc(vehicleCfg.model)}</span>
+    </div>` : ""}
+
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">
+      <tr style="background:#f5f0e0">
+        <td colspan="2" style="padding:5px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#888">Odometer Readings</td>
       </tr>
       <tr>
-        <td style="padding:4px 0;color:#555">Closing Odometer (Dec 31)</td>
-        <td style="text-align:right;font-weight:600">${vehicleCfg.closing_km > 0 ? vehicleCfg.closing_km.toLocaleString() + " km" : "— not entered —"}</td>
+        <td style="padding:5px 8px;color:#555">Opening (Jan 1, ${year})</td>
+        <td style="text-align:right;font-weight:600;padding:5px 8px">${vehicleCfg.opening_km > 0 ? vehicleCfg.opening_km.toLocaleString() + " km" : "— not entered —"}</td>
+      </tr>
+      <tr style="background:#faf7ef">
+        <td style="padding:5px 8px;color:#555">Closing (Dec 31, ${year})</td>
+        <td style="text-align:right;font-weight:600;padding:5px 8px">${vehicleCfg.closing_km > 0 ? vehicleCfg.closing_km.toLocaleString() + " km" : "— not entered —"}</td>
       </tr>
       <tr>
-        <td style="padding:4px 0;color:#555">Total KM Driven</td>
-        <td style="text-align:right;font-weight:600">${vehicleCfg.total_km > 0 ? vehicleCfg.total_km.toLocaleString() + " km" : "— not calculated —"}</td>
+        <td style="padding:5px 8px;color:#555">Total KM Driven</td>
+        <td style="text-align:right;font-weight:700;padding:5px 8px;color:${gold}">${vehicleCfg.total_km > 0 ? vehicleCfg.total_km.toLocaleString() + " km" : "— not calculated —"}</td>
+      </tr>
+
+      <tr style="background:#f5f0e0">
+        <td colspan="2" style="padding:5px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#888;padding-top:10px">Business KM by Purpose</td>
       </tr>
       <tr>
-        <td style="padding:4px 0;color:#555">Business KM (from mileage log)</td>
-        <td style="text-align:right;font-weight:600">${vehicleCfg.business_km > 0 ? vehicleCfg.business_km.toLocaleString() + " km" : "— not entered —"}</td>
+        <td style="padding:5px 8px;color:#555">GFS Outside Sales — T777 <span style="font-size:10px;color:#60a5fa">(requires T2200)</span></td>
+        <td style="text-align:right;font-weight:600;padding:5px 8px;color:#3b82f6">${vehicleCfg.business_km_gfs > 0 ? vehicleCfg.business_km_gfs.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km_gfs > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px;color:#888">(${((vehicleCfg.business_km_gfs / vehicleCfg.total_km) * 100).toFixed(1)}%)</span>` : ""}</td>
+      </tr>
+      <tr style="background:#faf7ef">
+        <td style="padding:5px 8px;color:#555">ROWNMI Client Visits — T2125 <span style="font-size:10px;color:#34d399">(self-employment)</span></td>
+        <td style="text-align:right;font-weight:600;padding:5px 8px;color:#059669">${vehicleCfg.business_km_rownmi > 0 ? vehicleCfg.business_km_rownmi.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km_rownmi > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px;color:#888">(${((vehicleCfg.business_km_rownmi / vehicleCfg.total_km) * 100).toFixed(1)}%)</span>` : ""}</td>
       </tr>
       <tr style="border-top:1px solid #e8d89a">
-        <td style="padding:8px 0;color:#333;font-weight:600">Total Vehicle Expenses</td>
-        <td style="text-align:right;font-weight:700;color:${gold}">$${fmt(vehicleSection.total)}</td>
+        <td style="padding:8px 8px;color:#333;font-weight:600">Total Business KM</td>
+        <td style="text-align:right;font-weight:700;padding:8px 8px;color:${gold}">${vehicleCfg.business_km > 0 ? vehicleCfg.business_km.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px">(${((vehicleCfg.business_km / vehicleCfg.total_km) * 100).toFixed(1)}% business use)</span>` : ""}</td>
+      </tr>
+      <tr style="border-top:1px solid #e8d89a">
+        <td style="padding:8px 8px;color:#333;font-weight:600">Total Vehicle Expenses</td>
+        <td style="text-align:right;font-weight:700;padding:8px 8px;color:${gold}">$${fmt(vehicleSection.total)}</td>
       </tr>
     </table>
-    <p style="font-size:10px;color:#888;margin:8px 0 0 0">Business-use percentage and deductible amount to be determined by accountant based on mileage log.</p>
+    <p style="font-size:10px;color:#888;margin:4px 0 0 0">Business-use % and deductible amount to be determined by accountant. T777 requires signed T2200 from Gordon Food Service. T2125 for ROWNMI self-employment.</p>
   </div>` : ""}
 
   <!-- Meals note -->
@@ -455,7 +476,9 @@ export const handler: Handler = async (event) => {
     const opening_km = vehicleCfgInput.opening_odometer || 0;
     const closing_km = vehicleCfgInput.closing_odometer || 0;
     const total_km = vehicleCfgInput.total_km || Math.max(0, closing_km - opening_km);
-    const business_km = vehicleCfgInput.business_km || 0;
+    const business_km_gfs = vehicleCfgInput.business_km_gfs || 0;
+    const business_km_rownmi = vehicleCfgInput.business_km_rownmi || 0;
+    const business_km = vehicleCfgInput.business_km || (business_km_gfs + business_km_rownmi);
 
     // Fetch transactions
     const sb = admin();
@@ -472,14 +495,18 @@ export const handler: Handler = async (event) => {
       return { statusCode: 500, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, error: txError.message }) };
     }
 
-    // Fetch user profile for name
+    // Fetch user profile for name + saved vehicle info
     const { data: profileData } = await sb
       .from("profiles")
-      .select("display_name, full_name")
+      .select("display_name, full_name, settings")
       .eq("id", userId)
       .single();
 
     const userName = profileData?.display_name || profileData?.full_name || "Client";
+    const savedVehicle = profileData?.settings?.vehicle_km?.[year] || {};
+    const vehicle_make = savedVehicle.make || "";
+    const vehicle_model = savedVehicle.model || "";
+    const vehicle_year_str = savedVehicle.year || "";
     const transactions = (txData || []) as Tx[];
 
     // Assign transactions to sections (first match wins, no double-counting)
@@ -509,7 +536,7 @@ export const handler: Handler = async (event) => {
       incomeRows: incomeSec.rows,
       totalIncome: incomeSec.total,
       sectionResults,
-      vehicleCfg: { opening_km, closing_km, total_km, business_km },
+      vehicleCfg: { opening_km, closing_km, total_km, business_km, business_km_gfs, business_km_rownmi, make: vehicle_make, model: vehicle_model, vehicle_year: vehicle_year_str },
     });
 
     return {
