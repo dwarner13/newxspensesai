@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+ï»¿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { THEME } from "./categoryConfig";
-import { Reveal } from "../../pages/PrimeChatV2/Reveal";
+import { Reveal } from "../PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "./useCategoriesData";
 
@@ -121,7 +121,7 @@ function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: 
           action: "amount_corrected",
           old_value: String(oldAmt),
           new_value: String(newAmt),
-          reason: `OCR misread detected — corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
+          reason: `OCR misread detected â€” corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
           source: "tag_anomaly_review",
         });
       }
@@ -210,7 +210,7 @@ function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: 
               background: "transparent", border: "1px solid #1a2740",
               color: "#4a5f7a", cursor: "pointer",
             }}
-          >?</button>
+          >âœ•</button>
         </div>
       )}
     </div>
@@ -360,11 +360,11 @@ export function TagCopilotPanel({
       if (res.ok && data.ok) {
         const fixed = data.typeEnforced || 0;
         if (fixed > 0) {
-          toast.success(`Fixed ${fixed} income ? expense correction${fixed !== 1 ? 's' : ''}`);
+          toast.success(`Fixed ${fixed} income â†’ expense correction${fixed !== 1 ? 's' : ''}`);
           window.dispatchEvent(new Event("tag:stats-refresh"));
           window.dispatchEvent(new Event("transactions:refresh"));
         } else {
-          toast.success("All transactions look correct — nothing to fix");
+          toast.success("All transactions look correct â€” nothing to fix");
         }
       } else {
         toast.error(data.error || "Auto-fix failed");
@@ -423,7 +423,7 @@ export function TagCopilotPanel({
     finally { setRulesRefreshing(false); }
   };
 
-  // Session cutoff for the chat history — after 6 hours of inactivity we
+  // Session cutoff for the chat history â€” after 6 hours of inactivity we
   // drop the stored messages so the user gets a fresh greeting instead of
   // resuming a stale conversation. Tag's real learning lives in
   // category_rules / vendor_category_memory, not the transcript.
@@ -462,6 +462,11 @@ export function TagCopilotPanel({
   } | null>(null);
   const [greetingText, setGreetingText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Tracks whether user was near the bottom at last scroll. Used by the auto-scroll
+  // effect below to avoid hijacking scroll position when user is reading history.
+  // Bug fix: users reported the chat was "locked" â€” they couldn't scroll up because
+  // every message/isLoading change was forcing scrollTop to the bottom unconditionally.
+  const wasNearBottomRef = useRef(true);
 
   useEffect(() => { requestAnimationFrame(() => setOpen(true)); }, []);
 
@@ -501,7 +506,7 @@ export function TagCopilotPanel({
 
   const handleClose = () => { setOpen(false); setTimeout(onClose, 320); };
 
-  // Detect confirmation words — when user says "yes" / "confirm" / "do it" /
+  // Detect confirmation words â€” when user says "yes" / "confirm" / "do it" /
   // "go ahead" in response to a pending proposal, fire commit directly.
   const isConfirmation = (text: string): boolean => {
     const t = text.trim().toLowerCase();
@@ -510,7 +515,7 @@ export function TagCopilotPanel({
 
   // Extract a "change X to Y" proposal from Tag's reply so we can commit
   // when the user confirms on the next turn. Keeps Tag fully conversational
-  // — the LLM still speaks — but the action fires via deterministic code.
+  // â€” the LLM still speaks â€” but the action fires via deterministic code.
   const extractProposal = (reply: string): { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' } | null => {
     const r = reply.toLowerCase();
     // "move/change/categorize [all] "X" to/as Y"
@@ -649,7 +654,7 @@ export function TagCopilotPanel({
     // INTERCEPTOR 2: Did the user ask for a categorization action?
     // If so, preview against real data BEFORE asking Tag. Tag's prompt
     // doesn't include merchant names, so he can't reliably confirm what
-    // exists — but the DB can. We go straight to the source of truth.
+    // exists â€” but the DB can. We go straight to the source of truth.
     const userIntent = detectUserActionIntent(text);
     if (userIntent) {
       setInputValue("");
@@ -665,7 +670,7 @@ export function TagCopilotPanel({
         } else {
           const sampleText = preview.samples
             .slice(0, 3)
-            .map((s: any) => `• ${s.merchant_name} — $${Math.abs(Number(s.amount || 0)).toFixed(2)} (currently: ${s.current_category || 'Uncategorized'})`)
+            .map((s: any) => `â€¢ ${s.merchant_name} â€” $${Math.abs(Number(s.amount || 0)).toFixed(2)} (currently: ${s.current_category || 'Uncategorized'})`)
             .join('\n');
           const extra = preview.matchCount > 3 ? `\n...and ${preview.matchCount - 3} more` : '';
           setMessages(prev => [...prev, {
@@ -688,6 +693,9 @@ export function TagCopilotPanel({
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setIsLoading(true);
+    // User just sent a message â€” reset position tracker and force scroll to bottom.
+    // This bypasses the conditional auto-scroll since the user action is explicit.
+    wasNearBottomRef.current = true;
     setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 50);
     try {
       const supabase = getSupabase();
@@ -756,7 +764,12 @@ export function TagCopilotPanel({
       setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I ran into an issue. Try again in a moment." }]);
     } finally {
       setIsLoading(false);
-      setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 50);
+      // Only auto-scroll on response if user didn't scroll up to read history mid-request.
+      setTimeout(() => {
+        if (scrollRef.current && wasNearBottomRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 50);
     }
   };
 
@@ -776,10 +789,10 @@ export function TagCopilotPanel({
     } else if (rulesCount > 0 && realCategories.length > 0) {
       const top = realCategories[0];
       const ruleWord = rulesCount === 1 ? "rule" : "rules";
-      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend ? want me to check deductibility or break it down by merchant?`;
+      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend ï¿½ want me to check deductibility or break it down by merchant?`;
     } else if (realCategories.length > 0) {
       const top = realCategories[0];
-      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend ? want me to check what's deductible or add a rule for any merchants?`;
+      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend ï¿½ want me to check what's deductible or add a rule for any merchants?`;
     } else {
       text = `${hi} - I'm your category intelligence engine. Ask me to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern.`;
     }
@@ -791,8 +804,23 @@ export function TagCopilotPanel({
     return -1;
   }, [messages]);
 
+  // Scroll position tracker. Fires on every scroll; records whether the user is
+  // near the bottom (within 120px). Used below to decide whether to auto-scroll.
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const el = scrollRef.current;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    wasNearBottomRef.current = distanceFromBottom < 120;
+  };
+
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (!scrollRef.current) return;
+    // Only auto-scroll to the bottom when the user was already at/near the bottom.
+    // If they scrolled up to read previous messages, leave their position alone â€”
+    // this is the fix for the "chat locked, can't scroll up" bug.
+    if (wasNearBottomRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages, isLoading]);
 
   useEffect(() => {
@@ -869,6 +897,7 @@ export function TagCopilotPanel({
         {/* Body */}
         <div
           ref={scrollRef}
+          onScroll={handleScroll}
           className="tag-panel-scrollbar"
           style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", padding: "24px 20px 148px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}
         >
@@ -895,7 +924,7 @@ export function TagCopilotPanel({
             </div>
           )}
 
-          {/* Category intelligence summary card — renders whenever we have
+          {/* Category intelligence summary card â€” renders whenever we have
               category data and no active conversation, independent of the
               greeting text (which may load async). */}
           {messages.length === 0 && (topCategories || []).length > 0 && (() => {
