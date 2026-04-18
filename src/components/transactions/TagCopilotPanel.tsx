@@ -1,8 +1,8 @@
-ï»¿import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { THEME } from "./categoryConfig";
-import { Reveal } from "../PrimeChatV2/Reveal";
+import { Reveal } from "../../pages/PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "./useCategoriesData";
 
@@ -121,7 +121,7 @@ function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: 
           action: "amount_corrected",
           old_value: String(oldAmt),
           new_value: String(newAmt),
-          reason: `OCR misread detected â€” corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
+          reason: `OCR misread detected — corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
           source: "tag_anomaly_review",
         });
       }
@@ -210,7 +210,7 @@ function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: 
               background: "transparent", border: "1px solid #1a2740",
               color: "#4a5f7a", cursor: "pointer",
             }}
-          >âœ•</button>
+          >?</button>
         </div>
       )}
     </div>
@@ -360,11 +360,11 @@ export function TagCopilotPanel({
       if (res.ok && data.ok) {
         const fixed = data.typeEnforced || 0;
         if (fixed > 0) {
-          toast.success(`Fixed ${fixed} income â†’ expense correction${fixed !== 1 ? 's' : ''}`);
+          toast.success(`Fixed ${fixed} income ? expense correction${fixed !== 1 ? 's' : ''}`);
           window.dispatchEvent(new Event("tag:stats-refresh"));
           window.dispatchEvent(new Event("transactions:refresh"));
         } else {
-          toast.success("All transactions look correct â€” nothing to fix");
+          toast.success("All transactions look correct — nothing to fix");
         }
       } else {
         toast.error(data.error || "Auto-fix failed");
@@ -423,7 +423,7 @@ export function TagCopilotPanel({
     finally { setRulesRefreshing(false); }
   };
 
-  // Session cutoff for the chat history â€” after 6 hours of inactivity we
+  // Session cutoff for the chat history — after 6 hours of inactivity we
   // drop the stored messages so the user gets a fresh greeting instead of
   // resuming a stale conversation. Tag's real learning lives in
   // category_rules / vendor_category_memory, not the transcript.
@@ -501,7 +501,7 @@ export function TagCopilotPanel({
 
   const handleClose = () => { setOpen(false); setTimeout(onClose, 320); };
 
-  // Detect confirmation words â€” when user says "yes" / "confirm" / "do it" /
+  // Detect confirmation words — when user says "yes" / "confirm" / "do it" /
   // "go ahead" in response to a pending proposal, fire commit directly.
   const isConfirmation = (text: string): boolean => {
     const t = text.trim().toLowerCase();
@@ -510,7 +510,7 @@ export function TagCopilotPanel({
 
   // Extract a "change X to Y" proposal from Tag's reply so we can commit
   // when the user confirms on the next turn. Keeps Tag fully conversational
-  // â€” the LLM still speaks â€” but the action fires via deterministic code.
+  // — the LLM still speaks — but the action fires via deterministic code.
   const extractProposal = (reply: string): { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' } | null => {
     const r = reply.toLowerCase();
     // "move/change/categorize [all] "X" to/as Y"
@@ -690,10 +690,10 @@ export function TagCopilotPanel({
     } else if (rulesCount > 0 && realCategories.length > 0) {
       const top = realCategories[0];
       const ruleWord = rulesCount === 1 ? "rule" : "rules";
-      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend ï¿½ want me to check deductibility or break it down by merchant?`;
+      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend ? want me to check deductibility or break it down by merchant?`;
     } else if (realCategories.length > 0) {
       const top = realCategories[0];
-      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend ï¿½ want me to check what's deductible or add a rule for any merchants?`;
+      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend ? want me to check what's deductible or add a rule for any merchants?`;
     } else {
       text = `${hi} - I'm your category intelligence engine. Ask me to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern.`;
     }
@@ -809,7 +809,7 @@ export function TagCopilotPanel({
             </div>
           )}
 
-          {/* Category intelligence summary card â€” renders whenever we have
+          {/* Category intelligence summary card — renders whenever we have
               category data and no active conversation, independent of the
               greeting text (which may load async). */}
           {messages.length === 0 && (topCategories || []).length > 0 && (() => {
