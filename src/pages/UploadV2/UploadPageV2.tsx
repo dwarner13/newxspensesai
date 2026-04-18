@@ -207,7 +207,17 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
 }
 
 type QueueStatus = "queued" | "processing" | "categorizing" | "complete" | "failed";
-interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; progress?: number; }
+interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; progress?: number; stepText?: string; }
+
+// Pipeline stage labels that advance during processing. Same five stages as the
+// (now-demoted) StatementProcessingOverlay, shown inline on each queue row.
+const PIPELINE_STEPS = [
+  "Reading PDF pages…",
+  "Extracting transactions…",
+  "Running OCR normalizer…",
+  "Matching category rules…",
+  "Writing to database…",
+];
 
 export default function UploadPageV2() {
   const navigate = useNavigate();
@@ -250,6 +260,65 @@ export default function UploadPageV2() {
       setRecentReceipts(data || []);
     })();
   }, [uploadMode, userId]);
+
+  // ── Ctrl+V paste to upload ─────────────────────────────────────────────
+  // Supports three clipboard shapes:
+  //   1. Copied file from OS file manager → clipboardData.files (File[])
+  //   2. Screenshot / copied image → clipboardData.items (DataTransferItem[]) where kind==='file'
+  //   3. Plain text → ignored (don't hijack normal paste in text inputs)
+  // Skips when focus is in an input/textarea/contenteditable so typing still works.
+  useEffect(() => {
+    if (uploadMode !== 'statement') return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || target.isContentEditable) return;
+      }
+      const cd = e.clipboardData;
+      if (!cd) return;
+
+      const collected: File[] = [];
+
+      // Path 1: direct files (from OS file manager copy)
+      if (cd.files && cd.files.length > 0) {
+        for (let i = 0; i < cd.files.length; i++) {
+          const f = cd.files.item(i);
+          if (f) collected.push(f);
+        }
+      }
+
+      // Path 2: items (screenshots, pasted images) — only if files path yielded nothing,
+      // to avoid double-counting on browsers that populate both
+      if (collected.length === 0 && cd.items && cd.items.length > 0) {
+        for (let i = 0; i < cd.items.length; i++) {
+          const it = cd.items[i];
+          if (it.kind === 'file') {
+            const f = it.getAsFile();
+            if (f) {
+              // Screenshots often come in as image/png with a generic filename like
+              // "image.png". Tag it with a timestamp so queue rows aren't all identical.
+              if (!f.name || f.name === 'image.png' || f.name === 'image.jpeg') {
+                const ext = f.type === 'image/png' ? 'png' : f.type === 'image/jpeg' ? 'jpg' : 'bin';
+                const stamped = new File([f], `pasted-${Date.now()}.${ext}`, { type: f.type });
+                collected.push(stamped);
+              } else {
+                collected.push(f);
+              }
+            }
+          }
+        }
+      }
+
+      if (collected.length === 0) return;
+      e.preventDefault();
+      toast.success(`Pasted ${collected.length} file${collected.length !== 1 ? 's' : ''}`);
+      addFiles(collected);
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [uploadMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReceiptUpload = async (file: File) => {
     setByteReceiptMsg('Reading receipt...');
@@ -434,11 +503,14 @@ export default function UploadPageV2() {
       setOverlayStatementName(buildStatementLabel(next.file.name));
       setOverlayImportResult(null);
       setOverlayImportId(null);
-      if (queueRef.current.length <= 1) {
-        setOverlayOpen(true);
-      }
+      // NOTE: Overlay is no longer auto-opened for single-file uploads either —
+      // the inline queue row now shows the pipeline step, matching multi-file UX.
+      // Overlay can still be triggered manually elsewhere if needed.
 
-      // Progress simulation - climbs to 85% during processing
+      updateItem(next.id, { stepText: PIPELINE_STEPS[0] });
+
+      // Progress simulation - climbs to 85% during processing.
+      // Pipeline step advances in lockstep: each 20% of progress = next stage label.
       const progressInterval = setInterval(() => {
         const currentItem = queueRef.current.find(q => q.id === next.id);
         if (!currentItem || currentItem.status !== 'processing') {
@@ -449,7 +521,10 @@ export default function UploadPageV2() {
           if (item.id !== next.id || item.status !== 'processing') return item;
           const currentProgress = item.progress || 0;
           if (currentProgress >= 85) return item;
-          return { ...item, progress: Math.min(85, currentProgress + Math.random() * 12 + 3) };
+          const nextProgress = Math.min(85, currentProgress + Math.random() * 12 + 3);
+          // Map progress 0-85% across the first 4 pipeline steps (5th is "Writing" at 90%+)
+          const stepIdx = Math.min(3, Math.floor(nextProgress / 21));
+          return { ...item, progress: nextProgress, stepText: PIPELINE_STEPS[stepIdx] };
         }));
       }, 800);
 
@@ -500,7 +575,7 @@ export default function UploadPageV2() {
         void storeFileHash(userId, next.file.name, fileHash);
 
         clearInterval(progressInterval);
-        updateItem(next.id, { status: "categorizing", progress: 90 });
+        updateItem(next.id, { status: "categorizing", progress: 90, stepText: PIPELINE_STEPS[4] });
 
         // â”€â”€ Poll imports table for the real committed import_id â”€â”€
         // Replaces fixed 5s sleep. Polls every 3s up to 10 attempts (30s max),
@@ -702,7 +777,10 @@ export default function UploadPageV2() {
             <div style={{ fontSize: 36, marginBottom: 12 }}>{"\uD83D\uDCC4"}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6 }}>Drop statements here</div>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 8 }}>or click to browse</div>
-            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG â€” add as many as you want</div>
+            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG — add as many as you want</div>
+            <div style={{ fontSize: 10.5, color: T.dim, marginTop: 8, opacity: 0.8 }}>
+              Tip: <kbd style={{ padding: "1px 6px", borderRadius: 4, background: T.surface, border: `1px solid ${T.border}`, fontFamily: "inherit", fontSize: 10 }}>Ctrl+V</kbd> to paste a screenshot or copied file
+            </div>
           </div>
           <input ref={fileRef} type="file" accept={ACCEPT} multiple style={{ display: "none" }}
             onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
@@ -810,13 +888,22 @@ export default function UploadPageV2() {
                   {item.status === "failed" && ` \u2022 ${item.error || "Failed"}`}
                 </div>
                 {item.status === "processing" && (
-                  <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
-                    Processing with Byte... {Math.round(item.progress || 0)}%
+                  <div style={{ fontSize: 11, color: T.dim, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ color: T.green, fontWeight: 600 }}>Byte</span>
+                    <span>·</span>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.stepText || "Processing…"}
+                    </span>
+                    <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Math.round(item.progress || 0)}%</span>
                   </div>
                 )}
                 {item.status === "categorizing" && (
-                  <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
-                    Categorizing with Tag...
+                  <div style={{ fontSize: 11, color: T.dim, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ color: T.cyan, fontWeight: 600 }}>Tag</span>
+                    <span>·</span>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.stepText || "Categorizing…"}
+                    </span>
                   </div>
                 )}
                 {(item.status === "processing" || item.status === "categorizing") && (
