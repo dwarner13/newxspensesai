@@ -691,7 +691,7 @@ export const handler: Handler = async (event) => {
         .eq('user_id', userId);
       if (txError) return err(txError.message, 500);
 
-      await supabase.from('category_rules').upsert(
+      const { error: crError } = await supabase.from('category_rules').upsert(
         {
           user_id: userId, match_type: matchType, match_value: normalized,
           category: encodeRuleCategory(parsedTarget.category, parsedTarget.subcategory),
@@ -699,16 +699,25 @@ export const handler: Handler = async (event) => {
         },
         { onConflict: 'user_id,match_type,match_value' }
       );
+      if (crError) {
+        console.error('[tag-action.commit] category_rules upsert failed:', crError.message);
+      }
 
-      await supabase.from('vendor_category_memory').upsert(
+      // vendor_category_memory only has: id, user_id, vendor_key, category,
+      // subcategory, created_at, updated_at. Earlier versions wrote source /
+      // confidence / times_confirmed which silently errored out. Keep the
+      // upsert to what the schema actually supports and surface any error.
+      const { error: vcmError } = await supabase.from('vendor_category_memory').upsert(
         {
           user_id: userId, vendor_key: normalized.toLowerCase(),
           category: parsedTarget.category, subcategory: parsedTarget.subcategory,
-          source: 'tag_chat', confidence: 0.95, times_confirmed: 1,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,vendor_key' }
       );
+      if (vcmError) {
+        console.error('[tag-action.commit] vendor_category_memory upsert failed:', vcmError.message);
+      }
 
       safeLog('tag-action.commit', {
         userId, matchValue: normalized, targetCategory: parsedTarget.category,
@@ -768,15 +777,17 @@ export const handler: Handler = async (event) => {
         console.warn('[tag-action] Backfill error (non-blocking):', bfErr?.message);
       }
 
-      await supabase.from('vendor_category_memory').upsert(
+      const { error: vcmError } = await supabase.from('vendor_category_memory').upsert(
         {
           user_id: userId, vendor_key: normalized.toLowerCase(),
           category: parsedTarget.category, subcategory: parsedTarget.subcategory,
-          source: 'user_rule', confidence: 1.0, times_confirmed: 1,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,vendor_key' }
       );
+      if (vcmError) {
+        console.error('[tag-action.save_rule] vendor_category_memory upsert failed:', vcmError.message);
+      }
 
       safeLog('tag-action.save_rule', { userId, matchValue: normalized, targetCategory: parsedTarget.category, matchType });
 
