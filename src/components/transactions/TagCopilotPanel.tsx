@@ -267,7 +267,10 @@ interface TagCopilotPanelProps {
   totalSpent?: number; totalIncome?: number; txCount?: number;
   topCategories?: { category: string; total: number; transactionCount: number; budget?: number; topMerchant?: string }[];
   /** When Tag is opened from a specific import (e.g. ?import_id=X from upload),
-   * the greeting scopes its opening line to that import instead of the global picture. */
+   * the greeting scopes its opening line to that import instead of the global picture.
+   * Presence of importId ALSO triggers a fresh-briefing session — stale localStorage
+   * chat is cleared on mount so the user doesn't see yesterday's conversation about
+   * a different import. */
   importId?: string;
   /** Human-readable institution label when scoped to an import (e.g. "RBC", "Triangle"). */
   importLabel?: string;
@@ -284,6 +287,10 @@ export function TagCopilotPanel({
   totalSpent, totalIncome, txCount, topCategories,
   importId, importLabel, importTxCount,
 }: TagCopilotPanelProps) {
+
+  // Presence of importId means this is an upload-handoff session — start fresh so
+  // the user sees a briefing scoped to their import, not yesterday's conversation.
+  const freshBriefing = Boolean(importId);
 
   const [open, setOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -458,8 +465,23 @@ export function TagCopilotPanel({
     } catch { return []; }
   };
 
-  const [messages, setMessages] = useState<ChatMessage[]>(normalizeStoredMessages);
-  const [hasRestoredHistory] = useState(() => normalizeStoredMessages().length > 0);
+  // If the panel opened via an upload handoff (?openTag=1), clear any stale chat
+  // so the user lands on a fresh briefing scoped to the import they just uploaded —
+  // not yesterday's conversation. We do this SYNCHRONOUSLY at mount so the initial
+  // `messages` state is already empty and the greeting effect can populate itself.
+  if (freshBriefing && typeof window !== "undefined") {
+    try {
+      localStorage.removeItem("tag_chat_history");
+      localStorage.removeItem("tag_chat_last_active");
+    } catch { /* ignore */ }
+  }
+
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    freshBriefing ? [] : normalizeStoredMessages
+  );
+  const [hasRestoredHistory] = useState(() =>
+    freshBriefing ? false : normalizeStoredMessages().length > 0
+  );
   const [isLoading, setIsLoading] = useState(false);
   // Pending proposal that Tag has verbalized but not yet committed.
   // Captured from Tag's previous reply; fires commit when user confirms
@@ -783,6 +805,19 @@ export function TagCopilotPanel({
       }, 50);
     }
   };
+
+  // When importId changes (user navigates between imports while panel is open),
+  // reset the greeting and conversation so they see a fresh briefing for the new
+  // import context. Without this, greetingText would persist from the first import.
+  const prevImportIdRef = useRef<string | undefined>(importId);
+  useEffect(() => {
+    if (prevImportIdRef.current !== importId) {
+      prevImportIdRef.current = importId;
+      setGreetingText("");
+      setMessages([]);
+      try { localStorage.removeItem("tag_chat_history"); } catch { /* ignore */ }
+    }
+  }, [importId]);
 
   useEffect(() => {
     if (greetingText) return;

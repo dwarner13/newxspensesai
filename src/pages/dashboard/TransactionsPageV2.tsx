@@ -54,15 +54,17 @@ export default function TransactionsPageV2() {
   const location = useLocation();
   const { fullName } = useProfile();
   const firstName = fullName?.split(' ')[0] || '';
-  // Read import_id and issuer from URL synchronously so the initial filter is in sync
+  // Read import_id, issuer, and openTag from URL synchronously so the initial
+  // filter + Tag panel state are in sync on mount (no flicker).
   const initialParams = (() => {
     try {
       const sp = new URLSearchParams(window.location.search);
       return {
         importId: sp.get('import_id') || sp.get('importId') || null,
         issuer: sp.get('issuer') || null,
+        openTag: sp.get('openTag') === '1',
       };
-    } catch { return { importId: null, issuer: null }; }
+    } catch { return { importId: null, issuer: null, openTag: false }; }
   })();
   const { transactions, isLoading, refetch } = useTransactions();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -86,7 +88,7 @@ export default function TransactionsPageV2() {
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
   const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string } | null>(null);
   const [tagInsightLoading, setTagInsightLoading] = useState(false);
-  const [tagPanelOpen, setTagPanelOpen] = useState(false);
+  const [tagPanelOpen, setTagPanelOpen] = useState(initialParams.openTag);
   const [tagPanelTx, setTagPanelTx] = useState<CommittedTransaction | null>(null);
   const [visibleCount, setVisibleCount] = useState(100);
   const [tagBadgeCount, setTagBadgeCount] = useState(0);
@@ -122,6 +124,11 @@ export default function TransactionsPageV2() {
     if (importIdParam) {
       setStatementFilter(importIdParam);
       setSearchParams(p => { p.delete("import_id"); p.delete("importId"); return p; }, { replace: true });
+    }
+    // Strip ?openTag=1 from URL after consumption (state was set synchronously in
+    // the useState initializer above, so we just need to clean the URL).
+    if (searchParams.get("openTag")) {
+      setSearchParams(p => { p.delete("openTag"); return p; }, { replace: true });
     }
     // Auto-open drawer from tag-inbox Answer button
     const autoOpenId = searchParams.get("autoOpen");
@@ -1038,7 +1045,7 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
-      {tagPanelOpen && createPortal(<TagCopilotPanel transaction={tagPanelTx} selectedTransaction={selectedTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
+      {tagPanelOpen && createPortal(<TagCopilotPanel transaction={tagPanelTx} selectedTransaction={selectedTx} totalCount={transactions.length} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
         try {
           const sb = getSupabase(); if (!sb) return;
           const { data: { session } } = await sb.auth.getSession(); if (!session) return;
