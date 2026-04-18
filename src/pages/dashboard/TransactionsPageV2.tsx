@@ -65,6 +65,12 @@ export default function TransactionsPageV2() {
     } catch { return { importId: null, issuer: null }; }
   })();
   const { transactions, isLoading, refetch } = useTransactions();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try { await refetch?.(); } finally { setTimeout(() => setIsRefreshing(false), 600); }
+  }, [isRefreshing, refetch]);
   const { imports } = useImportList();
   const { openChat } = useUnifiedChatLauncher();
   const [filter, setFilter] = useState<'all' | 'expenses' | 'income'>('all');
@@ -634,6 +640,10 @@ export default function TransactionsPageV2() {
             </div>}
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={handleRefresh} disabled={isRefreshing} title="Refresh data" className={`flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg transition-colors ${isRefreshing ? 'opacity-60 cursor-wait' : 'hover:bg-slate-700/50'}`}>
+              <span className={`inline-block ${isRefreshing ? 'animate-spin' : ''}`} style={{ fontSize: 15, lineHeight: 1 }}>↻</span>
+              {isRefreshing ? 'Refreshing' : 'Refresh'}
+            </button>
             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-colors"><Download className="h-4 w-4" />Export</button>
             <button onClick={handleUpload} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-400 hover:to-orange-400 transition-colors"><Upload className="h-4 w-4" />Upload</button>
           </div>

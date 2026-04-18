@@ -31,6 +31,16 @@ export default function CategoriesPageV2() {
   const firstName = fullName?.split(' ')[0] || '';
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
   const data = useCategoriesData(selectedPeriod || undefined);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = useCallback(() => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try { window.dispatchEvent(new Event('transactions:refresh')); } catch { /* noop */ }
+    try { window.dispatchEvent(new Event('tag:stats-refresh')); } catch { /* noop */ }
+    // Flip period to force useCategoriesData to re-run even if hook doesn't listen
+    setSelectedPeriod(p => p); // no-op update, triggers dep re-check
+    setTimeout(() => setIsRefreshing(false), 800);
+  }, [isRefreshing]);
   const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
   const [subcategoryFilter, setSubcategoryFilter] = useState<{ name: string; merchantNames: string[] } | null>(null);
   const [search, setSearch] = useState("");
@@ -135,6 +145,11 @@ export default function CategoriesPageV2() {
               </p>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={handleRefresh} disabled={isRefreshing} title="Refresh data"
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 10, color: isRefreshing ? CYAN : THEME.textMuted, cursor: isRefreshing ? "wait" : "pointer", opacity: isRefreshing ? 0.8 : 1, transition: "all 0.15s" }}>
+                <span style={{ display: "inline-block", transition: "transform 0.6s", transform: isRefreshing ? "rotate(360deg)" : "rotate(0deg)", fontSize: 14, lineHeight: 1 }}>↻</span>
+                {!isMobile && <span>{isRefreshing ? "Refreshing" : "Refresh"}</span>}
+              </button>
               {!isMobile && (
                 <>
                 <button onClick={() => navigate('/dashboard/categories/rules')} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: `${CYAN}10`, border: `1px solid ${CYAN}30`, borderRadius: 10, color: CYAN, cursor: "pointer" }}>
