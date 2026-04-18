@@ -5,6 +5,8 @@ import { THEME } from "@/pages/CategoriesV2/categoryConfig";
 import { Reveal } from "@/pages/PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "@/pages/CategoriesV2/useCategoriesData";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { chatSize } from "@/theme/typography";
 
 const CYAN = "#22d3ee";
 
@@ -462,6 +464,7 @@ export function TagCopilotPanel({
   } | null>(null);
   const [greetingText, setGreetingText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   // Tracks whether user was near the bottom at last scroll. Used by the auto-scroll
   // effect below to avoid hijacking scroll position when user is reading history.
   // Bug fix: users reported the chat was "locked" — they couldn't scroll up because
@@ -911,7 +914,7 @@ export function TagCopilotPanel({
                   <span style={{ fontSize: 9.5, color: T.textDim }}>just now</span>
                 </div>
                 <div style={{
-                  fontSize: 14, color: T.text, lineHeight: 1.75,
+                  fontSize: chatSize(isMobile), color: T.text, lineHeight: 1.7,
                   padding: "13px 16px", borderRadius: "4px 14px 14px 14px",
                   background: "linear-gradient(135deg, rgba(34,211,238,0.07) 0%, rgba(34,211,238,0.03) 100%)",
                   border: "1px solid rgba(34,211,238,0.14)",
@@ -1243,7 +1246,7 @@ export function TagCopilotPanel({
             <Reveal delay={800} style={{ marginLeft: 38 }}>
               <SectionRule color={T.cyan} label="Tag Recommends" />
               <div style={{
-                fontSize: 13.5, color: T.textMuted, lineHeight: 1.8,
+                fontSize: chatSize(isMobile), color: T.textMuted, lineHeight: 1.7,
                 padding: "14px 16px", borderRadius: 14,
                 background: "linear-gradient(135deg, rgba(34,211,238,0.06) 0%, transparent 100%)",
                 border: "1px solid rgba(34,211,238,0.12)",
@@ -1288,8 +1291,8 @@ export function TagCopilotPanel({
                 {!isUser && <TagAvatar size={28} />}
                 <div style={{
                   maxWidth: "78%",
-                  padding: "11px 15px",
-                  fontSize: 13.5, lineHeight: 1.75,
+                  padding: "12px 16px",
+                  fontSize: chatSize(isMobile), lineHeight: 1.7,
                   ...(isUser ? {
                     borderRadius: "14px 4px 14px 14px",
                     background: "rgba(34,211,238,0.1)",
@@ -1401,8 +1404,9 @@ export function TagCopilotPanel({
               spellCheck={false}
               style={{
                 flex: 1, background: "transparent", border: "none", outline: "none",
-                color: T.text, fontSize: 14, padding: "10px 12px 10px 0",
-                fontFamily: "inherit", resize: "none", lineHeight: 1.55, minHeight: 44,
+                color: T.text, fontSize: chatSize(isMobile), padding: "10px 12px 10px 0",
+                fontFamily: "inherit", resize: "none", lineHeight: 1.55,
+                minHeight: isMobile ? 50 : 46,
               }}
             />
             <button
