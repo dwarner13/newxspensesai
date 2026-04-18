@@ -207,7 +207,7 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
 }
 
 type QueueStatus = "queued" | "processing" | "categorizing" | "complete" | "failed";
-interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; progress?: number; stepText?: string; }
+interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; progress?: number; stepText?: string; importId?: string; }
 
 // Pipeline stage labels that advance during processing. Same five stages as the
 // (now-demoted) StatementProcessingOverlay, shown inline on each queue row.
@@ -453,7 +453,7 @@ export default function UploadPageV2() {
           console.log(`[UploadV2] txCount retry ${retry + 1}: ${txCount}`);
         }
       }
-      updateItem(current.id, { status: "complete", txCount });
+      updateItem(current.id, { status: "complete", txCount, importId: importIdForSweep || undefined });
 
       // Trigger post-import fixup (filename, committed_at, Tag sweep, auto-commit)
       if (session?.access_token) {
@@ -677,7 +677,7 @@ export default function UploadPageV2() {
               console.log(`[UploadV2] txCount retry ${retry + 1}: ${txCount}`);
             }
           }
-          updateItem(next.id, { status: "complete", txCount, progress: 100 });
+          updateItem(next.id, { status: "complete", txCount, progress: 100, importId: importId || undefined });
 
           // Flip overlay to Tag summary phase
           setOverlayImportId(importId || null);
@@ -916,8 +916,15 @@ export default function UploadPageV2() {
               {/* Actions */}
               {item.status === "queued" && <button onClick={() => removeItem(item.id)} style={{ fontSize: 11, color: T.dim, background: "none", border: "none", cursor: "pointer" }}>Remove</button>}
               {item.status === "complete" && <button onClick={() => {
-                const iss = detectIssuer(item.file.name);
-                navigate(iss !== 'Unknown' ? `/dashboard/transactions?from=upload&issuer=${encodeURIComponent(iss)}` : "/dashboard/transactions?from=upload");
+                // Prefer specific import_id scoping + auto-open Tag. Falls back to
+                // issuer-wide filter if import_id wasn't captured (e.g. pipeline returned
+                // empty importId and backend poll also missed it).
+                if (item.importId) {
+                  navigate(`/dashboard/transactions?import_id=${item.importId}&openTag=1`);
+                } else {
+                  const iss = detectIssuer(item.file.name);
+                  navigate(iss !== 'Unknown' ? `/dashboard/transactions?from=upload&issuer=${encodeURIComponent(iss)}` : "/dashboard/transactions?from=upload");
+                }
               }} style={{ fontSize: 11, fontWeight: 600, color: T.green, background: "none", border: "none", cursor: "pointer" }}>View {"\u2192"}</button>}
               {item.status === "failed" && <button onClick={() => retryItem(item.id)} style={{ fontSize: 11, fontWeight: 600, color: T.accent, background: "none", border: "none", cursor: "pointer" }}>Retry</button>}
             </div>
@@ -954,10 +961,21 @@ export default function UploadPageV2() {
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => {
-                  // Redirect to issuer filter if we can detect it from the first completed file
-                  const completedFile = queue.find(q => q.status === 'complete');
-                  const iss = completedFile ? detectIssuer(completedFile.file.name) : 'Unknown';
-                  navigate(iss !== 'Unknown' ? `/dashboard/transactions?from=upload&issuer=${encodeURIComponent(iss)}` : "/dashboard/transactions?from=upload");
+                  // Single file: scope Tag to that specific import for a focused briefing.
+                  // Multi-file batch: land on all-transactions but still auto-open Tag so
+                  // they see the global category picture without needing to click the bubble.
+                  const completed = queue.filter(q => q.status === 'complete');
+                  if (completed.length === 1 && completed[0].importId) {
+                    navigate(`/dashboard/transactions?import_id=${completed[0].importId}&openTag=1`);
+                  } else if (completed.length === 1) {
+                    // Fallback: we know the file but not the importId
+                    const iss = detectIssuer(completed[0].file.name);
+                    navigate(iss !== 'Unknown'
+                      ? `/dashboard/transactions?from=upload&issuer=${encodeURIComponent(iss)}&openTag=1`
+                      : `/dashboard/transactions?from=upload&openTag=1`);
+                  } else {
+                    navigate(`/dashboard/transactions?from=upload&openTag=1`);
+                  }
                 }} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: T.bg, cursor: "pointer", boxShadow: `0 4px 16px ${T.accent}35` }}>View Transactions</button>
                 <button onClick={() => navigate("/dashboard/categories")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Review Categories</button>
                 <button onClick={() => { setQueue([]); setAllDone(false); }} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Start New Batch</button>

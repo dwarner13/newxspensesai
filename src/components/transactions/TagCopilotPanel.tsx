@@ -266,6 +266,13 @@ interface TagCopilotPanelProps {
   flaggedTransactions?: FlaggedTransaction[]; subcategorySuggestions?: SubcategorySuggestion[];
   totalSpent?: number; totalIncome?: number; txCount?: number;
   topCategories?: { category: string; total: number; transactionCount: number; budget?: number; topMerchant?: string }[];
+  /** When Tag is opened from a specific import (e.g. ?import_id=X from upload),
+   * the greeting scopes its opening line to that import instead of the global picture. */
+  importId?: string;
+  /** Human-readable institution label when scoped to an import (e.g. "RBC", "Triangle"). */
+  importLabel?: string;
+  /** Transaction count specific to the scoped import, when available. */
+  importTxCount?: number;
 }
 interface LearnedRule { id?: string; source?: 'category_rules' | 'vendor_memory'; merchant: string; category: string; confidence: number; createdAt?: string; updatedAt?: string }
 interface ChatMessage { role: "user" | "assistant"; content: string }
@@ -275,6 +282,7 @@ export function TagCopilotPanel({
   flaggedCount, categorizedCount, totalCount, avgConfidence, rulesCount,
   flaggedTransactions = [], subcategorySuggestions = [],
   totalSpent, totalIncome, txCount, topCategories,
+  importId, importLabel, importTxCount,
 }: TagCopilotPanelProps) {
 
   const [open, setOpen] = useState(false);
@@ -780,27 +788,54 @@ export function TagCopilotPanel({
     if (greetingText) return;
     const count = txCount || totalCount || 0;
     if (count === 0 && (topCategories || []).length === 0) return;
+
     const hi = firstName ? `Hey ${firstName}` : "Hey";
     const sorted = [...(topCategories || [])].sort((a, b) => b.total - a.total);
     const realCategories = sorted.filter(c => c.category !== "Transfers");
-    const overBudget = (topCategories || []).filter(c => c.budget && c.budget > 0 && c.total > c.budget);
+    const fmtAmount = (n: number) =>
+      `$${n.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+    // Compose a casual chat message with real numbers woven in.
+    // Bold (**) wraps numeric/category highlights — renderMarkdown handles the styling.
     let text = "";
-    if (overBudget.length > 0) {
-      const worst = overBudget.sort((a, b) => (b.total - b.budget!) - (a.total - a.budget!))[0];
-      const pct = Math.round((worst.total / (worst.budget || 1)) * 100);
-      text = `${hi} - **${worst.category}** is at ${pct}% of budget. I can tighten the rule for that category or check what's pulling the spend up. What would you like me to do?`;
-    } else if (rulesCount > 0 && realCategories.length > 0) {
-      const top = realCategories[0];
-      const ruleWord = rulesCount === 1 ? "rule" : "rules";
-      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend � want me to check deductibility or break it down by merchant?`;
+
+    if (importId) {
+      // Scoped to a specific import (user landed here via ?import_id=X from upload)
+      const label = importLabel ? `your ${importLabel} statement` : "that statement";
+      const txPart = importTxCount
+        ? `your **${importTxCount} transactions** from ${label}`
+        : `your transactions from ${label}`;
+      const flaggedPart =
+        flaggedCount > 0
+          ? `**${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.`
+          : `Nothing flagged — everything categorized cleanly.`;
+      const topPart = realCategories[0]
+        ? `Biggest spend was **${realCategories[0].category}** at **${fmtAmount(realCategories[0].total)}**.`
+        : "";
+      text = `${hi} — I've got ${txPart} sorted out. ${flaggedPart} ${topPart}\n\nWant me to walk through the flagged ones, or dig into a specific category?`;
+    } else if (flaggedCount > 0) {
+      // Global view with flagged items — lead with the action
+      const top3 = realCategories.slice(0, 3);
+      const catsList = top3.length
+        ? top3.map(c => `**${c.category}** ${fmtAmount(c.total)}`).join(", ")
+        : "";
+      text = `${hi} — I've got your **${count} transactions** sorted across your books. There ${flaggedCount === 1 ? "is" : "are"} **${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.${catsList ? ` Your top categories: ${catsList}.` : ""}\n\nWant to review the flagged ones first, or dig into a category?`;
     } else if (realCategories.length > 0) {
+      // Global view, clean books — summary + invitation
       const top = realCategories[0];
-      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend � want me to check what's deductible or add a rule for any merchants?`;
+      const top3 = realCategories.slice(0, 3);
+      const catsList = top3
+        .slice(1)
+        .map(c => `**${c.category}** ${fmtAmount(c.total)}`)
+        .join(", ");
+      text = `${hi} — I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
     } else {
-      text = `${hi} - I'm your category intelligence engine. Ask me to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern.`;
+      // Fallback — no category data yet
+      text = `${hi} — I'm your categorization engine. Want to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern?`;
     }
+
     setGreetingText(text);
-  }, [txCount, totalCount, topCategories, totalSpent, flaggedCount, rulesCount]);
+  }, [txCount, totalCount, topCategories, totalSpent, flaggedCount, rulesCount, importId, importLabel, importTxCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lastAssistantIdx = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) { if (messages[i].role === "assistant") return i; }
