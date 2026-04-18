@@ -1116,7 +1116,7 @@ export const handler: Handler = async (event) => {
         const { error: insErr } = await supabase.from('category_rules').insert(rulePayload);
         if (insErr) console.error('[tag-chat] correction insert failed', insErr.message);
       } else {
-        const { error: upErr } = await supabase.from('category_rules').upsert(rulePayload, { onConflict: 'user_id,match_type,match_value' });
+        const { error: upErr } = await supabase.from('category_rules').upsert(rulePayload, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' });
         if (upErr) console.error('[tag-chat] correction upsert failed', upErr.message);
       }
       const amountNote = min_amount != null || max_amount != null ? ` (${min_amount != null ? '>=$' + min_amount : ''}${min_amount != null && max_amount != null ? ', ' : ''}${max_amount != null ? '<$' + max_amount : ''})` : '';
@@ -1317,7 +1317,7 @@ export const handler: Handler = async (event) => {
       if (ruleData.amount_min != null || ruleData.amount_max != null) {
         await supabase.from('category_rules').insert(ruleRow);
       } else {
-        await supabase.from('category_rules').upsert(ruleRow, { onConflict: 'user_id,match_type,match_value' });
+        await supabase.from('category_rules').upsert(ruleRow, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' });
       }
 
       // 7b. Write vendor memory

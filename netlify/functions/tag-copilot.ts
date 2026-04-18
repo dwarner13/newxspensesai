@@ -245,7 +245,7 @@ export const handler: Handler = async (event) => {
             if (subcategory) ruleRow.subcategory = subcategory;
             const { error: ruleErr } = await supabase
               .from('category_rules')
-              .upsert(ruleRow, { onConflict: 'user_id,match_type,match_value', ignoreDuplicates: false });
+              .upsert(ruleRow, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount', ignoreDuplicates: false });
             if (ruleErr) console.error('[tag-copilot] category_rules upsert (with subcat) failed', ruleErr.message);
           } catch (e: any) {
             console.error('[tag-copilot] category_rules upsert threw', e?.message);
@@ -292,7 +292,7 @@ export const handler: Handler = async (event) => {
                 category,
                 is_active: true,
                 updated_at: new Date().toISOString(),
-              }, { onConflict: 'user_id,match_type,match_value' });
+              }, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' });
             if (ruleErr) console.error('[tag-copilot] category_rules upsert failed', ruleErr.message);
           } catch (e: any) {
             console.error('[tag-copilot] category_rules upsert threw', e?.message);

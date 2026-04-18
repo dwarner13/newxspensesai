@@ -697,7 +697,7 @@ export const handler: Handler = async (event) => {
           category: encodeRuleCategory(parsedTarget.category, parsedTarget.subcategory),
           is_active: true, updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id,match_type,match_value' }
+        { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' }
       );
       if (crError) {
         console.error('[tag-action.commit] category_rules upsert failed:', crError.message);
@@ -749,7 +749,7 @@ export const handler: Handler = async (event) => {
           ...(ruleAmountMax != null ? { amount_max: ruleAmountMax } : {}),
           is_active: true, updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id,match_type,match_value' }
+        { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' }
       );
       if (ruleErr) {
         console.error('[tag-action] save_rule upsert failed', ruleErr.message);
