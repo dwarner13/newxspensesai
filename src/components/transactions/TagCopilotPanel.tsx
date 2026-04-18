@@ -584,16 +584,102 @@ export function TagCopilotPanel({
     }
   };
 
+  // Detect user-typed action intents BEFORE sending to tag-copilot LLM.
+  // tag-copilot's prompt only has category summaries, not merchant names,
+  // so Tag refuses to propose changes for merchants he can't verify.
+  // This function short-circuits that: runs a preview against real data,
+  // then either proposes with real numbers or reports honestly.
+  const detectUserActionIntent = (msg: string): { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' } | null => {
+    const t = msg.trim().toLowerCase();
+    // "change/move/categorize [all] X to/as [category Y]"
+    const patterns = [
+      /(?:can you\s+)?(?:change|move|set|mark|categorize|recategorize|put|tag|assign|update)\s+(?:all\s+)?["']?([^"']+?)["']?\s+(?:to|as|into)\s+(?:the\s+)?(?:category\s+)?["']?([^"'.,!?\n]+?)["']?\s*$/i,
+    ];
+    for (const re of patterns) {
+      const m = msg.match(re);
+      if (m) {
+        const matchValue = m[1].trim().replace(/^(all|every|my|the)\s+/i, '').trim();
+        const targetCategory = m[2].trim().replace(/\b\w/g, c => c.toUpperCase());
+        if (matchValue && targetCategory && matchValue.length > 1) {
+          return { matchValue, targetCategory, matchType: 'contains' };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Preview directly against tag-action; return data to caller without committing.
+  const previewAction = async (intent: { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' }): Promise<{ matchCount: number; samples: any[]; affectedIds: string[] } | null> => {
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase!.auth.getSession();
+      const token = session?.access_token ?? '';
+      const res = await fetch('/.netlify/functions/tag-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          intent: 'preview',
+          matchValue: intent.matchValue,
+          targetCategory: intent.targetCategory,
+          matchType: intent.matchType,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) return null;
+      return { matchCount: data.matchCount, samples: data.samples || [], affectedIds: data.affectedIds || [] };
+    } catch (e) {
+      console.error('[Tag] previewAction error:', e);
+      return null;
+    }
+  };
+
   const handleSend = async (overrideText?: string) => {
     const text = (overrideText ?? inputValue).trim();
     if (!text || isLoading) return;
 
-    // INTERCEPTOR: If a proposal is pending and user said yes, fire commit
+    // INTERCEPTOR 1: If a proposal is pending and user said yes, fire commit
     // directly. Bypass the LLM so the action is guaranteed to run.
     if (pendingProposal && isConfirmation(text)) {
       setInputValue("");
       setMessages(prev => [...prev, { role: 'user', content: text }]);
       await commitPendingProposal(pendingProposal);
+      return;
+    }
+
+    // INTERCEPTOR 2: Did the user ask for a categorization action?
+    // If so, preview against real data BEFORE asking Tag. Tag's prompt
+    // doesn't include merchant names, so he can't reliably confirm what
+    // exists — but the DB can. We go straight to the source of truth.
+    const userIntent = detectUserActionIntent(text);
+    if (userIntent) {
+      setInputValue("");
+      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      setIsLoading(true);
+      try {
+        const preview = await previewAction(userIntent);
+        if (!preview || preview.matchCount === 0) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `I searched your transactions but didn't find any matching "${userIntent.matchValue}". Want to try a different keyword, or tell me the merchant name you see in your list?`,
+          }]);
+        } else {
+          const sampleText = preview.samples
+            .slice(0, 3)
+            .map((s: any) => `• ${s.merchant_name} — $${Math.abs(Number(s.amount || 0)).toFixed(2)} (currently: ${s.current_category || 'Uncategorized'})`)
+            .join('\n');
+          const extra = preview.matchCount > 3 ? `\n...and ${preview.matchCount - 3} more` : '';
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `I found **${preview.matchCount}** transaction${preview.matchCount !== 1 ? 's' : ''} matching "${userIntent.matchValue}". Here's a sample:\n\n${sampleText}${extra}\n\nMove all ${preview.matchCount} to **${userIntent.targetCategory}** and save a rule for future imports? Say yes to confirm.`,
+          }]);
+          setPendingProposal(userIntent);
+        }
+      } catch (e) {
+        console.error('[Tag] action preview error:', e);
+        setMessages(prev => [...prev, { role: 'assistant', content: "Something went wrong checking your transactions. Try again?" }]);
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
 
