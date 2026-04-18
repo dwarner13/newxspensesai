@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useProfile } from '../../hooks/useProfile';
 import { 
   User, 
   Settings, 
@@ -60,12 +61,23 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Account form state
+  const profileData = useProfile();
+
+  // Account form state — seeded from real profile
   const [accountForm, setAccountForm] = useState({
-    fullName: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '+1 (555) 123-4567'
+    fullName: profileData.fullName || '',
+    email: profileData.email || '',
+    phone: ''
   });
+
+  // Keep form in sync if profile loads after mount
+  useEffect(() => {
+    setAccountForm(prev => ({
+      ...prev,
+      fullName: profileData.fullName || prev.fullName,
+      email: profileData.email || prev.email,
+    }));
+  }, [profileData.fullName, profileData.email]);
   
   // Security form state
   const [securityForm, setSecurityForm] = useState({

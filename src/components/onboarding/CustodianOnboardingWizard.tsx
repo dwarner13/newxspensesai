@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getSupabase } from '@/lib/supabase';
 import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
 
@@ -10,6 +11,7 @@ const ALL_COUNTRIES = [...COMMON_COUNTRIES, 'Afghanistan', 'Albania', 'Algeria',
 interface Props { onComplete: () => void }
 
 export function CustodianOnboardingWizard({ onComplete }: Props) {
+  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({ name: '', employment: '', goal: '', country: '', income: '', business: '' });
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,9 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
   }, []);
 
   const isSelfEmployed = answers.employment === 'Self-Employed' || answers.employment === 'Both';
-  const totalSteps = isSelfEmployed ? 7 : 6; // 5 questions + optional business + completion
+  // Total always shows 7 (6 questions + completion). If not self-employed, business step is auto-skipped
+  // but the denominator stays constant so the progress bar doesn't jump mid-flow.
+  const totalSteps = 7;
 
   const STEPS = [
     { msg: "Hi! I'm Custodian, your setup guide. I'm going to ask you a few quick questions so your AI team knows exactly how to help you. What should I call you?" },
@@ -100,10 +104,42 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
       const uid = session.user.id;
       const { data: profile } = await sb.from('profiles').select('metadata').eq('id', uid).maybeSingle();
       const currentMeta = (profile?.metadata && typeof profile.metadata === 'object') ? profile.metadata as any : {};
-      await sb.from('profiles').upsert({ id: uid, metadata: { ...currentMeta, custodian_ready: true, onboarding: { ...(currentMeta.onboarding || {}), completed: true, completed_at: new Date().toISOString() } } });
+      // Write ALL three completion flags so every guard/reader agrees onboarding is done:
+      //   - onboarding_completed (top-level)   → OnboardingGuard
+      //   - onboarding.completed (nested)      → isProfileComplete() / userIdentity.ts
+      //   - custodian_ready                    → legacy readers
+      await sb.from('profiles').upsert({
+        id: uid,
+        onboarding_completed: true,
+        onboarding_completed_at: new Date().toISOString(),
+        metadata: {
+          ...currentMeta,
+          onboarding_completed: true,
+          custodian_ready: true,
+          onboarding: {
+            ...(currentMeta.onboarding || {}),
+            completed: true,
+            completed_at: new Date().toISOString(),
+          },
+        },
+      });
       await sb.auth.updateUser({ data: { display_name: answers.name, onboarding_complete: true } });
     } catch (e) { console.error('[CustodianOnboardingWizard] Complete error:', e); }
-    finally { setSaving(false); onComplete(); }
+    finally {
+      setSaving(false);
+      // Signal to parent (OnboardingSetupPage) that we completed here so its Navigate
+      // guard doesn't preempt our redirect on the next render.
+      try {
+        sessionStorage.setItem('wizard_just_completed', '1');
+        setTimeout(() => sessionStorage.removeItem('wizard_just_completed'), 3000);
+      } catch {
+        /* sessionStorage unavailable - fall through */
+      }
+      onComplete();
+      // Land the user on the upload page with a ?welcome=1 flag.
+      // PrimeWelcomeModal (mounted in UploadPageV2) reads this and fires the Prime monologue.
+      navigate('/dashboard/upload?welcome=1', { replace: true });
+    }
   };
 
   const advance = async () => {
@@ -159,7 +195,7 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
         </div>
 
         {/* Typewriter message */}
-        <div style={{ fontSize: 16, color: T.muted, lineHeight: 1.7, marginBottom: 24, minHeight: 48 }}>
+        <div style={{ fontSize: 16, color: T.muted, lineHeight: 1.7, marginBottom: 24, minHeight: 100 }}>
           {typed}<span style={{ opacity: !typeDone ? 1 : 0, color: T.accent }}>{'\u2588'}</span>
         </div>
 

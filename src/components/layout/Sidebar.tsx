@@ -41,7 +41,7 @@ import {
 } from 'lucide-react';
 import Logo from '../common/Logo';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
-import { useUser } from "../../contexts/UserContext";
+import { useProfile } from "../../hooks/useProfile";
 
 export default function Sidebar({ 
   isMobileOpen, 
@@ -62,7 +62,7 @@ export default function Sidebar({
   const setCollapsedState = setIsCollapsed || setInternalCollapsed;
   const sidebarRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
-  const user = useUser();
+  const profile = useProfile();
 
   // CORRECT LOGIC: Only show sidebar on dashboard routes
   if (!location.pathname.startsWith('/dashboard')) {

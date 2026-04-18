@@ -83,13 +83,15 @@ export default function OnboardingSetupPage() {
   }
 
   // CRITICAL: Early return - if custodian_ready === true, NEVER render wizard
-  // This prevents onboarding re-entry after completion
-  // Use Navigate component for immediate, reliable redirect
-  // SAFETY: Only check if profile exists (already checked above)
+  // This prevents onboarding re-entry after completion.
+  // Redirect to /dashboard (returning users) — but if the wizard just completed
+  // in THIS session, the wizard's own navigate() handles redirect to upload?welcome=1
+  // so we use a sessionStorage flag to avoid clobbering it.
   const md = (profile?.metadata && typeof profile.metadata === 'object') ? profile.metadata : {};
   const custodianReady = (md as any)?.custodian_ready === true;
-  if (custodianReady) {
-    // Redirect immediately using Navigate component (more reliable than navigate() in render)
+  const justCompleted = typeof window !== 'undefined' && sessionStorage.getItem('wizard_just_completed') === '1';
+  if (custodianReady && !justCompleted) {
+    // Returning user with onboarding already done — send to dashboard
     if (import.meta.env.DEV) {
       console.log('[OnboardingSetupPage] Custodian ready, redirecting to dashboard (Navigate component)');
     }
@@ -97,18 +99,20 @@ export default function OnboardingSetupPage() {
   }
 
   const handleComplete = async () => {
-    // After wizard completes, refresh profile to get latest custodian_ready status
-    // Then redirect to dashboard (RouteDecisionGate will handle if custodian_ready is still false)
-    
-    // Force refresh profile to get latest metadata
+    // Wizard handles its own navigate to /dashboard/upload?welcome=1.
+    // We just need to:
+    //   1. Set a sessionStorage flag so the custodian_ready Navigate guard above
+    //      doesn't preempt the wizard's redirect on the next render.
+    //   2. Refresh the profile so other context consumers see the new state.
+    // Do NOT call navigate() here — that would override the wizard's redirect.
+    try {
+      sessionStorage.setItem('wizard_just_completed', '1');
+      // Clean up the flag after a beat so reloads of /onboarding/setup redirect correctly
+      setTimeout(() => sessionStorage.removeItem('wizard_just_completed'), 3000);
+    } catch {
+      /* sessionStorage may not be available */
+    }
     await refreshProfile();
-    
-    // Small delay to ensure profile state updates
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Navigate to dashboard - RouteDecisionGate will handle redirect if custodian_ready is still false
-    // But typically it should be true now, so this will succeed
-    navigate('/dashboard', { replace: true });
   };
 
   // CRITICAL: Always render wizard when custodian_ready is false, even if onboarding_completed is true

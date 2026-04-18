@@ -11,6 +11,7 @@ import { getSupabase } from "@/lib/supabase";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import StatementProcessingOverlay, { StatementImportResult } from "@/components/upload/StatementProcessingOverlay";
+import { PrimeWelcomeModal } from "@/components/onboarding/PrimeWelcomeModal";
 import JSZip from "jszip";
 
 function buildStatementLabel(filename: string): string {
@@ -641,6 +642,9 @@ export default function UploadPageV2() {
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+      {/* First-time welcome — fires only if URL has ?welcome=1 and user hasn't seen it before */}
+      <PrimeWelcomeModal userName={(session?.user?.user_metadata as any)?.display_name || (session?.user?.user_metadata as any)?.full_name?.split(' ')[0] || undefined} />
 
       {/* Statement processing overlay — full screen, cinematic */}
       <StatementProcessingOverlay

@@ -1,6 +1,11 @@
 
 import { CHAT_CONTRACT_VERSION } from "./chat/chatContract";
 
+// Auto-reload on stale chunk error (happens after deploys when browser has old index.html cached)
+window.addEventListener("vite:preloadError", () => {
+  window.location.reload();
+});
+
 
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter as Router } from 'react-router-dom';

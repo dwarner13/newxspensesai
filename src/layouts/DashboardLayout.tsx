@@ -21,7 +21,7 @@ import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
 import { ChatHistorySidebar } from "../components/chat/ChatHistorySidebar";
 import { ControlCenterDrawer } from "../components/settings/ControlCenterDrawer";
 import { AccountCenterPanel } from "../components/settings/AccountCenterPanel";
-import { UnifiedOnboardingFlow } from "../components/onboarding/UnifiedOnboardingFlow";
+// Onboarding is owned by /onboarding/setup route — not rendered here anymore
 import { PrimeToolsPanel } from "../components/prime/PrimeToolsPanel";
 import { PrimeBriefingPanel } from "../pages/PrimeChatV2/PrimeBriefingPanel";
 import { UploadModal } from "../components/upload/UploadModal";
@@ -31,13 +31,12 @@ import { isPrimeBriefingOpenAtom } from "../lib/uiStore";
 import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
 // Legacy onboarding removed - UnifiedOnboardingFlow is the ONLY authority
 import { useAuth } from "../contexts/AuthContext";
-import { useOnboardingGate } from "../components/onboarding/useOnboardingGate";
-import { CinematicOnboardingOverlay } from "../components/onboarding/CinematicOnboardingOverlay";
+// onboarding gate/overlay removed — /onboarding/setup is single source of truth
 import { log, warn } from "../lib/logger";
 import { PrimeWelcomeOverlayCinematic } from "../components/onboarding/PrimeWelcomeOverlayCinematic";
 import { ChatErrorBoundary } from "../components/chat/ChatErrorBoundary";
 import { PostOnboardingChooser } from "../components/onboarding/PostOnboardingChooser";
-import { DashboardTourOverlay } from "../components/onboarding/DashboardTourOverlay";
+// DashboardTourOverlay removed — PrimeWelcomeModal handles first-time welcome now
 
 // DashboardHeaderWithBadges - Wrapper (now simplified, no custom badges)
 function DashboardHeaderWithBadges() {
@@ -418,16 +417,7 @@ export default function DashboardLayout() {
   
   // Post-onboarding chooser: show only immediately after onboarding completion (session-based)
   const [showPostOnboardingChooser, setShowPostOnboardingChooser] = useState(false);
-  const [showTour, setShowTour] = useState(false);
-
-  // Dashboard tour for new users
-  useEffect(() => {
-    if (!userId) return;
-    if (!location.pathname.startsWith('/dashboard')) return;
-    if (localStorage.getItem('dashboard_tour_completed') === 'true') return;
-    const t = setTimeout(() => setShowTour(true), 1500);
-    return () => clearTimeout(t);
-  }, [userId, location.pathname]);
+  // Dashboard tour removed — PrimeWelcomeModal on /dashboard/upload?welcome=1 is the new-user intro
   
   useEffect(() => {
     // Check for sessionStorage flag and custodian_ready status on mount
@@ -510,9 +500,8 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, isProfileLoading, refreshProfile]);
   
-  // Onboarding gate: determines first-time setup vs welcome back
-  const { showFirstTimeSetup, showWelcomeBack, missingFields } = useOnboardingGate();
-  const [firstTimeSetupCompleted, setFirstTimeSetupCompleted] = useState(false);
+  // Onboarding state removed — /onboarding/setup owns first-time setup now
+  // A new user is redirected there by post-signup flow; we render no overlay here.
   
   // Legacy onboarding overlay logic REMOVED
   // UnifiedOnboardingFlow is the ONLY authority for onboarding UI
@@ -1248,24 +1237,8 @@ export default function DashboardLayout() {
       {/* Upload Modal */}
       <UploadModal />
 
-      {/* Unified Onboarding Flow - Prime -> Custodian Modal (Guest + Auth) */}
-      {/* UnifiedOnboardingFlow disabled when CinematicOnboardingOverlay is active */}
-      {/* CinematicOnboardingOverlay is the SINGLE SOURCE OF TRUTH for onboarding UI */}
-      {!(showFirstTimeSetup && !firstTimeSetupCompleted) && (
-        <UnifiedOnboardingFlow />
-      )}
-      
-      {/* First-Time Setup Overlay - Blocking overlay for new users */}
-      {/* SINGLE SOURCE OF TRUTH: Only show if onboarding_completed !== true */}
-      {showFirstTimeSetup && !firstTimeSetupCompleted && (
-        <CinematicOnboardingOverlay
-          missingFields={missingFields}
-          onComplete={() => {
-            setFirstTimeSetupCompleted(true);
-            refreshProfile?.();
-          }}
-        />
-      )}
+      {/* Onboarding overlays removed — /onboarding/setup is single source of truth */}
+      {/* Users who need to onboard are redirected to /onboarding/setup post-signup */}
 
       {/* Welcome Back Overlay DISABLED - replaced by Dashboard V2 briefing */}
       {/* {showWelcomeBack && !showFirstTimeSetup && !location.pathname.startsWith('/onboarding') && (
@@ -1312,12 +1285,6 @@ export default function DashboardLayout() {
       )}
       
       </div>
-      {showTour && (
-        <DashboardTourOverlay
-          firstName={profile?.first_name || profile?.full_name?.split(' ')[0] || undefined}
-          onComplete={() => { setShowTour(false); localStorage.setItem('dashboard_tour_completed', 'true'); }}
-        />
-      )}
     </PrimeOverlayProvider>
   );
 }

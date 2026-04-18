@@ -324,8 +324,9 @@ function App() {
                         <Route path="/reset-password" element={<Suspense fallback={<LoadingSpinner />}><ResetPasswordPage /></Suspense>} />
                       </Route>
 
-                      {/* Onboarding (standalone, no dashboard layout) */}
-                      <Route path="/onboarding" element={<OnboardingFlowV2 />} />
+                      {/* Onboarding - single source of truth at /onboarding/setup */}
+                      {/* Legacy /onboarding route redirects so old links don't 404 */}
+                      <Route path="/onboarding" element={<Navigate to="/onboarding/setup" replace />} />
 
                       {/* Legal pages (public, use MarketingNav+Footer) */}
                       <Route path="/terms" element={<TermsOfServicePage />} />
