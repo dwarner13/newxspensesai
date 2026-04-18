@@ -1,10 +1,10 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
-import { THEME } from "./categoryConfig";
-import { Reveal } from "../PrimeChatV2/Reveal";
+import { THEME } from "@/pages/CategoriesV2/categoryConfig";
+import { Reveal } from "@/pages/PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
-import type { FlaggedTransaction, SubcategorySuggestion } from "./useCategoriesData";
+import type { FlaggedTransaction, SubcategorySuggestion } from "@/pages/CategoriesV2/useCategoriesData";
 
 const CYAN = "#22d3ee";
 
@@ -1380,7 +1380,7 @@ export function TagCopilotPanel({
             background: T.surface,
             borderRadius: 14,
             border: `1px solid ${T.borderHi}`,
-            padding: "8px 8px 8px 16px",
+            padding: "12px 12px 12px 20px",
             boxShadow: "0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03)",
           }}>
             <textarea
@@ -1388,12 +1388,21 @@ export function TagCopilotPanel({
               rows={2}
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              onKeyDown={e => {
+                // Enter sends, Shift+Enter = newline. Defensive: also guards against
+                // IME composition (foreign keyboard input) where pressing Enter commits
+                // the composition rather than sending the message.
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  if (inputValue.trim() && !isLoading) handleSend();
+                }
+              }}
               placeholder="Ask Tag anything about categories..."
+              spellCheck={false}
               style={{
-                flex: 1, background: "transparent", border: "none",
-                color: T.text, fontSize: 13, padding: "8px 0",
-                fontFamily: "inherit", resize: "none", lineHeight: 1.55, minHeight: 38,
+                flex: 1, background: "transparent", border: "none", outline: "none",
+                color: T.text, fontSize: 14, padding: "10px 12px 10px 0",
+                fontFamily: "inherit", resize: "none", lineHeight: 1.55, minHeight: 44,
               }}
             />
             <button
