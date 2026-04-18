@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
+import { checkRateLimit, aiLimiter, rateLimitResponse } from './_shared/rateLimit.js';
 
 const headers = {
   'Content-Type': 'application/json',
