@@ -226,8 +226,7 @@ function TagAvatar({ size = 36 }: { size?: number }) {
         background: "radial-gradient(circle at 35% 35%, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.06) 100%)",
         border: "1.5px solid rgba(34,211,238,0.35)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: size * 0.36, fontWeight: 800, color: T.cyan,
-        fontFamily: "'Syne',sans-serif",
+        fontSize: size * 0.36, fontWeight: 700, color: T.cyan,
         animation: "tagRing 2.4s ease-out infinite",
         boxShadow: "0 0 0 0 rgba(34,211,238,0.4), inset 0 1px 0 rgba(34,211,238,0.2)",
       }}>T</div>
@@ -962,10 +961,10 @@ export function TagCopilotPanel({
         }}>
           <TagAvatar size={40} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: T.text, fontFamily: "'Syne',sans-serif", letterSpacing: 0.3, lineHeight: 1.2 }}>
-              Tag <span style={{ fontWeight: 500, color: T.textMuted, fontFamily: "inherit" }}>Copilot</span>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, letterSpacing: 0.3, lineHeight: 1.2 }}>
+              Tag <span style={{ fontWeight: 500, color: T.textMuted }}>Copilot</span>
             </div>
-            <div style={{ fontSize: 10.5, color: T.textDim, marginTop: 1, letterSpacing: 0.2 }}>Categorization intelligence</div>
+            <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1, letterSpacing: 0.2 }}>Categorization intelligence</div>
           </div>
           <div style={{
             padding: "4px 10px", borderRadius: 20,
@@ -978,7 +977,7 @@ export function TagCopilotPanel({
               animation: "tagGlow 2s ease-in-out infinite",
               boxShadow: `0 0 6px ${T.green}`,
             }} />
-            <span style={{ fontSize: 9.5, fontWeight: 700, color: T.green, letterSpacing: 0.8, fontFamily: "'Syne',sans-serif" }}>LIVE</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: T.green }}>LIVE</span>
           </div>
           <button
             className="tag-clear"
@@ -986,7 +985,7 @@ export function TagCopilotPanel({
             style={{ background: "none", border: "none", cursor: "pointer", color: T.textDim, fontSize: 11, display: "flex", alignItems: "center", gap: 4, padding: "5px 8px", borderRadius: 7 }}
           >
             <Trash2 size={12} />
-            <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 600 }}>Clear</span>
+            <span style={{ fontWeight: 600 }}>Clear</span>
           </button>
           <button
             className="tag-close"
