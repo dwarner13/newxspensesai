@@ -15,7 +15,7 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
   const avg = category.budget; // budget now holds avg monthly spend
   const pct = avg > 0 ? Math.round((category.spent / avg) * 100) : 0;
   const isOver = pct > 100;
-  const barColor = isOver ? '#f59e0b' : '#22c55e';
+  const barColor = isOver ? THEME.amber : category.color;
   const trendDir = category.trend > 0 ? "\u2191" : category.trend < 0 ? "\u2193" : "";
   const trendColor = category.trend > 10 ? THEME.red : category.trend < -5 ? THEME.green : THEME.textDim;
 
@@ -26,7 +26,9 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
         style={{
           background: THEME.surface, border: `1px solid #22c55e33`, borderRadius: 14,
           padding: "16px 18px", textAlign: "left", cursor: "pointer", transition: "all 0.2s",
-          width: "100%", boxShadow: "0 2px 12px rgba(34,197,94,0.08)",
+          width: "100%", height: "100%", minHeight: 190,
+          display: "flex", flexDirection: "column",
+          boxShadow: "0 2px 12px rgba(34,197,94,0.08)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -60,7 +62,9 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
       style={{
         background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14,
         padding: "16px 18px", textAlign: "left", cursor: "pointer", transition: "all 0.2s",
-        width: "100%", boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
+        width: "100%", height: "100%", minHeight: 190,
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
       }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = category.color + "66"; e.currentTarget.style.boxShadow = `0 8px 32px ${category.color}15`; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.1)"; }}
@@ -83,7 +87,7 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
 
       {/* Spend + average */}
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 18, fontWeight: 800, color: isOver ? '#f59e0b' : THEME.text }}>
+        <span style={{ fontSize: 18, fontWeight: 800, color: category.color }}>
           ${category.spent.toLocaleString()}
         </span>
         {avg > 0 && (
@@ -121,6 +125,9 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
           ))}
         </div>
       )}
+
+      {/* Spacer pushes Top merchant to bottom of card */}
+      <div style={{ flex: 1 }} />
 
       {/* Top merchant */}
       <div style={{ marginTop: 10, fontSize: 10, color: THEME.textDim }}>
