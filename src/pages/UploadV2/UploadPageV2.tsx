@@ -938,10 +938,14 @@ export default function UploadPageV2() {
                 // empty importId and backend poll also missed it).
                 console.log('[UploadV2] [DIAG] View button clicked (per-row):', { itemId: item.id, importId: item.importId, hasImportId: !!item.importId, status: item.status, fileName: item.file.name });
                 if (item.importId) {
-                  navigate(`/dashboard/transactions?import_id=${item.importId}&openTag=1`);
+                  const url = `/dashboard/transactions?import_id=${item.importId}&openTag=1`;
+                  console.log('[UploadV2] [DIAG] navigate target:', url);
+                  navigate(url);
                 } else {
                   const iss = detectIssuer(item.file.name);
-                  navigate(iss !== 'Unknown' ? `/dashboard/transactions?from=upload&issuer=${encodeURIComponent(iss)}` : "/dashboard/transactions?from=upload");
+                  const url = iss !== 'Unknown' ? `/dashboard/transactions?from=upload&issuer=${encodeURIComponent(iss)}` : "/dashboard/transactions?from=upload";
+                  console.log('[UploadV2] [DIAG] navigate target (fallback):', url);
+                  navigate(url);
                 }
               }} style={{ fontSize: 11, fontWeight: 600, color: T.green, background: "none", border: "none", cursor: "pointer" }}>View {"\u2192"}</button>}
               {item.status === "failed" && <button onClick={() => retryItem(item.id)} style={{ fontSize: 11, fontWeight: 600, color: T.accent, background: "none", border: "none", cursor: "pointer" }}>Retry</button>}

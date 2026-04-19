@@ -59,11 +59,18 @@ export default function TransactionsPageV2() {
   const initialParams = (() => {
     try {
       const sp = new URLSearchParams(window.location.search);
-      return {
+      const result = {
         importId: sp.get('import_id') || sp.get('importId') || null,
         issuer: sp.get('issuer') || null,
         openTag: sp.get('openTag') === '1',
       };
+      // [DIAG] First render URL snapshot — proves whether params survived navigation
+      console.log('[TxPage] [DIAG] initialParams read:', {
+        rawSearch: window.location.search,
+        rawPathname: window.location.pathname,
+        parsed: result,
+      });
+      return result;
     } catch { return { importId: null, issuer: null, openTag: false }; }
   })();
   const { transactions, isLoading, refetch } = useTransactions();
@@ -103,6 +110,14 @@ export default function TransactionsPageV2() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showProcessingBanner, setShowProcessingBanner] = useState(false);
   useEffect(() => {
+    // [DIAG] Effect-time URL snapshot — after router has processed navigation
+    console.log('[TxPage] [DIAG] first useEffect fired:', {
+      searchParamsString: searchParams.toString(),
+      importId: searchParams.get('import_id') || searchParams.get('importId'),
+      openTag: searchParams.get('openTag'),
+      from: searchParams.get('from'),
+      currentStatementFilter: statementFilter,
+    });
     if (searchParams.get("from") === "upload") {
       setShowProcessingBanner(true);
       // Preserve issuer param when clearing "from"
@@ -122,8 +137,11 @@ export default function TransactionsPageV2() {
     // legacy importId (camelCase) from other navigation sources
     const importIdParam = searchParams.get("import_id") || searchParams.get("importId");
     if (importIdParam) {
+      console.log('[TxPage] [DIAG] applying import_id filter:', importIdParam);
       setStatementFilter(importIdParam);
       setSearchParams(p => { p.delete("import_id"); p.delete("importId"); return p; }, { replace: true });
+    } else {
+      console.log('[TxPage] [DIAG] NO import_id in URL — staying on global view');
     }
     // Strip ?openTag=1 from URL after consumption (state was set synchronously in
     // the useState initializer above, so we just need to clean the URL).
