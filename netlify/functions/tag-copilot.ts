@@ -137,17 +137,22 @@ export const handler: Handler = async (event) => {
       .limit(50);
     const learnedRules: LearnedRule[] = rulesData || [];
 
-    // 2. Load category summary (all transactions, capped at 600)
+    // 2. Load category summary (order by most recent, cap at 1500)
+    // Previously limited to an arbitrary 600 with no ordering, which meant
+    // mid-range merchants like Urban Kids or Sportsnet routinely fell outside
+    // the slice Tag could see. Order-by-date + 1500 covers ~6-12 months for
+    // most users.
     const yearStart = `${new Date().getFullYear()}-01-01`;
     let txQuery = supabase
       .from('transactions')
       .select('amount, category, merchant_name, posted_at, date, import_id, subcategory')
-      .eq('user_id', auth.userId);
+      .eq('user_id', auth.userId)
+      .order('posted_at', { ascending: false, nullsFirst: false });
     if (importId) {
       // Scoped mode: only transactions from this specific import
       txQuery = txQuery.eq('import_id', importId);
     }
-    const { data: allTxs } = await txQuery.limit(600);
+    const { data: allTxs } = await txQuery.limit(1500);
 
     const catMap: Record<string, { count: number; total: number }> = {};
     let yearSpent = 0;
