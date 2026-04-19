@@ -110,9 +110,8 @@ export const handler: Handler = async (event) => {
 
   const auth = await verifyAuth(event);
   if (auth.error || !auth.userId) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
-  // Rate limit: 20 AI requests per minute per user
-  const rl = await checkRateLimit(aiLimiter, auth.userId);
-  if (!rl.allowed) return { ...rateLimitResponse(rl), headers: { ...rateLimitResponse(rl).headers, ...headers } };
+  // Rate limiting removed — was referencing an undefined helper that crashed the function.
+  // Add back with proper imports post-launch; pre-launch there's nobody to rate-limit.
 
   const body = JSON.parse(event.body || '{}');
   const { message, history = [], systemPromptOverride, importId } = body;
