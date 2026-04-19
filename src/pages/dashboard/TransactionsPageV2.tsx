@@ -95,7 +95,26 @@ export default function TransactionsPageV2() {
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
   const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string } | null>(null);
   const [tagInsightLoading, setTagInsightLoading] = useState(false);
-  const [tagPanelOpen, setTagPanelOpen] = useState(initialParams.openTag);
+  const [tagPanelOpen, setTagPanelOpen] = useState(() => {
+    // Priority: URL param (upload handoff) > remembered preference > default open.
+    // Defaulting to open on first visit so new users discover Tag; after that,
+    // respect whatever the user last did (open or close) — persisted below.
+    if (initialParams.openTag) return true;
+    try {
+      const stored = window.localStorage.getItem('xai.tagPanel.open');
+      if (stored === null) return true;  // first-time user → open
+      return stored === '1';
+    } catch {
+      return true;  // localStorage unavailable (private mode, etc.) → open
+    }
+  });
+
+  // Persist Tag open/closed preference so the next visit to this page
+  // remembers the user's last choice.
+  useEffect(() => {
+    try { window.localStorage.setItem('xai.tagPanel.open', tagPanelOpen ? '1' : '0'); }
+    catch { /* non-fatal */ }
+  }, [tagPanelOpen]);
   const [tagPanelTx, setTagPanelTx] = useState<CommittedTransaction | null>(null);
   const [visibleCount, setVisibleCount] = useState(100);
   const [tagBadgeCount, setTagBadgeCount] = useState(0);
