@@ -276,6 +276,13 @@ interface TagCopilotPanelProps {
   importLabel?: string;
   /** Transaction count specific to the scoped import, when available. */
   importTxCount?: number;
+  /** When a sibling surface (e.g. the transaction drawer) wants Tag to start
+   * a conversation about something specific, it passes a message here. The
+   * message is auto-sent to tag-copilot as if the user typed it, so Tag's
+   * first reply is already on-topic about that thing. Changes to this prop
+   * trigger a new auto-send — callers should set it, let it fire, then
+   * reset to null before reusing. */
+  injectedMessage?: string | null;
 }
 interface LearnedRule { id?: string; source?: 'category_rules' | 'vendor_memory'; merchant: string; category: string; confidence: number; createdAt?: string; updatedAt?: string }
 interface ChatMessage { role: "user" | "assistant"; content: string }
@@ -286,6 +293,7 @@ export function TagCopilotPanel({
   flaggedTransactions = [], subcategorySuggestions = [],
   totalSpent, totalIncome, txCount, topCategories,
   importId, importLabel, importTxCount,
+  injectedMessage,
 }: TagCopilotPanelProps) {
 
   // Presence of importId means this is an upload-handoff session — start fresh so
@@ -465,16 +473,17 @@ export function TagCopilotPanel({
     } catch { return []; }
   };
 
-  // If the panel opened via an upload handoff (?openTag=1), clear any stale chat
-  // so the user lands on a fresh briefing scoped to the import they just uploaded —
-  // not yesterday's conversation. We do this SYNCHRONOUSLY at mount so the initial
-  // `messages` state is already empty and the greeting effect can populate itself.
-  if (freshBriefing && typeof window !== "undefined") {
-    try {
-      localStorage.removeItem("tag_chat_history");
-      localStorage.removeItem("tag_chat_last_active");
-    } catch { /* ignore */ }
-  }
+  // If the panel opened via an upload handoff (?openTag=1), we used to wipe
+  // tag_chat_history here so the user saw a briefing scoped to the import
+  // they just uploaded. That wipe was too aggressive — it ran in the render
+  // body (not a useEffect), firing on every re-render with a truthy importId,
+  // which nuked the user's chat history any time the panel re-rendered.
+  //
+  // Behaviour now: the greeting effect below builds the scoped briefing fresh
+  // regardless of stored history, so upload handoffs still feel "fresh". The
+  // stored chat history persists as the source of truth and is only cleared
+  // via (a) the 6-hour idle cutoff in normalizeStoredMessages, (b) the
+  // explicit Clear button in the header.
 
   const [messages, setMessages] = useState<ChatMessage[]>(
     freshBriefing ? [] : normalizeStoredMessages
@@ -740,7 +749,6 @@ export function TagCopilotPanel({
         body: JSON.stringify({
           message: text,
           history: updatedMessages.slice(0, -1),
-          importId: importId || undefined,
           systemPromptOverride:
             "STRICT CHAT RULES - violating these breaks the experience:\n1. Max 2 sentences. Hard limit. No exceptions.\n2. Ask ONE question then STOP. Never ask multiple questions.\n3. Zero bullet points. Zero numbered lists. Zero headers. Plain conversational sentences only.\n4. Never write analysis, breakdowns, or math. Just talk.\n5. You already have the financial data - reference it naturally, don't explain it back.\n\nYou are Tag - XspensesAI's categorization expert. You're having a focused chat, not writing a report.\n\nPROPOSAL PHRASING RULE - critical for actions:\nWhen you propose to change categories, phrase it as exactly: 'move [merchant or keyword] to [category]' or 'change [merchant] to [category]'. Use quotes around the merchant name. Example: 'Want me to move \"GFS PAY\" to Income?' Then stop and wait for yes. Do not emit any JSON in the reply; the confirmation handler works from the phrasing alone.\n\nAMOUNT ANOMALY RULE - this is critical:\nIf the user asks about a transaction where the amount is unusually high for that merchant (more than 3x what you'd expect based on the merchant type), you MUST flag it. Be specific - name the merchant, state the amount, give a realistic comparison (e.g. 'A $147 charge at 7-Eleven is about 18x a typical visit'). Always end with exactly this sentence: 'I'd verify this against your bank app or original statement before I lock in a category - this one looks off.' Never skip this when the amount is suspicious. This protects the user and is non-negotiable.\n\nUSER'S FINANCIAL DATA:\n- Total spent: " +
             (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) +
@@ -807,16 +815,35 @@ export function TagCopilotPanel({
     }
   };
 
+  // Auto-send a message passed in from a sibling surface (e.g. the transaction
+  // drawer's "Ask Tag about this" button). Fires once per distinct injection,
+  // tracked by a ref so remounts/re-renders don't re-fire the same message.
+  const lastInjectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!injectedMessage) return;
+    if (lastInjectedRef.current === injectedMessage) return;
+    lastInjectedRef.current = injectedMessage;
+    void handleSend(injectedMessage);
+    // handleSend intentionally omitted from deps — stable per render is fine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injectedMessage]);
+
   // When importId changes (user navigates between imports while panel is open),
-  // reset the greeting and conversation so they see a fresh briefing for the new
-  // import context. Without this, greetingText would persist from the first import.
+  // reset the in-memory greeting and conversation so they see a fresh briefing
+  // for the new import context. Without this, greetingText would persist from
+  // the first import.
+  //
+  // We intentionally do NOT wipe localStorage here — that would destroy the
+  // user's chat history the moment they navigate between scopes, even if they
+  // just meant to take a quick look. The stored history survives; when the user
+  // returns to the scope it was written in (or to the global view), the panel
+  // can re-read it on next mount.
   const prevImportIdRef = useRef<string | undefined>(importId);
   useEffect(() => {
     if (prevImportIdRef.current !== importId) {
       prevImportIdRef.current = importId;
       setGreetingText("");
       setMessages([]);
-      try { localStorage.removeItem("tag_chat_history"); } catch { /* ignore */ }
     }
   }, [importId]);
 

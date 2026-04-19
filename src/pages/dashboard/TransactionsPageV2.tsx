@@ -139,24 +139,15 @@ export default function TransactionsPageV2() {
     if (importIdParam) {
       console.log('[TxPage] [DIAG] applying import_id filter:', importIdParam);
       setStatementFilter(importIdParam);
-      // NOTE: Don't strip import_id/importId from URL here. A parent component
-      // (suspected route config with location-dependent `key`) remounts this
-      // component on URL changes, which resets statementFilter to 'all' and
-      // collapses the scoped view. Keeping the param in URL also makes scoped
-      // views refresh-safe and bookmarkable. Tracked as tech debt to find the
-      // remount trigger in the routing layer.
+      setSearchParams(p => { p.delete("import_id"); p.delete("importId"); return p; }, { replace: true });
     } else {
       console.log('[TxPage] [DIAG] NO import_id in URL — staying on global view');
     }
     // Strip ?openTag=1 from URL after consumption (state was set synchronously in
     // the useState initializer above, so we just need to clean the URL).
-    // NOTE: URL strip disabled — parent route remounts on URL change (see
-    // import_id note above). Leaving openTag=1 in the URL is harmless; the
-    // synchronous useState initializer reads it once and tagPanelOpen state
-    // owns the panel visibility from there.
-    // if (searchParams.get("openTag")) {
-    //   setSearchParams(p => { p.delete("openTag"); return p; }, { replace: true });
-    // }
+    if (searchParams.get("openTag")) {
+      setSearchParams(p => { p.delete("openTag"); return p; }, { replace: true });
+    }
     // Auto-open drawer from tag-inbox Answer button
     const autoOpenId = searchParams.get("autoOpen");
     if (autoOpenId) {
@@ -1221,28 +1212,18 @@ export default function TransactionsPageV2() {
           tagInsight={tagInsight}
           tagInsightLoading={tagInsightLoading}
           onAskTag={(row) => {
-            if (row.kind === 'committed') {
-              const tx = row.transaction;
-              setSelectedTx(null);
-              openChat({
-                initialEmployeeSlug: 'tag-ai',
-                force: true,
-                handoff: {
-                  fromEmployeeSlug: 'prime-boss',
-                  note: `I am looking at ${tx.merchant_name || 'a transaction'} ? $${Math.abs(tx.amount).toFixed(2)} ? currently tagged as ${tx.category || 'Uncategorized'}. Can you help me with this?`,
-                },
-                context: {
-                  data: {
-                    transactionId: tx.id,
-                    merchant: tx.merchant_name,
-                    amount: tx.amount,
-                    category: tx.category,
-                    source: 'transaction-drawer',
-                  },
-                },
-                routeHint: '/dashboard/transactions',
-              });
-            }
+            if (row.kind !== 'committed') return;
+            const tx = row.transaction;
+            const merchant = tx.merchant_name || 'this transaction';
+            const amt = Math.abs(Number(tx.amount || 0)).toFixed(2);
+            const cat = tx.category || 'Uncategorized';
+            const date = (tx as any).posted_at || (tx as any).date || '';
+            const injected = `I'm looking at ${merchant} — $${amt}${date ? ' on ' + date : ''} — currently tagged as ${cat}. Can you help me with this?`;
+            // Close the drawer, open main Tag, inject the question — Tag's
+            // existing auto-send effect will fire handleSend for us.
+            setSelectedTx(null);
+            setTagInjectedMsg(injected);
+            setTagPanelOpen(true);
           }}
         />,
         document.body
