@@ -3,7 +3,6 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
-import { checkRateLimit, aiLimiter, rateLimitResponse } from './_shared/rateLimit.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -116,7 +115,7 @@ export const handler: Handler = async (event) => {
   if (!rl.allowed) return { ...rateLimitResponse(rl), headers: { ...rateLimitResponse(rl).headers, ...headers } };
 
   const body = JSON.parse(event.body || '{}');
-  const { message, history = [], systemPromptOverride } = body;
+  const { message, history = [], systemPromptOverride, importId } = body;
 
   if (!message) return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
 
@@ -141,11 +140,15 @@ export const handler: Handler = async (event) => {
 
     // 2. Load category summary (all transactions, capped at 600)
     const yearStart = `${new Date().getFullYear()}-01-01`;
-    const { data: allTxs } = await supabase
+    let txQuery = supabase
       .from('transactions')
-      .select('amount, category, merchant_name, posted_at, date')
-      .eq('user_id', auth.userId)
-      .limit(600);
+      .select('amount, category, merchant_name, posted_at, date, import_id, subcategory')
+      .eq('user_id', auth.userId);
+    if (importId) {
+      // Scoped mode: only transactions from this specific import
+      txQuery = txQuery.eq('import_id', importId);
+    }
+    const { data: allTxs } = await txQuery.limit(600);
 
     const catMap: Record<string, { count: number; total: number }> = {};
     let yearSpent = 0;
@@ -181,13 +184,64 @@ export const handler: Handler = async (event) => {
       t => !t.category || t.category === 'Uncategorized'
     ).length;
 
+    // 3b. NEW: Build merchant-level data so Tag can answer "how much at Rogers?"
+    // This fixes the merchant-blindness bug where Tag only saw category aggregates.
+    const merchantMap: Record<string, { count: number; total: number; category: string; lastDate: string }> = {};
+    for (const t of allTxs || []) {
+      const m = String(t.merchant_name || 'Unknown').trim();
+      if (!m || m === 'Unknown') continue;
+      const amt = Math.abs(Number(t.amount || 0));
+      const d = t.posted_at || t.date || '';
+      if (!merchantMap[m]) {
+        merchantMap[m] = { count: 0, total: 0, category: t.category || 'Uncategorized', lastDate: d };
+      }
+      merchantMap[m].count++;
+      merchantMap[m].total += amt;
+      if (d > merchantMap[m].lastDate) merchantMap[m].lastDate = d;
+    }
+    const topMerchants = Object.entries(merchantMap)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 30);
+
+    const recentTxs = [...(allTxs || [])]
+      .sort((a, b) => String(b.posted_at || b.date || '').localeCompare(String(a.posted_at || a.date || '')))
+      .slice(0, 20);
+
+    const totalCount = (allTxs || []).length;
+    const needsReviewCount = (allTxs || []).filter(t => t.category === 'Needs Review').length;
+    const categorizedCount = totalCount - uncategorizedCount - needsReviewCount;
+
+    const merchantDataBlock = `\n\nMERCHANT DATA (real numbers from the user's actual transactions)${importId ? ' — SCOPED TO ONE STATEMENT' : ''}:
+
+TOP MERCHANTS BY TOTAL:
+${topMerchants.length > 0
+  ? topMerchants.map(([m, d]) => `  ${m}: $${d.total.toFixed(2)} across ${d.count} txn${d.count !== 1 ? 's' : ''} (last: ${d.lastDate || 'unknown'}, cat: ${d.category})`).join('\n')
+  : '  (none)'}
+
+RECENT TRANSACTIONS (newest first):
+${recentTxs.length > 0
+  ? recentTxs.map(t => `  ${t.posted_at || t.date || '?'} ${t.merchant_name || 'Unknown'} $${Math.abs(Number(t.amount || 0)).toFixed(2)} [${t.category || 'Uncategorized'}]`).join('\n')
+  : '  (none)'}
+
+TRANSACTION COUNTS${importId ? ' (this statement only)' : ''}:
+  Total: ${totalCount}
+  Categorized: ${categorizedCount}
+  Uncategorized: ${uncategorizedCount}
+  Needs Review: ${needsReviewCount}
+${importId ? '\nSCOPE: You are looking at ONE specific statement (import_id: ' + importId + '). Answer questions about THIS statement unless the user explicitly asks about their overall picture.' : ''}
+
+RULES FOR USING MERCHANT DATA:
+- When the user asks about a specific merchant (e.g. "how much at Rogers"), search TOP MERCHANTS and RECENT TRANSACTIONS above. Quote the exact amounts and counts you find there.
+- If a merchant isn't in the lists above, say so honestly — don't guess. Say something like "I don't see any Rogers charges in your recent data — want me to search deeper?"
+- Never invent amounts. Every number in your reply must appear in the data above.`;
+
     // 4. Call Claude Haiku
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
-      system: systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }),
+      system: (systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome })) + merchantDataBlock,
       messages: [
         ...history.map((m: { role: string; content: string }) => ({
           role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
@@ -245,7 +299,7 @@ export const handler: Handler = async (event) => {
             if (subcategory) ruleRow.subcategory = subcategory;
             const { error: ruleErr } = await supabase
               .from('category_rules')
-              .upsert(ruleRow, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount', ignoreDuplicates: false });
+              .upsert(ruleRow, { onConflict: 'user_id,match_type,match_value', ignoreDuplicates: false });
             if (ruleErr) console.error('[tag-copilot] category_rules upsert (with subcat) failed', ruleErr.message);
           } catch (e: any) {
             console.error('[tag-copilot] category_rules upsert threw', e?.message);
@@ -292,7 +346,7 @@ export const handler: Handler = async (event) => {
                 category,
                 is_active: true,
                 updated_at: new Date().toISOString(),
-              }, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' });
+              }, { onConflict: 'user_id,match_type,match_value' });
             if (ruleErr) console.error('[tag-copilot] category_rules upsert failed', ruleErr.message);
           } catch (e: any) {
             console.error('[tag-copilot] category_rules upsert threw', e?.message);
