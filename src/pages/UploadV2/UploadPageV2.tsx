@@ -430,9 +430,9 @@ export default function UploadPageV2() {
     try {
       // â”€â”€ Duplicate file check â”€â”€
       const fileHash = await computeFileHash(current.file);
-      const isDupe = false; // await checkDuplicateHash(fileHash, userId);
+      const isDupe = await checkDuplicateHash(fileHash, userId);
       if (isDupe) {
-        toast.error(`This file has already been uploaded: ${current.file.name}`);
+        toast.error(`This file has already been uploaded: ${current.file.name}. Delete the existing statement from History first if you want to re-import.`);
         updateItem(current.id, { status: "failed", error: "Duplicate file" });
         processingRef.current = false;
         return;
@@ -547,10 +547,10 @@ export default function UploadPageV2() {
       try {
         // â”€â”€ Duplicate file check â”€â”€
         const fileHash = await computeFileHash(next.file);
-        const isDupe = false; // await checkDuplicateHash(fileHash, userId);
+        const isDupe = await checkDuplicateHash(fileHash, userId);
         if (isDupe) {
           clearInterval(progressInterval);
-          toast.error(`This file has already been uploaded: ${next.file.name}`);
+          toast.error(`This file has already been uploaded: ${next.file.name}. Delete the existing statement from History first if you want to re-import.`);
           updateItem(next.id, { status: "failed", error: "Duplicate file" });
           processingRef.current = false;
           await processNextInQueue();
