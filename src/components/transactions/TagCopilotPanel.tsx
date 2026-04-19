@@ -6,7 +6,6 @@ import { Reveal } from "@/pages/PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "@/pages/CategoriesV2/useCategoriesData";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { chatSize } from "@/theme/typography";
 
 const CYAN = "#22d3ee";
 
@@ -939,6 +938,7 @@ export function TagCopilotPanel({
         position: "fixed", top: 0, right: 0, bottom: 0, width: 500,
         background: T.bg,
         borderLeft: `1px solid ${T.border}`,
+        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         backgroundImage: `
           radial-gradient(ellipse 60% 40% at 90% 0%, rgba(34,211,238,0.04) 0%, transparent 70%),
           radial-gradient(ellipse 40% 30% at 10% 100%, rgba(167,139,250,0.03) 0%, transparent 70%)
@@ -1012,7 +1012,7 @@ export function TagCopilotPanel({
                   <span style={{ fontSize: 9.5, color: T.textDim }}>just now</span>
                 </div>
                 <div style={{
-                  fontSize: chatSize(isMobile), color: T.text, lineHeight: 1.7,
+                  fontSize: 15, color: T.text, lineHeight: 1.6,
                   padding: "13px 16px", borderRadius: "4px 14px 14px 14px",
                   background: "linear-gradient(135deg, rgba(34,211,238,0.07) 0%, rgba(34,211,238,0.03) 100%)",
                   border: "1px solid rgba(34,211,238,0.14)",
@@ -1344,7 +1344,7 @@ export function TagCopilotPanel({
             <Reveal delay={800} style={{ marginLeft: 38 }}>
               <SectionRule color={T.cyan} label="Tag Recommends" />
               <div style={{
-                fontSize: chatSize(isMobile), color: T.textMuted, lineHeight: 1.7,
+                fontSize: 15, color: T.textMuted, lineHeight: 1.6,
                 padding: "14px 16px", borderRadius: 14,
                 background: "linear-gradient(135deg, rgba(34,211,238,0.06) 0%, transparent 100%)",
                 border: "1px solid rgba(34,211,238,0.12)",
@@ -1390,7 +1390,7 @@ export function TagCopilotPanel({
                 <div style={{
                   maxWidth: "78%",
                   padding: "12px 16px",
-                  fontSize: chatSize(isMobile), lineHeight: 1.7,
+                  fontSize: 15, lineHeight: 1.6,
                   ...(isUser ? {
                     borderRadius: "14px 4px 14px 14px",
                     background: "rgba(34,211,238,0.1)",
@@ -1502,7 +1502,7 @@ export function TagCopilotPanel({
               spellCheck={false}
               style={{
                 flex: 1, background: "transparent", border: "none", outline: "none",
-                color: T.text, fontSize: chatSize(isMobile), padding: "10px 12px 10px 0",
+                color: T.text, fontSize: 15, padding: "10px 12px 10px 0",
                 fontFamily: "inherit", resize: "none", lineHeight: 1.55,
                 minHeight: isMobile ? 50 : 46,
               }}
