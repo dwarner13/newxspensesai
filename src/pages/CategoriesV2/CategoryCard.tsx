@@ -15,7 +15,9 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
   const avg = category.budget; // budget now holds avg monthly spend
   const pct = avg > 0 ? Math.round((category.spent / avg) * 100) : 0;
   const isOver = pct > 100;
-  const barColor = isOver ? THEME.amber : category.color;
+  const barColor = category.color;
+  // In All Time view, pct can be 1000%+ (total spend vs avg monthly). Hide bar entirely above 200 to avoid noise.
+  const showBar = avg > 0 && pct <= 200;
   const trendDir = category.trend > 0 ? "\u2191" : category.trend < 0 ? "\u2193" : "";
   const trendColor = category.trend > 10 ? THEME.red : category.trend < -5 ? THEME.green : THEME.textDim;
 
@@ -96,7 +98,7 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
       </div>
 
       {/* Progress bar */}
-      {avg > 0 && <AnimatedBar pct={Math.min(pct, 150)} color={barColor} />}
+      {showBar && <AnimatedBar pct={Math.min(pct, 150)} color={barColor} />}
 
       {/* Subcategory chips */}
       {category.subcategories && category.subcategories.length > 0 && (

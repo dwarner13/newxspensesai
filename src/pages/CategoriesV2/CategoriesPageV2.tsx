@@ -254,110 +254,18 @@ export default function CategoriesPageV2() {
           </div>
         </Reveal>
 
-        {/* Main category grid — bento layout: top 3 oversized, rest normal 3-col */}
-        {(() => {
-          const top3 = filtered.slice(0, 3);
-          const rest = filtered.slice(3);
-          return (
-            <>
-              {/* BENTO HERO: top 3 categories. Desktop: #1 dominant left, #2/#3 stacked right. Mobile: stacked. */}
-              {top3.length > 0 && (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr",
-                    gridTemplateRows: isMobile ? "auto" : "1fr 1fr",
-                    gap: 12,
-                    marginBottom: rest.length > 0 ? 12 : 0,
-                    // Give bento section a minimum height so #1 feels substantial
-                    minHeight: isMobile ? "auto" : 280,
-                  }}
-                >
-                  {/* #1: spans full left column, both rows */}
-                  <Reveal delay={300}>
-                    <div
-                      style={{
-                        gridColumn: isMobile ? "auto" : "1",
-                        gridRow: isMobile ? "auto" : "1 / 3",
-                        height: "100%",
-                        position: "relative",
-                      }}
-                    >
-                      {/* Subtle "Top Spend" badge */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 10,
-                          right: 10,
-                          zIndex: 2,
-                          fontSize: 9,
-                          fontWeight: 700,
-                          letterSpacing: 1.4,
-                          textTransform: "uppercase",
-                          padding: "4px 8px",
-                          borderRadius: 6,
-                          background: `${CYAN}18`,
-                          border: `1px solid ${CYAN}40`,
-                          color: CYAN,
-                        }}
-                      >
-                        #1 Top Spend
-                      </div>
-                      <div style={{ height: "100%" }}>
-                        <CategoryCard
-                          category={top3[0]}
-                          onClick={() => { setSubcategoryFilter(null); setSelectedCategory(top3[0]); }}
-                          onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(top3[0]); }}
-                        />
-                      </div>
-                    </div>
-                  </Reveal>
-
-                  {/* #2: top-right */}
-                  {top3[1] && (
-                    <Reveal delay={360}>
-                      <div style={{ height: "100%" }}>
-                        <CategoryCard
-                          category={top3[1]}
-                          onClick={() => { setSubcategoryFilter(null); setSelectedCategory(top3[1]); }}
-                          onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(top3[1]); }}
-                        />
-                      </div>
-                    </Reveal>
-                  )}
-
-                  {/* #3: bottom-right */}
-                  {top3[2] && (
-                    <Reveal delay={420}>
-                      <div style={{ height: "100%" }}>
-                        <CategoryCard
-                          category={top3[2]}
-                          onClick={() => { setSubcategoryFilter(null); setSelectedCategory(top3[2]); }}
-                          onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(top3[2]); }}
-                        />
-                      </div>
-                    </Reveal>
-                  )}
-                </div>
-              )}
-
-              {/* Rest: normal 3-col grid */}
-              {rest.length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
-                  {rest.map((cat, i) => (
-                    <Reveal key={cat.name} delay={480 + i * 60}>
-                      <CategoryCard
-                        category={cat}
-                        onClick={() => { setSubcategoryFilter(null); setSelectedCategory(cat); }}
-                        onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(cat); }}
-                      />
-                    </Reveal>
-                  ))}
-                </div>
-              )}
-            </>
-          );
-        })()}
+        {/* Main category grid — equal cards, 3-col on desktop */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
+          {filtered.map((cat, i) => (
+            <Reveal key={cat.name} delay={300 + i * 60}>
+              <CategoryCard
+                category={cat}
+                onClick={() => { setSubcategoryFilter(null); setSelectedCategory(cat); }}
+                onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(cat); }}
+              />
+            </Reveal>
+          ))}
+        </div>
 
         {filtered.length === 0 && (
           <div style={{ textAlign: "center", padding: "48px 0", color: THEME.textDim, fontSize: 14 }}>
