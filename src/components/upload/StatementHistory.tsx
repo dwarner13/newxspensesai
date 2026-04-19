@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
@@ -249,6 +249,7 @@ export function StatementHistory() {
       .from("imports")
       .select("id, document_id, issuer, filename, file_url, status, created_at, committed_count, error")
       .eq("user_id", userId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(200);
     console.log("[StatementHistory] query result:", { count: data?.length, error });
@@ -373,7 +374,7 @@ export function StatementHistory() {
     const ids = pendingDelete.imports.map(i => i.id);
     setDeleting(true);
     try {
-      // Snapshot transactions BEFORE delete so we can restore on undo
+      // Snapshot transactions BEFORE delete so we can restore on undo OR from Trash
       const { data: txSnapshot, error: snapErr } = await sb
         .from("transactions")
         .select("*")
@@ -382,23 +383,38 @@ export function StatementHistory() {
       if (snapErr) console.warn("[StatementHistory] snapshot failed (undo will be empty for tx)", snapErr);
       const txRows = txSnapshot || [];
 
-      // Bulk delete — one round-trip each, not a loop per id
+      // Group transactions by import_id so each import carries its own snapshot in DB
+      const txByImport = new Map<string, any[]>();
+      for (const tx of txRows) {
+        const impId = String((tx as any).import_id || "");
+        if (!impId) continue;
+        if (!txByImport.has(impId)) txByImport.set(impId, []);
+        txByImport.get(impId)!.push(tx);
+      }
+
+      // Hard-delete transactions (so they don't leak to other views)
       const { error: txDelErr } = await sb
         .from("transactions").delete()
         .eq("user_id", userId)
         .in("import_id", ids);
       if (txDelErr) throw txDelErr;
 
-      const { error: impDelErr } = await sb
-        .from("imports").delete()
-        .eq("user_id", userId)
-        .in("id", ids);
-      if (impDelErr) throw impDelErr;
+      // Soft-delete imports: set deleted_at + stash snapshot per import
+      const nowIso = new Date().toISOString();
+      for (const id of ids) {
+        const snapshot = txByImport.get(id) || [];
+        const { error: updErr } = await sb
+          .from("imports")
+          .update({ deleted_at: nowIso, deleted_snapshot: snapshot })
+          .eq("id", id)
+          .eq("user_id", userId);
+        if (updErr) throw updErr;
+      }
 
       // Optimistic UI: remove from local state
       setImports(prev => prev.filter(i => !ids.includes(i.id)));
 
-      // Stash for undo (client-side 10s buffer)
+      // Stash for 10s in-memory "Undo" toast (existing UX)
       setUndoSnapshot({
         imports: pendingDelete.imports,
         transactions: txRows,
@@ -407,6 +423,9 @@ export function StatementHistory() {
         expiresAt: Date.now() + UNDO_WINDOW_MS,
       });
       setUndoNow(Date.now());
+
+      // Refresh trash list so restore UI picks them up after 10s expiry
+      void fetchTrash();
 
       // Exit select mode if we were in it
       if (selectMode) clearSelection();
@@ -426,20 +445,97 @@ export function StatementHistory() {
     const snap = undoSnapshot;
     setUndoSnapshot(null);
     try {
-      // Re-insert imports FIRST (transactions.import_id references imports.id)
-      if (snap.imports.length > 0) {
-        const { error: impErr } = await sb.from("imports").insert(snap.imports);
-        if (impErr) throw impErr;
+      const ids = snap.imports.map(i => i.id);
+      // Clear soft-delete flags on imports (un-delete)
+      if (ids.length > 0) {
+        const { error: restErr } = await sb
+          .from("imports")
+          .update({ deleted_at: null, deleted_snapshot: null })
+          .in("id", ids)
+          .eq("user_id", userId);
+        if (restErr) throw restErr;
       }
+      // Re-insert the hard-deleted transactions
       if (snap.transactions.length > 0) {
         const { error: txErr } = await sb.from("transactions").insert(snap.transactions);
         if (txErr) throw txErr;
       }
-      // Re-fetch to rebuild UI state cleanly
       await fetchImports();
+      void fetchTrash();
     } catch (e: any) {
       console.error("[StatementHistory] undo failed", e);
-      alert(`Undo failed: ${e?.message || "unknown error"}. Some data may not have been restored. Check function logs.`);
+      alert(`Undo failed: ${e?.message || "unknown error"}. Check Trash — your statement may still be recoverable there.`);
+    }
+  };
+
+  // ─── TRASH: persistent soft-delete recovery ───
+  const [trash, setTrash] = useState<Array<ImportRow & { deleted_at: string; deleted_snapshot: any[] }>>([]);
+  const [trashOpen, setTrashOpen] = useState(false);
+
+  const fetchTrash = useCallback(async () => {
+    if (!userId) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    const { data, error } = await sb
+      .from("imports")
+      .select("id, document_id, issuer, filename, file_url, status, created_at, committed_count, error, deleted_at, deleted_snapshot")
+      .eq("user_id", userId)
+      .not("deleted_at", "is", null)
+      .gte("deleted_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .order("deleted_at", { ascending: false })
+      .limit(50);
+    if (error) {
+      console.warn("[StatementHistory] trash fetch failed", error);
+      return;
+    }
+    setTrash((data as any) || []);
+  }, [userId]);
+
+  useEffect(() => { void fetchTrash(); }, [fetchTrash]);
+
+  const performRestore = async (importId: string) => {
+    const sb = getSupabase();
+    if (!sb || !userId) return;
+    const row = trash.find(r => r.id === importId);
+    if (!row) return;
+    try {
+      // Re-insert transactions from the stashed snapshot
+      const snapshot = Array.isArray(row.deleted_snapshot) ? row.deleted_snapshot : [];
+      if (snapshot.length > 0) {
+        const { error: txErr } = await sb.from("transactions").insert(snapshot);
+        if (txErr) throw txErr;
+      }
+      // Un-delete the import
+      const { error: impErr } = await sb
+        .from("imports")
+        .update({ deleted_at: null, deleted_snapshot: null })
+        .eq("id", importId)
+        .eq("user_id", userId);
+      if (impErr) throw impErr;
+      // Refresh both views
+      await fetchImports();
+      await fetchTrash();
+    } catch (e: any) {
+      console.error("[StatementHistory] restore failed", e);
+      alert(`Restore failed: ${e?.message || "unknown error"}.`);
+    }
+  };
+
+  const performPermanentDelete = async (importId: string) => {
+    const sb = getSupabase();
+    if (!sb || !userId) return;
+    if (!confirm("Permanently delete this statement? This cannot be undone.")) return;
+    try {
+      const { error } = await sb
+        .from("imports")
+        .delete()
+        .eq("id", importId)
+        .eq("user_id", userId);
+      if (error) throw error;
+      await fetchTrash();
+    } catch (e: any) {
+      console.error("[StatementHistory] permanent delete failed", e);
+      alert(`Permanent delete failed: ${e?.message || "unknown error"}.`);
     }
   };
 
@@ -870,6 +966,79 @@ export function StatementHistory() {
           );
         })}
       </div>
+
+      {/* ========== TRASH (soft-deleted, 30-day retention) ========== */}
+      {trash.length > 0 && (
+        <div style={{ marginTop: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
+          <button
+            onClick={() => setTrashOpen(v => !v)}
+            style={{
+              width: "100%", background: "transparent", border: "none", cursor: "pointer",
+              padding: "12px 16px", display: "flex", alignItems: "center", gap: 10,
+              color: T.text, textAlign: "left",
+            }}
+          >
+            <TrashIcon size={14} color={T.dim} />
+            <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
+              Recently deleted ({trash.length})
+            </span>
+            <span style={{ fontSize: 11, color: T.dim }}>
+              {trashOpen ? "▲" : "▼"}
+            </span>
+          </button>
+          {trashOpen && (
+            <div style={{ borderTop: `1px solid ${T.border}` }}>
+              <div style={{ padding: "10px 16px", fontSize: 11, color: T.dim, background: `${T.border}30` }}>
+                Statements are kept for 30 days after delete. Restore to bring transactions back.
+              </div>
+              {trash.map((t, i) => {
+                const snapshotCount = Array.isArray(t.deleted_snapshot) ? t.deleted_snapshot.length : 0;
+                const deletedDate = t.deleted_at ? new Date(t.deleted_at) : null;
+                const deletedLabel = deletedDate ? deletedDate.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }) : "—";
+                const filename = (t as any).filename || null;
+                const issuer = (t as any).issuer || "Unknown";
+                return (
+                  <div key={t.id} style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "10px 16px", borderBottom: i < trash.length - 1 ? `1px solid ${T.border}` : "none",
+                  }}>
+                    <div style={{ fontSize: 14, flexShrink: 0 }}>🗑️</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {issuer}{filename ? ` · ${filename}` : ""}
+                      </div>
+                      <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
+                        {snapshotCount} transaction{snapshotCount !== 1 ? "s" : ""} · deleted {deletedLabel}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => performRestore(t.id)}
+                      style={{
+                        fontSize: 12, fontWeight: 600, color: T.green,
+                        background: `${T.green}14`, border: `1px solid ${T.green}40`,
+                        borderRadius: 7, padding: "6px 12px", cursor: "pointer", flexShrink: 0,
+                      }}
+                    >
+                      Restore
+                    </button>
+                    <button
+                      onClick={() => performPermanentDelete(t.id)}
+                      title="Delete permanently"
+                      style={{
+                        fontSize: 12, fontWeight: 600, color: T.red,
+                        background: "transparent", border: `1px solid ${T.red}40`,
+                        borderRadius: 7, padding: "6px 10px", cursor: "pointer", flexShrink: 0,
+                      }}
+                    >
+                      <TrashIcon size={12} color={T.red} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ========== CONFIRM DELETE MODAL ========== */}
       {pendingDelete && (

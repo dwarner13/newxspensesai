@@ -125,6 +125,7 @@ export function useImportList(): UseImportListResult {
         .from('imports')
         .select('id, status, issuer, created_at, statement_breakdown_json, document:user_documents(id, original_name, metadata)')
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(36);
 
