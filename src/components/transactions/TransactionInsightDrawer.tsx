@@ -102,9 +102,7 @@ export function TransactionInsightDrawer({
 
   // Reset on transaction change
   useEffect(() => {
-    setChatHistory([]);
     setChatReply(null);
-    setChatInput('');
     setShowAllCats(false);
     setSplitMode(false);
     setAddingSubcategory(false);
