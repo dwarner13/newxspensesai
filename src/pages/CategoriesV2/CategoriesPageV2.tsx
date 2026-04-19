@@ -6,7 +6,6 @@ import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME } from "./categoryConfig";
 import { useCategoriesData } from "./useCategoriesData";
 import { useProfile } from "@/hooks/useProfile";
-import { StatCard } from "./StatCard";
 import { CategoryCard } from "./CategoryCard";
 import { CategoryDetailDrawer } from "./CategoryDetailDrawer";
 import { AgentInsightStrip } from "./AgentInsightStrip";
@@ -80,7 +79,6 @@ export default function CategoriesPageV2() {
     ? mainCategories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
     : mainCategories;
 
-  const overBudgetCount = mainCategories.filter(c => c.budget > 0 && c.spent > c.budget).length;
   const totalTxCount = data.categories.reduce((s, c) => s + c.transactionCount, 0);
   const net = data.totalIncome - data.totalSpent;
 
@@ -160,14 +158,6 @@ export default function CategoriesPageV2() {
                 </button>
                 </>
               )}
-              <button onClick={() => setCopilotOpen(true)}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: `${CYAN}12`, border: `1px solid ${CYAN}28`, borderRadius: 10, color: CYAN, cursor: "pointer" }}
-                onMouseEnter={e => { e.currentTarget.style.background = `${CYAN}22`; }}
-                onMouseLeave={e => { e.currentTarget.style.background = `${CYAN}12`; }}
-              >
-                <span style={{ width: 20, height: 20, borderRadius: "50%", fontSize: 9, fontWeight: 700, background: `${CYAN}25`, border: `1px solid ${CYAN}44`, color: CYAN, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>T</span>
-                Tag Copilot
-              </button>
               <button onClick={() => { setBudgetCategory(filtered[0]?.name || ""); setBudgetModal(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: "linear-gradient(135deg, #fbbf24, #d97706)", border: "none", borderRadius: 10, color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 16px rgba(251,191,36,0.35)" }}>
                 {'\u26A1'} Goalie: Set Budget
               </button>
@@ -226,20 +216,6 @@ export default function CategoriesPageV2() {
                 ))}
               </div>
             )}
-          </div>
-        </Reveal>
-
-        {/* Stat cards */}
-        <Reveal delay={100}>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
-            <StatCard label="Total Spent" value={`$${fmt(data.totalSpent)}`} color={THEME.red}
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7 7-7" /></svg>} />
-            <StatCard label="Categories" value={String(data.categoryCount)} color={THEME.text}
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>} />
-            <StatCard label="Over Budget" value={String(overBudgetCount)} color={overBudgetCount > 0 ? THEME.red : THEME.green}
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>} />
-            <StatCard label="Uncategorized" value={String(data.uncategorizedCount)} color={data.uncategorizedCount > 0 ? THEME.amber : THEME.green}
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>} />
           </div>
         </Reveal>
 
