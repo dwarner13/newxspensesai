@@ -392,6 +392,21 @@ export default function UploadPageV2() {
   const updateItem = useCallback((id: string, patch: Partial<QueueItem>) => {
     setQueue(prev => {
       const next = prev.map(item => item.id === id ? { ...item, ...patch } : item);
+      // [DIAG] log any update that touches importId OR happens to a row that already has one.
+      // Catches concurrent-write / stale-closure overwrites that would explain state drift.
+      const before = prev.find(i => i.id === id);
+      const after = next.find(i => i.id === id);
+      if ('importId' in patch || before?.importId || after?.importId) {
+        console.log('[UploadV2] [DIAG] updateItem importId-touch:', {
+          id,
+          patchKeys: Object.keys(patch),
+          patchImportId: 'importId' in patch ? patch.importId : '<not in patch>',
+          beforeImportId: before?.importId,
+          afterImportId: after?.importId,
+          beforeStatus: before?.status,
+          afterStatus: after?.status,
+        });
+      }
       // Keep ref in sync immediately so recursive processNextInQueue sees updated statuses
       queueRef.current = next;
       return next;
@@ -453,6 +468,7 @@ export default function UploadPageV2() {
           console.log(`[UploadV2] txCount retry ${retry + 1}: ${txCount}`);
         }
       }
+      console.log('[UploadV2] [DIAG] Marking complete (processNext):', { itemId: current.id, importIdForSweep, importIdType: typeof importIdForSweep, importIdLen: (importIdForSweep || '').length, txCount });
       updateItem(current.id, { status: "complete", txCount, importId: importIdForSweep || undefined });
 
       // Trigger post-import fixup (filename, committed_at, Tag sweep, auto-commit)
@@ -677,6 +693,7 @@ export default function UploadPageV2() {
               console.log(`[UploadV2] txCount retry ${retry + 1}: ${txCount}`);
             }
           }
+          console.log('[UploadV2] [DIAG] Marking complete (processAll):', { itemId: next.id, importId, importIdType: typeof importId, importIdLen: (importId || '').length, txCount });
           updateItem(next.id, { status: "complete", txCount, progress: 100, importId: importId || undefined });
 
           // Flip overlay to Tag summary phase
@@ -919,6 +936,7 @@ export default function UploadPageV2() {
                 // Prefer specific import_id scoping + auto-open Tag. Falls back to
                 // issuer-wide filter if import_id wasn't captured (e.g. pipeline returned
                 // empty importId and backend poll also missed it).
+                console.log('[UploadV2] [DIAG] View button clicked (per-row):', { itemId: item.id, importId: item.importId, hasImportId: !!item.importId, status: item.status, fileName: item.file.name });
                 if (item.importId) {
                   navigate(`/dashboard/transactions?import_id=${item.importId}&openTag=1`);
                 } else {
@@ -965,6 +983,7 @@ export default function UploadPageV2() {
                   // Multi-file batch: land on all-transactions but still auto-open Tag so
                   // they see the global category picture without needing to click the bubble.
                   const completed = queue.filter(q => q.status === 'complete');
+                  console.log('[UploadV2] [DIAG] View Transactions clicked (banner):', { completedCount: completed.length, firstCompleted: completed[0] ? { id: completed[0].id, importId: completed[0].importId, hasImportId: !!completed[0].importId, fileName: completed[0].file.name } : null });
                   if (completed.length === 1 && completed[0].importId) {
                     navigate(`/dashboard/transactions?import_id=${completed[0].importId}&openTag=1`);
                   } else if (completed.length === 1) {
