@@ -450,9 +450,13 @@ export function StatementHistory() {
       const issuer = detectIssuer(imp, meta);
       const range = dateRanges.get(imp.id);
       // Prefer actual transaction year over created_at (which is just upload time).
-      // Falls through to statement_period string, then created_at year as last resort.
+      // IMPORTANT: use range.max (END of statement period), not range.min (START).
+      // A statement spanning Dec 16 2024 – Jan 15 2025 should land in the 2025 folder
+      // (it's the Jan 2025 statement), not a lonely 2024 folder. This was fixed before
+      // (commits 57c66484, b09624cb) and regressed — don't revert without reading the
+      // comment thread on those commits.
       const year = range
-        ? range.min.getFullYear()
+        ? range.max.getFullYear()
         : meta?.statement_period
           ? parseInt(meta.statement_period.match(/\d{4}/)?.[0] || String(new Date(imp.created_at).getFullYear()))
           : new Date(imp.created_at).getFullYear();
@@ -635,7 +639,7 @@ export function StatementHistory() {
                       {folder.imports.length} statement{folder.imports.length !== 1 ? "s" : ""}
                       {folder.totalTx > 0 && ` · ${folder.totalTx.toLocaleString()} transactions`}
                       {folder.txEarliest && folder.txLatest
-                        ? ` · ${folder.txEarliest.toLocaleDateString("en-CA", { month: "short", day: "numeric" })} – ${folder.txLatest.toLocaleDateString("en-CA", { month: "short", day: "numeric" })}`
+                        ? ` · ${folder.txEarliest.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })} – ${folder.txLatest.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}`
                         : ` · ${formatDate(folder.earliest)} – ${formatDate(folder.latest)}`}
                     </div>
                   </div>
