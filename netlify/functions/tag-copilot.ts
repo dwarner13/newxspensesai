@@ -69,8 +69,9 @@ ${flaggedText}
 YOUR CAPABILITIES — you can take these actions when the user asks:
 
 1. SET A RULE for a merchant (e.g. "always categorize Shell as Transportation"):
-   End your reply with: {"action":"set_rule","vendor":"shell","category":"Transportation","applyToExisting":true}
+   End your reply with: {"action":"set_rule","vendor":"shell","category":"Transportation","subcategory":"Gas & Fuel","applyToExisting":true}
    This writes the rule AND updates all existing transactions for that merchant.
+   The "subcategory" field is OPTIONAL but you MUST include it whenever the user named one — e.g. "Urban Kids is Shopping > Clothing" → category:"Shopping", subcategory:"Clothing". Dropping the subcategory silently loses it on the rule.
    IMPORTANT: Always ask the user to confirm before emitting the set_rule action JSON. Say what you plan to do, then wait for the user to say yes or confirm before outputting the JSON.
 
 2. BULK RECATEGORIZE a whole category (e.g. "move all Other transactions to Food & Dining"):
@@ -318,14 +319,24 @@ RULES FOR USING MERCHANT DATA:
 
         if (action?.action === 'set_rule' || action?.action === 'apply_to_merchant') {
           const vendor = String(action.vendor || '').toLowerCase().trim();
-          const category = String(action.category || '');
+          let category = String(action.category || '');
+          let subcategory: string | null = action.subcategory ? String(action.subcategory).trim() : null;
+
+          // Fallback: if the model encoded the subcategory inline as "Shopping > Clothing"
+          // (instead of using the dedicated subcategory field), parse it out so we still save it.
+          if (!subcategory && category.includes('>')) {
+            const [mainCat, subCat] = category.split('>').map(s => s.trim());
+            if (mainCat) category = mainCat;
+            if (subCat) subcategory = subCat;
+          }
+
           const applyToExisting = action.applyToExisting !== false;
 
           // Check for existing rule (duplicate detection) - uses match_value
           try {
             const { data: existingRule } = await supabase
               .from('category_rules')
-              .select('category')
+              .select('category, subcategory')
               .eq('user_id', auth.userId)
               .ilike('match_value', vendor.toUpperCase())
               .limit(1)
@@ -336,40 +347,54 @@ RULES FOR USING MERCHANT DATA:
             }
           } catch { /* non-blocking */ }
 
-          // Write vendor memory
-          await supabase.from('vendor_category_memory').upsert({
+          // Write vendor memory (include subcategory when we have one)
+          const vcmRow: Record<string, unknown> = {
             user_id: auth.userId,
             vendor_key: vendor.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
             category,
             updated_at: new Date().toISOString(),
-          }, { onConflict: 'user_id,vendor_key' });
+          };
+          if (subcategory) vcmRow.subcategory = subcategory;
+          await supabase.from('vendor_category_memory').upsert(vcmRow, { onConflict: 'user_id,vendor_key' });
 
           // Write category_rules - schema uses match_value (not merchant_pattern)
           try {
+            const ruleRow: Record<string, unknown> = {
+              user_id: auth.userId,
+              match_type: 'contains',
+              match_value: vendor.toUpperCase(),
+              category,
+              is_active: true,
+              updated_at: new Date().toISOString(),
+            };
+            if (subcategory) ruleRow.subcategory = subcategory;
             const { error: ruleErr } = await supabase
               .from('category_rules')
-              .upsert({
-                user_id: auth.userId,
-                match_type: 'contains',
-                match_value: vendor.toUpperCase(),
-                category,
-                is_active: true,
-                updated_at: new Date().toISOString(),
-              }, { onConflict: 'user_id,match_type,match_value' });
+              .upsert(ruleRow, { onConflict: 'user_id,match_type,match_value' });
             if (ruleErr) console.error('[tag-copilot] category_rules upsert failed', ruleErr.message);
           } catch (e: any) {
             console.error('[tag-copilot] category_rules upsert threw', e?.message);
           }
 
-          // Apply to existing transactions
+          // Apply to existing transactions (include subcategory when we have one)
           if (applyToExisting) {
+            const txUpdate: Record<string, unknown> = {
+              category,
+              category_source: 'tag_rule',
+              updated_at: new Date().toISOString(),
+            };
+            if (subcategory) {
+              txUpdate.subcategory = subcategory;
+              txUpdate.subcategory_source = 'tag_rule';
+            }
             await supabase
               .from('transactions')
-              .update({ category, category_source: 'tag_rule', updated_at: new Date().toISOString() })
+              .update(txUpdate)
               .eq('user_id', auth.userId)
               .ilike('merchant_name', `%${vendor}%`);
           }
           action.applied = true;
+          if (subcategory) action.subcategoryApplied = subcategory;
         }
 
         if (action?.action === 'bulk_recategorize') {
