@@ -139,15 +139,24 @@ export default function TransactionsPageV2() {
     if (importIdParam) {
       console.log('[TxPage] [DIAG] applying import_id filter:', importIdParam);
       setStatementFilter(importIdParam);
-      setSearchParams(p => { p.delete("import_id"); p.delete("importId"); return p; }, { replace: true });
+      // NOTE: Don't strip import_id/importId from URL here. A parent component
+      // (suspected route config with location-dependent `key`) remounts this
+      // component on URL changes, which resets statementFilter to 'all' and
+      // collapses the scoped view. Keeping the param in URL also makes scoped
+      // views refresh-safe and bookmarkable. Tracked as tech debt to find the
+      // remount trigger in the routing layer.
     } else {
       console.log('[TxPage] [DIAG] NO import_id in URL — staying on global view');
     }
     // Strip ?openTag=1 from URL after consumption (state was set synchronously in
     // the useState initializer above, so we just need to clean the URL).
-    if (searchParams.get("openTag")) {
-      setSearchParams(p => { p.delete("openTag"); return p; }, { replace: true });
-    }
+    // NOTE: URL strip disabled — parent route remounts on URL change (see
+    // import_id note above). Leaving openTag=1 in the URL is harmless; the
+    // synchronous useState initializer reads it once and tagPanelOpen state
+    // owns the panel visibility from there.
+    // if (searchParams.get("openTag")) {
+    //   setSearchParams(p => { p.delete("openTag"); return p; }, { replace: true });
+    // }
     // Auto-open drawer from tag-inbox Answer button
     const autoOpenId = searchParams.get("autoOpen");
     if (autoOpenId) {
