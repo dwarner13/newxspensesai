@@ -85,12 +85,18 @@ YOUR CAPABILITIES — you can take these actions when the user asks:
 4. APPLY RULE TO SPECIFIC MERCHANT across all transactions:
    End your reply with: {"action":"apply_to_merchant","vendor":"leduc diner","category":"Food & Dining"}
 
+5. RENAME A MERCHANT — fix OCR mistakes (e.g. "Unknown" → "Gordon Food Service"):
+   End your reply with: {"action":"rename_merchant","from":"Unknown","to":"Gordon Food Service"}
+   This updates merchant_name on every transaction whose current name matches "from" (case-insensitive exact match). Use this ONLY when the user explicitly wants to fix a mangled merchant name.
+   If "from" is ambiguous (e.g. the user says "rename this one" without naming it), ask which merchant they mean before emitting.
+
 RULES FOR ACTIONS:
 - Only emit an action JSON when the user clearly wants a change made — not for questions
 - Use only these categories: ${CATEGORIES.join(', ')}
 - When setting a rule, confirm what you are doing in plain language first, then emit the JSON on its own line
 - After a bulk action, tell the user how many transactions will be affected if you know
 - applyToExisting defaults to true unless user says otherwise
+- DO NOT write "Done!" or "Saved!" or claim an action succeeded in your reply text. The system automatically appends a ✓ Confirmed line with the real DB results after every action. Your job is to describe what you're about to do, then emit the JSON. The system reports what actually happened.
 
 YOUR PERSONALITY:
 - You are Tag. Talk like a sharp friend, not a report generator.
@@ -107,7 +113,7 @@ FORMATTING:
 IMPORTANT:
 - Keep every reply to 2-3 sentences maximum. Be direct and personable. Always end with one question. Never use bullet points or headers in replies.
 - Only emit the JSON action line when making a real change. Never emit it for explanations or questions.
-- If the user asks about statement dates, import dates, or when statements were uploaded, tell them clearly: 'I don\'t have statement date info directly — check the Reports page for your full statement history by date.' Never guess or make up dates.`;
+- Each RECENT TRANSACTION line includes "from {statement name}" when we know its source (e.g. "from Capital One · Mar 2025 Statement"). When the user asks "where did this come from?" or "which card?" or "which statement?", quote that source directly. If the line has no "from {...}" suffix, the source is genuinely unknown for that transaction — say so honestly, don't guess.`;
 }
 
 export const handler: Handler = async (event) => {
@@ -159,6 +165,31 @@ export const handler: Handler = async (event) => {
       txQuery = txQuery.eq('import_id', importId);
     }
     const { data: allTxs } = await txQuery.limit(1500);
+
+    // 2b. Source attribution: resolve import_id → statement display label.
+    // Lets Tag answer "which card did this come from" without guessing.
+    const importIds = Array.from(new Set((allTxs || []).map(t => t.import_id).filter(Boolean))) as string[];
+    const importMap: Record<string, { label: string; issuer: string | null }> = {};
+    if (importIds.length > 0) {
+      try {
+        const { data: impData } = await supabase
+          .from('imports')
+          .select('id, filename, issuer')
+          .in('id', importIds);
+        for (const imp of impData || []) {
+          const baseName = String(imp.filename || '').replace(/\.(pdf|csv|xlsx?|txt)$/i, '').trim();
+          const issuer = imp.issuer ? String(imp.issuer) : null;
+          const label = issuer && baseName
+            ? `${issuer} · ${baseName}`
+            : (issuer || baseName || '(unknown statement)');
+          importMap[imp.id] = { label, issuer };
+        }
+      } catch (e: any) {
+        // Non-fatal — source attribution is best-effort. If the query fails
+        // (missing column, etc.) Tag still works, just without source labels.
+        console.error('[tag-copilot] imports lookup failed:', e?.message);
+      }
+    }
 
     const catMap: Record<string, { count: number; total: number }> = {};
     let yearSpent = 0;
@@ -230,7 +261,10 @@ ${topMerchants.length > 0
 
 RECENT TRANSACTIONS (newest first):
 ${recentTxs.length > 0
-  ? recentTxs.map(t => `  ${t.posted_at || t.date || '?'} ${t.merchant_name || 'Unknown'} $${Math.abs(Number(t.amount || 0)).toFixed(2)} [${t.category || 'Uncategorized'}]`).join('\n')
+  ? recentTxs.map(t => {
+      const src = t.import_id && importMap[t.import_id] ? ` from ${importMap[t.import_id].label}` : '';
+      return `  ${t.posted_at || t.date || '?'} ${t.merchant_name || 'Unknown'} $${Math.abs(Number(t.amount || 0)).toFixed(2)} [${t.category || 'Uncategorized'}]${src}`;
+    }).join('\n')
   : '  (none)'}
 
 TRANSACTION COUNTS${importId ? ' (this statement only)' : ''}:
@@ -282,11 +316,13 @@ RULES FOR USING MERCHANT DATA:
           const vendor = String(action.vendor || '').toLowerCase().trim();
           const subcategory = String(action.subcategory || '');
           const category = String(action.category || '');
-          await supabase
+          const { count: subUpdatedCount } = await supabase
             .from('transactions')
             .update({ subcategory, subcategory_source: 'user_chat', updated_at: new Date().toISOString() })
             .eq('user_id', auth.userId)
-            .ilike('merchant_name', '%' + vendor + '%');
+            .ilike('merchant_name', '%' + vendor + '%')
+            .select('id', { count: 'exact', head: true });
+          action.affectedCount = subUpdatedCount || 0;
           if (category) {
             await supabase.from('vendor_category_memory').upsert({
               user_id: auth.userId,
@@ -387,11 +423,13 @@ RULES FOR USING MERCHANT DATA:
               txUpdate.subcategory = subcategory;
               txUpdate.subcategory_source = 'tag_rule';
             }
-            await supabase
+            const { count: ruleUpdatedCount } = await supabase
               .from('transactions')
               .update(txUpdate)
               .eq('user_id', auth.userId)
-              .ilike('merchant_name', `%${vendor}%`);
+              .ilike('merchant_name', `%${vendor}%`)
+              .select('id', { count: 'exact', head: true });
+            action.affectedCount = ruleUpdatedCount || 0;
           }
           action.applied = true;
           if (subcategory) action.subcategoryApplied = subcategory;
@@ -408,6 +446,24 @@ RULES FOR USING MERCHANT DATA:
               .eq('category', from)
               .select('id', { count: 'exact', head: true });
             action.affectedCount = count || 0;
+            action.applied = true;
+          }
+        }
+
+        if (action?.action === 'rename_merchant') {
+          const fromName = String(action.from || '').trim();
+          const toName = String(action.to || '').trim();
+          if (fromName && toName) {
+            // Case-insensitive EXACT match. ilike without wildcards = exact match.
+            // Precision over recall — we don't want "Rogers" → "Rogers Wireless"
+            // to also rename every row that happens to contain "Rogers".
+            const { count: renamedCount } = await supabase
+              .from('transactions')
+              .update({ merchant_name: toName, updated_at: new Date().toISOString() })
+              .eq('user_id', auth.userId)
+              .ilike('merchant_name', fromName)
+              .select('id', { count: 'exact', head: true });
+            action.renamedCount = renamedCount || 0;
             action.applied = true;
           }
         }
@@ -457,7 +513,53 @@ RULES FOR USING MERCHANT DATA:
       }).catch(() => { /* fire and forget */ });
     }
 
-    const cleanReply = reply.replace(/\n?\{[^{}]*"action"\s*:[^{}]*\}/g, '').trim();
+    // ─── Truth mode: verify actual DB state post-action and append a factual
+    // ─── confirmation line to the reply. This exists because the model can
+    // ─── claim "Done — moved to Shopping / Clothing" while only having saved
+    // ─── Shopping. The system now reports what actually hit the database.
+    let verificationLine = '';
+    if (action?.applied) {
+      try {
+        const at = String(action.action || '');
+        if (at === 'set_rule' || at === 'apply_to_merchant') {
+          const vendor = String(action.vendor || '').toUpperCase();
+          const { data: ruleRow } = await supabase
+            .from('category_rules')
+            .select('category, subcategory')
+            .eq('user_id', auth.userId)
+            .ilike('match_value', vendor)
+            .limit(1)
+            .maybeSingle();
+          const catLabel = ruleRow?.subcategory
+            ? `${ruleRow.category} / ${ruleRow.subcategory}`
+            : (ruleRow?.category || '(rule not found)');
+          const n = Number(action.affectedCount || 0);
+          verificationLine = `\n\n✓ Confirmed: **${vendor}** rule saved as **${catLabel}** — **${n}** transaction${n !== 1 ? 's' : ''} updated.`;
+          action.verification = {
+            rule: { category: ruleRow?.category ?? null, subcategory: ruleRow?.subcategory ?? null },
+            transactionsUpdated: n,
+          };
+        } else if (at === 'set_subcategory') {
+          const vendor = String(action.vendor || '').toUpperCase();
+          const sub = String(action.subcategory || '');
+          const n = Number(action.affectedCount || 0);
+          verificationLine = `\n\n✓ Confirmed: **${vendor}** subcategory set to **${sub}** on **${n}** transaction${n !== 1 ? 's' : ''}.`;
+          action.verification = { subcategory: sub, transactionsUpdated: n };
+        } else if (at === 'bulk_recategorize') {
+          const n = Number(action.affectedCount || 0);
+          verificationLine = `\n\n✓ Confirmed: **${n}** transaction${n !== 1 ? 's' : ''} moved from **${action.from}** to **${action.to}**.`;
+          action.verification = { transactionsUpdated: n };
+        } else if (at === 'rename_merchant') {
+          const n = Number(action.renamedCount || 0);
+          verificationLine = `\n\n✓ Confirmed: renamed **${n}** transaction${n !== 1 ? 's' : ''} from **${action.from}** to **${action.to}**.`;
+          action.verification = { transactionsUpdated: n };
+        }
+      } catch (e: any) {
+        console.error('[tag-copilot] verification failed:', e?.message);
+      }
+    }
+
+    const cleanReply = reply.replace(/\n?\{[^{}]*"action"\s*:[^{}]*\}/g, '').trim() + verificationLine;
 
     return {
       statusCode: 200,
