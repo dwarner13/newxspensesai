@@ -55,10 +55,10 @@ const STYLES = `
   .tag-toggle:hover    { color:#4dd4ec !important }
   .tag-toggle          { transition:color 0.15s }
   .tag-stat-card:hover { border-color:rgba(34,211,238,0.22) !important; transform:translateY(-1px) }
-  .tag-stat-card       { transition:all 0.18s ease; flex: 0 0 auto; min-width: 105px }
+  .tag-stat-card       { transition:all 0.18s ease; flex: 0 0 auto; min-width: 112px }
   .tag-stats-row::-webkit-scrollbar { display: none }
   @media (max-width: 640px) {
-    .tag-stat-card     { min-width: 92px; padding: 10px 8px !important }
+    .tag-stat-card     { min-width: 100px; padding: 12px 10px !important }
   }
   .tag-flag-card:hover { border-color:rgba(251,146,60,0.25) !important }
   .tag-flag-card       { transition:border-color 0.15s }
@@ -251,12 +251,12 @@ function SectionRule({ color, label }: { color: string; label: string }) {
 function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="tag-stat-card" style={{
-      flex: 1, padding: "12px 10px", borderRadius: 12,
+      flex: 1, padding: "14px 12px", borderRadius: 12,
       background: T.surface, border: `1px solid ${T.border}`,
       textAlign: "center", cursor: "default",
     }}>
-      <div style={{ fontSize: 8.5, textTransform: "uppercase", letterSpacing: 1.8, color: T.textDim, fontWeight: 700, marginBottom: 6, fontFamily: "'Syne',sans-serif" }}>{label}</div>
-      <div style={{ fontSize: 17, fontWeight: 800, color, fontFamily: "'Syne',sans-serif", textShadow: `0 0 16px ${color}55` }}>{value}</div>
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: T.textDim, fontWeight: 700, marginBottom: 8, fontFamily: "'Syne',sans-serif" }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: "'Syne',sans-serif", textShadow: `0 0 16px ${color}55` }}>{value}</div>
     </div>
   );
 }
