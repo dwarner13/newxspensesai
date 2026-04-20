@@ -55,25 +55,6 @@ export default function CategoriesPageV2() {
     };
   }, [data]);
 
-  // Auto-open Tag once per session when landing on Categories. Respects
-  // dismissal — if user closed Tag earlier this session, don't re-open it
-  // on subsequent visits. sessionStorage clears on hard refresh / new tab.
-  // Gate on data.loading so we open WITH real numbers, not empty state.
-  useEffect(() => {
-    if (data.loading) return;
-    if (copilotOpen) return;
-    try {
-      if (sessionStorage.getItem('tag_autopen_dismissed') === '1') return;
-    } catch { return; /* storage blocked — don't auto-open */ }
-    // Small delay so the page chrome paints first, then Tag slides in
-    const t = window.setTimeout(() => {
-      setCopilotOpen(true);
-      // Mark dismissed immediately so navigating away and back doesn't re-open.
-      // Auto-open is strictly once-per-session; floating bubble covers re-opens.
-      try { sessionStorage.setItem('tag_autopen_dismissed', '1'); } catch { /* noop */ }
-    }, 400);
-    return () => window.clearTimeout(t);
-  }, [data.loading, copilotOpen]);
   const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
   const [subcategoryFilter, setSubcategoryFilter] = useState<{ name: string; merchantNames: string[] } | null>(null);
   const [search, setSearch] = useState("");
@@ -90,6 +71,29 @@ export default function CategoriesPageV2() {
     h(); window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
+
+  // Auto-open Tag once per session when landing on Categories. Respects
+  // dismissal — if user closed Tag earlier this session, don't re-open it
+  // on subsequent visits. sessionStorage clears on hard refresh / new tab.
+  // Gate on data.loading so we open WITH real numbers, not empty state.
+  // NOTE: must be declared AFTER the copilotOpen useState — referencing
+  // copilotOpen in the deps array before its const declaration triggers TDZ
+  // (minified as 'v'), which is what was crashing the page for all users.
+  useEffect(() => {
+    if (data.loading) return;
+    if (copilotOpen) return;
+    try {
+      if (sessionStorage.getItem('tag_autopen_dismissed') === '1') return;
+    } catch { return; /* storage blocked — don't auto-open */ }
+    // Small delay so the page chrome paints first, then Tag slides in
+    const t = window.setTimeout(() => {
+      setCopilotOpen(true);
+      // Mark dismissed immediately so navigating away and back doesn't re-open.
+      // Auto-open is strictly once-per-session; floating bubble covers re-opens.
+      try { sessionStorage.setItem('tag_autopen_dismissed', '1'); } catch { /* noop */ }
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [data.loading, copilotOpen]);
 
   const handleExport = useCallback(() => {
     if (data.categories.length === 0) { toast.error("No categories to export"); return; }
