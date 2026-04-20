@@ -96,25 +96,57 @@ export default function TransactionsPageV2() {
   const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string } | null>(null);
   const [tagInsightLoading, setTagInsightLoading] = useState(false);
   const [tagPanelOpen, setTagPanelOpen] = useState(() => {
-    // Priority: URL param (upload handoff) > remembered preference > default open.
-    // Defaulting to open on first visit so new users discover Tag; after that,
-    // respect whatever the user last did (open or close) — persisted below.
-    if (initialParams.openTag) return true;
-    try {
-      const stored = window.localStorage.getItem('xai.tagPanel.open');
-      if (stored === null) return true;  // first-time user → open
-      return stored === '1';
-    } catch {
-      return true;  // localStorage unavailable (private mode, etc.) → open
-    }
+    // URL param (upload handoff) forces Tag open on mount. Otherwise defer
+    // to the auto-open effect below, which decides based on session
+    // dismissal — matching the Categories page behavior for consistency.
+    return initialParams.openTag;
   });
 
-  // Persist Tag open/closed preference so the next visit to this page
-  // remembers the user's last choice.
+  // Mark auto-open as dismissed for this session whenever Tag becomes open,
+  // regardless of cause (URL param, auto-open timer, bubble tap, upload
+  // handoff). This is how "auto-open once per session" is enforced — once
+  // Tag has been open in this session, don't re-auto-open even after close.
+  // sessionStorage clears on hard refresh / new tab, so next session gets
+  // a fresh auto-open.
   useEffect(() => {
-    try { window.localStorage.setItem('xai.tagPanel.open', tagPanelOpen ? '1' : '0'); }
-    catch { /* non-fatal */ }
+    if (tagPanelOpen) {
+      try { sessionStorage.setItem('tag_autopen_dismissed', '1'); } catch { /* noop */ }
+    }
   }, [tagPanelOpen]);
+
+  // Auto-open Tag once per session when landing on Transactions. Shares the
+  // 'tag_autopen_dismissed' sessionStorage key with the Categories page, so
+  // if Tag auto-opened on Categories first, it won't re-auto-open here (and
+  // vice-versa). Gated on isLoading so we open WITH real numbers, not the
+  // empty state.
+  useEffect(() => {
+    if (isLoading) return;
+    if (tagPanelOpen) return;
+    try {
+      if (sessionStorage.getItem('tag_autopen_dismissed') === '1') return;
+    } catch { return; /* storage blocked — don't auto-open */ }
+    const t = window.setTimeout(() => setTagPanelOpen(true), 400);
+    return () => window.clearTimeout(t);
+  }, [isLoading, tagPanelOpen]);
+
+  // Overview section (stat cards + donut + AI insights) open/closed.
+  // First visit default: expanded on desktop (md+), collapsed on mobile —
+  // so mobile users see the transaction list above the fold immediately.
+  // Subsequent visits: respect the user's last choice via localStorage.
+  const [overviewOpen, setOverviewOpen] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem('xai.overview.open');
+      if (stored !== null) return stored === '1';
+      return window.matchMedia('(min-width: 768px)').matches;
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem('xai.overview.open', overviewOpen ? '1' : '0'); }
+    catch { /* non-fatal */ }
+  }, [overviewOpen]);
+
   const [tagPanelTx, setTagPanelTx] = useState<CommittedTransaction | null>(null);
   const [visibleCount, setVisibleCount] = useState(100);
   const [tagBadgeCount, setTagBadgeCount] = useState(0);
@@ -693,8 +725,38 @@ export default function TransactionsPageV2() {
           </div>
         </div>
 
-        {/* STAT CARDS — hidden in statement mode */}
-        {!isStatementMode && <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {/* OVERVIEW SUMMARY STRIP — mobile only. Acts as both a collapsed
+            summary (shows key numbers) and an expand/collapse toggle. On
+            desktop (md+) this button is hidden entirely; the stats/charts
+            below always render. */}
+        {!isStatementMode && (
+          <button
+            onClick={() => setOverviewOpen(v => !v)}
+            className="md:hidden w-full flex items-center gap-3 rounded-xl border border-slate-700/50 bg-slate-900/50 px-4 py-3 mb-3 hover:border-[#2d4a6e] transition-colors"
+            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}
+            aria-expanded={overviewOpen}
+            aria-controls="tx-overview-content"
+          >
+            <ChevronDown
+              className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${overviewOpen ? '' : '-rotate-90'}`}
+            />
+            <span className="text-[11px] uppercase tracking-[0.14em] text-slate-400 font-bold shrink-0">Overview</span>
+            {!overviewOpen && (
+              <div className="flex items-center gap-2 text-[12px] font-bold tabular-nums min-w-0 ml-auto">
+                <span className={netFlow >= 0 ? 'text-emerald-400' : 'text-amber-400'}>
+                  {netFlow >= 0 ? '+' : '-'}${fmt(Math.abs(netFlow))}
+                </span>
+                <span className="text-slate-600">·</span>
+                <span className="text-slate-300">{filtered.length} txns</span>
+              </div>
+            )}
+          </button>
+        )}
+
+        {/* STAT CARDS — hidden in statement mode; collapsible on mobile via
+            overviewOpen. On md+ always visible regardless of state (md:grid
+            overrides mobile hidden). */}
+        {!isStatementMode && <div id="tx-overview-content" className={`grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 ${overviewOpen ? '' : 'hidden md:grid'}`}>
           {[
             { label: 'Total Spent', value: `$${fmt(totalSpent)}`, color: 'text-red-400', icon: <ArrowUpRight className="h-3.5 w-3.5 text-red-400" />, tab: 'expenses' as const },
             { label: 'Total Income', value: `$${fmt(totalIncome)}`, color: 'text-emerald-400', icon: <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400" />, tab: 'income' as const },
@@ -711,8 +773,9 @@ export default function TransactionsPageV2() {
           ))}
         </div>}
 
-        {/* TWO COLUMN: Donut + AI Insights — hidden in statement mode */}
-        {!isStatementMode && <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+        {/* TWO COLUMN: Donut + AI Insights — hidden in statement mode;
+            collapsible on mobile via overviewOpen (same rules as stat cards). */}
+        {!isStatementMode && <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 ${overviewOpen ? '' : 'hidden md:grid'}`}>
           {/* Donut */}
           <div className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-4">Spending by category</div>
