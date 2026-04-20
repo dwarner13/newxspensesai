@@ -1581,7 +1581,11 @@ export function TagCopilotPanel({
               spellCheck={false}
               style={{
                 flex: 1, background: "transparent", border: "none", outline: "none",
-                color: T.text, fontSize: 15, padding: "10px 12px 10px 0",
+                color: T.text,
+                // 16px on mobile prevents iOS auto-zoom when the textarea is focused.
+                // Anything below 16px triggers the zoom-to-input behavior that breaks layout.
+                fontSize: isMobile ? 16 : 15,
+                padding: "10px 12px 10px 0",
                 fontFamily: "inherit", resize: "none", lineHeight: 1.55,
                 minHeight: isMobile ? 50 : 46,
               }}
