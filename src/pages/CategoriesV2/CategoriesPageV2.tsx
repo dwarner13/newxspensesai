@@ -34,12 +34,46 @@ export default function CategoriesPageV2() {
   const handleRefresh = useCallback(() => {
     if (isRefreshing) return;
     setIsRefreshing(true);
+    // Actually refetch data — not just dispatch events and hope something listens.
+    void data.refetch?.();
     try { window.dispatchEvent(new Event('transactions:refresh')); } catch { /* noop */ }
     try { window.dispatchEvent(new Event('tag:stats-refresh')); } catch { /* noop */ }
-    // Flip period to force useCategoriesData to re-run even if hook doesn't listen
-    setSelectedPeriod(p => p); // no-op update, triggers dep re-check
     setTimeout(() => setIsRefreshing(false), 800);
-  }, [isRefreshing]);
+  }, [isRefreshing, data]);
+
+  // Listen for tag action events so the page auto-refreshes after Tag
+  // successfully re-categorizes, sets a rule, or renames a merchant. Belt +
+  // suspenders on top of useTransactions's realtime subscription — mobile
+  // WebSocket subscriptions drop during sleep/wake and miss updates.
+  useEffect(() => {
+    const onRefresh = () => { void data.refetch?.(); };
+    window.addEventListener('tag:stats-refresh', onRefresh);
+    window.addEventListener('transactions:refresh', onRefresh);
+    return () => {
+      window.removeEventListener('tag:stats-refresh', onRefresh);
+      window.removeEventListener('transactions:refresh', onRefresh);
+    };
+  }, [data]);
+
+  // Auto-open Tag once per session when landing on Categories. Respects
+  // dismissal — if user closed Tag earlier this session, don't re-open it
+  // on subsequent visits. sessionStorage clears on hard refresh / new tab.
+  // Gate on data.loading so we open WITH real numbers, not empty state.
+  useEffect(() => {
+    if (data.loading) return;
+    if (copilotOpen) return;
+    try {
+      if (sessionStorage.getItem('tag_autopen_dismissed') === '1') return;
+    } catch { return; /* storage blocked — don't auto-open */ }
+    // Small delay so the page chrome paints first, then Tag slides in
+    const t = window.setTimeout(() => {
+      setCopilotOpen(true);
+      // Mark dismissed immediately so navigating away and back doesn't re-open.
+      // Auto-open is strictly once-per-session; floating bubble covers re-opens.
+      try { sessionStorage.setItem('tag_autopen_dismissed', '1'); } catch { /* noop */ }
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [data.loading, copilotOpen]);
   const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
   const [subcategoryFilter, setSubcategoryFilter] = useState<{ name: string; merchantNames: string[] } | null>(null);
   const [search, setSearch] = useState("");
@@ -300,7 +334,13 @@ export default function CategoriesPageV2() {
       {/* Tag Copilot Panel */}
       {copilotOpen && createPortal(
         <TagCopilotPanel
-          onClose={() => { setCopilotOpen(false); setTimeout(() => setCopilotInitialMessage(""), 300); }}
+          onClose={() => {
+            setCopilotOpen(false);
+            // Remember dismissal for this session so we don't re-auto-open.
+            // Cleared on hard refresh / new browser session (sessionStorage).
+            try { sessionStorage.setItem('tag_autopen_dismissed', '1'); } catch { /* noop */ }
+            setTimeout(() => setCopilotInitialMessage(""), 300);
+          }}
           firstName={firstName}
           totalCount={totalTxCount}
           categorizedCount={totalTxCount - data.uncategorizedCount}

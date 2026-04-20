@@ -72,10 +72,14 @@ export interface CategoriesPageData {
   flaggedTransactions: FlaggedTransaction[];
   subcategorySuggestions: SubcategorySuggestion[];
   availablePeriods: string[];
+  /** Trigger a fresh fetch. Useful after Tag actions that mutate data —
+   * realtime should pick up the change, but this is a belt+suspenders for
+   * mobile where WebSocket subscriptions drop during sleep/wake. */
+  refetch: () => Promise<void>;
 }
 
 export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
-  const { transactions, isLoading } = useTransactions();
+  const { transactions, isLoading, refetch } = useTransactions();
 
   return useMemo(() => {
     if (isLoading) {
@@ -83,6 +87,7 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
         categories: [], totalSpent: 0, totalIncome: 0, totalBudget: 0, categoryCount: 0,
         uncategorizedCount: 0, avgSpentPerCategory: 0, loading: true,
         flaggedTransactions: [], subcategorySuggestions: [], availablePeriods: [],
+        refetch,
       };
     }
 
@@ -245,6 +250,7 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
       flaggedTransactions,
       subcategorySuggestions,
       availablePeriods,
+      refetch,
     };
-  }, [transactions, isLoading, selectedPeriod]);
+  }, [transactions, isLoading, selectedPeriod, refetch]);
 }

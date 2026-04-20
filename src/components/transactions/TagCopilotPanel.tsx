@@ -860,6 +860,45 @@ export function TagCopilotPanel({
     const fmtAmount = (n: number) =>
       `$${n.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+    // "Since last visit" detection — only for global view, not scoped imports
+    // We store the visit timestamp + a snapshot of count on each panel open.
+    // On subsequent open, diff against snapshot to surface what's new.
+    let sinceVisitLine = "";
+    if (!importId) {
+      try {
+        const lastVisitTs = Number(localStorage.getItem("tag_last_visit_ts") || 0);
+        const lastVisitCount = Number(localStorage.getItem("tag_last_visit_count") || 0);
+        const now = Date.now();
+        const DAY_MS = 24 * 60 * 60 * 1000;
+
+        // Only greet about "since last visit" if the previous visit was ≥1 hour ago
+        // (avoids awkward "welcome back, 0 new transactions since 3 min ago").
+        if (lastVisitTs > 0 && now - lastVisitTs > 60 * 60 * 1000) {
+          const deltaCount = count - lastVisitCount;
+          const daysAgo = Math.round((now - lastVisitTs) / DAY_MS);
+          const whenPhrase =
+            daysAgo <= 0 ? "today" :
+            daysAgo === 1 ? "yesterday" :
+            daysAgo < 7 ? `${daysAgo} days ago` :
+            daysAgo < 14 ? "a week ago" :
+            daysAgo < 35 ? `${Math.round(daysAgo / 7)} weeks ago` :
+            "a while back";
+
+          if (deltaCount > 5) {
+            sinceVisitLine = `Welcome back — **${deltaCount} new transactions** since ${whenPhrase}. `;
+          } else if (daysAgo >= 3) {
+            sinceVisitLine = `Welcome back — it's been ${whenPhrase}. `;
+          }
+        }
+
+        // Persist this visit for next time
+        localStorage.setItem("tag_last_visit_ts", String(now));
+        localStorage.setItem("tag_last_visit_count", String(count));
+      } catch {
+        // localStorage blocked / full — skip the personalization
+      }
+    }
+
     // Compose a casual chat message with real numbers woven in.
     // Bold (**) wraps numeric/category highlights — renderMarkdown handles the styling.
     let text = "";
@@ -884,7 +923,7 @@ export function TagCopilotPanel({
       const catsList = top3.length
         ? top3.map(c => `**${c.category}** ${fmtAmount(c.total)}`).join(", ")
         : "";
-      text = `${hi} — I've got your **${count} transactions** sorted across your books. There ${flaggedCount === 1 ? "is" : "are"} **${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.${catsList ? ` Your top categories: ${catsList}.` : ""}\n\nWant to review the flagged ones first, or dig into a category?`;
+      text = `${sinceVisitLine}${hi} — I've got your **${count} transactions** sorted across your books. There ${flaggedCount === 1 ? "is" : "are"} **${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.${catsList ? ` Your top categories: ${catsList}.` : ""}\n\nWant to review the flagged ones first, or dig into a category?`;
     } else if (realCategories.length > 0) {
       // Global view, clean books — summary + invitation
       const top = realCategories[0];
@@ -893,7 +932,7 @@ export function TagCopilotPanel({
         .slice(1)
         .map(c => `**${c.category}** ${fmtAmount(c.total)}`)
         .join(", ");
-      text = `${hi} — I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
+      text = `${sinceVisitLine}${hi} — I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
     } else {
       // Fallback — no category data yet
       text = `${hi} — I'm your categorization engine. Want to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern?`;
@@ -938,7 +977,9 @@ export function TagCopilotPanel({
     <>
       <style>{STYLES}</style>
       <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: 500,
+        position: "fixed", top: 0, right: 0, bottom: 0,
+        width: "min(500px, 100vw)",
+        maxWidth: "100vw",
         background: T.bg,
         borderLeft: `1px solid ${T.border}`,
         fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -1003,7 +1044,7 @@ export function TagCopilotPanel({
           ref={scrollRef}
           onScroll={handleScroll}
           className="tag-panel-scrollbar"
-          style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", padding: "24px 20px 148px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}
+          style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", padding: "24px 20px calc(160px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", justifyContent: "flex-start", WebkitOverflowScrolling: "touch" }}
         >
           {/* Greeting */}
           {greetingText && messages.length === 0 && (
@@ -1511,7 +1552,7 @@ export function TagCopilotPanel({
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0,
           background: `linear-gradient(0deg, ${T.bg} 70%, transparent)`,
-          padding: "28px 20px 16px",
+          padding: "28px 20px calc(16px + env(safe-area-inset-bottom, 0px))",
           backdropFilter: "blur(4px)",
         }}>
           <div style={{
