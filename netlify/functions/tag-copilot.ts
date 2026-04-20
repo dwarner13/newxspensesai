@@ -52,7 +52,7 @@ function buildSystemPrompt(
 
   return `You are Tag — XspensesAI's sharp, friendly categorization expert. You are speaking with the user from the Categories dashboard. You have full visibility into their spending categories and the rules you have learned.
 
-USER'S FINANCES (this year):
+USER'S FINANCES (recent activity — up to 1500 most recent transactions):
 - Total spent: $${yearTotal.spent.toLocaleString()}
 - Total income: $${yearTotal.income.toLocaleString()}
 - Uncategorized transactions: ${uncategorizedCount}
@@ -110,6 +110,17 @@ FORMATTING:
 - Example: "You hit Costco for **$1,661.80** across **7 transactions** last month."
 - Do NOT overdo it — only bold the 1-3 numbers that are the actual news in your reply. If everything is bold, nothing is.
 
+MERCHANT INTELLIGENCE — HIGH-INTEREST LENDERS:
+Some merchants are payday lenders, short-term installment lenders, or alternative lenders with APRs typically 20-60%+. When you recognize one in the user's data, flag it briefly.
+Canadian examples: Lend Direct, Cash Money, Money Mart, easyfinancial, EasyFinancial, Mogo, Fairstone, Spring Financial, iCash, Magical Credit, Loans Canada, 310-LOAN, GoDay, Cashco, Captain Cash, LoanConnect.
+US examples: OppLoans, CashNetUSA, Check Into Cash, Ace Cash Express, Speedy Cash, Advance America, Rise Credit, NetCredit, OneMain Financial.
+When flagging:
+- State it's high-interest lending + rough APR range (e.g. "30-40%+")
+- Confirm you're categorizing as Debt Payments (subcategory: "High-Interest Debt" if appropriate)
+- Offer to loop in Goalie for payoff strategy
+- Example: "Lend Direct is a Canadian alternative lender — APRs typically **30-45%**. I see **8** payments totaling **$331**. Want me to loop in Goalie to build a payoff plan?"
+Do NOT flag: prime banks (RBC, TD, BMO, Scotia, CIBC), credit unions, mortgages, auto loans from major lenders (TD Auto, Scotia Auto), student loans, or regular credit card payments. Only flag genuine high-APR short-term lending.
+
 IMPORTANT:
 - Keep every reply to 2-3 sentences maximum. Be direct and personable. Always end with one question. Never use bullet points or headers in replies.
 - Only emit the JSON action line when making a real change. Never emit it for explanations or questions.
@@ -149,12 +160,11 @@ export const handler: Handler = async (event) => {
       .limit(50);
     const learnedRules: LearnedRule[] = rulesData || [];
 
-    // 2. Load category summary (order by most recent, cap at 1500)
+    // 2. Load transactions (order by most recent, cap at 1500)
     // Previously limited to an arbitrary 600 with no ordering, which meant
     // mid-range merchants like Urban Kids or Sportsnet routinely fell outside
     // the slice Tag could see. Order-by-date + 1500 covers ~6-12 months for
     // most users.
-    const yearStart = `${new Date().getFullYear()}-01-01`;
     let txQuery = supabase
       .from('transactions')
       .select('amount, category, merchant_name, posted_at, date, import_id, subcategory')
@@ -196,8 +206,6 @@ export const handler: Handler = async (event) => {
     let yearIncome = 0;
 
     for (const t of allTxs || []) {
-      const d = t.posted_at || t.date || '';
-      if (d && d < yearStart) continue;
       const amt = Math.abs(Number(t.amount || 0));
       const cat = t.category || 'Other';
       if (cat === 'Income') { yearIncome += amt; continue; }
