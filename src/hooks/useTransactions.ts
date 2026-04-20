@@ -18,7 +18,7 @@ export interface UseTransactionsResult {
 }
 
 const TRANSACTIONS_CACHE_TTL_MS = 90 * 1000;
-const MAX_CACHE_ROWS = 2000;
+const MAX_CACHE_ROWS = 5000;
 const MAX_CACHE_CHARS = 1_500_000;
 
 export function useTransactions(options?: {
@@ -87,7 +87,11 @@ export function useTransactions(options?: {
           ].join(',')
         )
         .eq('user_id', userId)
-        .order('posted_at', { ascending: false });
+        .order('posted_at', { ascending: false })
+        // Supabase silently caps un-limited SELECTs at 1000 rows. Users with more
+        // than ~1000 transactions would see truncated data on dashboards and in Tag.
+        // 5000 covers multi-year histories without killing client memory.
+        .limit(5000);
 
       if (options?.importId) {
         query = query.eq('import_id', options.importId);

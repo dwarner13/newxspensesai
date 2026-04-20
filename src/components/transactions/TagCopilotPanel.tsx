@@ -55,7 +55,11 @@ const STYLES = `
   .tag-toggle:hover    { color:#4dd4ec !important }
   .tag-toggle          { transition:color 0.15s }
   .tag-stat-card:hover { border-color:rgba(34,211,238,0.22) !important; transform:translateY(-1px) }
-  .tag-stat-card       { transition:all 0.18s ease }
+  .tag-stat-card       { transition:all 0.18s ease; flex: 0 0 auto; min-width: 105px }
+  .tag-stats-row::-webkit-scrollbar { display: none }
+  @media (max-width: 640px) {
+    .tag-stat-card     { min-width: 92px; padding: 10px 8px !important }
+  }
   .tag-flag-card:hover { border-color:rgba(251,146,60,0.25) !important }
   .tag-flag-card       { transition:border-color 0.15s }
   .tag-ask-btn:hover   { filter:brightness(1.12) }
@@ -1090,11 +1094,46 @@ export function TagCopilotPanel({
           {/* Stats */}
           {greetingText && detailsOpen && (
             <Reveal delay={0} style={{ marginLeft: 38, marginTop: 4, marginBottom: 22 }}>
-              <div style={{ display: "flex", gap: 7 }}>
-                <StatCard label="Categorized" value={`${categorizedCount}/${totalCount}`} color={T.green} />
-                <StatCard label="Confidence" value={`${avgConfidence}%`} color={T.cyan} />
-                <StatCard label="Flagged" value={`${flaggedCount}`} color={T.orange} />
-                <StatCard label="Rules" value={`${learnedRules.length || rulesCount}`} color={T.purple} />
+              <div
+                style={{
+                  display: "flex",
+                  gap: 7,
+                  overflowX: "auto",
+                  WebkitOverflowScrolling: "touch",
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none",
+                  paddingBottom: 4,
+                }}
+                className="tag-stats-row"
+              >
+                <StatCard
+                  label="Categorized"
+                  value={
+                    totalCount && totalCount > 0
+                      ? `${categorizedCount ?? 0}/${totalCount}`
+                      : "—"
+                  }
+                  color={T.green}
+                />
+                <StatCard
+                  label="Confidence"
+                  value={
+                    Number.isFinite(avgConfidence) && (avgConfidence ?? 0) > 0
+                      ? `${avgConfidence}%`
+                      : "—"
+                  }
+                  color={T.cyan}
+                />
+                <StatCard
+                  label="Flagged"
+                  value={Number.isFinite(flaggedCount) ? `${flaggedCount ?? 0}` : "—"}
+                  color={T.orange}
+                />
+                <StatCard
+                  label="Rules"
+                  value={`${learnedRules.length || rulesCount || 0}`}
+                  color={T.purple}
+                />
               </div>
             </Reveal>
           )}

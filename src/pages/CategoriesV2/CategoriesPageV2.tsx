@@ -303,6 +303,12 @@ export default function CategoriesPageV2() {
           onClose={() => { setCopilotOpen(false); setTimeout(() => setCopilotInitialMessage(""), 300); }}
           firstName={firstName}
           totalCount={totalTxCount}
+          categorizedCount={totalTxCount - data.uncategorizedCount}
+          flaggedCount={data.flaggedTransactions?.length || 0}
+          avgConfidence={totalTxCount > 0 ? Math.round(((totalTxCount - data.uncategorizedCount) / totalTxCount) * 100) : 0}
+          rulesCount={0}
+          flaggedTransactions={data.flaggedTransactions}
+          subcategorySuggestions={data.subcategorySuggestions}
           totalSpent={data.totalSpent}
           totalIncome={data.totalIncome}
           injectedMessage={copilotInitialMessage || undefined}
