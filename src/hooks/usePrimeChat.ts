@@ -1372,7 +1372,7 @@ export function usePrimeChat(
           employeeSlug: employeeSlugToSend, // CRITICAL: Always send employeeSlug so backend routes correctly
           client_message_id: clientMessageId,
           request_id: requestId,
-          stream: true,
+          stream: employeeSlugToSend === 'prime-boss' ? false : true,
           ...(safeSystemPrompt ? { systemPromptOverride: safeSystemPrompt } : {}), // Use safe systemPrompt
           ...(opts?.documentIds && opts.documentIds.length > 0 ? { documentIds: opts.documentIds } : {}), // Include document IDs if provided
           ...(opts?.hidden ? { hidden: true } : {}), // Add hidden flag so backend skips storing user prompt
