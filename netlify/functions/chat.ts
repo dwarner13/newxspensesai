@@ -3,15 +3,15 @@
 // @purpose:Routes to employees, runs tools, and persists messages/tool calls used by audits.
 
 /**
- * 💬 Unified Chat Endpoint
+ * ðŸ’¬ Unified Chat Endpoint
  * 
  * Complete chat system with:
- * - 🛡️ Unified Guardrails (moderation + PII masking) - ALL employees protected
+ * - ðŸ›¡ï¸ Unified Guardrails (moderation + PII masking) - ALL employees protected
  * - Employee routing (Prime, Byte, Crystal, Finley, Goalie, Liberty, Blitz, etc.)
  * - Memory retrieval and storage
  * - Streaming responses (SSE)
  * - Session management
- * - 🗄️ Custodian: Conversation summaries (non-blocking, async)
+ * - ðŸ—„ï¸ Custodian: Conversation summaries (non-blocking, async)
  * 
  * GUARDRAILS INTEGRATION:
  * - All user messages go through runInputGuardrails() BEFORE routing/model calls
@@ -5277,7 +5277,7 @@ Return JSON format:
         hint: upsertError.hint,
       });
     } else {
-      console.log(`[Custodian] ✅ Updated summary for conversation ${conversationId}`);
+      console.log(`[Custodian] âœ… Updated summary for conversation ${conversationId}`);
     }
   } catch (error: any) {
     // Non-blocking: log error but don't throw
@@ -5496,9 +5496,9 @@ export const handler: Handler = async (event, context) => {
     const messageTrimmed = message.trim();
     const primeIntent = detectPrimeIntent(messageTrimmed);
     const statusPrefixes = [
-      '📄 Uploading',
-      '✅ Upload complete',
-      '✅ OCR complete',
+      'ðŸ“„ Uploading',
+      'âœ… Upload complete',
+      'âœ… OCR complete',
       'OCR completed',
       "I've uploaded",
     ];
@@ -5530,7 +5530,7 @@ export const handler: Handler = async (event, context) => {
     let isFastPath = messageLength <= 30 || isGreeting;
     
     if (isFastPath && process.env.NETLIFY_DEV === 'true') {
-      console.log(`[Chat] 🚀 FAST PATH enabled: messageLength=${messageLength}, isGreeting=${isGreeting}`);
+      console.log(`[Chat] ðŸš€ FAST PATH enabled: messageLength=${messageLength}, isGreeting=${isGreeting}`);
     }
 
     // ========================================================================
@@ -5913,10 +5913,10 @@ export const handler: Handler = async (event, context) => {
           const hasHandoff = employeeTools.includes('request_employee_handoff');
           console.log(`[Chat] Prime tools check - request_employee_handoff included: ${hasHandoff}`);
           if (!hasHandoff) {
-            console.error(`[Chat] ❌ CRITICAL: Prime is missing request_employee_handoff tool! Current tools:`, employeeTools);
+            console.error(`[Chat] âŒ CRITICAL: Prime is missing request_employee_handoff tool! Current tools:`, employeeTools);
             console.error(`[Chat] Prime cannot delegate without this tool. Run migration: 20251120_add_handoff_tool_to_prime.sql`);
           } else {
-            console.log(`[Chat] ✅ Prime delegation enabled - can hand off to other employees`);
+            console.log(`[Chat] âœ… Prime delegation enabled - can hand off to other employees`);
           }
 
           if (!employeeTools.includes('tx_search')) {
@@ -5996,13 +5996,13 @@ export const handler: Handler = async (event, context) => {
     try {
       threadId = await ensureThread(sb, userId, employeeKey, requestThreadId);
       orchCtx.threadId = threadId;
-      console.log(`[Chat] ✅ Thread ID: ${threadId} for user ${userId.substring(0, 8)}... employee ${employeeKey}`);
+      console.log(`[Chat] âœ… Thread ID: ${threadId} for user ${userId.substring(0, 8)}... employee ${employeeKey}`);
       
       // Backfill existing messages with thread_id (one-time migration)
       try {
         const backfilledCount = await backfillThreadId(sb, userId, employeeKey, threadId);
         if (backfilledCount > 0) {
-          console.log(`[Chat] ✅ Backfilled ${backfilledCount} messages with thread_id ${threadId}`);
+          console.log(`[Chat] âœ… Backfilled ${backfilledCount} messages with thread_id ${threadId}`);
         }
       } catch (backfillError: any) {
         console.warn('[Chat] Backfill failed (non-fatal):', backfillError.message);
@@ -7673,7 +7673,7 @@ export const handler: Handler = async (event, context) => {
         preferredNameForPrime
       );
 
-      console.log('[Chat] ⚡ Deterministic temporal response path', {
+      console.log('[Chat] âš¡ Deterministic temporal response path', {
         temporalIntent,
         employee: finalEmployeeSlug,
         timezone: effectivePrimeContext?.timezone || null,
@@ -7770,7 +7770,7 @@ export const handler: Handler = async (event, context) => {
         preferredNameForPrime
       );
 
-      console.log('[Chat] ⚡ Deterministic grounded facts response path', {
+      console.log('[Chat] âš¡ Deterministic grounded facts response path', {
         groundedFactsIntent,
         employee: finalEmployeeSlug,
         hasPrimeContext: Boolean(effectivePrimeContext),
@@ -7882,7 +7882,7 @@ export const handler: Handler = async (event, context) => {
         preferredNameForPrime
       );
 
-      console.log('[Chat] ⚡ Deterministic clarification response path', {
+      console.log('[Chat] âš¡ Deterministic clarification response path', {
         reason: effectiveClarificationDecision.reason,
         employee: finalEmployeeSlug,
       });
@@ -7978,7 +7978,7 @@ export const handler: Handler = async (event, context) => {
         preferredNameForPrime
       );
 
-      console.log('[Chat] ⚡ Deterministic coaching response path', {
+      console.log('[Chat] âš¡ Deterministic coaching response path', {
         coachingIntent,
         employee: finalEmployeeSlug,
         hasPrimeContext: Boolean(effectivePrimeContext),
@@ -8075,7 +8075,7 @@ export const handler: Handler = async (event, context) => {
         preferredNameForPrime
       );
 
-      console.log('[Chat] ⚡ Deterministic financial insight response path', {
+      console.log('[Chat] âš¡ Deterministic financial insight response path', {
         insightIntent,
         employee: finalEmployeeSlug,
         hasPrimeContext: Boolean(effectivePrimeContext),
@@ -8172,7 +8172,7 @@ export const handler: Handler = async (event, context) => {
         preferredNameForPrime
       );
 
-      console.log('[Chat] ⚡ Deterministic predictive finance response path', {
+      console.log('[Chat] âš¡ Deterministic predictive finance response path', {
         predictiveIntent,
         employee: finalEmployeeSlug,
         hasPrimeContext: Boolean(effectivePrimeContext),
@@ -8269,7 +8269,7 @@ export const handler: Handler = async (event, context) => {
         preferredNameForPrime
       );
 
-      console.log('[Chat] ⚡ Deterministic automation response path', {
+      console.log('[Chat] âš¡ Deterministic automation response path', {
         automationIntent,
         employee: finalEmployeeSlug,
         hasPrimeContext: Boolean(effectivePrimeContext),
@@ -8473,7 +8473,7 @@ export const handler: Handler = async (event, context) => {
     } else {
       // Memory gating v2: skip retrieval when deterministic heuristics say context is not required.
       if (process.env.NETLIFY_DEV === 'true') {
-        console.log(`[Chat] 🚀 MEMORY GATE V2: skipping memory (${memNeed.reason})`);
+        console.log(`[Chat] ðŸš€ MEMORY GATE V2: skipping memory (${memNeed.reason})`);
       }
     }
     const hasStressMemorySignal = memoryFacts.some((f) => {
@@ -8526,7 +8526,7 @@ export const handler: Handler = async (event, context) => {
             content: m.content,
             id: m.id,
           }));
-          console.log(`[Chat] ✅ Loaded ${recentMessages.length} messages from thread ${threadId.substring(0, 8)}...`);
+          console.log(`[Chat] âœ… Loaded ${recentMessages.length} messages from thread ${threadId.substring(0, 8)}...`);
         } else {
           console.warn('[Chat] Failed to load messages by thread_id, falling back to session_id');
         }
@@ -8545,9 +8545,9 @@ export const handler: Handler = async (event, context) => {
               ? normalizedSessionIdForLog
               : String(normalizedSessionIdForLog || "");
           if (recentMessages.length > 0) {
-            console.log(`[Chat] ✅ Loaded ${recentMessages.length} previous messages from session ${safeSessionId2.substring(0, 8)}...`);
+            console.log(`[Chat] âœ… Loaded ${recentMessages.length} previous messages from session ${safeSessionId2.substring(0, 8)}...`);
           } else {
-            console.log(`[Chat] ℹ️ No previous messages found for session ${safeSessionId2.substring(0, 8)}... (this is normal for new conversations)`);
+            console.log(`[Chat] â„¹ï¸ No previous messages found for session ${safeSessionId2.substring(0, 8)}... (this is normal for new conversations)`);
           }
         }
       }
@@ -8556,7 +8556,7 @@ export const handler: Handler = async (event, context) => {
       }
       timingLogs.messages = Date.now() - messagesStartTime;
     } catch (error: any) {
-      console.warn('[Chat] ⚠️ Failed to load recent messages:', error);
+      console.warn('[Chat] âš ï¸ Failed to load recent messages:', error);
       // Continue without history if loading fails
     }
 
@@ -8608,7 +8608,7 @@ export const handler: Handler = async (event, context) => {
           .eq('status', 'initiated')
           .gte('created_at', fiveMinutesAgo);
         
-        console.log(`[Chat] ✅ Loaded handoff context from ${handoffContext.from_employee} -> ${finalEmployeeSlug}`);
+        console.log(`[Chat] âœ… Loaded handoff context from ${handoffContext.from_employee} -> ${finalEmployeeSlug}`);
       }
     } catch (error: any) {
       console.warn('[Chat] Failed to load handoff context:', error);
@@ -8686,6 +8686,30 @@ export const handler: Handler = async (event, context) => {
     }
     const isPrime = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
     const isPrimeBoss = finalEmployeeSlug === 'prime-boss';
+
+    // PRIME CRITICAL PROMPTS -- not skipped by the isPrimeBoss gate below
+    // Without these, Prime has no team roster, no delegation rules, and no handoff tool instructions
+    if (isPrimeBoss) {
+      // Brain pack: full team roster (Byte, Tag, Crystal, Goalie, Ledger, Custodian) and delegation rules
+      // Mirrors the non-Prime call at the "2.5 Employee Brain Pack" block below.
+      try {
+        const primeBrainPrompt = buildEmployeeBrainSystemPrompt({
+          employee_key: employeeKey,
+          ai_fluency_level: (ctx as any)?.ai_fluency_level ?? null,
+          preferredName: userProfile?.preferredName ?? null,
+          currency: (ctx as any)?.currency ?? null,
+        });
+        systemMessages.push({ role: 'system', content: primeBrainPrompt });
+      } catch (e: any) {
+        console.warn('[Chat] Prime brain pack injection failed (non-fatal):', e?.message);
+      }
+
+      // DB system_prompt (handoff-tool-calling instructions from employee_profiles)
+      if (employeeSystemPrompt) {
+        systemMessages.push({ role: 'system', content: employeeSystemPrompt });
+      }
+    }
+
     if (!(isPrimeBoss)) {
 
     // 1. Global AI Fluency Rule (ALL employees) - Single merged global rules message
@@ -8787,7 +8811,7 @@ export const handler: Handler = async (event, context) => {
       });
     }
 
-    // 2.6 Employee Job Context (per-employee “what's happening right now” snapshot)
+    // 2.6 Employee Job Context (per-employee â€œwhat's happening right nowâ€ snapshot)
     try {
       const jobCtx = await buildEmployeeJobContextSystemMessage(sb, {
         employeeKey,
@@ -8889,7 +8913,7 @@ export const handler: Handler = async (event, context) => {
         }
       } catch { /* non-blocking */ }
 
-      // ── Full Team Intelligence Feed ─────────────────────────────────────────
+      // â”€â”€ Full Team Intelligence Feed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Prime is CEO - he needs to know everything every agent has done
 
       // 1. Category rules Tag has saved
@@ -9080,7 +9104,7 @@ GREETING RULE: When responding to [PRIME_GREETING], never start with "Good morni
         const custodianContext = `
 CUSTODIAN CONTEXT (Account Security & Settings):
 - Account age: ${accountAge} days
-- Two-factor authentication: ${twoFactorEnabled ? 'Enabled ✅' : 'Not enabled ⚠️'}
+- Two-factor authentication: ${twoFactorEnabled ? 'Enabled âœ…' : 'Not enabled âš ï¸'}
 - Privacy level: ${privacyLevel}
 - Account security score: ${twoFactorEnabled ? '8/10 (Good)' : '5/10 (Needs improvement)'}
 - Onboarding completed: ${onboardingCompleted ? 'Yes' : 'No'}
@@ -9341,7 +9365,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     if (!isFastPath) {
       console.log(`[Chat] Context: ${recentMessages.length} history messages, ${memoryFacts.length} memory facts`);
     } else if (process.env.NETLIFY_DEV === 'true') {
-      console.log(`[Chat] 🚀 FAST PATH: ${recentMessages.length} history messages (memory skipped)`);
+      console.log(`[Chat] ðŸš€ FAST PATH: ${recentMessages.length} history messages (memory skipped)`);
     }
 
     // ========================================================================
@@ -9363,7 +9387,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       if (isFastPath && modelConfig.maxTokens > fastLaneMaxTokens) {
         modelConfig.maxTokens = fastLaneMaxTokens;
         if (process.env.NETLIFY_DEV === 'true') {
-          console.log(`[Chat] 🚀 FAST PATH: Reduced maxTokens to ${modelConfig.maxTokens} for short message`);
+          console.log(`[Chat] ðŸš€ FAST PATH: Reduced maxTokens to ${modelConfig.maxTokens} for short message`);
         }
       }
       modelConfig = applyPrimeChatStyleModelConfig(modelConfig, {
@@ -9432,10 +9456,10 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     // DEV: Comprehensive AI request logging
     // Use process.env only (no import.meta for CJS compatibility)
     if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-      console.group(`🤖 [Backend AI Request] ${finalEmployeeSlug}`);
+      console.group(`ðŸ¤– [Backend AI Request] ${finalEmployeeSlug}`);
       
       // Log model configuration (now guaranteed to be defined)
-      console.log('⚙️ Model Config:', {
+      console.log('âš™ï¸ Model Config:', {
         model: modelConfig.model,
         temperature: modelConfig.temperature,
         maxTokens: modelConfig.maxTokens,
@@ -9454,7 +9478,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           'crystal-analytics': m.content.includes('spending') || m.content.includes('budget'),
         }[finalEmployeeSlug] || false,
       }));
-      console.log('📋 System Messages:', systemMessagesSummary);
+      console.log('ðŸ“‹ System Messages:', systemMessagesSummary);
       
       // Log context summary
       const contextSummary = {
@@ -9467,10 +9491,10 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         hasHandoffContext: !!handoffContext,
         userMessageLength: userMessageContent.length,
       };
-      console.log('📊 Context Summary:', contextSummary);
+      console.log('ðŸ“Š Context Summary:', contextSummary);
       
       // Log user message
-      console.log('💬 User Message:', userMessageContent.substring(0, 200) + (userMessageContent.length > 200 ? '...' : ''));
+      console.log('ðŸ’¬ User Message:', userMessageContent.substring(0, 200) + (userMessageContent.length > 200 ? '...' : ''));
       
       // Log expected context per employee
       const expectedContext = {
@@ -9509,7 +9533,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         },
       }[finalEmployeeSlug] || { shouldHave: ['User facts', 'RAG embeddings'], actualHas: [] };
       
-      console.log('🎯 Expected vs Actual Context:', expectedContext);
+      console.log('ðŸŽ¯ Expected vs Actual Context:', expectedContext);
       
       console.groupEnd();
     }
@@ -9682,8 +9706,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         
         // DEV: Log what's being sent to OpenAI
         if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-          console.group(`🚀 [OpenAI API Call] ${finalEmployeeSlug}`);
-          console.log('📤 Request to OpenAI:', {
+          console.group(`ðŸš€ [OpenAI API Call] ${finalEmployeeSlug}`);
+          console.log('ðŸ“¤ Request to OpenAI:', {
             model: modelConfig.model,
             temperature: modelConfig.temperature,
             maxTokens: modelConfig.maxTokens,
@@ -9695,7 +9719,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           // Log system messages (first 3 for brevity)
           const systemMsgs = messages.filter(m => m.role === 'system').slice(0, 3);
           systemMsgs.forEach((msg, i) => {
-            console.log(`📋 System Message ${i + 1}:`, {
+            console.log(`ðŸ“‹ System Message ${i + 1}:`, {
               length: msg.content.length,
               preview: msg.content.substring(0, 150) + '...',
               hasContextData: msg.content.includes('uncategorizedCount') || 
@@ -9706,7 +9730,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             });
           });
           
-          console.log('💬 User Message:', messages.find(m => m.role === 'user')?.content?.substring(0, 200));
+          console.log('ðŸ’¬ User Message:', messages.find(m => m.role === 'user')?.content?.substring(0, 200));
           console.groupEnd();
         }
         
@@ -9879,7 +9903,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     const invalidIds = ['upload', 'statement', 'document', 'file', 'smart import', 'import'];
                     const txIdLower = String(args.transactionId).toLowerCase().trim();
                     if (invalidIds.includes(txIdLower)) {
-                      console.warn(`[Chat] ⚠️ Tag called tag_explain_category with invalid transactionId: "${args.transactionId}". This looks like an upload question that should trigger handoff instead.`);
+                      console.warn(`[Chat] âš ï¸ Tag called tag_explain_category with invalid transactionId: "${args.transactionId}". This looks like an upload question that should trigger handoff instead.`);
                     }
                   }
                   
@@ -9892,7 +9916,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   
                   // Special debug logging for request_employee_handoff BEFORE execution
                   if (toolName === 'request_employee_handoff') {
-                    console.log(`[Chat] 🔄 HANDOFF REQUEST (streaming): ${finalEmployeeSlug} -> ${args.target_slug || 'unknown'}`, {
+                    console.log(`[Chat] ðŸ”„ HANDOFF REQUEST (streaming): ${finalEmployeeSlug} -> ${args.target_slug || 'unknown'}`, {
                       reason: args.reason || 'No reason provided',
                       summary: args.summary_for_next_employee || 'No summary provided',
                       userId,
@@ -9939,7 +9963,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
                         // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
                         if (!finalSessionId) {
-                          console.error('[Chat] ❌ HANDOFF FAILED: No valid sessionId available. Cannot proceed with handoff.');
+                          console.error('[Chat] âŒ HANDOFF FAILED: No valid sessionId available. Cannot proceed with handoff.');
                           // Continue without handoff - don't crash
                           continue;
                         }
@@ -9958,7 +9982,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                           ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
                           : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
                         
-                        console.log(`[Chat] ✅ HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} -> ${targetSlug}`, {
+                        console.log(`[Chat] âœ… HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} -> ${targetSlug}`, {
                           reason,
                           summary: summary?.substring(0, 100),
                           sessionId: finalSessionId,
@@ -10082,7 +10106,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                         
                         // Enhanced logging for debugging (guarded by env flag)
                         if (process.env.NETLIFY_DEV === 'true' || process.env.DEBUG_HANDOFF === 'true') {
-                          console.log(`[Chat] 📤 HANDOFF EVENT SENT (streaming):`, handoffEvent);
+                          console.log(`[Chat] ðŸ“¤ HANDOFF EVENT SENT (streaming):`, handoffEvent);
                         }
                       }
                     }
@@ -10290,7 +10314,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       
       // DEV: Verify single terminal path (prove no double emission)
       if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-        console.log(`[Chat] ✅ SSE Response Complete:`, {
+        console.log(`[Chat] âœ… SSE Response Complete:`, {
           requestId: threadId,
           mode: 'SSE',
           doneEventEmitted: true,
@@ -10300,9 +10324,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
 
       // DEV: Comprehensive AI response logging
       if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-        console.group(`✅ [Backend AI Response] ${finalEmployeeSlug}`);
+        console.group(`âœ… [Backend AI Response] ${finalEmployeeSlug}`);
         
-        console.log('📥 Response Summary:', {
+        console.log('ðŸ“¥ Response Summary:', {
           model: modelConfig.model,
           responseLength: assistantContent.length,
           toolCallsCount: toolCalls.length,
@@ -10311,7 +10335,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         });
         
         // Log response content
-        console.log('💬 Assistant Response:', assistantContent.substring(0, 300) + (assistantContent.length > 300 ? '...' : ''));
+        console.log('ðŸ’¬ Assistant Response:', assistantContent.substring(0, 300) + (assistantContent.length > 300 ? '...' : ''));
         
         // Check if response references context data
         const hasNumbers = /\d+/.test(assistantContent);
@@ -10339,7 +10363,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             /\$\d+/.test(assistantContent)
           ));
         
-        console.log('🧠 Intelligence Check:', {
+        console.log('ðŸ§  Intelligence Check:', {
           hasNumbers: hasNumbers,
           referencesContextData: hasContextualData,
           seemsIntelligent: hasNumbers && hasContextualData,
@@ -10348,7 +10372,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         
         // Log tool calls if any
         if (toolCalls.length > 0) {
-          console.log('🔧 Tool Calls:', toolCalls.map(tc => ({
+          console.log('ðŸ”§ Tool Calls:', toolCalls.map(tc => ({
             name: tc.function?.name,
             args: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {},
           })));
@@ -10441,7 +10465,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         
         // DEV: Verify single persistence (prove no double write)
         if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-          console.log(`[Chat] ✅ Assistant Message Persisted (SSE):`, {
+          console.log(`[Chat] âœ… Assistant Message Persisted (SSE):`, {
             requestId: threadId,
             contentLength: assistantContent.length,
             persisted: true,
@@ -10496,7 +10520,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       // CRITICAL: Log timing summary before returning
       const totalTime = Date.now() - requestStartTime;
       if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-        console.log('[Chat] ⏱️ Timing summary (ms):', {
+        console.log('[Chat] â±ï¸ Timing summary (ms):', {
           auth: timingLogs.auth || 0,
           session: timingLogs.session || 0,
           memory: timingLogs.memory || 0,
@@ -10580,7 +10604,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           }
         })();
       } else if (process.env.NETLIFY_DEV === 'true') {
-        console.log('[Chat] 🚀 DEV MODE: Skipping conversation summary update to reduce latency');
+        console.log('[Chat] ðŸš€ DEV MODE: Skipping conversation summary update to reduce latency');
       }
 
       return;
@@ -10679,14 +10703,14 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
 
         // DEV: Log non-streaming response
         if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-          console.group(`✅ [Backend AI Response - Non-Streaming] ${finalEmployeeSlug}`);
-          console.log('📥 Response Summary:', {
+          console.group(`âœ… [Backend AI Response - Non-Streaming] ${finalEmployeeSlug}`);
+          console.log('ðŸ“¥ Response Summary:', {
             model: modelConfig.model,
             responseLength: assistantContent.length,
             toolCallsCount: toolCalls.length,
             usage: completion.usage,
           });
-          console.log('💬 Assistant Response:', assistantContent.substring(0, 300) + (assistantContent.length > 300 ? '...' : ''));
+          console.log('ðŸ’¬ Assistant Response:', assistantContent.substring(0, 300) + (assistantContent.length > 300 ? '...' : ''));
           
           // Check intelligence
           const hasNumbers = /\d+/.test(assistantContent);
@@ -10695,7 +10719,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             (finalEmployeeSlug === 'tag-ai' && (assistantContent.includes('uncategorized') || /\d+.*transaction/i.test(assistantContent))) ||
             (finalEmployeeSlug === 'crystal-analytics' && (assistantContent.includes('spent') || /\$\d+/.test(assistantContent)));
           
-          console.log('🧠 Intelligence Check:', {
+          console.log('ðŸ§  Intelligence Check:', {
             hasNumbers,
             referencesContextData: hasContextualData,
             seemsIntelligent: hasNumbers && hasContextualData,
@@ -10767,7 +10791,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               const invalidIds = ['upload', 'statement', 'document', 'file', 'smart import', 'import'];
               const txIdLower = String(args.transactionId).toLowerCase().trim();
               if (invalidIds.includes(txIdLower)) {
-                console.warn(`[Chat] ⚠️ Tag called tag_explain_category with invalid transactionId: "${args.transactionId}". This looks like an upload question that should trigger handoff instead.`);
+                console.warn(`[Chat] âš ï¸ Tag called tag_explain_category with invalid transactionId: "${args.transactionId}". This looks like an upload question that should trigger handoff instead.`);
               }
             }
             
@@ -10780,7 +10804,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             
             // Special debug logging for request_employee_handoff BEFORE execution
             if (toolName === 'request_employee_handoff') {
-              console.log(`[Chat] 🔄 HANDOFF REQUEST (non-streaming): ${finalEmployeeSlug} -> ${args.target_slug || 'unknown'}`, {
+              console.log(`[Chat] ðŸ”„ HANDOFF REQUEST (non-streaming): ${finalEmployeeSlug} -> ${args.target_slug || 'unknown'}`, {
                 reason: args.reason || 'No reason provided',
                 summary: args.summary_for_next_employee || 'No summary provided',
                 userId,
@@ -10821,7 +10845,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                 if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
                   // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
                   if (!finalSessionId) {
-                    console.error('[Chat] ❌ HANDOFF FAILED: No valid sessionId available. Cannot proceed with handoff.');
+                    console.error('[Chat] âŒ HANDOFF FAILED: No valid sessionId available. Cannot proceed with handoff.');
                     // Continue without handoff - don't crash
                     continue;
                   }
@@ -10840,7 +10864,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
                     : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
                   
-                  console.log(`[Chat] ✅ HANDOFF COMPLETE (non-streaming): ${originalEmployeeSlug} -> ${targetSlug}`, {
+                  console.log(`[Chat] âœ… HANDOFF COMPLETE (non-streaming): ${originalEmployeeSlug} -> ${targetSlug}`, {
                     reason,
                     summary: summary?.substring(0, 100),
                     sessionId: finalSessionId,
@@ -11102,7 +11126,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         
         // DEV: Verify single persistence (prove no double write)
         if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-          console.log(`[Chat] ✅ Assistant Message Persisted (JSON):`, {
+          console.log(`[Chat] âœ… Assistant Message Persisted (JSON):`, {
             requestId: threadId,
             contentLength: assistantContent.length,
             persisted: true,
