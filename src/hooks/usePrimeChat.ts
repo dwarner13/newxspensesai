@@ -1583,6 +1583,19 @@ export function usePrimeChat(
               content: contentText,
               isStreaming: false,
             });
+            // FIX: JSON path delivers one large content blob. Parent's scroll
+            // effect races the DOM paint. Re-upsert after paint so scrollHeight
+            // is correct when scroll-to-bottom measures the container.
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                upsertAssistantMessage({
+                  messageId,
+                  requestId,
+                  content: contentText,
+                  isStreaming: false,
+                });
+              });
+            });
           }
           setIsStreaming(false);
           streamingIdRef.current = null;
