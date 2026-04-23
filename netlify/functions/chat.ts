@@ -8883,7 +8883,7 @@ export const handler: Handler = async (event, context) => {
     
     // 3. Prime Context System Message (ONLY for Prime, if prime_context provided)
     if (isPrime && effectivePrimeContext) {
-      const pc = effectivePrimeContext;
+      const pc = effectivePrimeContext as any;
       
       // Build Prime context system message (convenience overlay, verified server-side)
       let primeContextMessage = 'PRIME CONTEXT (User State Snapshot):\n\n';
@@ -8894,6 +8894,18 @@ export const handler: Handler = async (event, context) => {
       if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
       if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
       
+      // PHASE 2.2 FIX (Apr 2026): Top-level totals from PrimeChatV2.additionalPrimeContext
+      // These were being dropped in this path — only rendered in the parallel path at line 8756.
+      if (typeof pc.totalIncome === 'number') primeContextMessage += `Total Income: ${pc.totalIncome}\n`;
+      if (typeof pc.totalSpent === 'number') primeContextMessage += `Total Spent: ${pc.totalSpent}\n`;
+      if (typeof pc.statementCount === 'number') primeContextMessage += `Statements: ${pc.statementCount}\n`;
+      if (typeof pc.transactionCount === 'number') primeContextMessage += `Transactions: ${pc.transactionCount}\n`;
+      if (typeof pc.pendingImports === 'number' && pc.pendingImports > 0) {
+        primeContextMessage += `Pending Imports: ${pc.pendingImports}\n`;
+      }
+      if (pc.topMerchant) primeContextMessage += `Top Merchant: ${pc.topMerchant}\n`;
+      if (pc.categorySummary) primeContextMessage += `Category Mix: ${pc.categorySummary}\n`;
+      
       // Financial snapshot
       if (pc.financialSnapshot) {
         const fs = pc.financialSnapshot;
@@ -8902,10 +8914,33 @@ export const handler: Handler = async (event, context) => {
         primeContextMessage += `- uncategorizedCount: ${fs.uncategorizedCount}\n`;
         if (fs.monthlySpend !== undefined) primeContextMessage += `- monthlySpend: ${fs.monthlySpend}\n`;
         if (fs.topCategories && fs.topCategories.length > 0) {
-          primeContextMessage += `- topCategories: ${fs.topCategories.map(c => `${c.name} (${c.amount})`).join(', ')}\n`;
+          primeContextMessage += `- topCategories: ${fs.topCategories.map((c: any) => `${c.name} (${c.amount})`).join(', ')}\n`;
         }
         if (fs.hasDebt !== undefined) primeContextMessage += `- hasDebt: ${fs.hasDebt}\n`;
         if (fs.hasGoals !== undefined) primeContextMessage += `- hasGoals: ${fs.hasGoals}\n`;
+      }
+      
+      // PHASE 2.2 FIX: Tax-workspace mirror with authority instruction.
+      // Prime has been ignoring this data and calling tx_search instead. Strong directive added.
+      if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
+        primeContextMessage += `\nTax Summary (AUTHORITATIVE — use these numbers, do NOT call tx_search for these):\n`;
+        for (const section of pc.taxSummary) {
+          if (!section || typeof section.total !== 'number') continue;
+          primeContextMessage += `- ${section.section}: ${section.total} (${section.count} txns)`;
+          if (Array.isArray(section.topSubcategories) && section.topSubcategories.length > 0) {
+            const subs = section.topSubcategories
+              .map((b: any) => `${b.name}=${b.amount}`)
+              .join(', ');
+            primeContextMessage += ` [${subs}]`;
+          }
+          primeContextMessage += `\n`;
+        }
+        primeContextMessage += `\nWhen user asks "how much on X" where X matches a subcategory above, answer directly with that number. Do NOT call tx_search unless the category is not in this Tax Summary.\n`;
+      }
+      
+      // Team activity summary (what other agents did recently)
+      if (pc.teamActivitySummary) {
+        primeContextMessage += `\nRecent Team Activity:\n${pc.teamActivitySummary}\n`;
       }
       
       // Memory summary
