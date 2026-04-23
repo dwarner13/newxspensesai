@@ -1605,6 +1605,10 @@ function mentionsStatementImportContext(message: string): boolean {
 
 function isStatementBreakdownIntent(message: string): boolean {
   const text = String(message || '').toLowerCase();
+  // FIX (Apr 22 2026): Same upload-creation exclusion as isStatementQaIntent.
+  // Prevents 'i want to upload a statement' from falling into the breakdown path
+  // via 'statement' + 'upload' keywords in mentionsStatementImportContext.
+  if (/\b(want to upload|going to upload|how (do|can|should) i upload|help me upload|walk me through (upload|uploading)|need to upload|trying to upload)\b/.test(text)) return false;
   const explicitStatementContext = mentionsStatementImportContext(text)
     || /\b(uploaded|uploaded statement|what i uploaded|which statement|that upload|that statement|my statement|my document|the file|the document|the statement|this document|this statement|my import|the import)\b/.test(text);
   const breakdownAsks = /\b(break\s*down|breakdown|what'?s on|what is on|summar(?:y|ize)|summarise|what did you find|findings|show me|list|totals?|categories?|tell me|what'?s in|analyz[e|is]|analys[e|is]|review|overview|explain|describe|walk me|give me)\b/.test(text);
@@ -1619,6 +1623,10 @@ function isStatementQaIntent(message: string): boolean {
   if (message.startsWith('[PRIME_GREETING]')) return false;
   const text = String(message || '').toLowerCase();
   if (!text.trim()) return false;
+  // FIX (Apr 22 2026): Upload-CREATION intent is not Q&A about existing data.
+  // Without this, 'i want to upload a statement' matches statementKeywords
+  // (via 'statement') and routes to deterministic statement_qa, bypassing Prime.
+  if (/\b(want to upload|going to upload|how (do|can|should) i upload|help me upload|walk me through (upload|uploading)|need to upload|trying to upload)\b/.test(text)) return false;
   const monthMentioned = /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|sept|october|oct|november|nov|december|dec|last month|this month)\b/.test(text);
   const statementKeywords = /\b(statement|transactions?|charges?|spend|spent|total|totals|category|categories|merchant|deposits?|income|refunds?|balance|fees?|interest|largest|biggest|top\s+\d+)\b/.test(text);
   const merchantNeedle = extractMerchantNeedleFromQuestion(text);
