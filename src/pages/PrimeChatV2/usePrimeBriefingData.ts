@@ -63,6 +63,132 @@ const TAX_SECTIONS: TaxSectionDef[] = [
   },
 ];
 
+/* ── Bucket definitions (mirror TaxWorkspacePage.tsx exactly) ── */
+// IMPORTANT: Keep these in sync with TaxWorkspacePage.tsx. These are the same
+// merchant-keyword rules the Tax Summary UI uses to compute per-bucket totals.
+interface TaxBucket { label: string; keywords: string[]; }
+
+const VEHICLE_BUCKETS: TaxBucket[] = [
+  { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky", "gas & fuel", "kollbrook", "canco petroleum", "circle k"] },
+  { label: "Car Payments", keywords: ["td loan", "car payment", "auto loan", "lns/pre", "car loan"] },
+  { label: "Registration", keywords: ["registry", "registration", "northtown registry"] },
+  { label: "Insurance", keywords: ["economical", "peace hills", "imperial pfs", "vehicle insurance", "auto insurance", "car insurance"] },
+  { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "canadian tire auto", "maintenance", "auto service", "vehicle maintenance", "jiffy lube", "revolution moto", "river city hyundai"] },
+  { label: "Parking", keywords: ["parking", "impark", "parkade"] },
+  { label: "Car Wash", keywords: ["car wash", "kenyon", "triangle cp"] },
+  { label: "Car Rental", keywords: ["enterprise", "avis", "budget rent", "hertz", "national car", "car rental"] },
+  { label: "Rideshare / Taxi", keywords: ["uber", "lyft", "taxi", "rideshare"] },
+  { label: "Traffic Fines", keywords: ["myalberta fine", "traffic fine", "photo radar", "parking fine"] },
+];
+
+const MEALS_BUCKETS: TaxBucket[] = [
+  { label: "Coffee", keywords: ["tim hortons", "starbucks", "booster juice", "second cup", "good earth", "coffee", "coffee & drinks"] },
+  { label: "Restaurants / Dining", keywords: ["pizza", "restaurant", "restaurants", "pub", "grill", "diner", "kitchen", "smittys", "wendys", "mcdonalds", "popeyes", "mr sub", "halong bay", "sushi", "thai", "wok", "buffet", "a&w", "subway", "kfc", "burger", "boston pizza", "earls", "cactus", "moxies", "original joe", "joey", "montanas", "restaurants / dining"] },
+  { label: "Fast Food / Takeout", keywords: ["uber eats", "doordash", "skip the dishes", "instacart"] },
+  { label: "Groceries / Convenience", keywords: ["7-eleven", "7 eleven", "mac's", "circle k"] },
+  { label: "Entertainment", keywords: ["movie", "concert", "sport", "fitness", "theatre", "cinema", "netflix", "spotify"] },
+  { label: "Alcohol", keywords: ["liquor", "econo liquor", "beer", "wine", "alcanna", "wine and beyond"] },
+  { label: "Supplements / Health Food", keywords: ["supplement", "ls supplement", "popeye supplement", "gnc", "nutrition"] },
+];
+
+const HOME_BUCKETS: TaxBucket[] = [
+  { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "rent", "rnt payt"] },
+  { label: "Condo Fees", keywords: ["celtic", "condo fee", "strata", "hoa"] },
+  { label: "Utilities - Electric", keywords: ["epcor", "electricity", "electric"] },
+  { label: "Utilities - Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
+  { label: "Utilities - Water", keywords: ["epcor water", "water bill"] },
+  { label: "Internet", keywords: ["telus", "shaw", "internet"] },
+  { label: "Home Insurance", keywords: ["sandbox mutual", "home insurance", "property insurance", "tenant insurance"] },
+];
+
+const BUSINESS_BUCKETS: TaxBucket[] = [
+  { label: "Advertising / Marketing", keywords: ["advertising", "marketing", "dreamhost", "seo", "amazon prime business", "amazon", "google ads", "facebook"] },
+  { label: "Software / Subscriptions", keywords: ["software", "subscriptions", "cursor", "openai", "youtube", "everlance", "ranked ai", "adobe", "microsoft", "canva", "zoom", "slack", "notion", "dropbox", "chatgpt", "2nd site", "stackblitz", "dodopay", "netlify", "paddle.net", "paddle.com", "netflix", "aiprm", "envato", "supabase", "anthropic", "github", "vercel", "cloudflare", "figma", "zapier", "airtable", "linear", "fastmail", "n8n"] },
+  { label: "Professional Fees", keywords: ["professional fees", "professional services", "accounting", "ncube", "2nd site", "legal", "bookkeeping", "consulting"] },
+  { label: "Bank Fees", keywords: ["bank fees", "bank fee", "premium plan", "handling chg", "interest charge", "service charge", "nsf", "overdraft"] },
+  { label: "Business Insurance", keywords: ["imperial pfs", "business insurance", "liability"] },
+  { label: "Phone / Cell", keywords: ["phone / cell", "rogers", "fido", "koodo", "virgin mobile", "bell", "freedom mobile", "public mobile", "chatr", "cell phone"] },
+];
+
+const PERSONAL_BUCKETS: TaxBucket[] = [
+  { label: "Dental", keywords: ["dental", "chandra", "mcallister", "dentist", "orthodon"] },
+  { label: "Pharmacy / Medical", keywords: ["pharmacy / medical", "medical", "healthcare", "pharmacy", "shoppers drug mart", "rexall", "clinic", "doctor", "beaumaris", "callingwood", "royal alexandra", "specsavers", "vitality health"] },
+  { label: "Groceries", keywords: ["groceries", "sobeys", "save on", "saveonfoods", "safeway", "loblaws", "walmart", "wal-mart", "wmt suprctr", "mac's", "superstore", "costco", "no frills", "freshco", "dollarama", "dollar tree", "intercity packers", "lm st albert"] },
+  { label: "Grooming / Salon", keywords: ["grooming / salon", "grooming", "salon", "barber", "hair", "q-nails", "nails spot", "nails", "cutbypat", "ss edmonton", "shadified", "q hair"] },
+  { label: "Fitness", keywords: ["fitness", "la fitness", "simply health", "yoga", "gym"] },
+  { label: "Supplements", keywords: ["supplements", "supplement", "ls supplement", "lssupplementworld", "unimeal", "v support unimeal", "vsa_support", "popeye", "gnc", "nutrition"] },
+  { label: "Wellness / Massage", keywords: ["wellness / massage", "massage", "ting ting", "yo yo", "lewis massage", "tulip garden", "songblossom", "spa", "wellness"] },
+  { label: "Cash / ATM", keywords: ["cash / atm", "abm withdrawal", "abmwithdrawal", "other bank abm", "atm withdrawal", "rbc atm"] },
+  { label: "Travel & Leisure", keywords: ["travel & leisure", "passport", "holiday inn", "hotel", "balgonie", "travel", "sportsnet", "rmi-sportsnet"] },
+  { label: "Transfers", keywords: ["transfers", "payment", "interac etrnsfr sent", "e-transfer", "etransfer", "online transfer", "payback with points"] },
+  { label: "Loan Payments", keywords: ["loan payments", "lend direct", "lenddirect", "borrowell", "easyfinancial", "cash money", "springfinancial", "national money", "nationalmoney", "flexiti"] },
+  { label: "Credit Card Payments", keywords: ["credit card payments", "ctfs", "capital one", "canadian tire bank", "cc payment"] },
+  { label: "Investments", keywords: ["investments", "investment", "bmo inv", "bmoinv", "tfsa", "rrsp", "wealthsimple", "questrade"] },
+  { label: "Shopping", keywords: ["general shopping", "hardware / auto", "online shopping", "clothing", "shopping", "winners", "marshalls", "homesense", "amazon", "amzn", "best buy", "pandora", "sport chek", "american eagle", "shoe company", "mountain warehouse", "mark's", "rona", "canadian tire", "cdn tire", "great computers"] },
+  { label: "Golf", keywords: ["golf", "alberta beach golf", "twin willows", "glendale golf", "golfzon", "golf traders", "golf town", "golf avenue", "golf av", "sezzle*golf", "canada golf card", "lewis estates golf", "montgomery glen", "sanpiper golf", "silver creek golf", "leduc golf", "leducgolfclub", "lonespruce", "longshotz", "golf club"] },
+  { label: "Gambling", keywords: ["gambling", "bingo", "castledowns", "west end bingo", "river cree", "bear hills", "bearhills", "casino"] },
+];
+
+// Map each section id to its bucket list (same as TaxWorkspacePage)
+const SECTION_BUCKETS: Record<string, TaxBucket[]> = {
+  vehicle: VEHICLE_BUCKETS,
+  meals: MEALS_BUCKETS,
+  home: HOME_BUCKETS,
+  business: BUSINESS_BUCKETS,
+  personal: PERSONAL_BUCKETS,
+};
+
+/**
+ * Port of TaxWorkspacePage.groupIntoBuckets. Groups transactions into bucket totals
+ * using merchant-keyword matching with subcategory fallback. Returns only buckets
+ * with count > 0, sorted by total descending.
+ */
+function groupIntoBuckets(
+  txs: Array<{ merchant_name?: string; merchant?: string; subcategory?: string | null; amount: number }>,
+  buckets: TaxBucket[]
+): Array<{ label: string; amount: number; count: number }> {
+  const map = new Map<string, { count: number; total: number }>();
+  for (const b of buckets) map.set(b.label, { count: 0, total: 0 });
+
+  for (const tx of txs) {
+    const merch = ((tx as any).merchant_name || (tx as any).merchant || "").toLowerCase();
+    const subcat = (tx.subcategory || "").toLowerCase();
+    let matched = false;
+
+    // 1) Subcategory exact match against bucket label or keywords
+    if (subcat) {
+      for (const b of buckets) {
+        if (b.label.toLowerCase() === subcat || b.keywords.some(kw => subcat === kw.toLowerCase())) {
+          const entry = map.get(b.label)!;
+          entry.count += 1;
+          entry.total += Math.abs(tx.amount);
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    // 2) Merchant substring match against bucket keywords
+    if (!matched) {
+      for (const b of buckets) {
+        if (b.keywords.some(kw => merch.includes(kw.toLowerCase()))) {
+          const entry = map.get(b.label)!;
+          entry.count += 1;
+          entry.total += Math.abs(tx.amount);
+          matched = true;
+          break;
+        }
+      }
+    }
+    // Unmatched txs are dropped from buckets (they contribute to section total but not to any bucket).
+  }
+
+  return Array.from(map.entries())
+    .map(([label, v]) => ({ label, amount: Math.round(v.total), count: v.count }))
+    .filter(b => b.count > 0)
+    .sort((a, b) => b.amount - a.amount);
+}
+
 export interface TopTransaction {
   merchant: string;
   date: string;
@@ -245,27 +371,34 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       .map(c => `${c.label} ${totalSpent > 0 ? Math.round((c.amount / totalSpent) * 100) : 0}%`)
       .join(" \u2022 ");
 
-    // ── Tax-Workspace mirror: section + subcategory totals ──
-    // This is the same logic the TaxWorkspacePage uses, computed here so Prime
-    // can answer "how much did I pay on car payments" etc. accurately.
+    // ── Tax-Workspace mirror: section + bucket totals ──
+    // Uses the EXACT same logic TaxWorkspacePage uses (section matcher + merchant-keyword buckets).
+    // This is critical: Prime's "Car Payments" number must match the Tax Summary UI exactly.
     const taxSummary: TaxSummarySection[] = TAX_SECTIONS.map(section => {
       const matched = transactions.filter(t => section.matchFn(t as any));
       if (matched.length === 0) {
         return { id: section.id, title: section.title, total: 0, count: 0, topBuckets: [] };
       }
-      // Roll up by subcategory (fallback to "Uncategorized" if null)
-      const subMap: Record<string, { amount: number; count: number }> = {};
-      for (const tx of matched) {
-        const sub = (tx.subcategory && String(tx.subcategory).trim()) || "Uncategorized";
-        if (!subMap[sub]) subMap[sub] = { amount: 0, count: 0 };
-        subMap[sub].amount += Math.abs(tx.amount);
-        subMap[sub].count += 1;
-      }
-      const topBuckets: TaxSummaryBucket[] = Object.entries(subMap)
-        .map(([label, v]) => ({ label, amount: Math.round(v.amount), count: v.count }))
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 5);
       const total = matched.reduce((s, t) => s + Math.abs(t.amount), 0);
+      // Income has no buckets in Tax Workspace; fall back to naive subcategory rollup for non-bucketed sections.
+      const sectionBuckets = SECTION_BUCKETS[section.id];
+      let topBuckets: TaxSummaryBucket[] = [];
+      if (sectionBuckets) {
+        topBuckets = groupIntoBuckets(matched as any, sectionBuckets).slice(0, 5);
+      } else {
+        // Fallback for sections without defined buckets (e.g. Income): group by subcategory.
+        const subMap: Record<string, { amount: number; count: number }> = {};
+        for (const tx of matched) {
+          const sub = (tx.subcategory && String(tx.subcategory).trim()) || "Uncategorized";
+          if (!subMap[sub]) subMap[sub] = { amount: 0, count: 0 };
+          subMap[sub].amount += Math.abs(tx.amount);
+          subMap[sub].count += 1;
+        }
+        topBuckets = Object.entries(subMap)
+          .map(([label, v]) => ({ label, amount: Math.round(v.amount), count: v.count }))
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 5);
+      }
       return {
         id: section.id,
         title: section.title,
