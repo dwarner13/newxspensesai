@@ -10819,7 +10819,11 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               });
               if (matchedLabel) {
                 primeToolChoice = 'none';
-                console.log('[Chat][PRIME_DEBUG] tool_choice=none (matched Tax Summary label):', matchedLabel);
+                // Phase 2.4 FIX: tool_choice='none' alone wasn't enough — GPT-4o still emitted
+                // tool calls in practice. Also strip tools from the request entirely so the
+                // model literally cannot see them.
+                openaiTools = undefined;
+                console.log('[Chat][PRIME_DEBUG] tool_choice=none + tools stripped (matched Tax Summary label):', matchedLabel);
               }
             }
           } catch (gateError: any) {
