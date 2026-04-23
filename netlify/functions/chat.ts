@@ -1884,6 +1884,19 @@ function routePrime(
   const isPrimeEmployee = meta.employeeSlug === 'prime-boss' || meta.employeeSlug === 'prime';
   if (!isPrimeEmployee) return { lane: 'model' };
 
+  // PHASE 1.2 FIX (Apr 2026): Prime reasons on every message with full brain + prompt + tools.
+  // All 8 early fast-lanes (temporal, grounded_facts, clarification, payoff_engine,
+  // predictive_finance, coaching, financial_insight, automation) were hijacking Prime before
+  // it could use its actual brain. Force-route to LLM unless this is a worker_chain trigger
+  // (uploads/imports still need the orchestrator pipeline).
+  if (isUploadImportIntent(sanitizedUserText, meta.hasAttachments)) {
+    return { lane: 'worker_chain', reason: 'upload_import' };
+  }
+  return { lane: 'model' };
+
+  // ── PRE-PHASE-1.2 DETERMINISTIC LANES (disabled) ──
+  // Kept below as comments for rollback reference.
+  /*
   const temporalIntent = detectTemporalIntent(sanitizedUserText);
   if (temporalIntent && !meta.hasAttachments) {
     const assistantText = formatTemporalResponse(temporalIntent, meta.primeContext?.timezone || null);
@@ -1976,6 +1989,7 @@ function routePrime(
   }
 
   return { lane: 'model' };
+  */
 }
 
 function shouldUseHelpFastLane(messageText: string): { use: boolean; intent?: string } {
@@ -6395,6 +6409,7 @@ export const handler: Handler = async (event, context) => {
     const threadStatementContext = getThreadStatementContext(userId, threadId);
     const statementCountIntent =
       !isPrimeSummaryRequest &&
+      !skipPrimeFastLanes &&
       isStatementCountIntent(masked);
     if (!forcedPrimeDecision && statementCountIntent && !hasAttachments) {
       const [{ count: totalCount }, { count: processedCount }, latestImport] = await Promise.all([
@@ -6483,6 +6498,7 @@ export const handler: Handler = async (event, context) => {
     }
     const statementScopeSelectionIntent =
       !isPrimeSummaryRequest &&
+      !skipPrimeFastLanes &&
       isStatementScopeSelectionIntent(masked);
     if (!forcedPrimeDecision && statementScopeSelectionIntent && !hasAttachments) {
       const explicitImportId = extractImportIdFromMessage(masked);
@@ -6636,9 +6652,9 @@ export const handler: Handler = async (event, context) => {
         };
       }
     }
-    const merchantNeedleForTurn = isPrimeSummaryRequest ? null : extractMerchantNeedleFromQuestion(masked);
+    const merchantNeedleForTurn = (isPrimeSummaryRequest || skipPrimeFastLanes) ? null : extractMerchantNeedleFromQuestion(masked);
     const merchantSpendIntent =
-      !isPrimeSummaryRequest && Boolean(merchantNeedleForTurn) &&
+      !isPrimeSummaryRequest && !skipPrimeFastLanes && Boolean(merchantNeedleForTurn) &&
       /\b(how much|amount|total|spend|spent|pay|paid)\b/.test(String(masked || '').toLowerCase());
     if (!forcedPrimeDecision && merchantSpendIntent && !hasAttachments) {
       const facts = await loadLatestImportFactsBestEffort(sb, userId);
