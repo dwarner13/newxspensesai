@@ -6215,19 +6215,28 @@ export const handler: Handler = async (event, context) => {
     // and flow through to OpenAI so Prime can use the PRIME DOCUMENT SUMMARY TEMPLATE.
     const isPrimeSummaryRequest = isPrimeSummarySystemPrompt(masked);
 
-    const pipelineReuseIntent = isPrimeSummaryRequest ? null : detectPipelineReuseIntent(masked);
-    const explicitSummaryRecallIntent = isPrimeSummaryRequest ? false : isExplicitSummaryRecallIntent(masked);
+    // PHASE 1 FIX (Apr 2026): Prime is the orchestrator - it must reason on every message.
+    // Deterministic fast-lanes (statement_qa, statement_breakdown, recall_last_upload, etc.)
+    // were hijacking Prime's messages and preventing brain/tool use. Now all Prime messages
+    // flow through to the LLM with full brain + prompt + tools. Small-talk fast-lane is the
+    // only exception - legitimately cheap, handles "hi/hello/thanks" without cost.
+    const isPrimeBossRequest = (employeeSlug === 'prime-boss' || employeeSlug === 'prime');
+    const skipPrimeFastLanes = isPrimeBossRequest; // all Prime messages bypass deterministic routing
+
+    const pipelineReuseIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? null : detectPipelineReuseIntent(masked);
+    const explicitSummaryRecallIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false : isExplicitSummaryRecallIntent(masked);
     const heuristicLastUploadSummaryIntent =
       !isPrimeSummaryRequest &&
+      !skipPrimeFastLanes &&
       /\b(summary|summarize|summarise)\b/.test(String(masked || '').toLowerCase()) &&
       /\b(last|latest|recent)\b/.test(String(masked || '').toLowerCase()) &&
       /\b(upload|statement|statment|receipt|file|import)\b/.test(String(masked || '').toLowerCase());
-    const recallLastUploadIntent = isPrimeSummaryRequest
+    const recallLastUploadIntent = (isPrimeSummaryRequest || skipPrimeFastLanes)
       ? false
       : (isLastUploadRecallIntent(masked) || heuristicLastUploadSummaryIntent);
-    const recallLastUploadDetailIntent = isPrimeSummaryRequest ? false : isLastUploadDetailIntent(masked);
-    const workspaceActivityIntent = isPrimeSummaryRequest ? false : isWorkspaceActivityIntent(masked);
-    const statementBreakdownIntent = !isPrimeSummaryRequest && (isStatementBreakdownIntent(masked) || pipelineReuseIntent === 'tag_breakdown');
+    const recallLastUploadDetailIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false : isLastUploadDetailIntent(masked);
+    const workspaceActivityIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false : isWorkspaceActivityIntent(masked);
+    const statementBreakdownIntent = (!isPrimeSummaryRequest && !skipPrimeFastLanes) && (isStatementBreakdownIntent(masked) || pipelineReuseIntent === 'tag_breakdown');
     // When isPrimeSummaryRequest is true, forcedPrimeDecision stays null through the entire
     // deterministic section so the request falls through to the OpenAI model call.
     let forcedPrimeDecision: PrimeRouteDecision | null = isPrimeSummaryRequest ? null : null;
@@ -6506,6 +6515,7 @@ export const handler: Handler = async (event, context) => {
     }
     const statementQaIntent =
       !isPrimeSummaryRequest &&
+      !skipPrimeFastLanes &&
       !explicitSummaryRecallIntent &&
       !isStatementScopeSelectionIntent(masked) &&
       isStatementQaIntent(masked);
@@ -8686,7 +8696,11 @@ export const handler: Handler = async (event, context) => {
     }
     const isPrime = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
     const isPrimeBoss = finalEmployeeSlug === 'prime-boss';
-    if (!(isPrimeBoss)) {
+    // PHASE 1 FIX (Apr 2026): Removed the `if (!(isPrimeBoss))` gate that was skipping
+    // brain pack, DB prompt, AI fluency rule, and user context for Prime.
+    // Prime now gets the same full prompt stack as other agents, PLUS its Prime-specific
+    // additions (primeContextMessage, PRIME_ORCHESTRATION_RULE) further below.
+    {
 
     // 1. Global AI Fluency Rule (ALL employees) - Single merged global rules message
     systemMessages.push({ role: 'system', content: AI_FLUENCY_GLOBAL_SYSTEM_RULE });
@@ -9714,35 +9728,40 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         const openaiStartTime = Date.now();
         const streamAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
 
-        // FORCE HANDOFF: If Prime sees a clear specialist-owned intent, require tool use
-        // GPT-4o otherwise defaults to answering in text and ignores "call the tool" instructions
-        const userMessageLower = String(userMessageContent || '').toLowerCase();
-        const primeSpecialistIntent = isPrimeBoss && openaiTools && (
-          /\b(upload|import|ocr|parse|parsing|statement|receipt)\b/.test(userMessageLower) ||
-          /\b(categorize|categorization|category rule|needs review|miscategorized|wrong category)\b/.test(userMessageLower) ||
-          /\b(trend|month over month|compare|analytics|spending pattern|anomaly|anomalies)\b/.test(userMessageLower) ||
-          /\b(goal|debt payoff|savings target|mortgage|investment plan)\b/.test(userMessageLower) ||
-          /\b(tax|deduction|t2125|write.?off|write.?offs)\b/.test(userMessageLower)
-        );
-        if (primeSpecialistIntent) {
-          console.log('[Chat] Prime specialist intent detected — forcing tool_choice=required');
-        }
+        // PHASE 1 FIX (Apr 2026): Netlify edge 502s when 3-4 seconds pass without bytes flowing.
+        // gpt-4o on heavy Prime prompts can take 2-4s to emit the first token.
+        // Solution: emit SSE comment-line heartbeats every 800ms until the OpenAI stream opens.
+        // Comment lines (`:heartbeat`) are valid SSE and are ignored by frontend parsers.
+        let heartbeatInterval: ReturnType<typeof setInterval> | null = setInterval(() => {
+          try { writeRaw(`: heartbeat ${Date.now()}\n\n`); } catch { /* ignore */ }
+        }, 800);
+        const stopHeartbeat = () => {
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+          }
+        };
 
-        const openaiStream = await withTimeout(
-          openai.chat.completions.create({
-            model: modelConfig.model,
-            messages,
-            temperature: modelConfig.temperature,
-            max_tokens: modelConfig.maxTokens,
-            stream: true,
-            tools: openaiTools, // Add tools if available
-            ...(primeSpecialistIntent ? { tool_choice: 'required' } : {}),
-          } as any),
-          resolveOpenAiTimeoutMs(),
-          'model_streaming_primary',
-          orchCtx,
-          streamAbortController
-        );
+        let openaiStream;
+        try {
+          openaiStream = await withTimeout(
+            openai.chat.completions.create({
+              model: modelConfig.model,
+              messages,
+              temperature: modelConfig.temperature,
+              max_tokens: modelConfig.maxTokens,
+              stream: true,
+              tools: openaiTools, // Add tools if available
+            } as any),
+            resolveOpenAiTimeoutMs(),
+            'model_streaming_primary',
+            orchCtx,
+            streamAbortController
+          );
+        } finally {
+          // Stop heartbeat once the OpenAI stream is open (or has failed)
+          stopHeartbeat();
+        }
         timingLogs.openai_ttft = Date.now() - openaiStartTime;
         console.log('[Chat] OPENAI streaming call initiated, starting to process chunks');
 
