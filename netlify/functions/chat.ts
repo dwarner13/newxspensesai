@@ -5934,11 +5934,16 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime tx_update_category tool enabled via runtime fallback');
           }
-          if (!employeeTools.includes('finley_debt_payoff_forecast')) {
-            employeeTools = [...employeeTools, 'finley_debt_payoff_forecast', 'finley_loan_forecast', 'analytics_forecast'];
-            toolModules = pickTools(employeeTools);
-            console.log('[Chat] Prime Payoff Engine tools enabled via runtime fallback');
-          }
+          // PHASE 1.1 FIX (Apr 2026): Payoff Engine tools temporarily disabled for Prime.
+          // finley_debt_payoff_forecast has a malformed JSON schema (Python `True` used where JSON number expected),
+          // which causes OpenAI to 400 the ENTIRE chat request with:
+          //   "Invalid schema for function 'finley_debt_payoff_forecast': True is not of type 'number'."
+          // Re-enable once the tool definition is fixed upstream.
+          // if (!employeeTools.includes('finley_debt_payoff_forecast')) {
+          //   employeeTools = [...employeeTools, 'finley_debt_payoff_forecast', 'finley_loan_forecast', 'analytics_forecast'];
+          //   toolModules = pickTools(employeeTools);
+          //   console.log('[Chat] Prime Payoff Engine tools enabled via runtime fallback');
+          // }
         }
         
         if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {
@@ -6944,7 +6949,7 @@ export const handler: Handler = async (event, context) => {
         };
       }
     }
-    if (!forcedPrimeDecision && !isPrimeSummaryRequest) {
+    if (!forcedPrimeDecision && !isPrimeSummaryRequest && !skipPrimeFastLanes) {
       const isPrimeForHelpFastLane = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
       if (isPrimeForHelpFastLane && !hasAttachments) {
         const helpLane = shouldUseHelpFastLane(masked);
@@ -8656,11 +8661,14 @@ export const handler: Handler = async (event, context) => {
     // ========================================================================
     // 7.5. GET USER PROFILE & BUILD CONTEXT INJECTION
     // ========================================================================
-    // Fetch AI user context for fluency adaptation (skip on Prime fast lane).
+    // PHASE 1.1 FIX (Apr 2026): Prime now always gets user context (previously gated on !isPrimeFastLane).
+    // Without this, buildAiContextSystemMessage(null) at line 8710 crashes with
+    // "Cannot read properties of null (reading 'user_id')" after Phase 1 removed the outer gate.
     const profileStartTime = Date.now();
     let ctx: any = null;
     let userProfile: Awaited<ReturnType<typeof getUserProfile>> = null;
-    if (!isPrimeFastLane) {
+    const isPrimeForCtx = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
+    if (!isPrimeFastLane || isPrimeForCtx) {
       const ctxCacheKey = `${userId}:ai_context`;
       const profileCacheKey = `${userId}:profile`;
       const cachedCtx = runtimeCacheTtlSeconds > 0
@@ -8707,7 +8715,8 @@ export const handler: Handler = async (event, context) => {
     
     // 2. Merged User Context (fluency level + user preferences in ONE message to avoid duplication)
     // Combine buildAiContextSystemMessage(ctx) with userContextBlock if available
-    let mergedUserContext = buildAiContextSystemMessage(ctx);
+    // PHASE 1.1 FIX: Defensive — skip if ctx is null (happens if fetchAiUserContext returned null).
+    let mergedUserContext = ctx ? buildAiContextSystemMessage(ctx) : '';
     if (userContextBlock) {
       // Merge: AI fluency context + detailed user preferences
       mergedUserContext = `${mergedUserContext}\n\n---\n\n${userContextBlock}`;
