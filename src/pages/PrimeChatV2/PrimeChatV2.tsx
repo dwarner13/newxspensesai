@@ -241,12 +241,21 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return true;
   });
 
-  // Auto-scroll on new content - but respect user scroll-up intent
+  // ── Auto-scroll logic ──
+  // Track the length of the last assistant message so we scroll during streaming too
+  // (length changes as content streams in, not just when a new message appears).
+  const lastAssistantLen = chatMessages.length > 0
+    ? String(chatMessages[chatMessages.length - 1]?.content || '').length
+    : 0;
+
+  // Auto-scroll on new content - but respect user scroll-up intent.
+  // Using 'auto' instead of 'smooth' because smooth scroll can lag behind
+  // rapid streaming updates, causing the viewport to miss the latest tokens.
   useEffect(() => {
     if (!userScrolledUpRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
-  }, [chatMessages.length, uploadMessages.length]);
+  }, [chatMessages.length, uploadMessages.length, lastAssistantLen]);
 
   // Detect user scroll-up to pause auto-scroll
   useEffect(() => {
@@ -260,12 +269,25 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return () => el.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Force-scroll to the bottom (used on user send and briefing collapse).
+  // Clears userScrolledUpRef because sending a message = "I want to see the response."
+  const forceScrollToBottom = useCallback(() => {
+    userScrolledUpRef.current = false;
+    // Double RAF to let the DOM settle after state changes (briefing collapse, new message)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      });
+    });
+  }, []);
+
   // Send through the real chat engine - no openChat(), stays in-panel
   const handleSend = useCallback(async (message: string) => {
     setPromptsUsed(true);
     setBriefingCollapsed(true);
+    forceScrollToBottom();
     await sendMessage(message);
-  }, [sendMessage]);
+  }, [sendMessage, forceScrollToBottom]);
 
   // ── Process file through the import pipeline ──
   const processFile = useCallback(async (file: File) => {
