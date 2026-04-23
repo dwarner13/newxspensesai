@@ -10817,13 +10817,24 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                 if (firstWord && firstWord.length >= 3 && lastUserMsg.includes(firstWord)) return true;
                 return false;
               });
-              if (matchedLabel) {
+              // PHASE 2.9 FIX (Apr 2026): Only strip tools when the question is AMOUNT-seeking.
+              // Tax Summary has category totals but NOT merchant/transaction-level detail.
+              // Merchant questions like "which gas station did I use most" require tx_search.
+              // Question-intent patterns that need tools:
+              //   - "which", "what vendor", "what merchant", "where did I"
+              //   - "most common", "most frequent", "top", "biggest transaction"
+              //   - "list", "show me", "breakdown by merchant"
+              //   - "when", "last time", "transaction on [date]"
+              const needsTools = /\b(which|vendor|merchant|where did|most (common|frequent|used)|top \w+|biggest (transaction|purchase)|list (my|the)|show me (my|the) (transactions|purchases|charges)|breakdown by (merchant|vendor|store)|when did|last time|transaction on|\bon [a-z]+ \d+)\b/i.test(lastUserMsg);
+              if (matchedLabel && !needsTools) {
                 // Phase 2.5 FIX: Just strip tools entirely. No tool_choice needed when there are
                 // no tools — and sending tool_choice='none' without tools can cause OpenAI to
                 // time out on the first token. Stripping is clean and fast.
                 openaiTools = undefined;
                 primeToolChoice = undefined;
                 console.log('[Chat][PRIME_DEBUG] tools stripped (matched Tax Summary label):', matchedLabel);
+              } else if (matchedLabel && needsTools) {
+                console.log('[Chat][PRIME_DEBUG] Tax Summary match found but question needs tools:', matchedLabel);
               }
             }
           } catch (gateError: any) {
