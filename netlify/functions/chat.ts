@@ -6991,7 +6991,7 @@ export const handler: Handler = async (event, context) => {
     }
     let payoffRawForSnapshot: any | undefined;
     let payoffSnapshotPatch: Partial<PipelineSnapshot> | undefined;
-    if (!forcedPrimeDecision && !isPrimeSummaryRequest && isPayoffProjectionIntent(masked) && !hasAttachments) {
+    if (!forcedPrimeDecision && !isPrimeSummaryRequest && !skipPrimeFastLanes && isPayoffProjectionIntent(masked) && !hasAttachments) {
       const payoffResult = await buildPayoffProjectionResponse({
         messageText: masked,
         currency: String(effectivePrimeContext?.currency || 'CAD'),
@@ -7694,7 +7694,7 @@ export const handler: Handler = async (event, context) => {
     }
 
     const temporalIntent = detectTemporalIntent(masked);
-    if (temporalIntent && !hasAttachments) {
+    if (temporalIntent && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         formatTemporalResponse(
           temporalIntent,
