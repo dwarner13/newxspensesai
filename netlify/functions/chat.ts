@@ -8651,7 +8651,11 @@ export const handler: Handler = async (event, context) => {
     if (isPrimeEmployeeForHydration && primeIntent.isBreakdownReport && snapshotThinBeforeHydration) {
       try {
         const hydrated = await buildFinancialSnapshot(sb, userId);
+        // PHASE 2.1 FIX (Apr 2026): Preserve all frontend-supplied fields (taxSummary, totalIncome,
+        // teamActivitySummary, categorySummary, etc.) via spread. Previously this block REPLACED
+        // effectivePrimeContext with a narrow snapshot object, wiping everything PrimeChatV2 sent.
         effectivePrimeContext = {
+          ...(effectivePrimeContext || {}),
           displayName: effectivePrimeContext?.displayName || null,
           timezone: effectivePrimeContext?.timezone || null,
           currency: effectivePrimeContext?.currency || 'CAD',
@@ -8668,7 +8672,7 @@ export const handler: Handler = async (event, context) => {
             hasGoals: hydrated?.hasGoals === 'yes',
           },
           memorySummary: effectivePrimeContext?.memorySummary || null,
-        };
+        } as any;
       } catch (hydrationError: any) {
         console.warn('[Chat] Snapshot hydration failed:', hydrationError?.message || hydrationError);
       }
