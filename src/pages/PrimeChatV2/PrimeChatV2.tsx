@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { THEME } from "./agentConfig";
 import { AgentDot } from "./AgentDot";
@@ -160,8 +160,79 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const summaryText = data.loading ? "" : buildSummaryText(data);
   const thoughtsText = data.loading ? "" : buildThoughtsText(data);
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+  // ── Smart greeting: data-driven opener that varies based on what's most interesting.
+  // Pool of 10+ openers, filtered by relevance, picked with light rotation (sessionStorage).
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+
+    // Build a weighted pool of openers based on what the data is telling us.
+    type Opener = { weight: number; lead: string };
+    const openers: Opener[] = [];
+
+    // Priority 1: Urgent signals (uncategorized, pending imports, trend alerts)
+    if (data.uncategorizedCount > 5) {
+      openers.push({ weight: 10, lead: `${data.uncategorizedCount} transactions still need your call, ${firstName}.` });
+      openers.push({ weight: 8, lead: `Heads up, ${firstName} — Tag's queue is at ${data.uncategorizedCount}.` });
+    }
+    if (data.pendingImports > 0) {
+      openers.push({ weight: 10, lead: `${data.pendingImports} import${data.pendingImports > 1 ? 's' : ''} waiting to commit, ${firstName}.` });
+    }
+    if (data.trendAlert) {
+      const dir = data.trendAlert.direction === 'up' ? 'climbing' : 'dropping';
+      openers.push({ weight: 9, lead: `Your ${data.trendAlert.category.toLowerCase()} is ${dir} three months running, ${firstName}.` });
+    }
+
+    // Priority 2: Net flow framing (if meaningful income/expense)
+    if (data.totalIncome > 0 && data.totalSpent > 0) {
+      const net = data.totalIncome - data.totalSpent;
+      if (net < -1000) {
+        openers.push({ weight: 6, lead: `Expenses outpacing income by $${Math.abs(net).toLocaleString()}, ${firstName}.` });
+        openers.push({ weight: 5, lead: `${firstName} — the gap is $${Math.abs(net).toLocaleString()} this period.` });
+      } else if (net > 1000) {
+        openers.push({ weight: 6, lead: `Net positive by $${net.toLocaleString()}, ${firstName}.` });
+      }
+    }
+
+    // Priority 3: Month-over-month framing
+    if (Math.abs(data.monthOverMonthPct) >= 15 && Math.abs(data.monthOverMonthPct) < 500) {
+      const dir = data.monthOverMonthPct > 0 ? 'up' : 'down';
+      openers.push({ weight: 5, lead: `Spending ${dir} ${Math.abs(data.monthOverMonthPct)}% from last month, ${firstName}.` });
+    }
+
+    // Priority 4: Top category framing
+    if (data.categoryBreakdown[0] && data.categoryBreakdown[0].label !== 'Other' && data.totalSpent > 0) {
+      const top = data.categoryBreakdown[0];
+      const pct = Math.round((top.amount / data.totalSpent) * 100);
+      if (pct >= 30) {
+        openers.push({ weight: 4, lead: `${top.label} is ${pct}% of your spend, ${firstName}.` });
+      }
+    }
+
+    // Priority 5: Deductions
+    if (data.deductions.total > 500) {
+      openers.push({ weight: 4, lead: `$${data.deductions.total.toLocaleString()} in potential deductions on the table, ${firstName}.` });
+    }
+
+    // Priority 6: Generic varied openers (always available as fallback)
+    openers.push({ weight: 2, lead: `${firstName} — here's where things stand.` });
+    openers.push({ weight: 2, lead: `Quick read on your books, ${firstName}.` });
+    openers.push({ weight: 2, lead: `Your numbers right now, ${firstName}.` });
+    openers.push({ weight: 2, lead: `Let's run the tape, ${firstName}.` });
+    openers.push({ weight: 1, lead: `Good ${timeOfDay}, ${firstName}.` });
+
+    // Weighted random pick with light rotation: avoid the same opener two sessions in a row.
+    let lastOpener = '';
+    try { lastOpener = sessionStorage.getItem('prime_last_opener') || ''; } catch { /* ignore */ }
+    const candidates = openers.filter(o => o.lead !== lastOpener);
+    const pool = candidates.length > 0 ? candidates : openers;
+    const total = pool.reduce((s, o) => s + o.weight, 0);
+    let r = Math.random() * total;
+    let pick = pool[0];
+    for (const o of pool) { r -= o.weight; if (r <= 0) { pick = o; break; } }
+    try { sessionStorage.setItem('prime_last_opener', pick.lead); } catch { /* ignore */ }
+    return pick.lead;
+  }, [data.loading, data.uncategorizedCount, data.pendingImports, data.trendAlert, data.totalIncome, data.totalSpent, data.monthOverMonthPct, data.categoryBreakdown, data.deductions.total, firstName]);
 
   // Filter to only visible messages - skip hidden user prompts and greeting instructions
   const chatMessages = messages.filter(m => {
@@ -419,7 +490,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                     <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
                   </div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text }}>
-                    {greeting}, {firstName}. Here&apos;s your briefing.
+                    {greeting} Here&apos;s your briefing.
                   </div>
                 </div>
               </div>

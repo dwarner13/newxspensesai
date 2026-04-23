@@ -1372,7 +1372,7 @@ export function usePrimeChat(
           employeeSlug: employeeSlugToSend, // CRITICAL: Always send employeeSlug so backend routes correctly
           client_message_id: clientMessageId,
           request_id: requestId,
-          stream: employeeSlugToSend === 'prime-boss' ? false : true,
+          stream: true,
           ...(safeSystemPrompt ? { systemPromptOverride: safeSystemPrompt } : {}), // Use safe systemPrompt
           ...(opts?.documentIds && opts.documentIds.length > 0 ? { documentIds: opts.documentIds } : {}), // Include document IDs if provided
           ...(opts?.hidden ? { hidden: true } : {}), // Add hidden flag so backend skips storing user prompt
@@ -1573,28 +1573,65 @@ export function usePrimeChat(
           if (payload?.guardrails) {
             setGuardrailsStatus(payload.guardrails);
           }
+
+          // HANDOFF DETECTION (non-streaming JSON response)
+          // Backend sets payload.meta.handoff = { from, to } when Prime's request_employee_handoff
+          // tool fires. Mirror the SSE `type: 'handoff'` behavior: update active employee,
+          // clear thread binding, add a system message, and attribute the incoming response
+          // to the TARGET employee so their avatar/color shows instead of Prime's.
+          const handoffInfo = payload?.meta?.handoff;
+          const hasHandoff = Boolean(handoffInfo?.from && handoffInfo?.to && handoffInfo.from !== handoffInfo.to);
+          if (hasHandoff) {
+            const { from, to } = handoffInfo;
+            const DISABLE_HANDOFFS = import.meta.env.VITE_DISABLE_AUTO_HANDOFFS === 'true';
+            if (DISABLE_HANDOFFS && !allowNextHandoffRef.current) {
+              warn(`[usePrimeChat] 🚫 Auto-handoff disabled. Ignoring JSON handoff: ${from} -> ${to}`);
+            } else {
+              if (allowNextHandoffRef.current) {
+                allowNextHandoffRef.current = false;
+                if (allowNextHandoffTimeoutRef.current) {
+                  window.clearTimeout(allowNextHandoffTimeoutRef.current);
+                  allowNextHandoffTimeoutRef.current = null;
+                }
+              }
+              log(`[usePrimeChat] 🔄 Handoff event (JSON): ${from} -> ${to}`);
+              setActiveEmployeeSlug(to);
+              setEffectiveThreadId(undefined);
+              if (effectiveSessionId && safeUserId) {
+                try {
+                  const oldKey = `chat_session_${safeUserId}_${from}`;
+                  const newKey = `chat_session_${safeUserId}_${to}`;
+                  const sessionId = localStorage.getItem(oldKey) || effectiveSessionId;
+                  if (sessionId) {
+                    localStorage.setItem(newKey, sessionId);
+                    if (oldKey !== newKey) localStorage.removeItem(oldKey);
+                  }
+                } catch { /* ignore */ }
+              }
+              // Add a system divider message
+              setMessages(prev => [...prev, {
+                id: `handoff-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                role: 'system',
+                content: `Handoff: ${from} → ${to}`,
+                createdAt: new Date().toISOString(),
+              }]);
+            }
+          }
+
           const contentText = typeof payload?.content === 'string' ? payload.content : '';
           if (contentText) {
             textByRequestRef.current.set(requestId, contentText);
             committedAssistantIdsRef.current.add(messageId);
+            // Attribute to target employee when handoff occurred, else the original target
+            const responseEmployee = hasHandoff
+              ? handoffInfo.to
+              : (payload?.employeeSlug || payload?.employee || employeeSlugToSend);
             upsertAssistantMessage({
               messageId,
               requestId,
               content: contentText,
               isStreaming: false,
-            });
-            // FIX: JSON path delivers one large content blob. Parent's scroll
-            // effect races the DOM paint. Re-upsert after paint so scrollHeight
-            // is correct when scroll-to-bottom measures the container.
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                upsertAssistantMessage({
-                  messageId,
-                  requestId,
-                  content: contentText,
-                  isStreaming: false,
-                });
-              });
+              employeeKey: responseEmployee,
             });
           }
           setIsStreaming(false);
@@ -1893,6 +1930,43 @@ export function usePrimeChat(
               // Extract assistant content from JSON response
               const assistantContent = fallbackData.content || fallbackData.message?.content || '';
               const responseThreadId = fallbackData.thread_id || fallbackData.threadId;
+
+              // HANDOFF DETECTION in fallback JSON response (same as primary JSON path above)
+              const fbHandoff = fallbackData?.meta?.handoff;
+              const fbHasHandoff = Boolean(fbHandoff?.from && fbHandoff?.to && fbHandoff.from !== fbHandoff.to);
+              if (fbHasHandoff) {
+                const { from, to } = fbHandoff;
+                const DISABLE_HANDOFFS = import.meta.env.VITE_DISABLE_AUTO_HANDOFFS === 'true';
+                if (!DISABLE_HANDOFFS || allowNextHandoffRef.current) {
+                  if (allowNextHandoffRef.current) {
+                    allowNextHandoffRef.current = false;
+                    if (allowNextHandoffTimeoutRef.current) {
+                      window.clearTimeout(allowNextHandoffTimeoutRef.current);
+                      allowNextHandoffTimeoutRef.current = null;
+                    }
+                  }
+                  log(`[usePrimeChat] 🔄 Handoff event (fallback JSON): ${from} -> ${to}`);
+                  setActiveEmployeeSlug(to);
+                  setEffectiveThreadId(undefined);
+                  if (effectiveSessionId && safeUserId) {
+                    try {
+                      const oldKey = `chat_session_${safeUserId}_${from}`;
+                      const newKey = `chat_session_${safeUserId}_${to}`;
+                      const sessionId = localStorage.getItem(oldKey) || effectiveSessionId;
+                      if (sessionId) {
+                        localStorage.setItem(newKey, sessionId);
+                        if (oldKey !== newKey) localStorage.removeItem(oldKey);
+                      }
+                    } catch { /* ignore */ }
+                  }
+                  setMessages(prev => [...prev, {
+                    id: `handoff-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                    role: 'system',
+                    content: `Handoff: ${from} → ${to}`,
+                    createdAt: new Date().toISOString(),
+                  }]);
+                }
+              }
               
               if (assistantContent) {
                 // CRITICAL: Update existing placeholder instead of creating new message
@@ -1902,7 +1976,7 @@ export function usePrimeChat(
                   requestId,
                   content: String(assistantContent),
                   isStreaming: false,
-                  employeeKey: employeeSlugToSend,
+                  employeeKey: fbHasHandoff ? fbHandoff.to : employeeSlugToSend,
                 });
                 
                 if (import.meta.env.DEV) {
