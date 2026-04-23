@@ -8750,12 +8750,22 @@ export const handler: Handler = async (event, context) => {
       }
 
       if (effectivePrimeContext) {
-        const pc = effectivePrimeContext;
+        const pc = effectivePrimeContext as any;
         let primeContextMessage = 'PRIME CONTEXT (User State Snapshot):\n\n';
         primeContextMessage += `User: ${pc.displayName || 'User'}\n`;
         if (pc.timezone) primeContextMessage += `Timezone: ${pc.timezone}\n`;
         if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
         if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
+        // Totals (top-level fields from PrimeChatV2's additionalPrimeContext)
+        if (typeof pc.totalIncome === 'number') primeContextMessage += `Total Income: ${pc.totalIncome}\n`;
+        if (typeof pc.totalSpent === 'number') primeContextMessage += `Total Spent: ${pc.totalSpent}\n`;
+        if (typeof pc.statementCount === 'number') primeContextMessage += `Statements: ${pc.statementCount}\n`;
+        if (typeof pc.transactionCount === 'number') primeContextMessage += `Transactions: ${pc.transactionCount}\n`;
+        if (typeof pc.pendingImports === 'number' && pc.pendingImports > 0) {
+          primeContextMessage += `Pending Imports: ${pc.pendingImports}\n`;
+        }
+        if (pc.topMerchant) primeContextMessage += `Top Merchant: ${pc.topMerchant}\n`;
+        if (pc.categorySummary) primeContextMessage += `Category Mix: ${pc.categorySummary}\n`;
         if (pc.financialSnapshot) {
           const fs = pc.financialSnapshot;
           primeContextMessage += `\nSnapshot:\n`;
@@ -8763,8 +8773,28 @@ export const handler: Handler = async (event, context) => {
           primeContextMessage += `- uncategorizedCount: ${fs.uncategorizedCount}\n`;
           if (fs.monthlySpend !== undefined) primeContextMessage += `- monthlySpend: ${fs.monthlySpend}\n`;
           if (fs.topCategories && fs.topCategories.length > 0) {
-            primeContextMessage += `- topCategories: ${fs.topCategories.map(c => `${c.name} (${c.amount})`).join(', ')}\n`;
+            primeContextMessage += `- topCategories: ${fs.topCategories.map((c: any) => `${c.name} (${c.amount})`).join(', ')}\n`;
           }
+        }
+        // Tax-workspace mirror: section totals + top subcategories.
+        // Prime can answer "how much did I pay on car payments", "gas & fuel", "insurance", etc. from this block.
+        if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
+          primeContextMessage += `\nTax Summary (by section):\n`;
+          for (const section of pc.taxSummary) {
+            if (!section || typeof section.total !== 'number') continue;
+            primeContextMessage += `- ${section.section}: ${section.total} (${section.count} txns)`;
+            if (Array.isArray(section.topSubcategories) && section.topSubcategories.length > 0) {
+              const subs = section.topSubcategories
+                .map((b: any) => `${b.name}=${b.amount}`)
+                .join(', ');
+              primeContextMessage += ` [${subs}]`;
+            }
+            primeContextMessage += `\n`;
+          }
+        }
+        // Team activity summary (what other agents did recently)
+        if (pc.teamActivitySummary) {
+          primeContextMessage += `\nRecent Team Activity:\n${pc.teamActivitySummary}\n`;
         }
         systemMessages.push({ role: 'system', content: primeContextMessage });
       }

@@ -118,6 +118,18 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       categorySummary: data.categorySummary,
       topMerchant: data.topMerchant?.name ?? null,
       pendingImports: data.pendingImports,
+      // Tax-workspace mirror (section totals + top subcategories) so Prime answers
+      // "how much did I pay on car payments" etc. without routing to Ledger.
+      taxSummary: data.taxSummary.map(s => ({
+        section: s.title,
+        total: s.total,
+        count: s.count,
+        topSubcategories: s.topBuckets.map(b => ({
+          name: b.label,
+          amount: b.amount,
+          count: b.count,
+        })),
+      })),
       // Team agent activity
       teamActivitySummary: teamActivity.summaryText || undefined,
     },

@@ -19,6 +19,50 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Healthcare": "#f87171", "Bank Fees": "#94a3b8", "Income": "#34d399", "Other": "#4a5a75",
 };
 
+/* ── Tax-Workspace mirror: section matchers (same rules as TaxWorkspacePage.tsx) ── */
+// Keep these in sync if TaxWorkspacePage section logic changes.
+interface TaxSectionDef {
+  id: string;
+  title: string;
+  matchFn: (tx: { category?: string; subcategory?: string; type?: string }) => boolean;
+}
+const TAX_SECTIONS: TaxSectionDef[] = [
+  { id: "income", title: "Income", matchFn: (tx) => (tx as any).type === "income" },
+  {
+    id: "vehicle", title: "Vehicle Expenses",
+    matchFn: (tx) =>
+      tx.category === "Transportation" || tx.category === "Automotive" ||
+      tx.subcategory === "Vehicle Insurance" ||
+      ["Gas & Fuel", "Parking", "Vehicle Maintenance", "Vehicle Registration", "Car Loan", "Car Wash"].includes(tx.subcategory || ""),
+  },
+  {
+    id: "home", title: "Home / Rent / Lease",
+    matchFn: (tx) =>
+      tx.category === "Rent or Lease" || tx.category === "Utilities" ||
+      tx.category === "Housing" || tx.category === "Home / Rent / Lease" ||
+      tx.subcategory === "Mortgage / Rent" || tx.subcategory === "Condo Fees" || tx.subcategory === "Home Insurance",
+  },
+  {
+    id: "meals", title: "Meals & Entertainment",
+    matchFn: (tx) =>
+      tx.category === "Food & Dining" ||
+      (tx.category === "Entertainment" && tx.subcategory !== "Golf" && tx.subcategory !== "Gambling" && tx.subcategory !== "Events / Tickets"),
+  },
+  {
+    id: "business", title: "Business Expenses",
+    matchFn: (tx) =>
+      tx.category === "Subscriptions" || tx.category === "Bank Fees" || tx.category === "Advertising" ||
+      tx.category === "Technology" || tx.category === "Office Supplies" ||
+      tx.category === "Professional Services" || tx.category === "Business Expenses",
+  },
+  {
+    id: "personal", title: "Personal",
+    matchFn: (tx) =>
+      ["Personal Care", "Groceries", "Debt Payments", "Transfers", "Shopping", "Healthcare", "Needs Review", "Travel"].includes(tx.category || "") ||
+      ["Golf", "Gambling", "Events / Tickets", "Investments", "Online Shopping", "Clothing", "General Shopping", "Hardware / Auto", "Fitness", "Supplements"].includes(tx.subcategory || ""),
+  },
+];
+
 export interface TopTransaction {
   merchant: string;
   date: string;
@@ -26,6 +70,20 @@ export interface TopTransaction {
   category: string;
   categoryColor: string;
   isIncome: boolean;
+}
+
+export interface TaxSummaryBucket {
+  label: string;
+  amount: number;
+  count: number;
+}
+
+export interface TaxSummarySection {
+  id: string;
+  title: string;
+  total: number;
+  count: number;
+  topBuckets: TaxSummaryBucket[]; // top 5 subcategories by spend
 }
 
 export interface PrimeBriefingData {
@@ -43,6 +101,8 @@ export interface PrimeBriefingData {
   pendingImports: number;
   trendAlert: { category: string; months: number[]; direction: "up" | "down" } | null;
   deductions: { total: number; categories: { label: string; amount: number; color: string }[] };
+  // Tax-workspace mirror: section totals + top subcategories (car payments, insurance, etc.)
+  taxSummary: TaxSummarySection[];
   loading: boolean;
 }
 
@@ -57,7 +117,7 @@ export function usePrimeBriefingData(): PrimeBriefingData {
         monthOverMonthPct: 0, topCategoryChange: { category: "", pct: 0 },
         categoryBreakdown: [], categorySummary: "", topTransactions: [], topMerchant: null,
         uncategorizedCount: 0, pendingImports: 0,
-        trendAlert: null, deductions: { total: 0, categories: [] }, loading: true,
+        trendAlert: null, deductions: { total: 0, categories: [] }, taxSummary: [], loading: true,
       };
     }
 
@@ -185,6 +245,36 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       .map(c => `${c.label} ${totalSpent > 0 ? Math.round((c.amount / totalSpent) * 100) : 0}%`)
       .join(" \u2022 ");
 
+    // ── Tax-Workspace mirror: section + subcategory totals ──
+    // This is the same logic the TaxWorkspacePage uses, computed here so Prime
+    // can answer "how much did I pay on car payments" etc. accurately.
+    const taxSummary: TaxSummarySection[] = TAX_SECTIONS.map(section => {
+      const matched = transactions.filter(t => section.matchFn(t as any));
+      if (matched.length === 0) {
+        return { id: section.id, title: section.title, total: 0, count: 0, topBuckets: [] };
+      }
+      // Roll up by subcategory (fallback to "Uncategorized" if null)
+      const subMap: Record<string, { amount: number; count: number }> = {};
+      for (const tx of matched) {
+        const sub = (tx.subcategory && String(tx.subcategory).trim()) || "Uncategorized";
+        if (!subMap[sub]) subMap[sub] = { amount: 0, count: 0 };
+        subMap[sub].amount += Math.abs(tx.amount);
+        subMap[sub].count += 1;
+      }
+      const topBuckets: TaxSummaryBucket[] = Object.entries(subMap)
+        .map(([label, v]) => ({ label, amount: Math.round(v.amount), count: v.count }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 5);
+      const total = matched.reduce((s, t) => s + Math.abs(t.amount), 0);
+      return {
+        id: section.id,
+        title: section.title,
+        total: Math.round(total),
+        count: matched.length,
+        topBuckets,
+      };
+    }).filter(s => s.count > 0); // drop empty sections
+
     return {
       statementCount: imports.length,
       transactionCount: transactions.length,
@@ -200,6 +290,7 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       pendingImports,
       trendAlert,
       deductions: { total: dedTotal, categories: dedCats },
+      taxSummary,
       loading: false,
     };
   }, [transactions, imports, txLoading, impLoading]);
