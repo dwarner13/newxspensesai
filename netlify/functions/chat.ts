@@ -7794,7 +7794,7 @@ export const handler: Handler = async (event, context) => {
 
     const groundedFactsIntent = detectGroundedFactsIntent(masked);
     const isPrimeEmployeeForGroundedFacts = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (!masked.startsWith('[PRIME_GREETING]') && groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments) {
+    if (!masked.startsWith('[PRIME_GREETING]') && groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildGroundedFactsResponse(groundedFactsIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -7906,7 +7906,7 @@ export const handler: Handler = async (event, context) => {
       clarificationDecision?.reason === 'missing_timeframe' && hasScopedStatementContext
         ? null
         : clarificationDecision;
-    if (effectiveClarificationDecision && !hasAttachments) {
+    if (effectiveClarificationDecision && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         effectiveClarificationDecision.question,
         finalEmployeeSlug,
@@ -8002,7 +8002,7 @@ export const handler: Handler = async (event, context) => {
 
     const coachingIntent = detectCoachingIntent(masked);
     const isPrimeEmployeeForCoaching = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (coachingIntent && isPrimeEmployeeForCoaching && !hasAttachments) {
+    if (coachingIntent && isPrimeEmployeeForCoaching && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildCoachingResponse(coachingIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -8099,7 +8099,7 @@ export const handler: Handler = async (event, context) => {
 
     const insightIntent = detectInsightIntent(masked);
     const isPrimeEmployeeForInsights = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (insightIntent && isPrimeEmployeeForInsights && !hasAttachments) {
+    if (insightIntent && isPrimeEmployeeForInsights && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildInsightResponse(insightIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -8196,7 +8196,7 @@ export const handler: Handler = async (event, context) => {
 
     const predictiveIntent = detectPredictiveIntent(masked);
     const isPrimeEmployeeForPredictive = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (predictiveIntent && isPrimeEmployeeForPredictive && !hasAttachments) {
+    if (predictiveIntent && isPrimeEmployeeForPredictive && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildPredictiveResponse(predictiveIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -8293,7 +8293,7 @@ export const handler: Handler = async (event, context) => {
 
     const automationIntent = detectAutomationIntent(masked);
     const isPrimeEmployeeForAutomation = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (automationIntent && isPrimeEmployeeForAutomation && !hasAttachments) {
+    if (automationIntent && isPrimeEmployeeForAutomation && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildAutomationResponse(automationIntent, effectivePrimeContext),
         finalEmployeeSlug,
