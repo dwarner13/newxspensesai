@@ -10784,6 +10784,49 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           console.warn('[Chat] Failed to convert tools to OpenAI format (non-fatal):', toolError);
         }
         
+        // PHASE 2.3 FIX (Apr 2026): Tool gating for Prime when user asks about Tax Summary categories.
+        // GPT-4o has a strong bias toward calling tools when available, even when the answer is
+        // already in the system prompt. When the user asks about a category/subcategory that's in
+        // our Tax Summary AUTHORITATIVE block, force tool_choice='none' so Prime MUST answer from
+        // the prompt instead of calling tx_search (which returns inaccurate merchant-pattern matches).
+        let primeToolChoice: any = undefined;
+        if (isPrime && openaiTools) {
+          try {
+            const pc = (effectivePrimeContext as any) || {};
+            const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
+            if (taxSummary.length > 0) {
+              // Collect all subcategory names + section titles from Tax Summary
+              const knownLabels: string[] = [];
+              for (const section of taxSummary) {
+                if (section?.section) knownLabels.push(String(section.section).toLowerCase());
+                if (Array.isArray(section?.topSubcategories)) {
+                  for (const sub of section.topSubcategories) {
+                    if (sub?.name) knownLabels.push(String(sub.name).toLowerCase());
+                  }
+                }
+              }
+              // Normalize the user's latest message for matching
+              const lastUserMsg = String(messageTrimmed || '').toLowerCase();
+              // Match if ANY label's core word appears in the user message.
+              // Use first word of each label (e.g., "Car Payments" -> "car", "Gas & Fuel" -> "gas").
+              const matchedLabel = knownLabels.find(label => {
+                // Direct substring match (e.g., user says "car payments", label is "car payments")
+                if (lastUserMsg.includes(label)) return true;
+                // Match first word of label (e.g., user says "cars", label "car payments" -> first word "car")
+                const firstWord = label.split(/[\s\/&]+/).filter(Boolean)[0];
+                if (firstWord && firstWord.length >= 3 && lastUserMsg.includes(firstWord)) return true;
+                return false;
+              });
+              if (matchedLabel) {
+                primeToolChoice = 'none';
+                console.log('[Chat][PRIME_DEBUG] tool_choice=none (matched Tax Summary label):', matchedLabel);
+              }
+            }
+          } catch (gateError: any) {
+            console.warn('[Chat] Prime tool-gating check failed (non-fatal):', gateError?.message || gateError);
+          }
+        }
+        
         // Model config already resolved above - reuse it
         // (No need to resolve again - already available in scope)
         
@@ -10796,6 +10839,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             max_tokens: modelConfig.maxTokens,
             stream: false,
             tools: openaiTools,
+            ...(primeToolChoice ? { tool_choice: primeToolChoice } : {}),
           } as any),
           resolveOpenAiTimeoutMs(),
           'model_non_streaming_primary',
