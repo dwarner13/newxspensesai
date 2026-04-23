@@ -372,10 +372,33 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       .join(" \u2022 ");
 
     // ── Tax-Workspace mirror: section + bucket totals ──
-    // Uses the EXACT same logic TaxWorkspacePage uses (section matcher + merchant-keyword buckets).
-    // This is critical: Prime's "Car Payments" number must match the Tax Summary UI exactly.
+    // Uses the EXACT same logic TaxWorkspacePage uses so Prime's numbers match the UI exactly.
+    // Key parity details (easy to miss):
+    //   1. Year filter: Tax Workspace defaults to year 2025 (`WHERE date >= '2025-01-01' AND date < '2026-01-01'`).
+    //   2. First-match-wins: a transaction can only belong to ONE section. We track a `claimed` set
+    //      so we don't double-count (same as TaxWorkspacePage.sectionResults).
+    // Tax Workspace's default year. Keep in sync with TaxWorkspacePage.tsx `useState(2025)`.
+    const TAX_YEAR = 2025;
+    const yearStart = new Date(`${TAX_YEAR}-01-01T00:00:00Z`).getTime();
+    const yearEnd = new Date(`${TAX_YEAR + 1}-01-01T00:00:00Z`).getTime();
+    const yearFiltered = transactions.filter(t => {
+      // Transaction may use `date` or `posted_at` field depending on source.
+      const rawDate = (t as any).date || (t as any).posted_at;
+      if (!rawDate) return false;
+      const d = new Date(rawDate).getTime();
+      return !isNaN(d) && d >= yearStart && d < yearEnd;
+    });
+
+    const claimed = new Set<number>();
     const taxSummary: TaxSummarySection[] = TAX_SECTIONS.map(section => {
-      const matched = transactions.filter(t => section.matchFn(t as any));
+      const matched: typeof yearFiltered = [];
+      yearFiltered.forEach((tx, idx) => {
+        if (claimed.has(idx)) return;
+        if (section.matchFn(tx as any)) {
+          matched.push(tx);
+          claimed.add(idx);
+        }
+      });
       if (matched.length === 0) {
         return { id: section.id, title: section.title, total: 0, count: 0, topBuckets: [] };
       }
