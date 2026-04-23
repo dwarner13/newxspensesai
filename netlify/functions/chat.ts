@@ -10881,13 +10881,22 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         }
 
         // Guardrail: enforce tx_search for transaction intents when model skips tools.
+        // PHASE 2.6 FIX: Skip this guardrail if the Tax Summary gate intentionally stripped tools —
+        // we WANT the model to answer from context, not fall back to tx_search.
+        const taxSummaryGateStrippedTools = (openaiTools === undefined && isPrime && (() => {
+          try {
+            const pc = (effectivePrimeContext as any) || {};
+            return Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0;
+          } catch { return false; }
+        })());
         if (
           toolsAllowedThisTurn &&
           toolCalls.length === 0 &&
           finalSessionId &&
           txSearchAvailable &&
           isTransactionQuestionForTxSearch(masked) &&
-          toolModules['tx_search']
+          toolModules['tx_search'] &&
+          !taxSummaryGateStrippedTools
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,
