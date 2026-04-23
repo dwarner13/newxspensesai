@@ -251,11 +251,13 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // Auto-scroll on new content - but respect user scroll-up intent.
   // Using 'auto' instead of 'smooth' because smooth scroll can lag behind
   // rapid streaming updates, causing the viewport to miss the latest tokens.
+  // Includes revealStep so the briefing's sequential reveal animation keeps
+  // the newest block in view (8 steps over ~8 seconds).
   useEffect(() => {
     if (!userScrolledUpRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
-  }, [chatMessages.length, uploadMessages.length, lastAssistantLen]);
+  }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep]);
 
   // Detect user scroll-up to pause auto-scroll
   useEffect(() => {
