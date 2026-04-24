@@ -10111,7 +10111,12 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     }
                     // Special handling for employee handoff (streaming)
                     // Check for new schema: data.requested_handoff === true
-                    if (!userForcedEmployee && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
+                    // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
+              // Users open Prime's drawer which sets userForcedEmployee=true, but Prime is the
+              // orchestrator - handoffs FROM Prime are the entire use case. Preserve the guard
+              // for other agents so a user locked to Tag can't get switched to Byte unexpectedly.
+              const allowHandoffFromForcedPrime = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
+              if ((!userForcedEmployee || allowHandoffFromForcedPrime) && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                       const handoffData = (result as any).data;
                       if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
                         // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
@@ -11061,7 +11066,12 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               }
               // Special handling for employee handoff (non-streaming)
               // Check for new schema: data.requested_handoff === true
-              if (!userForcedEmployee && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
+              // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
+              // Users open Prime's drawer which sets userForcedEmployee=true, but Prime is the
+              // orchestrator - handoffs FROM Prime are the entire use case. Preserve the guard
+              // for other agents so a user locked to Tag can't get switched to Byte unexpectedly.
+              const allowHandoffFromForcedPrime = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
+              if ((!userForcedEmployee || allowHandoffFromForcedPrime) && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                 const handoffData = (result as any).data;
                 if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
                   // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
