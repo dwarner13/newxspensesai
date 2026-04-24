@@ -5558,7 +5558,10 @@ export const handler: Handler = async (event, context) => {
     // - current message must be short + affirmative-looking
     // - previous assistant message must have offered a handoff
     try {
-      if (classifiedLane === 'fast' && requestedEmployeeSlug === 'prime-boss') {
+      // NOTE: no employee check here - requestedEmployeeSlug not yet initialized at this
+      // point in the function. Scoping to Prime is enforced by primeDebug/isPrimeEmployee
+      // checks further down. Worst case this runs for non-Prime and finds no match.
+      if (classifiedLane === 'fast') {
         const msgLower = String(messageTrimmed || '').toLowerCase().trim();
         const wordCount = msgLower.split(/\s+/).filter(Boolean).length;
         const isAffirmative = wordCount <= 12 && /\b(yes|sure|ok(?:ay)?|please|yep|yeah|go ahead|do it|connect me|let's|sounds good|lets|speak to (tag|byte|crystal|goalie)|i (would|want|wanna) (like to )?(speak|talk) to)\b/.test(msgLower);
