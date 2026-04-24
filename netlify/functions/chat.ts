@@ -1884,6 +1884,19 @@ function routePrime(
   const isPrimeEmployee = meta.employeeSlug === 'prime-boss' || meta.employeeSlug === 'prime';
   if (!isPrimeEmployee) return { lane: 'model' };
 
+  // PHASE 1.2 FIX (Apr 2026): Prime reasons on every message with full brain + prompt + tools.
+  // All 8 early fast-lanes (temporal, grounded_facts, clarification, payoff_engine,
+  // predictive_finance, coaching, financial_insight, automation) were hijacking Prime before
+  // it could use its actual brain. Force-route to LLM unless this is a worker_chain trigger
+  // (uploads/imports still need the orchestrator pipeline).
+  if (isUploadImportIntent(sanitizedUserText, meta.hasAttachments)) {
+    return { lane: 'worker_chain', reason: 'upload_import' };
+  }
+  return { lane: 'model' };
+
+  // ── PRE-PHASE-1.2 DETERMINISTIC LANES (disabled) ──
+  // Kept below as comments for rollback reference.
+  /*
   const temporalIntent = detectTemporalIntent(sanitizedUserText);
   if (temporalIntent && !meta.hasAttachments) {
     const assistantText = formatTemporalResponse(temporalIntent, meta.primeContext?.timezone || null);
@@ -1976,6 +1989,7 @@ function routePrime(
   }
 
   return { lane: 'model' };
+  */
 }
 
 function shouldUseHelpFastLane(messageText: string): { use: boolean; intent?: string } {
@@ -5934,11 +5948,16 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime tx_update_category tool enabled via runtime fallback');
           }
-          if (!employeeTools.includes('finley_debt_payoff_forecast')) {
-            employeeTools = [...employeeTools, 'finley_debt_payoff_forecast', 'finley_loan_forecast', 'analytics_forecast'];
-            toolModules = pickTools(employeeTools);
-            console.log('[Chat] Prime Payoff Engine tools enabled via runtime fallback');
-          }
+          // PHASE 1.1 FIX (Apr 2026): Payoff Engine tools temporarily disabled for Prime.
+          // finley_debt_payoff_forecast has a malformed JSON schema (Python `True` used where JSON number expected),
+          // which causes OpenAI to 400 the ENTIRE chat request with:
+          //   "Invalid schema for function 'finley_debt_payoff_forecast': True is not of type 'number'."
+          // Re-enable once the tool definition is fixed upstream.
+          // if (!employeeTools.includes('finley_debt_payoff_forecast')) {
+          //   employeeTools = [...employeeTools, 'finley_debt_payoff_forecast', 'finley_loan_forecast', 'analytics_forecast'];
+          //   toolModules = pickTools(employeeTools);
+          //   console.log('[Chat] Prime Payoff Engine tools enabled via runtime fallback');
+          // }
         }
         
         if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {
@@ -6215,19 +6234,28 @@ export const handler: Handler = async (event, context) => {
     // and flow through to OpenAI so Prime can use the PRIME DOCUMENT SUMMARY TEMPLATE.
     const isPrimeSummaryRequest = isPrimeSummarySystemPrompt(masked);
 
-    const pipelineReuseIntent = isPrimeSummaryRequest ? null : detectPipelineReuseIntent(masked);
-    const explicitSummaryRecallIntent = isPrimeSummaryRequest ? false : isExplicitSummaryRecallIntent(masked);
+    // PHASE 1 FIX (Apr 2026): Prime is the orchestrator - it must reason on every message.
+    // Deterministic fast-lanes (statement_qa, statement_breakdown, recall_last_upload, etc.)
+    // were hijacking Prime's messages and preventing brain/tool use. Now all Prime messages
+    // flow through to the LLM with full brain + prompt + tools. Small-talk fast-lane is the
+    // only exception - legitimately cheap, handles "hi/hello/thanks" without cost.
+    const isPrimeBossRequest = (employeeSlug === 'prime-boss' || employeeSlug === 'prime');
+    const skipPrimeFastLanes = isPrimeBossRequest; // all Prime messages bypass deterministic routing
+
+    const pipelineReuseIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? null : detectPipelineReuseIntent(masked);
+    const explicitSummaryRecallIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false : isExplicitSummaryRecallIntent(masked);
     const heuristicLastUploadSummaryIntent =
       !isPrimeSummaryRequest &&
+      !skipPrimeFastLanes &&
       /\b(summary|summarize|summarise)\b/.test(String(masked || '').toLowerCase()) &&
       /\b(last|latest|recent)\b/.test(String(masked || '').toLowerCase()) &&
       /\b(upload|statement|statment|receipt|file|import)\b/.test(String(masked || '').toLowerCase());
-    const recallLastUploadIntent = isPrimeSummaryRequest
+    const recallLastUploadIntent = (isPrimeSummaryRequest || skipPrimeFastLanes)
       ? false
       : (isLastUploadRecallIntent(masked) || heuristicLastUploadSummaryIntent);
-    const recallLastUploadDetailIntent = isPrimeSummaryRequest ? false : isLastUploadDetailIntent(masked);
-    const workspaceActivityIntent = isPrimeSummaryRequest ? false : isWorkspaceActivityIntent(masked);
-    const statementBreakdownIntent = !isPrimeSummaryRequest && (isStatementBreakdownIntent(masked) || pipelineReuseIntent === 'tag_breakdown');
+    const recallLastUploadDetailIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false : isLastUploadDetailIntent(masked);
+    const workspaceActivityIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false : isWorkspaceActivityIntent(masked);
+    const statementBreakdownIntent = (!isPrimeSummaryRequest && !skipPrimeFastLanes) && (isStatementBreakdownIntent(masked) || pipelineReuseIntent === 'tag_breakdown');
     // When isPrimeSummaryRequest is true, forcedPrimeDecision stays null through the entire
     // deterministic section so the request falls through to the OpenAI model call.
     let forcedPrimeDecision: PrimeRouteDecision | null = isPrimeSummaryRequest ? null : null;
@@ -6381,6 +6409,7 @@ export const handler: Handler = async (event, context) => {
     const threadStatementContext = getThreadStatementContext(userId, threadId);
     const statementCountIntent =
       !isPrimeSummaryRequest &&
+      !skipPrimeFastLanes &&
       isStatementCountIntent(masked);
     if (!forcedPrimeDecision && statementCountIntent && !hasAttachments) {
       const [{ count: totalCount }, { count: processedCount }, latestImport] = await Promise.all([
@@ -6469,6 +6498,7 @@ export const handler: Handler = async (event, context) => {
     }
     const statementScopeSelectionIntent =
       !isPrimeSummaryRequest &&
+      !skipPrimeFastLanes &&
       isStatementScopeSelectionIntent(masked);
     if (!forcedPrimeDecision && statementScopeSelectionIntent && !hasAttachments) {
       const explicitImportId = extractImportIdFromMessage(masked);
@@ -6506,6 +6536,7 @@ export const handler: Handler = async (event, context) => {
     }
     const statementQaIntent =
       !isPrimeSummaryRequest &&
+      !skipPrimeFastLanes &&
       !explicitSummaryRecallIntent &&
       !isStatementScopeSelectionIntent(masked) &&
       isStatementQaIntent(masked);
@@ -6621,9 +6652,9 @@ export const handler: Handler = async (event, context) => {
         };
       }
     }
-    const merchantNeedleForTurn = isPrimeSummaryRequest ? null : extractMerchantNeedleFromQuestion(masked);
+    const merchantNeedleForTurn = (isPrimeSummaryRequest || skipPrimeFastLanes) ? null : extractMerchantNeedleFromQuestion(masked);
     const merchantSpendIntent =
-      !isPrimeSummaryRequest && Boolean(merchantNeedleForTurn) &&
+      !isPrimeSummaryRequest && !skipPrimeFastLanes && Boolean(merchantNeedleForTurn) &&
       /\b(how much|amount|total|spend|spent|pay|paid)\b/.test(String(masked || '').toLowerCase());
     if (!forcedPrimeDecision && merchantSpendIntent && !hasAttachments) {
       const facts = await loadLatestImportFactsBestEffort(sb, userId);
@@ -6934,7 +6965,7 @@ export const handler: Handler = async (event, context) => {
         };
       }
     }
-    if (!forcedPrimeDecision && !isPrimeSummaryRequest) {
+    if (!forcedPrimeDecision && !isPrimeSummaryRequest && !skipPrimeFastLanes) {
       const isPrimeForHelpFastLane = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
       if (isPrimeForHelpFastLane && !hasAttachments) {
         const helpLane = shouldUseHelpFastLane(masked);
@@ -6960,7 +6991,7 @@ export const handler: Handler = async (event, context) => {
     }
     let payoffRawForSnapshot: any | undefined;
     let payoffSnapshotPatch: Partial<PipelineSnapshot> | undefined;
-    if (!forcedPrimeDecision && !isPrimeSummaryRequest && isPayoffProjectionIntent(masked) && !hasAttachments) {
+    if (!forcedPrimeDecision && !isPrimeSummaryRequest && !skipPrimeFastLanes && isPayoffProjectionIntent(masked) && !hasAttachments) {
       const payoffResult = await buildPayoffProjectionResponse({
         messageText: masked,
         currency: String(effectivePrimeContext?.currency || 'CAD'),
@@ -7663,7 +7694,7 @@ export const handler: Handler = async (event, context) => {
     }
 
     const temporalIntent = detectTemporalIntent(masked);
-    if (temporalIntent && !hasAttachments) {
+    if (temporalIntent && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         formatTemporalResponse(
           temporalIntent,
@@ -7763,7 +7794,7 @@ export const handler: Handler = async (event, context) => {
 
     const groundedFactsIntent = detectGroundedFactsIntent(masked);
     const isPrimeEmployeeForGroundedFacts = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (!masked.startsWith('[PRIME_GREETING]') && groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments) {
+    if (!masked.startsWith('[PRIME_GREETING]') && groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildGroundedFactsResponse(groundedFactsIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -7875,7 +7906,7 @@ export const handler: Handler = async (event, context) => {
       clarificationDecision?.reason === 'missing_timeframe' && hasScopedStatementContext
         ? null
         : clarificationDecision;
-    if (effectiveClarificationDecision && !hasAttachments) {
+    if (effectiveClarificationDecision && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         effectiveClarificationDecision.question,
         finalEmployeeSlug,
@@ -7971,7 +8002,7 @@ export const handler: Handler = async (event, context) => {
 
     const coachingIntent = detectCoachingIntent(masked);
     const isPrimeEmployeeForCoaching = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (coachingIntent && isPrimeEmployeeForCoaching && !hasAttachments) {
+    if (coachingIntent && isPrimeEmployeeForCoaching && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildCoachingResponse(coachingIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -8068,7 +8099,7 @@ export const handler: Handler = async (event, context) => {
 
     const insightIntent = detectInsightIntent(masked);
     const isPrimeEmployeeForInsights = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (insightIntent && isPrimeEmployeeForInsights && !hasAttachments) {
+    if (insightIntent && isPrimeEmployeeForInsights && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildInsightResponse(insightIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -8165,7 +8196,7 @@ export const handler: Handler = async (event, context) => {
 
     const predictiveIntent = detectPredictiveIntent(masked);
     const isPrimeEmployeeForPredictive = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (predictiveIntent && isPrimeEmployeeForPredictive && !hasAttachments) {
+    if (predictiveIntent && isPrimeEmployeeForPredictive && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildPredictiveResponse(predictiveIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -8262,7 +8293,7 @@ export const handler: Handler = async (event, context) => {
 
     const automationIntent = detectAutomationIntent(masked);
     const isPrimeEmployeeForAutomation = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (automationIntent && isPrimeEmployeeForAutomation && !hasAttachments) {
+    if (automationIntent && isPrimeEmployeeForAutomation && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildAutomationResponse(automationIntent, effectivePrimeContext),
         finalEmployeeSlug,
@@ -8620,7 +8651,11 @@ export const handler: Handler = async (event, context) => {
     if (isPrimeEmployeeForHydration && primeIntent.isBreakdownReport && snapshotThinBeforeHydration) {
       try {
         const hydrated = await buildFinancialSnapshot(sb, userId);
+        // PHASE 2.1 FIX (Apr 2026): Preserve all frontend-supplied fields (taxSummary, totalIncome,
+        // teamActivitySummary, categorySummary, etc.) via spread. Previously this block REPLACED
+        // effectivePrimeContext with a narrow snapshot object, wiping everything PrimeChatV2 sent.
         effectivePrimeContext = {
+          ...(effectivePrimeContext || {}),
           displayName: effectivePrimeContext?.displayName || null,
           timezone: effectivePrimeContext?.timezone || null,
           currency: effectivePrimeContext?.currency || 'CAD',
@@ -8637,7 +8672,7 @@ export const handler: Handler = async (event, context) => {
             hasGoals: hydrated?.hasGoals === 'yes',
           },
           memorySummary: effectivePrimeContext?.memorySummary || null,
-        };
+        } as any;
       } catch (hydrationError: any) {
         console.warn('[Chat] Snapshot hydration failed:', hydrationError?.message || hydrationError);
       }
@@ -8646,11 +8681,14 @@ export const handler: Handler = async (event, context) => {
     // ========================================================================
     // 7.5. GET USER PROFILE & BUILD CONTEXT INJECTION
     // ========================================================================
-    // Fetch AI user context for fluency adaptation (skip on Prime fast lane).
+    // PHASE 1.1 FIX (Apr 2026): Prime now always gets user context (previously gated on !isPrimeFastLane).
+    // Without this, buildAiContextSystemMessage(null) at line 8710 crashes with
+    // "Cannot read properties of null (reading 'user_id')" after Phase 1 removed the outer gate.
     const profileStartTime = Date.now();
     let ctx: any = null;
     let userProfile: Awaited<ReturnType<typeof getUserProfile>> = null;
-    if (!isPrimeFastLane) {
+    const isPrimeForCtx = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
+    if (!isPrimeFastLane || isPrimeForCtx) {
       const ctxCacheKey = `${userId}:ai_context`;
       const profileCacheKey = `${userId}:profile`;
       const cachedCtx = runtimeCacheTtlSeconds > 0
@@ -8686,14 +8724,19 @@ export const handler: Handler = async (event, context) => {
     }
     const isPrime = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
     const isPrimeBoss = finalEmployeeSlug === 'prime-boss';
-    if (!(isPrimeBoss)) {
+    // PHASE 1 FIX (Apr 2026): Removed the `if (!(isPrimeBoss))` gate that was skipping
+    // brain pack, DB prompt, AI fluency rule, and user context for Prime.
+    // Prime now gets the same full prompt stack as other agents, PLUS its Prime-specific
+    // additions (primeContextMessage, PRIME_ORCHESTRATION_RULE) further below.
+    {
 
     // 1. Global AI Fluency Rule (ALL employees) - Single merged global rules message
     systemMessages.push({ role: 'system', content: AI_FLUENCY_GLOBAL_SYSTEM_RULE });
     
     // 2. Merged User Context (fluency level + user preferences in ONE message to avoid duplication)
     // Combine buildAiContextSystemMessage(ctx) with userContextBlock if available
-    let mergedUserContext = buildAiContextSystemMessage(ctx);
+    // PHASE 1.1 FIX: Defensive — skip if ctx is null (happens if fetchAiUserContext returned null).
+    let mergedUserContext = ctx ? buildAiContextSystemMessage(ctx) : '';
     if (userContextBlock) {
       // Merge: AI fluency context + detailed user preferences
       mergedUserContext = `${mergedUserContext}\n\n---\n\n${userContextBlock}`;
@@ -8711,12 +8754,22 @@ export const handler: Handler = async (event, context) => {
       }
 
       if (effectivePrimeContext) {
-        const pc = effectivePrimeContext;
+        const pc = effectivePrimeContext as any;
         let primeContextMessage = 'PRIME CONTEXT (User State Snapshot):\n\n';
         primeContextMessage += `User: ${pc.displayName || 'User'}\n`;
         if (pc.timezone) primeContextMessage += `Timezone: ${pc.timezone}\n`;
         if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
         if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
+        // Totals (top-level fields from PrimeChatV2's additionalPrimeContext)
+        if (typeof pc.totalIncome === 'number') primeContextMessage += `Total Income: ${pc.totalIncome}\n`;
+        if (typeof pc.totalSpent === 'number') primeContextMessage += `Total Spent: ${pc.totalSpent}\n`;
+        if (typeof pc.statementCount === 'number') primeContextMessage += `Statements: ${pc.statementCount}\n`;
+        if (typeof pc.transactionCount === 'number') primeContextMessage += `Transactions: ${pc.transactionCount}\n`;
+        if (typeof pc.pendingImports === 'number' && pc.pendingImports > 0) {
+          primeContextMessage += `Pending Imports: ${pc.pendingImports}\n`;
+        }
+        if (pc.topMerchant) primeContextMessage += `Top Merchant: ${pc.topMerchant}\n`;
+        if (pc.categorySummary) primeContextMessage += `Category Mix: ${pc.categorySummary}\n`;
         if (pc.financialSnapshot) {
           const fs = pc.financialSnapshot;
           primeContextMessage += `\nSnapshot:\n`;
@@ -8724,8 +8777,28 @@ export const handler: Handler = async (event, context) => {
           primeContextMessage += `- uncategorizedCount: ${fs.uncategorizedCount}\n`;
           if (fs.monthlySpend !== undefined) primeContextMessage += `- monthlySpend: ${fs.monthlySpend}\n`;
           if (fs.topCategories && fs.topCategories.length > 0) {
-            primeContextMessage += `- topCategories: ${fs.topCategories.map(c => `${c.name} (${c.amount})`).join(', ')}\n`;
+            primeContextMessage += `- topCategories: ${fs.topCategories.map((c: any) => `${c.name} (${c.amount})`).join(', ')}\n`;
           }
+        }
+        // Tax-workspace mirror: section totals + top subcategories.
+        // Prime can answer "how much did I pay on car payments", "gas & fuel", "insurance", etc. from this block.
+        if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
+          primeContextMessage += `\nTax Summary (by section):\n`;
+          for (const section of pc.taxSummary) {
+            if (!section || typeof section.total !== 'number') continue;
+            primeContextMessage += `- ${section.section}: ${section.total} (${section.count} txns)`;
+            if (Array.isArray(section.topSubcategories) && section.topSubcategories.length > 0) {
+              const subs = section.topSubcategories
+                .map((b: any) => `${b.name}=${b.amount}`)
+                .join(', ');
+              primeContextMessage += ` [${subs}]`;
+            }
+            primeContextMessage += `\n`;
+          }
+        }
+        // Team activity summary (what other agents did recently)
+        if (pc.teamActivitySummary) {
+          primeContextMessage += `\nRecent Team Activity:\n${pc.teamActivitySummary}\n`;
         }
         systemMessages.push({ role: 'system', content: primeContextMessage });
       }
@@ -8810,7 +8883,7 @@ export const handler: Handler = async (event, context) => {
     
     // 3. Prime Context System Message (ONLY for Prime, if prime_context provided)
     if (isPrime && effectivePrimeContext) {
-      const pc = effectivePrimeContext;
+      const pc = effectivePrimeContext as any;
       
       // Build Prime context system message (convenience overlay, verified server-side)
       let primeContextMessage = 'PRIME CONTEXT (User State Snapshot):\n\n';
@@ -8821,6 +8894,18 @@ export const handler: Handler = async (event, context) => {
       if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
       if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
       
+      // PHASE 2.2 FIX (Apr 2026): Top-level totals from PrimeChatV2.additionalPrimeContext
+      // These were being dropped in this path — only rendered in the parallel path at line 8756.
+      if (typeof pc.totalIncome === 'number') primeContextMessage += `Total Income: ${pc.totalIncome}\n`;
+      if (typeof pc.totalSpent === 'number') primeContextMessage += `Total Spent: ${pc.totalSpent}\n`;
+      if (typeof pc.statementCount === 'number') primeContextMessage += `Statements: ${pc.statementCount}\n`;
+      if (typeof pc.transactionCount === 'number') primeContextMessage += `Transactions: ${pc.transactionCount}\n`;
+      if (typeof pc.pendingImports === 'number' && pc.pendingImports > 0) {
+        primeContextMessage += `Pending Imports: ${pc.pendingImports}\n`;
+      }
+      if (pc.topMerchant) primeContextMessage += `Top Merchant: ${pc.topMerchant}\n`;
+      if (pc.categorySummary) primeContextMessage += `Category Mix: ${pc.categorySummary}\n`;
+      
       // Financial snapshot
       if (pc.financialSnapshot) {
         const fs = pc.financialSnapshot;
@@ -8829,10 +8914,33 @@ export const handler: Handler = async (event, context) => {
         primeContextMessage += `- uncategorizedCount: ${fs.uncategorizedCount}\n`;
         if (fs.monthlySpend !== undefined) primeContextMessage += `- monthlySpend: ${fs.monthlySpend}\n`;
         if (fs.topCategories && fs.topCategories.length > 0) {
-          primeContextMessage += `- topCategories: ${fs.topCategories.map(c => `${c.name} (${c.amount})`).join(', ')}\n`;
+          primeContextMessage += `- topCategories: ${fs.topCategories.map((c: any) => `${c.name} (${c.amount})`).join(', ')}\n`;
         }
         if (fs.hasDebt !== undefined) primeContextMessage += `- hasDebt: ${fs.hasDebt}\n`;
         if (fs.hasGoals !== undefined) primeContextMessage += `- hasGoals: ${fs.hasGoals}\n`;
+      }
+      
+      // PHASE 2.2 FIX: Tax-workspace mirror with authority instruction.
+      // Prime has been ignoring this data and calling tx_search instead. Strong directive added.
+      if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
+        primeContextMessage += `\nTax Summary (AUTHORITATIVE — use these numbers, do NOT call tx_search for these):\n`;
+        for (const section of pc.taxSummary) {
+          if (!section || typeof section.total !== 'number') continue;
+          primeContextMessage += `- ${section.section}: ${section.total} (${section.count} txns)`;
+          if (Array.isArray(section.topSubcategories) && section.topSubcategories.length > 0) {
+            const subs = section.topSubcategories
+              .map((b: any) => `${b.name}=${b.amount}`)
+              .join(', ');
+            primeContextMessage += ` [${subs}]`;
+          }
+          primeContextMessage += `\n`;
+        }
+        primeContextMessage += `\nWhen user asks "how much on X" where X matches a subcategory above, answer directly with that number. Do NOT call tx_search unless the category is not in this Tax Summary.\n`;
+      }
+      
+      // Team activity summary (what other agents did recently)
+      if (pc.teamActivitySummary) {
+        primeContextMessage += `\nRecent Team Activity:\n${pc.teamActivitySummary}\n`;
       }
       
       // Memory summary
@@ -9650,12 +9758,6 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       };
 
       (async () => {
-        // HOISTED: declared outside try{} so the catch(streamingError) handler
-        // (line ~10587) can safely reference them even if the streaming call times
-        // out BEFORE the in-try declaration runs. Previously this threw
-        // ReferenceError: assistantContent is not defined on timeout -> 502.
-        let assistantContent = '';
-        let toolCalls: any[] = [];
         try {
         // Send meta event at start for debugging
         writeRaw(`data: {"type":"meta","status":"stream_started"}\n\n`);
@@ -9719,27 +9821,47 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         // CRITICAL: Time OpenAI call
         const openaiStartTime = Date.now();
         const streamAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-        const openaiStream = await withTimeout(
-          openai.chat.completions.create({
-            model: modelConfig.model,
-            messages,
-            temperature: modelConfig.temperature,
-            max_tokens: modelConfig.maxTokens,
-            stream: true,
-            tools: openaiTools, // Add tools if available
-          } as any),
-          resolveOpenAiTimeoutMs(),
-          'model_streaming_primary',
-          orchCtx,
-          streamAbortController
-        );
+
+        // PHASE 1 FIX (Apr 2026): Netlify edge 502s when 3-4 seconds pass without bytes flowing.
+        // gpt-4o on heavy Prime prompts can take 2-4s to emit the first token.
+        // Solution: emit SSE comment-line heartbeats every 800ms until the OpenAI stream opens.
+        // Comment lines (`:heartbeat`) are valid SSE and are ignored by frontend parsers.
+        let heartbeatInterval: ReturnType<typeof setInterval> | null = setInterval(() => {
+          try { writeRaw(`: heartbeat ${Date.now()}\n\n`); } catch { /* ignore */ }
+        }, 800);
+        const stopHeartbeat = () => {
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+          }
+        };
+
+        let openaiStream;
+        try {
+          openaiStream = await withTimeout(
+            openai.chat.completions.create({
+              model: modelConfig.model,
+              messages,
+              temperature: modelConfig.temperature,
+              max_tokens: modelConfig.maxTokens,
+              stream: true,
+              tools: openaiTools, // Add tools if available
+            } as any),
+            resolveOpenAiTimeoutMs(),
+            'model_streaming_primary',
+            orchCtx,
+            streamAbortController
+          );
+        } finally {
+          // Stop heartbeat once the OpenAI stream is open (or has failed)
+          stopHeartbeat();
+        }
         timingLogs.openai_ttft = Date.now() - openaiStartTime;
         console.log('[Chat] OPENAI streaming call initiated, starting to process chunks');
 
         // Create streaming response with tool calling support
-        // (assistantContent and toolCalls are hoisted above the try for catch-scope safety)
-        assistantContent = '';
-        toolCalls = [];
+        let assistantContent = '';
+        let toolCalls: any[] = [];
         // requestStartTime and firstTokenTime already declared above
 
         // Dev-only verification log
@@ -10662,6 +10784,64 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           console.warn('[Chat] Failed to convert tools to OpenAI format (non-fatal):', toolError);
         }
         
+        // PHASE 2.3 FIX (Apr 2026): Tool gating for Prime when user asks about Tax Summary categories.
+        // GPT-4o has a strong bias toward calling tools when available, even when the answer is
+        // already in the system prompt. When the user asks about a category/subcategory that's in
+        // our Tax Summary AUTHORITATIVE block, force tool_choice='none' so Prime MUST answer from
+        // the prompt instead of calling tx_search (which returns inaccurate merchant-pattern matches).
+        let primeToolChoice: any = undefined;
+        if (isPrime && openaiTools) {
+          try {
+            const pc = (effectivePrimeContext as any) || {};
+            const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
+            if (taxSummary.length > 0) {
+              // Collect all subcategory names + section titles from Tax Summary
+              const knownLabels: string[] = [];
+              for (const section of taxSummary) {
+                if (section?.section) knownLabels.push(String(section.section).toLowerCase());
+                if (Array.isArray(section?.topSubcategories)) {
+                  for (const sub of section.topSubcategories) {
+                    if (sub?.name) knownLabels.push(String(sub.name).toLowerCase());
+                  }
+                }
+              }
+              // Normalize the user's latest message for matching
+              const lastUserMsg = String(messageTrimmed || '').toLowerCase();
+              // Match if ANY label's core word appears in the user message.
+              // Use first word of each label (e.g., "Car Payments" -> "car", "Gas & Fuel" -> "gas").
+              const matchedLabel = knownLabels.find(label => {
+                // Direct substring match (e.g., user says "car payments", label is "car payments")
+                if (lastUserMsg.includes(label)) return true;
+                // Match first word of label (e.g., user says "cars", label "car payments" -> first word "car")
+                const firstWord = label.split(/[\s\/&]+/).filter(Boolean)[0];
+                if (firstWord && firstWord.length >= 3 && lastUserMsg.includes(firstWord)) return true;
+                return false;
+              });
+              // PHASE 2.9 FIX (Apr 2026): Only strip tools when the question is AMOUNT-seeking.
+              // Tax Summary has category totals but NOT merchant/transaction-level detail.
+              // Merchant questions like "which gas station did I use most" require tx_search.
+              // Question-intent patterns that need tools:
+              //   - "which", "what vendor", "what merchant", "where did I"
+              //   - "most common", "most frequent", "top", "biggest transaction"
+              //   - "list", "show me", "breakdown by merchant"
+              //   - "when", "last time", "transaction on [date]"
+              const needsTools = /\b(which|vendor|merchant|where did|most (common|frequent|used)|top \w+|biggest (transaction|purchase)|list (my|the)|show me (my|the) (transactions|purchases|charges)|breakdown by (merchant|vendor|store)|when did|last time|transaction on|\bon [a-z]+ \d+)\b/i.test(lastUserMsg);
+              if (matchedLabel && !needsTools) {
+                // Phase 2.5 FIX: Just strip tools entirely. No tool_choice needed when there are
+                // no tools — and sending tool_choice='none' without tools can cause OpenAI to
+                // time out on the first token. Stripping is clean and fast.
+                openaiTools = undefined;
+                primeToolChoice = undefined;
+                console.log('[Chat][PRIME_DEBUG] tools stripped (matched Tax Summary label):', matchedLabel);
+              } else if (matchedLabel && needsTools) {
+                console.log('[Chat][PRIME_DEBUG] Tax Summary match found but question needs tools:', matchedLabel);
+              }
+            }
+          } catch (gateError: any) {
+            console.warn('[Chat] Prime tool-gating check failed (non-fatal):', gateError?.message || gateError);
+          }
+        }
+        
         // Model config already resolved above - reuse it
         // (No need to resolve again - already available in scope)
         
@@ -10674,6 +10854,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             max_tokens: modelConfig.maxTokens,
             stream: false,
             tools: openaiTools,
+            ...(primeToolChoice ? { tool_choice: primeToolChoice } : {}),
           } as any),
           resolveOpenAiTimeoutMs(),
           'model_non_streaming_primary',
@@ -10711,13 +10892,22 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         }
 
         // Guardrail: enforce tx_search for transaction intents when model skips tools.
+        // PHASE 2.6 FIX: Skip this guardrail if the Tax Summary gate intentionally stripped tools —
+        // we WANT the model to answer from context, not fall back to tx_search.
+        const taxSummaryGateStrippedTools = (openaiTools === undefined && isPrime && (() => {
+          try {
+            const pc = (effectivePrimeContext as any) || {};
+            return Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0;
+          } catch { return false; }
+        })());
         if (
           toolsAllowedThisTurn &&
           toolCalls.length === 0 &&
           finalSessionId &&
           txSearchAvailable &&
           isTransactionQuestionForTxSearch(masked) &&
-          toolModules['tx_search']
+          toolModules['tx_search'] &&
+          !taxSummaryGateStrippedTools
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,
