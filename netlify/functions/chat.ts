@@ -5495,6 +5495,17 @@ export const handler: Handler = async (event, context) => {
       console.log('[Chat] DEV MODE: PRIME_STREAM_IN_DEV=1, keeping SSE streaming enabled');
     }
 
+    // PRIME-FORCE-NONSTREAM (2026-04-23): Force Prime to non-streaming path so Phase 2.9
+    // tool gating (strip tx_search when Tax Summary can answer) actually applies. Streaming
+    // path bypasses the gate, causing tx_search timeouts and empty UI bubbles. Revert by
+    // deleting this block or setting env PRIME_FORCE_NONSTREAM=0.
+    if (employeeSlug === 'prime-boss' && process.env.PRIME_FORCE_NONSTREAM !== '0') {
+      if (stream === true) {
+        console.log('[Chat] PRIME FORCE NON-STREAMING: routing prime-boss to JSON path (Phase 2.9 gate applies)');
+      }
+      stream = false;
+    }
+
     // Validate required fields (userId already verified from JWT)
     if (!message) {
       return {
