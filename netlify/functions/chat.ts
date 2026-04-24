@@ -5549,7 +5549,38 @@ export const handler: Handler = async (event, context) => {
     const messageLength = messageTrimmed.length;
     const isGreeting = /^(hi|hello|hey|thanks|thank you|thx|bye|goodbye|good night|good morning|good afternoon|sup|what's up|howdy)$/i.test(messageTrimmed);
     const hasAttachments = Array.isArray(documentIds) && documentIds.length > 0;
-    const classifiedLane = classifyPrimeLane(messageTrimmed, hasAttachments);
+    let classifiedLane = classifyPrimeLane(messageTrimmed, hasAttachments);
+
+    // PHASE 3 FIX-B (2026-04-23): Handoff-intent promotion.
+    // Short affirmative replies ("yes please", "sure", "go ahead") to a Prime
+    // handoff offer get fast-laned by the classifier, which strips tools and
+    // breaks handoffs. Detect the pattern and force DEEP lane so tools stay on.
+    // - current message must be short + affirmative-looking
+    // - previous assistant message must have offered a handoff
+    try {
+      if (classifiedLane === 'fast' && requestedEmployeeSlug === 'prime-boss') {
+        const msgLower = String(messageTrimmed || '').toLowerCase().trim();
+        const wordCount = msgLower.split(/\s+/).filter(Boolean).length;
+        const isAffirmative = wordCount <= 12 && /\b(yes|sure|ok(?:ay)?|please|yep|yeah|go ahead|do it|connect me|let's|sounds good|lets|speak to (tag|byte|crystal|goalie)|i (would|want|wanna) (like to )?(speak|talk) to)\b/.test(msgLower);
+        if (isAffirmative && Array.isArray(recentMessages) && recentMessages.length > 0) {
+          // Find most recent assistant message (not counting tool results)
+          const lastAsst = [...recentMessages].reverse().find((m: any) =>
+            m?.role === 'assistant' && typeof m?.content === 'string' && m.content.length > 20
+          );
+          const lastAsstText = String(lastAsst?.content || '').toLowerCase();
+          const offeredHandoff = /\b(connect you with|would you like me to (connect|hand|get|bring)|let me get|i'?ll (connect|hand|bring|get)|pass (you|this) (to|over)|hand (you |this )?(off )?(to|over to)|reach out to (tag|byte|crystal|goalie)|tag can help|byte can help|crystal can help|goalie can help)\b/.test(lastAsstText);
+          if (offeredHandoff) {
+            console.log('[Chat][PRIME_DEBUG] FIX-B: handoff-intent detected, promoting fast -> deep (tools stay on)', {
+              userMsgPreview: msgLower.slice(0, 60),
+              priorOfferPreview: lastAsstText.slice(0, 80),
+            });
+            classifiedLane = 'deep';
+          }
+        }
+      }
+    } catch (fixBError: any) {
+      console.warn('[Chat] FIX-B handoff-intent promotion error (non-fatal):', fixBError?.message || fixBError);
+    }
     const primeChatGptStyleMode = isPrimeChatGptStyleModeEnabled();
     let shouldPreferPrimeQualityMode = false;
     let isFastPath = messageLength <= 30 || isGreeting;
