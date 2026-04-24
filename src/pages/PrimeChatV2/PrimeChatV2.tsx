@@ -248,31 +248,16 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     ? String(chatMessages[chatMessages.length - 1]?.content || '').length
     : 0;
 
-  // Track the ID of the last message. When it changes (a NEW message arrived),
-  // always scroll, even if user had scrolled up reading the previous one. This is
-  // critical for non-streaming responses that arrive in one 87-char chunk where
-  // there's no mid-response scroll trigger.
-  const lastMessageId = chatMessages.length > 0
-    ? chatMessages[chatMessages.length - 1]?.id || null
-    : null;
-  const prevLastMessageIdRef = useRef<string | null>(null);
-
   // Auto-scroll on new content - but respect user scroll-up intent.
   // Using 'auto' instead of 'smooth' because smooth scroll can lag behind
   // rapid streaming updates, causing the viewport to miss the latest tokens.
   // Includes revealStep so the briefing's sequential reveal animation keeps
   // the newest block in view (8 steps over ~8 seconds).
   useEffect(() => {
-    const isNewMessage = lastMessageId !== prevLastMessageIdRef.current;
-    prevLastMessageIdRef.current = lastMessageId;
-    // ALWAYS scroll on a new message (overrides userScrolledUpRef), because a new
-    // message means new content the user wants to see. Otherwise respect their
-    // scroll-up intent (e.g. they're re-reading the briefing while Prime types).
-    if (isNewMessage || !userScrolledUpRef.current) {
-      if (isNewMessage) userScrolledUpRef.current = false;
+    if (!userScrolledUpRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
-  }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep, lastMessageId]);
+  }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep]);
 
   // Detect user scroll-up to pause auto-scroll
   useEffect(() => {
@@ -689,9 +674,27 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               // Assistant message
               const isThisStreaming = isStreaming && msg.id === lastMsgId;
               const isEmpty = msg.content.trim() === "";
+              // Pick agent avatar based on meta.employee_key (set by handoff flow).
+              // Slug -> AgentDot name mapping (AgentDot takes "Prime"/"Byte"/"Tag"/"Crystal"/"Goalie").
+              const slugToAgent: Record<string, "Prime" | "Byte" | "Tag" | "Crystal" | "Goalie"> = {
+                'prime-boss': 'Prime',
+                'prime': 'Prime',
+                'tag-ai': 'Tag',
+                'tag': 'Tag',
+                'byte-docs': 'Byte',
+                'byte': 'Byte',
+                'crystal-analytics': 'Crystal',
+                'crystal': 'Crystal',
+                'goalie-goals': 'Goalie',
+                'goalie-ai': 'Goalie',
+                'goalie': 'Goalie',
+              };
+              const empKey = (msg.meta as any)?.employee_key as string | undefined;
+              const agentForMsg: "Prime" | "Byte" | "Tag" | "Crystal" | "Goalie" =
+                (empKey && slugToAgent[empKey]) || 'Prime';
               return (
                 <div key={msg.id} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                  <AgentDot agent="Prime" size={24} />
+                  <AgentDot agent={agentForMsg} size={24} />
                   <div style={{
                     maxWidth: "85%", padding: "10px 14px", borderRadius: 14,
                     borderBottomLeftRadius: 4,
