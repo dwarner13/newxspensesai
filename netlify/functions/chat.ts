@@ -5506,6 +5506,17 @@ export const handler: Handler = async (event, context) => {
       stream = false;
     }
 
+    // ALL-AGENTS-FORCE-NONSTREAM (2026-04-23): Extend the same fix to every agent.
+    // Post-handoff, Tag/Byte/Crystal/Goalie still default to streaming, which hits the
+    // un-hoisted assistantContent bug on timeout -> 502. Non-streaming is proven reliable.
+    // Revert by deleting this block or setting env AGENTS_FORCE_NONSTREAM=0.
+    if (process.env.AGENTS_FORCE_NONSTREAM !== '0') {
+      if (stream === true) {
+        console.log('[Chat] AGENTS FORCE NON-STREAMING: routing', employeeSlug || '(unknown)', 'to JSON path');
+      }
+      stream = false;
+    }
+
     // Validate required fields (userId already verified from JWT)
     if (!message) {
       return {
