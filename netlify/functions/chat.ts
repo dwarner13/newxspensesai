@@ -5912,7 +5912,10 @@ export const handler: Handler = async (event, context) => {
     }
     orchCtx.employee = finalEmployeeSlug;
     const isPrimeEmployee = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    const primeLane: PrimeLane = classifiedLane;
+    // OPTION A (2026-04-23): Force Prime to deep lane always. Keeps tools enabled every
+    // turn so handoffs fire regardless of message shape (greetings, short replies,
+    // casual asks all work). Replaces the fragile Fix-B regex approach.
+    const primeLane: PrimeLane = (finalEmployeeSlug === 'prime-boss') ? 'deep' : classifiedLane;
     const isPrimeFastLane = finalEmployeeSlug === 'prime-boss' && primeLane === 'fast';
     const isPrimeDeepLane = finalEmployeeSlug === 'prime-boss' && primeLane === 'deep';
     const toolsAllowedThisTurn = !(finalEmployeeSlug === 'prime-boss' && isPrimeFastLane);
