@@ -248,16 +248,31 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     ? String(chatMessages[chatMessages.length - 1]?.content || '').length
     : 0;
 
+  // Track the ID of the last message. When it changes (a NEW message arrived),
+  // always scroll, even if user had scrolled up reading the previous one. This is
+  // critical for non-streaming responses that arrive in one 87-char chunk where
+  // there's no mid-response scroll trigger.
+  const lastMessageId = chatMessages.length > 0
+    ? chatMessages[chatMessages.length - 1]?.id || null
+    : null;
+  const prevLastMessageIdRef = useRef<string | null>(null);
+
   // Auto-scroll on new content - but respect user scroll-up intent.
   // Using 'auto' instead of 'smooth' because smooth scroll can lag behind
   // rapid streaming updates, causing the viewport to miss the latest tokens.
   // Includes revealStep so the briefing's sequential reveal animation keeps
   // the newest block in view (8 steps over ~8 seconds).
   useEffect(() => {
-    if (!userScrolledUpRef.current) {
+    const isNewMessage = lastMessageId !== prevLastMessageIdRef.current;
+    prevLastMessageIdRef.current = lastMessageId;
+    // ALWAYS scroll on a new message (overrides userScrolledUpRef), because a new
+    // message means new content the user wants to see. Otherwise respect their
+    // scroll-up intent (e.g. they're re-reading the briefing while Prime types).
+    if (isNewMessage || !userScrolledUpRef.current) {
+      if (isNewMessage) userScrolledUpRef.current = false;
       bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
-  }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep]);
+  }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep, lastMessageId]);
 
   // Detect user scroll-up to pause auto-scroll
   useEffect(() => {
