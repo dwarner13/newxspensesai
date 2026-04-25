@@ -1145,7 +1145,7 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
-      {tagPanelOpen && createPortal(<TagCopilotPanel transaction={tagPanelTx} selectedTransaction={selectedTx} totalCount={transactions.length} categorizedCount={transactions.filter(t => t.category && t.category !== 'Uncategorized' && t.category !== 'Other').length} flaggedCount={uncategorizedCount} avgConfidence={0} rulesCount={0} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
+      {tagPanelOpen && createPortal(<TagCopilotPanel focusedTransaction={tagPanelTx as any} totalCount={transactions.length} categorizedCount={transactions.filter(t => t.category && t.category !== 'Uncategorized' && t.category !== 'Other').length} flaggedCount={uncategorizedCount} avgConfidence={0} rulesCount={0} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
         try {
           const sb = getSupabase(); if (!sb) return;
           const { data: { session } } = await sb.auth.getSession(); if (!session) return;
@@ -1304,6 +1304,10 @@ export default function TransactionsPageV2() {
             // Close the drawer, open main Tag, inject the question — Tag's
             // existing auto-send effect will fire handleSend for us.
             setSelectedTx(null);
+            // Populate tagPanelTx so the panel can pass focusedTransaction
+            // through to the server. Without this, Tag has no structured
+            // handle on the row and falls back to merchant-level rule flow.
+            setTagPanelTx(tx);
             setTagInjectedMsg(injected);
             setTagPanelOpen(true);
           }}

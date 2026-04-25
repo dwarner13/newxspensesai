@@ -285,6 +285,20 @@ interface TagCopilotPanelProps {
    * trigger a new auto-send — callers should set it, let it fire, then
    * reset to null before reusing. */
   injectedMessage?: string | null;
+  /** When Tag is opened with a specific transaction in focus (drawer's
+   * "Ask Tag" button), pass the row here. Tag will use it as the default
+   * subject of "this transaction" references and follow the two-step flow:
+   * update THIS transaction first, then offer to extend to the merchant
+   * and create a rule. Absent → falls back to merchant-level rule flow. */
+  focusedTransaction?: {
+    id: string;
+    merchant_name: string;
+    amount: number;
+    posted_at?: string | null;
+    date?: string | null;
+    category?: string | null;
+    subcategory?: string | null;
+  } | null;
 }
 interface LearnedRule { id?: string; source?: 'category_rules' | 'vendor_memory'; merchant: string; category: string; confidence: number; createdAt?: string; updatedAt?: string }
 interface ChatMessage { role: "user" | "assistant"; content: string }
@@ -296,6 +310,7 @@ export function TagCopilotPanel({
   totalSpent, totalIncome, txCount, topCategories,
   importId, importLabel, importTxCount,
   injectedMessage,
+  focusedTransaction,
 }: TagCopilotPanelProps) {
 
   // Presence of importId means this is an upload-handoff session — start fresh so
@@ -749,18 +764,19 @@ export function TagCopilotPanel({
         body: JSON.stringify({
           message: text,
           history: updatedMessages.slice(0, -1),
-          systemPromptOverride:
-            "STRICT CHAT RULES - violating these breaks the experience:\n1. Max 2 sentences. Hard limit. No exceptions.\n2. Ask ONE question then STOP. Never ask multiple questions.\n3. Zero bullet points. Zero numbered lists. Zero headers. Plain conversational sentences only.\n4. Never write analysis, breakdowns, or math. Just talk.\n5. You already have the financial data - reference it naturally, don't explain it back.\n\nYou are Tag - XspensesAI's categorization expert. You're having a focused chat, not writing a report.\n\nPROPOSAL PHRASING RULE - critical for actions:\nWhen you propose to change categories, phrase it as exactly: 'move [merchant or keyword] to [category]' or 'change [merchant] to [category]'. Use quotes around the merchant name. Example: 'Want me to move \"GFS PAY\" to Income?' Then stop and wait for yes. Do not emit any JSON in the reply; the confirmation handler works from the phrasing alone.\n\nAMOUNT ANOMALY RULE - this is critical:\nIf the user asks about a transaction where the amount is unusually high for that merchant (more than 3x what you'd expect based on the merchant type), you MUST flag it. Be specific - name the merchant, state the amount, give a realistic comparison (e.g. 'A $147 charge at 7-Eleven is about 18x a typical visit'). Always end with exactly this sentence: 'I'd verify this against your bank app or original statement before I lock in a category - this one looks off.' Never skip this when the amount is suspicious. This protects the user and is non-negotiable.\n\nUSER'S FINANCIAL DATA:\n- Total spent: " +
-            (totalSpent || 0).toFixed(2) + " CAD\n- Total income: " + (totalIncome || 0).toFixed(2) +
-            " CAD\n- Total transactions: " + (txCount || 0) + "\n- Spending categories:\n" +
-            (topCategories || []).map(c => {
-              let line = "  - " + c.category + ": $" + c.total.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " spent";
-              if (c.budget && c.budget > 0) { line += " / $" + c.budget + " budget"; if (c.total > c.budget) line += " (OVER BUDGET)"; }
-              line += " \u00b7 " + c.transactionCount + " txns";
-              if (c.topMerchant) line += " \u00b7 Top: " + c.topMerchant;
-              return line;
-            }).join("\n") +
-            "\n\nYou are looking at the Categories page with the user. Answer questions about their spending categories, budget status, tax deductibility, business vs personal split, and category optimization for Canadian self-employed. Reference the real numbers above.\nTag personality: detective-like, precise, witty, always helpful. When something looks wrong, say so directly - that's what makes Tag trustworthy.",
+          // Tool-use refactor (Apr 25 2026): we deliberately do NOT send a
+          // systemPromptOverride from this code path. The previous override
+          // contained pre-tool-use "proposal phrasing" instructions that told
+          // Tag to write JSON-shaped prose like 'move X to Y', which now
+          // conflicts with the structured tool calls. The server-side
+          // buildSystemPrompt now has the full two-step flow rules + tool
+          // guidance + focused-transaction handling, and that's authoritative.
+          //
+          // focusedTransaction: when present, server renders a FOCUSED
+          // TRANSACTION block into the prompt and Tag follows the two-step
+          // flow (update this row first, then offer to extend to merchant +
+          // rule). When absent, Tag uses the standard merchant-rule flow.
+          focusedTransaction: focusedTransaction || null,
         }),
       });
       if (!res.ok) throw new Error(`tag-copilot ${res.status}`);
@@ -1037,6 +1053,39 @@ export function TagCopilotPanel({
             style={{ width: 30, height: 30, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.textMuted, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
           >{"x"}</button>
         </div>
+
+        {/* Focused-transaction pill — shows when Tag was opened from a drawer
+            or single-row context. Tells the user which row Tag is anchored
+            to, so the two-step flow ("change THIS one, then offer to extend")
+            has visible grounding. */}
+        {focusedTransaction && focusedTransaction.id && (
+          <div style={{
+            padding: "8px 16px",
+            background: "rgba(34,211,238,0.06)",
+            borderBottom: `1px solid ${T.border}`,
+            display: "flex", alignItems: "center", gap: 8,
+            fontSize: 11, color: T.textMuted,
+            flexShrink: 0,
+          }}>
+            <span style={{
+              padding: "2px 7px", borderRadius: 8,
+              background: "rgba(34,211,238,0.12)",
+              border: "1px solid rgba(34,211,238,0.25)",
+              color: T.cyan, fontWeight: 700, fontSize: 9.5, letterSpacing: 0.4,
+            }}>FOCUSED</span>
+            <span style={{ color: T.text, fontWeight: 600 }}>
+              {focusedTransaction.merchant_name || 'Transaction'}
+            </span>
+            <span style={{ color: T.textDim }}>
+              ${Math.abs(Number(focusedTransaction.amount || 0)).toFixed(2)}
+            </span>
+            {(focusedTransaction.posted_at || focusedTransaction.date) && (
+              <span style={{ color: T.textDim }}>
+                · {focusedTransaction.posted_at || focusedTransaction.date}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Body */}
         <div

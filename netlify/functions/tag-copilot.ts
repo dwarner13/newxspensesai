@@ -33,6 +33,31 @@ interface CategorySummary {
 
 const TAG_TOOLS = [
   {
+    name: 'update_single_transaction',
+    description:
+      "Change the category (and optionally subcategory) on ONE specific transaction. Use this when the user is focused on a particular transaction and wants to change just that one — not all transactions for the merchant, no rule for future imports. Always the FIRST step when a focused transaction is in context. After this fires, OFFER (don't auto-execute) to extend the change via set_category_rule. ALWAYS confirm with the user before calling.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        transaction_id: {
+          type: 'string',
+          description:
+            'The exact ID of the transaction to update. Take this from the FOCUSED TRANSACTION block in the system prompt. Do not invent or guess IDs.',
+        },
+        category: {
+          type: 'string',
+          enum: [...TAG_CATEGORIES],
+          description: 'New main category. MUST be one of the canonical categories.',
+        },
+        subcategory: {
+          type: 'string',
+          description: 'Optional subcategory. Include WHENEVER the user named one.',
+        },
+      },
+      required: ['transaction_id', 'category'],
+    },
+  },
+  {
     name: 'set_category_rule',
     description:
       "Save a permanent category rule for a merchant and apply it to all matching transactions. Use when the user wants to categorize a specific merchant (e.g. \"Smitty's is Food & Dining\", \"always categorize Shell as Transportation\", \"Yo Yo Massage should be Personal Care, subcategory Massage\"). The rule auto-applies to future transactions matching this merchant. ALWAYS confirm the change with the user in plain language BEFORE calling this tool — wait for an explicit \"yes\" / \"go ahead\" / \"do it\" before emitting the call.",
@@ -146,28 +171,63 @@ ${flaggedText}
 HOW YOU MAKE CHANGES — READ CAREFULLY
 ═══════════════════════════════════════════════════════════════════════
 
-You have THREE tools available: set_category_rule, bulk_recategorize, rename_merchant. Each tool's description and parameters explain when to use it.
+You have FOUR tools available:
+  - update_single_transaction — change ONE specific transaction
+  - set_category_rule — save a permanent rule + apply to all matching transactions
+  - bulk_recategorize — move all transactions in one category to another
+  - rename_merchant — fix a mangled merchant name across all matching transactions
 
-CRITICAL CONFIRMATION RULE — TWO-TURN PATTERN:
+═══════════════════════════════════════════════════════════════════════
+TWO-STEP FLOW WHEN A FOCUSED TRANSACTION IS PRESENT
+═══════════════════════════════════════════════════════════════════════
 
-Turn 1 (user makes a request):
-  - DESCRIBE in plain language what you would do
-  - ASK the user to confirm
-  - DO NOT call any tool yet
-  - Example reply: "Want me to set Yo Yo Massage to Personal Care, subcategory Massage? Say yes to confirm."
+If the system prompt contains a FOCUSED TRANSACTION block, the user is looking
+at ONE specific transaction in the UI (drawer, detail view, etc). DEFAULT to
+changing only that one transaction first. Then ASK whether to extend.
 
-Turn 2 (user explicitly confirms with "yes" / "go ahead" / "do it" / "confirm"):
-  - CALL the appropriate tool with the exact parameters you proposed
-  - The system will run the database changes and append a verified confirmation line to your reply
-  - You do not need to write "Done!" — the system reports the actual outcome
+Step 1 — Confirm change to THIS transaction only:
+  - Reply: "Got it — change this **<merchant>** on **<date>** to <category>/<subcategory>?"
+  - Wait for "yes" / "go ahead" / etc. DO NOT call any tool yet.
 
-NEVER call a tool on the same turn the user makes the request. NEVER call a tool without explicit confirmation. If you're unsure whether the user has confirmed, ask again.
+Step 2 — On confirmation, call update_single_transaction with the focused
+  transaction's ID. The system writes a "✓ Updated this transaction" line.
 
-If the user names a category not in the canonical list, ask them to pick one from the list. Do not silently substitute.
+Step 3 — In your SAME reply (after the tool fires), ASK about extending:
+  - "Want me to update the other <N> <merchant> transactions and save a rule for future imports?"
+  - <N> is the count of OTHER matching transactions (excluding the one you just updated).
+  - If there are no other matching transactions, just say "No other <merchant> transactions to update — done."
 
-If the user says "Personal Care, subcategory Massage", obey EXACTLY: set category="Personal Care", subcategory="Massage". Do not editorialize. Do not pick a different subcategory you think fits better.
+Step 4 — On second confirmation, call set_category_rule with applyToExisting=true.
+  This applies to all matching transactions including future imports.
 
-If the user's request is ambiguous (e.g. "fix this one" without naming a merchant), ASK rather than guessing. Never invent a merchant name or category that wasn't in the conversation.
+═══════════════════════════════════════════════════════════════════════
+ONE-STEP FLOW WHEN NO FOCUSED TRANSACTION
+═══════════════════════════════════════════════════════════════════════
+
+If there's no FOCUSED TRANSACTION block, the user is in a general context.
+Use set_category_rule directly with the standard two-turn confirm pattern:
+
+Turn 1: "Want me to set <merchant> to <category>/<subcategory> and apply to
+all <N> matching transactions plus future imports?"
+Turn 2: User confirms → call set_category_rule.
+
+═══════════════════════════════════════════════════════════════════════
+GENERAL RULES
+═══════════════════════════════════════════════════════════════════════
+
+NEVER call a tool on the same turn the user makes the request. NEVER call a tool
+without explicit confirmation ("yes" / "go ahead" / "do it" / "confirm").
+
+If the user names a category not in the canonical list, ask them to pick one.
+Do not silently substitute.
+
+If the user says "Personal Care, subcategory Massage", obey EXACTLY: set
+category="Personal Care", subcategory="Massage". Do not editorialize. Do not
+pick a different subcategory you think fits better.
+
+If the user's request is ambiguous (e.g. "fix this one" without naming a
+merchant when no FOCUSED TRANSACTION is set), ASK rather than guessing. Never
+invent a merchant name or category that wasn't in the conversation.
 
 ═══════════════════════════════════════════════════════════════════════
 YOUR PERSONALITY AND VOICE
@@ -201,6 +261,12 @@ When flagging:
 Do NOT flag: prime banks (RBC, TD, BMO, Scotia, CIBC), credit unions, mortgages, auto loans from major lenders, student loans, regular credit card payments.
 
 ═══════════════════════════════════════════════════════════════════════
+AMOUNT ANOMALY RULE
+═══════════════════════════════════════════════════════════════════════
+
+If the user asks about a transaction where the amount is unusually high for that merchant (more than ~3x typical for the merchant type), flag it before categorizing. Be specific — name the merchant, state the amount, give a realistic comparison ("A **$147** charge at 7-Eleven is about 18x a typical visit"). End the flag with: "I'd verify this against your bank app or original statement before I lock in a category — this one looks off." Never skip this when the amount is suspicious; protecting the user from miscategorizing a fraud or duplicate charge is non-negotiable.
+
+═══════════════════════════════════════════════════════════════════════
 SOURCE ATTRIBUTION
 ═══════════════════════════════════════════════════════════════════════
 
@@ -218,7 +284,7 @@ export const handler: Handler = async (event) => {
   // nobody to rate-limit.
 
   const body = JSON.parse(event.body || '{}');
-  const { message, history = [], systemPromptOverride, importId } = body;
+  const { message, history = [], systemPromptOverride, importId, focusedTransaction } = body;
 
   if (!message) return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
 
@@ -356,12 +422,63 @@ RULES FOR USING MERCHANT DATA:
 - If a merchant isn't in the lists, say so honestly — don't guess.
 - Never invent amounts. Every number in your reply must appear in the data above.`;
 
+    // 3c. Focused transaction block. When the panel is opened from a drawer
+    // or single-row context, the caller passes focusedTransaction with the
+    // row's id, merchant, amount, date, and current categorization. We render
+    // this into the prompt so Tag knows which transaction "this one" refers
+    // to AND can suggest extending the change to other matching rows.
+    let focusedTransactionBlock = '';
+    if (focusedTransaction && focusedTransaction.id && focusedTransaction.merchant_name) {
+      const ft = focusedTransaction;
+      const ftMerchant = String(ft.merchant_name);
+      const ftAmount = Number(ft.amount || 0);
+      const ftDate = ft.posted_at || ft.date || 'unknown date';
+      const ftCategory = ft.category || 'Uncategorized';
+      const ftSubcategory = ft.subcategory || '(none)';
+
+      // Count OTHER transactions matching this merchant (not including the
+      // focused one). Drives the "Want me to update the other N" question.
+      let otherCount = 0;
+      try {
+        const { count } = await supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', auth.userId)
+          .ilike('merchant_name', `%${ftMerchant}%`)
+          .neq('id', ft.id);
+        otherCount = count || 0;
+      } catch (e: any) {
+        console.error('[tag-copilot] focused merchant count failed:', e?.message);
+      }
+
+      focusedTransactionBlock = `
+
+═══════════════════════════════════════════════════════════════════════
+FOCUSED TRANSACTION (the user is looking at this specific transaction)
+═══════════════════════════════════════════════════════════════════════
+  ID: ${ft.id}
+  Merchant: ${ftMerchant}
+  Amount: $${Math.abs(ftAmount).toFixed(2)}
+  Date: ${ftDate}
+  Current category: ${ftCategory}
+  Current subcategory: ${ftSubcategory}
+  Other transactions for this merchant: ${otherCount}
+
+When the user wants to change a category, FOLLOW THE TWO-STEP FLOW:
+  Step 1: confirm change to THIS transaction only
+  Step 2: call update_single_transaction with transaction_id="${ft.id}"
+  Step 3: in your same reply, ask whether to extend to the other ${otherCount} ${ftMerchant} transactions and save a rule
+  Step 4: on yes, call set_category_rule with vendor="${ftMerchant}" applyToExisting=true
+
+If there are zero other matching transactions (other count = 0), skip step 3 and just say the single transaction was updated.`;
+    }
+
     // 4. Call Claude with tools
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
-      system: (systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome })) + merchantDataBlock,
+      system: (systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome })) + merchantDataBlock + focusedTransactionBlock,
       tools: TAG_TOOLS,
       messages: [
         ...history.map((m: { role: string; content: string }) => ({
@@ -404,7 +521,58 @@ RULES FOR USING MERCHANT DATA:
       action = { tool: toolUseBlock.name, ...toolUseBlock.input, applied: false };
 
       try {
-        if (toolUseBlock.name === 'set_category_rule') {
+        if (toolUseBlock.name === 'update_single_transaction') {
+          const transactionId = String(toolUseBlock.input.transaction_id || '').trim();
+          const category = String(toolUseBlock.input.category || '');
+          const subcategory = toolUseBlock.input.subcategory
+            ? String(toolUseBlock.input.subcategory).trim()
+            : null;
+
+          if (!transactionId || !category) {
+            confirmationLine = `\n\n⚠ Could not update transaction — missing id or category.`;
+          } else {
+            // Ownership-scoped update. .eq('user_id') is the access control —
+            // a malicious tool call with a foreign transaction_id will match
+            // zero rows because the user_id won't align.
+            const txUpdate: Record<string, unknown> = {
+              category,
+              category_source: 'tag_single',
+              updated_at: new Date().toISOString(),
+            };
+            if (subcategory) {
+              txUpdate.subcategory = subcategory;
+              txUpdate.subcategory_source = 'tag_single';
+            }
+            const { error: updErr, data: updRows } = await supabase
+              .from('transactions')
+              .update(txUpdate)
+              .eq('id', transactionId)
+              .eq('user_id', auth.userId)
+              .select('id, merchant_name, category, subcategory');
+
+            if (updErr) {
+              console.error('[tag-copilot] single-tx update failed', updErr.message);
+              confirmationLine = `\n\n⚠ Could not update transaction: ${updErr.message}`;
+            } else if (!updRows || updRows.length === 0) {
+              // Either the id doesn't exist or doesn't belong to this user.
+              confirmationLine = `\n\n⚠ Transaction not found or not accessible.`;
+            } else {
+              const row = updRows[0];
+              const catLabel = row.subcategory
+                ? `${row.category} / ${row.subcategory}`
+                : row.category;
+              action.applied = true;
+              action.affectedCount = 1;
+              action.verification = {
+                transactionId: row.id,
+                merchant: row.merchant_name,
+                category: row.category,
+                subcategory: row.subcategory ?? null,
+              };
+              confirmationLine = `\n\n✓ Updated this transaction: **${row.merchant_name}** → **${catLabel}**.`;
+            }
+          }
+        } else if (toolUseBlock.name === 'set_category_rule') {
           const vendor = String(toolUseBlock.input.vendor || '').trim();
           const category = String(toolUseBlock.input.category || '');
           const subcategory = toolUseBlock.input.subcategory
@@ -623,7 +791,9 @@ RULES FOR USING MERCHANT DATA:
         ? `Bulk recategorized ${action.affectedCount || 0} transactions from ${action.from_category} to ${action.to_category}`
         : tool === 'rename_merchant'
           ? `Renamed ${action.affectedCount || 0} transactions from ${action.from_name} to ${action.to_name}`
-          : `Categorized ${vendor || 'transaction'} as ${category}`;
+          : tool === 'update_single_transaction'
+            ? `Updated single transaction → ${category}`
+            : `Categorized ${vendor || 'transaction'} as ${category}`;
       logAiActivity(authToken, {
         employeeId: 'tag-ai',
         eventType: 'categorization_complete',
