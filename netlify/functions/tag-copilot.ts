@@ -448,9 +448,26 @@ RULES FOR USING MERCHANT DATA:
               .upsert(ruleRow, { onConflict: 'user_id,merchant_pattern' });
             if (ruleErr) console.error('[tag-copilot] category_rules upsert failed', ruleErr.message);
 
-            // Apply to existing transactions
+            // Apply to existing transactions.
+            //
+            // Counting note: we count MATCHED rows separately BEFORE the update,
+            // not via .update().select({ count }). The chained-count approach
+            // returns 0 under some PostgREST configurations when the column
+            // values didn't actually change (e.g. category was already correct
+            // and only subcategory flipped). User intent is "how many of this
+            // merchant's transactions did this rule touch" — which is matched
+            // rows, not modified rows.
             let updatedCount = 0;
             if (applyToExisting) {
+              // 1. Count matched rows (this is what we report to the user)
+              const { count: matchedCount } = await supabase
+                .from('transactions')
+                .select('id', { count: 'exact', head: true })
+                .eq('user_id', auth.userId)
+                .ilike('merchant_name', `%${vendor}%`);
+              updatedCount = matchedCount || 0;
+
+              // 2. Run the actual update
               const txUpdate: Record<string, unknown> = {
                 category,
                 category_source: 'tag_rule',
@@ -460,13 +477,12 @@ RULES FOR USING MERCHANT DATA:
                 txUpdate.subcategory = subcategory;
                 txUpdate.subcategory_source = 'tag_rule';
               }
-              const { count } = await supabase
+              const { error: updErr } = await supabase
                 .from('transactions')
                 .update(txUpdate)
                 .eq('user_id', auth.userId)
-                .ilike('merchant_name', `%${vendor}%`)
-                .select('id', { count: 'exact', head: true });
-              updatedCount = count || 0;
+                .ilike('merchant_name', `%${vendor}%`);
+              if (updErr) console.error('[tag-copilot] transactions update failed', updErr.message);
             }
 
             // Verify by reading the rule back from the DB. The confirmation
@@ -500,13 +516,25 @@ RULES FOR USING MERCHANT DATA:
           } else if (fromCat === toCat) {
             confirmationLine = `\n\n⚠ Source and destination are the same (${fromCat}) — nothing to do.`;
           } else {
-            const { count } = await supabase
+            // Count matched rows BEFORE the update — see set_category_rule
+            // above for full reasoning. Bulk moves are guaranteed to change
+            // values (we already filtered fromCat !== toCat above), so this
+            // matters less here, but consistent semantics across all branches
+            // is worth one extra query.
+            const { count: matchedCount } = await supabase
+              .from('transactions')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', auth.userId)
+              .eq('category', fromCat);
+            const n = matchedCount || 0;
+
+            const { error: updErr } = await supabase
               .from('transactions')
               .update({ category: toCat, category_source: 'tag_bulk', updated_at: new Date().toISOString() })
               .eq('user_id', auth.userId)
-              .eq('category', fromCat)
-              .select('id', { count: 'exact', head: true });
-            const n = count || 0;
+              .eq('category', fromCat);
+            if (updErr) console.error('[tag-copilot] bulk update failed', updErr.message);
+
             action.applied = true;
             action.affectedCount = n;
             action.verification = { transactionsUpdated: n };
@@ -522,13 +550,26 @@ RULES FOR USING MERCHANT DATA:
             // Case-insensitive EXACT match (ilike without wildcards).
             // Precision over recall — we don't want "Rogers" → "Rogers Wireless"
             // to also rename rows that happen to contain "Rogers".
-            const { count } = await supabase
+            //
+            // Count matched rows BEFORE the update for the same reason as
+            // set_category_rule above. Edge case: if user renames "ROGERS"
+            // → "ROGERS" (same casing post-normalization, no change), the
+            // chained-count would return 0; matched count returns the real
+            // number of transactions touched.
+            const { count: matchedCount } = await supabase
+              .from('transactions')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', auth.userId)
+              .ilike('merchant_name', fromName);
+            const n = matchedCount || 0;
+
+            const { error: updErr } = await supabase
               .from('transactions')
               .update({ merchant_name: toName, updated_at: new Date().toISOString() })
               .eq('user_id', auth.userId)
-              .ilike('merchant_name', fromName)
-              .select('id', { count: 'exact', head: true });
-            const n = count || 0;
+              .ilike('merchant_name', fromName);
+            if (updErr) console.error('[tag-copilot] rename update failed', updErr.message);
+
             action.applied = true;
             action.affectedCount = n;
             action.verification = { transactionsUpdated: n };

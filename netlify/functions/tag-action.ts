@@ -693,7 +693,7 @@ export const handler: Handler = async (event) => {
 
       const { error: crError } = await supabase.from('category_rules').upsert(
         {
-          user_id: userId, match_type: matchType, merchant_pattern: normalized, match_value: normalized,
+          user_id: userId, match_type: matchType, match_value: normalized,
           category: encodeRuleCategory(parsedTarget.category, parsedTarget.subcategory),
           is_active: true, updated_at: new Date().toISOString(),
         },
@@ -743,7 +743,7 @@ export const handler: Handler = async (event) => {
 
       const { error: ruleErr } = await supabase.from('category_rules').upsert(
         {
-          user_id: userId, match_type: matchType, merchant_pattern: normalized, match_value: normalized,
+          user_id: userId, match_type: matchType, match_value: normalized,
           category: parsedTarget.category, subcategory: ruleSubcategory,
           ...(ruleAmountMin != null ? { amount_min: ruleAmountMin } : {}),
           ...(ruleAmountMax != null ? { amount_max: ruleAmountMax } : {}),
