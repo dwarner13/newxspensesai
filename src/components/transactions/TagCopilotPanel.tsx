@@ -557,22 +557,15 @@ export function TagCopilotPanel({
     return /^(yes|yep|yeah|yup|confirm|confirmed|do it|go ahead|sure|ok|okay|apply|apply it)\b[!.\s]*$/.test(t);
   };
 
-  // Extract a "change X to Y" proposal from Tag's reply so we can commit
-  // when the user confirms on the next turn. Keeps Tag fully conversational
-  // — the LLM still speaks — but the action fires via deterministic code.
-  const extractProposal = (reply: string): { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' } | null => {
-    const r = reply.toLowerCase();
-    // "move/change/categorize [all] "X" to/as Y"
-    const m1 = r.match(/(?:move|change|set|mark|categorize|recategorize|put|tag|assign|update)\s+(?:all\s+)?["']?([^"']+?)["']?\s+(?:to|as|into)\s+["']?([^"'.,!?\n]+)["']?/);
-    if (m1) {
-      return {
-        matchValue: m1[1].trim(),
-        targetCategory: m1[2].trim().replace(/\b\w/g, c => c.toUpperCase()),
-        matchType: 'contains',
-      };
-    }
-    return null;
-  };
+  // extractProposal removed Apr 25 2026 as part of tool-use refactor.
+  // Old behavior: regex-extracted "move X to Y" patterns from Tag's reply text
+  // and persisted them in pendingProposal so a later "yes" would fire the action.
+  // This was the source of the Yo Yo Massage / save-on-foods state leak —
+  // when the regex didn't match Tag's actual phrasing, pendingProposal kept
+  // its stale value from earlier in the session and committed against the
+  // wrong merchant. Now: the LLM calls a server tool directly via the
+  // Anthropic tools API, server runs the DB write, server returns the
+  // verified outcome. No client-side proposal extraction needed.
 
   const commitPendingProposal = async (proposal: NonNullable<typeof pendingProposal>) => {
     setIsLoading(true);
@@ -733,6 +726,11 @@ export function TagCopilotPanel({
     }
 
     setInputValue("");
+    // User entered the conversational LLM path — they're not confirming a
+    // prior typed-command proposal. Clear any stale pendingProposal so a
+    // later "yes" can't fire an action they no longer want. (Tool-use
+    // path: server fires the action directly, no client-side proposal carry.)
+    if (pendingProposal) setPendingProposal(null);
     const userMsg: ChatMessage = { role: "user", content: text };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
@@ -784,15 +782,16 @@ export function TagCopilotPanel({
       }
       setMessages(prev => [...prev, { role: "assistant", content: replyText }]);
 
-      // Capture any proposal Tag made so we can commit when user confirms.
-      // If backend already ran an action (LLM emitted JSON reliably), clear
-      // any pending proposal to avoid double-firing.
-      const actionFired = !!(data.rule_saved || data.action || (data.backfill_count || 0) > 0);
+      // Tool-use refactor (Apr 25 2026): the LLM no longer writes "move X to Y"
+      // prose for actions — it calls a server-side tool, and the server runs
+      // the DB write deterministically. So the old extractProposal path is
+      // gone. Any pending proposal here is stale (set by detectUserActionIntent
+      // path before this LLM round-trip) and we should NOT carry it forward
+      // past an unrelated LLM reply, since the user has moved on. If the
+      // server fired a tool, that's the source of truth — clear pending.
+      const actionFired = !!(data.action?.applied || data.rule_saved || (data.backfill_count || 0) > 0);
       if (actionFired) {
         setPendingProposal(null);
-      } else {
-        const proposal = extractProposal(replyText);
-        if (proposal) setPendingProposal(proposal);
       }
 
       // If Tag performed any write (rule saved, bulk apply, correction),
