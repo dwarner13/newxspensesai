@@ -345,6 +345,7 @@ RULES FOR USING MERCHANT DATA:
             const ruleRow: Record<string, unknown> = {
               user_id: auth.userId,
               match_type: 'contains',
+              merchant_pattern: vendor.toUpperCase(),
               match_value: vendor.toUpperCase(),
               category: category || undefined,
               is_active: true,
@@ -353,7 +354,7 @@ RULES FOR USING MERCHANT DATA:
             if (subcategory) ruleRow.subcategory = subcategory;
             const { error: ruleErr } = await supabase
               .from('category_rules')
-              .upsert(ruleRow, { onConflict: 'user_id,match_type,match_value', ignoreDuplicates: false });
+              .upsert(ruleRow, { onConflict: 'user_id,merchant_pattern', ignoreDuplicates: false });
             if (ruleErr) console.error('[tag-copilot] category_rules upsert (with subcat) failed', ruleErr.message);
           } catch (e: any) {
             console.error('[tag-copilot] category_rules upsert threw', e?.message);
@@ -382,7 +383,7 @@ RULES FOR USING MERCHANT DATA:
               .from('category_rules')
               .select('category, subcategory')
               .eq('user_id', auth.userId)
-              .ilike('match_value', vendor.toUpperCase())
+              .ilike('merchant_pattern', vendor.toUpperCase())
               .limit(1)
               .maybeSingle();
             if (existingRule) {
@@ -406,6 +407,7 @@ RULES FOR USING MERCHANT DATA:
             const ruleRow: Record<string, unknown> = {
               user_id: auth.userId,
               match_type: 'contains',
+              merchant_pattern: vendor.toUpperCase(),
               match_value: vendor.toUpperCase(),
               category,
               is_active: true,
@@ -414,7 +416,7 @@ RULES FOR USING MERCHANT DATA:
             if (subcategory) ruleRow.subcategory = subcategory;
             const { error: ruleErr } = await supabase
               .from('category_rules')
-              .upsert(ruleRow, { onConflict: 'user_id,match_type,match_value' });
+              .upsert(ruleRow, { onConflict: 'user_id,merchant_pattern' });
             if (ruleErr) console.error('[tag-copilot] category_rules upsert failed', ruleErr.message);
           } catch (e: any) {
             console.error('[tag-copilot] category_rules upsert threw', e?.message);
@@ -535,7 +537,7 @@ RULES FOR USING MERCHANT DATA:
             .from('category_rules')
             .select('category, subcategory')
             .eq('user_id', auth.userId)
-            .ilike('match_value', vendor)
+            .ilike('merchant_pattern', vendor)
             .limit(1)
             .maybeSingle();
           const catLabel = ruleRow?.subcategory
