@@ -78,7 +78,7 @@ const TAG_TOOLS = [
         subcategory: {
           type: 'string',
           description:
-            'Optional subcategory. Include WHENEVER the user named one or implied one (e.g. "Gas & Fuel" under Transportation, "Coffee" under Food & Dining, "Massage" or "Wellness" under Personal Care). Dropping the subcategory loses it on the rule.',
+            'Subcategory. Include WHENEVER the user named one (e.g. "Gas & Fuel" under Transportation, "Coffee" under Food & Dining, "Massage" or "Wellness" under Personal Care). CRITICAL: when extending after a prior update_single_transaction call (the user is saying yes to "want me to update the others and save a rule?"), you MUST pass the SAME subcategory you used in that prior tool call. Dropping it here will overwrite the existing subcategory on the rule with NULL and degrade the user\'s data. If the prior turn used subcategory="Wellness", this call MUST also use subcategory="Wellness".',
         },
         applyToExisting: {
           type: 'boolean',
@@ -465,12 +465,12 @@ FOCUSED TRANSACTION (the user is looking at this specific transaction)
   Other transactions for this merchant: ${otherCount}
 
 When the user wants to change a category, FOLLOW THE TWO-STEP FLOW:
-  Step 1: confirm change to THIS transaction only
-  Step 2: call update_single_transaction with transaction_id="${ft.id}"
-  Step 3: in your same reply, ask whether to extend to the other ${otherCount} ${ftMerchant} transactions and save a rule
-  Step 4: on yes, call set_category_rule with vendor="${ftMerchant}" applyToExisting=true
+  Step 1: confirm change to THIS transaction only ("change this MERCHANT on DATE to CAT/SUB?")
+  Step 2: on user "yes", call update_single_transaction with transaction_id="${ft.id}"
+  Step 3: SERVER appends a confirmation AND a follow-up question asking whether to extend to the other ${otherCount} ${ftMerchant} transactions. You do NOT write this follow-up yourself — emit ONLY the tool call (and optionally a brief acknowledgment text). The system appends the rest.
+  Step 4: on the next user "yes", call set_category_rule with vendor="${ftMerchant}" and the SAME category/subcategory you used in step 2. CRITICAL: do not drop subcategory between calls — re-pass the exact value.
 
-If there are zero other matching transactions (other count = 0), skip step 3 and just say the single transaction was updated.`;
+If there are zero other matching transactions (other count = 0), the server will say so — still don't write a follow-up yourself.`;
     }
 
     // 4. Call Claude with tools
@@ -570,12 +570,84 @@ If there are zero other matching transactions (other count = 0), skip step 3 and
                 subcategory: row.subcategory ?? null,
               };
               confirmationLine = `\n\n✓ Updated this transaction: **${row.merchant_name}** → **${catLabel}**.`;
+
+              // ─── Follow-up question: extend to merchant + save rule? ──────
+              // Count other matching transactions for the merchant. If 0, no
+              // follow-up needed — say so and stop. If >0, ask the user.
+              //
+              // Strategy A (multi-turn): second API call lets the model write
+              // a natural follow-up in Tag's voice that includes the category
+              // and subcategory params explicitly. Embedding the params in
+              // the question text means they're in conversation history when
+              // the user says "yes" — the next turn's set_category_rule call
+              // sees them and carries them forward correctly.
+              //
+              // Strategy B (template): if A errors / times out / returns
+              // empty, fall back to a deterministic templated question that
+              // also explicitly contains the params. Either way, "yes" on
+              // the next turn fires set_category_rule with full context.
+              try {
+                const merchantName = row.merchant_name;
+                const { count: otherCount } = await supabase
+                  .from('transactions')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('user_id', auth.userId)
+                  .ilike('merchant_name', `%${merchantName}%`)
+                  .neq('id', row.id);
+                const others = otherCount || 0;
+
+                if (others === 0) {
+                  confirmationLine += ` No other ${merchantName} transactions to update — done.`;
+                } else {
+                  // Build the templated fallback first (ground truth).
+                  const templateQuestion = `Want me to update the other **${others}** ${merchantName} transaction${others !== 1 ? 's' : ''} and save a rule for **${catLabel}**? Say yes to extend.`;
+
+                  // Try multi-turn (Strategy A) — wrap in 3s timeout.
+                  let naturalQuestion = '';
+                  try {
+                    const followupAbort = new AbortController();
+                    const followupTimer = setTimeout(() => followupAbort.abort(), 3000);
+                    const followup = await anthropic.messages.create({
+                      model: 'claude-haiku-4-5-20251001',
+                      max_tokens: 120,
+                      system: `You are Tag. You just updated ONE transaction (${merchantName}) to ${catLabel}. The user has ${others} other matching ${merchantName} transactions. Ask if they want to update those too and save a rule.
+
+REQUIREMENTS:
+- ONE sentence, casual.
+- MUST mention the count: ${others}.
+- MUST mention the merchant: ${merchantName}.
+- MUST mention the category and subcategory exactly: ${catLabel}.
+- End with a yes-prompt.
+- No greetings, no preamble. Just the question.`,
+                      messages: [{ role: 'user', content: 'Write the follow-up question.' }],
+                    }, { signal: followupAbort.signal as any });
+                    clearTimeout(followupTimer);
+                    const block = followup.content.find((b: any) => b.type === 'text') as { text: string } | undefined;
+                    const text = (block?.text || '').trim();
+                    // Sanity-check the model's answer contains the critical
+                    // params. If it dropped the count or category, fall back.
+                    if (text
+                        && text.includes(String(others))
+                        && text.toLowerCase().includes(merchantName.toLowerCase().slice(0, 8))
+                        && (text.includes(category) || text.toLowerCase().includes(category.toLowerCase()))) {
+                      naturalQuestion = text;
+                    }
+                  } catch (followupErr: any) {
+                    console.error('[tag-copilot] followup multi-turn failed:', followupErr?.message);
+                  }
+
+                  confirmationLine += `\n\n${naturalQuestion || templateQuestion}`;
+                }
+              } catch (countErr: any) {
+                console.error('[tag-copilot] follow-up count failed:', countErr?.message);
+                // Don't block the success message on this — just skip the follow-up.
+              }
             }
           }
         } else if (toolUseBlock.name === 'set_category_rule') {
           const vendor = String(toolUseBlock.input.vendor || '').trim();
           const category = String(toolUseBlock.input.category || '');
-          const subcategory = toolUseBlock.input.subcategory
+          let subcategory: string | null = toolUseBlock.input.subcategory
             ? String(toolUseBlock.input.subcategory).trim()
             : null;
           const applyToExisting = toolUseBlock.input.applyToExisting !== false;
@@ -586,7 +658,33 @@ If there are zero other matching transactions (other count = 0), skip step 3 and
             const vendorKey = vendor.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
             const merchantPattern = vendor.toUpperCase();
 
-            // Write vendor_category_memory
+            // ─── Subcategory preservation ───────────────────────────────────
+            // If the model omitted subcategory but a row already exists with
+            // one, KEEP the existing value. The model often drops subcategory
+            // on the second tool call (after update_single_transaction), and
+            // an upsert with subcategory absent overwrites it to NULL.
+            // Read existing rule first; preserve any subcategory that's there.
+            if (!subcategory) {
+              try {
+                const { data: existingRule } = await supabase
+                  .from('category_rules')
+                  .select('subcategory')
+                  .eq('user_id', auth.userId)
+                  .ilike('merchant_pattern', merchantPattern)
+                  .limit(1)
+                  .maybeSingle();
+                if (existingRule?.subcategory) {
+                  subcategory = existingRule.subcategory;
+                  console.log(`[tag-copilot] preserving existing subcategory "${subcategory}" for ${merchantPattern} (model omitted it)`);
+                }
+              } catch (e: any) {
+                console.error('[tag-copilot] existing-rule read failed:', e?.message);
+              }
+            }
+
+            // ─── Write 1: vendor_category_memory ─────────────────────────────
+            // Surfacing this error too — used to be a silent await with no
+            // capture. The two-table dual-write needs both halves to land.
             const vcmRow: Record<string, unknown> = {
               user_id: auth.userId,
               vendor_key: vendorKey,
@@ -594,13 +692,14 @@ If there are zero other matching transactions (other count = 0), skip step 3 and
               updated_at: new Date().toISOString(),
             };
             if (subcategory) vcmRow.subcategory = subcategory;
-            await supabase
+            const { error: vcmErr } = await supabase
               .from('vendor_category_memory')
               .upsert(vcmRow, { onConflict: 'user_id,vendor_key' });
+            if (vcmErr) console.error('[tag-copilot] vendor_category_memory upsert failed:', vcmErr.message);
 
-            // Write category_rules — BOTH merchant_pattern (canonical) AND
-            // match_value (legacy, still read by sweep code). Conflict on
-            // user_id+merchant_pattern matches the actual unique constraint.
+            // ─── Write 2: category_rules ─────────────────────────────────────
+            // Writes BOTH merchant_pattern (canonical) AND match_value (legacy).
+            // Conflict on user_id+merchant_pattern matches the unique constraint.
             const ruleRow: Record<string, unknown> = {
               user_id: auth.userId,
               match_type: 'contains',
@@ -614,20 +713,25 @@ If there are zero other matching transactions (other count = 0), skip step 3 and
             const { error: ruleErr } = await supabase
               .from('category_rules')
               .upsert(ruleRow, { onConflict: 'user_id,merchant_pattern' });
-            if (ruleErr) console.error('[tag-copilot] category_rules upsert failed', ruleErr.message);
 
-            // Apply to existing transactions.
-            //
-            // Counting note: we count MATCHED rows separately BEFORE the update,
-            // not via .update().select({ count }). The chained-count approach
-            // returns 0 under some PostgREST configurations when the column
-            // values didn't actually change (e.g. category was already correct
-            // and only subcategory flipped). User intent is "how many of this
-            // merchant's transactions did this rule touch" — which is matched
-            // rows, not modified rows.
+            // ─── Read-back verification ──────────────────────────────────────
+            // Truth-mode: confirmation string is built from what's actually in
+            // the DB after writes. Detects silent failures (RLS, constraint
+            // violations, dual-write split where one table writes and the
+            // other doesn't) and surfaces them to the user instead of lying.
+            const { data: verifyRow } = await supabase
+              .from('category_rules')
+              .select('category, subcategory')
+              .eq('user_id', auth.userId)
+              .ilike('merchant_pattern', merchantPattern)
+              .limit(1)
+              .maybeSingle();
+
+            // ─── Apply to existing transactions ──────────────────────────────
+            // Count matched rows BEFORE the update — see top of this branch
+            // for full reasoning on why we don't use chained .update().select().
             let updatedCount = 0;
             if (applyToExisting) {
-              // 1. Count matched rows (this is what we report to the user)
               const { count: matchedCount } = await supabase
                 .from('transactions')
                 .select('id', { count: 'exact', head: true })
@@ -635,7 +739,6 @@ If there are zero other matching transactions (other count = 0), skip step 3 and
                 .ilike('merchant_name', `%${vendor}%`);
               updatedCount = matchedCount || 0;
 
-              // 2. Run the actual update
               const txUpdate: Record<string, unknown> = {
                 category,
                 category_source: 'tag_rule',
@@ -653,27 +756,25 @@ If there are zero other matching transactions (other count = 0), skip step 3 and
               if (updErr) console.error('[tag-copilot] transactions update failed', updErr.message);
             }
 
-            // Verify by reading the rule back from the DB. The confirmation
-            // string uses what's actually in the database, not what we sent.
-            const { data: verifyRow } = await supabase
-              .from('category_rules')
-              .select('category, subcategory')
-              .eq('user_id', auth.userId)
-              .ilike('merchant_pattern', merchantPattern)
-              .limit(1)
-              .maybeSingle();
-
-            const catLabel = verifyRow?.subcategory
-              ? `${verifyRow.category} / ${verifyRow.subcategory}`
-              : (verifyRow?.category || category);
-
-            action.applied = true;
-            action.affectedCount = updatedCount;
-            action.verification = {
-              rule: { category: verifyRow?.category ?? null, subcategory: verifyRow?.subcategory ?? null },
-              transactionsUpdated: updatedCount,
-            };
-            confirmationLine = `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. Updated **${updatedCount}** transaction${updatedCount !== 1 ? 's' : ''}.`;
+            // ─── Build confirmation: truth-mode ──────────────────────────────
+            // verifyRow null = rule write failed. Surface it. No lying.
+            if (!verifyRow) {
+              const reason = ruleErr?.message || 'no row found after upsert';
+              action.applied = false;
+              action.error = `rule_persist_failed: ${reason}`;
+              confirmationLine = `\n\n⚠ Couldn't save the rule for **${vendor}**: ${reason}. ${updatedCount > 0 ? `(${updatedCount} transactions WERE updated, but future imports won't auto-categorize.)` : ''}`;
+            } else {
+              const catLabel = verifyRow.subcategory
+                ? `${verifyRow.category} / ${verifyRow.subcategory}`
+                : verifyRow.category;
+              action.applied = true;
+              action.affectedCount = updatedCount;
+              action.verification = {
+                rule: { category: verifyRow.category, subcategory: verifyRow.subcategory ?? null },
+                transactionsUpdated: updatedCount,
+              };
+              confirmationLine = `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. Updated **${updatedCount}** transaction${updatedCount !== 1 ? 's' : ''}.`;
+            }
           }
         } else if (toolUseBlock.name === 'bulk_recategorize') {
           const fromCat = String(toolUseBlock.input.from_category || '').trim();
