@@ -42,6 +42,7 @@ export default function CategoryRulesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [showDupesOnly, setShowDupesOnly] = useState(false);
 
   // Add form state
   const [newMerchant, setNewMerchant] = useState('');
@@ -83,10 +84,42 @@ export default function CategoryRulesPage() {
     );
   }, [rules, search]);
 
+  // Duplicate detection — based on full rules list (not filtered), so the
+  // duplicate flag survives a search that hides one of the dup pair.
+  // A rule is "duplicated" when its (case-insensitive) merchant_pattern
+  // appears more than once across the user's rules. This is the visual
+  // signal for the manual cleanup tonight before tomorrow's schema
+  // migration adds a real unique constraint.
+  const duplicateMerchants = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rules) {
+      const key = (r.merchant_pattern || '').toLowerCase().trim();
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    const dups = new Set<string>();
+    for (const [key, n] of counts) {
+      if (n > 1) dups.add(key);
+    }
+    return dups;
+  }, [rules]);
+
+  const isDuplicate = (rule: Rule) =>
+    duplicateMerchants.has((rule.merchant_pattern || '').toLowerCase().trim());
+
+  const duplicateCount = duplicateMerchants.size;
+
+  // Filter further to duplicates-only when toggle is on.
+  const filteredWithDupFilter = useMemo(() => {
+    if (!showDupesOnly) return filtered;
+    return filtered.filter(isDuplicate);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, showDupesOnly, duplicateMerchants]);
+
   // Group filtered rules by category
   const grouped = useMemo(() => {
     const map = new Map<string, Rule[]>();
-    for (const r of filtered) {
+    for (const r of filteredWithDupFilter) {
       const cat = r.category || 'Uncategorized';
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(r);
@@ -97,7 +130,7 @@ export default function CategoryRulesPage() {
     }
     // Sort categories alphabetically
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filtered]);
+  }, [filteredWithDupFilter]);
 
   const toggleCategory = (cat: string) => {
     setCollapsedCategories(prev => {
@@ -116,10 +149,10 @@ export default function CategoryRulesPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filtered.length) {
+    if (selectedIds.size === filteredWithDupFilter.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filtered.map(r => r.id)));
+      setSelectedIds(new Set(filteredWithDupFilter.map(r => r.id)));
     }
   };
 
@@ -256,6 +289,19 @@ export default function CategoryRulesPage() {
             <strong>Result:</strong> {testResult}
           </div>
         )}
+        {duplicateCount > 0 && (
+          <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13, color: '#fbbf24' }}>
+              <strong>{duplicateCount}</strong> merchant{duplicateCount !== 1 ? 's have' : ' has'} duplicate rules. Same merchant, different rows — clean these up to prevent unpredictable categorization.
+            </div>
+            <button
+              onClick={() => setShowDupesOnly(v => !v)}
+              style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: showDupesOnly ? '#fbbf24' : 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.4)', color: showDupesOnly ? '#0b1220' : '#fbbf24', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              {showDupesOnly ? 'Show all rules' : 'Show duplicates only'}
+            </button>
+          </div>
+        )}
       </Reveal>
 
       {/* Add Rule Form */}
@@ -298,16 +344,20 @@ export default function CategoryRulesPage() {
       {/* Rules - grouped by category */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: THEME.textDim, fontSize: 13 }}>Loading rules...</div>
-      ) : filtered.length === 0 ? (
+      ) : filteredWithDupFilter.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: THEME.textDim, fontSize: 13 }}>
-          {search ? 'No rules match your search' : 'No rules yet - categorize transactions with Tag to start building rules'}
+          {showDupesOnly
+            ? 'No duplicate rules — your data is clean.'
+            : search
+              ? 'No rules match your search'
+              : 'No rules yet - categorize transactions with Tag to start building rules'}
         </div>
       ) : (
         <Reveal delay={100}>
           {/* Select all */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} style={{ accentColor: THEME.cyan }} />
-            <span style={{ fontSize: 11, color: THEME.textDim }}>Select all ({filtered.length})</span>
+            <input type="checkbox" checked={selectedIds.size === filteredWithDupFilter.length && filteredWithDupFilter.length > 0} onChange={toggleSelectAll} style={{ accentColor: THEME.cyan }} />
+            <span style={{ fontSize: 11, color: THEME.textDim }}>Select all ({filteredWithDupFilter.length})</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -351,6 +401,12 @@ export default function CategoryRulesPage() {
                           {/* Merchant Pattern */}
                           <div style={{ fontSize: 13, fontWeight: 600, color: THEME.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {rule.merchant_pattern}
+                            {isDuplicate(rule) && (
+                              <span
+                                title="Another rule exists for the same merchant pattern. Pick one to keep and delete the others."
+                                style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24', letterSpacing: 0.5, verticalAlign: 'middle' }}
+                              >DUPLICATE</span>
+                            )}
                             {rule.amount_min != null && <span style={{ fontSize: 10, color: THEME.textDim, marginLeft: 4 }}>{`>=$${rule.amount_min}`}</span>}
                             {rule.amount_max != null && <span style={{ fontSize: 10, color: THEME.textDim, marginLeft: 4 }}>{`<$${rule.amount_max}`}</span>}
                           </div>
@@ -401,7 +457,7 @@ export default function CategoryRulesPage() {
           </div>
 
           <div style={{ marginTop: 12, fontSize: 11, color: THEME.textDim, textAlign: 'right' }}>
-            {filtered.length} rule{filtered.length !== 1 ? 's' : ''} in {grouped.length} categor{grouped.length !== 1 ? 'ies' : 'y'}{search ? ` matching "${search}"` : ''}
+            {filteredWithDupFilter.length} rule{filteredWithDupFilter.length !== 1 ? 's' : ''} in {grouped.length} categor{grouped.length !== 1 ? 'ies' : 'y'}{search ? ` matching "${search}"` : ''}{showDupesOnly ? ' (duplicates only)' : ''}
           </div>
         </Reveal>
       )}

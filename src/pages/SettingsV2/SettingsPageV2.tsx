@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { THEME } from "../PrimeChatV2/agentConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
@@ -13,6 +13,7 @@ import { CustodianPanel } from "@/components/onboarding/CustodianPanelChat";
 const NAV_ITEMS = [
   { id: "account", label: "Account", icon: "\uD83D\uDC64" },
   { id: "preferences", label: "Preferences", icon: "\u2699\uFE0F" },
+  { id: "rules", label: "Rules", icon: "\uD83C\uDFF7\uFE0F" },
   { id: "ai-team", label: "AI Team", icon: "\uD83E\uDD16" },
   { id: "notifications", label: "Notifications", icon: "\uD83D\uDD14" },
   { id: "security", label: "Security", icon: "\uD83D\uDD12" },
@@ -39,6 +40,7 @@ export default function SettingsPageV2() {
   const { userId, signOut } = useAuth();
   const { fullName, email, plan, avatarInitials } = useProfile();
   const location = useLocation();
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState("account");
   const [custodianOpen, setCustodianOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
@@ -200,6 +202,30 @@ export default function SettingsPageV2() {
                 </div>
               ))}
             </div></Reveal>
+          )}
+
+          {/* ── RULES ── */}
+          {activeSection === "rules" && (
+            <Reveal delay={200}>
+              <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 18, padding: isMobile ? "20px 16px" : "28px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 20, borderBottom: `1px solid ${THEME.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: THEME.text }}>Categorization Rules</div>
+                    <div style={{ fontSize: 14, color: THEME.textDim, marginTop: 2 }}>Tag's saved merchant → category mappings</div>
+                  </div>
+                  <div style={{ padding: "6px 16px", borderRadius: 8, background: "rgba(34,211,238,0.12)", border: "1px solid rgba(34,211,238,0.25)", fontSize: 13, fontWeight: 700, color: "#22d3ee" }}>Tag</div>
+                </div>
+                <div style={{ padding: "20px", borderRadius: 14, background: "rgba(34,211,238,0.04)", border: "1px solid rgba(34,211,238,0.12)", marginBottom: 16 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: THEME.text, marginBottom: 6 }}>Manage your saved rules</div>
+                  <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6, marginBottom: 14 }}>Every time you confirm a category change with Tag, a rule is saved so future imports auto-categorize the same way. View, search, edit, or delete those rules here.</div>
+                  <button
+                    onClick={() => navigate('/dashboard/categories/rules')}
+                    style={{ padding: "10px 24px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: "linear-gradient(135deg, #22d3ee, #0891b2)", border: "none", color: "#0b1220", cursor: "pointer" }}
+                  >Manage Rules {'\u2192'}</button>
+                </div>
+                <div style={{ fontSize: 12, color: THEME.textDim }}>Rules apply to all matching transactions including future imports. Deleting a rule does not undo past categorizations.</div>
+              </div>
+            </Reveal>
           )}
 
           {/* ── NOTIFICATIONS ── */}
