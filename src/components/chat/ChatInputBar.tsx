@@ -502,10 +502,10 @@ export function ChatInputBar({
               maxLength={CHAT_INPUT_MAX_CHARS}
               data-slideout-chat-input={!readOnly ? 'true' : undefined}
               className={cn(
-                "flex-1 bg-transparent text-[12px] leading-5 text-white placeholder:text-white/28 resize-none outline-none border-none min-h-[14px]",
+                "flex-1 bg-transparent leading-5 text-white placeholder:text-white/28 resize-none outline-none border-none min-h-[14px]",
                 readOnly && "cursor-pointer"
               )}
-              style={{ maxHeight: `${COMPOSER_MAX_HEIGHT_PX}px`, overflowY: 'auto' }}
+              style={{ maxHeight: `${COMPOSER_MAX_HEIGHT_PX}px`, overflowY: 'auto', fontSize: 'var(--chat-text-size)' }}
             />
             
             {/* Character counter - shown when >= threshold, positioned absolutely to not affect layout */}

@@ -1,5 +1,11 @@
 /* Import Dashboard Global Styles */
 
+/* === CHAT FONT-SIZE SYSTEM === */
+:root { --chat-text-size: 15px; }
+:root[data-chat-size="small"]  { --chat-text-size: 13px; }
+:root[data-chat-size="medium"] { --chat-text-size: 15px; }
+:root[data-chat-size="large"]  { --chat-text-size: 17px; }
+
 @tailwind base;
 
 /* === GLOBAL TYPOGRAPHY === */

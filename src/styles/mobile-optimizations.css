@@ -199,10 +199,10 @@ body {
     transition-duration: 0.15s !important;
   }
   
-  /* Optimize text sizes */
-  .text-xs { font-size: 0.7rem !important; }
-  .text-sm { font-size: 0.8rem !important; }
-  .text-base { font-size: 0.9rem !important; }
+  /* Text size shrink REMOVED - chat now uses --chat-text-size */
+
+
+
   
   /* Optimize spacing */
   .p-4 { padding: 0.75rem !important; }

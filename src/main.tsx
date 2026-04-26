@@ -1,6 +1,14 @@
 
 import { CHAT_CONTRACT_VERSION } from "./chat/chatContract";
 
+// Hydrate chat font-size preference before first paint (avoids flash)
+try {
+  const saved = localStorage.getItem("chat-text-size");
+  if (saved === "small" || saved === "medium" || saved === "large") {
+    document.documentElement.dataset.chatSize = saved;
+  }
+} catch { /* localStorage unavailable - default 15px applies */ }
+
 // Auto-reload on stale chunk error (happens after deploys when browser has old index.html cached)
 window.addEventListener("vite:preloadError", () => {
   window.location.reload();

@@ -7443,7 +7443,7 @@ export default function UnifiedAssistantChat({
                                           <span className="font-medium">Handoff</span>
                                         </div>
                                       )}
-                                      <div className="text-sm leading-relaxed">
+                                      <div className="leading-relaxed" style={{ fontSize: 'var(--chat-text-size)' }}>
                                         {message.role === 'assistant' ? (
                                           suppressNarrationBody ? null :
                                           // Show typing dots if placeholder is empty and streaming
