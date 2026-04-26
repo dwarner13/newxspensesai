@@ -124,9 +124,15 @@ export default function DashboardHomeV2() {
             }}>{"\u2655"}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.8, fontWeight: 800, color: THEME.accent, marginBottom: 8 }}>Previously on XspensesAI</div>
-              <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6 }}>
-                {recapTyped}
-                <span style={{ opacity: !recapDone ? 1 : 0, transition: "opacity 0.3s", color: THEME.accent }}>{"\u2588"}</span>
+              <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6, position: "relative" }}>
+                {/* Ghost text reserves final layout height so typewriter never pushes the page */}
+                <span aria-hidden={true} style={{ visibility: "hidden", whiteSpace: "pre-wrap" }}>
+                  {recapText || "\u00A0"}
+                </span>
+                <span style={{ position: "absolute", inset: 0, whiteSpace: "pre-wrap" }}>
+                  {recapTyped}
+                  <span style={{ opacity: !recapDone ? 1 : 0, transition: "opacity 0.3s", color: THEME.accent }}>{"\u2588"}</span>
+                </span>
               </div>
             </div>
           </div>
