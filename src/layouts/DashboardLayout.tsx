@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { useLocation, Outlet, useNavigate } from "react-router-dom";
 import { AnimatedOutlet } from "../components/ui/AnimatedOutlet";
@@ -21,22 +21,21 @@ import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
 import { ChatHistorySidebar } from "../components/chat/ChatHistorySidebar";
 import { ControlCenterDrawer } from "../components/settings/ControlCenterDrawer";
 import { AccountCenterPanel } from "../components/settings/AccountCenterPanel";
-// Onboarding is owned by /onboarding/setup route — not rendered here anymore
+// Onboarding is owned by /onboarding/setup route â€” not rendered here anymore
 import { PrimeToolsPanel } from "../components/prime/PrimeToolsPanel";
 import { PrimeBriefingPanel } from "../pages/PrimeChatV2/PrimeBriefingPanel";
 import { UploadModal } from "../components/upload/UploadModal";
-import PostLoginSplash from "../pages/AuthV2/PostLoginSplash";
 import { useAtom } from "jotai";
 import { isPrimeBriefingOpenAtom } from "../lib/uiStore";
 import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
 // Legacy onboarding removed - UnifiedOnboardingFlow is the ONLY authority
 import { useAuth } from "../contexts/AuthContext";
-// onboarding gate/overlay removed — /onboarding/setup is single source of truth
+// onboarding gate/overlay removed â€” /onboarding/setup is single source of truth
 import { log, warn } from "../lib/logger";
 import { PrimeWelcomeOverlayCinematic } from "../components/onboarding/PrimeWelcomeOverlayCinematic";
 import { ChatErrorBoundary } from "../components/chat/ChatErrorBoundary";
 import { PostOnboardingChooser } from "../components/onboarding/PostOnboardingChooser";
-// DashboardTourOverlay removed — PrimeWelcomeModal handles first-time welcome now
+// DashboardTourOverlay removed â€” PrimeWelcomeModal handles first-time welcome now
 
 // DashboardHeaderWithBadges - Wrapper (now simplified, no custom badges)
 function DashboardHeaderWithBadges() {
@@ -55,12 +54,6 @@ export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Splash screen state
-  const [showSplash, setShowSplash] = useState(() => {
-    const today = new Date().toDateString();
-    return sessionStorage.getItem("xai_splash_date") !== today;
-  });
-
   // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
   // All routes are now full-width - activity feed rail removed
@@ -113,7 +106,7 @@ export default function DashboardLayout() {
         const hasOverflow = scrollWidth > innerWidth + 1;
         
         if (hasOverflow) {
-          warn('[DashboardLayout] ⚠️ Horizontal overflow detected:', {
+          warn('[DashboardLayout] âš ï¸ Horizontal overflow detected:', {
             scrollWidth,
             innerWidth,
             overflow: scrollWidth - innerWidth,
@@ -293,10 +286,10 @@ export default function DashboardLayout() {
         });
 
         if (clippingAncestors.length > 0) {
-          warn('[RailDiagnostics] ⚠️ CLIPPING ANCESTORS DETECTED:', clippingAncestors);
+          warn('[RailDiagnostics] âš ï¸ CLIPPING ANCESTORS DETECTED:', clippingAncestors);
         }
         if (!railIsOnTop || !railIsOnTopAtEdge) {
-          warn('[RailDiagnostics] ⚠️ RAIL COVERED BY:', {
+          warn('[RailDiagnostics] âš ï¸ RAIL COVERED BY:', {
             atRailCenter: topElementAtRail,
             atRightEdge: topElementAtRightEdge,
           });
@@ -366,7 +359,7 @@ export default function DashboardLayout() {
           });
 
           if (overlap) {
-            warn('[HeaderDiagnostics] ⚠️ OVERLAP DETECTED:', {
+            warn('[HeaderDiagnostics] âš ï¸ OVERLAP DETECTED:', {
               titleRight: Math.round(titleRect.right),
               searchLeft: Math.round(searchRect.left),
               overlapPx: Math.round(titleRect.right - searchRect.left),
@@ -417,7 +410,7 @@ export default function DashboardLayout() {
   
   // Post-onboarding chooser: show only immediately after onboarding completion (session-based)
   const [showPostOnboardingChooser, setShowPostOnboardingChooser] = useState(false);
-  // Dashboard tour removed — PrimeWelcomeModal on /dashboard/upload?welcome=1 is the new-user intro
+  // Dashboard tour removed â€” PrimeWelcomeModal on /dashboard/upload?welcome=1 is the new-user intro
   
   useEffect(() => {
     // Check for sessionStorage flag and custodian_ready status on mount
@@ -500,7 +493,7 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, isProfileLoading, refreshProfile]);
   
-  // Onboarding state removed — /onboarding/setup owns first-time setup now
+  // Onboarding state removed â€” /onboarding/setup owns first-time setup now
   // A new user is redirected there by post-signup flow; we render no overlay here.
   
   // Legacy onboarding overlay logic REMOVED
@@ -725,7 +718,7 @@ export default function DashboardLayout() {
         const bodyOverflowY = window.getComputedStyle(document.body).overflowY;
         const htmlOverflow = window.getComputedStyle(document.documentElement).overflow;
         
-        log(`[ScrollDiagnostics] 🔒 ${location.pathname} - LOCKED INVARIANT verification:`, {
+        log(`[ScrollDiagnostics] ðŸ”’ ${location.pathname} - LOCKED INVARIANT verification:`, {
           htmlScrollHeight: docEl.scrollHeight,
           htmlClientHeight: docEl.clientHeight,
           htmlHeightDiff,
@@ -860,7 +853,7 @@ export default function DashboardLayout() {
           
           log(`[ScrollDiagnostics] ${location.pathname} - Top 5 offenders highlighted with colored outlines`);
         } else {
-          log(`[ScrollDiagnostics] ${location.pathname} - ✅ No scroll containers or overscroll offenders found (BODY is scroll owner)`);
+          log(`[ScrollDiagnostics] ${location.pathname} - âœ… No scroll containers or overscroll offenders found (BODY is scroll owner)`);
         }
       };
 
@@ -940,8 +933,8 @@ export default function DashboardLayout() {
               isAtBottom: bodyIsAtBottom,
             },
             warning: scrollContainers.some(c => c.isAtBoundary && c.canScroll) 
-              ? '⚠️ Wheel may be blocked by nested scroll container at boundary' 
-              : '✅ No blocking detected',
+              ? 'âš ï¸ Wheel may be blocked by nested scroll container at boundary' 
+              : 'âœ… No blocking detected',
           });
         }
       };
@@ -983,7 +976,7 @@ export default function DashboardLayout() {
     }
   }, [useBodyScroll, location.pathname]);
 
-  // ═══ ONBOARDING REDIRECT ═══
+  // â•â•â• ONBOARDING REDIRECT â•â•â•
   // New users (no onboarding_completed) go to /onboarding
   useEffect(() => {
     if (!ready || !userId || !profile) return;
@@ -994,43 +987,37 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, location.pathname, navigate]);
 
-  // ═══ SPLASH SCREEN - EARLY RETURN ═══
-  if (showSplash && ready && userId) {
-    return (
-      <div style={{
-        position: "fixed",
-        top: 0, left: 0, right: 0, bottom: 0,
-        zIndex: 99999,
-        background: "#0b1220",
-        overflowY: "auto",
-        WebkitOverflowScrolling: "touch" as any,
-      }}>
-        <PostLoginSplash
-          userName={(() => { const raw = profile?.display_name || profile?.first_name || profile?.full_name || "there"; return raw.charAt(0).toUpperCase() + raw.slice(1); })()}
-          onContinue={() => {
-            sessionStorage.setItem("xai_splash_date", new Date().toDateString());
-            setShowSplash(false);
-          }}
-          onOpenPrime={() => {
-            sessionStorage.setItem("xai_splash_date", new Date().toDateString());
-            setShowSplash(false);
-            setIsPrimeBriefingOpen(true);
-          }}
-          onUploadStatement={() => {
-            sessionStorage.setItem("xai_splash_date", new Date().toDateString());
-            setShowSplash(false);
-            navigate("/dashboard/upload");
-          }}
-          onScanReceipt={() => {
-            sessionStorage.setItem("xai_splash_date", new Date().toDateString());
-            setShowSplash(false);
-            navigate("/dashboard/receipts");
-          }}
-        />
-      </div>
-    );
-  }
-  // ═══ END SPLASH SCREEN ═══
+  // Splash removed - silent auto-fix relocated here
+  // Corrects income/expense miscategorization once per browser day
+  useEffect(() => {
+    if (!ready || !userId) return;
+    const today = new Date().toDateString();
+    if (sessionStorage.getItem("xai_autofix_date") === today) return;
+    sessionStorage.setItem("xai_autofix_date", today);
+    (async () => {
+      try {
+        const { getSupabase } = await import("@/lib/supabase");
+        const sb = getSupabase();
+        if (!sb) return;
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) return;
+        const res = await fetch("/.netlify/functions/tag-categorize-committed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
+          body: JSON.stringify({ limit: 500 }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          const total = data.typeEnforced || 0;
+          if (total > 0) {
+            const { default: toast } = await import("react-hot-toast");
+            toast.success("Auto-fixed " + total + " income/expense errors");
+          }
+        }
+      } catch { /* silent - never block dashboard */ }
+    })();
+  }, [ready, userId]);
+
 
   // Onboarding minimal layout (after all hooks)
   if (isOnboardingRoute) {
@@ -1094,7 +1081,7 @@ export default function DashboardLayout() {
         </div>
 
         <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
-        {/* Mobile Menu � direct sidebar, no wrapper */}
+        {/* Mobile Menu ï¿½ direct sidebar, no wrapper */}
 
 
 
@@ -1237,7 +1224,7 @@ export default function DashboardLayout() {
       {/* Upload Modal */}
       <UploadModal />
 
-      {/* Onboarding overlays removed — /onboarding/setup is single source of truth */}
+      {/* Onboarding overlays removed â€” /onboarding/setup is single source of truth */}
       {/* Users who need to onboard are redirected to /onboarding/setup post-signup */}
 
       {/* Welcome Back Overlay DISABLED - replaced by Dashboard V2 briefing */}
