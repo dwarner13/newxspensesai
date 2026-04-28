@@ -1,4 +1,4 @@
-/**
+﻿/**
  * prime-briefing - Generates Prime's daily briefing after an import sweep completes.
  * Reads Tag's sweep results + overall financial snapshot, calls Claude Haiku,
  * saves to user_notifications for Inbox + Prime chat.
@@ -8,6 +8,16 @@ import type { Handler } from '@netlify/functions';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 
+// Mirrors useDashboardData.ts isIncome() - DO NOT diverge.
+// type field set by commit-import is lowercase ('income' / 'expense').
+const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
+
+function isIncome(tx: { amount?: number; category?: string; merchant_name?: string; type?: string }): boolean {
+  const cat = (tx.category || "").toLowerCase();
+  const merchant = (tx.merchant_name || "").toUpperCase().trim();
+  const txType = (tx.type || "").toLowerCase();
+  return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
+}
 const headers = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
@@ -53,7 +63,7 @@ export const handler: Handler = async (event) => {
     const catTotals: Record<string, number> = {};
     for (const tx of allTxs ?? []) {
       const amt = Math.abs(Number(tx.amount || 0));
-      const isInc = tx.type === 'Credit' || (tx.category || '').toLowerCase() === 'income';
+      const isInc = isIncome(tx);
       if (isInc) { totalIncome += amt; } else { totalExpenses += amt; }
       const cat = tx.category || 'Needs Review';
       if (!isInc && cat !== 'Needs Review' && cat !== 'Transfers') catTotals[cat] = (catTotals[cat] || 0) + amt;
