@@ -548,10 +548,6 @@ export default function DashboardLayout() {
     const md = (profile.metadata && typeof profile.metadata === 'object') ? profile.metadata : {};
     const custodianReady = (md as any).custodian_ready === true;
     if (!custodianReady) return;
-    try {
-      if (localStorage.getItem('xai_prime_autoopen_seen') === 'true') return;
-      localStorage.setItem('xai_prime_autoopen_seen', 'true');
-    } catch { /* localStorage unavailable - skip auto-open to be safe */ return; }
     didAutoOpenChatRef.current = true;
     openChat({ initialEmployeeSlug: 'prime-boss' });
   }, [ready, userId, profile, isChatOpen, openChat, location.pathname]);
