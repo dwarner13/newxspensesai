@@ -144,7 +144,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     if (data.loading || data.transactionCount === 0) return;
     if (revealStarted.current) return;
     revealStarted.current = true;
-    const steps = [300, 1000, 2800, 4200, 4900, 5600, 6800, 8400];
+    const steps = [400, 1300, 3000, 4500, 5700, 7000, 8500, 10000];
     steps.forEach((delay, i) => { setTimeout(() => setRevealStep(i + 1), delay); });
   }, [data.loading, data.transactionCount]);
 
