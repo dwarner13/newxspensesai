@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { THEME } from "./agentConfig";
 import { useTypewriter } from "./useTypewriter";
 
@@ -10,7 +10,7 @@ interface PrimeThoughtsProps {
 }
 
 export function PrimeThoughts({ text, enabled, onDone, instant = false }: PrimeThoughtsProps) {
-  const [typed, done] = useTypewriter(text, 18, 400, enabled, instant);
+  const [typed, done] = useTypewriter(text, 25, 400, enabled, instant);
   const firedRef = useRef(false);
 
   useEffect(() => {

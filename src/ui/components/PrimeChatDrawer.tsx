@@ -114,7 +114,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
 
   const typewriterIndex = lastCompletedIndex.current;
   const typewriterText = !isLoading && typewriterIndex >= 0 ? messages[typewriterIndex]?.content ?? '' : '';
-  const [twDisplay, twDone] = useTypewriter(typewriterText, 18, 150);
+  const [twDisplay, twDone] = useTypewriter(typewriterText, 25, 150);
   const pageCtx = buildPageContext(currentPage);
 
   const fetchPrimeSnapshot = useCallback(async () => {

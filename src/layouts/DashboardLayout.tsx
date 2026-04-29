@@ -534,19 +534,39 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, isChatOpen, openChat]);
   */
-  // Auto-open disabled - PrimeChatV2 panel replaces the old UnifiedAssistantChat slideout.
-  // Users open Prime via the floating bubble or Dashboard briefing card.
-  // useEffect(() => {
-  //   if (!ready || !userId || !profile) return;
-  //   if (isChatOpen) return;
-  //   if (didAutoOpenChatRef.current) return;
-  //   const isMainDashboardRoute = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
-  //   if (!isMainDashboardRoute) return;
-  //   if (typeof window !== 'undefined' && window.innerWidth < 1024) return;
-  //   didAutoOpenChatRef.current = true;
-  //   openChat({ initialEmployeeSlug: 'prime-boss' });
-  // }, [ready, userId, profile, isChatOpen, openChat, location.pathname]);
+  // Auto-open Prime chat on /dashboard for first-time users only.
+  // Fires ONCE per browser (localStorage flag). Desktop only (>= 1024px).
+  // Skips if onboarding incomplete (custodian_ready != true).
+  useEffect(() => {
+    if (!ready || !userId || !profile) return;
+    if (isChatOpen) return;
+    if (didAutoOpenChatRef.current) return;
+    const isMainDashboardRoute = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
+    if (!isMainDashboardRoute) return;
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) return;
+    // First-time gate: only auto-open if user finished onboarding AND hasn't seen auto-open before
+    const md = (profile.metadata && typeof profile.metadata === 'object') ? profile.metadata : {};
+    const custodianReady = (md as any).custodian_ready === true;
+    if (!custodianReady) return;
+    try {
+      if (localStorage.getItem('xai_prime_autoopen_seen') === 'true') return;
+      localStorage.setItem('xai_prime_autoopen_seen', 'true');
+    } catch { /* localStorage unavailable - skip auto-open to be safe */ return; }
+    didAutoOpenChatRef.current = true;
+    openChat({ initialEmployeeSlug: 'prime-boss' });
+  }, [ready, userId, profile, isChatOpen, openChat, location.pathname]);
 
+  // Close global chat (Prime/etc.) on route change so it doesn't bleed into
+  // page-specific panels (Tag on /transactions, Goalie on /goals-debt, etc.).
+  // Tag's panel is local state in TransactionsPageV2 and remains unaffected.
+  const lastPathRef = useRef(location.pathname);
+  useEffect(() => {
+    if (lastPathRef.current !== location.pathname) {
+      if (isChatOpen) closeChat();
+      didAutoOpenChatRef.current = false;
+      lastPathRef.current = location.pathname;
+    }
+  }, [location.pathname, isChatOpen, closeChat]);
   // Open chat history
   const handleOpenChatHistory = () => {
     setIsChatHistoryOpen(true);

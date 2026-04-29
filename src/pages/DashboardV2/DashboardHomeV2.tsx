@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSetAtom } from "jotai";
@@ -34,7 +34,7 @@ export default function DashboardHomeV2() {
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
   const recapText = data.loading ? "" : buildRecapText(data);
-  const [recapTyped, recapDone] = useTypewriter(recapText, 16, 800, !data.loading);
+  const [recapTyped, recapDone] = useTypewriter(recapText, 25, 800, !data.loading);
 
   const handleExport = useCallback(() => {
     toast("Export coming soon");
@@ -96,7 +96,7 @@ export default function DashboardHomeV2() {
           </div>
         </Reveal>
 
-        {/* MOBILE HERO SCORE � Borrowell style */}
+        {/* MOBILE HERO SCORE ï¿½ Borrowell style */}
         {isMobile && !scoreData.loading && (
           <Reveal delay={100}>
             <button onClick={() => navigate("/dashboard/xspense-score")} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "24px 20px", marginBottom: 20, borderRadius: 20, background: `linear-gradient(180deg, ${THEME.surface}, ${THEME.bg})`, border: `1px solid ${THEME.border}`, cursor: "pointer", position: "relative", overflow: "hidden" }}>
