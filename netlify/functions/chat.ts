@@ -1889,6 +1889,12 @@ function routePrime(
   // predictive_finance, coaching, financial_insight, automation) were hijacking Prime before
   // it could use its actual brain. Force-route to LLM unless this is a worker_chain trigger
   // (uploads/imports still need the orchestrator pipeline).
+  // Apr 30 fix: upload how-to questions with no attachment skip worker chain
+  // so Prime delegates to Byte via system prompt instead of fabricating data.
+  const primeIntent = detectPrimeIntent(sanitizedUserText);
+  if (primeIntent.isUploadHowTo && !meta.hasAttachments) {
+    return { lane: 'model' };
+  }
   if (isUploadImportIntent(sanitizedUserText, meta.hasAttachments)) {
     return { lane: 'worker_chain', reason: 'upload_import' };
   }
