@@ -543,45 +543,6 @@ function formatCurrency(amount: number, currency: string): string {
   }
 }
 
-function buildPrimeSnapshotBreakdown(
-  primeContext: ChatRequest['prime_context'],
-  userLabel: string,
-): string | null {
-  const snapshot = primeContext?.financialSnapshot;
-  if (!snapshot || !snapshot.hasTransactions) return null;
-  const currency = String(primeContext?.currency || 'CAD');
-  const topCategories = Array.isArray(snapshot.topCategories) ? snapshot.topCategories : [];
-  const monthlySpend = typeof snapshot.monthlySpend === 'number' ? snapshot.monthlySpend : null;
-  const uncategorized = typeof snapshot.uncategorizedCount === 'number' ? snapshot.uncategorizedCount : null;
-
-  const lines: string[] = [];
-  lines.push(`${userLabel ? `${userLabel}, ` : ''}here is your current breakdown from account data.`);
-  lines.push('');
-  lines.push('SPENDING SNAPSHOT');
-  if (monthlySpend !== null) {
-    lines.push(`- Total monthly spend: ${formatCurrency(monthlySpend, currency)}`);
-  }
-  if (uncategorized !== null) {
-    lines.push(`- Uncategorized transactions: ${uncategorized}`);
-  }
-  if (topCategories.length > 0) {
-    lines.push('');
-    lines.push('TOP CATEGORIES');
-    topCategories.slice(0, 5).forEach((cat, idx) => {
-      lines.push(`- ${idx + 1}) ${cat.name}: ${formatCurrency(Number(cat.amount || 0), currency)}`);
-    });
-  }
-  lines.push('');
-  lines.push('WHAT THIS MEANS');
-  lines.push('- Your largest categories are where optimization opportunities will show first.');
-  lines.push('- Reclassifying uncategorized items will improve category accuracy immediately.');
-  lines.push('');
-  lines.push('NEXT STEPS');
-  lines.push('- Ask: "show category-by-category breakdown with actions".');
-  lines.push('- Ask: "what should I fix first this month?".');
-  return lines.join('\n');
-}
-
 type PrimeIntent = {
   label: 'upload_howto' | 'breakdown_report' | 'general';
   isBreakdownReport: boolean;
@@ -602,7 +563,7 @@ type AutomationIntent = 'export_report' | 'reconcile_accounts' | 'categorize_bat
 function detectPrimeIntent(message: string): PrimeIntent {
   const text = String(message || '').toLowerCase();
   const isUploadHowTo =
-    /\b(how\s+do\s+i\s+upload|how\s+to\s+upload|where\s+do\s+i\s+upload|where\s+to\s+upload)\b/.test(text);
+    /\b(upload|import)\b/.test(text) && /\b(how\s+(?:do|can|should|would|to|you)|where\s+(?:do|can|to)|guide\s+me|walk\s+me\s+through|show\s+me\s+how|tell\s+me\s+how)\b/.test(text);
   const isBreakdownReport =
     /\b(break\s*down|breakdown|report|cashflow|categories?|last month|spend|spending|budget|summary|statement|transactions?)\b/.test(text);
   if (isUploadHowTo) return { label: 'upload_howto', isBreakdownReport, isUploadHowTo };
@@ -7646,23 +7607,23 @@ export const handler: Handler = async (event, context) => {
           // No saved summary available
         }
         primeWorkerSummary = savedSummary || [
-          'I reviewed your information and prepared a clear summary with next steps.',
+          'Here\'s what I have so far:',
           workerNotes.length > 0 ? workerNotes.map((note) => `- ${note}`).join('\n') : '- Worker details unavailable.',
           '- TAG insights:',
           ...(Array.isArray(tagWorkerOutput.insights_for_prime) && tagWorkerOutput.insights_for_prime.length > 0
             ? tagWorkerOutput.insights_for_prime.slice(0, 4).map((insight: string) => `  - ${insight}`)
             : ['  - No additional insights available.']),
-          'I hit a delay in one worker step, but I can continue once you retry.',
+          'One worker step did not complete - try sending that again.',
         ].join('\n');
       } else {
         primeWorkerSummary = [
-          'I reviewed your statement context and prepared analysis and planning notes.',
+          'Here\'s what I found:',
           workerNotes.length > 0 ? workerNotes.map((note) => `- ${note}`).join('\n') : '- Worker details unavailable.',
           '- TAG insights:',
           ...(Array.isArray(tagWorkerOutput.insights_for_prime) && tagWorkerOutput.insights_for_prime.length > 0
             ? tagWorkerOutput.insights_for_prime.slice(0, 4).map((insight: string) => `  - ${insight}`)
             : ['  - No additional insights available.']),
-          'Prime summary: upload/import processing is staged and ready for the next actionable step.',
+          
         ].join('\n');
       }
       const assistantContent = ensureAssistantContent(
