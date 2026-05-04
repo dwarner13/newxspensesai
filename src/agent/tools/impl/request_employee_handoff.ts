@@ -4,7 +4,7 @@ import { Result, Ok, Err } from '../../../types/result';
 export const id = 'request_employee_handoff';
 
 export const inputSchema = z.object({
-  target_slug: z.string().min(1, 'Target employee slug is required').describe('The slug of the employee to hand off to (e.g., "goalie-ai", "liberty-ai", "prime-boss")'),
+  target_slug: z.string().min(1, 'Target employee slug is required').describe('The slug of the target employee. Valid values: "byte-docs" (file uploads, OCR), "tag-ai" (categorization, rules), "crystal-analytics" (trends, anomalies), "goalie-goals" (savings goals, debt payoff), "custodian" (app navigation, how-to questions, where to find X), "prime-boss" (return to orchestrator).'),
   reason: z.string().optional().describe('Optional reason for the handoff (for logging and context)'),
   summary_for_next_employee: z.string().optional().describe('Short recap of what the user needs (helps the next employee understand context)'),
   handoff_type: z.enum(['standard', 'plugin']).optional().describe('Use "plugin" when passing structured worker/plugin data between employees'),
@@ -68,7 +68,7 @@ export async function execute(
 
 export const metadata = {
   name: 'Request Employee Handoff',
-  description: 'Transfer the conversation to another AI employee who is better suited to answer the user\'s question. Use this when the user asks about topics outside your domain (e.g., goal tracking -> Goalie, emotional support -> Liberty, analytics -> Crystal, strategic planning -> Prime/Finley).',
+  description: 'Transfer the conversation to another AI employee better suited to answer. Routing: file uploads or OCR -> byte-docs; category rules or fixing miscategorized transactions -> tag-ai; trends, anomalies, why did X change -> crystal-analytics; savings goals or debt payoff -> goalie-goals; how do I, where do I find X, app navigation, how-to questions -> custodian; return to orchestrator -> prime-boss.',
   requiresConfirmation: false,
   dangerous: false,
 };
