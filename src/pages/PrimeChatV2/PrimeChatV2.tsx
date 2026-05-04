@@ -663,6 +663,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         {chatMessages.length > 0 && (
           <div style={{ marginTop: 24, borderTop: `1px solid ${THEME.border}`, paddingTop: 18 }}>
             {chatMessages.map((msg) => {
+              // Skip system messages (handoff dividers etc) — backend still records them for audit.
+              if (msg.role === "system") return null;
               if (msg.role === "user") {
                 return (
                   <div key={msg.id} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
