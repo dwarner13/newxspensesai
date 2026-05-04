@@ -538,6 +538,7 @@ export default function DashboardLayout() {
   // Fires ONCE per browser (localStorage flag). Desktop only (>= 1024px).
   // Skips if onboarding incomplete (custodian_ready != true).
   useEffect(() => {
+    console.log('[autoopen-1]', { ready, userId: !!userId, profile: !!profile, isChatOpen, didAutoOpen: didAutoOpenChatRef.current, path: location.pathname });
     if (!ready || !userId || !profile) return;
     if (isChatOpen) return;
     if (didAutoOpenChatRef.current) return;
@@ -566,6 +567,7 @@ export default function DashboardLayout() {
 
   // Auto-open Prime briefing once per session (mirrors Tag autopen pattern).
   useEffect(() => {
+    console.log('[autoopen-2]', { ready, userId: !!userId, profile: !!profile, path: location.pathname, dismissed: typeof window !== 'undefined' ? sessionStorage.getItem('prime_autopen_dismissed') : 'no-window' });
     if (!ready || !userId || !profile) return;
     if (!location.pathname.startsWith('/dashboard')) return;
     let cancelled = false;
