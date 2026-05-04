@@ -265,13 +265,24 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     });
   }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep]);
 
-  // Detect user scroll-up to pause auto-scroll
+  // Detect user scroll-up to pause auto-scroll. Tracks direction (not just position)
+  // so programmatic scrolls during streaming don't trip the "scrolled up" flag when
+  // content height grows faster than scrollIntoView can catch up.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    let lastScrollTop = el.scrollTop;
     const handleScroll = () => {
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-      userScrolledUpRef.current = !atBottom;
+      const cur = el.scrollTop;
+      const atBottom = el.scrollHeight - cur - el.clientHeight < 80;
+      if (cur < lastScrollTop - 2) {
+        // Real user scroll-up (>2px to ignore subpixel jitter)
+        userScrolledUpRef.current = true;
+      } else if (atBottom) {
+        // Reached bottom (manually or via programmatic catch-up) - re-engage auto-scroll
+        userScrolledUpRef.current = false;
+      }
+      lastScrollTop = cur;
     };
     el.addEventListener('scroll', handleScroll, { passive: true });
     return () => el.removeEventListener('scroll', handleScroll);
