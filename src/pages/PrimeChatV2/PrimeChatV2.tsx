@@ -254,9 +254,15 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // Includes revealStep so the briefing's sequential reveal animation keeps
   // the newest block in view (8 steps over ~8 seconds).
   useEffect(() => {
-    if (!userScrolledUpRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
-    }
+    if (userScrolledUpRef.current) return;
+    // Double RAF lets batched DOM updates (handoff + assistant message added together)
+    // settle before measuring scroll position. Without this, scroll fires mid-render
+    // and lands above the latest message. Apr 30 fix.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      });
+    });
   }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep]);
 
   // Detect user scroll-up to pause auto-scroll
