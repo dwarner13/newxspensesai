@@ -1622,9 +1622,11 @@ export function usePrimeChat(
           if (contentText) {
             textByRequestRef.current.set(requestId, contentText);
             committedAssistantIdsRef.current.add(messageId);
-            // Attribute to target employee when handoff occurred, else the original target
+            // Attribute the announcement to the SENDER (from). The target's avatar shows
+            // up on subsequent messages once the conversation actually moves over. Tagging the
+            // announcement with .to made Prime's words render under Byte's icon. Apr 30 fix.
             const responseEmployee = hasHandoff
-              ? handoffInfo.to
+              ? handoffInfo.from
               : (payload?.employeeSlug || payload?.employee || employeeSlugToSend);
             upsertAssistantMessage({
               messageId,
@@ -1976,7 +1978,7 @@ export function usePrimeChat(
                   requestId,
                   content: String(assistantContent),
                   isStreaming: false,
-                  employeeKey: fbHasHandoff ? fbHandoff.to : employeeSlugToSend,
+                  employeeKey: fbHasHandoff ? fbHandoff.from : employeeSlugToSend,
                 });
                 
                 if (import.meta.env.DEV) {
