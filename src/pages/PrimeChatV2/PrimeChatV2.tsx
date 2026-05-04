@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { THEME } from "./agentConfig";
+import { THEME, AGENT_COLORS, AGENT_BG } from "./agentConfig";
 import { AgentDot } from "./AgentDot";
 import { AgentCallout } from "./AgentCallout";
 import { TaxDeductionsCard } from "./TaxDeductionsCard";
@@ -698,7 +698,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                   <div style={{
                     maxWidth: "85%", padding: "10px 14px", borderRadius: 14,
                     borderBottomLeftRadius: 4,
-                    background: THEME.accentGlow, borderLeft: `3px solid ${THEME.accent}44`,
+                    background: AGENT_BG[agentForMsg], borderLeft: `3px solid ${AGENT_COLORS[agentForMsg]}44`,
                     fontSize: 15, color: THEME.textMuted, lineHeight: 1.6, minWidth: 40,
                   }}>
                     {isThisStreaming && isEmpty ? (

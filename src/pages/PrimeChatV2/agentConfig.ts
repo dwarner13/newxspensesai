@@ -1,4 +1,4 @@
-﻿export const THEME = {
+export const THEME = {
   bg: "#0b1220",
   surface: "#111a2e",
   surfaceLight: "#162035",
@@ -23,13 +23,22 @@
   cyanBg: "rgba(34,211,238,0.08)",
 } as const;
 
-export type AgentName = "Prime" | "Tag" | "Crystal" | "Byte";
+export type AgentName = "Prime" | "Tag" | "Crystal" | "Byte" | "Goalie";
 
 export const AGENT_COLORS: Record<AgentName, string> = {
   Prime: THEME.accent,
   Tag: THEME.cyan,
   Crystal: THEME.purple,
   Byte: THEME.green,
+  Goalie: THEME.orange,
+};
+
+export const AGENT_BG: Record<AgentName, string> = {
+  Prime: THEME.accentGlow,
+  Tag: THEME.cyanBg,
+  Crystal: THEME.purpleBg,
+  Byte: THEME.greenBg,
+  Goalie: THEME.orangeBg,
 };
 
 export const AGENT_LABELS: Record<AgentName, string> = {
@@ -37,6 +46,7 @@ export const AGENT_LABELS: Record<AgentName, string> = {
   Tag: "T",
   Crystal: "C",
   Byte: "B",
+  Goalie: "G",
 };
 
 export const AGENT_ROLES: Record<AgentName, string> = {
@@ -44,4 +54,5 @@ export const AGENT_ROLES: Record<AgentName, string> = {
   Tag: "Categorizer",
   Crystal: "Insights",
   Byte: "Documents",
+  Goalie: "Goals",
 };
