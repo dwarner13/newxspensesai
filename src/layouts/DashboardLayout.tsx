@@ -541,9 +541,10 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (lastPathRef.current !== location.pathname) {
       if (isChatOpen) closeChat();
+      setIsPrimeBriefingOpen(false);
       lastPathRef.current = location.pathname;
     }
-  }, [location.pathname, isChatOpen, closeChat]);
+  }, [location.pathname, isChatOpen, closeChat, setIsPrimeBriefingOpen]);
 
   // Auto-open Prime briefing once per session (mirrors Tag autopen pattern).
   useEffect(() => {
