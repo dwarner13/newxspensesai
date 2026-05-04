@@ -21,9 +21,11 @@ export const THEME = {
   orangeBg: "rgba(251,146,60,0.08)",
   cyan: "#22d3ee",
   cyanBg: "rgba(34,211,238,0.08)",
+  slate: "#e2e8f0",
+  slateBg: "rgba(226,232,240,0.08)",
 } as const;
 
-export type AgentName = "Prime" | "Tag" | "Crystal" | "Byte" | "Goalie";
+export type AgentName = "Prime" | "Tag" | "Crystal" | "Byte" | "Goalie" | "Custodian";
 
 export const AGENT_COLORS: Record<AgentName, string> = {
   Prime: THEME.accent,
@@ -31,6 +33,7 @@ export const AGENT_COLORS: Record<AgentName, string> = {
   Crystal: THEME.purple,
   Byte: THEME.green,
   Goalie: THEME.orange,
+  Custodian: THEME.slate,
 };
 
 export const AGENT_BG: Record<AgentName, string> = {
@@ -39,6 +42,7 @@ export const AGENT_BG: Record<AgentName, string> = {
   Crystal: THEME.purpleBg,
   Byte: THEME.greenBg,
   Goalie: THEME.orangeBg,
+  Custodian: THEME.slateBg,
 };
 
 export const AGENT_LABELS: Record<AgentName, string> = {
@@ -47,6 +51,7 @@ export const AGENT_LABELS: Record<AgentName, string> = {
   Crystal: "C",
   Byte: "B",
   Goalie: "G",
+  Custodian: "\u2699",
 };
 
 export const AGENT_ROLES: Record<AgentName, string> = {
@@ -55,4 +60,5 @@ export const AGENT_ROLES: Record<AgentName, string> = {
   Crystal: "Insights",
   Byte: "Documents",
   Goalie: "Goals",
+  Custodian: "App Guide",
 };
