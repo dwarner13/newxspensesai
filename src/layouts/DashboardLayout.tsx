@@ -395,7 +395,6 @@ export default function DashboardLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isPrimeBriefingOpen, setIsPrimeBriefingOpen] = useAtom(isPrimeBriefingOpenAtom);
   const { isOpen: isChatOpen, options: chatOptions, activeEmployeeSlug, closeChat, openChat } = useUnifiedChatLauncher();
-  const didAutoOpenChatRef = useRef(false);
   
   // Debug: Log when chat state changes
   useEffect(() => {
@@ -534,24 +533,6 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, isChatOpen, openChat]);
   */
-  // Auto-open Prime chat on /dashboard for first-time users only.
-  // Fires ONCE per browser (localStorage flag). Desktop only (>= 1024px).
-  // Skips if onboarding incomplete (custodian_ready != true).
-  useEffect(() => {
-    console.log('[autoopen-1]', { ready, userId: !!userId, profile: !!profile, isChatOpen, didAutoOpen: didAutoOpenChatRef.current, path: location.pathname });
-    if (!ready || !userId || !profile) return;
-    if (isChatOpen) return;
-    if (didAutoOpenChatRef.current) return;
-    const isMainDashboardRoute = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
-    if (!isMainDashboardRoute) return;
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) return;
-    // First-time gate: only auto-open if user finished onboarding AND hasn't seen auto-open before
-    const md = (profile.metadata && typeof profile.metadata === 'object') ? profile.metadata : {};
-    const custodianReady = (md as any).custodian_ready === true;
-    if (!custodianReady) return;
-    didAutoOpenChatRef.current = true;
-    openChat({ initialEmployeeSlug: 'prime-boss' });
-  }, [ready, userId, profile, isChatOpen, openChat, location.pathname]);
 
   // Close global chat (Prime/etc.) on route change so it doesn't bleed into
   // page-specific panels (Tag on /transactions, Goalie on /goals-debt, etc.).
@@ -560,14 +541,12 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (lastPathRef.current !== location.pathname) {
       if (isChatOpen) closeChat();
-      didAutoOpenChatRef.current = false;
       lastPathRef.current = location.pathname;
     }
   }, [location.pathname, isChatOpen, closeChat]);
 
   // Auto-open Prime briefing once per session (mirrors Tag autopen pattern).
   useEffect(() => {
-    console.log('[autoopen-2]', { ready, userId: !!userId, profile: !!profile, path: location.pathname, dismissed: typeof window !== 'undefined' ? sessionStorage.getItem('prime_autopen_dismissed') : 'no-window' });
     if (!ready || !userId || !profile) return;
     if (!location.pathname.startsWith('/dashboard')) return;
     let cancelled = false;
