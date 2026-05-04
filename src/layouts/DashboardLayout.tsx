@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { useLocation, Outlet, useNavigate } from "react-router-dom";
 import { AnimatedOutlet } from "../components/ui/AnimatedOutlet";
@@ -563,6 +563,30 @@ export default function DashboardLayout() {
       lastPathRef.current = location.pathname;
     }
   }, [location.pathname, isChatOpen, closeChat]);
+
+  // Auto-open Prime briefing once per session (mirrors Tag autopen pattern).
+  useEffect(() => {
+    if (!ready || !userId || !profile) return;
+    if (!location.pathname.startsWith('/dashboard')) return;
+    let cancelled = false;
+    try {
+      if (sessionStorage.getItem('prime_autopen_dismissed') === '1') return;
+    } catch { /* sessionStorage unavailable - fall through and try opening */ }
+    const t = setTimeout(() => {
+      if (!cancelled) setIsPrimeBriefingOpen(true);
+    }, 600);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [ready, userId, profile, location.pathname, setIsPrimeBriefingOpen]);
+
+  // Persist dismissal when Prime closes (any path).
+  const prevPrimeOpenRef = useRef(false);
+  useEffect(() => {
+    if (prevPrimeOpenRef.current && !isPrimeBriefingOpen) {
+      try { sessionStorage.setItem('prime_autopen_dismissed', '1'); } catch { /* noop */ }
+    }
+    prevPrimeOpenRef.current = isPrimeBriefingOpen;
+  }, [isPrimeBriefingOpen]);
+
   // Open chat history
   const handleOpenChatHistory = () => {
     setIsChatHistoryOpen(true);
