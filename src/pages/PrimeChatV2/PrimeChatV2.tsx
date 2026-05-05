@@ -265,6 +265,21 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     });
   }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep]);
 
+  // ResizeObserver: catch content reflows (markdown rendering, typewriter, image loads)
+  // that React state-based effects miss. Markdown with bold/lists renders in multiple passes
+  // and initial scrollIntoView often fires before the final layout settles.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (userScrolledUpRef.current) return;
+      bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    });
+    const target = el.firstElementChild;
+    if (target) observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
   // Detect user scroll-up to pause auto-scroll. Tracks direction (not just position)
   // so programmatic scrolls during streaming don't trip the "scrolled up" flag when
   // content height grows faster than scrollIntoView can catch up.
