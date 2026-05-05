@@ -269,16 +269,13 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // because it fires on ANY DOM change inside the scroll container (new messages, markdown
   // reflows, typewriter growth, image loads). Direct scrollTop = scrollHeight bypasses any
   // bottomRef positioning quirks and always lands at the absolute bottom of the container.
-  // Auto-scroll observer: keeps chat pinned to bottom as content grows (TypingMessage
-  // typewriter, markdown reflow, image loads). Gap-check tolerance instead of direction
-  // tracking - if user is within 100px of bottom, keep scrolling. If they scrolled up to
-  // read earlier content (gap > 100px), leave them alone until they scroll back down.
+  // Auto-scroll: keep chat pinned to bottom as content grows. Fires on every DOM mutation
+  // (TypingMessage typewriter, markdown reflow, image loads). Unconditional scroll-to-bottom
+  // for the duration of any active mutation; user can scroll freely once content settles.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || typeof MutationObserver === 'undefined') return;
     const scrollToBottom = () => {
-      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (gap > 100) return;
       el.scrollTop = el.scrollHeight;
     };
     const observer = new MutationObserver(scrollToBottom);
