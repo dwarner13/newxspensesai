@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trash2, Plus, ChevronLeft, ChevronDown, ChevronRight, Search, FlaskConical } from "lucide-react";
 import toast from "react-hot-toast";
@@ -7,11 +7,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { RulesCoverageCard } from "./RulesCoverageCard";
+import { RulesOverrideSuggestions } from "./RulesOverrideSuggestions";
 
 const CATEGORIES = [
   'Income','Groceries','Food & Dining','Transportation','Housing','Utilities',
   'Shopping','Subscriptions','Entertainment','Healthcare','Insurance','Education',
-  'Travel','Transfers','Bank Fees','Business','Personal Care','Home & Garden',
+  'Travel','Transfers','Bank Fees','Debt Payments','Business','Personal Care','Home & Garden',
   'Needs Review',
 ];
 
@@ -133,6 +134,16 @@ export default function CategoryRulesPage() {
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredWithDupFilter]);
 
+  // On first non-empty rules load, collapse all categories so the page
+  // doesn't become an 8000px scroll. User's expand/collapse persists from there.
+  const initialCollapseDoneRef = useRef(false);
+  useEffect(() => {
+    if (!initialCollapseDoneRef.current && grouped.length > 0) {
+      setCollapsedCategories(new Set(grouped.map(([cat]) => cat)));
+      initialCollapseDoneRef.current = true;
+    }
+  }, [grouped]);
+
   const toggleCategory = (cat: string) => {
     setCollapsedCategories(prev => {
       const next = new Set(prev);
@@ -155,6 +166,14 @@ export default function CategoryRulesPage() {
     } else {
       setSelectedIds(new Set(filteredWithDupFilter.map(r => r.id)));
     }
+  };
+
+  const handleSuggestRule = (merchant: string, category: string, subcategory: string | null) => {
+    setNewMerchant(merchant);
+    setNewCategory(CATEGORIES.includes(category) ? category : 'Food & Dining');
+    setNewSubcategory(subcategory || '');
+    setNewMatchType('contains');
+    setShowAddForm(true);
   };
 
   const handleAdd = async () => {
@@ -273,6 +292,8 @@ export default function CategoryRulesPage() {
       </Reveal>
 
       {userId && <RulesCoverageCard userId={userId} />}
+
+      {userId && <RulesOverrideSuggestions userId={userId} onMakeRule={handleSuggestRule} />}
 
       {/* Search + Test */}
       <Reveal delay={50}>
