@@ -6,7 +6,7 @@
  * Respects prefers-reduced-motion and handles streaming messages.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface TypingMessageProps {
@@ -24,6 +24,8 @@ interface TypingMessageProps {
   charDelay?: number;
   /** Maximum animation duration in ms (default: 3000ms) */
   maxDuration?: number;
+  /** Optional custom renderer for the displayed text. Defaults to FormattedMessageText. */
+  renderer?: (text: string) => ReactNode;
 }
 
 export function renderInlineStrong(text: string): Array<string | JSX.Element> {
@@ -240,6 +242,7 @@ export function TypingMessage({
   onTyped,
   charDelay = 12, // Default: faster reveal for snappier responses
   maxDuration = 3000, // Cap at 3 seconds for long messages
+  renderer,
 }: TypingMessageProps) {
   const [displayedText, setDisplayedText] = useState('');
   const animationRef = useRef<number | null>(null);
@@ -367,7 +370,7 @@ export function TypingMessage({
 
   return (
     <span className="break-words">
-      <FormattedMessageText text={displayedText} />
+      {renderer ? renderer(displayedText) : <FormattedMessageText text={displayedText} />}
     </span>
   );
 }

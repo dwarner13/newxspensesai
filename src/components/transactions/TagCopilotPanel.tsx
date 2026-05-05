@@ -6,6 +6,7 @@ import { Reveal } from "@/pages/PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
 import type { FlaggedTransaction, SubcategorySuggestion } from "@/pages/CategoriesV2/useCategoriesData";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { TypingMessage } from "@/components/chat/TypingMessage";
 
 const CYAN = "#22d3ee";
 
@@ -126,7 +127,7 @@ function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: 
           action: "amount_corrected",
           old_value: String(oldAmt),
           new_value: String(newAmt),
-          reason: `OCR misread detected — corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
+          reason: `OCR misread detected ï¿½ corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
           source: "tag_anomaly_review",
         });
       }
@@ -270,7 +271,7 @@ interface TagCopilotPanelProps {
   topCategories?: { category: string; total: number; transactionCount: number; budget?: number; topMerchant?: string }[];
   /** When Tag is opened from a specific import (e.g. ?import_id=X from upload),
    * the greeting scopes its opening line to that import instead of the global picture.
-   * Presence of importId ALSO triggers a fresh-briefing session — stale localStorage
+   * Presence of importId ALSO triggers a fresh-briefing session ï¿½ stale localStorage
    * chat is cleared on mount so the user doesn't see yesterday's conversation about
    * a different import. */
   importId?: string;
@@ -282,7 +283,7 @@ interface TagCopilotPanelProps {
    * a conversation about something specific, it passes a message here. The
    * message is auto-sent to tag-copilot as if the user typed it, so Tag's
    * first reply is already on-topic about that thing. Changes to this prop
-   * trigger a new auto-send — callers should set it, let it fire, then
+   * trigger a new auto-send ï¿½ callers should set it, let it fire, then
    * reset to null before reusing. */
   injectedMessage?: string | null;
   /** When Tag is opened with a specific transaction in focus (drawer's
@@ -313,7 +314,7 @@ export function TagCopilotPanel({
   focusedTransaction,
 }: TagCopilotPanelProps) {
 
-  // Presence of importId means this is an upload-handoff session — start fresh so
+  // Presence of importId means this is an upload-handoff session ï¿½ start fresh so
   // the user sees a briefing scoped to their import, not yesterday's conversation.
   const freshBriefing = Boolean(importId);
 
@@ -406,7 +407,7 @@ export function TagCopilotPanel({
           window.dispatchEvent(new Event("tag:stats-refresh"));
           window.dispatchEvent(new Event("transactions:refresh"));
         } else {
-          toast.success("All transactions look correct — nothing to fix");
+          toast.success("All transactions look correct ï¿½ nothing to fix");
         }
       } else {
         toast.error(data.error || "Auto-fix failed");
@@ -465,7 +466,7 @@ export function TagCopilotPanel({
     finally { setRulesRefreshing(false); }
   };
 
-  // Session cutoff for the chat history — after 6 hours of inactivity we
+  // Session cutoff for the chat history ï¿½ after 6 hours of inactivity we
   // drop the stored messages so the user gets a fresh greeting instead of
   // resuming a stale conversation. Tag's real learning lives in
   // category_rules / vendor_category_memory, not the transcript.
@@ -492,7 +493,7 @@ export function TagCopilotPanel({
 
   // If the panel opened via an upload handoff (?openTag=1), we used to wipe
   // tag_chat_history here so the user saw a briefing scoped to the import
-  // they just uploaded. That wipe was too aggressive — it ran in the render
+  // they just uploaded. That wipe was too aggressive ï¿½ it ran in the render
   // body (not a useEffect), firing on every re-render with a truthy importId,
   // which nuked the user's chat history any time the panel re-rendered.
   //
@@ -523,11 +524,26 @@ export function TagCopilotPanel({
   const isMobile = useIsMobile();
   // Tracks whether user was near the bottom at last scroll. Used by the auto-scroll
   // effect below to avoid hijacking scroll position when user is reading history.
-  // Bug fix: users reported the chat was "locked" — they couldn't scroll up because
+  // Bug fix: users reported the chat was "locked" ï¿½ they couldn't scroll up because
   // every message/isLoading change was forcing scrollTop to the bottom unconditionally.
   const wasNearBottomRef = useRef(true);
+  // Tracks which assistant messages have already finished their typewriter animation.
+  // Warm-filled on mount with currently-loaded messages (restored from localStorage),
+  // so re-hydrated history doesn't replay the typewriter on every panel re-open.
+  const typedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => { requestAnimationFrame(() => setOpen(true)); }, []);
+
+  // Mount-only: mark all currently-loaded assistant messages as already typed,
+  // so localStorage-restored history shows immediately instead of replaying.
+  useEffect(() => {
+    messages.forEach((m, i) => {
+      if (m.role === "assistant") {
+        typedIdsRef.current.add(`tag-${i}|${(m.content ?? "").slice(0, 32)}`);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lastSentMsg = { current: "" };
   useEffect(() => {
@@ -565,7 +581,7 @@ export function TagCopilotPanel({
 
   const handleClose = () => { setOpen(false); setTimeout(onClose, 320); };
 
-  // Detect confirmation words — when user says "yes" / "confirm" / "do it" /
+  // Detect confirmation words ï¿½ when user says "yes" / "confirm" / "do it" /
   // "go ahead" in response to a pending proposal, fire commit directly.
   const isConfirmation = (text: string): boolean => {
     const t = text.trim().toLowerCase();
@@ -575,7 +591,7 @@ export function TagCopilotPanel({
   // extractProposal removed Apr 25 2026 as part of tool-use refactor.
   // Old behavior: regex-extracted "move X to Y" patterns from Tag's reply text
   // and persisted them in pendingProposal so a later "yes" would fire the action.
-  // This was the source of the Yo Yo Massage / save-on-foods state leak —
+  // This was the source of the Yo Yo Massage / save-on-foods state leak ï¿½
   // when the regex didn't match Tag's actual phrasing, pendingProposal kept
   // its stale value from earlier in the session and committed against the
   // wrong merchant. Now: the LLM calls a server tool directly via the
@@ -706,7 +722,7 @@ export function TagCopilotPanel({
     // INTERCEPTOR 2: Did the user ask for a categorization action?
     // If so, preview against real data BEFORE asking Tag. Tag's prompt
     // doesn't include merchant names, so he can't reliably confirm what
-    // exists — but the DB can. We go straight to the source of truth.
+    // exists ï¿½ but the DB can. We go straight to the source of truth.
     const userIntent = detectUserActionIntent(text);
     if (userIntent) {
       setInputValue("");
@@ -722,7 +738,7 @@ export function TagCopilotPanel({
         } else {
           const sampleText = preview.samples
             .slice(0, 3)
-            .map((s: any) => `• ${s.merchant_name} — $${Math.abs(Number(s.amount || 0)).toFixed(2)} (currently: ${s.current_category || 'Uncategorized'})`)
+            .map((s: any) => `ï¿½ ${s.merchant_name} ï¿½ $${Math.abs(Number(s.amount || 0)).toFixed(2)} (currently: ${s.current_category || 'Uncategorized'})`)
             .join('\n');
           const extra = preview.matchCount > 3 ? `\n...and ${preview.matchCount - 3} more` : '';
           setMessages(prev => [...prev, {
@@ -741,7 +757,7 @@ export function TagCopilotPanel({
     }
 
     setInputValue("");
-    // User entered the conversational LLM path — they're not confirming a
+    // User entered the conversational LLM path ï¿½ they're not confirming a
     // prior typed-command proposal. Clear any stale pendingProposal so a
     // later "yes" can't fire an action they no longer want. (Tool-use
     // path: server fires the action directly, no client-side proposal carry.)
@@ -750,7 +766,7 @@ export function TagCopilotPanel({
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setIsLoading(true);
-    // User just sent a message — reset position tracker and force scroll to bottom.
+    // User just sent a message ï¿½ reset position tracker and force scroll to bottom.
     // This bypasses the conditional auto-scroll since the user action is explicit.
     wasNearBottomRef.current = true;
     setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 50);
@@ -799,12 +815,12 @@ export function TagCopilotPanel({
       setMessages(prev => [...prev, { role: "assistant", content: replyText }]);
 
       // Tool-use refactor (Apr 25 2026): the LLM no longer writes "move X to Y"
-      // prose for actions — it calls a server-side tool, and the server runs
+      // prose for actions ï¿½ it calls a server-side tool, and the server runs
       // the DB write deterministically. So the old extractProposal path is
       // gone. Any pending proposal here is stale (set by detectUserActionIntent
       // path before this LLM round-trip) and we should NOT carry it forward
       // past an unrelated LLM reply, since the user has moved on. If the
-      // server fired a tool, that's the source of truth — clear pending.
+      // server fired a tool, that's the source of truth ï¿½ clear pending.
       const actionFired = !!(data.action?.applied || data.rule_saved || (data.backfill_count || 0) > 0);
       if (actionFired) {
         setPendingProposal(null);
@@ -841,7 +857,7 @@ export function TagCopilotPanel({
     if (lastInjectedRef.current === injectedMessage) return;
     lastInjectedRef.current = injectedMessage;
     void handleSend(injectedMessage);
-    // handleSend intentionally omitted from deps — stable per render is fine.
+    // handleSend intentionally omitted from deps ï¿½ stable per render is fine.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [injectedMessage]);
 
@@ -850,7 +866,7 @@ export function TagCopilotPanel({
   // for the new import context. Without this, greetingText would persist from
   // the first import.
   //
-  // We intentionally do NOT wipe localStorage here — that would destroy the
+  // We intentionally do NOT wipe localStorage here ï¿½ that would destroy the
   // user's chat history the moment they navigate between scopes, even if they
   // just meant to take a quick look. The stored history survives; when the user
   // returns to the scope it was written in (or to the global view), the panel
@@ -875,7 +891,7 @@ export function TagCopilotPanel({
     const fmtAmount = (n: number) =>
       `$${n.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-    // "Since last visit" detection — only for global view, not scoped imports
+    // "Since last visit" detection ï¿½ only for global view, not scoped imports
     // We store the visit timestamp + a snapshot of count on each panel open.
     // On subsequent open, diff against snapshot to surface what's new.
     let sinceVisitLine = "";
@@ -900,9 +916,9 @@ export function TagCopilotPanel({
             "a while back";
 
           if (deltaCount > 5) {
-            sinceVisitLine = `Welcome back — **${deltaCount} new transactions** since ${whenPhrase}. `;
+            sinceVisitLine = `Welcome back ï¿½ **${deltaCount} new transactions** since ${whenPhrase}. `;
           } else if (daysAgo >= 3) {
-            sinceVisitLine = `Welcome back — it's been ${whenPhrase}. `;
+            sinceVisitLine = `Welcome back ï¿½ it's been ${whenPhrase}. `;
           }
         }
 
@@ -910,12 +926,12 @@ export function TagCopilotPanel({
         localStorage.setItem("tag_last_visit_ts", String(now));
         localStorage.setItem("tag_last_visit_count", String(count));
       } catch {
-        // localStorage blocked / full — skip the personalization
+        // localStorage blocked / full ï¿½ skip the personalization
       }
     }
 
     // Compose a casual chat message with real numbers woven in.
-    // Bold (**) wraps numeric/category highlights — renderMarkdown handles the styling.
+    // Bold (**) wraps numeric/category highlights ï¿½ renderMarkdown handles the styling.
     let text = "";
 
     if (importId) {
@@ -927,30 +943,30 @@ export function TagCopilotPanel({
       const flaggedPart =
         flaggedCount > 0
           ? `**${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.`
-          : `Nothing flagged — everything categorized cleanly.`;
+          : `Nothing flagged ï¿½ everything categorized cleanly.`;
       const topPart = realCategories[0]
         ? `Biggest spend was **${realCategories[0].category}** at **${fmtAmount(realCategories[0].total)}**.`
         : "";
-      text = `${hi} — I've got ${txPart} sorted out. ${flaggedPart} ${topPart}\n\nWant me to walk through the flagged ones, or dig into a specific category?`;
+      text = `${hi} ï¿½ I've got ${txPart} sorted out. ${flaggedPart} ${topPart}\n\nWant me to walk through the flagged ones, or dig into a specific category?`;
     } else if (flaggedCount > 0) {
-      // Global view with flagged items — lead with the action
+      // Global view with flagged items ï¿½ lead with the action
       const top3 = realCategories.slice(0, 3);
       const catsList = top3.length
         ? top3.map(c => `**${c.category}** ${fmtAmount(c.total)}`).join(", ")
         : "";
-      text = `${sinceVisitLine}${hi} — I've got your **${count} transactions** sorted across your books. There ${flaggedCount === 1 ? "is" : "are"} **${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.${catsList ? ` Your top categories: ${catsList}.` : ""}\n\nWant to review the flagged ones first, or dig into a category?`;
+      text = `${sinceVisitLine}${hi} ï¿½ I've got your **${count} transactions** sorted across your books. There ${flaggedCount === 1 ? "is" : "are"} **${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.${catsList ? ` Your top categories: ${catsList}.` : ""}\n\nWant to review the flagged ones first, or dig into a category?`;
     } else if (realCategories.length > 0) {
-      // Global view, clean books — summary + invitation
+      // Global view, clean books ï¿½ summary + invitation
       const top = realCategories[0];
       const top3 = realCategories.slice(0, 3);
       const catsList = top3
         .slice(1)
         .map(c => `**${c.category}** ${fmtAmount(c.total)}`)
         .join(", ");
-      text = `${sinceVisitLine}${hi} — I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
+      text = `${sinceVisitLine}${hi} ï¿½ I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
     } else {
-      // Fallback — no category data yet
-      text = `${hi} — I'm your categorization engine. Want to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern?`;
+      // Fallback ï¿½ no category data yet
+      text = `${hi} ï¿½ I'm your categorization engine. Want to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern?`;
     }
 
     setGreetingText(text);
@@ -970,15 +986,25 @@ export function TagCopilotPanel({
     wasNearBottomRef.current = distanceFromBottom < 120;
   };
 
+  // Scroll-keeper: MutationObserver watches the chat container for any DOM
+  // change (new message appends AND per-character text growth from <TypingMessage>).
+  // Pinned to bottom only when user was already near bottom, so reading history
+  // is never hijacked. Replaces the old [messages, isLoading] effect, which only
+  // fired on full message-array changes and missed the intermediate DOM mutations
+  // during the typewriter animation.
   useEffect(() => {
-    if (!scrollRef.current) return;
-    // Only auto-scroll to the bottom when the user was already at/near the bottom.
-    // If they scrolled up to read previous messages, leave their position alone —
-    // this is the fix for the "chat locked, can't scroll up" bug.
-    if (wasNearBottomRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isLoading]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const stickToBottom = () => {
+      if (wasNearBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    };
+    stickToBottom();
+    const obs = new MutationObserver(stickToBottom);
+    obs.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -1054,7 +1080,7 @@ export function TagCopilotPanel({
           >{"x"}</button>
         </div>
 
-        {/* Focused-transaction pill — shows when Tag was opened from a drawer
+        {/* Focused-transaction pill ï¿½ shows when Tag was opened from a drawer
             or single-row context. Tells the user which row Tag is anchored
             to, so the two-step flow ("change THIS one, then offer to extend")
             has visible grounding. */}
@@ -1081,7 +1107,7 @@ export function TagCopilotPanel({
             </span>
             {(focusedTransaction.posted_at || focusedTransaction.date) && (
               <span style={{ color: T.textDim }}>
-                · {focusedTransaction.posted_at || focusedTransaction.date}
+                ï¿½ {focusedTransaction.posted_at || focusedTransaction.date}
               </span>
             )}
           </div>
@@ -1117,7 +1143,7 @@ export function TagCopilotPanel({
             </div>
           )}
 
-          {/* Category intelligence summary card — renders whenever we have
+          {/* Category intelligence summary card ï¿½ renders whenever we have
               category data and no active conversation, independent of the
               greeting text (which may load async). */}
           {messages.length === 0 && (topCategories || []).length > 0 && (() => {
@@ -1200,7 +1226,7 @@ export function TagCopilotPanel({
                   value={
                     totalCount && totalCount > 0
                       ? `${categorizedCount ?? 0}/${totalCount}`
-                      : "—"
+                      : "ï¿½"
                   }
                   color={T.green}
                 />
@@ -1209,13 +1235,13 @@ export function TagCopilotPanel({
                   value={
                     Number.isFinite(avgConfidence) && (avgConfidence ?? 0) > 0
                       ? `${avgConfidence}%`
-                      : "—"
+                      : "ï¿½"
                   }
                   color={T.cyan}
                 />
                 <StatCard
                   label="Flagged"
-                  value={Number.isFinite(flaggedCount) ? `${flaggedCount ?? 0}` : "—"}
+                  value={Number.isFinite(flaggedCount) ? `${flaggedCount ?? 0}` : "ï¿½"}
                   color={T.orange}
                 />
                 <StatCard
@@ -1533,7 +1559,18 @@ export function TagCopilotPanel({
                     boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
                   }),
                 }}>
-                  {isUser ? msg.content : renderMarkdown(msg.content ?? "")}
+                  {isUser ? msg.content : (
+                    <TypingMessage
+                      content={msg.content ?? ""}
+                      messageId={`tag-${i}|${(msg.content ?? "").slice(0, 32)}`}
+                      isStreaming={false}
+                      isTyped={typedIdsRef.current.has(`tag-${i}|${(msg.content ?? "").slice(0, 32)}`)}
+                      onTyped={(id) => typedIdsRef.current.add(id)}
+                      charDelay={12}
+                      maxDuration={2800}
+                      renderer={(text) => <>{renderMarkdown(text)}</>}
+                    />
+                  )}
                   {isMerchantQuestion && suggestedChips.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
                       {suggestedChips.map((cat) => (
