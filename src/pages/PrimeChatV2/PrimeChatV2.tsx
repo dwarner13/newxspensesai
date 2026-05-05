@@ -265,18 +265,19 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     });
   }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep]);
 
-  // ResizeObserver: catch content reflows (markdown rendering, typewriter, image loads)
-  // that React state-based effects miss. Markdown with bold/lists renders in multiple passes
-  // and initial scrollIntoView often fires before the final layout settles.
+  // MutationObserver + direct scrollTop assignment: more reliable than ResizeObserver
+  // because it fires on ANY DOM change inside the scroll container (new messages, markdown
+  // reflows, typewriter growth, image loads). Direct scrollTop = scrollHeight bypasses any
+  // bottomRef positioning quirks and always lands at the absolute bottom of the container.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => {
+    if (!el || typeof MutationObserver === 'undefined') return;
+    const scrollToBottom = () => {
       if (userScrolledUpRef.current) return;
-      bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
-    });
-    const target = el.firstElementChild;
-    if (target) observer.observe(target);
+      el.scrollTop = el.scrollHeight;
+    };
+    const observer = new MutationObserver(scrollToBottom);
+    observer.observe(el, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
   }, []);
 
