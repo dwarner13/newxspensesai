@@ -271,14 +271,22 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // bottomRef positioning quirks and always lands at the absolute bottom of the container.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || typeof MutationObserver === 'undefined') return;
+    console.log('[MO-effect] running, hasEl=' + !!el + ' loading=' + data.loading);
+    if (!el || typeof MutationObserver === 'undefined') { console.log('[MO-effect] EARLY EXIT'); return; }
+    console.log('[MO-effect] attached observer on', el, 'sH=' + el.scrollHeight + ' cH=' + el.clientHeight);
+    let n = 0;
     const scrollToBottom = () => {
-      if (userScrolledUpRef.current) return;
+      n++;
+      const sH = el.scrollHeight, sT = el.scrollTop, cH = el.clientHeight;
+      const blocked = userScrolledUpRef.current;
+      if (n <= 5 || n % 20 === 0) console.log('[MO-fire] #' + n + ' blocked=' + blocked + ' sT=' + sT + ' sH=' + sH + ' cH=' + cH + ' gap=' + (sH - sT - cH));
+      if (blocked) return;
       el.scrollTop = el.scrollHeight;
+      if (n <= 5 || n % 20 === 0) console.log('[MO-fire] #' + n + ' AFTER sT=' + el.scrollTop);
     };
     const observer = new MutationObserver(scrollToBottom);
     observer.observe(el, { childList: true, subtree: true, characterData: true });
-    return () => observer.disconnect();
+    return () => { console.log('[MO-effect] cleanup'); observer.disconnect(); };
   }, [data.loading]);
 
   // Detect user scroll-up to pause auto-scroll. Tracks direction (not just position)
@@ -286,18 +294,21 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // content height grows faster than scrollIntoView can catch up.
   useEffect(() => {
     const el = scrollRef.current;
+    console.log('[DIR-effect] running, hasEl=' + !!el + ' loading=' + data.loading);
     if (!el) return;
     let lastScrollTop = el.scrollTop;
+    let m = 0;
     const handleScroll = () => {
+      m++;
       const cur = el.scrollTop;
       const atBottom = el.scrollHeight - cur - el.clientHeight < 80;
+      const wasUp = userScrolledUpRef.current;
       if (cur < lastScrollTop - 2) {
-        // Real user scroll-up (>2px to ignore subpixel jitter)
         userScrolledUpRef.current = true;
       } else if (atBottom) {
-        // Reached bottom (manually or via programmatic catch-up) - re-engage auto-scroll
         userScrolledUpRef.current = false;
       }
+      if (m <= 5 || m % 20 === 0 || wasUp !== userScrolledUpRef.current) console.log('[DIR-scroll] #' + m + ' cur=' + cur + ' last=' + lastScrollTop + ' atBot=' + atBottom + ' was=' + wasUp + ' now=' + userScrolledUpRef.current);
       lastScrollTop = cur;
     };
     el.addEventListener('scroll', handleScroll, { passive: true });
