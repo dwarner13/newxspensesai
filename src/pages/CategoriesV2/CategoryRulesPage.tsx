@@ -144,6 +144,14 @@ export default function CategoryRulesPage() {
     }
   }, [grouped]);
 
+  // When "Show duplicates only" is toggled on, expand all visible categories
+  // so the user can see the duplicates without clicking each header open.
+  useEffect(() => {
+    if (showDupesOnly) {
+      setCollapsedCategories(new Set());
+    }
+  }, [showDupesOnly]);
+
   const toggleCategory = (cat: string) => {
     setCollapsedCategories(prev => {
       const next = new Set(prev);
