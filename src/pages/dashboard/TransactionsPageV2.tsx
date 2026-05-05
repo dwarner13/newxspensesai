@@ -87,6 +87,15 @@ export default function TransactionsPageV2() {
   const [statementFilter, setStatementFilter] = useState<string>(initialParams.importId || 'all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [issuerFilter, setIssuerFilter] = useState<string>(initialParams.issuer || '');
+  const [yearFilter, setYearFilter] = useState<number | 'all'>(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const param = sp.get('year');
+      if (param === 'all') return 'all';
+      const n = Number(param);
+      return Number.isFinite(n) && n >= 2000 ? n : new Date().getFullYear();
+    } catch { return new Date().getFullYear(); }
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [tagFilterLabel, setTagFilterLabel] = useState('');
   const [tagCategoryFilter, setTagCategoryFilter] = useState('');
@@ -160,6 +169,14 @@ export default function TransactionsPageV2() {
   const [tagFollowupMerchants, setTagFollowupMerchants] = useState<any[] | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showProcessingBanner, setShowProcessingBanner] = useState(false);
+
+  // Year filter <-> URL sync
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (yearFilter === 'all') sp.delete('year');
+    else sp.set('year', String(yearFilter));
+    setSearchParams(sp, { replace: true });
+  }, [yearFilter, setSearchParams]);
   useEffect(() => {
     // [DIAG] Effect-time URL snapshot — after router has processed navigation
     console.log('[TxPage] [DIAG] first useEffect fired:', {
@@ -434,8 +451,27 @@ export default function TransactionsPageV2() {
   }, [issuerFilter, accounts]);
 
   // Filtering
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    years.add(new Date().getFullYear());
+    if (typeof yearFilter === 'number') years.add(yearFilter);
+    transactions.forEach(t => {
+      const s = (t.date || t.posted_at || (t as any).transaction_date || (t as any).txn_date || '').slice(0, 4);
+      const n = Number(s);
+      if (Number.isFinite(n) && n >= 2000) years.add(n);
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [transactions, yearFilter]);
+
   const filtered = useMemo(() => {
     let list = transactions;
+    if (yearFilter !== 'all') {
+      const y = String(yearFilter);
+      list = list.filter(t => {
+        const d = (t.date || t.posted_at || (t as any).transaction_date || (t as any).txn_date || '').slice(0, 4);
+        return d === y;
+      });
+    }
     if (filter === 'expenses') list = list.filter(t => !isIncomeTx(t));
     else if (filter === 'income') list = list.filter(t => isIncomeTx(t));
     if (statementFilter !== 'all') list = list.filter(t => t.import_id === statementFilter);
@@ -465,7 +501,7 @@ export default function TransactionsPageV2() {
       });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter]);
+  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter, yearFilter]);
 
   const handleExport = useCallback(() => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -608,7 +644,21 @@ export default function TransactionsPageV2() {
                 </p>
               </div>
             ) : (
-              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0 }}>Transactions</h1>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+                <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0 }}>Transactions</h1>
+                <select
+                  value={yearFilter === 'all' ? 'all' : String(yearFilter)}
+                  onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  style={{
+                    background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 8,
+                    color: '#e8ecf4', padding: '6px 12px', fontSize: 14, fontWeight: 600,
+                    cursor: 'pointer', outline: 'none',
+                  }}
+                >
+                  {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                  <option value="all">All Years</option>
+                </select>
+              </div>
             )}
             <style>{`.acct-scroll::-webkit-scrollbar{display:none}`}</style>
             {!isStatementMode && <div
