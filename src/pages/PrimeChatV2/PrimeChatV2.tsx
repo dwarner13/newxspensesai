@@ -271,26 +271,15 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // bottomRef positioning quirks and always lands at the absolute bottom of the container.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || typeof MutationObserver === 'undefined') {
-      console.log('[mut-obs] NOT MOUNTED', { hasEl: !!el, hasMO: typeof MutationObserver !== 'undefined' });
-      return;
-    }
-    console.log('[mut-obs] mounted', { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight });
-    let fireCount = 0;
+    if (!el || typeof MutationObserver === 'undefined') return;
     const scrollToBottom = () => {
-      fireCount++;
-      const before = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, userScrolledUp: userScrolledUpRef.current };
-      if (userScrolledUpRef.current) {
-        if (fireCount % 10 === 0) console.log('[mut-obs] BLOCKED by userScrolledUp', before);
-        return;
-      }
+      if (userScrolledUpRef.current) return;
       el.scrollTop = el.scrollHeight;
-      if (fireCount % 10 === 0) console.log('[mut-obs] fire #' + fireCount, before, '-> scrollTop=' + el.scrollTop);
     };
     const observer = new MutationObserver(scrollToBottom);
     observer.observe(el, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
-  }, []);
+  }, [data.loading]);
 
   // Detect user scroll-up to pause auto-scroll. Tracks direction (not just position)
   // so programmatic scrolls during streaming don't trip the "scrolled up" flag when
@@ -313,7 +302,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     };
     el.addEventListener('scroll', handleScroll, { passive: true });
     return () => el.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [data.loading]);
 
   // Force-scroll to the bottom (used on user send and briefing collapse).
   // Clears userScrolledUpRef because sending a message = "I want to see the response."
