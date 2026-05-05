@@ -269,50 +269,21 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // because it fires on ANY DOM change inside the scroll container (new messages, markdown
   // reflows, typewriter growth, image loads). Direct scrollTop = scrollHeight bypasses any
   // bottomRef positioning quirks and always lands at the absolute bottom of the container.
+  // Auto-scroll observer: keeps chat pinned to bottom as content grows (TypingMessage
+  // typewriter, markdown reflow, image loads). Gap-check tolerance instead of direction
+  // tracking - if user is within 100px of bottom, keep scrolling. If they scrolled up to
+  // read earlier content (gap > 100px), leave them alone until they scroll back down.
   useEffect(() => {
     const el = scrollRef.current;
-    console.log('[MO-effect] running, hasEl=' + !!el + ' loading=' + data.loading);
-    if (!el || typeof MutationObserver === 'undefined') { console.log('[MO-effect] EARLY EXIT'); return; }
-    console.log('[MO-effect] attached observer on', el, 'sH=' + el.scrollHeight + ' cH=' + el.clientHeight);
-    let n = 0;
+    if (!el || typeof MutationObserver === 'undefined') return;
     const scrollToBottom = () => {
-      n++;
-      const sH = el.scrollHeight, sT = el.scrollTop, cH = el.clientHeight;
-      const blocked = userScrolledUpRef.current;
-      if (n <= 5 || n % 20 === 0) console.log('[MO-fire] #' + n + ' blocked=' + blocked + ' sT=' + sT + ' sH=' + sH + ' cH=' + cH + ' gap=' + (sH - sT - cH));
-      if (blocked) return;
+      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (gap > 100) return;
       el.scrollTop = el.scrollHeight;
-      if (n <= 5 || n % 20 === 0) console.log('[MO-fire] #' + n + ' AFTER sT=' + el.scrollTop);
     };
     const observer = new MutationObserver(scrollToBottom);
     observer.observe(el, { childList: true, subtree: true, characterData: true });
-    return () => { console.log('[MO-effect] cleanup'); observer.disconnect(); };
-  }, [data.loading]);
-
-  // Detect user scroll-up to pause auto-scroll. Tracks direction (not just position)
-  // so programmatic scrolls during streaming don't trip the "scrolled up" flag when
-  // content height grows faster than scrollIntoView can catch up.
-  useEffect(() => {
-    const el = scrollRef.current;
-    console.log('[DIR-effect] running, hasEl=' + !!el + ' loading=' + data.loading);
-    if (!el) return;
-    let lastScrollTop = el.scrollTop;
-    let m = 0;
-    const handleScroll = () => {
-      m++;
-      const cur = el.scrollTop;
-      const atBottom = el.scrollHeight - cur - el.clientHeight < 80;
-      const wasUp = userScrolledUpRef.current;
-      if (cur < lastScrollTop - 2) {
-        userScrolledUpRef.current = true;
-      } else if (atBottom) {
-        userScrolledUpRef.current = false;
-      }
-      if (m <= 5 || m % 20 === 0 || wasUp !== userScrolledUpRef.current) console.log('[DIR-scroll] #' + m + ' cur=' + cur + ' last=' + lastScrollTop + ' atBot=' + atBottom + ' was=' + wasUp + ' now=' + userScrolledUpRef.current);
-      lastScrollTop = cur;
-    };
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
+    return () => observer.disconnect();
   }, [data.loading]);
 
   // Force-scroll to the bottom (used on user send and briefing collapse).
