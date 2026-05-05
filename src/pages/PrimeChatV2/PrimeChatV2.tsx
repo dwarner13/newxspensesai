@@ -271,10 +271,21 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // bottomRef positioning quirks and always lands at the absolute bottom of the container.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || typeof MutationObserver === 'undefined') return;
+    if (!el || typeof MutationObserver === 'undefined') {
+      console.log('[mut-obs] NOT MOUNTED', { hasEl: !!el, hasMO: typeof MutationObserver !== 'undefined' });
+      return;
+    }
+    console.log('[mut-obs] mounted', { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight });
+    let fireCount = 0;
     const scrollToBottom = () => {
-      if (userScrolledUpRef.current) return;
+      fireCount++;
+      const before = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, userScrolledUp: userScrolledUpRef.current };
+      if (userScrolledUpRef.current) {
+        if (fireCount % 10 === 0) console.log('[mut-obs] BLOCKED by userScrolledUp', before);
+        return;
+      }
       el.scrollTop = el.scrollHeight;
+      if (fireCount % 10 === 0) console.log('[mut-obs] fire #' + fireCount, before, '-> scrollTop=' + el.scrollTop);
     };
     const observer = new MutationObserver(scrollToBottom);
     observer.observe(el, { childList: true, subtree: true, characterData: true });
