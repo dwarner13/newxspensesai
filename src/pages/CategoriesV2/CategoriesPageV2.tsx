@@ -29,7 +29,26 @@ export default function CategoriesPageV2() {
   const { fullName } = useProfile();
   const firstName = fullName?.split(' ')[0] || '';
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
-  const data = useCategoriesData(selectedPeriod || undefined);
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const param = sp.get('year');
+      if (param === 'all') return 'all';
+      const n = Number(param);
+      return Number.isFinite(n) && n >= 2000 ? n : new Date().getFullYear();
+    } catch { return new Date().getFullYear(); }
+  });
+  // Year filter <-> URL sync, and reset selected month pill when year changes
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (selectedYear === 'all') sp.delete('year');
+    else sp.set('year', String(selectedYear));
+    const qs = sp.toString();
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    window.history.replaceState(null, '', url);
+    setSelectedPeriod("");
+  }, [selectedYear]);
+  const data = useCategoriesData(selectedPeriod || undefined, selectedYear);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleRefresh = useCallback(() => {
     if (isRefreshing) return;
@@ -174,7 +193,21 @@ export default function CategoriesPageV2() {
         <Reveal delay={0}>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: isMobile ? 12 : 0 }}>
             <div>
-              <h1 style={{ fontSize: 24, fontWeight: 800, color: "white", margin: 0, letterSpacing: -0.3 }}>Categories</h1>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+                <h1 style={{ fontSize: 24, fontWeight: 800, color: "white", margin: 0, letterSpacing: -0.3 }}>Categories</h1>
+                <select
+                  value={selectedYear === 'all' ? 'all' : String(selectedYear)}
+                  onChange={(e) => setSelectedYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  style={{
+                    background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 8,
+                    color: '#e8ecf4', padding: '6px 12px', fontSize: 14, fontWeight: 600,
+                    cursor: 'pointer', outline: 'none',
+                  }}
+                >
+                  {data.availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                  <option value="all">All Years</option>
+                </select>
+              </div>
               <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
                 {data.categoryCount} categories &middot; {totalTxCount} transactions
                 {selectedPeriod && <span style={{ color: CYAN }}> &middot; {formatPeriod(selectedPeriod)}</span>}

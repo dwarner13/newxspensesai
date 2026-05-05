@@ -72,13 +72,14 @@ export interface CategoriesPageData {
   flaggedTransactions: FlaggedTransaction[];
   subcategorySuggestions: SubcategorySuggestion[];
   availablePeriods: string[];
+  availableYears: number[];
   /** Trigger a fresh fetch. Useful after Tag actions that mutate data —
    * realtime should pick up the change, but this is a belt+suspenders for
    * mobile where WebSocket subscriptions drop during sleep/wake. */
   refetch: () => Promise<void>;
 }
 
-export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
+export function useCategoriesData(selectedPeriod?: string, selectedYear?: number | 'all'): CategoriesPageData {
   const { transactions, isLoading, refetch } = useTransactions();
 
   return useMemo(() => {
@@ -86,28 +87,47 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
       return {
         categories: [], totalSpent: 0, totalIncome: 0, totalBudget: 0, categoryCount: 0,
         uncategorizedCount: 0, avgSpentPerCategory: 0, loading: true,
-        flaggedTransactions: [], subcategorySuggestions: [], availablePeriods: [],
+        flaggedTransactions: [], subcategorySuggestions: [], availablePeriods: [], availableYears: [],
         refetch,
       };
     }
 
-    // Build available periods
-    const periodSet = new Set<string>();
+    // Build available years from ALL transactions (so dropdown spans years)
+    const yearSet = new Set<number>();
+    yearSet.add(new Date().getFullYear());
+    if (typeof selectedYear === 'number') yearSet.add(selectedYear);
     transactions.forEach(t => {
+      const d = new Date(t.posted_at || "");
+      if (!isNaN(d.getTime())) yearSet.add(d.getFullYear());
+    });
+    const availableYears = Array.from(yearSet).sort((a, b) => b - a);
+
+    // Filter to selected year first (year is the primary filter)
+    const yearFiltered = (typeof selectedYear === 'number')
+      ? transactions.filter(t => {
+          const d = new Date(t.posted_at || "");
+          if (isNaN(d.getTime())) return false;
+          return d.getFullYear() === selectedYear;
+        })
+      : transactions;
+
+    // Build available periods (within selected year)
+    const periodSet = new Set<string>();
+    yearFiltered.forEach(t => {
       const d = new Date(t.posted_at || "");
       if (!isNaN(d.getTime()))
         periodSet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     });
     const availablePeriods = Array.from(periodSet).sort().reverse();
 
-    // Filter to selected period
+    // Filter to selected period (within selected year)
     const periodFiltered = selectedPeriod
-      ? transactions.filter(t => {
+      ? yearFiltered.filter(t => {
           const d = new Date(t.posted_at || "");
           if (isNaN(d.getTime())) return false;
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` === selectedPeriod;
         })
-      : transactions;
+      : yearFiltered;
 
     // Income total
     const totalIncome = Math.round(
@@ -116,9 +136,9 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
 
     const expenses = periodFiltered.filter(t => !isIncome(t));
 
-    // MoM trend from all transactions
+    // MoM trend within selected year
     const monthBuckets: Record<string, Record<string, number>> = {};
-    transactions.filter(t => !isIncome(t)).forEach(t => {
+    yearFiltered.filter(t => !isIncome(t)).forEach(t => {
       const d = new Date(t.posted_at || "");
       if (isNaN(d.getTime())) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -250,7 +270,8 @@ export function useCategoriesData(selectedPeriod?: string): CategoriesPageData {
       flaggedTransactions,
       subcategorySuggestions,
       availablePeriods,
+      availableYears,
       refetch,
     };
-  }, [transactions, isLoading, selectedPeriod, refetch]);
+  }, [transactions, isLoading, selectedPeriod, selectedYear, refetch]);
 }
