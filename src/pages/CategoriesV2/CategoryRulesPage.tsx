@@ -6,6 +6,7 @@ import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { THEME } from "./categoryConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
+import { RulesCoverageCard } from "./RulesCoverageCard";
 
 const CATEGORIES = [
   'Income','Groceries','Food & Dining','Transportation','Housing','Utilities',
@@ -166,7 +167,7 @@ export default function CategoryRulesPage() {
       category: newCategory,
       subcategory: newSubcategory.trim() || null,
       is_active: true,
-    }, { onConflict: 'user_id,match_type,match_value' });
+    }, { onConflict: 'user_id,merchant_pattern' });
     if (error) { toast.error(error.message); return; }
     toast.success(`Rule saved for "${newMerchant.trim()}"`);
     setNewMerchant(''); setNewSubcategory(''); setShowAddForm(false);
@@ -270,6 +271,8 @@ export default function CategoryRulesPage() {
           {ruleCount > 0 ? `Tag has learned ${ruleCount} rule${ruleCount !== 1 ? 's' : ''} for your transactions` : 'No rules yet - Tag learns as you categorize'}
         </p>
       </Reveal>
+
+      {userId && <RulesCoverageCard userId={userId} />}
 
       {/* Search + Test */}
       <Reveal delay={50}>
