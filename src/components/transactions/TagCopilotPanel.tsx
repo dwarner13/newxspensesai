@@ -326,6 +326,29 @@ export function TagCopilotPanel({
   const [reapplying, setReapplying] = useState(false);
   const [autoFixing, setAutoFixing] = useState(false);
   const [smartReviewIssues, setSmartReviewIssues] = useState<any[]>([]);
+  const [coveragePct, setCoveragePct] = useState<number | null>(null);
+
+  // Auto-categorization coverage %, same RPC the Tag Rules page uses.
+  // Fetch once on mount; if the user has zero transactions yet, stays at null.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: raw, error } = await sb.rpc("get_rules_coverage", { p_user_id: user.id });
+      if (cancelled || error) return;
+      const counts = (raw ?? {}) as Record<string, number>;
+      const get = (k: string) => counts[k] ?? 0;
+      const auto = get("tag_rule") + get("hardcoded") + get("ai") + get("learned") + get("tag_chat");
+      const manual = get("user_override") + get("user_type_fix");
+      const pending = get("_null") + get("needs_review");
+      const total = auto + manual + pending;
+      if (total > 0) setCoveragePct(Math.round((auto / total) * 100));
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleDeleteRule = async (rule: LearnedRule) => {
     if (!rule.id || rule.source !== 'category_rules') {
@@ -1248,6 +1271,11 @@ export function TagCopilotPanel({
                   label="Rules"
                   value={`${learnedRules.length || rulesCount || 0}`}
                   color={T.purple}
+                />
+                <StatCard
+                  label="Coverage"
+                  value={coveragePct !== null ? `${coveragePct}%` : "—"}
+                  color={T.cyan}
                 />
               </div>
             </Reveal>
