@@ -421,24 +421,36 @@ export default function TransactionsPageV2() {
           };
           groups.set(key, g);
         }
-        g.statementCount += 1;
         g.importIds.push(i.id);
       });
     const byImportId = new Map<string, AccountCard>();
     for (const a of groups.values()) {
       for (const tid of a.importIds) byImportId.set(tid, a);
     }
+    // Year-filter pass: skip transactions outside the selected year, and track
+    // which import_ids have any in-year activity (for accurate per-card
+    // statementCount). yearFilter='all' falls through and counts everything.
+    const yearStr = yearFilter === 'all' ? null : String(yearFilter);
+    const importsWithActivity = new Set<string>();
     transactions.forEach(t => {
+      if (yearStr && !String(t.date || '').startsWith(yearStr)) return;
       const a = byImportId.get(t.import_id || '');
       if (!a) return;
+      if (t.import_id) importsWithActivity.add(t.import_id);
       if (isIncomeTx(t)) a.totalIncome += Math.abs(t.amount);
       else a.totalSpent += Math.abs(t.amount);
       if (!t.category || t.category === 'Uncategorized' || t.category === 'Other') {
         a.uncategorizedCount += 1;
       }
     });
+    // statementCount: filtered to in-year imports when a year is selected
+    for (const a of groups.values()) {
+      a.statementCount = yearStr
+        ? a.importIds.filter(id => importsWithActivity.has(id)).length
+        : a.importIds.length;
+    }
     return Array.from(groups.values()).sort((a, b) => b.statementCount - a.statementCount);
-  }, [imports, transactions]);
+  }, [imports, transactions, yearFilter]);
 
   // Resolve ?issuer= URL param into an accountFilter once accounts are loaded
   useEffect(() => {
@@ -660,7 +672,7 @@ export default function TransactionsPageV2() {
                 </select>
               </div>
             )}
-            <style>{`.acct-scroll::-webkit-scrollbar{display:none}`}</style>
+            <style>{`.acct-scroll::-webkit-scrollbar{height:6px}.acct-scroll::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.3);border-radius:3px}.acct-scroll::-webkit-scrollbar-track{background:transparent}`}</style>
             {!isStatementMode && <div
               className="acct-scroll mt-3"
               style={{
@@ -669,8 +681,8 @@ export default function TransactionsPageV2() {
                 overflowX: 'auto',
                 gap: 12,
                 paddingBottom: 4,
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(148,163,184,0.3) transparent',
               }}
             >
               {(() => {
