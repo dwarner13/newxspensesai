@@ -127,7 +127,7 @@ function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: 
           action: "amount_corrected",
           old_value: String(oldAmt),
           new_value: String(newAmt),
-          reason: `OCR misread detected � corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
+          reason: `OCR misread detected - corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
           source: "tag_anomaly_review",
         });
       }
@@ -271,7 +271,7 @@ interface TagCopilotPanelProps {
   topCategories?: { category: string; total: number; transactionCount: number; budget?: number; topMerchant?: string }[];
   /** When Tag is opened from a specific import (e.g. ?import_id=X from upload),
    * the greeting scopes its opening line to that import instead of the global picture.
-   * Presence of importId ALSO triggers a fresh-briefing session � stale localStorage
+   * Presence of importId ALSO triggers a fresh-briefing session - stale localStorage
    * chat is cleared on mount so the user doesn't see yesterday's conversation about
    * a different import. */
   importId?: string;
@@ -283,7 +283,7 @@ interface TagCopilotPanelProps {
    * a conversation about something specific, it passes a message here. The
    * message is auto-sent to tag-copilot as if the user typed it, so Tag's
    * first reply is already on-topic about that thing. Changes to this prop
-   * trigger a new auto-send � callers should set it, let it fire, then
+   * trigger a new auto-send - callers should set it, let it fire, then
    * reset to null before reusing. */
   injectedMessage?: string | null;
   /** When Tag is opened with a specific transaction in focus (drawer's
@@ -314,7 +314,7 @@ export function TagCopilotPanel({
   focusedTransaction,
 }: TagCopilotPanelProps) {
 
-  // Presence of importId means this is an upload-handoff session � start fresh so
+  // Presence of importId means this is an upload-handoff session - start fresh so
   // the user sees a briefing scoped to their import, not yesterday's conversation.
   const freshBriefing = Boolean(importId);
 
@@ -327,6 +327,8 @@ export function TagCopilotPanel({
   const [autoFixing, setAutoFixing] = useState(false);
   const [smartReviewIssues, setSmartReviewIssues] = useState<any[]>([]);
   const [coveragePct, setCoveragePct] = useState<number | null>(null);
+  const [showAllOcr, setShowAllOcr] = useState(false);
+  const [showAllRules, setShowAllRules] = useState(false);
 
   // Auto-categorization coverage %, same RPC the Tag Rules page uses.
   // Fetch once on mount; if the user has zero transactions yet, stays at null.
@@ -430,7 +432,7 @@ export function TagCopilotPanel({
           window.dispatchEvent(new Event("tag:stats-refresh"));
           window.dispatchEvent(new Event("transactions:refresh"));
         } else {
-          toast.success("All transactions look correct � nothing to fix");
+          toast.success("All transactions look correct - nothing to fix");
         }
       } else {
         toast.error(data.error || "Auto-fix failed");
@@ -489,7 +491,7 @@ export function TagCopilotPanel({
     finally { setRulesRefreshing(false); }
   };
 
-  // Session cutoff for the chat history � after 6 hours of inactivity we
+  // Session cutoff for the chat history - after 6 hours of inactivity we
   // drop the stored messages so the user gets a fresh greeting instead of
   // resuming a stale conversation. Tag's real learning lives in
   // category_rules / vendor_category_memory, not the transcript.
@@ -516,7 +518,7 @@ export function TagCopilotPanel({
 
   // If the panel opened via an upload handoff (?openTag=1), we used to wipe
   // tag_chat_history here so the user saw a briefing scoped to the import
-  // they just uploaded. That wipe was too aggressive � it ran in the render
+  // they just uploaded. That wipe was too aggressive - it ran in the render
   // body (not a useEffect), firing on every re-render with a truthy importId,
   // which nuked the user's chat history any time the panel re-rendered.
   //
@@ -547,7 +549,7 @@ export function TagCopilotPanel({
   const isMobile = useIsMobile();
   // Tracks whether user was near the bottom at last scroll. Used by the auto-scroll
   // effect below to avoid hijacking scroll position when user is reading history.
-  // Bug fix: users reported the chat was "locked" � they couldn't scroll up because
+  // Bug fix: users reported the chat was "locked" - they couldn't scroll up because
   // every message/isLoading change was forcing scrollTop to the bottom unconditionally.
   const wasNearBottomRef = useRef(true);
   // Tracks which assistant messages have already finished their typewriter animation.
@@ -604,7 +606,7 @@ export function TagCopilotPanel({
 
   const handleClose = () => { setOpen(false); setTimeout(onClose, 320); };
 
-  // Detect confirmation words � when user says "yes" / "confirm" / "do it" /
+  // Detect confirmation words - when user says "yes" / "confirm" / "do it" /
   // "go ahead" in response to a pending proposal, fire commit directly.
   const isConfirmation = (text: string): boolean => {
     const t = text.trim().toLowerCase();
@@ -614,7 +616,7 @@ export function TagCopilotPanel({
   // extractProposal removed Apr 25 2026 as part of tool-use refactor.
   // Old behavior: regex-extracted "move X to Y" patterns from Tag's reply text
   // and persisted them in pendingProposal so a later "yes" would fire the action.
-  // This was the source of the Yo Yo Massage / save-on-foods state leak �
+  // This was the source of the Yo Yo Massage / save-on-foods state leak -
   // when the regex didn't match Tag's actual phrasing, pendingProposal kept
   // its stale value from earlier in the session and committed against the
   // wrong merchant. Now: the LLM calls a server tool directly via the
@@ -745,7 +747,7 @@ export function TagCopilotPanel({
     // INTERCEPTOR 2: Did the user ask for a categorization action?
     // If so, preview against real data BEFORE asking Tag. Tag's prompt
     // doesn't include merchant names, so he can't reliably confirm what
-    // exists � but the DB can. We go straight to the source of truth.
+    // exists - but the DB can. We go straight to the source of truth.
     const userIntent = detectUserActionIntent(text);
     if (userIntent) {
       setInputValue("");
@@ -761,7 +763,7 @@ export function TagCopilotPanel({
         } else {
           const sampleText = preview.samples
             .slice(0, 3)
-            .map((s: any) => `� ${s.merchant_name} � $${Math.abs(Number(s.amount || 0)).toFixed(2)} (currently: ${s.current_category || 'Uncategorized'})`)
+            .map((s: any) => `- ${s.merchant_name} - $${Math.abs(Number(s.amount || 0)).toFixed(2)} (currently: ${s.current_category || 'Uncategorized'})`)
             .join('\n');
           const extra = preview.matchCount > 3 ? `\n...and ${preview.matchCount - 3} more` : '';
           setMessages(prev => [...prev, {
@@ -780,7 +782,7 @@ export function TagCopilotPanel({
     }
 
     setInputValue("");
-    // User entered the conversational LLM path � they're not confirming a
+    // User entered the conversational LLM path - they're not confirming a
     // prior typed-command proposal. Clear any stale pendingProposal so a
     // later "yes" can't fire an action they no longer want. (Tool-use
     // path: server fires the action directly, no client-side proposal carry.)
@@ -789,7 +791,7 @@ export function TagCopilotPanel({
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setIsLoading(true);
-    // User just sent a message � reset position tracker and force scroll to bottom.
+    // User just sent a message - reset position tracker and force scroll to bottom.
     // This bypasses the conditional auto-scroll since the user action is explicit.
     wasNearBottomRef.current = true;
     setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 50);
@@ -838,12 +840,12 @@ export function TagCopilotPanel({
       setMessages(prev => [...prev, { role: "assistant", content: replyText }]);
 
       // Tool-use refactor (Apr 25 2026): the LLM no longer writes "move X to Y"
-      // prose for actions � it calls a server-side tool, and the server runs
+      // prose for actions - it calls a server-side tool, and the server runs
       // the DB write deterministically. So the old extractProposal path is
       // gone. Any pending proposal here is stale (set by detectUserActionIntent
       // path before this LLM round-trip) and we should NOT carry it forward
       // past an unrelated LLM reply, since the user has moved on. If the
-      // server fired a tool, that's the source of truth � clear pending.
+      // server fired a tool, that's the source of truth - clear pending.
       const actionFired = !!(data.action?.applied || data.rule_saved || (data.backfill_count || 0) > 0);
       if (actionFired) {
         setPendingProposal(null);
@@ -880,7 +882,7 @@ export function TagCopilotPanel({
     if (lastInjectedRef.current === injectedMessage) return;
     lastInjectedRef.current = injectedMessage;
     void handleSend(injectedMessage);
-    // handleSend intentionally omitted from deps � stable per render is fine.
+    // handleSend intentionally omitted from deps - stable per render is fine.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [injectedMessage]);
 
@@ -889,7 +891,7 @@ export function TagCopilotPanel({
   // for the new import context. Without this, greetingText would persist from
   // the first import.
   //
-  // We intentionally do NOT wipe localStorage here � that would destroy the
+  // We intentionally do NOT wipe localStorage here - that would destroy the
   // user's chat history the moment they navigate between scopes, even if they
   // just meant to take a quick look. The stored history survives; when the user
   // returns to the scope it was written in (or to the global view), the panel
@@ -914,7 +916,7 @@ export function TagCopilotPanel({
     const fmtAmount = (n: number) =>
       `$${n.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-    // "Since last visit" detection � only for global view, not scoped imports
+    // "Since last visit" detection - only for global view, not scoped imports
     // We store the visit timestamp + a snapshot of count on each panel open.
     // On subsequent open, diff against snapshot to surface what's new.
     let sinceVisitLine = "";
@@ -939,9 +941,9 @@ export function TagCopilotPanel({
             "a while back";
 
           if (deltaCount > 5) {
-            sinceVisitLine = `Welcome back � **${deltaCount} new transactions** since ${whenPhrase}. `;
+            sinceVisitLine = `Welcome back - **${deltaCount} new transactions** since ${whenPhrase}. `;
           } else if (daysAgo >= 3) {
-            sinceVisitLine = `Welcome back � it's been ${whenPhrase}. `;
+            sinceVisitLine = `Welcome back - it's been ${whenPhrase}. `;
           }
         }
 
@@ -949,12 +951,12 @@ export function TagCopilotPanel({
         localStorage.setItem("tag_last_visit_ts", String(now));
         localStorage.setItem("tag_last_visit_count", String(count));
       } catch {
-        // localStorage blocked / full � skip the personalization
+        // localStorage blocked / full - skip the personalization
       }
     }
 
     // Compose a casual chat message with real numbers woven in.
-    // Bold (**) wraps numeric/category highlights � renderMarkdown handles the styling.
+    // Bold (**) wraps numeric/category highlights - renderMarkdown handles the styling.
     let text = "";
 
     if (importId) {
@@ -966,30 +968,30 @@ export function TagCopilotPanel({
       const flaggedPart =
         flaggedCount > 0
           ? `**${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.`
-          : `Nothing flagged � everything categorized cleanly.`;
+          : `Nothing flagged - everything categorized cleanly.`;
       const topPart = realCategories[0]
         ? `Biggest spend was **${realCategories[0].category}** at **${fmtAmount(realCategories[0].total)}**.`
         : "";
-      text = `${hi} � I've got ${txPart} sorted out. ${flaggedPart} ${topPart}\n\nWant me to walk through the flagged ones, or dig into a specific category?`;
+      text = `${hi} - I've got ${txPart} sorted out. ${flaggedPart} ${topPart}\n\nWant me to walk through the flagged ones, or dig into a specific category?`;
     } else if (flaggedCount > 0) {
-      // Global view with flagged items � lead with the action
+      // Global view with flagged items - lead with the action
       const top3 = realCategories.slice(0, 3);
       const catsList = top3.length
         ? top3.map(c => `**${c.category}** ${fmtAmount(c.total)}`).join(", ")
         : "";
-      text = `${sinceVisitLine}${hi} � I've got your **${count} transactions** sorted across your books. There ${flaggedCount === 1 ? "is" : "are"} **${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.${catsList ? ` Your top categories: ${catsList}.` : ""}\n\nWant to review the flagged ones first, or dig into a category?`;
+      text = `${sinceVisitLine}${hi} - I've got your **${count} transactions** sorted across your books. There ${flaggedCount === 1 ? "is" : "are"} **${flaggedCount} flagged** transaction${flaggedCount !== 1 ? "s" : ""} I'd love your eyes on.${catsList ? ` Your top categories: ${catsList}.` : ""}\n\nWant to review the flagged ones first, or dig into a category?`;
     } else if (realCategories.length > 0) {
-      // Global view, clean books � summary + invitation
+      // Global view, clean books - summary + invitation
       const top = realCategories[0];
       const top3 = realCategories.slice(0, 3);
       const catsList = top3
         .slice(1)
         .map(c => `**${c.category}** ${fmtAmount(c.total)}`)
         .join(", ");
-      text = `${sinceVisitLine}${hi} � I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
+      text = `${sinceVisitLine}${hi} - I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
     } else {
-      // Fallback � no category data yet
-      text = `${hi} � I'm your categorization engine. Want to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern?`;
+      // Fallback - no category data yet
+      text = `${hi} - I'm your categorization engine. Want to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern?`;
     }
 
     setGreetingText(text);
@@ -1103,7 +1105,7 @@ export function TagCopilotPanel({
           >{"x"}</button>
         </div>
 
-        {/* Focused-transaction pill � shows when Tag was opened from a drawer
+        {/* Focused-transaction pill - shows when Tag was opened from a drawer
             or single-row context. Tells the user which row Tag is anchored
             to, so the two-step flow ("change THIS one, then offer to extend")
             has visible grounding. */}
@@ -1130,7 +1132,7 @@ export function TagCopilotPanel({
             </span>
             {(focusedTransaction.posted_at || focusedTransaction.date) && (
               <span style={{ color: T.textDim }}>
-                � {focusedTransaction.posted_at || focusedTransaction.date}
+                - {focusedTransaction.posted_at || focusedTransaction.date}
               </span>
             )}
           </div>
@@ -1166,7 +1168,7 @@ export function TagCopilotPanel({
             </div>
           )}
 
-          {/* Category intelligence summary card � renders whenever we have
+          {/* Category intelligence summary card - renders whenever we have
               category data and no active conversation, independent of the
               greeting text (which may load async). */}
           {messages.length === 0 && (topCategories || []).length > 0 && (() => {
@@ -1249,22 +1251,14 @@ export function TagCopilotPanel({
                   value={
                     totalCount && totalCount > 0
                       ? `${categorizedCount ?? 0}/${totalCount}`
-                      : "�"
+                      : "-"
                   }
                   color={T.green}
                 />
-                <StatCard
-                  label="Confidence"
-                  value={
-                    Number.isFinite(avgConfidence) && (avgConfidence ?? 0) > 0
-                      ? `${avgConfidence}%`
-                      : "�"
-                  }
-                  color={T.cyan}
-                />
+
                 <StatCard
                   label="Flagged"
-                  value={Number.isFinite(flaggedCount) ? `${flaggedCount ?? 0}` : "�"}
+                  value={Number.isFinite(flaggedCount) ? `${flaggedCount ?? 0}` : "-"}
                   color={T.orange}
                 />
                 <StatCard
@@ -1274,7 +1268,7 @@ export function TagCopilotPanel({
                 />
                 <StatCard
                   label="Coverage"
-                  value={coveragePct !== null ? `${coveragePct}%` : "—"}
+                  value={coveragePct !== null ? `${coveragePct}%` : "-"}
                   color={T.cyan}
                 />
               </div>
@@ -1329,9 +1323,38 @@ export function TagCopilotPanel({
           {greetingText && detailsOpen && smartReviewIssues && smartReviewIssues.filter((i: any) => i.issueType === 'amount_anomaly').length > 0 && (
             <Reveal delay={300} style={{ marginLeft: 38, marginBottom: 22 }}>
               <SectionRule color="#ef4444" label="Possible OCR Misreads" />
-              {smartReviewIssues.filter((i: any) => i.issueType === 'amount_anomaly').map((issue: any) => (
-                <AmountAnomalyCard key={issue.id} issue={issue} onFixed={() => { fetchSmartReview && fetchSmartReview(); }} supabase={getSupabase()} />
-              ))}
+              {(() => {
+                const ocrIssues = smartReviewIssues.filter((i: any) => i.issueType === 'amount_anomaly');
+                const visible = showAllOcr ? ocrIssues : ocrIssues.slice(0, 3);
+                return (
+                  <>
+                    {visible.map((issue: any) => (
+                      <AmountAnomalyCard key={issue.id} issue={issue} onFixed={() => { fetchSmartReview && fetchSmartReview(); }} supabase={getSupabase()} />
+                    ))}
+                    {ocrIssues.length > 3 && (
+                      <button
+                        onClick={() => setShowAllOcr(s => !s)}
+                        style={{
+                          background: "transparent",
+                          border: `1px dashed ${T.border}`,
+                          borderRadius: 8,
+                          padding: "8px 12px",
+                          color: T.textDim,
+                          cursor: "pointer",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          fontFamily: "'Syne',sans-serif",
+                          letterSpacing: 0.4,
+                          width: "100%",
+                          marginTop: 6,
+                        }}
+                      >
+                        {showAllOcr ? "Show top 3 only" : `Show all ${ocrIssues.length} misreads`}
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
             </Reveal>
           )}
           {/* Subcategory suggestions */}
@@ -1462,11 +1485,11 @@ export function TagCopilotPanel({
                 overflow: "hidden",
                 boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
               }}>
-                {learnedRules.map((r, i) => (
+                {(showAllRules ? learnedRules : learnedRules.slice(0, 5)).map((r, i, arr) => (
                   <div key={i} style={{
                     display: "flex", flexDirection: "column", gap: 4,
                     padding: "10px 16px",
-                    borderBottom: i < learnedRules.length - 1 ? `1px solid ${T.border}` : "none",
+                    borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : "none",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ fontSize: 11, fontWeight: 500, color: T.text, flex: 1, fontFamily: "'DM Mono',monospace", letterSpacing: 0.5 }}>{r.merchant}</span>
@@ -1517,6 +1540,27 @@ export function TagCopilotPanel({
                   </div>
                 ))}
               </div>
+              {learnedRules.length > 5 && (
+                <button
+                  onClick={() => setShowAllRules(s => !s)}
+                  style={{
+                    background: "transparent",
+                    border: `1px dashed ${T.border}`,
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    color: T.textDim,
+                    cursor: "pointer",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: "'Syne',sans-serif",
+                    letterSpacing: 0.4,
+                    width: "100%",
+                    marginTop: 8,
+                  }}
+                >
+                  {showAllRules ? "Show top 5 only" : `Show all ${learnedRules.length} rules`}
+                </button>
+              )}
             </Reveal>
           )}
 
