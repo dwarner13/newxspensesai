@@ -641,7 +641,7 @@ export default function TransactionsPageV2() {
       )}
       <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-3">
-          <div>
+          <div className="min-w-0 md:flex-1">
             {isStatementMode ? (
               <div>
                 <button
@@ -777,7 +777,7 @@ export default function TransactionsPageV2() {
               })()}
             </div>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button onClick={handleRefresh} disabled={isRefreshing} title="Refresh data" className={`flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg transition-colors ${isRefreshing ? 'opacity-60 cursor-wait' : 'hover:bg-slate-700/50'}`}>
               <span className={`inline-block ${isRefreshing ? 'animate-spin' : ''}`} style={{ fontSize: 15, lineHeight: 1 }}>↻</span>
               {isRefreshing ? 'Refreshing' : 'Refresh'}
