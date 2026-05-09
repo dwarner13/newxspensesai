@@ -392,7 +392,9 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         <div style={{ textAlign: "center" }}>
-          <AgentDot agent="Prime" size={48} />
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <AgentDot agent="Prime" size={48} />
+          </div>
           <div style={{ marginTop: 16, fontSize: 13, color: THEME.textMuted }}>
             Prime is preparing your briefing...
           </div>
