@@ -243,7 +243,7 @@ function SectionRule({ color, label }: { color: string; label: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
       <div style={{ width: 3, height: 14, borderRadius: 2, background: color, boxShadow: `0 0 8px ${color}88` }} />
-      <span style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700, color, fontFamily: "'Syne',sans-serif" }}>{label}</span>
+      <span style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700, color, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{label}</span>
       <div style={{ flex: 1, height: "1px", background: `linear-gradient(90deg, ${color}30 0%, transparent 100%)` }} />
     </div>
   );
@@ -256,7 +256,7 @@ function StatCard({ label, value, color }: { label: string; value: string; color
       background: T.surface, border: `1px solid ${T.border}`,
       textAlign: "center", cursor: "default",
     }}>
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: T.textDim, fontWeight: 700, marginBottom: 8, fontFamily: "'Syne',sans-serif" }}>{label}</div>
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: T.textDim, fontWeight: 700, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: "'Plus Jakarta Sans',sans-serif", textShadow: `0 0 16px ${color}55`, lineHeight: 1.1 }}>{value}</div>
     </div>
   );
@@ -1191,7 +1191,7 @@ export function TagCopilotPanel({
                 border: "1px solid rgba(34,211,238,0.12)",
                 animation: "tagFadeUp 0.3s ease forwards",
               }}>
-                <div style={{ fontSize: 9.5, fontWeight: 700, color: T.cyan, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10, fontFamily: "'Syne',sans-serif" }}>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: T.cyan, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                   Top Categories
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
