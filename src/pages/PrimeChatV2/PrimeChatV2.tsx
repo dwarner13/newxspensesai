@@ -7,6 +7,7 @@ import { TaxDeductionsCard } from "./TaxDeductionsCard";
 import { QuickActionChips } from "./QuickActionChips";
 import { PrimeChatInput } from "./PrimeChatInput";
 import { useAuth } from "@/contexts/AuthContext";
+import { getSupabase } from "@/lib/supabase";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { useTeamActivitySummary } from "@/hooks/useTeamActivitySummary";
 import { TypingMessage } from "@/components/chat/TypingMessage";
@@ -138,6 +139,31 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [revealStep, setRevealStep] = useState(0);
   const revealStarted = useRef(false);
+  const [coverage, setCoverage] = useState<{ autoPct: number; total: number } | null>(null);
+
+  // Fetch Tag rule-coverage stat for the briefing one-liner (Surface #2)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const sb = getSupabase();
+      if (!sb || !userId) return;
+      const { data: raw, error } = await sb.rpc("get_rules_coverage", { p_user_id: userId });
+      if (cancelled) return;
+      if (error) {
+        console.error("[PrimeChatV2] coverage RPC failed", error);
+        return;
+      }
+      const counts = (raw ?? {}) as Record<string, number>;
+      const get = (k: string) => counts[k] ?? 0;
+      const auto = get("tag_rule") + get("hardcoded") + get("ai") + get("learned") + get("tag_chat");
+      const manual = get("user_override") + get("user_type_fix");
+      const pending = get("_null") + get("needs_review");
+      const total = auto + manual + pending;
+      const autoPct = total ? Math.round((auto / total) * 100) : 0;
+      setCoverage({ autoPct, total });
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
 
   // Sequential reveal - each step unlocks the next briefing section
   useEffect(() => {
@@ -530,6 +556,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                   <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text }}>
                     {greeting} Here&apos;s your briefing.
                   </div>
+                  {coverage && coverage.total > 0 && (
+                    <div style={{ fontSize: 12, color: THEME.textMuted, marginTop: 4 }}>
+                      Tag auto-categorized <span style={{ color: THEME.accent, fontWeight: 700 }}>{coverage.autoPct}%</span> of your {coverage.total.toLocaleString()} transactions.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
