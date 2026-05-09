@@ -750,13 +750,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         padding: "10px 16px 12px",
         background: THEME.bg,
       }}>
-        <div style={{ marginBottom: 8 }}>
+        <div className="md:hidden" style={{ marginBottom: 8 }}>
           <QuickActionChips chips={[
             { icon: "\uD83D\uDCCA", label: "Categories", action: () => { onClose?.(); navigate("/dashboard/smart-categories"); } },
             { icon: "\uD83E\uDDFE", label: "Tax summary", action: () => { onClose?.(); navigate("/dashboard/tax-assistant"); } },
-            { icon: "\uD83D\uDCC8", label: "Trends", action: () => { onClose?.(); navigate("/dashboard/analytics-ai"); } },
-            { icon: "\uD83D\uDCE4", label: "Export", action: () => { onClose?.(); navigate("/dashboard/transactions"); } },
-          ]} />
+            { icon: "\uD83D\uDCC8", label: "Trends", action: () => { onClose?.(); navigate("/dashboard/analytics-ai"); } },          ]} />
         </div>
         <PrimeChatInput onSend={handleSend} onFileSelected={handleFileSelected} />
       </div>
