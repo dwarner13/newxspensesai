@@ -1283,7 +1283,7 @@ export default function TransactionsPageV2() {
                 await sb.from('category_rules').upsert({
                   user_id: s.user.id, match_value: pattern, merchant_pattern: pattern, match_type: 'contains',
                   category: action.category, subcategory: action.subcategory || null, is_active: true, updated_at: new Date().toISOString(),
-                }, { onConflict: 'user_id,match_type,match_value' }).catch(() => {});
+                }, { onConflict: 'user_id,merchant_pattern' }).catch((e) => { console.error("[update_transaction] save rule failed:", e); });
               }
             }
             // Flash the row briefly

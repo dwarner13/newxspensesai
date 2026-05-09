@@ -693,11 +693,11 @@ export const handler: Handler = async (event) => {
 
       const { error: crError } = await supabase.from('category_rules').upsert(
         {
-          user_id: userId, match_type: matchType, match_value: normalized,
+          user_id: userId, match_type: matchType, merchant_pattern: normalized, match_value: normalized,
           category: encodeRuleCategory(parsedTarget.category, parsedTarget.subcategory),
           is_active: true, updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' }
+        { onConflict: 'user_id,merchant_pattern' }
       );
       if (crError) {
         console.error('[tag-action.commit] category_rules upsert failed:', crError.message);
@@ -743,13 +743,13 @@ export const handler: Handler = async (event) => {
 
       const { error: ruleErr } = await supabase.from('category_rules').upsert(
         {
-          user_id: userId, match_type: matchType, match_value: normalized,
+          user_id: userId, match_type: matchType, merchant_pattern: normalized, match_value: normalized,
           category: parsedTarget.category, subcategory: ruleSubcategory,
-          ...(ruleAmountMin != null ? { amount_min: ruleAmountMin } : {}),
-          ...(ruleAmountMax != null ? { amount_max: ruleAmountMax } : {}),
+          ...(ruleAmountMin != null ? { amount_min: ruleAmountMin, min_amount: ruleAmountMin } : {}),
+          ...(ruleAmountMax != null ? { amount_max: ruleAmountMax, max_amount: ruleAmountMax } : {}),
           is_active: true, updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' }
+        { onConflict: 'user_id,merchant_pattern' }
       );
       if (ruleErr) {
         console.error('[tag-action] save_rule upsert failed', ruleErr.message);
