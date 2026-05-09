@@ -57,12 +57,11 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouteTransition } from '../../contexts/RouteTransitionContext';
-// PostLoginSplash moved to DashboardLayout as early return
 import { useAppBootStatus } from '../../hooks/useAppBootStatus';
 
 /**
  * Loading screen shown while waiting for auth + profile to resolve.
- * Minimal on-brand spinner matching PostLoginSplash pattern.
+ * Minimal on-brand spinner.
  */
 function PreparingWorkspaceScreen() {
   return (
@@ -82,8 +81,6 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
   // Hook 1: Permanent boot tracking - NEVER resets during navigation
   const hasBootedRef = useRef(false);
   const [isBootComplete, setIsBootComplete] = useState(false);
-
-  // PostLoginSplash moved to DashboardLayout
   
   // Hook 2: Context hooks - ALL called unconditionally
   const { user, userId, loading, ready, profile, isProfileLoading } = useAuth();
