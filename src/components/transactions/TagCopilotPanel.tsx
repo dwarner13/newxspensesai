@@ -257,7 +257,7 @@ function StatCard({ label, value, color }: { label: string; value: string; color
       textAlign: "center", cursor: "default",
     }}>
       <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: T.textDim, fontWeight: 700, marginBottom: 8, fontFamily: "'Syne',sans-serif" }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: "'Syne',sans-serif", textShadow: `0 0 16px ${color}55` }}>{value}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: "'Plus Jakarta Sans',sans-serif", textShadow: `0 0 16px ${color}55`, lineHeight: 1.1 }}>{value}</div>
     </div>
   );
 }
@@ -1245,11 +1245,7 @@ export function TagCopilotPanel({
               >
                 <StatCard
                   label="Categorized"
-                  value={
-                    totalCount && totalCount > 0
-                      ? `${categorizedCount ?? 0}/${totalCount}`
-                      : "-"
-                  }
+                  value={`${categorizedCount ?? 0}`}
                   color={T.green}
                 />
 
