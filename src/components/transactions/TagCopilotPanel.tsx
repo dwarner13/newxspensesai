@@ -1336,7 +1336,7 @@ export function TagCopilotPanel({
                           cursor: "pointer",
                           fontSize: 11,
                           fontWeight: 600,
-                          fontFamily: "'Syne',sans-serif",
+                          fontFamily: "'Plus Jakarta Sans',sans-serif",
                           letterSpacing: 0.4,
                           width: "100%",
                           marginTop: 6,
@@ -1422,7 +1422,7 @@ export function TagCopilotPanel({
                     marginBottom: 14,
                     fontSize: 10.5,
                     fontWeight: 700,
-                    fontFamily: "'Syne',sans-serif",
+                    fontFamily: "'Plus Jakarta Sans',sans-serif",
                     letterSpacing: 0.3,
                   }}
                 >
@@ -1464,7 +1464,7 @@ export function TagCopilotPanel({
                     marginBottom: 14,
                     fontSize: 10.5,
                     fontWeight: 700,
-                    fontFamily: "'Syne',sans-serif",
+                    fontFamily: "'Plus Jakarta Sans',sans-serif",
                     letterSpacing: 0.3,
                   }}
                 >
@@ -1545,7 +1545,7 @@ export function TagCopilotPanel({
                     cursor: "pointer",
                     fontSize: 11,
                     fontWeight: 600,
-                    fontFamily: "'Syne',sans-serif",
+                    fontFamily: "'Plus Jakarta Sans',sans-serif",
                     letterSpacing: 0.4,
                     width: "100%",
                     marginTop: 8,
