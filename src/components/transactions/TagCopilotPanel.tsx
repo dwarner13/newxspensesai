@@ -551,7 +551,7 @@ export function TagCopilotPanel({
   // effect below to avoid hijacking scroll position when user is reading history.
   // Bug fix: users reported the chat was "locked" - they couldn't scroll up because
   // every message/isLoading change was forcing scrollTop to the bottom unconditionally.
-  const wasNearBottomRef = useRef(true);
+  const wasNearBottomRef = useRef(false);
   // Tracks which assistant messages have already finished their typewriter animation.
   // Warm-filled on mount with currently-loaded messages (restored from localStorage),
   // so re-hydrated history doesn't replay the typewriter on every panel re-open.
