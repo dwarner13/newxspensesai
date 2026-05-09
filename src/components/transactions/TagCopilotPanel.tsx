@@ -1236,12 +1236,9 @@ export function TagCopilotPanel({
             <Reveal delay={0} style={{ marginLeft: 38, marginTop: 4, marginBottom: 22 }}>
               <div
                 style={{
-                  display: "flex",
-                  gap: 7,
-                  overflowX: "auto",
-                  WebkitOverflowScrolling: "touch",
-                  scrollbarWidth: "none",
-                  msOverflowStyle: "none",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: 8,
                   paddingBottom: 4,
                 }}
                 className="tag-stats-row"
