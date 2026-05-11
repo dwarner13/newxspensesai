@@ -126,59 +126,58 @@ export const handler: Handler = async (event) => {
 
     // 2. Delete transactions_staging rows (by import_id)
     if (importIds.length > 0) {
-      const { error: stagingError } = await sb
+      const { data: deletedStaging, error: stagingError } = await sb
         .from('transactions_staging')
         .delete()
         .in('import_id', importIds)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select('id');
 
       if (stagingError) {
         console.error('[delete-upload] Error deleting transactions_staging:', stagingError);
       } else {
-        // Count deleted rows (approximate)
-        const { count } = await sb
-          .from('transactions_staging')
-          .select('*', { count: 'exact', head: true })
-          .in('import_id', importIds)
-          .eq('user_id', userId);
-        // Note: Count is before deletion, so we'll estimate
+        deletionSummary.deletedRows.transactionsStaging = Array.isArray(deletedStaging) ? deletedStaging.length : 0;
       }
     }
 
     // 3. Delete transactions rows (by document_id and import_id)
-    let transactionsDeleted = 0;
+    // Use .select('id') on each delete to return deleted rows, then dedup
+    // via Set since some transactions match both document_id and import_id.
+    const deletedTransactionIds = new Set<string>();
+
     if (uploadId) {
-      const { error: txDocError } = await sb
+      const { data: deletedByDoc, error: txDocError } = await sb
         .from('transactions')
         .delete()
         .eq('document_id', uploadId)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select('id');
 
       if (txDocError) {
         console.error('[delete-upload] Error deleting transactions by document_id:', txDocError);
       }
+      for (const row of deletedByDoc || []) {
+        if (row?.id) deletedTransactionIds.add(String(row.id));
+      }
     }
 
     if (importIds.length > 0) {
-      const { error: txImportError } = await sb
+      const { data: deletedByImport, error: txImportError } = await sb
         .from('transactions')
         .delete()
         .in('import_id', importIds)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select('id');
 
       if (txImportError) {
         console.error('[delete-upload] Error deleting transactions by import_id:', txImportError);
       }
+      for (const row of deletedByImport || []) {
+        if (row?.id) deletedTransactionIds.add(String(row.id));
+      }
     }
 
-    // Count transactions deleted (approximate - before deletion)
-    const { count: txCount } = await sb
-      .from('transactions')
-      .select('*', { count: 'exact', head: true })
-      .or(`document_id.eq.${uploadId},import_id.in.(${importIds.join(',')})`)
-      .eq('user_id', userId);
-
-    deletionSummary.deletedRows.transactions = txCount || 0;
+    deletionSummary.deletedRows.transactions = deletedTransactionIds.size;
 
     // 4. Delete imports rows
     if (importIds.length > 0) {
@@ -213,7 +212,11 @@ export const handler: Handler = async (event) => {
           storageDeleted = true;
         }
 
-        // Also try to delete any associated .txt files (redacted OCR text)
+        // Also try to delete any associated OCR sidecar files (.ocr.json and .txt)
+        const ocrJsonPath = `${upload.storage_path}.ocr.json`;
+        await sb.storage.from(BUCKET).remove([ocrJsonPath]).catch(() => {
+          // Ignore errors for .ocr.json files (may not exist)
+        });
         const txtPath = `${upload.storage_path}.txt`;
         await sb.storage.from(BUCKET).remove([txtPath]).catch(() => {
           // Ignore errors for .txt files (may not exist)
