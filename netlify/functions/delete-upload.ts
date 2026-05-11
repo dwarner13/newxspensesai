@@ -229,6 +229,7 @@ export const handler: Handler = async (event) => {
       .update({
         status: 'discarded',
         upload_hash: null,
+        file_hash: null,
         storage_path: null,
         updated_at: new Date().toISOString(),
       })
