@@ -228,6 +228,8 @@ export const handler: Handler = async (event) => {
       .from('user_documents')
       .update({
         status: 'discarded',
+        upload_hash: null,
+        storage_path: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', uploadId)
