@@ -43,6 +43,12 @@ interface ExtractionResult {
   confidence: number;
   source: 'google_vision' | 'claude_vision';
   institution?: string | null;
+  statementSummary?: {
+    totalDeducted: number | null;
+    totalAdded: number | null;
+    openingBalance: number | null;
+    closingBalance: number | null;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,7 +211,13 @@ Format:
       "type": "debit or credit",
       "category": "Food | Transport | Shopping | Entertainment | Health | Utilities | Income | Transfer | Other"
     }
-  ]
+  ],
+  "statementSummary": {
+    "totalDeducted": number,
+    "totalAdded": number,
+    "openingBalance": number,
+    "closingBalance": number
+  }
 }
 CRITICAL RULES:
 - Bank statements have MULTIPLE number columns: Amounts Deducted, Amounts Added, and Balance.
@@ -225,6 +237,17 @@ RBC VISA / CREDIT CARD STATEMENT RULES:
 - "PAYMENT - THANK YOU / PAIEMENT - MERCI" is always a payment/credit. The statement shows it as a negative amount. Output it as type: "credit" with a positive amount.
 - The statement period is shown as "STATEMENT FROM [date] TO [date]" — use those dates for the period field.
 - For merchant names: strip the city/province suffix (e.g. "EDMONTON AB", "BRAMPTON ON") and any trailing reference numbers. Keep the core merchant name readable.
+
+BANK CHEQUING / SAVINGS / CURRENT ACCOUNT STATEMENT RULES (all banks — BMO, TD, RBC, CIBC, Scotiabank, National Bank, Desjardins, Tangerine, Simplii, Canadian credit unions, and most US/UK retail banks):
+- Three numeric columns appear in this order on every row: WITHDRAWALS / DEPOSITS / BALANCE. Headers vary by bank: BMO uses "Amounts deducted / Amounts added / Balance"; TD/RBC/Scotia use "Withdrawals / Deposits / Balance"; US banks often use "Debits / Credits / Balance". The third column is ALWAYS the running account balance — NOT the transaction amount. Use ONLY the first two columns for amounts.
+- Every transaction row shows ONE amount (in either Withdrawals OR Deposits, never both) PLUS a Balance. If you see two non-zero numbers on the same row, the rightmost is the Balance — discard it. NEVER sum, average, or concatenate the amount and balance into a single value. If a 7-Eleven purchase shows up as $5,000+, you summed the columns by mistake.
+- Descriptions for pre-authorized payments and direct deposits frequently WRAP onto two physical lines. The continuation line contains only suffix text ("MSP/DIV", "LNS/PRE", "MTG/HYP", "/CC", "/ASS", "/PRE") with NO numbers. Combine both lines into one description. NEVER read the amount column from a continuation line — the amount belongs to the row that has the date.
+- Skip rows labeled "Opening balance", "Previous balance", "Closing totals", "Closing balance", "Ending balance" — they are not transactions, they are period boundaries.
+- Withdrawals/Deducted column → type: "debit", output as negative. Deposits/Added column → type: "credit", output as positive.
+- Strip these prefixes to get the merchant name (they are NOT merchants): "Debit Card Purchase,", "POS Purchase,", "Point of Sale,", "Pre-Authorized Payment,", "Pre-authorized Payment No Fee,", "Pre-authorized Debit,", "Direct Deposit,", "Payroll Deposit,", "Online Bill Payment,", "Bill Payment,".
+- These descriptions ARE the merchant — keep as-is, no other name follows: "Mobile Cheque Deposit", "INTERAC e-Transfer Sent", "INTERAC e-Transfer Received", "Other Bank ABM Withdrawal", "ABM Withdrawal", "ABM Deposit", "Premium Plan Fee", "Service Charge", "Monthly Plan Fee", "Overdraft Fee", "NSF Fee".
+- Strip trailing store/terminal IDs from merchants: "7-ELEVEN STORE 33535" → "7-ELEVEN", "SAVE ON FOODS #6620" → "SAVE ON FOODS", "PETRO-CANADA 77965" → "PETRO-CANADA", "WALMART STORE #3028" → "WALMART", "MCDONALD'S #40449" → "MCDONALD'S".
+- The statement summary block on page 1 contains four numbers: Opening Balance, Total Withdrawn/Deducted, Total Deposited/Added, Closing Balance. Wording varies ("Total amounts deducted/added" at BMO, "Total withdrawals/deposits" at TD/RBC, "Total debits/credits" at US banks). Extract all four into the statementSummary output field — these are the bank's authoritative period totals.
 
 If any field is unclear, use null. Never guess amounts or dates.`;
 
@@ -299,6 +322,12 @@ async function extractWithClaudeVision(base64: string, mimeType: string): Promis
     },
     transactions,
     institution: parsed.institution || null,
+    statementSummary: parsed.statementSummary ? {
+      totalDeducted: typeof parsed.statementSummary.totalDeducted === 'number' ? parsed.statementSummary.totalDeducted : null,
+      totalAdded: typeof parsed.statementSummary.totalAdded === 'number' ? parsed.statementSummary.totalAdded : null,
+      openingBalance: typeof parsed.statementSummary.openingBalance === 'number' ? parsed.statementSummary.openingBalance : null,
+      closingBalance: typeof parsed.statementSummary.closingBalance === 'number' ? parsed.statementSummary.closingBalance : null,
+    } : null,
   };
 }
 
