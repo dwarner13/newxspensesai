@@ -233,7 +233,7 @@ async function extractWithClaudeVision(base64: string, mimeType: string): Promis
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
 
   const body = {
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     max_tokens: 8192,
     messages: [
       {
