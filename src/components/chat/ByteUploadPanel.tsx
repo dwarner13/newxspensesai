@@ -345,7 +345,7 @@ export function ByteUploadPanel({
       // Keep IDs for a bit to allow discard, then clear after delay
       const timeoutId = setTimeout(() => {
         setCurrentUploadIds([]);
-      }, 30000); // Clear after 30 seconds
+      }, 300000); // Clear after 5 minutes
       return () => clearTimeout(timeoutId);
     }
   }, [uploadStatus.step]);
@@ -487,7 +487,7 @@ export function ByteUploadPanel({
     isProcessing ||
     (typeof uploadProgress === 'number' && uploadProgress > 0 && uploadProgress < 100) ||
     uploadStatus.step === 'completed';
-  const canDiscard = currentUploadIds.length > 0 && (isProcessing || uploadStatus.step === 'error');
+  const canDiscard = currentUploadIds.length > 0 && (isProcessing || uploadStatus.step === 'error' || uploadStatus.step === 'completed');
   const queueItemsForDisplay = (uploadQueue.items || []).map((item) => {
     if (item.status !== 'completed') return item;
     if (isProcessing || uploadStatus.step === 'processing') {
