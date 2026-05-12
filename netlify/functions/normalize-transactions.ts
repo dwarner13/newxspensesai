@@ -804,6 +804,45 @@ async function processNormalizationInBackground(
       }
     }
 
+    // Capture bank-printed statement totals from raw OCR text BEFORE any extraction
+    // Phase 3 reconciliation gate in commit-import.ts reads these to verify row sums.
+    // Runs unconditionally here so totals land even when extraction produces zero rows
+    // (the BMO column-bleed failure mode). Was previously buried after the
+    // "no transactions found" early-return at line ~1031 and got skipped on that path.
+    // parseBmoStatementTotals returns null for non-BMO statements → field stays unset.
+    try {
+      const bmoTotalsEarly = parseBmoStatementTotals(guardedOcrInputText);
+      if (bmoTotalsEarly) {
+        const { data: importSbdRowEarly } = await sb
+          .from('imports')
+          .select('statement_breakdown_json')
+          .eq('id', importRecord.id)
+          .maybeSingle();
+        const existingSbdEarly =
+          importSbdRowEarly?.statement_breakdown_json && typeof importSbdRowEarly.statement_breakdown_json === 'object'
+            ? (importSbdRowEarly.statement_breakdown_json as Record<string, unknown>)
+            : {};
+        await sb
+          .from('imports')
+          .update({
+            statement_breakdown_json: { ...existingSbdEarly, statementTotals: bmoTotalsEarly },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', importRecord.id);
+        console.log('[normalize-transactions] Captured BMO statement totals (early)', {
+          importId: importRecord.id,
+          totalDeducted: bmoTotalsEarly.totalDeducted,
+          totalAdded: bmoTotalsEarly.totalAdded,
+          source: bmoTotalsEarly.source,
+        });
+      }
+    } catch (totalsErrEarly: any) {
+      console.warn('[normalize-transactions] Early BMO totals capture failed (non-fatal)', {
+        importId: importRecord.id,
+        error: totalsErrEarly?.message,
+      });
+    }
+
     const { count: existingStagingCount } = await sb
       .from('transactions_staging')
       .select('id', { count: 'exact', head: true })
@@ -1171,44 +1210,6 @@ async function processNormalizationInBackground(
       .from('imports')
       .update(importStatusPayload)
       .eq('id', importRecord.id);
-
-    // Store BMO statement-level closing totals in imports.statement_breakdown_json for accurate
-    // STATEMENT SNAPSHOT display. These come directly from the "Closing totals" line - authoritative
-    // and independent of staging row amounts (which can be inflated by OCR parsing errors or
-    // SHA-256 dedup collisions on same-day same-amount entries).
-    // Uses the existing statement_breakdown_json JSONB column (added in 20260301 migration).
-    const bmoTotals = parseBmoStatementTotals(guardedOcrInputText);
-    if (bmoTotals) {
-      try {
-        const { data: importSbdRow } = await sb
-          .from('imports')
-          .select('statement_breakdown_json')
-          .eq('id', importRecord.id)
-          .maybeSingle();
-        const existingSbd =
-          importSbdRow?.statement_breakdown_json && typeof importSbdRow.statement_breakdown_json === 'object'
-            ? (importSbdRow.statement_breakdown_json as Record<string, unknown>)
-            : {};
-        await sb
-          .from('imports')
-          .update({
-            statement_breakdown_json: { ...existingSbd, statementTotals: bmoTotals },
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', importRecord.id);
-        console.log('[normalize-transactions] Stored BMO statement totals in imports.statement_breakdown_json', {
-          importId: importRecord.id,
-          totalDeducted: bmoTotals.totalDeducted,
-          totalAdded: bmoTotals.totalAdded,
-          source: bmoTotals.source,
-        });
-      } catch (totalsErr: any) {
-        console.warn('[normalize-transactions] Failed to store BMO statement totals', {
-          importId: importRecord.id,
-          error: totalsErr?.message,
-        });
-      }
-    }
 
     // Store account_summary in user_documents.metadata so commit-import can read it.
     if (hasParsedAccountData) {
