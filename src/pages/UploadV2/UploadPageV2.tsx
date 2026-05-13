@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Send } from "lucide-react";
 import { StatementHistory } from '../../components/upload/StatementHistory';
@@ -54,6 +54,7 @@ async function checkDuplicateHash(hash: string, userId: string): Promise<boolean
     .select("id")
     .eq("user_id", userId)
     .eq("file_hash", hash)
+    .neq("status", "rejected") // skip prior failures so they don't block retries
     .limit(1);
   return (data && data.length > 0) || false;
 }
@@ -183,7 +184,7 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
     }
 
     // Fix3: Correct known-expense merchants falsely set as income by delta cascade
-    // Fire-and-forget â€” runs after commit so type corrections apply immediately
+    // Fire-and-forget — runs after commit so type corrections apply immediately
     fetch('/.netlify/functions/tag-categorize-committed', {
       method: 'POST',
       headers: authHeaders,
@@ -212,11 +213,11 @@ interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: num
 // Pipeline stage labels that advance during processing. Same five stages as the
 // (now-demoted) StatementProcessingOverlay, shown inline on each queue row.
 const PIPELINE_STEPS = [
-  "Reading PDF pages…",
-  "Extracting transactions…",
-  "Running OCR normalizer…",
-  "Matching category rules…",
-  "Writing to database…",
+  "Reading PDF pages�",
+  "Extracting transactions�",
+  "Running OCR normalizer�",
+  "Matching category rules�",
+  "Writing to database�",
 ];
 
 export default function UploadPageV2() {
@@ -235,7 +236,7 @@ export default function UploadPageV2() {
   const [recentReceipts, setRecentReceipts] = useState<any[]>([]);
   const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
 
-  // ── Statement processing overlay ──────────────────────────────────────────
+  // -- Statement processing overlay ------------------------------------------
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [overlayStatementName, setOverlayStatementName] = useState('');
   const [overlayImportResult, setOverlayImportResult] = useState<StatementImportResult | null>(null);
@@ -261,11 +262,11 @@ export default function UploadPageV2() {
     })();
   }, [uploadMode, userId]);
 
-  // ── Ctrl+V paste to upload ─────────────────────────────────────────────
+  // -- Ctrl+V paste to upload ---------------------------------------------
   // Supports three clipboard shapes:
-  //   1. Copied file from OS file manager → clipboardData.files (File[])
-  //   2. Screenshot / copied image → clipboardData.items (DataTransferItem[]) where kind==='file'
-  //   3. Plain text → ignored (don't hijack normal paste in text inputs)
+  //   1. Copied file from OS file manager ? clipboardData.files (File[])
+  //   2. Screenshot / copied image ? clipboardData.items (DataTransferItem[]) where kind==='file'
+  //   3. Plain text ? ignored (don't hijack normal paste in text inputs)
   // Skips when focus is in an input/textarea/contenteditable so typing still works.
   useEffect(() => {
     if (uploadMode !== 'statement') return;
@@ -288,7 +289,7 @@ export default function UploadPageV2() {
         }
       }
 
-      // Path 2: items (screenshots, pasted images) — only if files path yielded nothing,
+      // Path 2: items (screenshots, pasted images) � only if files path yielded nothing,
       // to avoid double-counting on browsers that populate both
       if (collected.length === 0 && cd.items && cd.items.length > 0) {
         for (let i = 0; i < cd.items.length; i++) {
@@ -343,7 +344,7 @@ export default function UploadPageV2() {
     } catch { setByteReceiptMsg('Upload failed - try again.'); }
   };
 
-  const introText = "Drop as many statements as you want. I'll work through them one at a time â€” extract transactions, hand each off to Tag for categorization, then Prime reviews.";
+  const introText = "Drop as many statements as you want. I'll work through them one at a time — extract transactions, hand each off to Tag for categorization, then Prime reviews.";
   const [typed, typeDone] = useTypewriter(introText, 14, 400);
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
@@ -428,7 +429,7 @@ export default function UploadPageV2() {
     updateItem(current.id, { status: "processing" });
 
     try {
-      // â”€â”€ Duplicate file check â”€â”€
+      // ── Duplicate file check ──
       const fileHash = await computeFileHash(current.file);
       const isDupe = await checkDuplicateHash(fileHash, userId);
       if (isDupe) {
@@ -440,11 +441,11 @@ export default function UploadPageV2() {
 
       let importIdForSweep = '';
       if (isSpreadsheetFile(current.file.name)) {
-        // â”€â”€ XLSX/CSV path - use dedicated spreadsheet processor â”€â”€
+        // ── XLSX/CSV path - use dedicated spreadsheet processor ──
         const xlResult = await handleSpreadsheetUpload(current.file, userId, session?.access_token, fileHash);
         importIdForSweep = xlResult.import_id || '';
       } else {
-        // â”€â”€ PDF/image path - use existing OCR pipeline â”€â”€
+        // ── PDF/image path - use existing OCR pipeline ──
         const result = await runSmartImportPipeline({
           userId, file: current.file, fileName: current.file.name,
           mimeType: current.file.type || "application/octet-stream",
@@ -459,7 +460,7 @@ export default function UploadPageV2() {
       updateItem(current.id, { status: "categorizing" });
       await new Promise(r => setTimeout(r, 1500));
       // Query the real committed count from transactions table.
-      // Retry if 0 — commit may still be writing rows.
+      // Retry if 0 � commit may still be writing rows.
       let txCount = await getCommittedTxCount(importIdForSweep, userId);
       if (txCount === 0 && importIdForSweep) {
         for (let retry = 0; retry < 5 && txCount === 0; retry++) {
@@ -519,7 +520,7 @@ export default function UploadPageV2() {
       setOverlayStatementName(buildStatementLabel(next.file.name));
       setOverlayImportResult(null);
       setOverlayImportId(null);
-      // NOTE: Overlay is no longer auto-opened for single-file uploads either —
+      // NOTE: Overlay is no longer auto-opened for single-file uploads either �
       // the inline queue row now shows the pipeline step, matching multi-file UX.
       // Overlay can still be triggered manually elsewhere if needed.
 
@@ -545,7 +546,7 @@ export default function UploadPageV2() {
       }, 800);
 
       try {
-        // â”€â”€ Duplicate file check â”€â”€
+        // ── Duplicate file check ──
         const fileHash = await computeFileHash(next.file);
         const isDupe = await checkDuplicateHash(fileHash, userId);
         if (isDupe) {
@@ -593,7 +594,7 @@ export default function UploadPageV2() {
         clearInterval(progressInterval);
         updateItem(next.id, { status: "categorizing", progress: 90, stepText: PIPELINE_STEPS[4] });
 
-        // â”€â”€ Poll imports table for the real committed import_id â”€â”€
+        // ── Poll imports table for the real committed import_id ──
         // Replaces fixed 5s sleep. Polls every 3s up to 10 attempts (30s max),
         // waiting for a row with status='committed' created after uploadStartedAt.
         if (!importId && session?.access_token) {
@@ -620,7 +621,7 @@ export default function UploadPageV2() {
           }
         }
 
-        // â”€â”€ Apply category rules to all uncategorized transactions â”€â”€
+        // ── Apply category rules to all uncategorized transactions ──
         // ALWAYS runs, even if pipeline threw - general cleanup mode will still
         // catch rows that landed in the transactions table from a partial commit.
         console.log('[UploadV2] apply-category-rules gate:', { hasToken: !!session?.access_token, importId, pipelineError: !!pipelineError });
@@ -648,7 +649,7 @@ export default function UploadPageV2() {
             console.error('[UploadV2] apply-category-rules threw', err);
           }
 
-          // ── Delayed second pass ──────────────────────────────────────────
+          // -- Delayed second pass ------------------------------------------
           // smart-import-sync AI sweep runs fire-and-forget inside the pipeline
           // and may overwrite our categories AFTER the first apply-category-rules
           // call. Wait 10s then re-run so hardcoded rules always win.
@@ -682,7 +683,7 @@ export default function UploadPageV2() {
           updateItem(next.id, { status: "failed", error: pipelineError instanceof Error ? pipelineError.message : "Pipeline failed" });
         } else {
           // Query the real committed count from transactions table.
-          // Retry up to 5 times (every 2s) if count is 0 — the commit step
+          // Retry up to 5 times (every 2s) if count is 0 � the commit step
           // may still be writing rows asynchronously.
           console.log('[UploadV2] querying txCount for importId:', importId);
           let txCount = importId ? await getCommittedTxCount(importId, userId) : 0;
@@ -727,7 +728,7 @@ export default function UploadPageV2() {
     totalTx: queue.reduce((s, q) => s + (q.txCount || 0), 0),
   };
 
-  const byteStatus = stats.processing > 0 ? `Processing ${stats.complete + 1} of ${stats.total}...` : stats.total === 0 ? "Idle â€” waiting for files" : allDone ? "All done!" : "Ready";
+  const byteStatus = stats.processing > 0 ? `Processing ${stats.complete + 1} of ${stats.total}...` : stats.total === 0 ? "Idle — waiting for files" : allDone ? "All done!" : "Ready";
   const tagStatus = queue.some(q => q.status === "categorizing") ? "Categorizing..." : stats.processing > 0 ? "Waiting for Byte..." : allDone ? "All categorized!" : "Standing by";
   const primeStatus = allDone ? "Ready for briefing" : stats.processing > 0 ? "Waiting..." : "Standing by";
 
@@ -735,10 +736,10 @@ export default function UploadPageV2() {
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-      {/* First-time welcome — fires only if URL has ?welcome=1 and user hasn't seen it before */}
+      {/* First-time welcome � fires only if URL has ?welcome=1 and user hasn't seen it before */}
       <PrimeWelcomeModal userName={(session?.user?.user_metadata as any)?.display_name || (session?.user?.user_metadata as any)?.full_name?.split(' ')[0] || undefined} />
 
-      {/* Statement processing overlay — full screen, cinematic */}
+      {/* Statement processing overlay � full screen, cinematic */}
       <StatementProcessingOverlay
         isOpen={overlayOpen}
         statementName={overlayStatementName}
@@ -794,7 +795,7 @@ export default function UploadPageV2() {
             <div style={{ fontSize: 36, marginBottom: 12 }}>{"\uD83D\uDCC4"}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6 }}>Drop statements here</div>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 8 }}>or click to browse</div>
-            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG — add as many as you want</div>
+            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG � add as many as you want</div>
             <div style={{ fontSize: 10.5, color: T.dim, marginTop: 8, opacity: 0.8 }}>
               Tip: <kbd style={{ padding: "1px 6px", borderRadius: 4, background: T.surface, border: `1px solid ${T.border}`, fontFamily: "inherit", fontSize: 10 }}>Ctrl+V</kbd> to paste a screenshot or copied file
             </div>
@@ -823,13 +824,13 @@ export default function UploadPageV2() {
                 <button onClick={clearQueued} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.dim, cursor: "pointer" }}>Clear Queue</button>
                 <button onClick={() => fileRef.current?.click()} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Add More</button>
                 {stats.processing > 0 && !isPaused && (
-                  <button onClick={() => { pausedRef.current = true; setIsPaused(true); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.amber}18`, border: `1px solid ${T.amber}40`, color: T.amber, cursor: "pointer" }}>⏸ Pause</button>
+                  <button onClick={() => { pausedRef.current = true; setIsPaused(true); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.amber}18`, border: `1px solid ${T.amber}40`, color: T.amber, cursor: "pointer" }}>? Pause</button>
                 )}
                 {isPaused && (
-                  <button onClick={() => { pausedRef.current = false; setIsPaused(false); processAll(); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.green}18`, border: `1px solid ${T.green}40`, color: T.green, cursor: "pointer" }}>▶ Resume</button>
+                  <button onClick={() => { pausedRef.current = false; setIsPaused(false); processAll(); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.green}18`, border: `1px solid ${T.green}40`, color: T.green, cursor: "pointer" }}>? Resume</button>
                 )}
                 {stats.processing > 0 && (
-                  <button onClick={() => { pausedRef.current = true; setIsPaused(false); setQueue(prev => prev.filter(q => q.status !== "queued")); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.red}18`, border: `1px solid ${T.red}40`, color: T.red, cursor: "pointer" }}>✕ Cancel Queued</button>
+                  <button onClick={() => { pausedRef.current = true; setIsPaused(false); setQueue(prev => prev.filter(q => q.status !== "queued")); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.red}18`, border: `1px solid ${T.red}40`, color: T.red, cursor: "pointer" }}>? Cancel Queued</button>
                 )}
                 {stats.queued > 0 && !isPaused && (
                   <button onClick={processAll} style={{ padding: "7px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: T.bg, cursor: "pointer", boxShadow: `0 4px 16px ${T.accent}35` }}>Process All {"\u2192"}</button>
@@ -907,9 +908,9 @@ export default function UploadPageV2() {
                 {item.status === "processing" && (
                   <div style={{ fontSize: 11, color: T.dim, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ color: T.green, fontWeight: 600 }}>Byte</span>
-                    <span>·</span>
+                    <span>�</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.stepText || "Processing…"}
+                      {item.stepText || "Processing�"}
                     </span>
                     <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Math.round(item.progress || 0)}%</span>
                   </div>
@@ -917,9 +918,9 @@ export default function UploadPageV2() {
                 {item.status === "categorizing" && (
                   <div style={{ fontSize: 11, color: T.dim, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ color: T.cyan, fontWeight: 600 }}>Tag</span>
-                    <span>·</span>
+                    <span>�</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.stepText || "Categorizing…"}
+                      {item.stepText || "Categorizing�"}
                     </span>
                   </div>
                 )}
@@ -1010,7 +1011,7 @@ export default function UploadPageV2() {
       <StatementHistory key={historyRefreshKey} />
       </>)}
 
-      {/* â”€â”€ RECEIPT MODE â”€â”€ */}
+      {/* ── RECEIPT MODE ── */}
       {uploadMode === 'receipt' && (
         <div>
           <input ref={receiptCameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={async e => { if (e.target.files?.[0]) await handleReceiptUpload(e.target.files[0]); e.target.value = ''; }} />
