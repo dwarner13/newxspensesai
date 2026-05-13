@@ -874,6 +874,19 @@ export const handler: Handler = async (event) => {
         });
       }
 
+      // Sync reported OCR/normalize still in progress. Propagate to client as "running"
+      // so the orchestrator keeps polling. Without this, slow OCR plus an empty sync
+      // result reads as "complete + 0 transactions" and normalize-transactions never
+      // fires (masking gap that also hides the Phase 3 reconciliation gate).
+      if (syncRes.data?.processing === true || syncRes.data?.reason === 'ocr_processing') {
+        return json(200, {
+          ok: true,
+          mode: "status",
+          importId,
+          status: "running",
+          details: syncRes.data,
+        });
+      }
       const finRes = await callFn(event, "smart-import-finalize", {
         method: "POST",
         headers: { "content-type": "application/json" },
