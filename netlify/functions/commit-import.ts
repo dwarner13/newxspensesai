@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Commit Import Netlify Function
  * 
  * Moves transactions from transactions_staging to transactions table.
@@ -297,7 +297,7 @@ async function persistStatementBreakdown(
   // "column missing" vs "row not found" vs "write succeeded" in downstream logs.
   const { data: preCheck, error: preCheckErr } = await sb
     .from('imports')
-    .select('id, user_id, status')
+    .select('id, user_id, status, statement_breakdown_json')
     .eq('id', importId)
     .eq('user_id', userIdText)
     .maybeSingle();
@@ -323,9 +323,24 @@ async function persistStatementBreakdown(
 
   // Strategy A1: dedicated JSONB column statement_breakdown_json on imports.
   // Use .select('id') so we can detect 0-row updates — Supabase returns no error when WHERE matches nothing.
+  // PATCH2: Merge with existing SBD to preserve statementTotals
+  // (written by normalize-transactions). Spread order: existing first,
+  // breakdown second, so commit-import's authoritative keys win for
+  // anything it models. statementTotals is unique to existing and survives.
+  const existingSbdA1 =
+    preCheck && (preCheck as any).statement_breakdown_json && typeof (preCheck as any).statement_breakdown_json === 'object'
+      ? (preCheck as any).statement_breakdown_json as Record<string, unknown>
+      : {};
+  const mergedBreakdownA1: Record<string, unknown> = {
+    ...existingSbdA1,
+    ...(breakdown as unknown as Record<string, unknown>),
+  };
+  if (existingSbdA1.statementTotals && !mergedBreakdownA1.statementTotals) {
+    mergedBreakdownA1.statementTotals = existingSbdA1.statementTotals;
+  }
   let { data: a1Rows, error: updateError } = await sb
     .from('imports')
-    .update({ statement_breakdown_json: breakdown })
+    .update({ statement_breakdown_json: mergedBreakdownA1 })
     .eq('id', importId)
     .eq('user_id', userIdText)
     .select('id');
@@ -707,6 +722,98 @@ async function reconcileAgainstPrintedTotals(
     console.error('[RECONCILIATION] Error:', err);
     return { match_rate: null, reconciled: false, discrepancy: null, recon_method: 'none' };
   }
+}
+
+async function runReconciliationGate(
+  sb: any,
+  importId: string,
+  userIdText: string,
+  transactionsToInsert: Array<{ amount?: number | string | null }>
+): Promise<{
+  gated: boolean;
+  reason: string;
+  details?: {
+    bank_total_deducted: number;
+    bank_total_added: number;
+    row_total_deducted: number;
+    row_total_added: number;
+    delta_deducted: number;
+    delta_added: number;
+    tolerance: number;
+    source: string;
+  };
+}> {
+  const TOLERANCE = 0.05;
+
+  const { data: importRow, error: readErr } = await sb
+    .from('imports')
+    .select('statement_breakdown_json')
+    .eq('id', importId)
+    .eq('user_id', userIdText)
+    .maybeSingle();
+
+  if (readErr) {
+    console.warn('[CommitImport][Gate] Could not read SBD, skipping gate', { importId, error: readErr.message });
+    return { gated: false, reason: 'sbd_read_failed' };
+  }
+
+  const sbd = importRow?.statement_breakdown_json;
+  const stmtTotals =
+    sbd && typeof sbd === 'object' ? (sbd as Record<string, unknown>).statementTotals : null;
+
+  if (!stmtTotals || typeof stmtTotals !== 'object') {
+    console.log('[CommitImport][Gate] No statementTotals present, skipping gate (non-BMO or extraction failed)', { importId });
+    return { gated: false, reason: 'no_statement_totals' };
+  }
+
+  const totalsObj = stmtTotals as Record<string, unknown>;
+  const bankDeducted = Number(totalsObj.totalDeducted);
+  const bankAdded = Number(totalsObj.totalAdded);
+
+  if (!Number.isFinite(bankDeducted) || !Number.isFinite(bankAdded)) {
+    console.warn('[CommitImport][Gate] statementTotals present but values non-finite, skipping gate', { importId });
+    return { gated: false, reason: 'invalid_statement_totals' };
+  }
+
+  let rowDeducted = 0;
+  let rowAdded = 0;
+  for (const tx of transactionsToInsert) {
+    const amt = Number((tx as any)?.amount);
+    if (!Number.isFinite(amt)) continue;
+    if (amt < 0) rowDeducted += Math.abs(amt);
+    else if (amt > 0) rowAdded += amt;
+  }
+  rowDeducted = round2(rowDeducted);
+  rowAdded = round2(rowAdded);
+
+  const deltaDeducted = Math.abs(rowDeducted - bankDeducted);
+  const deltaAdded = Math.abs(rowAdded - bankAdded);
+  const source = String(totalsObj.source || 'unknown');
+
+  console.log('[CommitImport][Gate] Reconciliation check', {
+    importId,
+    bank: { deducted: bankDeducted, added: bankAdded, source },
+    row: { deducted: rowDeducted, added: rowAdded },
+    delta: { deducted: round2(deltaDeducted), added: round2(deltaAdded) },
+    tolerance: TOLERANCE,
+  });
+
+  const failed = deltaDeducted > TOLERANCE || deltaAdded > TOLERANCE;
+
+  return {
+    gated: failed,
+    reason: failed ? 'reconciliation_failed' : 'reconciled',
+    details: {
+      bank_total_deducted: bankDeducted,
+      bank_total_added: bankAdded,
+      row_total_deducted: rowDeducted,
+      row_total_added: rowAdded,
+      delta_deducted: round2(deltaDeducted),
+      delta_added: round2(deltaAdded),
+      tolerance: TOLERANCE,
+      source,
+    },
+  };
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -1242,6 +1349,48 @@ export const handler: Handler = async (event, context) => {
 
     // 5. Bulk insert transactions (with conflict handling)
     // Use insert instead of upsert to prevent duplicates on double-click
+    // PATCH2: Reconciliation gate. Runs BEFORE insert so failed parses
+    // do not pollute the transactions table.
+    const gateResult = await runReconciliationGate(sb, importId, userIdText, transactionsToInsert);
+    if (gateResult.gated) {
+      const gateNow = new Date().toISOString();
+      console.warn('[CommitImport][Gate] BLOCKED commit, marking import parsed_unreconciled', {
+        importId,
+        reason: gateResult.reason,
+        details: gateResult.details,
+      });
+      const { error: gateUpdateErr } = await sb
+        .from('imports')
+        .update({ status: 'parsed_unreconciled', updated_at: gateNow })
+        .eq('id', importId)
+        .eq('user_id', userIdText);
+      if (gateUpdateErr) {
+        console.error('[CommitImport][Gate] Failed to set parsed_unreconciled status', {
+          importId,
+          error: gateUpdateErr.message,
+        });
+      }
+      safeLog('commit-import.gate_blocked', {
+        importId,
+        userId: userIdText,
+        reason: gateResult.reason,
+        details: gateResult.details,
+      });
+      return {
+        statusCode: 422,
+        headers,
+        body: JSON.stringify({
+          ok: false,
+          success: false,
+          error: 'reconciliation_failed',
+          message: 'Row totals do not match printed statement totals. Import marked parsed_unreconciled.',
+          importId,
+          status: 'parsed_unreconciled',
+          reconciliation: gateResult.details,
+        }),
+      };
+    }
+
     // The unique constraint on transactions table will prevent duplicates
     console.log('[CommitImport] Inserting transactions into final table', { 
       count: transactionsToInsert.length,
