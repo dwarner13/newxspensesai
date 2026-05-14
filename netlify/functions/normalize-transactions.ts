@@ -167,7 +167,7 @@ function parseStatementSummary(text: string): ExtractedSummary {
 function isLikelyCorruptedText(value: string): boolean {
   const text = String(value || '');
   if (!text || text.trim().length < 40) return false;
-  const suspiciousChars = (text.match(/[�\u2500-\u257F\u2580-\u259F]/g) || []).length;
+  const suspiciousChars = (text.match(/[ï¿½\u2500-\u257F\u2580-\u259F]/g) || []).length;
   const controlChars = (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g) || []).length;
   const alphaChars = (text.match(/[A-Za-z]/g) || []).length;
   const ratioNoise = (suspiciousChars + controlChars) / text.length;
@@ -186,22 +186,59 @@ function isLikelyCorruptedText(value: string): boolean {
  */
 function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAdded: number; source: string } | null {
   const parse = (s: string) => parseFloat(s.replace(/,/g, ''));
+  const isPositiveFinite = (n: number) => Number.isFinite(n) && n > 0;
 
-  const closingMatch = text.match(/closing\s+totals\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})/i);
+  // Strategy 1: original inline "Closing totals D A" layout (preserved, dollar prefix tolerated)
+  const closingMatch = text.match(/closing\s+totals\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})/i);
   if (closingMatch) {
     const totalDeducted = parse(closingMatch[1]);
     const totalAdded = parse(closingMatch[2]);
-    if (Number.isFinite(totalDeducted) && Number.isFinite(totalAdded)) {
-      return { totalDeducted, totalAdded, source: 'closing_totals' };
+    if (isPositiveFinite(totalDeducted) && isPositiveFinite(totalAdded)) {
+      return { totalDeducted, totalAdded, source: 'closing_totals_inline' };
     }
   }
 
-  const deductedMatch = text.match(/total\s+amounts?\s+deducted[:\s]+([\d,]+\.\d{2})/i);
-  const addedMatch = text.match(/total\s+amounts?\s+added[:\s]+([\d,]+\.\d{2})/i);
+  // Strategy 2: walk-forward from "Closing totals" anchor, tolerant of column-header lines
+  // injected by Vision OCR. Requires amount to be alone on its own line to avoid grabbing
+  // balances from following transaction rows.
+  const lines = text.split(/\r?\n/);
+  const closingLineIdx = lines.findIndex((line) => /closing\s+totals/i.test(line));
+  if (closingLineIdx >= 0) {
+    const amountOnlyLine = /^\s*\$?(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/;
+    const collected: number[] = [];
+    const stopAt = Math.min(closingLineIdx + 9, lines.length);
+    for (let i = closingLineIdx + 1; i < stopAt; i++) {
+      const m = lines[i].match(amountOnlyLine);
+      if (m) {
+        const n = parse(m[1]);
+        if (isPositiveFinite(n)) {
+          collected.push(n);
+          if (collected.length === 2) break;
+        }
+      }
+    }
+    if (collected.length === 2) {
+      return { totalDeducted: collected[0], totalAdded: collected[1], source: 'closing_totals_walk_forward' };
+    }
+
+    // Diagnostic: anchor found but extraction failed. Fires once per failed call.
+    const charIdx = text.search(/closing\s+totals/i);
+    console.warn('[parseBmoStatementTotals] Anchor present but amounts not extracted', {
+      textLength: text.length,
+      anchorCharIndex: charIdx,
+      before: charIdx > 0 ? text.slice(Math.max(0, charIdx - 80), charIdx) : '',
+      anchorAndAfter: text.slice(charIdx, Math.min(text.length, charIdx + 400)),
+      collectedSoFar: collected,
+    });
+  }
+
+  // Strategy 3: separate totals lines (preserved, dollar prefix tolerated)
+  const deductedMatch = text.match(/total\s+amounts?\s+deducted[:\s]+\$?([\d,]+\.\d{2})/i);
+  const addedMatch = text.match(/total\s+amounts?\s+added[:\s]+\$?([\d,]+\.\d{2})/i);
   if (deductedMatch && addedMatch) {
     const totalDeducted = parse(deductedMatch[1]);
     const totalAdded = parse(addedMatch[1]);
-    if (Number.isFinite(totalDeducted) && Number.isFinite(totalAdded)) {
+    if (isPositiveFinite(totalDeducted) && isPositiveFinite(totalAdded)) {
       return { totalDeducted, totalAdded, source: 'separate_totals_lines' };
     }
   }
@@ -809,7 +846,7 @@ async function processNormalizationInBackground(
     // Runs unconditionally here so totals land even when extraction produces zero rows
     // (the BMO column-bleed failure mode). Was previously buried after the
     // "no transactions found" early-return at line ~1031 and got skipped on that path.
-    // parseBmoStatementTotals returns null for non-BMO statements → field stays unset.
+    // parseBmoStatementTotals returns null for non-BMO statements â†’ field stays unset.
     try {
       const bmoTotalsEarly = parseBmoStatementTotals(guardedOcrInputText);
       if (bmoTotalsEarly) {
@@ -957,7 +994,7 @@ async function processNormalizationInBackground(
           console.log('[normalize-transactions] Credit card AI bypass produced ' + aiDirect.length + ' transactions');
           normalizedTransactions = aiDirect.map(function(tx) { return {
             userId: userIdText,
-            kind: 'credit_card', // was 'bank' — caused positive amounts to be labeled 'Credit' not 'Purchase'
+            kind: 'credit_card', // was 'bank' â€” caused positive amounts to be labeled 'Credit' not 'Purchase'
             date: tx.date,
             merchant: tx.merchant,
             amount: tx.amount,
@@ -1316,7 +1353,7 @@ async function processNormalizationInBackground(
           })
           .eq('id', documentId);
       } else {
-        console.warn(`[normalize-transactions] 0 transactions staged for doc ${documentId} — NOT setting normalized_cached`);
+        console.warn(`[normalize-transactions] 0 transactions staged for doc ${documentId} â€” NOT setting normalized_cached`);
         await sb
           .from('user_documents')
           .update({
