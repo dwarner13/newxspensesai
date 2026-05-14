@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Normalize Transactions Netlify Function
  * 
  * Converts OCR text from user_documents into normalized transactions
@@ -1136,7 +1136,11 @@ async function processNormalizationInBackground(
         : (tx.kind === 'bank'
             ? (rawAmount < 0 ? 'Purchase' : 'Credit')
             : 'Purchase');
-      const normalizedAmount = isCreditCardCredit ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+      // PATCH3: Sign amount based on direction.
+      // Convention (per commit-import.ts line 1311): negative = expense, positive = income.
+      // Bank Purchase and credit-card Payment are expenses; Bank Credit is income.
+      const isExpenseType = typeLabel === 'Purchase' || typeLabel === 'Payment';
+      const normalizedAmount = isExpenseType ? -Math.abs(rawAmount) : Math.abs(rawAmount);
       return {
         import_id: importRecord.id,
         user_id: userIdText,
