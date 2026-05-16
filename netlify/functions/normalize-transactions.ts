@@ -1114,11 +1114,22 @@ async function processNormalizationInBackground(
     }
 
     // 4. Convert normalized transactions to staging format
+    //
+    // Disambiguate legitimate same-day duplicates: two 7-ELEVEN $1.58
+    // charges on Feb 17 are real transactions, not a parse error. Without
+    // the occurrence counter, both rows hash identically and the pre-batch
+    // dedup below silently drops the second one. The counter scopes to
+    // this batch only - the first occurrence keeps the original hash, so
+    // single-instance rows hash exactly as before (backward compatible).
+    const seenHashInputs = new Map<string, number>();
     const stagingRows = normalizedTransactions.map(tx => {
       const isInvoice = tx.kind === 'invoice';
-      const hashInput = isInvoice
+      const baseHashInput = isInvoice
         ? `${documentId || ''}-${tx.amount || 0}-${tx.date || ''}-${tx.merchant || ''}`
         : `${tx.date || ''}-${tx.amount || 0}-${tx.merchant || ''}`;
+      const seen = seenHashInputs.get(baseHashInput) || 0;
+      seenHashInputs.set(baseHashInput, seen + 1);
+      const hashInput = seen === 0 ? baseHashInput : `${baseHashInput}-${seen}`;
       const hash = createHash('sha256').update(hashInput).digest('hex').substring(0, 64);
       const fileName = doc.original_name || 'Invoice';
       const invoiceDescription = `Invoice${tx.invoiceNo ? ` ${tx.invoiceNo}` : ''} - ${fileName}`;

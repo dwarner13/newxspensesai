@@ -1030,6 +1030,86 @@ function parseIncomeReportRows(text: string): Array<{
 }
 
 /**
+ * Pre-process pass that detects OCR column-scramble in BMO statements and
+ * reorders the lines back to canonical form so the main parser can handle
+ * them.
+ *
+ * Signature pattern: N consecutive date markers (with empty bodies),
+ * followed by N descriptions and 2N amount/balance lines (sometimes
+ * interleaved with normal-form rows mid-block). Safety: only reconstructs
+ * when counts match exactly. If they don't, the block is left untouched.
+ */
+function reconstructStackedDateBlocks(lines: string[]): string[] {
+  const dateHeadRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i;
+  const pureAmountRegex = /^\s*\d{1,3}(?:,\d{3})*\.\d{2}\s*$/;
+  const suffixLineRegex = /^(MSP\/DIV|MTG\/HYP|LNS\/PRE|\/CC|TFR\/VIR)$/i;
+
+  const isStackableDate = (line: string): boolean => {
+    return !!line.match(dateHeadRegex) && line.replace(dateHeadRegex, '').trim() === '';
+  };
+
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    let stackEnd = i;
+    while (stackEnd < lines.length && isStackableDate(lines[stackEnd])) {
+      stackEnd++;
+    }
+    const stackSize = stackEnd - i;
+
+    if (stackSize >= 3) {
+      const dates = lines.slice(i, stackEnd);
+      let contentEnd = stackEnd;
+      const maxContent = stackSize * 4 + 5;
+      while (
+        contentEnd < lines.length &&
+        contentEnd - stackEnd < maxContent
+      ) {
+        const line = lines[contentEnd];
+        if (line.match(dateHeadRegex) && line.replace(dateHeadRegex, '').trim() !== '') {
+          break;
+        }
+        if (isStackableDate(line)) {
+          break;
+        }
+        contentEnd++;
+      }
+
+      const contentLines = lines.slice(stackEnd, contentEnd);
+      const descriptions: string[] = [];
+      const amounts: string[] = [];
+      for (const line of contentLines) {
+        if (pureAmountRegex.test(line)) {
+          amounts.push(line);
+        } else if (!suffixLineRegex.test(line.trim())) {
+          descriptions.push(line);
+        }
+      }
+
+      if (descriptions.length === stackSize && amounts.length === stackSize * 2) {
+        console.log(`[BMO PreProc] Reconstructing stacked-date block: ${stackSize} transactions`);
+        for (let k = 0; k < stackSize; k++) {
+          result.push(dates[k]);
+          result.push(descriptions[k]);
+          result.push(amounts[k * 2]);
+          result.push(amounts[k * 2 + 1]);
+        }
+        i = contentEnd;
+        continue;
+      } else {
+        console.log(`[BMO PreProc] Stacked-date block found but counts mismatch (dates=${stackSize} desc=${descriptions.length} amounts=${amounts.length}); leaving as-is`);
+      }
+    }
+
+    result.push(lines[i]);
+    i++;
+  }
+
+  return result;
+}
+
+/**
  * Returns true if a body/description string looks like part of a BMO statement
  * structural header (account-number lines, section titles, column headers,
  * page markers, etc.) rather than a real transaction.
@@ -1056,7 +1136,9 @@ function looksLikeStructuralHeader(s: string): boolean {
   if (/\[REDACTED:(PHONE|ACCOUNT|SIN|EMAIL)\]/i.test(stripped)) return true;
   if (/amounts\s+(deducted|added)/i.test(stripped)) return true;
   if (/closing\s+totals|opening\s+balance|closing\s+balance|statement\s+period|for\s+the\s+period/i.test(stripped)) return true;
-  if (/transit\s+number|your\s+branch|premium\s+plan/i.test(stripped)) return true;
+  // Note: "premium plan" intentionally NOT matched here - it would collide
+  // with the legitimate transaction body "Premium Plan Fee".
+  if (/transit\s+number|your\s+branch|your\s+plan/i.test(stripped)) return true;
   if (/page\s+\d+\s+of\s+\d+/i.test(stripped)) return true;
   return false;
 }
@@ -1084,10 +1166,17 @@ function parseBmoEverydayStatement(text: string): Array<{
   category?: string;
   raw_line_text?: string;
 }> {
-  const lines = text
+  let lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
+
+  // Reconstruct OCR column-scramble sections (stacked date markers).
+  // BMO statements occasionally OCR with the Date column rendered as a
+  // separate stack of "Feb 19 / Feb 19 / Feb 20 / Feb 20" lines followed
+  // by all descriptions, then all amount/balance pairs. This pre-pass
+  // detects the pattern and reorders lines back to canonical form.
+  lines = reconstructStackedDateBlocks(lines);
 
   // TEMP DEBUG: visibility into what the BMO parser actually receives
   // after cleanupOcrText / restoreBmoSpaces have run.
@@ -1132,7 +1221,7 @@ function parseBmoEverydayStatement(text: string): Array<{
   const parseAmount = (raw: string): number => Number(raw.replace(/,/g, ''));
 
   const skipLine = (line: string): boolean =>
-    /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --|primary chequing|chequing account|savings account|owner:|for the period|transit number|your branch|your plan|premium plan|security tip|direct banking|www\.bmo|closingtotals|openingbalance|primary chequing account #|\d{4}\s+\d{3,4}-\d{3,4}|account #\s*\d|^\d{4,}-\d{3,}/i.test(line);
+    /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --|primary chequing|chequing account|savings account|owner:|for the period|transit number|your branch|your plan|security tip|direct banking|www\.bmo|closingtotals|openingbalance|primary chequing account #|\d{4}\s+\d{3,4}-\d{3,4}|account #\s*\d|^\d{4,}-\d{3,}/i.test(line);
 
   const extractTxFromBody = (body: string): { description: string; amount: number; balance: number } | null => {
     // Strip FX rate notation (e.g. 5.00X1.406) before amount extraction to prevent
@@ -1227,8 +1316,13 @@ function parseBmoEverydayStatement(text: string): Array<{
     {
       const extraRaw: string[] = [];
       let j = i + 1;
+      // Strip FX multiplier patterns (e.g. "5.00X1.404") before counting
+      // amounts. Otherwise foreign-currency transactions terminate the wrap
+      // loop early with false amounts, leaving the real amount column unread.
+      const countAmounts = (s: string): number =>
+        (s.replace(/\b\d+\.\d+[Xx]\d+\.\d+\b/g, '').match(amountRegex) || []).length;
       while (
-        (body.match(amountRegex) || []).length < 2 &&
+        countAmounts(body) < 2 &&
         j < lines.length &&
         !lines[j].match(dateHeadRegex) &&
         !skipLine(lines[j]) &&
