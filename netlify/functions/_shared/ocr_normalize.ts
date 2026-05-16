@@ -1284,8 +1284,8 @@ function parseBmoEverydayStatement(text: string): Array<{
         // Use deltaAbs when it is a plausible transaction amount.
         const deltaReasonable = deltaAbs >= 0.01 && deltaAbs <= 50_000;
         if (deltaReasonable) {
-          console.warn('[BMO Parser] Amount mismatch: parsed=' + parsedAbs + ' delta=' + deltaAbs + ' - using delta (balance column)');
-          signedAmount = deltaBasedAmount;
+          console.log('[BMO Parser] Trusting parsed over delta: parsed=' + parsedAbs + ' delta=' + deltaAbs);
+          signedAmount = descSignedAmount;
         } else {
           signedAmount = descSignedAmount;
         }
