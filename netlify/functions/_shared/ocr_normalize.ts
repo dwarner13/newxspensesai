@@ -1030,6 +1030,34 @@ function parseIncomeReportRows(text: string): Array<{
 }
 
 /**
+ * Returns true if a body/description string looks like part of a BMO statement
+ * structural header (account-number lines, section titles, column headers,
+ * page markers, etc.) rather than a real transaction.
+ *
+ * Used as defense-in-depth against the BMO parser accidentally treating a
+ * header line that starts with what looks like a month abbreviation
+ * (e.g. "Mar 16, 2026 Primary Chequing Account # 12345-678") as a real
+ * transaction, and against the multi-line wrap loop absorbing such headers
+ * into a real transaction's body when OCR splits them across lines.
+ *
+ * Matches both pre- and post-redaction forms.
+ */
+function looksLikeStructuralHeader(s: string): boolean {
+  if (!s) return true;
+  const stripped = s.trim().replace(/^[,\s]+/, '').replace(/[,\s]+$/, '');
+  if (!stripped) return true;
+  if (/primary\s*chequing|chequing\s*account|savings\s*account/i.test(stripped)) return true;
+  if (/^\d{4}\s+primary/i.test(stripped)) return true;
+  if (/account\s*#\s*[\d\s-]{4,}/i.test(stripped)) return true;
+  if (/\[REDACTED:(PHONE|ACCOUNT|SIN|EMAIL)\]/i.test(stripped)) return true;
+  if (/amounts\s+(deducted|added)/i.test(stripped)) return true;
+  if (/closing\s+totals|opening\s+balance|closing\s+balance|statement\s+period|for\s+the\s+period/i.test(stripped)) return true;
+  if (/transit\s+number|your\s+branch|premium\s+plan/i.test(stripped)) return true;
+  if (/page\s+\d+\s+of\s+\d+/i.test(stripped)) return true;
+  return false;
+}
+
+/**
  * Parse BMO "Everyday Banking" statement format
  * 
  * Format: Multi-line transactions where:
@@ -1177,8 +1205,21 @@ function parseBmoEverydayStatement(text: string): Array<{
     let body = line.replace(dateHeadRegex, '').trim();
     let rawLineText = line;
 
+    // Pre-wrap header guard: if the body immediately after stripping the date
+    // prefix already looks like a BMO section header (e.g. the OCR collapsed
+    // "Mar 16, 2026 Primary Chequing Account # 12345-678" onto one line, or
+    // split it across "Mar 16, 2026" + "Primary Chequing Account # ..." which
+    // the wrap loop would otherwise absorb), this is a false-positive date
+    // match. Bail out before the wrap loop runs and produces a phantom row.
+    if (looksLikeStructuralHeader(body)) {
+      console.log(`[BMO SKIP date-header collision] date=${isoDate} body="${body.slice(0,80)}"`);
+      continue;
+    }
+
     // Some BMO rows wrap across multiple lines (date / description / amount / balance).
     // Keep appending lines until we have 2+ amounts, hit the next date, or reach cap.
+    // Also stop on section-header lines so a header that OCR split off from its
+    // date prefix can't get glued into the previous transaction's body.
     {
       const extraRaw: string[] = [];
       let j = i + 1;
@@ -1186,6 +1227,8 @@ function parseBmoEverydayStatement(text: string): Array<{
         (body.match(amountRegex) || []).length < 2 &&
         j < lines.length &&
         !lines[j].match(dateHeadRegex) &&
+        !skipLine(lines[j]) &&
+        !looksLikeStructuralHeader(lines[j]) &&
         j <= i + 5
       ) {
         extraRaw.push(lines[j]);
@@ -1251,6 +1294,16 @@ function parseBmoEverydayStatement(text: string): Array<{
 
     const cleanedDesc = cleanDescription(parsed.description);
     if (!cleanedDesc) continue;
+
+    // Defense-in-depth: even if upstream guards missed it, reject rows whose
+    // final description looks like a structural header fragment. This is the
+    // last line of defense against the "Mar 16, 2026 Primary Chequing Account
+    // # [REDACTED:PHONE]" class of phantom rows reaching the transactions
+    // table and polluting the reconciliation gate.
+    if (looksLikeStructuralHeader(cleanedDesc)) {
+      console.log(`[BMO SKIP phantom emit] date=${isoDate} desc="${cleanedDesc.slice(0,80)}"`);
+      continue;
+    }
 
     out.push({
       date: isoDate,
