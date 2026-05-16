@@ -1043,9 +1043,13 @@ function parseIncomeReportRows(text: string): Array<{
  * Matches both pre- and post-redaction forms.
  */
 function looksLikeStructuralHeader(s: string): boolean {
-  if (!s) return true;
+  // Empty input is NOT structural - it is the normal multi-line BMO format
+  // where the date is on its own line and the description follows below.
+  // Returning true here would kill every legitimate multi-line transaction
+  // before the wrap loop has a chance to absorb its description.
+  if (!s) return false;
   const stripped = s.trim().replace(/^[,\s]+/, '').replace(/[,\s]+$/, '');
-  if (!stripped) return true;
+  if (!stripped) return false;
   if (/primary\s*chequing|chequing\s*account|savings\s*account/i.test(stripped)) return true;
   if (/^\d{4}\s+primary/i.test(stripped)) return true;
   if (/account\s*#\s*[\d\s-]{4,}/i.test(stripped)) return true;
