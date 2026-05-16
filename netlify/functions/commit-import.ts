@@ -1280,7 +1280,13 @@ export const handler: Handler = async (event, context) => {
         ) ||
           tx.type === 'income' ||
           tx.direction === 'in' ||
-          tx.is_credit === true;
+          tx.is_credit === true ||
+          // Bank statements: normalize-transactions sets type='Credit' for any
+          // row with rawAmount >= 0 (its line 1137). That IS the income signal
+          // for bank rows. The !isCreditCardStatement guard above already
+          // scopes this - credit-card statements label purchases as 'Credit',
+          // which we correctly ignore in that branch.
+          (tx.type === 'Credit' && !isCreditCardStatement);
         
         // If transaction doesn't have a category, use Tag learning to categorize it
         let category = tx.category || tx.category_suggested;
@@ -1333,6 +1339,7 @@ export const handler: Handler = async (event, context) => {
           date: dateOnly,
           merchant_name: merchantName, // field read by TransactionRow for committed rows
           merchant: merchantName,      // kept for legacy breakdown queries
+          description: tx.description || tx.memo || merchantName || 'Transaction',
           amount: signedAmount,
           type: isIncome ? 'income' : 'expense',
           category: isIncome
@@ -1389,6 +1396,36 @@ export const handler: Handler = async (event, context) => {
           reconciliation: gateResult.details,
         }),
       };
+    }
+
+    // Disambiguate within-batch duplicates so transactions_dedupe_key
+    // (user_id, date, description, amount) does not silently drop legitimate
+    // same-day same-amount same-merchant transactions. The first occurrence
+    // keeps its original description; the 2nd, 3rd, etc. get " (#N)" appended
+    // so the unique index sees them as distinct rows.
+    {
+      const disambiguateBatchDuplicates = new Map<string, number>();
+      for (const tx of transactionsToInsert as Array<{
+        user_id: string;
+        date: string;
+        amount: number;
+        description: string;
+      }>) {
+        const key = `${tx.user_id}|${tx.date}|${tx.description}|${tx.amount}`;
+        const seen = disambiguateBatchDuplicates.get(key) || 0;
+        disambiguateBatchDuplicates.set(key, seen + 1);
+        if (seen > 0) {
+          tx.description = `${tx.description} (#${seen + 1})`;
+        }
+      }
+      const disambiguatedCount = Array.from(disambiguateBatchDuplicates.values())
+        .reduce((n, count) => n + Math.max(0, count - 1), 0);
+      if (disambiguatedCount > 0) {
+        console.log('[CommitImport] Disambiguated within-batch duplicates', {
+          rowsModified: disambiguatedCount,
+          importId,
+        });
+      }
     }
 
     // The unique constraint on transactions table will prevent duplicates
