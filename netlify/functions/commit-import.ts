@@ -1350,6 +1350,7 @@ export const handler: Handler = async (event, context) => {
           source: 'bank_statement',
           import_id: importId,
           document_id: tx.documentId || tx.docId || null,
+          staging_hash: row.hash,
         };
       })
     );
@@ -1398,102 +1399,6 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    // Disambiguate within-batch duplicates so transactions_dedupe_key
-    // (user_id, date, description, amount) does not silently drop legitimate
-    // same-day same-amount same-merchant transactions. The first occurrence
-    // keeps its original description; the 2nd, 3rd, etc. get " (#N)" appended
-    // so the unique index sees them as distinct rows.
-    {
-      // === PROBE START (2026-05-16) ===
-      // Probe A: predicted strict-key duplicates (what the disambiguator should match).
-      const __probePredictionMap = new Map<string, number[]>();
-      (transactionsToInsert as Array<{ user_id: string; date: string; amount: number; description: string }>)
-        .forEach((tx, idx) => {
-          const k = `${tx.user_id}|${tx.date}|${tx.description}|${tx.amount}`;
-          const list = __probePredictionMap.get(k) || [];
-          list.push(idx);
-          __probePredictionMap.set(k, list);
-        });
-      const __probePredictedDups = Array.from(__probePredictionMap.entries())
-        .filter(([, idxs]) => idxs.length > 1);
-      console.log('[CommitImport][PROBE-A] Predicted strict-key duplicates', {
-        totalRows: transactionsToInsert.length,
-        duplicateKeyCount: __probePredictedDups.length,
-        duplicates: __probePredictedDups.map(([key, idxs]) => ({
-          occurrences: idxs.length,
-          rowIndices: idxs,
-          date: key.split('|')[1],
-          amount: key.split('|')[3],
-          descriptionPreview: key.split('|')[2].slice(0, 80),
-        })),
-        importId,
-      });
-
-      // Probe B: loose-key analysis — rows sharing (date, amount) regardless of description.
-      // Surfaces invisible char diffs (zero-width space, NBSP, smart quotes) via byte hex.
-      const __probeLooseKeys = new Map<string, Array<{ idx: number; desc: string; descLen: number; descBytesHex: string }>>();
-      (transactionsToInsert as Array<{ date: string; amount: number; description: string }>)
-        .forEach((tx, idx) => {
-          const lk = `${tx.date}|${tx.amount}`;
-          const list = __probeLooseKeys.get(lk) || [];
-          const descBytesHex = Buffer.from(tx.description || '', 'utf8').toString('hex').slice(0, 200);
-          list.push({ idx, desc: tx.description, descLen: (tx.description || '').length, descBytesHex });
-          __probeLooseKeys.set(lk, list);
-        });
-      const __probeLooseDups = Array.from(__probeLooseKeys.entries())
-        .filter(([, rows]) => rows.length > 1);
-      console.log('[CommitImport][PROBE-B] Loose-key (date+amount) duplicates', {
-        groupsWithDateAmountSharing: __probeLooseDups.length,
-        details: __probeLooseDups.map(([looseKey, rows]) => ({
-          looseKey,
-          rowCount: rows.length,
-          distinctDescriptionsInGroup: new Set(rows.map(r => r.desc)).size,
-          rows: rows.map(r => ({
-            idx: r.idx,
-            descLen: r.descLen,
-            desc: r.desc,
-            bytesHexPreview: r.descBytesHex,
-          })),
-        })),
-        importId,
-      });
-      // === PROBE END ===
-
-      const disambiguateBatchDuplicates = new Map<string, number>();
-      for (const tx of transactionsToInsert as Array<{
-        user_id: string;
-        date: string;
-        amount: number;
-        description: string;
-      }>) {
-        const key = `${tx.user_id}|${tx.date}|${tx.description}|${tx.amount}`;
-        const seen = disambiguateBatchDuplicates.get(key) || 0;
-        disambiguateBatchDuplicates.set(key, seen + 1);
-        if (seen > 0) {
-          const __probeOldDesc = tx.description;
-          const __probeNewDesc = `${tx.description} (#${seen + 1})`;
-          console.log('[CommitImport][PROBE-C] Disambiguator fired', {
-            date: tx.date,
-            amount: tx.amount,
-            descriptionLength: __probeOldDesc.length,
-            oldDescription: __probeOldDesc,
-            newDescription: __probeNewDesc,
-            occurrence: seen + 1,
-            importId,
-          });
-          tx.description = __probeNewDesc;
-        }
-      }
-      const disambiguatedCount = Array.from(disambiguateBatchDuplicates.values())
-        .reduce((n, count) => n + Math.max(0, count - 1), 0);
-      if (disambiguatedCount > 0) {
-        console.log('[CommitImport] Disambiguated within-batch duplicates', {
-          rowsModified: disambiguatedCount,
-          importId,
-        });
-      }
-    }
-
     // The unique constraint on transactions table will prevent duplicates
     console.log('[CommitImport] Inserting transactions into final table', { 
       count: transactionsToInsert.length,
@@ -1504,18 +1409,6 @@ export const handler: Handler = async (event, context) => {
       .from('transactions')
       .insert(transactionsToInsert)
       .select('id');
-    // === PROBE-D (2026-05-16) ===
-    console.log('[CommitImport][PROBE-D] Insert result', {
-      requestedCount: transactionsToInsert.length,
-      insertedCount: insertedTransactions?.length ?? 0,
-      hasError: !!insertError,
-      errorCode: (insertError as any)?.code,
-      errorMessage: insertError?.message,
-      errorDetails: (insertError as any)?.details,
-      errorHint: (insertError as any)?.hint,
-      importId,
-    });
-    // === PROBE-D END ===
 
     const { count: userTransactionCount } = await sb
       .from('transactions')
