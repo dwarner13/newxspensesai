@@ -1409,6 +1409,23 @@ export const handler: Handler = async (event, context) => {
       .from('transactions')
       .insert(transactionsToInsert)
       .select('id');
+    // === PROBE-E (2026-05-16): direct DB count to compare against SDK return ===
+    const { count: __probeActualDbCount } = await sb
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('import_id', importId);
+    console.log('[CommitImport][PROBE-E] Post-insert reality check', {
+      requestedToInsert: transactionsToInsert.length,
+      sdkClaimedInserted: insertedTransactions?.length ?? 0,
+      actualDbCount: __probeActualDbCount ?? 0,
+      hasInsertError: !!insertError,
+      insertErrorCode: (insertError as any)?.code,
+      insertErrorMessage: insertError?.message,
+      insertErrorDetails: (insertError as any)?.details,
+      insertErrorHint: (insertError as any)?.hint,
+      importId,
+    });
+    // === PROBE-E END ===
 
     const { count: userTransactionCount } = await sb
       .from('transactions')
