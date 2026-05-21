@@ -1019,10 +1019,31 @@ export const handler: Handler = async (event, context) => {
       .maybeSingle();
     
     console.log('[CommitImport] Import record fetched', { 
-      found: !!importRecord, 
+      found: !!importRecord,
       status: importRecord?.status,
-      fileType: importRecord?.file_type 
+      fileType: importRecord?.file_type
     });
+    // Idempotency guard: short-circuit duplicate invocations for the same import.
+    // The frontend sometimes fires commit-import twice within ~3 seconds; without
+    // this guard the second call wastes ~6s on staging fetch + categorization
+    // before hitting the unique constraint on transactions_dedupe_key.
+    if (importRecord?.status === 'committed') {
+      console.log('[CommitImport] Idempotent re-invocation: import already committed', {
+        importId,
+        status: importRecord.status,
+      });
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          idempotent: true,
+          status: 'committed',
+          importId,
+          message: 'Import already committed; no action needed.',
+        }),
+      };
+    }
 
     if (importError) {
       if (isMissingColumnError(importError) && String(importError.message || '').includes('approved_at')) {
@@ -1408,26 +1429,7 @@ export const handler: Handler = async (event, context) => {
     const { data: insertedTransactions, error: insertError } = await sb
       .from('transactions')
       .insert(transactionsToInsert)
-      .select('id');
-    // === PROBE-E (2026-05-16): direct DB count to compare against SDK return ===
-    const { count: __probeActualDbCount } = await sb
-      .from('transactions')
-      .select('id', { count: 'exact', head: true })
-      .eq('import_id', importId);
-    console.log('[CommitImport][PROBE-E] Post-insert reality check', {
-      requestedToInsert: transactionsToInsert.length,
-      sdkClaimedInserted: insertedTransactions?.length ?? 0,
-      actualDbCount: __probeActualDbCount ?? 0,
-      hasInsertError: !!insertError,
-      insertErrorCode: (insertError as any)?.code,
-      insertErrorMessage: insertError?.message,
-      insertErrorDetails: (insertError as any)?.details,
-      insertErrorHint: (insertError as any)?.hint,
-      importId,
-    });
-    // === PROBE-E END ===
-
-    const { count: userTransactionCount } = await sb
+      .select('id');    const { count: userTransactionCount } = await sb
       .from('transactions')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userIdText);
