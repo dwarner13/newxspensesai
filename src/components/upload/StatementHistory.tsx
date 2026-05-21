@@ -673,7 +673,7 @@ export function StatementHistory() {
           type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search statements by bank, year, or month\u2026"
+          placeholder="Search statements by bank, year, or month…"
           style={{
             width: "100%", boxSizing: "border-box",
             padding: "10px 14px 10px 36px",
@@ -691,7 +691,7 @@ export function StatementHistory() {
       {!query.trim() && imports.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Recent uploads</div>
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 4 }}>
+          <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 4, paddingRight: 80 }}>
             {imports.slice(0, 5).map(imp => {
               const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
               const issuer = detectIssuer(imp, meta);
