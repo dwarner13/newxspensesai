@@ -391,54 +391,14 @@ function applyDbRules(
 async function deduplicateImport(
   supabase: any, userId: string, importId: string
 ): Promise<number> {
-  const { data: txs } = await supabase
-    .from('transactions')
-    .select('id, merchant_name, amount, date, posted_at')
-    .eq('user_id', userId)
-    .eq('import_id', importId)
-    .order('id', { ascending: true });
-
-  if (!txs || txs.length < 2) return 0;
-
-  const groups = new Map<string, string[]>();
-  for (const tx of txs) {
-    // Aggressive normalization: uppercase, strip non-alphanumeric, first 12 chars
-    // Catches "7-Eleven" vs "7-ELEVEN STORE #1234" duplicates
-    const key = [
-      (tx.merchant_name || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12),
-      String(Math.abs(Number(tx.amount || 0))),
-      tx.date || tx.posted_at?.split('T')[0] || '',
-    ].join('|');
-    const existing = groups.get(key) || [];
-    existing.push(tx.id);
-    groups.set(key, existing);
-  }
-
-  const toDelete: string[] = [];
-  for (const [, ids] of groups) {
-    if (ids.length > 1) {
-      // Keep first (lowest id), delete rest
-      toDelete.push(...ids.slice(1));
-    }
-  }
-
-  if (toDelete.length === 0) return 0;
-
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('user_id', userId)
-    .in('id', toDelete);
-
-  if (error) {
-    safeLog('error', '[apply-category-rules] Dedup delete error', { uidPrefix: String(userId).slice(0, 8) + '...', error: error.message });
-    return 0;
-  }
-
-  safeLog('info', `[apply-category-rules] Deduped: removed ${toDelete.length} duplicate transactions`, { uidPrefix: String(userId).slice(0, 8) + '...', importId });
-  return toDelete.length;
+  // DISABLED 2026-05-21: legacy dedup that ate same-day same-amount rows.
+  // The staging_hash unique constraint now prevents accidental duplicates
+  // at insert time, so this dedup was only deleting LEGITIMATE rows
+  // (e.g., two $1.58 7-Eleven visits on the same day). No-op stub kept
+  // so callers compile without changes.
+  void supabase; void userId; void importId;
+  return 0;
 }
-
 // ─── Handler ───────────────────────────────────────────────────────────────
 export const handler: Handler = async (event) => {
   console.log('[apply-category-rules] function invoked', {
