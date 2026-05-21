@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 
@@ -120,6 +121,7 @@ function statusBadge(status: string | null) {
 // Threshold for "upload stuck" detection. Large PDFs can take a couple minutes
 // to OCR + parse, so we don't flag until it's been sitting idle for 5 minutes.
 const STUCK_AFTER_MS = 5 * 60 * 1000;
+const MONTH_NAMES = ["january","february","march","april","may","june","july","august","september","october","november","december"];
 
 /**
  * An import is "stuck" when it didn't complete the upload→parse→commit pipeline.
@@ -223,7 +225,8 @@ export function StatementHistory() {
   const { userId } = useAuth();
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
   const [folderMenu, setFolderMenu] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -539,9 +542,33 @@ export function StatementHistory() {
     }
   };
 
+  const filteredImports = (() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return imports;
+    return imports.filter(imp => {
+      const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
+      const issuer = detectIssuer(imp, meta);
+      if (issuer.toLowerCase().includes(q)) return true;
+      if (meta?.account_last4 && meta.account_last4.includes(q)) return true;
+      const range = dateRanges.get(imp.id);
+      const year = range ? range.max.getFullYear() : new Date(imp.created_at).getFullYear();
+      if (String(year).includes(q)) return true;
+      if (range) {
+        const d = new Date(range.min); d.setDate(1);
+        while (d <= range.max) {
+          if (MONTH_NAMES[d.getMonth()].includes(q)) return true;
+          d.setMonth(d.getMonth() + 1);
+        }
+      } else {
+        if (MONTH_NAMES[new Date(imp.created_at).getMonth()].includes(q)) return true;
+      }
+      return false;
+    });
+  })();
+
   const folders: FolderGroup[] = (() => {
     const map = new Map<string, FolderGroup>();
-    for (const imp of imports) {
+    for (const imp of filteredImports) {
       const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
       const issuer = detectIssuer(imp, meta);
       const range = dateRanges.get(imp.id);
@@ -574,14 +601,15 @@ export function StatementHistory() {
   })();
 
   useEffect(() => {
-    if (folders.length > 0 && openFolders.size === 0) {
-      setOpenFolders(new Set([folders[0].key]));
+    if (folders.length > 0 && expandedGroups.size === 0) {
+      const cy = new Date().getFullYear();
+      setExpandedGroups(new Set(folders.filter(f => f.year === cy).map(f => f.key)));
     }
   }, [folders.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleFolder = (key: string) => {
     if (selectMode) return;
-    setOpenFolders(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
+    setExpandedGroups(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   };
 
   const emptyCount = imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed").length;
@@ -622,7 +650,7 @@ export function StatementHistory() {
         <div style={{ flex: 1, height: 1, background: T.border }} />
         {!selectMode ? (
           <button
-            onClick={() => { setSelectMode(true); setOpenFolders(new Set(folders.map(f => f.key))); }}
+            onClick={() => { setSelectMode(true); setExpandedGroups(new Set(folders.map(f => f.key))); }}
             style={{ fontSize: 11, fontWeight: 700, color: T.dim, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}
           >
             Select
@@ -637,6 +665,69 @@ export function StatementHistory() {
         )}
         <div style={{ fontSize: 11, color: T.dim }}>{imports.length} import{imports.length !== 1 ? "s" : ""}</div>
       </div>
+
+      {/* ========== SEARCH BAR ========== */}
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.dim, pointerEvents: "none" }} />
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search statements by bank, year, or month\u2026"
+          style={{
+            width: "100%", boxSizing: "border-box",
+            padding: "10px 14px 10px 36px",
+            fontSize: 13, fontFamily: "inherit",
+            color: T.text, background: T.surface,
+            border: `1px solid ${T.border}`, borderRadius: 10,
+            outline: "none",
+          }}
+          onFocus={e => { e.currentTarget.style.borderColor = T.accent; }}
+          onBlur={e => { e.currentTarget.style.borderColor = T.border; }}
+        />
+      </div>
+
+      {/* ========== RECENT UPLOADS STRIP ========== */}
+      {!query.trim() && imports.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Recent uploads</div>
+          <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 4 }}>
+            {imports.slice(0, 5).map(imp => {
+              const meta = imp.document_id ? docMetas.get(imp.document_id) : undefined;
+              const issuer = detectIssuer(imp, meta);
+              const range = dateRanges.get(imp.id);
+              const period = formatPeriod(range);
+              const badge = isStuck(imp) ? { label: "Needs attention", color: T.amber } : statusBadge(imp.status);
+              const txLabel = imp.committed_count != null && imp.committed_count > 0 ? `${imp.committed_count} tx` : "0 tx";
+              return (
+                <div key={imp.id} style={{
+                  flex: "0 0 auto", minWidth: 180, maxWidth: 220,
+                  scrollSnapAlign: "start",
+                  padding: "12px 14px", borderRadius: 12,
+                  background: T.surface, border: `1px solid ${T.border}`,
+                  cursor: "default",
+                }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{issuer}</div>
+                  {period && <div style={{ fontSize: 11, color: T.dim, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{period}</div>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                    <span style={{ fontSize: 10, color: T.dim }}>{txLabel}</span>
+                    <span style={{ fontSize: 9.5, fontWeight: 700, padding: "1px 6px", borderRadius: 5, background: `${badge.color}15`, border: `1px solid ${badge.color}30`, color: badge.color, letterSpacing: "0.05em" }}>
+                      {badge.label.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ========== EMPTY SEARCH STATE ========== */}
+      {query.trim() && filteredImports.length === 0 && (
+        <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: T.dim }}>
+          No statements match &ldquo;{query.trim()}&rdquo;.
+        </div>
+      )}
 
       {selectMode && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, padding: "12px 14px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, flexWrap: "wrap" }}>
@@ -712,7 +803,7 @@ export function StatementHistory() {
           </div>
         )}
         {folders.map(folder => {
-          const isOpen = openFolders.has(folder.key);
+          const isOpen = query.trim() ? true : expandedGroups.has(folder.key);
           const color = issuerColor(folder.issuer);
           const emoji = issuerEmoji(folder.issuer);
           const folderAllSelected = folder.imports.every(i => selected.has(i.id));
@@ -821,7 +912,7 @@ export function StatementHistory() {
                               onClick={() => {
                                 folder.imports.forEach(i => setSelected(prev => new Set(prev).add(i.id)));
                                 setSelectMode(true);
-                                setOpenFolders(new Set([folder.key]));
+                                setExpandedGroups(new Set([folder.key]));
                                 setFolderMenu(null);
                                 setMenuAnchor(null);
                               }}
@@ -832,7 +923,7 @@ export function StatementHistory() {
                                 const emptyInFolder = folder.imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed");
                                 emptyInFolder.forEach(i => setSelected(prev => new Set(prev).add(i.id)));
                                 setSelectMode(true);
-                                setOpenFolders(new Set([folder.key]));
+                                setExpandedGroups(new Set([folder.key]));
                                 setFolderMenu(null);
                                 setMenuAnchor(null);
                               }}
