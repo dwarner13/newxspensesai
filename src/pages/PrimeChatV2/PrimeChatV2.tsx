@@ -238,11 +238,18 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return () => { cancelled = true; };
   }, [sessionId, userId]);
 
-  // First-time users (no prior Prime session) skip the resume card and go
-  // straight to the briefing cascade.
+  // First-time users (no prior Prime session and no history) skip the resume
+  // card and go straight to the briefing cascade.
   useEffect(() => {
     if (lastSessionChecked && historyChecked && !lastSession && history.length === 0) setShowBriefing(true);
   }, [lastSessionChecked, historyChecked, lastSession, history.length]);
+
+  // Returning users with hydrated history: collapse the briefing so only the
+  // conversation is visible. Without this the full 8-step cascade renders
+  // alongside 40+ history messages, making the panel look "endless."
+  useEffect(() => {
+    if (historyChecked && history.length > 0) setBriefingCollapsed(true);
+  }, [historyChecked, history.length]);
 
   // Sequential reveal - each step unlocks the next briefing section
   useEffect(() => {
