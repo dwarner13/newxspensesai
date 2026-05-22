@@ -17,6 +17,7 @@ import {
   buildSummaryText,
   buildThoughtsText,
 } from "./usePrimeBriefingData";
+import type { ChatMessage } from "@/hooks/usePrimeChat";
 
 /* ── File upload helpers ── */
 
@@ -87,6 +88,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const navigate = useNavigate();
   const { firstName, userId, session } = useAuth();
   const teamActivity = useTeamActivitySummary();
+  const sessionId = useMemo(
+    () => (userId ? localStorage.getItem(`chat_session_${userId}_prime-boss`) ?? undefined : undefined),
+    [userId]
+  );
 
   // Wire into the EXISTING chat engine - sends to POST /.netlify/functions/chat
   // Team activity summary injected so Prime knows what other agents discussed
@@ -96,6 +101,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     isStreaming,
   } = useUnifiedChatEngine({
     employeeSlug: "prime-boss",
+    initialMessages: history,
+    conversationId: sessionId,
     additionalPrimeContext: data.loading ? undefined : {
       // Real financial snapshot from usePrimeBriefingData
       financialSnapshot: {
@@ -144,6 +151,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [lastSession, setLastSession] = useState<{ title: string; summary: string } | null>(null);
   const [lastSessionChecked, setLastSessionChecked] = useState(false);
   const [showBriefing, setShowBriefing] = useState(false);
+  const [history, setHistory] = useState<ChatMessage[]>([]);
+  const [historyChecked, setHistoryChecked] = useState(false);
 
   // Fetch Tag rule-coverage stat for the briefing one-liner (Surface #2)
   useEffect(() => {
@@ -199,11 +208,41 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return () => { cancelled = true; };
   }, [userId]);
 
+  // Hydrate chat history from the existing Prime session so returning users see
+  // their prior conversation immediately on panel mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const sb = getSupabase();
+      if (!sb || !userId || !sessionId) { setHistoryChecked(true); return; }
+      const { data: rows, error } = await sb
+        .from("chat_messages")
+        .select("id, role, content, created_at, metadata")
+        .eq("session_id", sessionId)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (cancelled) return;
+      if (error) {
+        console.warn("[PrimeChatV2] history fetch failed", error);
+        setHistoryChecked(true);
+        return;
+      }
+      const mapped: ChatMessage[] = (rows ?? [])
+        .filter((r: any) => (r.role === "user" || r.role === "assistant") && r.metadata?.hidden !== true)
+        .reverse()
+        .map((r: any) => ({ id: r.id, role: r.role, content: r.content ?? "", createdAt: r.created_at }));
+      setHistory(mapped);
+      setHistoryChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId, userId]);
+
   // First-time users (no prior Prime session) skip the resume card and go
   // straight to the briefing cascade.
   useEffect(() => {
-    if (lastSessionChecked && !lastSession) setShowBriefing(true);
-  }, [lastSessionChecked, lastSession]);
+    if (lastSessionChecked && historyChecked && !lastSession && history.length === 0) setShowBriefing(true);
+  }, [lastSessionChecked, historyChecked, lastSession, history.length]);
 
   // Sequential reveal - each step unlocks the next briefing section
   useEffect(() => {
@@ -556,7 +595,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
 
         {/* Wait for the last-session lookup before deciding what to show, so a
             returning user never sees a flash of the briefing cascade. */}
-        {!lastSessionChecked ? null : lastSession && !showBriefing && !promptsUsed ? (
+        {!lastSessionChecked ? null : lastSession && !showBriefing && !promptsUsed && history.length === 0 ? (
           /* ── Returning-user resume card ── */
           <div style={{ animation: 'primeReveal 0.4s ease forwards' }}>
             <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
