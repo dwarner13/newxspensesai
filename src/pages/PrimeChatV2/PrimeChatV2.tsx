@@ -92,6 +92,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     () => (userId ? localStorage.getItem(`chat_session_${userId}_prime-boss`) ?? undefined : undefined),
     [userId]
   );
+  const [history, setHistory] = useState<ChatMessage[]>([]);
+  const [historyChecked, setHistoryChecked] = useState(false);
 
   // Wire into the EXISTING chat engine - sends to POST /.netlify/functions/chat
   // Team activity summary injected so Prime knows what other agents discussed
@@ -151,8 +153,6 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [lastSession, setLastSession] = useState<{ title: string; summary: string } | null>(null);
   const [lastSessionChecked, setLastSessionChecked] = useState(false);
   const [showBriefing, setShowBriefing] = useState(false);
-  const [history, setHistory] = useState<ChatMessage[]>([]);
-  const [historyChecked, setHistoryChecked] = useState(false);
 
   // Fetch Tag rule-coverage stat for the briefing one-liner (Surface #2)
   useEffect(() => {
