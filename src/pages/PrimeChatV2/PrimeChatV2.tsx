@@ -140,6 +140,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [revealStep, setRevealStep] = useState(0);
   const revealStarted = useRef(false);
   const [coverage, setCoverage] = useState<{ autoPct: number; total: number } | null>(null);
+  // ── Returning-user resume (Surface #3) ──
+  const [lastSession, setLastSession] = useState<{ title: string; summary: string } | null>(null);
+  const [lastSessionChecked, setLastSessionChecked] = useState(false);
+  const [showBriefing, setShowBriefing] = useState(false);
 
   // Fetch Tag rule-coverage stat for the briefing one-liner (Surface #2)
   useEffect(() => {
@@ -165,14 +169,51 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return () => { cancelled = true; };
   }, [userId]);
 
+  // Fetch the most recent Prime conversation summary. chat_convo_summaries is the
+  // populated, Custodian-maintained table; chat_sessions.last_message_at is NULL.
+  // Returning users get a resume card; first-timers fall through to the briefing.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const sb = getSupabase();
+      if (!sb || !userId) { setLastSessionChecked(true); return; }
+      const { data: row, error } = await sb
+        .from("chat_convo_summaries")
+        .select("title, summary, last_message_at")
+        .eq("user_id", userId)
+        .contains("employees_involved", ["prime-boss"])
+        .order("last_message_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.warn("[PrimeChatV2] last-session lookup failed", error);
+        setLastSessionChecked(true);
+        return;
+      }
+      if (row && (row.summary || row.title)) {
+        setLastSession({ title: row.title || "your finances", summary: row.summary || "" });
+      }
+      setLastSessionChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // First-time users (no prior Prime session) skip the resume card and go
+  // straight to the briefing cascade.
+  useEffect(() => {
+    if (lastSessionChecked && !lastSession) setShowBriefing(true);
+  }, [lastSessionChecked, lastSession]);
+
   // Sequential reveal - each step unlocks the next briefing section
   useEffect(() => {
     if (data.loading || data.transactionCount === 0) return;
+    if (!showBriefing) return;
     if (revealStarted.current) return;
     revealStarted.current = true;
     const steps = [400, 1300, 3000, 4500, 5700, 7000, 8500, 10000];
     steps.forEach((delay, i) => { setTimeout(() => setRevealStep(i + 1), delay); });
-  }, [data.loading, data.transactionCount]);
+  }, [data.loading, data.transactionCount, showBriefing]);
 
   const [promptsUsed, setPromptsUsed] = useState(false);
   const [briefingCollapsed, setBriefingCollapsed] = useState(false);
@@ -289,7 +330,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
       });
     });
-  }, [chatMessages.length, uploadMessages.length, lastAssistantLen, revealStep]);
+  }, [chatMessages.length, uploadMessages.length, lastAssistantLen]);
 
   // MutationObserver + direct scrollTop assignment: more reliable than ResizeObserver
   // because it fires on ANY DOM change inside the scroll container (new messages, markdown
@@ -301,13 +342,14 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || typeof MutationObserver === 'undefined') return;
+    if (!isStreaming) return;
     const scrollToBottom = () => {
       el.scrollTop = el.scrollHeight;
     };
     const observer = new MutationObserver(scrollToBottom);
     observer.observe(el, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
-  }, [data.loading]);
+  }, [data.loading, isStreaming]);
 
   // Force-scroll to the bottom (used on user send and briefing collapse).
   // Clears userScrolledUpRef because sending a message = "I want to see the response."
@@ -512,7 +554,55 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
 
         {/* ══════════ BRIEFING SECTION ══════════ */}
 
-        {briefingCollapsed ? (
+        {/* Wait for the last-session lookup before deciding what to show, so a
+            returning user never sees a flash of the briefing cascade. */}
+        {!lastSessionChecked ? null : lastSession && !showBriefing && !promptsUsed ? (
+          /* ── Returning-user resume card ── */
+          <div style={{ animation: 'primeReveal 0.4s ease forwards' }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+              <AgentDot agent="Prime" size={28} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
+                  <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text, lineHeight: 1.5 }}>
+                  Hey {firstName} — want to pick up where we left off?
+                </div>
+                <div style={{
+                  fontSize: 13, color: THEME.textMuted, marginTop: 8, lineHeight: 1.6,
+                  padding: "10px 14px", borderRadius: 12, background: THEME.accentGlow,
+                  borderLeft: `3px solid ${THEME.accent}55`,
+                }}>
+                  Last session: <span style={{ color: THEME.text, fontWeight: 600 }}>{lastSession.title}</span>
+                  {lastSession.summary ? <><br />{lastSession.summary}</> : null}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+                  <button
+                    onClick={() => handleSend(`Let's pick up where we left off — last time we were working on: ${lastSession.title}.`)}
+                    style={{
+                      padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                      background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`,
+                      border: "none", color: "#0b1220", cursor: "pointer",
+                    }}
+                  >
+                    Continue
+                  </button>
+                  <button
+                    onClick={() => setShowBriefing(true)}
+                    style={{
+                      padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                      background: THEME.surface, border: `1px solid ${THEME.border}`,
+                      color: THEME.text, cursor: "pointer",
+                    }}
+                  >
+                    Show today's briefing
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : briefingCollapsed ? (
           /* ── Collapsed briefing card ── */
           <button
             onClick={() => setBriefingCollapsed(false)}
