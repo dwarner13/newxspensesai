@@ -11,7 +11,29 @@ const PURPLE = "#a78bfa";
 interface Props { onClose: () => void; data: StoryData; }
 
 export function CrystalCopilotPanel({ onClose, data }: Props) {
-  const { messages, sendMessage } = useUnifiedChatEngine({ employeeSlug: "crystal-ai" });
+  const { messages, sendMessage } = useUnifiedChatEngine({
+    employeeSlug: "crystal-ai",
+    additionalPrimeContext: data.loading ? undefined : {
+      totalIncome: data.income,
+      totalSpent: data.expenses,
+      netPosition: data.netPosition,
+      transactionCount: data.transactionCount,
+      statementCount: data.statementCount,
+      periodStart: data.periodStart,
+      periodEnd: data.periodEnd,
+      categorySummary: data.categoryBreakdown.slice(0, 10).map(c => ({
+        category: c.cat,
+        amount: c.amount,
+        pct: c.pct,
+      })),
+      trends: data.trends.map(t => ({
+        label: t.label,
+        trend: t.trend,
+        pct: t.pct,
+        months: t.months,
+      })),
+    },
+  });
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -19,7 +41,8 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
   useEffect(() => { requestAnimationFrame(() => setOpen(true)); }, []);
   const handleClose = () => { setOpen(false); setTimeout(onClose, 300); };
 
-  const topCat = data.categoryBreakdown[0];
+  const NON_SPEND = new Set(["Transfers", "Transfer", "Loan Payments", "Credit Card Payments", "Investments", "Debt Payments", "Income"]);
+  const topCat = data.categoryBreakdown.find(c => !NON_SPEND.has(c.cat));
   const statusText = `I've been tracking your spending patterns across ${data.categoryBreakdown.length} categories. ${topCat ? `${topCat.cat} is your top spend at ${topCat.pct}%.` : ""} ${data.trends.filter(t => t.trend === "up").length > 0 ? `I spotted ${data.trends.filter(t => t.trend === "up").length} accelerating trend${data.trends.filter(t => t.trend === "up").length !== 1 ? "s" : ""}.` : "No concerning trends detected."}`;
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
