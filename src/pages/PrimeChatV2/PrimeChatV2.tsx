@@ -9,7 +9,6 @@ import { PrimeChatInput } from "./PrimeChatInput";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
-import { useTeamActivitySummary } from "@/hooks/useTeamActivitySummary";
 import { TypingMessage } from "@/components/chat/TypingMessage";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
 import {
@@ -87,7 +86,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const data = usePrimeBriefingData();
   const navigate = useNavigate();
   const { firstName, userId, session } = useAuth();
-  const teamActivity = useTeamActivitySummary();
+
   const sessionId = useMemo(
     () => (userId ? localStorage.getItem(`chat_session_${userId}_prime-boss`) ?? undefined : undefined),
     [userId]
@@ -140,8 +139,6 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           count: b.count,
         })),
       })),
-      // Team agent activity
-      teamActivitySummary: teamActivity.summaryText || undefined,
     },
   });
 
