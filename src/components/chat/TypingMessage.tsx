@@ -215,8 +215,8 @@ export function FormattedMessageText({ text }: { text: string }) {
             </div>
           );
         }
-        if (trimmed.startsWith('- ') || trimmed.startsWith('- ')) {
-          const body = trimmed.replace(/^[--]\s+/, '');
+        if (/^[-\u2013\u2014*\u2022]\s+/.test(trimmed)) {
+          const body = trimmed.replace(/^[-\u2013\u2014*\u2022]\s+/, '');
           return (
             <div key={`line-${idx}`} className="mb-1 flex items-start gap-2">
               <span className="text-slate-300">-</span>
@@ -301,9 +301,10 @@ export function TypingMessage({
     currentIndexRef.current = Math.min(displayedLengthRef.current, totalChars);
     const estimatedDuration = totalChars * actualDelay;
 
-    // If message is too long, speed up to cap duration
-    const finalDelay = estimatedDuration > maxDuration 
-      ? Math.max(5, maxDuration / totalChars) // Minimum 5ms per char
+    // Scale the cap to content length so long breakdowns aren't dumped instantly.
+    const scaledMax = Math.max(maxDuration, totalChars * charDelay);
+    const finalDelay = estimatedDuration > scaledMax
+      ? Math.max(5, scaledMax / totalChars) // Minimum 5ms per char
       : actualDelay;
 
     // Start typing animation
@@ -327,7 +328,7 @@ export function TypingMessage({
       // Check if we've exceeded max duration
       if (!isStreaming) {
         const elapsed = Date.now() - (startTimeRef.current || 0);
-        if (elapsed >= maxDuration) {
+        if (elapsed >= scaledMax) {
           // Show remaining text immediately
           setDisplayedText(content);
           isTypingRef.current = false;
@@ -368,9 +369,14 @@ export function TypingMessage({
     };
   }, [content, messageId, isStreaming, isTyped, charDelay, maxDuration, prefersReducedMotion, onTyped]);
 
+  const settled = isStreaming || isTyped || displayedText.length >= content.length;
   return (
     <span className="break-words">
-      {renderer ? renderer(displayedText) : <FormattedMessageText text={displayedText} />}
+      {renderer ? renderer(displayedText) : settled ? (
+        <FormattedMessageText text={displayedText} />
+      ) : (
+        <span className="whitespace-pre-wrap">{displayedText}</span>
+      )}
     </span>
   );
 }
