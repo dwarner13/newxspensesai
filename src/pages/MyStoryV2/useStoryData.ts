@@ -12,6 +12,19 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
+const NON_SPEND_CATEGORIES = new Set([
+  "transfers", "transfer",
+  "loan payments", "loan payment",
+  "credit card payments", "credit card payment",
+  "investments", "investment",
+  "debt payments", "debt payment",
+  "income", "business income",
+]);
+
+function isNonSpend(t: { category?: string }): boolean {
+  return NON_SPEND_CATEGORIES.has((t.category || "").toLowerCase().trim());
+}
+
 const CAT_COLORS: Record<string, string> = {
   "Groceries": "#34d399", "Food & Dining": "#f87171", "Transportation": "#22d3ee",
   "Shopping": "#fb923c", "Subscriptions": "#60a5fa", "Personal Care": "#f472b6",
@@ -54,7 +67,7 @@ export function useStoryData(): StoryData {
     }
 
     const incTxs = transactions.filter(t => isIncome(t));
-    const expTxs = transactions.filter(t => !isIncome(t));
+    const expTxs = transactions.filter(t => !isIncome(t) && !isNonSpend(t));
     const income = incTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
     const expenses = expTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
     const netPosition = income - expenses;

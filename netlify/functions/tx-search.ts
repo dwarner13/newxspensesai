@@ -3,6 +3,23 @@ import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { normalizeMerchantName, merchantKey } from './_shared/merchantNormalize.js';
 
+// Categories that are internal money movement, NOT real spending. Excluded from
+// totals.spending so Prime doesn't report "Transfers" as the #1 expense.
+// Mirrors the list in _shared/financial-snapshot.ts and usePrimeBriefingData.ts.
+const NON_SPEND_CATEGORIES = new Set([
+  'transfers', 'transfer',
+  'loan payments', 'loan payment',
+  'credit card payments', 'credit card payment',
+  'investments', 'investment',
+  'debt payments', 'debt payment',
+  'income', 'business income',
+]);
+
+function isNonSpend(category: string | null | undefined): boolean {
+  if (!category) return false;
+  return NON_SPEND_CATEGORIES.has(category.trim().toLowerCase());
+}
+
 type RequestBody = {
   importId?: string;
   documentId?: string;
@@ -268,7 +285,11 @@ export const handler: Handler = async (event) => {
       count: rowsWithDupes.length,
       sum: signedAmounts.reduce((acc, n) => acc + n, 0),
       income: signedAmounts.filter((n) => n > 0).reduce((acc, n) => acc + n, 0),
-      spending: Math.abs(signedAmounts.filter((n) => n < 0).reduce((acc, n) => acc + n, 0)),
+      spending: Math.abs(
+        rowsWithDupes
+          .filter((r: TxRow) => toNumber(r.signed_amount) < 0 && !isNonSpend(r.category))
+          .reduce((acc, r) => acc + toNumber(r.signed_amount), 0)
+      ),
     };
 
     let pendingRows: TxRow[] = [];
