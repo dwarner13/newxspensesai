@@ -10,6 +10,24 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 type FinancialSnapshot = import('../../../src/types/prime-state').FinancialSnapshot;
 type StressSignal = import('../../../src/types/prime-state').StressSignal;
 
+// Categories that are internal money movement, NOT real spending. Excluded from
+// monthlyExpenses, topCategories, and topMerchants so Prime doesn't report
+// "Transfers" as the #1 spending category. Mirrors the frontend list in
+// usePrimeBriefingData.ts NON_SPEND_CATEGORIES.
+const NON_SPEND_CATEGORIES = new Set([
+  'transfers', 'transfer',
+  'loan payments', 'loan payment',
+  'credit card payments', 'credit card payment',
+  'investments', 'investment',
+  'debt payments', 'debt payment',
+  'income', 'business income',
+]);
+
+function isNonSpend(category: string | null): boolean {
+  if (!category) return false;
+  return NON_SPEND_CATEGORIES.has(category.trim().toLowerCase());
+}
+
 // In-memory cache to prevent heavy re-fetches on every ping
 interface SnapshotCacheEntry {
   snapshot: FinancialSnapshot;
@@ -89,7 +107,7 @@ export async function buildFinancialSnapshot(
   });
   
   const monthlyExpenses = currentMonthTransactions
-    .filter(t => t.type === 'expense' || (t.type === null && t.amount < 0))
+    .filter(t => (t.type === 'expense' || (t.type === null && t.amount < 0)) && !isNonSpend(t.category))
     .reduce((sum, t) => sum + Math.abs(t.amount), 0);
   
   const monthlyIncome = currentMonthTransactions
@@ -98,10 +116,10 @@ export async function buildFinancialSnapshot(
   
   const netCashflow = monthlyIncome - monthlyExpenses;
   
-  // 4. TOP CATEGORIES (current month expenses)
+  // 4. TOP CATEGORIES (current month expenses, excluding non-spend categories)
   const categoryMap = new Map<string, { total: number; count: number }>();
   currentMonthTransactions
-    .filter(t => t.type === 'expense' || (t.type === null && t.amount < 0))
+    .filter(t => (t.type === 'expense' || (t.type === null && t.amount < 0)) && !isNonSpend(t.category))
     .forEach(t => {
       const cat = t.category || 'Uncategorized';
       const existing = categoryMap.get(cat) || { total: 0, count: 0 };
@@ -120,10 +138,10 @@ export async function buildFinancialSnapshot(
     .sort((a, b) => b.totalAmount - a.totalAmount)
     .slice(0, 5);
   
-  // 5. TOP MERCHANTS (current month expenses)
+  // 5. TOP MERCHANTS (current month expenses, excluding non-spend categories)
   const merchantMap = new Map<string, { total: number; count: number }>();
   currentMonthTransactions
-    .filter(t => t.type === 'expense' || (t.type === null && t.amount < 0))
+    .filter(t => (t.type === 'expense' || (t.type === null && t.amount < 0)) && !isNonSpend(t.category))
     .forEach(t => {
       const merchant = t.merchant || 'Unknown';
       const existing = merchantMap.get(merchant) || { total: 0, count: 0 };
