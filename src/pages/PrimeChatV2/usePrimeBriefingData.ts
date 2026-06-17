@@ -13,6 +13,28 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
+// Categories that are internal money movement, NOT real spending. Excluded from
+// totalSpent and categoryBreakdown so Prime/Crystal don't report "Transfers" as the
+// #1 spending category. Income is handled separately by isIncome().
+const NON_SPEND_CATEGORIES = new Set([
+  "transfers",
+  "transfer",
+  "loan payments",
+  "loan payment",
+  "credit card payments",
+  "credit card payment",
+  "investments",
+  "investment",
+  "debt payments",
+  "debt payment",
+  "income",
+  "business income",
+]);
+
+function isNonSpend(t: { category?: string }): boolean {
+  return NON_SPEND_CATEGORIES.has((t.category || "").toLowerCase().trim());
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   "Groceries": "#34d399", "Food & Dining": "#f87171", "Transportation": "#60a5fa",
   "Shopping": "#a78bfa", "Subscriptions": "#818cf8", "Personal Care": "#ec4899",
@@ -248,7 +270,10 @@ export function usePrimeBriefingData(): PrimeBriefingData {
     }
 
     const incomeTransactions = transactions.filter(t => isIncome(t));
-    const expenses = transactions.filter(t => !isIncome(t));
+    // Real spending = not income AND not internal money movement (transfers, loan/CC
+    // payments, investments). Excluding these fixes "Transfers $127,655" showing as the
+    // #1 spending category in Prime's top-10 and Crystal's status line.
+    const expenses = transactions.filter(t => !isIncome(t) && !isNonSpend(t));
 
     // Totals
     const totalSpent = expenses.reduce((s, t) => s + Math.abs(t.amount), 0);

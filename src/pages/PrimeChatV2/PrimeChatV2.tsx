@@ -87,9 +87,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const navigate = useNavigate();
   const { firstName, userId, session } = useAuth();
 
-  const sessionId = useMemo(
-    () => (userId ? localStorage.getItem(`chat_session_${userId}_prime-boss`) ?? undefined : undefined),
-    [userId]
+  const [sessionId, setSessionId] = useState<string | undefined>(
+    () => (userId ? localStorage.getItem(`chat_session_${userId}_prime-boss`) ?? undefined : undefined)
   );
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [historyChecked, setHistoryChecked] = useState(false);
@@ -187,6 +186,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         .from("chat_convo_summaries")
         .select("title, summary, last_message_at")
         .eq("user_id", userId)
+        .eq("session_id", sessionId)
         .contains("employees_involved", ["prime-boss"])
         .order("last_message_at", { ascending: false })
         .limit(1)
@@ -218,7 +218,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         .eq("session_id", sessionId)
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(100);
+        .limit(20);
       if (cancelled) return;
       if (error) {
         console.warn("[PrimeChatV2] history fetch failed", error);
@@ -414,6 +414,27 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     await sendMessage(message);
   }, [sendMessage, forceScrollToBottom]);
 
+  // Start a fresh Prime conversation — generates a new session ID so prior
+  // messages don't contaminate the new thread.
+  const handleNewChat = useCallback(() => {
+    if (!userId) return;
+    const newId = crypto.randomUUID();
+    localStorage.setItem(`chat_session_${userId}_prime-boss`, newId);
+    setSessionId(newId);
+    setHistory([]);
+    setHistoryChecked(false);
+    setLastSession(null);
+    setLastSessionChecked(false);
+    setShowBriefing(false);
+    setPromptsUsed(false);
+    setBriefingCollapsed(false);
+    setRevealStep(0);
+    revealStarted.current = false;
+    setUploadMessages([]);
+    typedIdsRef.current.clear();
+    userScrolledUpRef.current = false;
+  }, [userId]);
+
   // ── Process file through the import pipeline ──
   const processFile = useCallback(async (file: File) => {
     if (!userId) return;
@@ -568,6 +589,23 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green }} />
           <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>Secured</span>
         </div>
+        <button
+          onClick={handleNewChat}
+          title="New chat"
+          style={{
+            width: 30, height: 30, borderRadius: 8,
+            background: "transparent", border: `1px solid ${THEME.border}`,
+            color: THEME.textMuted, cursor: "pointer", display: "flex",
+            alignItems: "center", justifyContent: "center", flexShrink: 0,
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = THEME.surface; e.currentTarget.style.color = THEME.text; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = THEME.textMuted; }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
+          </svg>
+        </button>
         {onClose && (
           <button
             onClick={onClose}
