@@ -12,6 +12,16 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
+const NON_SPEND_CATEGORIES = new Set([
+  "transfers", "transfer", "loan payments", "loan payment",
+  "credit card payments", "credit card payment",
+  "investments", "investment", "debt payments", "debt payment",
+  "income", "business income",
+]);
+function isNonSpend(t: { category?: string }): boolean {
+  return NON_SPEND_CATEGORIES.has((t.category || "").toLowerCase().trim());
+}
+
 const SUBCATEGORY_PATTERNS: Record<string, { name: string; keywords: string[] }[]> = {
   "Transportation": [
     { name: "Gas & Fuel",  keywords: ["petro", "shell", "esso", "gas", "fuel", "husky", "irving"] },
@@ -134,11 +144,11 @@ export function useCategoriesData(selectedPeriod?: string, selectedYear?: number
       periodFiltered.filter(t => isIncome(t)).reduce((s, t) => s + Math.abs(t.amount), 0)
     );
 
-    const expenses = periodFiltered.filter(t => !isIncome(t));
+    const expenses = periodFiltered.filter(t => !isIncome(t) && !isNonSpend(t));
 
     // MoM trend within selected year
     const monthBuckets: Record<string, Record<string, number>> = {};
-    yearFiltered.filter(t => !isIncome(t)).forEach(t => {
+    yearFiltered.filter(t => !isIncome(t) && !isNonSpend(t)).forEach(t => {
       const d = new Date(t.posted_at || "");
       if (isNaN(d.getTime())) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;

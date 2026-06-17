@@ -13,6 +13,16 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
+const NON_SPEND_CATEGORIES = new Set([
+  "transfers", "transfer", "loan payments", "loan payment",
+  "credit card payments", "credit card payment",
+  "investments", "investment", "debt payments", "debt payment",
+  "income", "business income",
+]);
+function isNonSpend(t: { category?: string }): boolean {
+  return NON_SPEND_CATEGORIES.has((t.category || "").toLowerCase().trim());
+}
+
 export interface DashboardData {
   income: number;
   expenses: number;
@@ -48,7 +58,7 @@ export function useDashboardData(): DashboardData {
     }
 
     const incTxs = transactions.filter(t => isIncome(t));
-    const expTxs = transactions.filter(t => !isIncome(t));
+    const expTxs = transactions.filter(t => !isIncome(t) && !isNonSpend(t));
     const income = incTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
     const expenses = expTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
     const netFlow = income - expenses;
@@ -62,7 +72,7 @@ export function useDashboardData(): DashboardData {
       if (!monthBuckets[key]) monthBuckets[key] = { inc: 0, exp: 0, catMap: {} };
       const amt = Math.abs(t.amount);
       if (isIncome(t)) { monthBuckets[key].inc += amt; }
-      else {
+      else if (!isNonSpend(t)) {
         monthBuckets[key].exp += amt;
         const cat = t.category || "Other";
         monthBuckets[key].catMap[cat] = (monthBuckets[key].catMap[cat] || 0) + amt;
