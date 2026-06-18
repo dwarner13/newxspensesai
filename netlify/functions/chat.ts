@@ -1420,6 +1420,17 @@ function buildVendorRuleAmbiguityHint(message: string, toolCalls: any[], toolRes
   return null;
 }
 
+const NON_SPEND_CATEGORIES = new Set([
+  'transfers', 'transfer', 'loan payments', 'loan payment',
+  'credit card payments', 'credit card payment',
+  'investments', 'investment', 'debt payments', 'debt payment',
+  'income', 'business income',
+]);
+function isNonSpendCategory(category: string | null | undefined): boolean {
+  if (!category) return false;
+  return NON_SPEND_CATEGORIES.has(category.trim().toLowerCase());
+}
+
 function buildTxDeterministicMetricsHint(message: string, toolCalls: any[], toolResults: any[]): string | null {
   const txResults = extractTxSearchResults(toolCalls, toolResults);
   if (txResults.length === 0) return null;
@@ -1429,9 +1440,10 @@ function buildTxDeterministicMetricsHint(message: string, toolCalls: any[], tool
   const merchantAmount = new Map<string, number>();
   const categoryAmount = new Map<string, number>();
   for (const row of rows) {
+    const category = String((row as any)?.category || 'Uncategorized').trim() || 'Uncategorized';
+    if (isNonSpendCategory(category)) continue;
     const amt = Math.abs(txNum((row as any)?.amount));
     const merchant = String((row as any)?.merchant_normalized || (row as any)?.merchant || (row as any)?.description || 'UNKNOWN-MERCHANT').trim();
-    const category = String((row as any)?.category || 'Uncategorized').trim() || 'Uncategorized';
     merchantAmount.set(merchant, (merchantAmount.get(merchant) || 0) + amt);
     categoryAmount.set(category, (categoryAmount.get(category) || 0) + amt);
   }
