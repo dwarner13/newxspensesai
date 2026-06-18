@@ -321,11 +321,8 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
   
   // Clear messages (reset to initial messages if provided)
   const clearMessages = useCallback(() => {
-    // Note: usePrimeChat doesn't expose clearMessages directly
-    // We'll need to work with the component to handle this
-    // For now, this is a no-op - components can manage their own message clearing
-    // if needed by resetting initialMessages prop
-  }, []);
+    primeChat.clearMessages();
+  }, [primeChat.clearMessages]);
   
   // Error extraction: usePrimeChat doesn't expose error field directly
   // Set to null instead of inferring from message text (more reliable)

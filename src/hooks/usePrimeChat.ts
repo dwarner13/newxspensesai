@@ -2185,6 +2185,7 @@ export function usePrimeChat(
     removeUpload,
     send,
     stop,
+    clearMessages: () => setMessages([]), // Clear rendered bubbles (New Chat)
     guardrailsStatus, // Guardrails status from SSE meta events
   };
 }

@@ -99,6 +99,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     messages,
     sendMessage,
     isStreaming,
+    clearMessages,
   } = useUnifiedChatEngine({
     employeeSlug: "prime-boss",
     initialMessages: history,
@@ -421,6 +422,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     const newId = crypto.randomUUID();
     localStorage.setItem(`chat_session_${userId}_prime-boss`, newId);
     setSessionId(newId);
+    clearMessages();
     setHistory([]);
     setHistoryChecked(false);
     setLastSession(null);
