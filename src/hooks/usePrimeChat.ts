@@ -132,6 +132,14 @@ export function usePrimeChat(
     return undefined;
   });
   
+  // Sync effectiveSessionId when the sessionId prop changes (e.g. New Chat rotation).
+  // Without this, effectiveSessionId is stuck on the initial value from useState.
+  useEffect(() => {
+    if (sessionId && sessionId !== effectiveSessionId) {
+      setEffectiveSessionId(sessionId);
+    }
+  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Retrieve thread_id from localStorage if available
   const [effectiveThreadId, setEffectiveThreadId] = useState<string | undefined>(() => {
     if (safeUserId && employeeOverride) {
