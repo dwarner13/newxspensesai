@@ -292,6 +292,21 @@ export const handler: Handler = async (event) => {
       ),
     };
 
+    // NON_SPEND-filtered top spending category (backstop for biggest-expense ranking)
+    const spendByCategory: Record<string, number> = {};
+    for (const r of rowsWithDupes) {
+      if (toNumber(r.signed_amount) >= 0) continue;        // only spend rows
+      const cat = String(r.category || 'Uncategorized').trim();
+      if (isNonSpend(cat)) continue;                        // same filter as totals.spending
+      spendByCategory[cat] = (spendByCategory[cat] || 0) + Math.abs(toNumber(r.signed_amount));
+    }
+    let topSpendCategory: { category: string; amount: number } | null = null;
+    for (const [cat, amt] of Object.entries(spendByCategory)) {
+      if (!topSpendCategory || amt > topSpendCategory.amount) {
+        topSpendCategory = { category: cat, amount: amt };
+      }
+    }
+
     let pendingRows: TxRow[] = [];
     if (includePending) {
       const hasPendingImportId = await detectColumn(sb, 'transactions_staging', userId, 'import_id', columnCache);
@@ -348,6 +363,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({
         rows: rowsWithDupes,
         totals,
+        topSpendCategory,
         pendingRows,
         meta: {
           usedFilters: {

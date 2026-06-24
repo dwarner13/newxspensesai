@@ -40,6 +40,10 @@ export const outputSchema = z.object({
     income: z.number(),
     spending: z.number(),
   }),
+  topSpendCategory: z.object({
+    category: z.string(),
+    amount: z.number(),
+  }).nullable().optional(),
   pendingRows: z.array(z.object({
     id: z.string(),
     import_id: z.string().nullable().optional(),
