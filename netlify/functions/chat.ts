@@ -650,7 +650,7 @@ function detectGroundedFactsIntent(message: string): GroundedFactsIntent {
   const uncategorizedPattern =
     /\b(uncategorized|not categorized|unclassified)\b.*\b(transactions?|spend|expenses?)\b|\bhow many uncategorized\b/i;
   const topCategoriesPattern =
-    /\b(top|largest|main)\s+(categories?|spending categories?)\b|\bwhich categories do i spend\b/i;
+    /\b(top|largest|main|biggest|highest)\s+(categories?|spending categories?|expenses?|spending)\b|\bwhich categories do i spend\b|\b(biggest|largest|highest)\s+expense\b/i;
   const overviewPattern =
     /\b(financial snapshot|money snapshot|spending snapshot|quick summary|overview of my finances?)\b/i;
 
@@ -1283,7 +1283,7 @@ function isCompareIntent(message: string): boolean {
 function isTopCategoryIntent(message: string): boolean {
   const text = String(message || '').toLowerCase();
   if (!text) return false;
-  return /\b(biggest|largest|top)\b.*\b(category|categories)\b|\b(top category|top categories)\b/.test(text);
+  return /\b(biggest|largest|top|highest)\b.*\b(category|categories|expenses?|spending)\b|\b(top category|top categories|top expenses?|top spending)\b/.test(text);
 }
 
 function isTopMerchantIntent(message: string): boolean {
