@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+﻿import { useMemo } from "react";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useImportList } from "@/hooks/useImportList";
 
@@ -41,15 +41,25 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Healthcare": "#f87171", "Bank Fees": "#94a3b8", "Income": "#34d399", "Other": "#4a5a75",
 };
 
-/* ── Tax-Workspace mirror: section matchers (same rules as TaxWorkspacePage.tsx) ── */
+/* â”€â”€ Tax-Workspace mirror: section matchers (same rules as TaxWorkspacePage.tsx) â”€â”€ */
 // Keep these in sync if TaxWorkspacePage section logic changes.
 interface TaxSectionDef {
   id: string;
   title: string;
   matchFn: (tx: { category?: string; subcategory?: string; type?: string }) => boolean;
 }
-const TAX_SECTIONS: TaxSectionDef[] = [
-  { id: "income", title: "Income", matchFn: (tx) => (tx as any).type === "income" },
+const NON_SPEND_SUBCATEGORIES = new Set([
+  "car loan", "loan payment", "loan payments", "credit card payment",
+  "credit card payments", "transfer", "transfers", "investment", "investments",
+  "tfsa", "rrsp", "debt payment", "debt payments",
+]);
+function isNonSpendTx(tx: { category?: string; subcategory?: string }): boolean {
+  return (
+    NON_SPEND_CATEGORIES.has((tx.category || "").toLowerCase().trim()) ||
+    NON_SPEND_SUBCATEGORIES.has((tx.subcategory || "").toLowerCase().trim())
+  );
+}
+const SPEND_TAX_SECTIONS: TaxSectionDef[] = [
   {
     id: "vehicle", title: "Vehicle Expenses",
     matchFn: (tx) =>
@@ -84,8 +94,26 @@ const TAX_SECTIONS: TaxSectionDef[] = [
       ["Golf", "Gambling", "Events / Tickets", "Investments", "Online Shopping", "Clothing", "General Shopping", "Hardware / Auto", "Fitness", "Supplements"].includes(tx.subcategory || ""),
   },
 ];
+// Guard every spend section against non-spend txns (transfers, loan/CC payments,
+// investments), then add a dedicated visible section that catches them. Inserted
+// AFTER income but BEFORE spend sections so first-match-wins claims non-spend here
+// and it never inflates Personal/Vehicle. Excluded from spend rollups because its
+// matchFn is the non-spend predicate. UI + AUTHORITATIVE context iterate generically.
+const TAX_SECTIONS: TaxSectionDef[] = [
+  { id: "income", title: "Income", matchFn: (tx) => (tx as any).type === "income" },
+  {
+    id: "non_spend",
+    title: "Transfers & Non-Spend",
+    matchFn: (tx) => (tx as any).type !== "income" && isNonSpendTx(tx),
+  },
+  ...SPEND_TAX_SECTIONS.map((s) => ({
+    ...s,
+    matchFn: (tx: { category?: string; subcategory?: string; type?: string }) =>
+      !isNonSpendTx(tx) && s.matchFn(tx),
+  })),
+];
 
-/* ── Bucket definitions (mirror TaxWorkspacePage.tsx exactly) ── */
+/* â”€â”€ Bucket definitions (mirror TaxWorkspacePage.tsx exactly) â”€â”€ */
 // IMPORTANT: Keep these in sync with TaxWorkspacePage.tsx. These are the same
 // merchant-keyword rules the Tax Summary UI uses to compute per-bucket totals.
 interface TaxBucket { label: string; keywords: string[]; }
@@ -396,7 +424,7 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       .map(c => `${c.label} ${totalSpent > 0 ? Math.round((c.amount / totalSpent) * 100) : 0}%`)
       .join(" \u2022 ");
 
-    // ── Tax-Workspace mirror: section + bucket totals ──
+    // â”€â”€ Tax-Workspace mirror: section + bucket totals â”€â”€
     // Uses the EXACT same logic TaxWorkspacePage uses so Prime's numbers match the UI exactly.
     // Key parity details (easy to miss):
     //   1. Year filter: Tax Workspace defaults to year 2025 (`WHERE date >= '2025-01-01' AND date < '2026-01-01'`).
