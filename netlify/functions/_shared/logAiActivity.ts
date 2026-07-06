@@ -56,7 +56,7 @@ const ERROR_LOG_TTL = 5 * 60 * 1000; // 5 minutes
 /**
  * Allowed status values for ai_activity_events table (matches database constraint)
  */
-const ALLOWED_STATUSES = ['started', 'success', 'completed', 'error', 'warning', 'info', 'pending'] as const;
+const ALLOWED_STATUSES = ['active', 'processing', 'analyzing', 'started', 'success', 'completed', 'error', 'warning', 'info'] as const;
 
 /**
  * Status synonym mapping
