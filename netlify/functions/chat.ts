@@ -8958,16 +8958,6 @@ export const handler: Handler = async (event, context) => {
         if (fs.hasGoals !== undefined) primeContextMessage += `- hasGoals: ${fs.hasGoals}\n`;
       }
       
-      console.log('[TAXSUMMARY_DEBUG]', JSON.stringify({
-        employeeSlug: finalEmployeeSlug,
-        primeContextKeys: pc ? Object.keys(pc) : [],
-        hasTaxSummary: Array.isArray(pc?.taxSummary),
-        taxSummaryLen: Array.isArray(pc?.taxSummary) ? pc.taxSummary.length : 0,
-        taxSummarySample: Array.isArray(pc?.taxSummary) ? pc.taxSummary.slice(0, 4) : null,
-        categorySummary: pc?.categorySummary ?? null,
-        totalSpent: pc?.totalSpent ?? null,
-      }));
-
       // PHASE 2.2 FIX: Tax-workspace mirror with authority instruction.
       // Prime has been ignoring this data and calling tx_search instead. Strong directive added.
       if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
