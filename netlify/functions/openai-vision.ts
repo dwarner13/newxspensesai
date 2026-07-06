@@ -19,10 +19,11 @@
 import type { Handler } from '@netlify/functions';
 import OpenAI from 'openai';
 import { corsHeaders, jsonResponse, parseJson } from './_shared/http.js';
+import { withRateLimit, getPresetOptions } from './_shared/rate-limit-v2.js';
 
 const DEFAULT_PROMPT = 'Extract all readable text from this image.';
 
-export const handler: Handler = async (event) => {
+const rawHandler: Handler = async (event) => {
   // ── CORS preflight ──────────────────────────────────────────────────────────
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders, body: '' };
@@ -111,3 +112,8 @@ export const handler: Handler = async (event) => {
     });
   }
 };
+
+export const handler = withRateLimit(rawHandler, {
+  key: 'openai-vision',
+  ...getPresetOptions('export'),
+});

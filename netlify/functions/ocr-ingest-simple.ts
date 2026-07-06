@@ -30,6 +30,7 @@
 import type { Handler } from '@netlify/functions';
 import OpenAI from 'openai';
 import { corsHeaders, jsonResponse } from './_shared/http.js';
+import { withRateLimit, getPresetOptions } from './_shared/rate-limit-v2.js';
 
 // ── Vision helper ────────────────────────────────────────────────────────────
 
@@ -126,7 +127,7 @@ async function parseReceipt(openai: OpenAI, text: string, model: string): Promis
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 
-export const handler: Handler = async (event) => {
+const rawHandler: Handler = async (event) => {
   // CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders, body: '' };
@@ -236,3 +237,8 @@ export const handler: Handler = async (event) => {
     });
   }
 };
+
+export const handler = withRateLimit(rawHandler, {
+  key: 'ocr-ingest-simple',
+  ...getPresetOptions('export'),
+});
