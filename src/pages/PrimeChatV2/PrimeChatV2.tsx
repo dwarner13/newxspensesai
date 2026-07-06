@@ -386,14 +386,16 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || typeof MutationObserver === 'undefined') return;
-    if (!isStreaming) return;
     const scrollToBottom = () => {
-      el.scrollTop = el.scrollHeight;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      if (nearBottom || !userScrolledUpRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
     };
     const observer = new MutationObserver(scrollToBottom);
     observer.observe(el, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
-  }, [data.loading, isStreaming]);
+  }, [data.loading]);
 
   // Force-scroll to the bottom (used on user send and briefing collapse).
   // Clears userScrolledUpRef because sending a message = "I want to see the response."
@@ -634,7 +636,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         @keyframes primeReveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes primeDot { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; } 40% { transform: scale(1); opacity: 0.8; } }
       `}</style>
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 16px 16px", minHeight: 0 }}>
+      <div ref={scrollRef} onScroll={(e) => {
+        const el = e.currentTarget;
+        userScrolledUpRef.current = (el.scrollHeight - el.scrollTop - el.clientHeight) > 120;
+      }} style={{ flex: 1, overflowY: "auto", padding: "18px 16px 16px", minHeight: 0 }}>
 
         {/* â•â•â•â•â•â•â•â•â•â• BRIEFING SECTION â•â•â•â•â•â•â•â•â•â• */}
 
