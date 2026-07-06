@@ -10,7 +10,6 @@ import { onBus } from '../lib/bus';
 import { getSupabase } from '../lib/supabase';
 import { log, error } from '../lib/logger';
 import { isPostImportTriggersDisabled, isPrimeUploadNarrationEnabled } from '../lib/featureFlags';
-import { fetchPrimeSummarySingleFlight } from '../lib/ai/primeSummaryClient';
 import {
   buildUploadTimelineTruthFromRouterStatus,
   type UploadTimelineTruth,
@@ -538,10 +537,6 @@ async function preparePrimeSummary(importId: string, _userId: string, importIds?
           // non-fatal - Prime will still run, categories may be partial
         }
         // ── Now Prime reads categorized data ─────────────────────────────
-        const result = await fetchPrimeSummarySingleFlight(
-          { importId, importIds },
-          { headers: authHeader }
-        );
         const toSummaryResponse = (fallbackSummary: string) => {
             const totalProcessed =
               parseCount(fallbackSummary, /Parsed transactions:\s*(\d+)/i) ??
@@ -564,14 +559,8 @@ async function preparePrimeSummary(importId: string, _userId: string, importIds?
               },
             };
         };
-        if (result.ok) {
-          const payload = result.payload;
-          const fallbackSummary = String(payload?.summary || '');
-          if (isUsableSummary(fallbackSummary)) {
-            return toSummaryResponse(fallbackSummary);
-          }
-          const summaryState = String(payload?.state || '').toLowerCase();
-          if (summaryState === 'already_processing' || !fallbackSummary.trim() || isGeneric(fallbackSummary)) {
+        {
+          {
             for (let i = 0; i < 5; i += 1) {
               await new Promise((resolve) => setTimeout(resolve, 600));
               const retryRes = await fetch('/.netlify/functions/prime-summary', {
