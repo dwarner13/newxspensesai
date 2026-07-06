@@ -53,12 +53,7 @@ export async function ensureThread(
     return upserted.id as string;
   }
   
-  // Only resume the user's most-recent thread when a caller explicitly opts in
-  // (e.g. Byte→Prime announcements that must land in the current conversation).
-  // A cold open / New Chat passes no threadId AND no resumeLatest, so we fall
-  // through to create a fresh thread — preventing resurrection of dead/poisoned
-  // threads across sessions (zombie-session root cause).
-  if (opts?.resumeLatest) {
+  {  // chat_threads has UNIQUE(user_id, assistant_key): exactly ONE thread per user+assistant, so always resume it. Conversation freshness is handled at the session/message-load layer, NOT by creating threads.
     const { data: existing, error: fetchError } = await sb
       .from('chat_threads')
       .select('id')
