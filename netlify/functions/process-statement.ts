@@ -589,6 +589,7 @@ export const handler: Handler = async (event) => {
     // Step 6: Insert ai_activity_events → triggers Byte announcement
     const { error: eventError } = await sb.from('ai_activity_events').insert({
       event_type: 'byte.import.completed',
+      status: 'completed',
       user_id: userId,
       employee_id: 'byte-docs',
       details: {
