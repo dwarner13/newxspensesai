@@ -70,7 +70,7 @@ import {
   extractFactsFromMessages
 } from './_shared/memory.js';
 import { ensureSession, getRecentMessages } from './_shared/session.js';
-import { ensureThread, backfillThreadId } from './_shared/ensureThread.js';
+import { ensureThread } from './_shared/ensureThread.js';
 import { buildResponseHeaders } from './_shared/headers.js';
 import { getEmployeeModelConfig } from './_shared/employeeModelConfig.js';
 import { buildFinancialSnapshot } from './_shared/financial-snapshot.js';
@@ -6055,15 +6055,10 @@ export const handler: Handler = async (event, context) => {
       orchCtx.threadId = threadId;
       console.log(`[Chat] ✅ Thread ID: ${threadId} for user ${userId.substring(0, 8)}... employee ${employeeKey}`);
       
-      // Backfill existing messages with thread_id (one-time migration)
-      try {
-        const backfilledCount = await backfillThreadId(sb, userId, employeeKey, threadId);
-        if (backfilledCount > 0) {
-          console.log(`[Chat] ✅ Backfilled ${backfilledCount} messages with thread_id ${threadId}`);
-        }
-      } catch (backfillError: any) {
-        console.warn('[Chat] Backfill failed (non-fatal):', backfillError.message);
-      }
+      // NOTE: Per-request thread_id backfill removed — it swept ALL null-thread
+      // messages for the user into the current thread on every request, merging
+      // unrelated past conversations. Migration, if ever needed, must be a
+      // one-time script, not hot-path.
     } catch (threadError: any) {
       console.error('[Chat] Failed to ensure thread:', threadError);
       // CRITICAL: If thread creation fails, return error - never use fallback UUID

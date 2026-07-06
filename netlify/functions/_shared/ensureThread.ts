@@ -23,7 +23,8 @@ export async function ensureThread(
   userId: string,
   employeeKey: string,
   threadId?: string,
-  title?: string
+  title?: string,
+  opts?: { resumeLatest?: boolean }
 ): Promise<string> {
   if (!userId || !employeeKey) {
     throw new Error('userId and employeeKey are required');
@@ -52,18 +53,23 @@ export async function ensureThread(
     return upserted.id as string;
   }
   
-  // Try to find existing thread
-  const { data: existing, error: fetchError } = await sb
-    .from('chat_threads')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('employee_key', employeeKey)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  
-  if (existing?.id && !fetchError) {
-    return existing.id as string;
+  // Only resume the user's most-recent thread when a caller explicitly opts in
+  // (e.g. Byte→Prime announcements that must land in the current conversation).
+  // A cold open / New Chat passes no threadId AND no resumeLatest, so we fall
+  // through to create a fresh thread — preventing resurrection of dead/poisoned
+  // threads across sessions (zombie-session root cause).
+  if (opts?.resumeLatest) {
+    const { data: existing, error: fetchError } = await sb
+      .from('chat_threads')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('employee_key', employeeKey)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing?.id && !fetchError) {
+      return existing.id as string;
+    }
   }
   
   // Create new thread

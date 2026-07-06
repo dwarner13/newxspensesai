@@ -99,7 +99,7 @@ export async function announceByteCompletionToPrime(
       const { getEmployeeKeyFromSlug } = await import('./employeeRegistryBackend.js');
       const employeeKey = await getEmployeeKeyFromSlug(sb, 'prime-boss');
       const { ensureThread } = await import('./ensureThread.js');
-      finalThreadId = await ensureThread(sb, userId, employeeKey);
+      finalThreadId = await ensureThread(sb, userId, employeeKey, undefined, undefined, { resumeLatest: true });
     }
 
     // Step 3: Build announcement message
