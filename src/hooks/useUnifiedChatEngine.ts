@@ -82,7 +82,10 @@ export interface UnifiedChatEngineReturn {
   
   /** Clear all messages */
   clearMessages: () => void;
-  
+
+  /** Reset the active thread (New Chat) */
+  resetThread: () => void;
+
   /** Input value (for components that need it) */
   input: string;
   
@@ -270,6 +273,7 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
       removeUpload: () => {},
       cancelStream: () => {},
       clearMessages: () => {},
+      resetThread: () => {},
       input: '',
       setInput: () => {},
       pendingConfirmation: null,
@@ -343,6 +347,7 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
     removeUpload: primeChat.removeUpload,
     cancelStream,
     clearMessages,
+    resetThread: primeChat.resetThread,
     input: primeChat.input,
     setInput: primeChat.setInput,
     pendingConfirmation: primeChat.pendingConfirmation,

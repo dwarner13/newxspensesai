@@ -2138,6 +2138,34 @@ export function usePrimeChat(
     resetStream();
   }, [resetStream]);
 
+  // Reset the active employee's thread: clears in-memory state, the per-employee
+  // map entry, and the durable localStorage key. Used by New Chat so a rotated
+  // sessionId doesn't drag a dead thread_id along (zombie-session fix).
+  const resetThread = useCallback(() => {
+    const employeeSlugMap: Record<EmployeeOverride, string> = {
+      prime: 'prime-boss', tag: 'tag-ai', byte: 'byte-docs', crystal: 'crystal-ai',
+      goalie: 'goalie-agent', automa: 'automa-automation', blitz: 'blitz-debt',
+      liberty: 'liberty-freedom', chime: 'chime-bills', roundtable: 'roundtable-podcast',
+      serenity: 'serenity-therapist', harmony: 'harmony-wellness', wave: 'wave-spotify',
+      ledger: 'ledger-tax', intelia: 'intelia-bi', dash: 'dash-analytics',
+      custodian: 'custodian-settings',
+    };
+    const employeeSlug = employeeOverride ? (employeeSlugMap[employeeOverride] || 'prime-boss') : 'prime-boss';
+    setEffectiveThreadId(undefined);
+    setThreadByEmployee(prev => {
+      const next = { ...prev };
+      delete next[employeeSlug];
+      return next;
+    });
+    if (safeUserId) {
+      try {
+        localStorage.removeItem(`chat_thread_${safeUserId}_${employeeSlug}`);
+      } catch (e) {
+        warn('[usePrimeChat] Failed to clear thread_id from localStorage:', e);
+      }
+    }
+  }, [employeeOverride, safeUserId]);
+
   // Confirm tool execution - sends "yes" message to backend
   // The backend LLM will re-execute the tool with confirm: true
   const confirmToolExecution = useCallback(async (confirmation: PendingConfirmation) => {
@@ -2186,6 +2214,7 @@ export function usePrimeChat(
     send,
     stop,
     clearMessages: () => setMessages([]), // Clear rendered bubbles (New Chat)
+    resetThread, // Clear thread_id state + localStorage (New Chat zombie-session fix)
     guardrailsStatus, // Guardrails status from SSE meta events
   };
 }
