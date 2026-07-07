@@ -187,20 +187,36 @@ function isLikelyCorruptedText(value: string): boolean {
 function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAdded: number; source: string } | null {
   const parse = (s: string) => parseFloat(s.replace(/,/g, ''));
   const isPositiveFinite = (n: number) => Number.isFinite(n) && n > 0;
+  const totalsPlausible = (d: number, a: number): boolean => {
+    if (!isPositiveFinite(d) || !isPositiveFinite(a)) return false;
+    const ratio = Math.max(d, a) / Math.min(d, a);
+    return ratio <= 50;
+  };
 
-  // Strategy 1: original inline "Closing totals D A" layout (preserved, dollar prefix tolerated)
+  // Strategy 1: original inline "Closing totals D A" layout (gated — positional, can grab stray numbers)
   const closingMatch = text.match(/closing\s+totals\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})/i);
   if (closingMatch) {
     const totalDeducted = parse(closingMatch[1]);
     const totalAdded = parse(closingMatch[2]);
-    if (isPositiveFinite(totalDeducted) && isPositiveFinite(totalAdded)) {
+    if (totalsPlausible(totalDeducted, totalAdded)) {
       return { totalDeducted, totalAdded, source: 'closing_totals_inline' };
     }
   }
 
-  // Strategy 2: walk-forward from "Closing totals" anchor, tolerant of column-header lines
-  // injected by Vision OCR. Requires amount to be alone on its own line to avoid grabbing
-  // balances from following transaction rows.
+  // Strategy 3 (promoted): separate labeled totals lines — highest confidence,
+  // labels disambiguate semantically. NOT gated — labels are trusted.
+  const deductedMatch = text.match(/total\s+amounts?\s+deducted[:\s]+\$?([\d,]+\.\d{2})/i);
+  const addedMatch = text.match(/total\s+amounts?\s+added[:\s]+\$?([\d,]+\.\d{2})/i);
+  if (deductedMatch && addedMatch) {
+    const totalDeducted = parse(deductedMatch[1]);
+    const totalAdded = parse(addedMatch[1]);
+    if (isPositiveFinite(totalDeducted) && isPositiveFinite(totalAdded)) {
+      return { totalDeducted, totalAdded, source: 'separate_totals_lines' };
+    }
+  }
+
+  // Strategy 2: walk-forward from "Closing totals" anchor (gated — positional,
+  // vulnerable to stray txn amounts bleeding into the footer area)
   const lines = text.split(/\r?\n/);
   const closingLineIdx = lines.findIndex((line) => /closing\s+totals/i.test(line));
   if (closingLineIdx >= 0) {
@@ -217,7 +233,7 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
         }
       }
     }
-    if (collected.length === 2) {
+    if (collected.length === 2 && totalsPlausible(collected[0], collected[1])) {
       return { totalDeducted: collected[0], totalAdded: collected[1], source: 'closing_totals_walk_forward' };
     }
 
@@ -230,17 +246,6 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
       anchorAndAfter: text.slice(charIdx, Math.min(text.length, charIdx + 400)),
       collectedSoFar: collected,
     });
-  }
-
-  // Strategy 3: separate totals lines (preserved, dollar prefix tolerated)
-  const deductedMatch = text.match(/total\s+amounts?\s+deducted[:\s]+\$?([\d,]+\.\d{2})/i);
-  const addedMatch = text.match(/total\s+amounts?\s+added[:\s]+\$?([\d,]+\.\d{2})/i);
-  if (deductedMatch && addedMatch) {
-    const totalDeducted = parse(deductedMatch[1]);
-    const totalAdded = parse(addedMatch[1]);
-    if (isPositiveFinite(totalDeducted) && isPositiveFinite(totalAdded)) {
-      return { totalDeducted, totalAdded, source: 'separate_totals_lines' };
-    }
   }
 
   return null;
