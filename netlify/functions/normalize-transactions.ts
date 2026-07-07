@@ -193,6 +193,37 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
     return ratio <= 50;
   };
 
+  // Strategy 0 (primary): summary_triplet — extract 3 consecutive solo-number lines
+  // between "Summary of your account" and "Here's what happened". On real Vision OCR
+  // the labels "Total amounts deducted/added" get shredded, but the three numbers
+  // survive as a clean vertical triplet. Order: first = Total deducted, second =
+  // Total added, third = Closing balance (discarded).
+  if (/bank of montreal|everyday banking/i.test(text)) {
+    const summaryLines = text.split(/\r?\n/);
+    const startIdx = summaryLines.findIndex(l => /summary of your account/i.test(l));
+    const endIdx = summaryLines.findIndex(l => /here'?s what happened/i.test(l));
+    if (startIdx >= 0 && endIdx > startIdx) {
+      const amountOnly = /^\s*\$?(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/;
+      for (let i = startIdx + 1; i < endIdx - 2; i++) {
+        const m1 = summaryLines[i].match(amountOnly);
+        const m2 = summaryLines[i + 1].match(amountOnly);
+        const m3 = summaryLines[i + 2].match(amountOnly);
+        if (m1 && m2 && m3) {
+          const totalDeducted = parse(m1[1]);
+          const totalAdded = parse(m2[1]);
+          const closingBalance = parse(m3[1]);
+          if (totalsPlausible(totalDeducted, totalAdded)) {
+            console.log('[parseBmoStatementTotals] summary_triplet hit', {
+              totalDeducted, closingBalance, totalAdded,
+            });
+            return { totalDeducted, totalAdded, source: 'summary_triplet' };
+          }
+          break; // first consecutive triplet was implausible — don't keep scanning
+        }
+      }
+    }
+  }
+
   // Strategy 1: original inline "Closing totals D A" layout (gated — positional, can grab stray numbers)
   const closingMatch = text.match(/closing\s+totals\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})/i);
   if (closingMatch) {
