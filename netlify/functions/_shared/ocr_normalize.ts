@@ -202,6 +202,7 @@ export function normalizeOcrResult(
         amount: tx.amount,
         currency: 'CAD',
         statementType: 'bank',
+        confidenceFlags: tx.confidenceFlags,
         docId: undefined
       }));
     }
@@ -225,6 +226,7 @@ export function normalizeOcrResult(
         amount: tx.amount,
         currency: 'CAD',
         statementType: 'bank',
+        confidenceFlags: tx.confidenceFlags,
         docId: undefined
       }));
     }
@@ -1261,6 +1263,7 @@ function parseBmoEverydayStatement(text: string): Array<{
     amount: number;
     category?: string;
     raw_line_text?: string;
+    confidenceFlags?: string[];
   }> = [];
 
   let lastBalance: number | null = null;
@@ -1369,19 +1372,24 @@ function parseBmoEverydayStatement(text: string): Array<{
       ? Math.abs(parsed.amount)
       : -Math.abs(parsed.amount);
     let signedAmount: number;
+    let rowConfidenceFlags: string[] | undefined;
     if (deltaBasedAmount !== null && deltaBasedAmount !== 0) {
       const deltaAbs = Math.abs(deltaBasedAmount);
       const parsedAbs = Math.abs(parsed.amount);
       const diff = Math.abs(deltaAbs - parsedAbs);
       if (diff > 0.02) {
-        // Amount column corrupted (OCR fused store# into amount).
-        // Use deltaAbs when it is a plausible transaction amount.
+        // Amount column disagrees with balance-delta beyond tolerance.
         const deltaReasonable = deltaAbs >= 0.01 && deltaAbs <= 50_000;
         if (deltaReasonable) {
-          console.log('[BMO Parser] Trusting parsed over delta: parsed=' + parsedAbs + ' delta=' + deltaAbs);
-          signedAmount = descSignedAmount;
+          // Delta is plausible — use it instead of the (likely corrupt) parsed column.
+          signedAmount = deltaBasedAmount > 0 ? deltaAbs : -deltaAbs;
+          rowConfidenceFlags = ['balance_delta_override'];
+          console.log('[BMO Parser] Using delta over parsed (balance_delta_override): parsed=' + parsedAbs + ' delta=' + deltaAbs);
         } else {
+          // Delta itself is implausible — keep parsed but flag for review.
           signedAmount = descSignedAmount;
+          rowConfidenceFlags = ['balance_delta_unresolved'];
+          console.log('[BMO Parser] Delta implausible, keeping parsed (balance_delta_unresolved): parsed=' + parsedAbs + ' delta=' + deltaAbs);
         }
       } else {
         signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
@@ -1410,6 +1418,7 @@ function parseBmoEverydayStatement(text: string): Array<{
       amount: signedAmount,
       category: categorizeTransactionSync(cleanedDesc),
       raw_line_text: rawLineText,
+      confidenceFlags: rowConfidenceFlags,
     });
   }
 
