@@ -3370,7 +3370,7 @@ export const handler: Handler = async (event, context) => {
       status: 'ready',
     });
     const baseUpdatePayload: Record<string, any> = {
-      ocr_text: null,
+      ocr_text: sanitizedText,
       ocr_status: 'ready',
       ocr_completed_at: proofCompletedAt,
       ocr_text_length: redactedTextLength,
