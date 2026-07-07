@@ -1221,6 +1221,11 @@ function parseBmoEverydayStatement(text: string): Array<{
   const dateHeadRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i;
   const amountRegex = /\d{1,3}(?:,\d{3})*\.\d{2}/g;
   const parseAmount = (raw: string): number => Number(raw.replace(/,/g, ''));
+  const singleAmountLine = /^\s*\$?(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/;
+  const isDescriptionLine = (l: string): boolean =>
+    l.trim().length > 0 &&
+    !singleAmountLine.test(l) &&
+    !dateHeadRegex.test(l);
 
   const skipLine = (line: string): boolean =>
     /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --|primary chequing|chequing account|savings account|owner:|for the period|transit number|your branch|your plan|security tip|direct banking|www\.bmo|closingtotals|openingbalance|primary chequing account #|\d{4}\s+\d{3,4}-\d{3,4}|account #\s*\d|^\d{4,}-\d{3,}/i.test(line);
@@ -1283,6 +1288,8 @@ function parseBmoEverydayStatement(text: string): Array<{
     }
   }
 
+  let dateAnchorCount = 0;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (skipLine(line)) continue;
@@ -1312,6 +1319,69 @@ function parseBmoEverydayStatement(text: string): Array<{
       continue;
     }
 
+    dateAnchorCount++;
+
+    // ── Structured 4-line fast path ───────────────────────────────────────
+    // BMO OCR consistently produces: <date> / <description> / <amount> / <balance>
+    // When a date-only line is followed by [description] [solo-amount] [solo-amount],
+    // extract directly without the number-bag wrap loop. This prevents amounts[-2]
+    // from grabbing a balance value when 3+ numbers accumulate in the body.
+    if (body === '' && i + 3 < lines.length) {
+      const descLine = lines[i + 1];
+      const amtLine = lines[i + 2];
+      const balLine = lines[i + 3];
+      const mAmt = amtLine.match(singleAmountLine);
+      const mBal = balLine.match(singleAmountLine);
+      if (isDescriptionLine(descLine) && !skipLine(descLine) && !looksLikeStructuralHeader(descLine) && mAmt && mBal) {
+        const txAmount = parseAmount(mAmt[1]);
+        const txBalance = parseAmount(mBal[1]);
+        if (isFinite(txAmount) && txAmount > 0 && isFinite(txBalance)) {
+          const desc = cleanDescription(descLine);
+          if (desc && !looksLikeStructuralHeader(desc)) {
+            // Sign from balance delta (primary) or isIncomeDescription (first-row fallback)
+            let signedAmt: number;
+            let flags: string[] = ['structured_4line'];
+            if (lastBalance !== null && isFinite(lastBalance)) {
+              const delta = txBalance - lastBalance;
+              const deltaAbs = Math.abs(delta);
+              const deltaReasonable = deltaAbs >= 0.01 && deltaAbs <= 50_000;
+              if (deltaReasonable && Math.abs(deltaAbs - txAmount) <= 0.02) {
+                // Delta agrees with parsed amount — use parsed magnitude, delta sign
+                signedAmt = delta > 0 ? txAmount : -txAmount;
+              } else if (deltaReasonable) {
+                // Delta disagrees — trust delta over parsed column
+                signedAmt = delta;
+                flags.push('balance_delta_override');
+                console.log(`[BMO 4-line] delta override: parsed=${txAmount} delta=${delta} date=${isoDate}`);
+              } else {
+                // Delta implausible — fall back to description-based sign
+                signedAmt = isIncomeDescription(desc) ? Math.abs(txAmount) : -Math.abs(txAmount);
+                flags.push('balance_delta_unresolved');
+                console.log(`[BMO 4-line] delta implausible: parsed=${txAmount} delta=${delta} date=${isoDate}`);
+              }
+            } else {
+              signedAmt = isIncomeDescription(desc) ? Math.abs(txAmount) : -Math.abs(txAmount);
+              flags.push('no_prior_balance');
+            }
+            lastBalance = txBalance;
+            rawLineText = [line, descLine, amtLine, balLine].join(' | ');
+            out.push({
+              date: isoDate,
+              merchant: extractMerchant(desc),
+              description: desc,
+              amount: signedAmt,
+              category: categorizeTransactionSync(desc),
+              raw_line_text: rawLineText,
+              confidenceFlags: flags,
+            });
+            i += 3; // advance past the 3 consumed lines; for-loop adds 1 more
+            continue;
+          }
+        }
+      }
+    }
+
+    // ── Fallback: number-bag wrap loop (multi-line descriptions, other layouts) ──
     // Some BMO rows wrap across multiple lines (date / description / amount / balance).
     // Keep appending lines until we have 2+ amounts, hit the next date, or reach cap.
     // Also stop on section-header lines so a header that OCR split off from its
@@ -1420,6 +1490,15 @@ function parseBmoEverydayStatement(text: string): Array<{
       raw_line_text: rawLineText,
       confidenceFlags: rowConfidenceFlags,
     });
+  }
+
+  // Coverage assertion: log emitted vs date-anchored lines
+  const dropped = dateAnchorCount - out.length;
+  if (dropped > 0) {
+    console.warn('[BMO Parser] Coverage gap: date_lines=' + dateAnchorCount +
+      ' emitted=' + out.length + ' dropped=' + dropped);
+  } else {
+    console.log('[BMO Parser] Coverage OK: date_lines=' + dateAnchorCount + ' emitted=' + out.length);
   }
 
   return out;
