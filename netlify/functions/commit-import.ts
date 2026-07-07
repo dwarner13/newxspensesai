@@ -771,8 +771,21 @@ async function runReconciliationGate(
   const bankAdded = Number(totalsObj.totalAdded);
 
   if (!Number.isFinite(bankDeducted) || !Number.isFinite(bankAdded)) {
-    console.warn('[CommitImport][Gate] statementTotals present but values non-finite, skipping gate', { importId });
-    return { gated: false, reason: 'invalid_statement_totals' };
+    console.warn('[CommitImport][Gate] statementTotals present but values non-finite, blocking commit (data problem)', { importId });
+    return {
+      gated: true,
+      reason: 'invalid_statement_totals',
+      details: {
+        bank_total_deducted: 0,
+        bank_total_added: 0,
+        row_total_deducted: 0,
+        row_total_added: 0,
+        delta_deducted: 0,
+        delta_added: 0,
+        tolerance: TOLERANCE,
+        source: 'invalid_statement_totals',
+      },
+    };
   }
 
   let rowDeducted = 0;
