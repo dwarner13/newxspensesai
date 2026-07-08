@@ -1112,6 +1112,59 @@ function reconstructStackedDateBlocks(lines: string[]): string[] {
 }
 
 /**
+ * Repair a single-line balance transposition in BMO OCR output.
+ *
+ * Observed failure (May-19 block, import e2d5d481): OCR occasionally kicks a
+ * transaction's Balance value DOWN below the NEXT date marker, producing:
+ *
+ *   May 19              <- date A
+ *   ZEA SPA...          <- desc A
+ *   117.71              <- amount A   (row A now MISSING its balance)
+ *   May 19              <- date B
+ *   4,943.04            <- balance A  (DISPLACED here)
+ *   7-ELEVEN...         <- desc B
+ *   2.10                <- amount B
+ *   4,940.94            <- balance B
+ *
+ * Signature: a bare date line immediately followed by a pure-amount line. In a
+ * correctly-ordered BMO statement a date is ALWAYS followed by a description
+ * (confirmed against real data: no legitimate date->amount rows exist in this
+ * format) — never by a solo amount. So `bareDate -> pureAmount` uniquely
+ * identifies a displaced balance, which we lift back up to close the previous
+ * transaction.
+ *
+ * Fails safe: on clean OCR the signature never occurs, so this is a strict
+ * no-op. Only reorders the two affected lines; all others pass through
+ * unchanged. Must run AFTER reconstructStackedDateBlocks so stacked-date
+ * groups are already regrouped into date/desc/amt/bal quads and cannot be
+ * misread as a transposition trigger.
+ */
+function repairTransposedBalance(lines: string[]): string[] {
+  const dateHeadRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i;
+  const pureAmountRegex = /^\s*\d{1,3}(?:,\d{3})*\.\d{2}\s*$/;
+  const isBareDate = (line: string): boolean =>
+    !!line.match(dateHeadRegex) && line.replace(dateHeadRegex, '').trim() === '';
+
+  const result: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (
+      isBareDate(line) &&
+      i + 1 < lines.length &&
+      pureAmountRegex.test(lines[i + 1])
+    ) {
+      console.log(`[BMO PreProc] Repairing transposed balance: lifting "${lines[i + 1].trim()}" above "${line.trim()}"`);
+      result.push(lines[i + 1]); // displaced balance -> close prior transaction
+      result.push(line);          // then the date
+      i += 1;                     // skip the consumed amount line
+      continue;
+    }
+    result.push(line);
+  }
+  return result;
+}
+
+/**
  * Returns true if a body/description string looks like part of a BMO statement
  * structural header (account-number lines, section titles, column headers,
  * page markers, etc.) rather than a real transaction.
@@ -1179,6 +1232,7 @@ function parseBmoEverydayStatement(text: string): Array<{
   // by all descriptions, then all amount/balance pairs. This pre-pass
   // detects the pattern and reorders lines back to canonical form.
   lines = reconstructStackedDateBlocks(lines);
+  lines = repairTransposedBalance(lines);
 
   // TEMP DEBUG: visibility into what the BMO parser actually receives
   // after cleanupOcrText / restoreBmoSpaces have run.
