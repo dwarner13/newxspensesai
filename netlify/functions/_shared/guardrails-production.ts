@@ -158,7 +158,23 @@ function maskPII(
   for (const detector of detectorsToUse) {
     if (detector.rx.test(result)) {
       foundTypes.push(detector.name);
-      result = result.replace(detector.rx, (match) => detector.mask(match, strategy));
+      result = result.replace(detector.rx, (match: string, offset: number, fullString: string) => {
+        // Guard: exclude bank account numbers from phone_intl redaction.
+        // BMO OCR renders "Account # 1234 567-8901" adjacent to the opening
+        // balance (e.g. "5,196.75"). The phone regex consumes the account number
+        // AND the leading digit of the balance, corrupting summary totals.
+        // Detect: preceded by '#' or 'account' within 12 chars, AND followed by
+        // comma+digit (the balance's leading separator). Real branch phone numbers
+        // (e.g. 1-877-225-5266) are NOT preceded by '#'/'account' and still redact.
+        if (detector.name === 'phone_intl') {
+          const prefix = fullString.slice(Math.max(0, offset - 12), offset);
+          const suffix = fullString.slice(offset + match.length, offset + match.length + 8);
+          if ((/[#]\s*$/.test(prefix) || /account\s*$/i.test(prefix)) && /^,\d/.test(suffix)) {
+            return match; // Account number, not phone — leave unmasked
+          }
+        }
+        return detector.mask(match, strategy);
+      });
     }
   }
   
