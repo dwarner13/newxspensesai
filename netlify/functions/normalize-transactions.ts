@@ -78,10 +78,30 @@ const ISSUER_PATTERNS = [
 function detectIssuerFromRawText(text: string): string | null {
   const raw = String(text || '');
   if (!raw) return null;
+  // Issuer identity lives in the statement header (branding, URL) and the
+  // per-page footer (e.g. "BMO Bank of Montreal"), NOT the transaction body —
+  // where a bill-payment row like "CAPITAL ONE-MC" would otherwise be mistaken
+  // for the issuer. Scan header + footer zones, skip the body.
+  const HEAD = 1200;
+  const TAIL = 1200;
+  const zone = raw.length <= HEAD + TAIL
+    ? raw
+    : raw.slice(0, HEAD) + '\n' + raw.slice(raw.length - TAIL);
+  // Score by frequency across the zone, not array order: the true issuer is
+  // named on every page (header/footer template), so it out-counts a bank named
+  // only in an occasional transaction row. Falls back to null if nothing matches.
+  let best: { name: string; count: number } | null = null;
   for (const pattern of ISSUER_PATTERNS) {
-    if (pattern.match.test(raw)) return pattern.name;
+    const globalRe = new RegExp(
+      pattern.match.source,
+      pattern.match.flags.includes('g') ? pattern.match.flags : pattern.match.flags + 'g'
+    );
+    const count = (zone.match(globalRe) || []).length;
+    if (count > 0 && (!best || count > best.count)) {
+      best = { name: pattern.name, count };
+    }
   }
-  return null;
+  return best ? best.name : null;
 }
 
 function isMissingColumnError(error: any): boolean {
