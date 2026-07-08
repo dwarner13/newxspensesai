@@ -26,7 +26,7 @@ export type PiiDetector = {
   name: string;
   description: string;
   rx: RegExp;
-  mask: (text: string, strategy: MaskStrategy) => string;
+  mask: (text: string, strategy: MaskStrategy, context?: { source: string; index: number }) => string;
   region: string;
   compliance: string[];
   category: 'financial' | 'government' | 'contact' | 'address' | 'network';
@@ -363,11 +363,25 @@ const CONTACT_DETECTORS: PiiDetector[] = [
     name: 'phone_intl',
     description: 'Phone numbers (international format with +, spaces, dashes, parens)',
     rx: /\+?\d[\d\s().-]{7,}\d/g,
-    mask: (text, strategy) => {
+    mask: (text, strategy, context) => {
       const normalized = text.replace(/\s/g, '');
       const digitsOnly = normalized.replace(/[^\d]/g, '');
       if (digitsOnly.length < 9) {
         return text; // Too short for a phone number
+      }
+      // Exclude bank account numbers: preceded by '#' or 'account' AND
+      // immediately followed by a comma+digits (currency-shaped, e.g. ,196.75).
+      // BMO OCR renders "Account # 1234 567-8901" adjacent to the opening
+      // balance; without this guard the phone regex consumes the account number
+      // AND the leading digit of the balance, corrupting the summary totals.
+      if (context) {
+        const prefix = context.source.slice(Math.max(0, context.index - 12), context.index);
+        const suffix = context.source.slice(context.index + text.length, context.index + text.length + 8);
+        if (/[#]\s*$/.test(prefix) || /account\s*$/i.test(prefix)) {
+          if (/^,\d/.test(suffix) || /^\s*$/.test(suffix)) {
+            return text; // Account number, not phone
+          }
+        }
       }
       // Exclude store/reference numbers followed by a dollar amount
       // e.g. "33535 1.00" or "78037 15.74" from BMO transaction lines
@@ -672,7 +686,10 @@ export function maskPII(text: string, strategy: MaskStrategy = 'last4'): string 
     for (const match of matches) {
       if (!match[0]) continue;
       const originalText = match[0];
-      const maskedValue = detector.mask(originalText, strategy);
+      const maskedValue = detector.mask(originalText, strategy, {
+        source: masked,
+        index: match.index ?? 0,
+      });
       masked = masked.replace(originalText, maskedValue);
     }
   }
