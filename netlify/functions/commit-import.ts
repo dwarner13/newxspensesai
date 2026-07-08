@@ -488,12 +488,22 @@ async function buildStatementBreakdown(args: {
         }
       } catch {} 
       let resolvedIssuer: string | null = null;
-      // First try: detect from OCR text (most reliable)
-      for (const pat of ISSUER_PATTERNS) { if (ocrText && pat.match.test(ocrText)) { resolvedIssuer = pat.name; break; } }
-      // Second try: detect from filename
+      // First: trust structured issuer from docMeta / statement_summary
+      // (resolved upstream by normalize-transactions; NOT gated by ISSUER_PATTERNS
+      //  so non-listed issuers like RBC / Capital One survive). Fixes null-column
+      //  (Bug 1) and OCR-body-override (Bug 2) in one inversion.
+      const structuredIssuer = String(docMeta?.issuer || candidateInst || '').trim();
+      if (structuredIssuer) { resolvedIssuer = structuredIssuer; }
+      // Fallback: header-zone OCR scan only when structured value absent.
+      // NOTE: reads metadata.ocr_text which is currently always '' post-fb4b25cc,
+      //  so this fallback is inert today — intentional. Header-zone slice guards
+      //  Bug 2 if the read is ever restored.
+      if (!resolvedIssuer && ocrText) {
+        const headerZone = ocrText.slice(0, 600);
+        for (const pat of ISSUER_PATTERNS) { if (pat.match.test(headerZone)) { resolvedIssuer = pat.name; break; } }
+      }
+      // Fallback: filename
       if (!resolvedIssuer && fileName) { for (const pat of ISSUER_PATTERNS) { if (pat.match.test(fileName)) { resolvedIssuer = pat.name; break; } } }
-      // Third try: validate candidateInst against known patterns
-      if (!resolvedIssuer && candidateInst) { for (const pat of ISSUER_PATTERNS) { if (pat.match.test(candidateInst)) { resolvedIssuer = pat.name; break; } } }
       if (resolvedIssuer) { docMeta.institution = resolvedIssuer; docMeta.issuer = resolvedIssuer; }
       console.log('[CommitImport] Issuer resolution', { resolvedIssuer, candidateInst: candidateInst.slice(0, 40), ocrTextLen: ocrText.length });
       console.log('[CommitImport] Loaded account_summary from user_documents.metadata', {
