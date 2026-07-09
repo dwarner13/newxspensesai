@@ -18,7 +18,7 @@ import {
 } from "./usePrimeBriefingData";
 import type { ChatMessage } from "@/hooks/usePrimeChat";
 
-/* â”€â”€ File upload helpers â”€â”€ */
+/* ── File upload helpers ── */
 
 function isSpreadsheetFile(name: string): boolean {
   const ext = name.toLowerCase().split(".").pop() || "";
@@ -147,7 +147,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [revealStep, setRevealStep] = useState(0);
   const revealStarted = useRef(false);
   const [coverage, setCoverage] = useState<{ autoPct: number; total: number } | null>(null);
-  // â”€â”€ Returning-user resume (Surface #3) â”€â”€
+  // ── Returning-user resume (Surface #3) ──
   const [lastSession, setLastSession] = useState<{ title: string; summary: string } | null>(null);
   const [lastSessionChecked, setLastSessionChecked] = useState(false);
   const [showBriefing, setShowBriefing] = useState(false);
@@ -271,7 +271,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const summaryText = data.loading ? "" : buildSummaryText(data);
   const thoughtsText = data.loading ? "" : buildThoughtsText(data);
 
-  // â”€â”€ Smart greeting: data-driven opener that varies based on what's most interesting.
+  // ── Smart greeting: data-driven opener that varies based on what's most interesting.
   // Pool of 10+ openers, filtered by relevance, picked with light rotation (sessionStorage).
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -284,7 +284,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     // Priority 1: Urgent signals (uncategorized, pending imports, trend alerts)
     if (data.uncategorizedCount > 5) {
       openers.push({ weight: 10, lead: `${data.uncategorizedCount} transactions still need your call, ${firstName}.` });
-      openers.push({ weight: 8, lead: `Heads up, ${firstName} â€” Tag's queue is at ${data.uncategorizedCount}.` });
+      openers.push({ weight: 8, lead: `Heads up, ${firstName} — Tag's queue is at ${data.uncategorizedCount}.` });
     }
     if (data.pendingImports > 0) {
       openers.push({ weight: 10, lead: `${data.pendingImports} import${data.pendingImports > 1 ? 's' : ''} waiting to commit, ${firstName}.` });
@@ -299,7 +299,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       const net = data.totalIncome - data.totalSpent;
       if (net < -1000) {
         openers.push({ weight: 6, lead: `Expenses outpacing income by $${Math.abs(net).toLocaleString()}, ${firstName}.` });
-        openers.push({ weight: 5, lead: `${firstName} â€” the gap is $${Math.abs(net).toLocaleString()} this period.` });
+        openers.push({ weight: 5, lead: `${firstName} — the gap is $${Math.abs(net).toLocaleString()} this period.` });
       } else if (net > 1000) {
         openers.push({ weight: 6, lead: `Net positive by $${net.toLocaleString()}, ${firstName}.` });
       }
@@ -326,7 +326,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     }
 
     // Priority 6: Generic varied openers (always available as fallback)
-    openers.push({ weight: 2, lead: `${firstName} â€” here's where things stand.` });
+    openers.push({ weight: 2, lead: `${firstName} — here's where things stand.` });
     openers.push({ weight: 2, lead: `Quick read on your books, ${firstName}.` });
     openers.push({ weight: 2, lead: `Your numbers right now, ${firstName}.` });
     openers.push({ weight: 2, lead: `Let's run the tape, ${firstName}.` });
@@ -352,7 +352,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return true;
   });
 
-  // â”€â”€ Auto-scroll logic â”€â”€
+  // ── Auto-scroll logic ──
   // Track the length of the last assistant message so we scroll during streaming too
   // (length changes as content streams in, not just when a new message appears).
   const lastAssistantLen = chatMessages.length > 0
@@ -417,7 +417,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     await sendMessage(message);
   }, [sendMessage, forceScrollToBottom]);
 
-  // Start a fresh Prime conversation â€” generates a new session ID so prior
+  // Start a fresh Prime conversation — generates a new session ID so prior
   // messages don't contaminate the new thread.
   const handleNewChat = useCallback(() => {
     if (!userId) return;
@@ -440,7 +440,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     userScrolledUpRef.current = false;
   }, [userId]);
 
-  // â”€â”€ Process file through the import pipeline â”€â”€
+  // ── Process file through the import pipeline ──
   const processFile = useCallback(async (file: File) => {
     if (!userId) return;
     const msgId = `upload-${Date.now()}`;
@@ -563,7 +563,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           pointerEvents: "none",
         }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>ðŸ“„</div>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📄</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: THEME.accent }}>Drop statement here</div>
             <div style={{ fontSize: 11, color: THEME.textMuted, marginTop: 4 }}>PDF, CSV, or image</div>
           </div>
@@ -641,12 +641,12 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         userScrolledUpRef.current = (el.scrollHeight - el.scrollTop - el.clientHeight) > 120;
       }} style={{ flex: 1, overflowY: "auto", padding: "18px 16px 16px", minHeight: 0 }}>
 
-        {/* â•â•â•â•â•â•â•â•â•â• BRIEFING SECTION â•â•â•â•â•â•â•â•â•â• */}
+        {/* ══════════ BRIEFING SECTION ══════════ */}
 
         {/* Wait for the last-session lookup before deciding what to show, so a
             returning user never sees a flash of the briefing cascade. */}
         {!lastSessionChecked ? null : lastSession && !showBriefing && !promptsUsed && history.length === 0 ? (
-          /* â”€â”€ Returning-user resume card â”€â”€ */
+          /* ── Returning-user resume card ── */
           <div style={{ animation: 'primeReveal 0.4s ease forwards' }}>
             <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
               <AgentDot agent="Prime" size={28} />
@@ -656,7 +656,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                   <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text, lineHeight: 1.5 }}>
-                  Hey {firstName} â€” want to pick up where we left off?
+                  Hey {firstName} — want to pick up where we left off?
                 </div>
                 <div style={{
                   fontSize: 13, color: THEME.textMuted, marginTop: 8, lineHeight: 1.6,
@@ -668,7 +668,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
                   <button
-                    onClick={() => handleSend(`Let's pick up where we left off â€” last time we were working on: ${lastSession.title}.`)}
+                    onClick={() => handleSend(`Let's pick up where we left off — last time we were working on: ${lastSession.title}.`)}
                     style={{
                       padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
                       background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`,
@@ -692,7 +692,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             </div>
           </div>
         ) : briefingCollapsed ? (
-          /* â”€â”€ Collapsed briefing card â”€â”€ */
+          /* ── Collapsed briefing card ── */
           <button
             onClick={() => setBriefingCollapsed(false)}
             style={{
@@ -710,7 +710,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                 Prime&apos;s Briefing
               </div>
               <div style={{ fontSize: 11, color: THEME.textMuted }}>
-                ${data.totalIncome.toLocaleString()} income Â· ${data.totalSpent.toLocaleString()} expenses Â· {data.transactionCount} transactions
+                ${data.totalIncome.toLocaleString()} income · ${data.totalSpent.toLocaleString()} expenses · {data.transactionCount} transactions
               </div>
             </div>
             <svg
@@ -721,7 +721,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             </svg>
           </button>
         ) : (
-          /* â”€â”€ Full briefing (sequential reveal) â”€â”€ */
+          /* ── Full briefing (sequential reveal) ── */
           <>
             {/* STEP 1 - Greeting */}
             {revealStep >= 1 && (
@@ -854,7 +854,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           </>
         )}
 
-        {/* â•â•â•â•â•â•â•â•â•â• UPLOAD STATUS MESSAGES â•â•â•â•â•â•â•â•â•â• */}
+        {/* ══════════ UPLOAD STATUS MESSAGES ══════════ */}
         {uploadMessages.length > 0 && (
           <div style={{ marginTop: 16 }}>
             {uploadMessages.map((msg) => (
@@ -876,12 +876,12 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           </div>
         )}
 
-        {/* â•â•â•â•â•â•â•â•â•â• CONVERSATION SECTION (live chat) â•â•â•â•â•â•â•â•â•â• */}
+        {/* ══════════ CONVERSATION SECTION (live chat) ══════════ */}
 
         {chatMessages.length > 0 && (
           <div style={{ marginTop: 24, borderTop: `1px solid ${THEME.border}`, paddingTop: 18 }}>
             {chatMessages.map((msg) => {
-              // Skip system messages (handoff dividers etc) â€” backend still records them for audit.
+              // Skip system messages (handoff dividers etc) — backend still records them for audit.
               if (msg.role === "system") return null;
               if (msg.role === "user") {
                 return (
