@@ -83,6 +83,13 @@ async function getCommittedTxCount(importId: string, userId: string): Promise<nu
   return count || 0;
 }
 
+async function getImportStatus(importId: string, userId: string): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase || !importId) return null;
+  const { data } = await supabase.from('imports').select('status').eq('id', importId).eq('user_id', userId).maybeSingle();
+  return data?.status ?? null;
+}
+
 const T = { bg: "#0b1220", surface: "#111a2e", border: "#1e2d4a", text: "#f0f4ff", muted: "#dde4f0", dim: "#b8c4d8", accent: "#c8a64e", green: "#34d399", cyan: "#22d3ee", red: "#f87171", amber: "#fbbf24" };
 const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.zip,image/*";
 
@@ -207,17 +214,17 @@ async function handleSpreadsheetUpload(file: File, userId: string, authToken?: s
   return data;
 }
 
-type QueueStatus = "queued" | "processing" | "categorizing" | "complete" | "failed";
+type QueueStatus = "queued" | "processing" | "categorizing" | "complete" | "held" | "failed";
 interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: number; error?: string; progress?: number; stepText?: string; importId?: string; }
 
 // Pipeline stage labels that advance during processing. Same five stages as the
 // (now-demoted) StatementProcessingOverlay, shown inline on each queue row.
 const PIPELINE_STEPS = [
-  "Reading PDF pages…",
-  "Extracting transactions…",
-  "Running OCR normalizer…",
-  "Matching category rules…",
-  "Writing to database…",
+  "Reading PDF pagesï¿½",
+  "Extracting transactionsï¿½",
+  "Running OCR normalizerï¿½",
+  "Matching category rulesï¿½",
+  "Writing to databaseï¿½",
 ];
 
 export default function UploadPageV2() {
@@ -289,7 +296,7 @@ export default function UploadPageV2() {
         }
       }
 
-      // Path 2: items (screenshots, pasted images) — only if files path yielded nothing,
+      // Path 2: items (screenshots, pasted images) ï¿½ only if files path yielded nothing,
       // to avoid double-counting on browsers that populate both
       if (collected.length === 0 && cd.items && cd.items.length > 0) {
         for (let i = 0; i < cd.items.length; i++) {
@@ -419,7 +426,7 @@ export default function UploadPageV2() {
     const current = queue.find(q => q.status === "queued");
     if (!current) {
       // Check if everything is done
-      if (queue.length > 0 && queue.every(q => q.status === "complete" || q.status === "failed")) {
+      if (queue.length > 0 && queue.every(q => q.status === "complete" || q.status === "held" || q.status === "failed")) {
         setAllDone(true); setHistoryRefreshKey(k => k + 1);
       }
       return;
@@ -460,7 +467,7 @@ export default function UploadPageV2() {
       updateItem(current.id, { status: "categorizing" });
       await new Promise(r => setTimeout(r, 1500));
       // Query the real committed count from transactions table.
-      // Retry if 0 — commit may still be writing rows.
+      // Retry if 0 ï¿½ commit may still be writing rows.
       let txCount = await getCommittedTxCount(importIdForSweep, userId);
       if (txCount === 0 && importIdForSweep) {
         for (let retry = 0; retry < 5 && txCount === 0; retry++) {
@@ -469,8 +476,10 @@ export default function UploadPageV2() {
           console.log(`[UploadV2] txCount retry ${retry + 1}: ${txCount}`);
         }
       }
-      console.log('[UploadV2] [DIAG] Marking complete (processNext):', { itemId: current.id, importIdForSweep, importIdType: typeof importIdForSweep, importIdLen: (importIdForSweep || '').length, txCount });
-      updateItem(current.id, { status: "complete", txCount, importId: importIdForSweep || undefined });
+      const importStatusPN = importIdForSweep ? await getImportStatus(importIdForSweep, userId) : null;
+      const isHeldPN = importStatusPN === 'parsed_unreconciled';
+      console.log('[UploadV2] [DIAG] Marking complete (processNext):', { itemId: current.id, importIdForSweep, importIdType: typeof importIdForSweep, importIdLen: (importIdForSweep || '').length, txCount, importStatus: importStatusPN });
+      updateItem(current.id, { status: isHeldPN ? "held" : "complete", txCount, importId: importIdForSweep || undefined });
 
       // Trigger post-import fixup (filename, committed_at, Tag sweep, auto-commit)
       if (session?.access_token) {
@@ -520,7 +529,7 @@ export default function UploadPageV2() {
       setOverlayStatementName(buildStatementLabel(next.file.name));
       setOverlayImportResult(null);
       setOverlayImportId(null);
-      // NOTE: Overlay is no longer auto-opened for single-file uploads either —
+      // NOTE: Overlay is no longer auto-opened for single-file uploads either ï¿½
       // the inline queue row now shows the pipeline step, matching multi-file UX.
       // Overlay can still be triggered manually elsewhere if needed.
 
@@ -683,7 +692,7 @@ export default function UploadPageV2() {
           updateItem(next.id, { status: "failed", error: pipelineError instanceof Error ? pipelineError.message : "Pipeline failed" });
         } else {
           // Query the real committed count from transactions table.
-          // Retry up to 5 times (every 2s) if count is 0 — the commit step
+          // Retry up to 5 times (every 2s) if count is 0 ï¿½ the commit step
           // may still be writing rows asynchronously.
           console.log('[UploadV2] querying txCount for importId:', importId);
           let txCount = importId ? await getCommittedTxCount(importId, userId) : 0;
@@ -694,14 +703,17 @@ export default function UploadPageV2() {
               console.log(`[UploadV2] txCount retry ${retry + 1}: ${txCount}`);
             }
           }
-          console.log('[UploadV2] [DIAG] Marking complete (processAll):', { itemId: next.id, importId, importIdType: typeof importId, importIdLen: (importId || '').length, txCount });
-          updateItem(next.id, { status: "complete", txCount, progress: 100, importId: importId || undefined });
+          const importStatusPA = importId ? await getImportStatus(importId, userId) : null;
+          const isHeldPA = importStatusPA === 'parsed_unreconciled';
+          console.log('[UploadV2] [DIAG] Marking complete (processAll):', { itemId: next.id, importId, importIdType: typeof importId, importIdLen: (importId || '').length, txCount, importStatus: importStatusPA });
+          updateItem(next.id, { status: isHeldPA ? "held" : "complete", txCount, progress: 100, importId: importId || undefined });
 
           // Flip overlay to Tag summary phase
           setOverlayImportId(importId || null);
           setOverlayImportResult({
             transactionCount: txCount,
             importId: importId || undefined,
+            status: importStatusPA ?? undefined,
           });
         }
       } catch (err: unknown) {
@@ -722,24 +734,26 @@ export default function UploadPageV2() {
   const stats = {
     total: queue.length,
     complete: queue.filter(q => q.status === "complete").length,
+    held: queue.filter(q => q.status === "held").length,
     processing: queue.filter(q => q.status === "processing" || q.status === "categorizing").length,
     queued: queue.filter(q => q.status === "queued").length,
     failed: queue.filter(q => q.status === "failed").length,
     totalTx: queue.reduce((s, q) => s + (q.txCount || 0), 0),
   };
 
-  const byteStatus = stats.processing > 0 ? `Processing ${stats.complete + 1} of ${stats.total}...` : stats.total === 0 ? "Idle â€” waiting for files" : allDone ? "All done!" : "Ready";
-  const tagStatus = queue.some(q => q.status === "categorizing") ? "Categorizing..." : stats.processing > 0 ? "Waiting for Byte..." : allDone ? "All categorized!" : "Standing by";
-  const primeStatus = allDone ? "Ready for briefing" : stats.processing > 0 ? "Waiting..." : "Standing by";
+  const hasHeld = stats.held > 0;
+  const byteStatus = stats.processing > 0 ? `Processing ${stats.complete + 1} of ${stats.total}...` : stats.total === 0 ? "Idle â€” waiting for files" : allDone ? (hasHeld ? `${stats.held} needs review` : "All done!") : "Ready";
+  const tagStatus = queue.some(q => q.status === "categorizing") ? "Categorizing..." : stats.processing > 0 ? "Waiting for Byte..." : allDone ? (hasHeld ? "Review required" : "All categorized!") : "Standing by";
+  const primeStatus = allDone ? (hasHeld ? "Waiting for review" : "Ready for briefing") : stats.processing > 0 ? "Waiting..." : "Standing by";
 
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-      {/* First-time welcome — fires only if URL has ?welcome=1 and user hasn't seen it before */}
+      {/* First-time welcome ï¿½ fires only if URL has ?welcome=1 and user hasn't seen it before */}
       <PrimeWelcomeModal userName={(session?.user?.user_metadata as any)?.display_name || (session?.user?.user_metadata as any)?.full_name?.split(' ')[0] || undefined} />
 
-      {/* Statement processing overlay — full screen, cinematic */}
+      {/* Statement processing overlay ï¿½ full screen, cinematic */}
       <StatementProcessingOverlay
         isOpen={overlayOpen}
         statementName={overlayStatementName}
@@ -795,7 +809,7 @@ export default function UploadPageV2() {
             <div style={{ fontSize: 36, marginBottom: 12 }}>{"\uD83D\uDCC4"}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6 }}>Drop statements here</div>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 8 }}>or click to browse</div>
-            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG — add as many as you want</div>
+            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG ï¿½ add as many as you want</div>
             <div style={{ fontSize: 10.5, color: T.dim, marginTop: 8, opacity: 0.8 }}>
               Tip: <kbd style={{ padding: "1px 6px", borderRadius: 4, background: T.surface, border: `1px solid ${T.border}`, fontFamily: "inherit", fontSize: 10 }}>Ctrl+V</kbd> to paste a screenshot or copied file
             </div>
@@ -818,6 +832,7 @@ export default function UploadPageV2() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: T.dim }}>
                 {stats.total} file{stats.total !== 1 ? "s" : ""} {"\u2022"} {stats.complete} complete {"\u2022"} {stats.processing} processing {"\u2022"} {stats.queued} queued
+                {stats.held > 0 && <span style={{ color: T.amber }}> {"\u2022"} {stats.held} held</span>}
                 {stats.failed > 0 && <span style={{ color: T.red }}> {"\u2022"} {stats.failed} failed</span>}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
@@ -888,12 +903,12 @@ export default function UploadPageV2() {
             }}>
               {/* Status icon */}
               <div style={{ width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, flexShrink: 0,
-                background: item.status === "complete" ? `${T.green}15` : item.status === "failed" ? `${T.red}15` : item.status === "processing" ? `${T.green}20` : item.status === "categorizing" ? `${T.cyan}20` : `${T.dim}15`,
-                color: item.status === "complete" ? T.green : item.status === "failed" ? T.red : item.status === "processing" ? T.green : item.status === "categorizing" ? T.cyan : T.dim,
-                border: `1.5px solid ${item.status === "complete" ? T.green + "33" : item.status === "failed" ? T.red + "33" : item.status === "processing" ? T.green + "44" : item.status === "categorizing" ? T.cyan + "44" : T.dim + "22"}`,
+                background: item.status === "held" ? `${T.amber}15` : item.status === "complete" ? `${T.green}15` : item.status === "failed" ? `${T.red}15` : item.status === "processing" ? `${T.green}20` : item.status === "categorizing" ? `${T.cyan}20` : `${T.dim}15`,
+                color: item.status === "held" ? T.amber : item.status === "complete" ? T.green : item.status === "failed" ? T.red : item.status === "processing" ? T.green : item.status === "categorizing" ? T.cyan : T.dim,
+                border: `1.5px solid ${item.status === "held" ? T.amber + "33" : item.status === "complete" ? T.green + "33" : item.status === "failed" ? T.red + "33" : item.status === "processing" ? T.green + "44" : item.status === "categorizing" ? T.cyan + "44" : T.dim + "22"}`,
                 ...(item.status === "processing" || item.status === "categorizing" ? { animation: "uploadPulse 1.5s ease-in-out infinite" } : {}),
               }}>
-                {item.status === "complete" ? "\u2713" : item.status === "failed" ? "\u2717" : item.status === "processing" ? "B" : item.status === "categorizing" ? "T" : `#${idx + 1}`}
+                {item.status === "held" ? "\u26A0" : item.status === "complete" ? "\u2713" : item.status === "failed" ? "\u2717" : item.status === "processing" ? "B" : item.status === "categorizing" ? "T" : `#${idx + 1}`}
               </div>
 
               {/* File info */}
@@ -902,15 +917,16 @@ export default function UploadPageV2() {
                 <div style={{ fontSize: 11, color: T.dim }}>
                   {(item.file.size / 1024).toFixed(0)} KB
                   {item.status === "queued" && ` \u2022 #${queue.filter(q => q.status === "queued").indexOf(item) + 1} in queue`}
+                  {item.status === "held" && <span style={{ color: T.amber }}>{` \u2022 \u26A0 Needs review \u2014 doesn\u2019t match bank totals`}</span>}
                   {item.status === "complete" && ` \u2022 ${item.txCount || 0} transactions extracted`}
                   {item.status === "failed" && ` \u2022 ${item.error || "Failed"}`}
                 </div>
                 {item.status === "processing" && (
                   <div style={{ fontSize: 11, color: T.dim, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ color: T.green, fontWeight: 600 }}>Byte</span>
-                    <span>·</span>
+                    <span>ï¿½</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.stepText || "Processing…"}
+                      {item.stepText || "Processingï¿½"}
                     </span>
                     <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Math.round(item.progress || 0)}%</span>
                   </div>
@@ -918,9 +934,9 @@ export default function UploadPageV2() {
                 {item.status === "categorizing" && (
                   <div style={{ fontSize: 11, color: T.dim, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ color: T.cyan, fontWeight: 600 }}>Tag</span>
-                    <span>·</span>
+                    <span>ï¿½</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.stepText || "Categorizing…"}
+                      {item.stepText || "Categorizingï¿½"}
                     </span>
                   </div>
                 )}
@@ -933,6 +949,9 @@ export default function UploadPageV2() {
 
               {/* Actions */}
               {item.status === "queued" && <button onClick={() => removeItem(item.id)} style={{ fontSize: 11, color: T.dim, background: "none", border: "none", cursor: "pointer" }}>Remove</button>}
+              {item.status === "held" && <button onClick={() => {
+                if (item.importId) navigate(`/dashboard/transactions?import_id=${item.importId}&review=1`);
+              }} style={{ fontSize: 11, fontWeight: 600, color: T.amber, background: "none", border: "none", cursor: "pointer" }}>Review {"\u2192"}</button>}
               {item.status === "complete" && <button onClick={() => {
                 // Prefer specific import_id scoping + auto-open Tag. Falls back to
                 // issuer-wide filter if import_id wasn't captured (e.g. pipeline returned
@@ -974,12 +993,13 @@ export default function UploadPageV2() {
         )}
 
         {/* Completion summary */}
-        {allDone && stats.complete > 0 && (
+        {allDone && (stats.complete > 0 || stats.held > 0) && (
           <Reveal delay={0}>
-            <div style={{ marginTop: 24, padding: "24px", borderRadius: 18, background: `${T.green}06`, border: `1px solid ${T.green}18` }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: T.green, marginBottom: 8 }}>{"\u2705"} All Done!</div>
+            <div style={{ marginTop: 24, padding: "24px", borderRadius: 18, background: hasHeld ? `${T.amber}06` : `${T.green}06`, border: `1px solid ${hasHeld ? T.amber : T.green}18` }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: hasHeld ? T.amber : T.green, marginBottom: 8 }}>{hasHeld ? `\u26A0 ${stats.held} statement${stats.held !== 1 ? "s" : ""} need${stats.held === 1 ? "s" : ""} review` : "\u2705 All Done!"}</div>
               <div style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>
-                {stats.complete} file{stats.complete !== 1 ? "s" : ""} processed {"\u2022"} {stats.totalTx} total transactions extracted
+                {stats.complete > 0 && <>{stats.complete} file{stats.complete !== 1 ? "s" : ""} processed {"\u2022"} {stats.totalTx} total transactions extracted</>}
+                {stats.held > 0 && <span style={{ color: T.amber }}>{stats.complete > 0 ? " \u2022 " : ""}{stats.held} held for review</span>}
                 {stats.failed > 0 && <span style={{ color: T.red }}> {"\u2022"} {stats.failed} failed</span>}
               </div>
               <div style={{ display: "flex", gap: 10 }}>

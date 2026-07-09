@@ -27,6 +27,7 @@ export interface StatementImportResult {
   needsReview?: number;
   topCategory?: string;
   importId?: string;
+  status?: string;
 }
 
 interface Props {
@@ -90,9 +91,10 @@ export const StatementProcessingOverlay: React.FC<Props> = ({
   onClose,
 }) => {
   const navigate = useNavigate();
+  const isHeld = importResult?.status === 'parsed_unreconciled';
   const isComplete = !!importResult;
-  const summaryText = importResult ? buildTagSummary(importResult, statementName) : '';
-  const displayedSummary = useTypewriter(summaryText, isComplete);
+  const summaryText = importResult && !isHeld ? buildTagSummary(importResult, statementName) : '';
+  const displayedSummary = useTypewriter(summaryText, isComplete && !isHeld);
 
   const [visible, setVisible] = useState(false);
   const [fadingOut, setFadingOut] = useState(false);
@@ -259,8 +261,94 @@ export const StatementProcessingOverlay: React.FC<Props> = ({
           </>
         )}
 
-        {/* ── PHASE 2: Tag Summary ── */}
-        {isComplete && (
+        {/* ── PHASE 2: Tag Summary or Held Review ── */}
+        {isComplete && isHeld && (
+          <>
+            {/* Held icon */}
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(251,191,36,0.15) 0%, rgba(251,191,36,0.05) 100%)',
+              border: '1.5px solid rgba(251,191,36,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '26px',
+              animation: 'fadeSlideUp 0.5s ease forwards',
+            }}>
+              {'\u26A0\uFE0F'}
+            </div>
+
+            <div style={{
+              textAlign: 'center',
+              animation: 'fadeSlideUp 0.5s ease 0.1s both',
+            }}>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: '#fbbf24',
+                marginBottom: '8px',
+              }}>
+                Reconciliation
+              </div>
+            </div>
+
+            <div style={{
+              width: '100%',
+              background: 'rgba(251,191,36,0.04)',
+              border: '1px solid rgba(251,191,36,0.15)',
+              borderRadius: '16px',
+              padding: '20px 24px',
+              animation: 'fadeSlideUp 0.5s ease 0.15s both',
+            }}>
+              <p style={{
+                margin: 0,
+                fontSize: '16px',
+                lineHeight: '1.65',
+                color: 'rgba(255,255,255,0.88)',
+                fontWeight: 400,
+              }}>
+                This statement needs review. The transactions don{'\u2019'}t add up to the bank{'\u2019'}s printed totals. Review before importing.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                const rid = importResult?.importId || importId;
+                if (rid) navigate(`/dashboard/transactions?import_id=${rid}&review=1`);
+              }}
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                border: 'none',
+                color: '#0b1220',
+                fontSize: '15px',
+                fontWeight: 700,
+                letterSpacing: '0.02em',
+                cursor: 'pointer',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                animation: 'fadeSlideUp 0.5s ease 0.35s both',
+                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 8px 24px rgba(251,191,36,0.25)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none';
+              }}
+            >
+              Review Statement
+            </button>
+          </>
+        )}
+        {isComplete && !isHeld && (
           <>
             {/* Tag avatar */}
             <div style={{
