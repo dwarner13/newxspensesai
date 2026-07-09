@@ -273,32 +273,73 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
     }
   }
 
-  // Strategy 0 (primary): summary_triplet — extract 3 consecutive solo-number lines
-  // between "Summary of your account" and "Here's what happened". On real Vision OCR
-  // the labels "Total amounts deducted/added" get shredded, but the three numbers
-  // survive as a clean vertical triplet. Order: first = Total deducted, second =
-  // Total added, third = Closing balance (discarded).
+  // Strategy 0 (primary): identity-solved triplet.
+  // Real Vision OCR shreds the "deducted"/"added" labels into bare column headers
+  // detached from their numbers, but the three summary numbers survive as a clean
+  // vertical triplet in the zone between "Summary of your account" and
+  // "Here's what happened". Order is NOT assumed. We extract opening balance (ledger
+  // "Opening balance" row) and closing balance ("Closing ... balance ($) on <date>"
+  // anchor), then pick the deducted/added assignment of the remaining two triplet
+  // members that satisfies the accounting identity:
+  //   opening - deducted + added == closing  (within $0.05).
+  // If no assignment satisfies it, return null and fall through — never guess. The
+  // reconciliation gate then holds the statement rather than committing wrong totals.
   if (/bank of montreal|everyday banking/i.test(text)) {
-    const summaryLines = text.split(/\r?\n/);
-    const startIdx = summaryLines.findIndex(l => /summary of your account/i.test(l));
-    const endIdx = summaryLines.findIndex(l => /here'?s what happened/i.test(l));
-    if (startIdx >= 0 && endIdx > startIdx) {
-      const amountOnly = /^\s*\$?(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/;
+    const allLines = text.split(/\r?\n/);
+    const soloAmt = /^\s*\$?(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/;
+    const nextSolo = (from: number, within: number): number | null => {
+      for (let n = from; n < Math.min(from + within, allLines.length); n++) {
+        const mm = allLines[n].match(soloAmt);
+        if (mm) return parse(mm[1]);
+      }
+      return null;
+    };
+
+    // Opening balance: ledger row "Opening balance" -> next solo number.
+    let opening: number | null = null;
+    const openIdx = allLines.findIndex(l => /opening\s+balance/i.test(l));
+    if (openIdx >= 0) opening = nextSolo(openIdx + 1, 4);
+
+    // Closing balance: "Closing" header block -> next solo number (skips the date line).
+    let closing: number | null = null;
+    const closeIdx = allLines.findIndex(l => /closing/i.test(l));
+    if (closeIdx >= 0) closing = nextSolo(closeIdx + 1, 6);
+
+    // Summary triplet: first three consecutive solo numbers in the summary zone.
+    const startIdx = allLines.findIndex(l => /summary of your account/i.test(l));
+    const endIdx = allLines.findIndex(l => /here'?s what happened/i.test(l));
+    if (startIdx >= 0 && endIdx > startIdx && opening !== null && closing !== null) {
       for (let i = startIdx + 1; i < endIdx - 2; i++) {
-        const m1 = summaryLines[i].match(amountOnly);
-        const m2 = summaryLines[i + 1].match(amountOnly);
-        const m3 = summaryLines[i + 2].match(amountOnly);
+        const m1 = allLines[i].match(soloAmt);
+        const m2 = allLines[i + 1].match(soloAmt);
+        const m3 = allLines[i + 2].match(soloAmt);
         if (m1 && m2 && m3) {
-          const totalDeducted = parse(m1[1]);
-          const totalAdded = parse(m2[1]);
-          const closingBalance = parse(m3[1]);
-          if (totalsPlausible(totalDeducted, totalAdded)) {
-            console.log('[parseBmoStatementTotals] summary_triplet hit', {
-              totalDeducted, closingBalance, totalAdded,
-            });
-            return { totalDeducted, totalAdded, source: 'summary_triplet' };
+          const triplet = [parse(m1[1]), parse(m2[1]), parse(m3[1])];
+          // Drop the opening-balance member; the other two are deducted/added in some order.
+          const rest = triplet.slice();
+          const oi = rest.findIndex(v => Math.abs(v - (opening as number)) <= 0.05);
+          if (oi >= 0) {
+            rest.splice(oi, 1);
+            if (rest.length === 2) {
+              const [x, y] = rest;
+              const identityOk = (d: number, a: number) =>
+                Math.abs(((opening as number) - d + a) - (closing as number)) <= 0.05;
+              let ded: number | null = null;
+              let add: number | null = null;
+              if (identityOk(x, y)) { ded = x; add = y; }
+              else if (identityOk(y, x)) { ded = y; add = x; }
+              if (ded !== null && add !== null && totalsPlausible(ded, add)) {
+                console.log('[parseBmoStatementTotals] labeled_then_number hit (identity-solved triplet)', {
+                  totalDeducted: ded, totalAdded: add, opening, closing,
+                });
+                return { totalDeducted: ded, totalAdded: add, source: 'labeled_then_number' };
+              }
+              console.warn('[parseBmoStatementTotals] identity-solved triplet FAILED — no assignment satisfies identity', {
+                triplet, opening, closing,
+              });
+            }
           }
-          break; // first consecutive triplet was implausible — don't keep scanning
+          break; // first solo-number triplet is the summary triplet; don't scan deeper
         }
       }
     }
