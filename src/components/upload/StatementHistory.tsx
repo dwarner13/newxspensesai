@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabase } from "@/lib/supabase";
 
@@ -110,12 +111,21 @@ function formatDate(iso: string): string {
 }
 
 function statusBadge(status: string | null) {
+  if (status === "parsed_unreconciled") return { label: "Needs review", color: T.amber };
   if (status === "committed") return { label: "Committed", color: T.green };
   if (status === "approved") return { label: "Approved", color: T.cyan };
   if (status === "parsed") return { label: "Parsed", color: T.cyan };
   if (status === "pending") return { label: "Pending", color: T.amber };
   if (status === "failed") return { label: "Failed", color: T.red };
   return { label: status || "—", color: T.dim };
+}
+
+/**
+ * A statement held by the reconciliation gate: parsed OK, but row totals don't
+ * match the bank's printed totals. Must be reviewed, never bulk-deleted as "empty".
+ */
+function isHeldForReview(imp: ImportRow): boolean {
+  return imp.status === "parsed_unreconciled";
 }
 
 // Threshold for "upload stuck" detection. Large PDFs can take a couple minutes
@@ -128,6 +138,8 @@ const MONTH_NAMES = ["january","february","march","april","may","june","july","a
  * Distinct from a genuinely empty (committed, 0 tx) statement.
  */
 function isStuck(imp: ImportRow): boolean {
+  // Held for review is a distinct state, not stuck
+  if (isHeldForReview(imp)) return false;
   // Has transactions → finished successfully
   if (imp.committed_count && imp.committed_count > 0) return false;
   // Committed with 0 tx is a legit empty statement (rare but real), not stuck
@@ -223,6 +235,7 @@ function ChevronIcon({ size = 16, color = "currentColor" }: { size?: number; col
 
 export function StatementHistory() {
   const { userId } = useAuth();
+  const navigate = useNavigate();
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -361,7 +374,7 @@ export function StatementHistory() {
 
   const selectAll = () => setSelected(new Set(imports.map(i => i.id)));
   const selectAllEmpty = () => setSelected(new Set(
-    imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed").map(i => i.id)
+    imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed" && i.status !== "parsed_unreconciled").map(i => i.id)
   ));
   const clearSelection = () => { setSelected(new Set()); setSelectMode(false); };
 
@@ -612,7 +625,7 @@ export function StatementHistory() {
     setExpandedGroups(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   };
 
-  const emptyCount = imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed").length;
+  const emptyCount = imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed" && i.status !== "parsed_unreconciled").length;
   const stuckImports = imports.filter(isStuck);
 
   if (loading) return (
@@ -673,7 +686,7 @@ export function StatementHistory() {
           type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search statements by bank, year, or month�"
+          placeholder="Search statements by bank, year, or month�"
           style={{
             width: "100%", boxSizing: "border-box",
             padding: "10px 14px 10px 36px",
@@ -697,7 +710,7 @@ export function StatementHistory() {
               const issuer = detectIssuer(imp, meta);
               const range = dateRanges.get(imp.id);
               const period = formatPeriod(range);
-              const badge = isStuck(imp) ? { label: "Needs attention", color: T.amber } : statusBadge(imp.status);
+              const badge = isHeldForReview(imp) ? { label: "Needs review", color: T.amber } : isStuck(imp) ? { label: "Needs attention", color: T.amber } : statusBadge(imp.status);
               const txLabel = imp.committed_count != null && imp.committed_count > 0 ? `${imp.committed_count} tx` : "0 tx";
               return (
                 <div key={imp.id} style={{
@@ -920,7 +933,7 @@ export function StatementHistory() {
                             >☑ Select all in folder</button>
                             <button
                               onClick={() => {
-                                const emptyInFolder = folder.imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed");
+                                const emptyInFolder = folder.imports.filter(i => (!i.committed_count || i.committed_count === 0) && i.status !== "committed" && i.status !== "parsed_unreconciled");
                                 emptyInFolder.forEach(i => setSelected(prev => new Set(prev).add(i.id)));
                                 setSelectMode(true);
                                 setExpandedGroups(new Set([folder.key]));
@@ -969,14 +982,15 @@ export function StatementHistory() {
                       name = imp.id;
                     }
                     const isEmpty = !imp.committed_count || imp.committed_count === 0;
+                    const held = isHeldForReview(imp);
                     const stuck = isStuck(imp);
                     const isChecked = selected.has(imp.id);
                     const isHovered = hoverRow === imp.id;
                     const txCountLabel = imp.committed_count != null && imp.committed_count > 0
                       ? `${imp.committed_count} tx`
                       : "0 transactions";
-                    // Stuck imports get an amber "Needs attention" badge; others use the real status
-                    const badge = stuck ? { label: "Needs attention", color: T.amber } : statusBadge(imp.status);
+                    // Held > stuck > normal status badge precedence
+                    const badge = held ? { label: "Needs review", color: T.amber } : stuck ? { label: "Needs attention", color: T.amber } : statusBadge(imp.status);
 
                     return (
                       <div
@@ -990,7 +1004,7 @@ export function StatementHistory() {
                             window.location.href = `/dashboard/transactions?import_id=${imp.id}`;
                           }
                         }}
-                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none", background: isChecked ? `${T.red}10` : (stuck ? `${T.amber}08` : (isHovered && !selectMode ? `${T.border}40` : "transparent")), transition: "background 0.15s", cursor: "pointer" }}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px 11px 66px", borderBottom: idx < folder.imports.length - 1 ? `1px solid ${T.border}` : "none", background: isChecked ? `${T.red}10` : (held ? `${T.amber}08` : (stuck ? `${T.amber}08` : (isHovered && !selectMode ? `${T.border}40` : "transparent"))), transition: "background 0.15s", cursor: "pointer" }}
                       >
                         {selectMode && (
                           <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${isChecked ? T.red : T.border}`, background: isChecked ? T.red : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -1004,7 +1018,12 @@ export function StatementHistory() {
                             <div style={{ fontSize: 10.5, color: T.dim, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</div>
                           )}
                           <div style={{ fontSize: 10, color: T.dim, marginTop: 1, display: "flex", alignItems: "center", gap: 4 }}>
-                            {stuck ? (
+                            {held ? (
+                              <span style={{ color: T.amber, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600, lineHeight: 1.4 }}>
+                                <WarnTriangle size={10} color={T.amber} />
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Totals don't match the bank — review before importing</span>
+                              </span>
+                            ) : stuck ? (
                               <span style={{ color: T.amber, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600, lineHeight: 1.4 }}>
                                 <WarnTriangle size={10} color={T.amber} />
                                 <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{getStuckReason(imp, meta)}</span>
@@ -1023,27 +1042,46 @@ export function StatementHistory() {
                         <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 8px", borderRadius: 6, background: `${badge.color}15`, border: `1px solid ${badge.color}30`, color: badge.color, letterSpacing: "0.05em", flexShrink: 0 }}>
                           {badge.label.toUpperCase()}
                         </span>
-                        {/* Prominent per-row trash icon — always visible (not select mode), modal-confirmed */}
+                        {/* Per-row actions: Review button for held rows, trash for others */}
+                        {!selectMode && held && (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              navigate(`/dashboard/transactions?import_id=${imp.id}&review=1`);
+                            }}
+                            title="Review held statement"
+                            style={{
+                              display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              padding: "4px 12px", borderRadius: 8,
+                              background: `${T.amber}20`, border: `1px solid ${T.amber}40`,
+                              cursor: "pointer", color: T.amber,
+                              fontSize: 11, fontWeight: 700, letterSpacing: "0.03em",
+                              flexShrink: 0,
+                            }}
+                          >
+                            Review
+                          </button>
+                        )}
                         {!selectMode && (
                           <button
                             onClick={e => {
                               e.stopPropagation();
                               const short = name.length > 40 ? name.slice(0, 37) + "…" : name;
-                              requestDelete([imp], "row", stuck ? `Delete stuck upload "${short}"?` : `Delete "${short}"?`);
+                              requestDelete([imp], "row", held ? `Delete held statement "${short}"?` : stuck ? `Delete stuck upload "${short}"?` : `Delete "${short}"?`);
                             }}
-                            title={stuck ? "Delete stuck upload" : "Delete statement"}
+                            title={held ? "Delete held statement" : stuck ? "Delete stuck upload" : "Delete statement"}
                             style={{
                               display: "inline-flex", alignItems: "center", justifyContent: "center",
                               width: 30, height: 30, borderRadius: 8,
                               background: stuck ? `${T.red}18` : "transparent",
                               border: "none", cursor: "pointer",
                               color: T.red,
-                              opacity: stuck ? 1 : (isHovered ? 1 : 0.55),
+                              opacity: held ? 0.4 : (stuck ? 1 : (isHovered ? 1 : 0.55)),
                               transition: "opacity 0.15s, background 0.15s",
                               flexShrink: 0,
                             }}
                             onMouseEnter={e => { e.currentTarget.style.background = `${T.red}28`; e.currentTarget.style.opacity = "1"; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = stuck ? `${T.red}18` : "transparent"; e.currentTarget.style.opacity = stuck ? "1" : (isHovered ? "1" : "0.55"); }}
+                            onMouseLeave={e => { e.currentTarget.style.background = stuck ? `${T.red}18` : "transparent"; e.currentTarget.style.opacity = held ? "0.4" : (stuck ? "1" : (isHovered ? "1" : "0.55")); }}
                           >
                             <TrashIcon size={15} />
                           </button>
