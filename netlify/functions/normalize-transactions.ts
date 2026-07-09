@@ -213,6 +213,66 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
     return ratio <= 50;
   };
 
+  // Strategy 0b: labeled-then-number layout — handles BMO OCR where label lines
+  // ("Amounts deducted ($)", "Amounts added ($)", etc.) are INTERLEAVED between the
+  // numeric values instead of being shredded. Scans summary zone for each label,
+  // takes the NEXT solo-number line as the value. Gated by totalsPlausible AND an
+  // opening-closing identity check when both bookend balances are extractable:
+  //   opening - deducted + added ≈ closing  (within $0.05)
+  // The identity check prevents returning wrong totals from a redaction-corrupted
+  // summary block (e.g. [REDACTED:PHONE],196.75 consuming part of opening balance).
+  // Falls back to deducted+added without identity check if opening/closing are not
+  // cleanly extractable — but keeps totalsPlausible.
+  if (/bank of montreal|everyday banking/i.test(text)) {
+    const zoneLines = text.split(/\r?\n/);
+    const zStart = zoneLines.findIndex(l => /summary of your account/i.test(l));
+    const zEnd = zoneLines.findIndex(l => /here'?s what happened/i.test(l));
+    if (zStart >= 0 && zEnd > zStart) {
+      const soloAmt = /^\s*\$?(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/;
+      const findValueAfterLabel = (labelRe: RegExp): number | null => {
+        for (let k = zStart + 1; k < zEnd; k++) {
+          if (labelRe.test(zoneLines[k])) {
+            // Take the next solo-number line (may be immediately next or 1 line later)
+            for (let n = k + 1; n < Math.min(k + 3, zEnd); n++) {
+              const m = zoneLines[n].match(soloAmt);
+              if (m) return parse(m[1]);
+            }
+          }
+        }
+        return null;
+      };
+      const ded = findValueAfterLabel(/amounts?\s+deducted/i);
+      const add = findValueAfterLabel(/amounts?\s+added/i);
+      if (ded !== null && add !== null && totalsPlausible(ded, add)) {
+        // Try identity check: opening - deducted + added ≈ closing
+        const opn = findValueAfterLabel(/opening\s+balance/i);
+        const cls = findValueAfterLabel(/closing\s+balance/i);
+        if (opn !== null && cls !== null && isPositiveFinite(opn) && isPositiveFinite(cls)) {
+          const expected = opn - ded + add;
+          if (Math.abs(expected - cls) <= 0.05) {
+            console.log('[parseBmoStatementTotals] labeled_then_number hit (identity verified)', {
+              totalDeducted: ded, totalAdded: add, opening: opn, closing: cls,
+            });
+            return { totalDeducted: ded, totalAdded: add, source: 'labeled_then_number' };
+          }
+          // Identity failed — totals may be corrupted (e.g. PII redaction ate digits).
+          // Do NOT return; fall through to other strategies.
+          console.warn('[parseBmoStatementTotals] labeled_then_number identity FAILED', {
+            totalDeducted: ded, totalAdded: add, opening: opn, closing: cls,
+            expectedClosing: expected, delta: Math.abs(expected - cls),
+          });
+        } else {
+          // Opening/closing not cleanly extractable (pre-Fix-2 corruption or non-standard layout).
+          // Return deducted+added with plausibility only — identity check is preferred path.
+          console.log('[parseBmoStatementTotals] labeled_then_number hit (no identity check — opening/closing unavailable)', {
+            totalDeducted: ded, totalAdded: add,
+          });
+          return { totalDeducted: ded, totalAdded: add, source: 'labeled_then_number_no_identity' };
+        }
+      }
+    }
+  }
+
   // Strategy 0 (primary): summary_triplet — extract 3 consecutive solo-number lines
   // between "Summary of your account" and "Here's what happened". On real Vision OCR
   // the labels "Total amounts deducted/added" get shredded, but the three numbers
