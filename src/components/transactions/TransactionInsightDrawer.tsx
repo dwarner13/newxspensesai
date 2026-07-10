@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { X, TrendingUp, Send, MessageSquare } from 'lucide-react';
+import { X, TrendingUp, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
@@ -697,20 +697,8 @@ export function TransactionInsightDrawer({
 
         </div>
 
-        {/* FOOTER — chat input + actions */}
+        {/* FOOTER — transaction actions (Split/Close) */}
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Tag chat input */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(34,211,153,0.04)', border: '1px solid rgba(34,211,153,0.12)', borderRadius: 10, padding: '6px 8px 6px 12px' }}>
-            <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(34,211,153,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
-            <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && void sendChat()}
-              placeholder="Ask Tag anything about this transaction..."
-              disabled={row.kind !== 'committed' || chatBusy}
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: '#e8ecf4', fontFamily: 'inherit' }} />
-            <button type="button" onClick={() => void sendChat()} disabled={!chatInput.trim() || chatBusy || row.kind !== 'committed'}
-              style={{ width: 30, height: 30, borderRadius: 8, background: chatInput.trim() ? 'rgba(34,211,153,0.2)' : 'transparent', border: `1px solid ${chatInput.trim() ? 'rgba(34,211,153,0.3)' : 'transparent'}`, cursor: chatInput.trim() ? 'pointer' : 'default', color: '#22d3ee', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Send style={{ width: 13, height: 13 }} />
-            </button>
-          </div>
           {/* SPLIT UI */}
           {splitMode && row?.kind === 'committed' && (() => {
             const totalAmt = Math.abs(Number(row.transaction.amount || 0));
