@@ -82,6 +82,7 @@ export default function ReviewStatementPage() {
   // Row list filter/expand
   const [rowFilter, setRowFilter] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [sortAsc, setSortAsc] = useState(true);
 
   // Responsive: wide (split) vs narrow (tabbed)
   const [isWide, setIsWide] = useState(typeof window !== 'undefined' ? window.innerWidth >= 900 : true);
@@ -448,13 +449,15 @@ export default function ReviewStatementPage() {
 
         {/* Staging rows — sorted: flagged first, then by date */}
         {(() => {
-          // Sort: flagged rows first, then by date descending
+          // Sort: flagged rows first, then by date (ascending or descending)
           const sorted = [...rows].sort((a, b) => {
             const aFlags = (a.data_json as any)?.confidence_flags?.length || 0;
             const bFlags = (b.data_json as any)?.confidence_flags?.length || 0;
             if (aFlags && !bFlags) return -1;
             if (!aFlags && bFlags) return 1;
-            return ((b.data_json?.date || '') > (a.data_json?.date || '') ? 1 : -1);
+            const dateA = a.data_json?.date || '';
+            const dateB = b.data_json?.date || '';
+            return sortAsc ? (dateA > dateB ? 1 : -1) : (dateB > dateA ? 1 : -1);
           });
           // Filter by search
           const filterLower = rowFilter.trim().toLowerCase();
@@ -480,6 +483,16 @@ export default function ReviewStatementPage() {
             {rows.length} staged {flaggedCount > 0 && <span style={{ color: T.amber }}>({flaggedCount} flagged)</span>}
           </div>
           <div style={{ flex: 1 }} />
+          <button
+            onClick={() => setSortAsc(v => !v)}
+            style={{
+              padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+              background: T.surface, border: `1px solid ${T.border}`,
+              color: T.dim, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            {sortAsc ? '\u2191 Oldest first' : '\u2193 Newest first'}
+          </button>
           <input
             type="text"
             value={rowFilter}
@@ -665,7 +678,9 @@ export default function ReviewStatementPage() {
               const bF = (b.data_json as any)?.confidence_flags?.length || 0;
               if (aF && !bF) return -1;
               if (!aF && bF) return 1;
-              return ((b.data_json?.date || '') > (a.data_json?.date || '') ? 1 : -1);
+              const dateA = a.data_json?.date || '';
+              const dateB = b.data_json?.date || '';
+              return sortAsc ? (dateA > dateB ? 1 : -1) : (dateB > dateA ? 1 : -1);
             });
             const fl = rowFilter.trim().toLowerCase();
             const filtered = fl
@@ -681,6 +696,16 @@ export default function ReviewStatementPage() {
                   {rows.length} rows {fc > 0 && <span style={{ color: T.amber }}>({fc} flagged)</span>}
                 </div>
                 <div style={{ flex: 1 }} />
+                <button
+                  onClick={() => setSortAsc(v => !v)}
+                  style={{
+                    padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
+                    background: T.surface, border: `1px solid ${T.border}`,
+                    color: T.dim, cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {sortAsc ? '\u2191 Oldest' : '\u2193 Newest'}
+                </button>
                 <input type="text" value={rowFilter} onChange={e => setRowFilter(e.target.value)} placeholder="Filter\u2026"
                   style={{ width: 140, padding: '4px 8px', fontSize: 11, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, outline: 'none' }} />
               </div>

@@ -351,7 +351,7 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
           </div>
         </div>
         {/* Scrollable pages */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 32px', WebkitOverflowScrolling: 'touch' as any }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px 32px', WebkitOverflowScrolling: 'touch' as any }}>
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, gap: 12 }}>
               <div style={{ width: 24, height: 24, border: '2px solid #22d3ee', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -359,9 +359,13 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
             </div>
           )}
           {error && <div style={{ padding: 24, color: '#f87171', fontSize: 13, textAlign: 'center' }}>{error}</div>}
-          {!loading && !error && pdf && pagesToRender.map(pageNum => (
-            <PageCanvas key={`${url}-p${pageNum}-s${scale}`} pdf={pdf} pageNumber={pageNum} scale={scale} />
-          ))}
+          {!loading && !error && pdf && (
+            <div style={{ width: `${Math.round((scale / 1.4) * 100)}%` }}>
+              {pagesToRender.map(pageNum => (
+                <PageCanvas key={`${url}-p${pageNum}-s${scale}`} pdf={pdf} pageNumber={pageNum} scale={scale} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
