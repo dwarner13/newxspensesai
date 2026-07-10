@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, TrendingUp, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
@@ -75,10 +75,7 @@ export function TransactionInsightDrawer({
   const [localCategory, setLocalCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [statementLabel, setStatementLabel] = useState<string | null>(null);
-  const [chatInput, setChatInput] = useState('');
-  const [chatBusy, setChatBusy] = useState(false);
-  const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
-  const [chatReply, setChatReply] = useState<string | null>(null);
+  const [, setChatReply] = useState<string | null>(null);
   const [showAllCats, setShowAllCats] = useState(false);
   const [splitMode, setSplitMode] = useState(false);
   const [splits, setSplits] = useState([{ amount: '', category: '' }, { amount: '', category: '' }]);
@@ -90,7 +87,6 @@ export function TransactionInsightDrawer({
   const [linkedReceipt, setLinkedReceipt] = useState<any>(null);
   const [localType, setLocalType] = useState<'income' | 'expense'>('expense');
   const [isFlippingType, setIsFlippingType] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768);
@@ -100,9 +96,7 @@ export function TransactionInsightDrawer({
 
   // Reset on transaction change
   useEffect(() => {
-    setChatHistory([]);
     setChatReply(null);
-    setChatInput('');
     setShowAllCats(false);
     setSplitMode(false);
     setAddingSubcategory(false);
@@ -385,45 +379,6 @@ export function TransactionInsightDrawer({
     }
   };
 
-  // AI chat
-  const sendChat = async () => {
-    const text = chatInput.trim();
-    if (!text || chatBusy || !row || row.kind !== 'committed') return;
-    const userMsg = { role: 'user', content: text };
-    setChatInput('');
-    setChatBusy(true);
-    const newHistory = [...chatHistory, userMsg];
-    setChatHistory(newHistory);
-    try {
-      const supabase = getSupabase();
-      const { data: { session } } = await supabase!.auth.getSession();
-      const token = session?.access_token ?? '';
-      const res = await fetch('/.netlify/functions/tag-chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'authorization': `Bearer ${token}` },
-        body: JSON.stringify({ transactionId: row.transaction.id, message: text, history: chatHistory, merchant: rawMerchant }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const backfillNote = data.backfill_count > 0 ? ` (${data.backfill_count} existing transaction${data.backfill_count !== 1 ? 's' : ''} updated)` : '';
-      const replyContent = data.rule_saved ? data.reply + backfillNote + '\n__rule_saved__' : data.reply;
-      const assistantMsg = { role: 'assistant', content: replyContent };
-      setChatHistory([...newHistory, assistantMsg]);
-      setChatReply(data.rule_saved ? data.reply + backfillNote : data.reply);
-      if (data.rule_saved) setPendingRuleCategory(null);
-      if (data.action?.action === 'recategorize' && data.action?.category) {
-        setLocalCategory(data.action.category);
-        onCommittedCategorySaved?.(row.transaction.id, data.action.category);
-      }
-    } catch {
-      const errMsg = { role: 'assistant' as const, content: 'Something went wrong — try again.' };
-      setChatHistory([...newHistory, errMsg]);
-    }
-    setChatBusy(false);
-  };
-
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatReply, chatBusy]);
-
   if (!open || !row) return null;
 
   const confidence = tagInsight?.confidence != null ? Math.round(tagInsight.confidence * 100) : null;
@@ -646,53 +601,6 @@ export function TransactionInsightDrawer({
               <MessageSquare style={{ width: 16, height: 16 }} />
               <span>Ask Tag about this</span>
             </button>
-          )}
-
-          {/* Empty state when no chat yet */}
-          {chatHistory.length === 0 && !chatReply && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 0', opacity: 0.4 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(34,211,153,0.12)', border: '1px solid rgba(34,211,153,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#22d3ee', marginBottom: 8 }}>T</div>
-              <div style={{ fontSize: 11, color: '#475569', textAlign: 'center' }}>Ask Tag anything about this transaction</div>
-            </div>
-          )}
-
-          {/* TAG REPLY + RULE PROMPT */}
-          {chatReply && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0, marginTop: 2 }}>T</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ padding: '8px 11px', borderRadius: '12px 12px 12px 4px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', fontSize: 12, color: '#e8ecf4', lineHeight: 1.5 }}>
-                  {chatReply.split('**').map((part, j) => j % 2 === 1 ? <strong key={j} style={{ color: '#22d3ee' }}>{part}</strong> : <span key={j}>{part}</span>)}
-                </div>
-                {pendingRuleCategory && (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <button onClick={() => void saveTagRule()} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.3)', color: '#22d3ee' }}>Yes, remember it</button>
-                    <button onClick={() => { setPendingRuleCategory(null); setChatReply('No problem \u2014 just this one.'); }} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#9ba8bc' }}>No thanks</button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAG CHAT HISTORY */}
-          {chatHistory.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {chatHistory.map((m, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  {m.role === 'assistant' && <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0, marginTop: 2 }}>T</div>}
-                  <div style={{ maxWidth: '75%' }}>
-                    <div style={{ padding: '8px 11px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? 'rgba(34,211,153,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${m.role === 'user' ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.06)'}`, fontSize: 12, color: '#e8ecf4', lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                      {m.content.replace('__rule_saved__', '')}
-                    </div>
-                    {m.content.includes('__rule_saved__') && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 4, fontSize: 10, fontWeight: 700, color: '#22d3ee', background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)', borderRadius: 6, padding: '2px 8px' }}>{'\u26A1'} Rule saved</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {chatBusy && <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee' }}>T</div><div style={{ fontSize: 12, color: '#475569' }}>Thinking…</div></div>}
-              <div ref={chatEndRef} />
-            </div>
           )}
 
         </div>

@@ -551,6 +551,7 @@ export default function DashboardLayout() {
     if (!ready || !userId || !profile) return;
     if (!location.pathname.startsWith('/dashboard')) return;
     if (location.pathname.startsWith('/dashboard/review')) return;
+    if (location.pathname.startsWith('/dashboard/transactions')) return;
     let cancelled = false;
     try {
       if (sessionStorage.getItem('prime_autopen_dismissed') === '1') return;
