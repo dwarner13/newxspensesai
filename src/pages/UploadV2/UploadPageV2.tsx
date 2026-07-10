@@ -950,7 +950,7 @@ export default function UploadPageV2() {
               {/* Actions */}
               {item.status === "queued" && <button onClick={() => removeItem(item.id)} style={{ fontSize: 11, color: T.dim, background: "none", border: "none", cursor: "pointer" }}>Remove</button>}
               {item.status === "held" && <button onClick={() => {
-                if (item.importId) navigate(`/dashboard/transactions?import_id=${item.importId}&review=1`);
+                if (item.importId) navigate(`/dashboard/review?import_id=${item.importId}`);
               }} style={{ fontSize: 11, fontWeight: 600, color: T.amber, background: "none", border: "none", cursor: "pointer" }}>Review {"\u2192"}</button>}
               {item.status === "complete" && <button onClick={() => {
                 // Prefer specific import_id scoping + auto-open Tag. Falls back to

@@ -84,6 +84,7 @@ const TransactionsPageV2 = lazy(() => import('./pages/dashboard/TransactionsPage
 const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const SmartCategoriesPage = lazy(() => import('./pages/dashboard/SmartCategoriesPage'));
+const ReviewStatementPage = lazy(() => import('./pages/dashboard/ReviewStatementPage'));
 const CategoriesPageV2 = lazy(() => import('./pages/CategoriesV2/CategoriesPageV2'));
 const CategoryRulesPage = lazy(() => import('./pages/CategoriesV2/CategoryRulesPage'));
 const DashboardHomeV2 = lazy(() => import('./pages/DashboardV2/DashboardHomeV2'));
@@ -548,6 +549,7 @@ function App() {
                       
                       {/* Planning & Analysis */}
                       <Route path="transactions" element={<TransactionsPageV2 />} />
+                      <Route path="review" element={<Suspense fallback={<LoadingSpinner />}><ReviewStatementPage /></Suspense>} />
                       <Route path="inbox" element={<Suspense fallback={<LoadingSpinner />}><InboxPage /></Suspense>} />
                       <Route path="receipts" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />
                       <Route path="scan-receipt" element={<Suspense fallback={<LoadingSpinner />}><ReceiptsPage /></Suspense>} />

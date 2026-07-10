@@ -19,6 +19,8 @@ export interface NormalizedTransaction {
   }>;
   docId?: string;            // Links to user_documents.id
   description?: string;       // Full description (from Vision parser)
+  confidence?: number;        // 0-1, set by BMO parser
+  confidence_flags?: string[]; // e.g. ['balance_delta_override','structured_4line']
 }
 
 export interface ConfidenceScores {

@@ -318,7 +318,7 @@ export const StatementProcessingOverlay: React.FC<Props> = ({
             <button
               onClick={() => {
                 const rid = importResult?.importId || importId;
-                if (rid) navigate(`/dashboard/transactions?import_id=${rid}&review=1`);
+                if (rid) navigate(`/dashboard/review?import_id=${rid}`);
               }}
               style={{
                 width: '100%',

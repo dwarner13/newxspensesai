@@ -19,6 +19,7 @@ interface StatementPdfViewerProps {
   url: string;
   label: string;
   onClose: () => void;
+  inline?: boolean;
 }
 
 // Height in px to black out at the top of each page (account number / bank header area)
@@ -133,7 +134,7 @@ function PageCanvas({ pdf, pageNumber, scale }: PageCanvasProps) {
   );
 }
 
-export function StatementPdfViewer({ url, label, onClose }: StatementPdfViewerProps) {
+export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdfViewerProps) {
   const [pdf, setPdf] = useState<any>(null);
   const [pageCount, setPageCount] = useState(0);
   const [scale, setScale] = useState(1.4);
@@ -311,6 +312,60 @@ export function StatementPdfViewer({ url, label, onClose }: StatementPdfViewerPr
       </div>
     </>
   );
+
+  if (inline) {
+    return (
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        background: '#0b1220',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        borderRadius: 12,
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '12px 16px',
+          borderBottom: '1px solid #1e2d4a',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexShrink: 0,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#e8ecf4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {"\uD83D\uDCC4"} {label}
+            </div>
+            <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
+              {pageCount > 1
+                ? `Pages 2\u2013${pageCount} \u00b7 Page 1 hidden`
+                : 'Loading\u2026'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <button onClick={() => setScale(s => Math.max(0.6, s - 0.2))} style={{ width: 28, height: 28, borderRadius: 6, background: '#111a2e', border: '1px solid #1e2d4a', color: '#9ba8bc', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{"\u2212"}</button>
+            <span style={{ fontSize: 11, color: '#64748b', minWidth: 36, textAlign: 'center' }}>{Math.round(scale * 100)}%</span>
+            <button onClick={() => setScale(s => Math.min(3, s + 0.2))} style={{ width: 28, height: 28, borderRadius: 6, background: '#111a2e', border: '1px solid #1e2d4a', color: '#9ba8bc', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+          </div>
+        </div>
+        {/* Scrollable pages */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 32px', WebkitOverflowScrolling: 'touch' as any }}>
+          {loading && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, gap: 12 }}>
+              <div style={{ width: 24, height: 24, border: '2px solid #22d3ee', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            </div>
+          )}
+          {error && <div style={{ padding: 24, color: '#f87171', fontSize: 13, textAlign: 'center' }}>{error}</div>}
+          {!loading && !error && pdf && pagesToRender.map(pageNum => (
+            <PageCanvas key={`${url}-p${pageNum}-s${scale}`} pdf={pdf} pageNumber={pageNum} scale={scale} />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return createPortal(content, document.body);
 }

@@ -1047,7 +1047,7 @@ export function StatementHistory() {
                           <button
                             onClick={e => {
                               e.stopPropagation();
-                              navigate(`/dashboard/transactions?import_id=${imp.id}&review=1`);
+                              navigate(`/dashboard/review?import_id=${imp.id}`);
                             }}
                             title="Review held statement"
                             style={{
