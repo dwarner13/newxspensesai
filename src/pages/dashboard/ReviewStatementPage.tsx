@@ -336,8 +336,16 @@ export default function ReviewStatementPage() {
     </div>
   ) : null;
 
+  // Shared card styling for contained-panel look
+  const cardStyle = {
+    background: T.surface,
+    border: `1px solid ${T.border}`,
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: T.bg, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: T.bg, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* ── Narrow: pinned banner + tab toggle ── */}
       {!isWide && (
@@ -364,20 +372,23 @@ export default function ReviewStatementPage() {
         </div>
       )}
 
-      {/* ── Narrow: single pane ── */}
+      {/* ── Narrow: single pane (scrolls internally) ── */}
       {!isWide && narrowTab === 'statement' && (
-        <div style={{ flex: 1, overflow: 'hidden' }}>{pdfPane}</div>
+        <div style={{ flex: 1, overflow: 'hidden', padding: 12 }}>
+          <div style={{ ...cardStyle, height: '100%' }}>{pdfPane}</div>
+        </div>
       )}
 
-      {/* ── Wide: side-by-side ── */}
+      {/* ── Wide: two contained cards, independent scroll ── */}
       {isWide && (
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          {/* Left: PDF */}
-          <div style={{ flex: '0 0 50%', maxWidth: '50%', height: '100%', overflow: 'hidden', borderRight: `1px solid ${T.border}` }}>
+        <div style={{ display: 'flex', flex: 1, gap: 12, padding: 12, minHeight: 0, overflow: 'hidden' }}>
+          {/* Left card: PDF (scrolls internally via StatementPdfViewer) */}
+          <div style={{ ...cardStyle, flex: '1 1 50%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             {pdfPane}
           </div>
-          {/* Right: review pane */}
-          <div style={{ flex: 1, height: '100%', overflow: 'auto', padding: '20px 24px' }}>
+          {/* Right card: review pane (scrolls internally) */}
+          <div style={{ ...cardStyle, flex: '1 1 50%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
             {discrepancyBanner}
 
         {/* Import button */}
@@ -597,13 +608,14 @@ export default function ReviewStatementPage() {
         )}
           </>);
         })()}
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Narrow: transactions tab ── */}
+      {/* ── Narrow: transactions tab (scrolls internally) ── */}
       {!isWide && narrowTab === 'transactions' && (
-        <div style={{ flex: 1, overflow: 'auto', padding: '16px 16px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
           {/* Buttons */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
             <button

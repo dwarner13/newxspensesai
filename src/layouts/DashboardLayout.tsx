@@ -550,6 +550,7 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (!ready || !userId || !profile) return;
     if (!location.pathname.startsWith('/dashboard')) return;
+    if (location.pathname.startsWith('/dashboard/review')) return;
     let cancelled = false;
     try {
       if (sessionStorage.getItem('prime_autopen_dismissed') === '1') return;
