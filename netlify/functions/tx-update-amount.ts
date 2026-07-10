@@ -9,7 +9,7 @@ import { verifyAuth } from './_shared/verifyAuth.js';
  * then REPLICATES the reconciliation gate from commit-import.ts (PROTECTED — never
  * imported or edited here) to decide whether the statement now balances against the
  * bank's printed totals. Flips imports.status accordingly:
- *   - gate passes  -> 'ready'                (Import button unlocks)
+ *   - gate passes  -> 'parsed'                (Import button unlocks)
  *   - gate fails   -> 'parsed_unreconciled'  (stays held)
  *
  * The existing usePendingTransactions realtime subscription on imports.status picks
@@ -136,7 +136,7 @@ export const handler: Handler = async (event) => {
     if (!stmtTotals || typeof stmtTotals !== 'object') {
       const { error: statusErr } = await sb
         .from('imports')
-        .update({ status: 'ready', updated_at: new Date().toISOString() })
+        .update({ status: 'parsed', updated_at: new Date().toISOString() })
         .eq('id', importId)
         .eq('user_id', auth.userId);
       if (statusErr) throw statusErr;
@@ -148,7 +148,7 @@ export const handler: Handler = async (event) => {
           ok: true,
           gated: false,
           reconciled: true,
-          status: 'ready',
+          status: 'parsed',
           reason: 'no_statement_totals',
           rowTotals: { deducted: rowDeducted, added: rowAdded },
         }),
@@ -188,7 +188,7 @@ export const handler: Handler = async (event) => {
     const TOLERANCE = 0.05;
     const failed = deltaDeducted > TOLERANCE || deltaAdded > TOLERANCE;
 
-    const newStatus = failed ? 'parsed_unreconciled' : 'ready';
+    const newStatus = failed ? 'parsed_unreconciled' : 'parsed';
 
     const { error: statusErr } = await sb
       .from('imports')
