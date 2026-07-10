@@ -367,10 +367,10 @@ const SmartCategoriesPage: React.FC = () => {
     const merchant = String(tx.merchant || '').toUpperCase().trim();
     const description = String(tx.description || '').toUpperCase().trim();
 
-    // 1. Category override � if Tag/user explicitly set "Income", trust it
+    // 1. Category override — if Tag/user explicitly set "Income", trust it
     if (category === 'income') return 'income';
 
-    // 2. Merchant/description patterns � payments, credits, refunds are income
+    // 2. Merchant/description patterns — payments, credits, refunds are income
     const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
     const INCOME_CONTAINS = /\b(PAYMENT RECEIVED|PAYMENT THANK YOU|CREDIT ADJUSTMENT|REFUND|DEPOSIT|E-TRANSFER IN|PAYROLL)\b/;
     if (INCOME_PATTERNS.test(merchant) || INCOME_CONTAINS.test(merchant) || INCOME_CONTAINS.test(description)) {

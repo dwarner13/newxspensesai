@@ -220,11 +220,11 @@ interface QueueItem { id: string; file: File; status: QueueStatus; txCount?: num
 // Pipeline stage labels that advance during processing. Same five stages as the
 // (now-demoted) StatementProcessingOverlay, shown inline on each queue row.
 const PIPELINE_STEPS = [
-  "Reading PDF pages�",
-  "Extracting transactions�",
-  "Running OCR normalizer�",
-  "Matching category rules�",
-  "Writing to database�",
+  "Reading PDF pages\u2026",
+  "Extracting transactions\u2026",
+  "Running OCR normalizer\u2026",
+  "Matching category rules\u2026",
+  "Writing to database\u2026",
 ];
 
 export default function UploadPageV2() {
@@ -296,7 +296,7 @@ export default function UploadPageV2() {
         }
       }
 
-      // Path 2: items (screenshots, pasted images) � only if files path yielded nothing,
+      // Path 2: items (screenshots, pasted images) — only if files path yielded nothing,
       // to avoid double-counting on browsers that populate both
       if (collected.length === 0 && cd.items && cd.items.length > 0) {
         for (let i = 0; i < cd.items.length; i++) {
@@ -467,7 +467,7 @@ export default function UploadPageV2() {
       updateItem(current.id, { status: "categorizing" });
       await new Promise(r => setTimeout(r, 1500));
       // Query the real committed count from transactions table.
-      // Retry if 0 � commit may still be writing rows.
+      // Retry if 0 — commit may still be writing rows.
       let txCount = await getCommittedTxCount(importIdForSweep, userId);
       if (txCount === 0 && importIdForSweep) {
         for (let retry = 0; retry < 5 && txCount === 0; retry++) {
@@ -529,7 +529,7 @@ export default function UploadPageV2() {
       setOverlayStatementName(buildStatementLabel(next.file.name));
       setOverlayImportResult(null);
       setOverlayImportId(null);
-      // NOTE: Overlay is no longer auto-opened for single-file uploads either �
+      // NOTE: Overlay is no longer auto-opened for single-file uploads either —
       // the inline queue row now shows the pipeline step, matching multi-file UX.
       // Overlay can still be triggered manually elsewhere if needed.
 
@@ -692,7 +692,7 @@ export default function UploadPageV2() {
           updateItem(next.id, { status: "failed", error: pipelineError instanceof Error ? pipelineError.message : "Pipeline failed" });
         } else {
           // Query the real committed count from transactions table.
-          // Retry up to 5 times (every 2s) if count is 0 � the commit step
+          // Retry up to 5 times (every 2s) if count is 0 — the commit step
           // may still be writing rows asynchronously.
           console.log('[UploadV2] querying txCount for importId:', importId);
           let txCount = importId ? await getCommittedTxCount(importId, userId) : 0;
@@ -750,10 +750,10 @@ export default function UploadPageV2() {
     <>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-      {/* First-time welcome � fires only if URL has ?welcome=1 and user hasn't seen it before */}
+      {/* First-time welcome — fires only if URL has ?welcome=1 and user hasn't seen it before */}
       <PrimeWelcomeModal userName={(session?.user?.user_metadata as any)?.display_name || (session?.user?.user_metadata as any)?.full_name?.split(' ')[0] || undefined} />
 
-      {/* Statement processing overlay � full screen, cinematic */}
+      {/* Statement processing overlay — full screen, cinematic */}
       <StatementProcessingOverlay
         isOpen={overlayOpen}
         statementName={overlayStatementName}
@@ -809,7 +809,7 @@ export default function UploadPageV2() {
             <div style={{ fontSize: 36, marginBottom: 12 }}>{"\uD83D\uDCC4"}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6 }}>Drop statements here</div>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 8 }}>or click to browse</div>
-            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG � add as many as you want</div>
+            <div style={{ fontSize: 11, color: T.dim }}>PDF, CSV, JPG, PNG — add as many as you want</div>
             <div style={{ fontSize: 10.5, color: T.dim, marginTop: 8, opacity: 0.8 }}>
               Tip: <kbd style={{ padding: "1px 6px", borderRadius: 4, background: T.surface, border: `1px solid ${T.border}`, fontFamily: "inherit", fontSize: 10 }}>Ctrl+V</kbd> to paste a screenshot or copied file
             </div>
@@ -924,9 +924,9 @@ export default function UploadPageV2() {
                 {item.status === "processing" && (
                   <div style={{ fontSize: 11, color: T.dim, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ color: T.green, fontWeight: 600 }}>Byte</span>
-                    <span>�</span>
+                    <span>{"\u2192"}</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.stepText || "Processing�"}
+                      {item.stepText || "Processing\u2026"}
                     </span>
                     <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Math.round(item.progress || 0)}%</span>
                   </div>
@@ -934,9 +934,9 @@ export default function UploadPageV2() {
                 {item.status === "categorizing" && (
                   <div style={{ fontSize: 11, color: T.dim, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ color: T.cyan, fontWeight: 600 }}>Tag</span>
-                    <span>�</span>
+                    <span>{"\u2192"}</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.stepText || "Categorizing�"}
+                      {item.stepText || "Categorizing\u2026"}
                     </span>
                   </div>
                 )}

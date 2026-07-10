@@ -46,14 +46,14 @@ const TAX_INFO: Record<string, { label: string; color: string; bg: string; borde
   'Debt Payments': { label: '• Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
 };
 const QUICK_CATS = [
-  { label: 'Gas', category: 'Transportation', emoji: '?' },
-  { label: 'Groceries', category: 'Groceries', emoji: '??' },
-  { label: 'Dining', category: 'Food & Dining', emoji: '???' },
-  { label: 'Shopping', category: 'Shopping', emoji: '???' },
-  { label: 'Income', category: 'Income', emoji: '??' },
-  { label: 'Housing', category: 'Housing', emoji: '??' },
-  { label: 'Health', category: 'Healthcare', emoji: '??' },
-  { label: 'Transfer', category: 'Transfers', emoji: '??' },
+  { label: 'Gas', category: 'Transportation', emoji: '⛽' },
+  { label: 'Groceries', category: 'Groceries', emoji: '🛒' },
+  { label: 'Dining', category: 'Food & Dining', emoji: '🍽️' },
+  { label: 'Shopping', category: 'Shopping', emoji: '🛍️' },
+  { label: 'Income', category: 'Income', emoji: '💰' },
+  { label: 'Housing', category: 'Housing', emoji: '🏠' },
+  { label: 'Health', category: 'Healthcare', emoji: '🏥' },
+  { label: 'Transfer', category: 'Transfers', emoji: '🔄' },
 ];
 
 const ALL_CATS = [
@@ -204,7 +204,7 @@ export function TransactionInsightDrawer({
           }
         }
       } catch { /* ignore */ }
-      setStatementLabel(`Statement �${importId.slice(-6)}`);
+      setStatementLabel(`Statement #${importId.slice(-6)}`);
     })();
   }, [row]);
 
@@ -516,7 +516,7 @@ export function TransactionInsightDrawer({
               </div>
             )}
             {/* Proactive insights */}
-            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[?���?]/g, "�"); return (
+            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[\u{1F300}-\u{1F9FF}]/gu, ""); return (
               <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{cleanInsight}</div>
             ); })}
           </div>
@@ -572,7 +572,7 @@ export function TransactionInsightDrawer({
               ))}
               <button type="button" onClick={() => setShowAllCats(v => !v)}
                 style={{ padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#475569' }}>
-                {showAllCats ? 'Less ?' : 'More ?'}
+                {showAllCats ? 'Less ▲' : 'More ▼'}
               </button>
             </div>
             {showAllCats && (

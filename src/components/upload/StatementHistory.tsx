@@ -200,7 +200,7 @@ function getStuckReason(imp: ImportRow, meta: DocMeta | undefined): string {
   return "Upload didn't finish — delete and re-upload";
 }
 
-// Inline trash icon (SVG beats emoji — no � rendering issues, consistent sizing)
+// Inline trash icon (SVG beats emoji — no 🗑 rendering issues, consistent sizing)
 function TrashIcon({ size = 16, color = "currentColor" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
@@ -686,7 +686,7 @@ export function StatementHistory() {
           type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search statements by bank, year, or month�"
+          placeholder="Search statements by bank, year, or month…"
           style={{
             width: "100%", boxSizing: "border-box",
             padding: "10px 14px 10px 36px",

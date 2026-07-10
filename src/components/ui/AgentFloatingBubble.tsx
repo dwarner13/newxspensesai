@@ -3,13 +3,13 @@ import { BUBBLE_SIZE, BUBBLE_BOTTOM, BUBBLE_RIGHT, BUBBLE_Z } from "@/lib/agentB
 interface AgentFloatingBubbleProps {
   /** Single letter or emoji shown inside the bubble */
   letter: string;
-  /** Primary agent color — used for gradient and glow */
+  /** Primary agent color â€” used for gradient and glow */
   color: string;
-  /** Secondary gradient color — defaults to darker shade of color */
+  /** Secondary gradient color â€” defaults to darker shade of color */
   colorTo?: string;
   onClick: () => void;
   label?: string;
-  /** Red badge count — shown when agent needs attention (e.g. uncategorized transactions) */
+  /** Red badge count â€” shown when agent needs attention (e.g. uncategorized transactions) */
   badgeCount?: number;
   /** Pulses the bubble to draw attention */
   pulse?: boolean;

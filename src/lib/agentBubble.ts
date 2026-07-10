@@ -1,6 +1,6 @@
 /**
  * Shared constants for ALL floating agent trigger bubbles.
- * Matches Prime floating button exactly — every agent uses these values.
+ * Matches Prime floating button exactly â€” every agent uses these values.
  */
 
 export const BUBBLE_SIZE = 56;

@@ -21,7 +21,7 @@ import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
 import { ChatHistorySidebar } from "../components/chat/ChatHistorySidebar";
 import { ControlCenterDrawer } from "../components/settings/ControlCenterDrawer";
 import { AccountCenterPanel } from "../components/settings/AccountCenterPanel";
-// Onboarding is owned by /onboarding/setup route â€” not rendered here anymore
+// Onboarding is owned by /onboarding/setup route — not rendered here anymore
 import { PrimeToolsPanel } from "../components/prime/PrimeToolsPanel";
 import { PrimeBriefingPanel } from "../pages/PrimeChatV2/PrimeBriefingPanel";
 import { UploadModal } from "../components/upload/UploadModal";
@@ -30,12 +30,12 @@ import { isPrimeBriefingOpenAtom } from "../lib/uiStore";
 import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
 // Legacy onboarding removed - UnifiedOnboardingFlow is the ONLY authority
 import { useAuth } from "../contexts/AuthContext";
-// onboarding gate/overlay removed â€” /onboarding/setup is single source of truth
+// onboarding gate/overlay removed — /onboarding/setup is single source of truth
 import { log, warn } from "../lib/logger";
 import { PrimeWelcomeOverlayCinematic } from "../components/onboarding/PrimeWelcomeOverlayCinematic";
 import { ChatErrorBoundary } from "../components/chat/ChatErrorBoundary";
 import { PostOnboardingChooser } from "../components/onboarding/PostOnboardingChooser";
-// DashboardTourOverlay removed â€” PrimeWelcomeModal handles first-time welcome now
+// DashboardTourOverlay removed — PrimeWelcomeModal handles first-time welcome now
 
 // DashboardHeaderWithBadges - Wrapper (now simplified, no custom badges)
 function DashboardHeaderWithBadges() {
@@ -106,7 +106,7 @@ export default function DashboardLayout() {
         const hasOverflow = scrollWidth > innerWidth + 1;
         
         if (hasOverflow) {
-          warn('[DashboardLayout] âš ï¸ Horizontal overflow detected:', {
+          warn('[DashboardLayout] ⚠️ Horizontal overflow detected:', {
             scrollWidth,
             innerWidth,
             overflow: scrollWidth - innerWidth,
@@ -286,10 +286,10 @@ export default function DashboardLayout() {
         });
 
         if (clippingAncestors.length > 0) {
-          warn('[RailDiagnostics] âš ï¸ CLIPPING ANCESTORS DETECTED:', clippingAncestors);
+          warn('[RailDiagnostics] ⚠️ CLIPPING ANCESTORS DETECTED:', clippingAncestors);
         }
         if (!railIsOnTop || !railIsOnTopAtEdge) {
-          warn('[RailDiagnostics] âš ï¸ RAIL COVERED BY:', {
+          warn('[RailDiagnostics] ⚠️ RAIL COVERED BY:', {
             atRailCenter: topElementAtRail,
             atRightEdge: topElementAtRightEdge,
           });
@@ -359,7 +359,7 @@ export default function DashboardLayout() {
           });
 
           if (overlap) {
-            warn('[HeaderDiagnostics] âš ï¸ OVERLAP DETECTED:', {
+            warn('[HeaderDiagnostics] ⚠️ OVERLAP DETECTED:', {
               titleRight: Math.round(titleRect.right),
               searchLeft: Math.round(searchRect.left),
               overlapPx: Math.round(titleRect.right - searchRect.left),
@@ -409,7 +409,7 @@ export default function DashboardLayout() {
   
   // Post-onboarding chooser: show only immediately after onboarding completion (session-based)
   const [showPostOnboardingChooser, setShowPostOnboardingChooser] = useState(false);
-  // Dashboard tour removed â€” PrimeWelcomeModal on /dashboard/upload?welcome=1 is the new-user intro
+  // Dashboard tour removed — PrimeWelcomeModal on /dashboard/upload?welcome=1 is the new-user intro
   
   useEffect(() => {
     // Check for sessionStorage flag and custodian_ready status on mount
@@ -492,7 +492,7 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, isProfileLoading, refreshProfile]);
   
-  // Onboarding state removed â€” /onboarding/setup owns first-time setup now
+  // Onboarding state removed — /onboarding/setup owns first-time setup now
   // A new user is redirected there by post-signup flow; we render no overlay here.
   
   // Legacy onboarding overlay logic REMOVED
@@ -740,7 +740,7 @@ export default function DashboardLayout() {
         const bodyOverflowY = window.getComputedStyle(document.body).overflowY;
         const htmlOverflow = window.getComputedStyle(document.documentElement).overflow;
         
-        log(`[ScrollDiagnostics] ðŸ”’ ${location.pathname} - LOCKED INVARIANT verification:`, {
+        log(`[ScrollDiagnostics] 🔒 ${location.pathname} - LOCKED INVARIANT verification:`, {
           htmlScrollHeight: docEl.scrollHeight,
           htmlClientHeight: docEl.clientHeight,
           htmlHeightDiff,
@@ -875,7 +875,7 @@ export default function DashboardLayout() {
           
           log(`[ScrollDiagnostics] ${location.pathname} - Top 5 offenders highlighted with colored outlines`);
         } else {
-          log(`[ScrollDiagnostics] ${location.pathname} - âœ… No scroll containers or overscroll offenders found (BODY is scroll owner)`);
+          log(`[ScrollDiagnostics] ${location.pathname} - ✅ No scroll containers or overscroll offenders found (BODY is scroll owner)`);
         }
       };
 
@@ -955,8 +955,8 @@ export default function DashboardLayout() {
               isAtBottom: bodyIsAtBottom,
             },
             warning: scrollContainers.some(c => c.isAtBoundary && c.canScroll) 
-              ? 'âš ï¸ Wheel may be blocked by nested scroll container at boundary' 
-              : 'âœ… No blocking detected',
+              ? '⚠️ Wheel may be blocked by nested scroll container at boundary' 
+              : '✅ No blocking detected',
           });
         }
       };
@@ -998,7 +998,7 @@ export default function DashboardLayout() {
     }
   }, [useBodyScroll, location.pathname]);
 
-  // â•â•â• ONBOARDING REDIRECT â•â•â•
+  // ═══ ONBOARDING REDIRECT ═══
   // New users (no onboarding_completed) go to /onboarding
   useEffect(() => {
     if (!ready || !userId || !profile) return;
@@ -1246,7 +1246,7 @@ export default function DashboardLayout() {
       {/* Upload Modal */}
       <UploadModal />
 
-      {/* Onboarding overlays removed â€” /onboarding/setup is single source of truth */}
+      {/* Onboarding overlays removed — /onboarding/setup is single source of truth */}
       {/* Users who need to onboard are redirected to /onboarding/setup post-signup */}
 
       {/* Welcome Back Overlay DISABLED - replaced by Dashboard V2 briefing */}

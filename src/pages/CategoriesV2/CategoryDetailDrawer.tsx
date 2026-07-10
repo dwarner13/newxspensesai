@@ -157,7 +157,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
             ) : null}
           </div>
 
-          {/* Subcategory chips � show all chips when viewing parent */}
+          {/* Subcategory chips — show all chips when viewing parent */}
           {!subcategoryFilter && category.subcategories && category.subcategories.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 8 }}>Breakdown</div>

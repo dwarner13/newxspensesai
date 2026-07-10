@@ -41,7 +41,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Healthcare": "#f87171", "Bank Fees": "#94a3b8", "Income": "#34d399", "Other": "#4a5a75",
 };
 
-/* â”€â”€ Tax-Workspace mirror: section matchers (same rules as TaxWorkspacePage.tsx) â”€â”€ */
+/* ── Tax-Workspace mirror: section matchers (same rules as TaxWorkspacePage.tsx) ── */
 // Keep these in sync if TaxWorkspacePage section logic changes.
 interface TaxSectionDef {
   id: string;
@@ -113,7 +113,7 @@ const TAX_SECTIONS: TaxSectionDef[] = [
   })),
 ];
 
-/* â”€â”€ Bucket definitions (mirror TaxWorkspacePage.tsx exactly) â”€â”€ */
+/* ── Bucket definitions (mirror TaxWorkspacePage.tsx exactly) ── */
 // IMPORTANT: Keep these in sync with TaxWorkspacePage.tsx. These are the same
 // merchant-keyword rules the Tax Summary UI uses to compute per-bucket totals.
 interface TaxBucket { label: string; keywords: string[]; }
@@ -424,7 +424,7 @@ export function usePrimeBriefingData(): PrimeBriefingData {
       .map(c => `${c.label} ${totalSpent > 0 ? Math.round((c.amount / totalSpent) * 100) : 0}%`)
       .join(" \u2022 ");
 
-    // â”€â”€ Tax-Workspace mirror: section + bucket totals â”€â”€
+    // ── Tax-Workspace mirror: section + bucket totals ──
     // Uses the EXACT same logic TaxWorkspacePage uses so Prime's numbers match the UI exactly.
     // Key parity details (easy to miss):
     //   1. Year filter: Tax Workspace defaults to year 2025 (`WHERE date >= '2025-01-01' AND date < '2026-01-01'`).

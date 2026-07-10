@@ -255,7 +255,7 @@ export default function CategoriesPageV2() {
                 <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>excl. transfers</div>
               </div>
 
-              {/* Net � desktop only */}
+              {/* Net — desktop only */}
               {!isMobile && (
                 <div>
                   <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>Net</div>
@@ -344,7 +344,7 @@ export default function CategoriesPageV2() {
           </div>
         )}
 
-        {/* Money Movement � Transfers shown separately, excluded from expense totals */}
+        {/* Money Movement — Transfers shown separately, excluded from expense totals */}
         {!search && transfersCategory && (
           <Reveal delay={200}>
             <div style={{ marginTop: 32 }}>

@@ -562,14 +562,14 @@ export default function TransactionsPageV2() {
         if (!label || label === 'Statement') {
           // Fallback to date if no filename
           const d = new Date(i.created_at);
-          label = `Statement � ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+          label = `Statement — ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
         }
         return { id: i.id, label };
       });
   }, [imports]);
   const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
 
-  // AI insights � from filtered
+  // AI insights — from filtered
   const insights = useMemo(() => {
     const uncatCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
     const catCount = filtered.length - uncatCount;
@@ -633,7 +633,7 @@ export default function TransactionsPageV2() {
             <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#22d3ee18", border: "1.5px solid #22d3ee44", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>?</div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#22d3ee" }}>Your statement is processing</div>
-              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Transactions will appear within a moment � no need to refresh.</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Transactions will appear within a moment — no need to refresh.</div>
             </div>
           </div>
           <button onClick={() => setShowProcessingBanner(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16, padding: "0 4px", lineHeight: 1 }}>?</button>
@@ -1340,7 +1340,7 @@ export default function TransactionsPageV2() {
         }
       }} />, document.body)}
 
-      {/* Drawer � portalled to body to escape any stacking context from DashboardLayout */}
+      {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
         <TransactionInsightDrawer
           open={!!selectedTx}

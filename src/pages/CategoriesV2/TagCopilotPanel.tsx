@@ -576,10 +576,10 @@ export function TagCopilotPanel({
     } else if (rulesCount > 0 && realCategories.length > 0) {
       const top = realCategories[0];
       const ruleWord = rulesCount === 1 ? "rule" : "rules";
-      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend � want me to check deductibility or break it down by merchant?`;
+      text = `${hi} - I'm running **${rulesCount} category ${ruleWord}** across your books. **${top.category}** is your biggest spend — want me to check deductibility or break it down by merchant?`;
     } else if (realCategories.length > 0) {
       const top = realCategories[0];
-      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend � want me to check what's deductible or add a rule for any merchants?`;
+      text = `${hi} - I manage your category rules and merchant patterns. **${top.category}** is your top spend — want me to check what's deductible or add a rule for any merchants?`;
     } else {
       text = `${hi} - I'm your category intelligence engine. Ask me to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern.`;
     }

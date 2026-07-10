@@ -50,12 +50,12 @@ export default function MarketingHomePage() {
     }}>
       <MarketingNav />
 
-      {/* HERO — Split Layout */}
+      {/* HERO â€” Split Layout */}
       <section style={{ minHeight: "100vh", display: "flex", alignItems: "center", padding: isMobile ? "80px 24px 60px" : "80px 48px 60px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: "20%", left: "10%", width: 500, height: 500, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent}06 0%, transparent 70%)`, filter: "blur(80px)" }} />
 
         <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", gap: isMobile ? 40 : 60, width: "100%", position: "relative", zIndex: 1 }}>
-          {/* LEFT — Text */}
+          {/* LEFT â€” Text */}
           <div style={{ flex: isMobile ? undefined : "0 0 45%", maxWidth: 540, textAlign: isMobile ? "center" : "left" }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 20px", borderRadius: 20, marginBottom: 32, background: C.accentGlow, border: `1px solid ${C.accent}22`, opacity: loaded ? 1 : 0, transition: "opacity 0.6s 0.2s" }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.green, boxShadow: `0 0 8px ${C.green}66` }} />
@@ -76,7 +76,7 @@ export default function MarketingHomePage() {
             </div>
           </div>
 
-          {/* RIGHT — Dashboard Preview */}
+          {/* RIGHT â€” Dashboard Preview */}
           <div style={{ flex: 1, position: "relative", opacity: loaded ? 1 : 0, transform: loaded ? "translateX(0)" : "translateX(40px)", transition: "all 1s cubic-bezier(0.16,1,0.3,1) 0.4s" }}>
             {!isMobile && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 100, background: `linear-gradient(to right, ${C.bg}, transparent)`, zIndex: 2, pointerEvents: "none" }} />}
             <div style={{
@@ -122,7 +122,7 @@ export default function MarketingHomePage() {
         </div>
       </section>
 
-      {/* INSIDE THE APP — Feature Screenshots */}
+      {/* INSIDE THE APP â€” Feature Screenshots */}
       <section style={{ padding: isMobile ? "60px 20px" : "100px 48px", maxWidth: 1200, margin: "0 auto" }}>
         <MarketingReveal>
           <div style={{ textAlign: "center", marginBottom: isMobile ? 32 : 48 }}>

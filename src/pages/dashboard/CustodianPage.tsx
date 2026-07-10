@@ -10,7 +10,7 @@ export default function CustodianPage() {
 
   return (
     <div className="flex items-center justify-center h-full text-slate-400">
-      Opening Custodian chat…
+      Opening Custodian chatâ€¦
     </div>
   );
 }
