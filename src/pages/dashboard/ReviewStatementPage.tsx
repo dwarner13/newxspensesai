@@ -79,21 +79,49 @@ export default function ReviewStatementPage() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
 
-  // ── Resolve PDF signed URL ──
-  useEffect(() => {
-    if (!importId || !userId || rows.length === 0) return;
-    const firstRow = rows[0] as any;
-    const storagePath = firstRow?.import?.document?.storage_path;
-    const docName = firstRow?.import?.document?.original_name || 'Statement';
-    setPdfLabel(docName.replace(/\.[^.]+$/, ''));
-    if (!storagePath) return;
+  // Row list filter/expand
+  const [rowFilter, setRowFilter] = useState('');
+  const [showAll, setShowAll] = useState(false);
 
+  // Responsive: wide (split) vs narrow (tabbed)
+  const [isWide, setIsWide] = useState(typeof window !== 'undefined' ? window.innerWidth >= 900 : true);
+  const [narrowTab, setNarrowTab] = useState<'statement' | 'transactions'>('transactions');
+  useEffect(() => {
+    const onResize = () => setIsWide(window.innerWidth >= 900);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // ── Resolve PDF signed URL (independent of usePendingTransactions) ──
+  const [pdfLoading, setPdfLoading] = useState(true);
+  useEffect(() => {
+    if (!importId || !userId) return;
+    setPdfLoading(true);
     const supabase = getSupabase();
-    if (!supabase) return;
-    supabase.storage.from('docs').createSignedUrl(storagePath, 3600).then(({ data }) => {
-      if (data?.signedUrl) setPdfUrl(data.signedUrl);
-    });
-  }, [importId, userId, rows]);
+    if (!supabase) { setPdfLoading(false); return; }
+    (async () => {
+      try {
+        const { data: imp } = await supabase
+          .from('imports')
+          .select('file_url, document:user_documents!inner(storage_path, original_name)')
+          .eq('id', importId)
+          .eq('user_id', userId)
+          .single();
+        const doc = (imp as any)?.document;
+        const storagePath = doc?.storage_path;
+        const docName = doc?.original_name || 'Statement';
+        setPdfLabel(docName.replace(/\.[^.]+$/, ''));
+        if (storagePath) {
+          const { data: signed } = await supabase.storage.from('docs').createSignedUrl(storagePath, 3600);
+          if (signed?.signedUrl) setPdfUrl(signed.signedUrl);
+        }
+      } catch (err) {
+        console.error('[ReviewStatementPage] PDF resolve failed:', err);
+      } finally {
+        setPdfLoading(false);
+      }
+    })();
+  }, [importId, userId]);
 
   // ── Load bank totals from imports.statement_breakdown_json ──
   useEffect(() => {
@@ -257,52 +285,100 @@ export default function ReviewStatementPage() {
     );
   }
 
-  return (
-    <div style={{ display: 'flex', height: '100%', minHeight: 0, background: T.bg, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+  // ── Extracted sub-sections for reuse in both layouts ──
 
-      {/* ── LEFT PANE: PDF ── */}
-      <div style={{ flex: '0 0 50%', maxWidth: '50%', height: '100%', overflow: 'hidden', borderRight: `1px solid ${T.border}` }}>
-        {pdfUrl ? (
-          <StatementPdfViewer url={pdfUrl} label={pdfLabel} onClose={() => {}} inline />
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 13 }}>
-            {isLoading ? 'Loading PDF\u2026' : 'No PDF available for this statement'}
+  const pdfPane = (
+    <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+      {pdfUrl ? (
+        <StatementPdfViewer url={pdfUrl} label={pdfLabel} onClose={() => {}} inline />
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.dim, fontSize: 13, gap: 10 }}>
+          {pdfLoading ? (
+            <>
+              <div style={{ width: 20, height: 20, border: '2px solid #22d3ee', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+              Loading PDF{'\u2026'}
+            </>
+          ) : 'No PDF available for this statement'}
+        </div>
+      )}
+    </div>
+  );
+
+  const discrepancyBanner = bankTotals && delta ? (
+    <div style={{
+      padding: isWide ? '16px 20px' : '12px 14px', borderRadius: 14, marginBottom: isWide ? 20 : 12,
+      background: isReconciled ? `${T.green}08` : `${T.amber}08`,
+      border: `1px solid ${isReconciled ? T.green : T.amber}22`,
+    }}>
+      <div style={{ fontSize: isWide ? 14 : 13, fontWeight: 700, color: isReconciled ? T.green : T.amber, marginBottom: 8 }}>
+        {isReconciled ? '\u2705 Reconciled — ready to import' : '\u26A0 Statement held — totals don\u2019t match'}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: isWide ? '1fr 1fr 1fr' : '1fr 1fr', gap: isWide ? 12 : 8, fontSize: 11 }}>
+        <div>
+          <div style={{ color: T.dim, marginBottom: 3 }}>Bank printed</div>
+          <div style={{ color: T.text }}>Ded: ${bankTotals.deducted.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</div>
+          <div style={{ color: T.text }}>Add: ${bankTotals.added.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</div>
+        </div>
+        <div>
+          <div style={{ color: T.dim, marginBottom: 3 }}>Staged</div>
+          <div style={{ color: T.text }}>Ded: ${rowTotals.deducted.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</div>
+          <div style={{ color: T.text }}>Add: ${rowTotals.added.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</div>
+        </div>
+        {isWide && (
+          <div>
+            <div style={{ color: T.dim, marginBottom: 3 }}>Delta</div>
+            <div style={{ color: delta.deducted > 0.05 ? T.red : T.green }}>{'\u0394'} Ded: ${delta.deducted.toFixed(2)}</div>
+            <div style={{ color: delta.added > 0.05 ? T.red : T.green }}>{'\u0394'} Add: ${delta.added.toFixed(2)}</div>
           </div>
         )}
       </div>
+    </div>
+  ) : null;
 
-      {/* ── RIGHT PANE: Rows + Edit + Custodian ── */}
-      <div style={{ flex: 1, height: '100%', overflow: 'auto', padding: '20px 24px' }}>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: T.bg, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
-        {/* Discrepancy banner */}
-        {bankTotals && delta && (
-          <div style={{
-            padding: '16px 20px', borderRadius: 14, marginBottom: 20,
-            background: isReconciled ? `${T.green}08` : `${T.amber}08`,
-            border: `1px solid ${isReconciled ? T.green : T.amber}22`,
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: isReconciled ? T.green : T.amber, marginBottom: 10 }}>
-              {isReconciled ? '\u2705 Reconciled — ready to import' : '\u26A0 Statement held — totals don\u2019t match'}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, fontSize: 12 }}>
-              <div>
-                <div style={{ color: T.dim, marginBottom: 4 }}>Bank printed</div>
-                <div style={{ color: T.text }}>Deducted: ${bankTotals.deducted.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</div>
-                <div style={{ color: T.text }}>Added: ${bankTotals.added.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</div>
-              </div>
-              <div>
-                <div style={{ color: T.dim, marginBottom: 4 }}>Staged rows</div>
-                <div style={{ color: T.text }}>Deducted: ${rowTotals.deducted.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</div>
-                <div style={{ color: T.text }}>Added: ${rowTotals.added.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</div>
-              </div>
-              <div>
-                <div style={{ color: T.dim, marginBottom: 4 }}>Delta</div>
-                <div style={{ color: delta.deducted > 0.05 ? T.red : T.green }}>{'\u0394'} Deducted: ${delta.deducted.toFixed(2)}</div>
-                <div style={{ color: delta.added > 0.05 ? T.red : T.green }}>{'\u0394'} Added: ${delta.added.toFixed(2)}</div>
-              </div>
-            </div>
+      {/* ── Narrow: pinned banner + tab toggle ── */}
+      {!isWide && (
+        <div style={{ flexShrink: 0, padding: '12px 16px 0', borderBottom: `1px solid ${T.border}` }}>
+          {discrepancyBanner}
+          <div style={{ display: 'flex', gap: 0, marginBottom: -1 }}>
+            {(['statement', 'transactions'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setNarrowTab(tab)}
+                style={{
+                  flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 700,
+                  textTransform: 'capitalize', cursor: 'pointer',
+                  background: 'none', border: 'none',
+                  color: narrowTab === tab ? T.accent : T.dim,
+                  borderBottom: `2px solid ${narrowTab === tab ? T.accent : 'transparent'}`,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {tab === 'statement' ? '\uD83D\uDCC4 Statement' : `\uD83D\uDCCB Transactions (${rows.length})`}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+      )}
+
+      {/* ── Narrow: single pane ── */}
+      {!isWide && narrowTab === 'statement' && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>{pdfPane}</div>
+      )}
+
+      {/* ── Wide: side-by-side ── */}
+      {isWide && (
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {/* Left: PDF */}
+          <div style={{ flex: '0 0 50%', maxWidth: '50%', height: '100%', overflow: 'hidden', borderRight: `1px solid ${T.border}` }}>
+            {pdfPane}
+          </div>
+          {/* Right: review pane */}
+          <div style={{ flex: 1, height: '100%', overflow: 'auto', padding: '20px 24px' }}>
+            {discrepancyBanner}
 
         {/* Import button */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
@@ -359,16 +435,58 @@ export default function ReviewStatementPage() {
           </div>
         )}
 
-        {/* Staging rows */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
-          {rows.length} staged transactions
+        {/* Staging rows — sorted: flagged first, then by date */}
+        {(() => {
+          // Sort: flagged rows first, then by date descending
+          const sorted = [...rows].sort((a, b) => {
+            const aFlags = (a.data_json as any)?.confidence_flags?.length || 0;
+            const bFlags = (b.data_json as any)?.confidence_flags?.length || 0;
+            if (aFlags && !bFlags) return -1;
+            if (!aFlags && bFlags) return 1;
+            return ((b.data_json?.date || '') > (a.data_json?.date || '') ? 1 : -1);
+          });
+          // Filter by search
+          const filterLower = rowFilter.trim().toLowerCase();
+          const filtered = filterLower
+            ? sorted.filter(r => {
+                const dj = r.data_json || {} as any;
+                const merchant = String(dj.merchant || dj.description || '').toLowerCase();
+                const amtStr = String(dj.amount || '');
+                return merchant.includes(filterLower) || amtStr.includes(filterLower);
+              })
+            : sorted;
+          const flaggedCount = filtered.filter(r => (r.data_json as any)?.confidence_flags?.length).length;
+          // Default: show flagged rows only (or first 15 if none flagged), unless expanded
+          const defaultVisible = flaggedCount > 0
+            ? filtered.filter(r => (r.data_json as any)?.confidence_flags?.length)
+            : filtered.slice(0, 15);
+          const visible = showAll || filterLower ? filtered : defaultVisible;
+          const hiddenCount = filtered.length - visible.length;
+
+          return (<>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            {rows.length} staged {flaggedCount > 0 && <span style={{ color: T.amber }}>({flaggedCount} flagged)</span>}
+          </div>
+          <div style={{ flex: 1 }} />
+          <input
+            type="text"
+            value={rowFilter}
+            onChange={e => setRowFilter(e.target.value)}
+            placeholder="Filter by merchant or amount\u2026"
+            style={{
+              width: 200, padding: '5px 10px', fontSize: 11,
+              background: T.surface, border: `1px solid ${T.border}`,
+              borderRadius: 8, color: T.text, outline: 'none',
+            }}
+          />
         </div>
 
         {isLoading ? (
           <div style={{ padding: 40, textAlign: 'center', color: T.dim }}>Loading rows{'\u2026'}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {rows.map((row: PendingTransaction) => {
+            {visible.map((row: PendingTransaction) => {
               const dj = row.data_json || {} as any;
               const amt = Number(dj.amount) || 0;
               const flags = dj.confidence_flags as string[] | undefined;
@@ -449,9 +567,145 @@ export default function ReviewStatementPage() {
                 </div>
               );
             })}
+            {hiddenCount > 0 && !showAll && (
+              <button
+                onClick={() => setShowAll(true)}
+                style={{
+                  marginTop: 8, padding: '8px 16px', borderRadius: 8,
+                  fontSize: 11, fontWeight: 600, color: T.accent,
+                  background: T.surface, border: `1px solid ${T.border}`,
+                  cursor: 'pointer', width: '100%', textAlign: 'center',
+                }}
+              >
+                Show all {filtered.length} transactions ({hiddenCount} more)
+              </button>
+            )}
+            {showAll && filtered.length > 15 && (
+              <button
+                onClick={() => setShowAll(false)}
+                style={{
+                  marginTop: 8, padding: '6px 12px', borderRadius: 8,
+                  fontSize: 11, color: T.dim,
+                  background: 'none', border: `1px solid ${T.border}`,
+                  cursor: 'pointer', width: '100%', textAlign: 'center',
+                }}
+              >
+                Collapse to flagged only
+              </button>
+            )}
           </div>
         )}
-      </div>
+          </>);
+        })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Narrow: transactions tab ── */}
+      {!isWide && narrowTab === 'transactions' && (
+        <div style={{ flex: 1, overflow: 'auto', padding: '16px 16px' }}>
+          {/* Buttons */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            <button
+              onClick={handleCommit}
+              disabled={!isReconciled || committing}
+              style={{
+                padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                background: isReconciled ? `linear-gradient(135deg, ${T.green}, #059669)` : T.surface,
+                border: isReconciled ? 'none' : `1px solid ${T.border}`,
+                color: isReconciled ? '#0b1220' : T.dim,
+                cursor: isReconciled ? 'pointer' : 'not-allowed',
+                opacity: committing ? 0.6 : 1, flex: 1,
+              }}
+            >
+              {committing ? 'Importing\u2026' : isReconciled ? `\u2705 Import ${rows.length} tx` : '\u26A0 Fix to import'}
+            </button>
+            <button
+              onClick={askCustodian}
+              disabled={explaining}
+              style={{
+                padding: '10px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                background: T.surface, border: `1px solid ${T.border}`,
+                color: T.cyan, cursor: 'pointer', opacity: explaining ? 0.6 : 1,
+              }}
+            >
+              {explaining ? '\u2026' : '\uD83D\uDD27'}
+            </button>
+          </div>
+          {/* Custodian (narrow) */}
+          {explanation && (
+            <div style={{
+              padding: '14px 16px', borderRadius: 14, marginBottom: 16,
+              background: `${T.cyan}06`, border: `1px solid ${T.cyan}18`,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.cyan, marginBottom: 6 }}>
+                Custodian
+              </div>
+              <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {explanation}
+              </div>
+            </div>
+          )}
+          {/* Rows (narrow) — reuse the same IIFE pattern */}
+          {(() => {
+            const sorted = [...rows].sort((a, b) => {
+              const aF = (a.data_json as any)?.confidence_flags?.length || 0;
+              const bF = (b.data_json as any)?.confidence_flags?.length || 0;
+              if (aF && !bF) return -1;
+              if (!aF && bF) return 1;
+              return ((b.data_json?.date || '') > (a.data_json?.date || '') ? 1 : -1);
+            });
+            const fl = rowFilter.trim().toLowerCase();
+            const filtered = fl
+              ? sorted.filter(r => { const d = r.data_json || {} as any; return String(d.merchant || d.description || '').toLowerCase().includes(fl) || String(d.amount || '').includes(fl); })
+              : sorted;
+            const fc = filtered.filter(r => (r.data_json as any)?.confidence_flags?.length).length;
+            const dv = fc > 0 ? filtered.filter(r => (r.data_json as any)?.confidence_flags?.length) : filtered.slice(0, 15);
+            const vis = showAll || fl ? filtered : dv;
+            const hc = filtered.length - vis.length;
+            return (<>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.dim }}>
+                  {rows.length} rows {fc > 0 && <span style={{ color: T.amber }}>({fc} flagged)</span>}
+                </div>
+                <div style={{ flex: 1 }} />
+                <input type="text" value={rowFilter} onChange={e => setRowFilter(e.target.value)} placeholder="Filter\u2026"
+                  style={{ width: 140, padding: '4px 8px', fontSize: 11, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, outline: 'none' }} />
+              </div>
+              {vis.map((row: PendingTransaction) => {
+                const dj = row.data_json || {} as any;
+                const amt = Number(dj.amount) || 0;
+                const flags = dj.confidence_flags as string[] | undefined;
+                const isEd = editingRowId === row.id;
+                return (
+                  <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, marginBottom: 2, background: flags?.length ? `${T.amber}06` : T.surface, border: `1px solid ${flags?.length ? T.amber + '18' : T.border}` }}>
+                    <div style={{ width: 58, fontSize: 10, color: T.dim, flexShrink: 0 }}>{dj.date || '\u2014'}</div>
+                    <div style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dj.merchant || dj.description || '?'}</div>
+                    {isEd ? (
+                      <div style={{ display: 'flex', gap: 3, alignItems: 'center', flexShrink: 0 }}>
+                        <input type="number" step="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)} autoFocus
+                          style={{ width: 80, padding: '3px 6px', fontSize: 11, background: T.bg, border: `1px solid ${T.accent}`, borderRadius: 6, color: T.text, outline: 'none' }}
+                          onKeyDown={e => { if (e.key === 'Enter') handleSaveAmount(row.id); if (e.key === 'Escape') { setEditingRowId(null); setEditAmount(''); } }} />
+                        <button onClick={() => handleSaveAmount(row.id)} disabled={saving} style={{ padding: '3px 6px', borderRadius: 6, fontSize: 10, fontWeight: 600, background: T.accent, border: 'none', color: '#0b1220', cursor: 'pointer' }}>{saving ? '\u2026' : '\u2713'}</button>
+                        <button onClick={() => { setEditingRowId(null); setEditAmount(''); }} style={{ padding: '3px 6px', borderRadius: 6, fontSize: 10, background: 'none', border: `1px solid ${T.border}`, color: T.dim, cursor: 'pointer' }}>{'\u2717'}</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setEditingRowId(row.id); setEditAmount(String(amt)); }} style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: amt < 0 ? T.text : T.green, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', flexShrink: 0 }}>
+                        {formatAmount(amt)}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {hc > 0 && !showAll && (
+                <button onClick={() => setShowAll(true)} style={{ marginTop: 6, padding: '7px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600, color: T.accent, background: T.surface, border: `1px solid ${T.border}`, cursor: 'pointer', width: '100%', textAlign: 'center' }}>
+                  Show all {filtered.length} ({hc} more)
+                </button>
+              )}
+            </>);
+          })()}
+        </div>
+      )}
     </div>
   );
 }
