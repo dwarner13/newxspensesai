@@ -372,22 +372,22 @@ export default function ReviewStatementPage() {
         </div>
       )}
 
-      {/* ── Narrow: single pane (scrolls internally) ── */}
+      {/* ── Narrow: single pane (scrolls internally, viewport-bounded) ── */}
       {!isWide && narrowTab === 'statement' && (
-        <div style={{ flex: 1, overflow: 'hidden', padding: 12 }}>
-          <div style={{ ...cardStyle, height: '100%' }}>{pdfPane}</div>
+        <div style={{ flex: 1, overflow: 'hidden', padding: 12, maxHeight: 'calc(100vh - 200px)' }}>
+          <div style={{ ...cardStyle, height: '100%', overflow: 'hidden' }}>{pdfPane}</div>
         </div>
       )}
 
-      {/* ── Wide: two contained cards, independent scroll ── */}
+      {/* ── Wide: two contained cards, viewport-bounded independent scroll ── */}
       {isWide && (
-        <div style={{ display: 'flex', flex: 1, gap: 12, padding: 12, minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: 12, padding: 12, height: 'calc(100vh - 140px)', overflow: 'hidden' }}>
           {/* Left card: PDF (scrolls internally via StatementPdfViewer) */}
-          <div style={{ ...cardStyle, flex: '1 1 50%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...cardStyle, flex: '1 1 50%', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {pdfPane}
           </div>
           {/* Right card: review pane (scrolls internally) */}
-          <div style={{ ...cardStyle, flex: '1 1 50%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...cardStyle, flex: '1 1 50%', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
             {discrepancyBanner}
 
@@ -613,9 +613,9 @@ export default function ReviewStatementPage() {
         </div>
       )}
 
-      {/* ── Narrow: transactions tab (scrolls internally) ── */}
+      {/* ── Narrow: transactions tab (scrolls internally, viewport-bounded) ── */}
       {!isWide && narrowTab === 'transactions' && (
-        <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', maxHeight: 'calc(100vh - 200px)' }}>
           {/* Buttons */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
             <button
