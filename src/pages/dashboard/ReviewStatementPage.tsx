@@ -389,7 +389,8 @@ export default function ReviewStatementPage() {
           </div>
           {/* Right card: review pane (scrolls internally) */}
           <div style={{ ...cardStyle, flex: '1 1 50%', minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+            {/* Pinned header: banner + buttons + custodian */}
+            <div style={{ flexShrink: 0, padding: '20px 24px 0' }}>
             {discrepancyBanner}
 
         {/* Import button */}
@@ -446,6 +447,8 @@ export default function ReviewStatementPage() {
             </div>
           </div>
         )}
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 20px' }}>
 
         {/* Staging rows — sorted: flagged first, then by date */}
         {(() => {
@@ -628,7 +631,9 @@ export default function ReviewStatementPage() {
 
       {/* ── Narrow: transactions tab (scrolls internally, viewport-bounded) ── */}
       {!isWide && narrowTab === 'transactions' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', maxHeight: 'calc(100vh - 200px)' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', maxHeight: 'calc(100vh - 200px)' }}>
+          {/* Pinned header: buttons + custodian */}
+          <div style={{ flexShrink: 0, padding: '12px 16px 0' }}>
           {/* Buttons */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
             <button
@@ -671,6 +676,8 @@ export default function ReviewStatementPage() {
               </div>
             </div>
           )}
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 12px' }}>
           {/* Rows (narrow) — reuse the same IIFE pattern */}
           {(() => {
             const sorted = [...rows].sort((a, b) => {
@@ -741,6 +748,7 @@ export default function ReviewStatementPage() {
               )}
             </>);
           })()}
+          </div>
         </div>
       )}
     </div>
