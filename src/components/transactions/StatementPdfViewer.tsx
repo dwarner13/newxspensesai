@@ -57,9 +57,10 @@ interface PageCanvasProps {
   pdf: any;
   pageNumber: number;
   scale: number;
+  draggable?: boolean;
 }
 
-function PageCanvas({ pdf, pageNumber, scale }: PageCanvasProps) {
+function PageCanvas({ pdf, pageNumber, scale, draggable }: PageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [rendered, setRendered] = useState(false);
   const [error, setError] = useState(false);
@@ -115,6 +116,7 @@ function PageCanvas({ pdf, pageNumber, scale }: PageCanvasProps) {
       ) : (
         <canvas
           ref={canvasRef}
+          draggable={draggable === false ? false : undefined}
           style={{
             display: 'block',
             width: '100%',
@@ -141,7 +143,9 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
@@ -351,7 +355,23 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
           </div>
         </div>
         {/* Scrollable pages */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px 32px', WebkitOverflowScrolling: 'touch' as any }}>
+        <div
+          style={{ flex: 1, overflow: 'auto', padding: '12px 12px 32px', WebkitOverflowScrolling: 'touch' as any, cursor: isDragging ? 'grabbing' : 'grab' }}
+          onMouseDown={(e) => {
+            const el = e.currentTarget;
+            setIsDragging(true);
+            dragStart.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+            e.preventDefault();
+          }}
+          onMouseMove={(e) => {
+            if (!isDragging || !dragStart.current) return;
+            const el = e.currentTarget;
+            el.scrollLeft = dragStart.current.sl - (e.clientX - dragStart.current.x);
+            el.scrollTop = dragStart.current.st - (e.clientY - dragStart.current.y);
+          }}
+          onMouseUp={() => setIsDragging(false)}
+          onMouseLeave={() => setIsDragging(false)}
+        >
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, gap: 12 }}>
               <div style={{ width: 24, height: 24, border: '2px solid #22d3ee', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -362,7 +382,7 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
           {!loading && !error && pdf && (
             <div style={{ width: `${Math.round((scale / 1.4) * 100)}%` }}>
               {pagesToRender.map(pageNum => (
-                <PageCanvas key={`${url}-p${pageNum}-s${scale}`} pdf={pdf} pageNumber={pageNum} scale={scale} />
+                <PageCanvas key={`${url}-p${pageNum}-s${scale}`} pdf={pdf} pageNumber={pageNum} scale={scale} draggable={false} />
               ))}
             </div>
           )}
