@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getSupabase } from '@/lib/supabase';
 import { usePendingTransactions } from '@/hooks/usePendingTransactions';
 import { StatementPdfViewer } from '@/components/transactions/StatementPdfViewer';
+import { TransactionInsightDrawer } from '@/components/transactions/TransactionInsightDrawer';
 import type { PendingTransaction } from '@/types/transactions';
 
 const T = {
@@ -78,6 +79,9 @@ export default function ReviewStatementPage() {
   // Custodian explanation
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
+
+  // Drawer
+  const [selectedRow, setSelectedRow] = useState<PendingTransaction | null>(null);
 
   // Row list filter/expand
   const [rowFilter, setRowFilter] = useState('');
@@ -522,11 +526,16 @@ export default function ReviewStatementPage() {
               return (
                 <div
                   key={row.id}
+                  onClick={() => setSelectedRow(row)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedRow(row); } }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '8px 14px', borderRadius: 10,
                     background: flags?.length ? `${T.amber}06` : T.surface,
                     border: `1px solid ${flags?.length ? T.amber + '18' : T.border}`,
+                    cursor: 'pointer',
                   }}
                 >
                   {/* Date */}
@@ -576,7 +585,7 @@ export default function ReviewStatementPage() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => { setEditingRowId(row.id); setEditAmount(String(amt)); }}
+                      onClick={(e) => { e.stopPropagation(); setEditingRowId(row.id); setEditAmount(String(amt)); }}
                       title="Click to edit amount"
                       style={{
                         fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
@@ -722,7 +731,7 @@ export default function ReviewStatementPage() {
                 const flags = dj.confidence_flags as string[] | undefined;
                 const isEd = editingRowId === row.id;
                 return (
-                  <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, marginBottom: 2, background: flags?.length ? `${T.amber}06` : T.surface, border: `1px solid ${flags?.length ? T.amber + '18' : T.border}` }}>
+                  <div key={row.id} onClick={() => setSelectedRow(row)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedRow(row); } }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, marginBottom: 2, background: flags?.length ? `${T.amber}06` : T.surface, border: `1px solid ${flags?.length ? T.amber + '18' : T.border}`, cursor: 'pointer' }}>
                     <div style={{ width: 58, fontSize: 10, color: T.dim, flexShrink: 0 }}>{dj.date || '\u2014'}</div>
                     <div style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dj.merchant || dj.description || '?'}</div>
                     {isEd ? (
@@ -734,7 +743,7 @@ export default function ReviewStatementPage() {
                         <button onClick={() => { setEditingRowId(null); setEditAmount(''); }} style={{ padding: '3px 6px', borderRadius: 6, fontSize: 10, background: 'none', border: `1px solid ${T.border}`, color: T.dim, cursor: 'pointer' }}>{'\u2717'}</button>
                       </div>
                     ) : (
-                      <button onClick={() => { setEditingRowId(row.id); setEditAmount(String(amt)); }} style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: amt < 0 ? T.text : T.green, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', flexShrink: 0 }}>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingRowId(row.id); setEditAmount(String(amt)); }} style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: amt < 0 ? T.text : T.green, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', flexShrink: 0 }}>
                         {formatAmount(amt)}
                       </button>
                     )}
@@ -751,6 +760,12 @@ export default function ReviewStatementPage() {
           </div>
         </div>
       )}
+      <TransactionInsightDrawer
+        open={!!selectedRow}
+        row={selectedRow ? { kind: 'pending', transaction: selectedRow } : null}
+        allCommittedTransactions={[]}
+        onClose={() => setSelectedRow(null)}
+      />
     </div>
   );
 }
