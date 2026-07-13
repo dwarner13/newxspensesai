@@ -367,7 +367,8 @@ export function TransactionInsightDrawer({
       const token = session?.access_token ?? '';
 
       if (row.kind === 'pending') {
-        // Flip sign via tx-update-amount (negates data_json.amount, re-runs recon gate)
+        // Flip sign via tx-update-amount (negates data_json.amount, re-runs recon gate).
+        // Category is NOT changed — sign and category are independent facts.
         const currentAmount = Number((row.transaction.data_json as any)?.amount || 0);
         const res = await fetch('/.netlify/functions/tx-update-amount', {
           method: 'POST',
@@ -376,12 +377,7 @@ export function TransactionInsightDrawer({
         });
         if (!res.ok) throw new Error(await res.text());
         setLocalType(newType);
-        if (newType === 'income') {
-          setLocalCategory('Income');
-          onPendingCategorySaved?.(row.transaction.id, 'Income');
-        } else {
-          onPendingCategorySaved?.(row.transaction.id, localCategory);
-        }
+        onPendingCategorySaved?.(row.transaction.id, localCategory);
         toast.success(`Marked as ${newType}`);
       } else {
         // Committed path: use tag-action fix_type
