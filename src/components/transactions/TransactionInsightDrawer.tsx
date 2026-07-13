@@ -111,7 +111,8 @@ export function TransactionInsightDrawer({
       const dj = row.transaction.data_json as Record<string, unknown>;
       setLocalCategory(String(row.transaction.tag_category || dj.category || 'Uncategorized'));
       setLocalSubcategory(String((dj as any).subcategory || ''));
-      setLocalType('expense');
+      const pendingAmt = Number((dj as any).amount || 0);
+      setLocalType(pendingAmt > 0 ? 'income' : 'expense');
     }
   }, [row?.kind === 'committed' ? (row as any).transaction.id : null]);
 
