@@ -114,7 +114,7 @@ export function TransactionInsightDrawer({
       const pendingAmt = Number((dj as any).amount || 0);
       setLocalType(pendingAmt > 0 ? 'income' : 'expense');
     }
-  }, [row?.kind === 'committed' ? (row as any).transaction.id : null]);
+  }, [row?.kind === 'committed' ? (row as any).transaction.id : (row?.transaction?.id ?? null)]);
 
   // Fetch linked receipt
   useEffect(() => {
