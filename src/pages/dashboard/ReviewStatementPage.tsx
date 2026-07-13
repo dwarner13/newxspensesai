@@ -765,6 +765,7 @@ export default function ReviewStatementPage() {
         row={selectedRow ? { kind: 'pending', transaction: selectedRow } : null}
         allCommittedTransactions={[]}
         onClose={() => setSelectedRow(null)}
+        onPendingCategorySaved={() => { void refetch(); setSelectedRow(null); }}
       />
     </div>
   );

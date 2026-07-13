@@ -252,40 +252,47 @@ export function TransactionInsightDrawer({
   const [pendingRuleCategory, setPendingRuleCategory] = useState<string | null>(null);
 
   const applyCategory = async (category: string) => {
-    if (!row || row.kind !== 'committed') return;
+    if (!row) return;
     setLocalCategory(category);
     setIsSaving(true);
     try {
       const supabase = getSupabase();
       const { data: { session } } = await supabase!.auth.getSession();
       const token = session?.access_token ?? '';
+      const table = row.kind === 'pending' ? 'transactions_staging' : 'transactions';
       const res = await fetch('/.netlify/functions/tx-update-category', {
         method: 'POST',
         headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ id: row.transaction.id, table: 'transactions', category, applyToVendor: true }),
+        body: JSON.stringify({ id: row.transaction.id, table, category, applyToVendor: row.kind === 'committed' }),
       });
       if (!res.ok) throw new Error(await res.text());
-      onCommittedCategorySaved?.(row.transaction.id, category);
+      if (row.kind === 'committed') {
+        onCommittedCategorySaved?.(row.transaction.id, category);
+      } else {
+        onPendingCategorySaved?.(row.transaction.id, category);
+      }
       toast.success('Category updated');
-      // Start Tag conversation about this change
-      try {
-        const chatRes = await fetch('/.netlify/functions/tag-chat', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            message: '__system_category_changed__',
-            merchant: rawMerchant,
-            category,
-            amount: Math.abs(Number(row.transaction.amount || 0)),
-            context: 'quick_change',
-            transactionId: row.transaction.id,
-          }),
-        });
-        if (chatRes.ok) {
-          const chatData = await chatRes.json();
-          setChatReply(chatData.reply || `Moved to **${category}**.`);
-        }
-      } catch { setChatReply(`Moved to **${category}**.`); }
+      // Start Tag conversation about this change (committed only)
+      if (row.kind === 'committed') {
+        try {
+          const chatRes = await fetch('/.netlify/functions/tag-chat', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              message: '__system_category_changed__',
+              merchant: rawMerchant,
+              category,
+              amount: Math.abs(Number(row.transaction.amount || 0)),
+              context: 'quick_change',
+              transactionId: row.transaction.id,
+            }),
+          });
+          if (chatRes.ok) {
+            const chatData = await chatRes.json();
+            setChatReply(chatData.reply || `Moved to **${category}**.`);
+          }
+        } catch { setChatReply(`Moved to **${category}**.`); }
+      }
     } catch {
       toast.error('Could not save category');
     } finally { setIsSaving(false); }
@@ -314,15 +321,16 @@ export function TransactionInsightDrawer({
   const handleSubcategoryChange = async (value: string) => {
     if (value === '__add_new__') { setAddingSubcategory(true); return; }
     setLocalSubcategory(value);
-    if (!row || row.kind !== 'committed') return;
+    if (!row) return;
     try {
       const supabase = getSupabase();
       const { data: { session } } = await supabase!.auth.getSession();
       const token = session?.access_token ?? '';
+      const table = row.kind === 'pending' ? 'transactions_staging' : 'transactions';
       await fetch('/.netlify/functions/tx-update-category', {
         method: 'POST',
         headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ id: row.transaction.id, table: 'transactions', category: localCategory, subcategory: value }),
+        body: JSON.stringify({ id: row.transaction.id, table, category: localCategory, subcategory: value }),
       });
     } catch { /* silent */ }
   };
@@ -350,28 +358,47 @@ export function TransactionInsightDrawer({
 
   // Type flip (income ↔ expense)
   const flipType = async (newType: 'income' | 'expense') => {
-    if (!row || row.kind !== 'committed' || isFlippingType) return;
+    if (!row || isFlippingType) return;
     if (localType === newType) return;
     setIsFlippingType(true);
     try {
       const supabase = getSupabase();
       const { data: { session } } = await supabase!.auth.getSession();
       const token = session?.access_token ?? '';
-      const res = await fetch('/.netlify/functions/tag-action', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ intent: 'fix_type', transactionId: row.transaction.id, newType }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setLocalType(newType);
-      // Auto-correct category display when flipping to income
-      if (newType === 'income') {
-        setLocalCategory('Income');
-        onCommittedCategorySaved?.(row.transaction.id, 'Income');
+
+      if (row.kind === 'pending') {
+        // Flip sign via tx-update-amount (negates data_json.amount, re-runs recon gate)
+        const currentAmount = Number((row.transaction.data_json as any)?.amount || 0);
+        const res = await fetch('/.netlify/functions/tx-update-amount', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ id: row.transaction.id, amount: -currentAmount }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        setLocalType(newType);
+        if (newType === 'income') {
+          setLocalCategory('Income');
+          onPendingCategorySaved?.(row.transaction.id, 'Income');
+        } else {
+          onPendingCategorySaved?.(row.transaction.id, localCategory);
+        }
+        toast.success(`Marked as ${newType}`);
+      } else {
+        // Committed path: use tag-action fix_type
+        const res = await fetch('/.netlify/functions/tag-action', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ intent: 'fix_type', transactionId: row.transaction.id, newType }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        setLocalType(newType);
+        if (newType === 'income') {
+          setLocalCategory('Income');
+          onCommittedCategorySaved?.(row.transaction.id, 'Income');
+        }
+        window.dispatchEvent(new Event('transactions:refresh'));
+        toast.success(`Marked as ${newType}`);
       }
-      // Fire refresh event so the transactions list re-fetches without F5
-      window.dispatchEvent(new Event('transactions:refresh'));
-      toast.success(`Marked as ${newType}`);
     } catch {
       toast.error('Could not update type');
     } finally {
@@ -534,7 +561,7 @@ export function TransactionInsightDrawer({
           )}
 
           {/* TYPE TOGGLE */}
-          {row.kind === 'committed' && (
+          {(row.kind === 'committed' || row.kind === 'pending') && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8', marginBottom: 8 }}>Transaction type</div>
               <div style={{ display: 'flex', gap: 6 }}>
