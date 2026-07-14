@@ -29,6 +29,7 @@ import {
 import { mergeOcrPages } from './lib/ocr/mergeOcrPages.js';
 import { selectWorstPagesForFallback, shouldEarlyStopScanning } from './lib/ocr/optimizationPolicy.js';
 import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
+import { PDFDocument } from 'pdf-lib';
 // OpenAI imported dynamically in runOpenAIVisionOcr to avoid init crash
 
 const BUCKET = 'docs';
@@ -1493,7 +1494,6 @@ async function runOCR(
       const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
 
       // Read true page count with pdf-lib
-      const { PDFDocument } = await import('pdf-lib');
       const srcDoc = await PDFDocument.load(buf, { ignoreEncryption: true });
       const totalPages = srcDoc.getPageCount();
 
