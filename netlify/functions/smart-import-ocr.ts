@@ -76,6 +76,13 @@ type RetryableError = Error & { status?: number };
 
 type OcrFinalStatus = 'succeeded' | 'failed' | 'timed_out';
 
+class OcrIntegrityError extends Error {
+  constructor(public reason: string, message: string) {
+    super(message);
+    this.name = 'OcrIntegrityError';
+  }
+}
+
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error && typeof err.message === 'string') return err.message;
   return String(err || 'unknown_error');
@@ -1478,41 +1485,108 @@ async function runOCR(
 
   // 1.5) For PDFs, try Google Vision BEFORE OCR.space when API key is configured
   // Uses files:annotate REST endpoint which works with API key (no service account needed).
+  // PDFs are chunked into sub-PDFs of ≤5 pages each (Vision API limit per request).
   if (isPdf && hasVision && !enableEmbeddedPdfText) {
     try {
       console.log('[OCR] Trying Google Vision for PDF via REST API (primary path)');
       const visionStart = Date.now();
       const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
-      const base64Pdf = buf.toString('base64');
+
+      // Read true page count with pdf-lib
+      const { PDFDocument } = await import('pdf-lib');
+      const srcDoc = await PDFDocument.load(buf, { ignoreEncryption: true });
+      const totalPages = srcDoc.getPageCount();
+
+      // Write pages_detected to user_documents
+      if (docId) {
+        try {
+          const sb = admin();
+          const { error: pdErr } = await sb.from('user_documents').update({ pages_detected: totalPages }).eq('id', docId);
+          if (pdErr) console.warn('[OCR] Failed to write pages_detected', { docId, error: pdErr.message });
+        } catch (pdEx: any) {
+          console.warn('[OCR] Failed to write pages_detected', { docId, error: pdEx?.message });
+        }
+      }
+
+      const CHUNK_SIZE = 5;
+      const chunkCount = Math.ceil(totalPages / CHUNK_SIZE);
+      console.log('[OCR] PDF chunked Vision OCR', { totalPages, chunkCount, docId });
+
       const apiKey = process.env.GOOGLE_VISION_API_KEY as string;
       const visionUrl = `https://vision.googleapis.com/v1/files:annotate?key=${apiKey}`;
-      const visionBody = {
-        requests: [{
-          inputConfig: { content: base64Pdf, mimeType: 'application/pdf' },
-          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
-          pages: [1, 2, 3, 4, 5]
-        }]
-      };
-      const visionResp = await fetch(visionUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(visionBody),
-        signal: AbortSignal.timeout(timeoutMs)
-      });
-      if (visionResp.ok) {
-        const visionData = await visionResp.json() as any;
-        const pages = visionData?.responses?.[0]?.responses || [];
-        const gvText = pages.map((p: any) => p?.fullTextAnnotation?.text || '').join('\n').trim();
-        if (gvText.length >= 200) {
-          console.log('[OCR] Google Vision PDF REST success', { chars: gvText.length });
-          return { text: gvText, provider: 'vision', durationMs: Date.now() - visionStart };
+      const allChunkTexts: string[] = [];
+      let pagesOcrd = 0;
+
+      for (let chunkIdx = 0; chunkIdx < chunkCount; chunkIdx++) {
+        const startPage = chunkIdx * CHUNK_SIZE; // 0-based index into srcDoc
+        const endPage = Math.min(startPage + CHUNK_SIZE, totalPages); // exclusive
+        const pagesInChunk = endPage - startPage;
+        const chunkLabel = `pages ${startPage + 1}-${endPage}`;
+
+        // Build a sub-PDF containing only this chunk's pages
+        const chunkDoc = await PDFDocument.create();
+        const copiedPages = await chunkDoc.copyPages(srcDoc, Array.from({ length: pagesInChunk }, (_, i) => startPage + i));
+        for (const page of copiedPages) {
+          chunkDoc.addPage(page);
         }
-        console.warn('[OCR] Google Vision PDF REST returned short text, falling back');
-      } else {
-        const errText = await visionResp.text();
-        console.warn('[OCR] Google Vision PDF REST error', { status: visionResp.status, err: errText.slice(0, 200) });
+        const chunkBytes = await chunkDoc.save();
+        const chunkBase64 = Buffer.from(chunkBytes).toString('base64');
+
+        // Local page numbers within the sub-PDF (1-based, as Vision expects)
+        const localPages = Array.from({ length: pagesInChunk }, (_, i) => i + 1);
+
+        const visionBody = {
+          requests: [{
+            inputConfig: { content: chunkBase64, mimeType: 'application/pdf' },
+            features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+            pages: localPages,
+          }]
+        };
+
+        const visionResp = await fetch(visionUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(visionBody),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+
+        if (!visionResp.ok) {
+          const errText = await visionResp.text();
+          throw new Error(`Google Vision files:annotate failed for ${chunkLabel}: HTTP ${visionResp.status} — ${errText.slice(0, 200)}`);
+        }
+
+        const visionData = await visionResp.json() as any;
+        const pageResponses = visionData?.responses?.[0]?.responses || [];
+
+        if (pageResponses.length === 0) {
+          throw new OcrIntegrityError('ocr_chunk_empty', `Google Vision returned zero page responses for ${chunkLabel}`);
+        }
+
+        const chunkPageTexts = pageResponses.map((p: any) => p?.fullTextAnnotation?.text || '');
+        const chunkText = chunkPageTexts.join('\n').trim();
+
+        if (!chunkText) {
+          throw new OcrIntegrityError('ocr_chunk_blank', `Google Vision returned empty text for every page in ${chunkLabel}`);
+        }
+
+        pagesOcrd += pageResponses.length;
+        allChunkTexts.push(chunkText);
       }
+
+      // Verify all pages were OCR'd
+      if (pagesOcrd !== totalPages) {
+        throw new OcrIntegrityError('ocr_incomplete_pages', `OCR incomplete: got ${pagesOcrd} page responses but PDF has ${totalPages} pages`);
+      }
+
+      const gvText = allChunkTexts.join('\n').trim();
+      console.log('[OCR] Google Vision chunked PDF REST success', { totalPages, pagesOcrd, chunkCount, chars: gvText.length, docId });
+
+      if (gvText.length >= 200) {
+        return { text: gvText, provider: 'vision', durationMs: Date.now() - visionStart };
+      }
+      console.warn('[OCR] Google Vision PDF REST returned short text after all chunks, falling back');
     } catch (visionErr: any) {
+      if (visionErr instanceof OcrIntegrityError) throw visionErr;
       console.warn('[OCR] Google Vision PDF REST failed, falling back:', visionErr?.message || String(visionErr));
     }
   }
@@ -2483,6 +2557,14 @@ export const handler: Handler = async (event, context) => {
       ocrPageLimitReached = !!ocrResult.pageLimitReached;
       handoffSource = String(ocrProvider || 'primary_ocr');
     } catch (ocrError: any) {
+      if (ocrError instanceof OcrIntegrityError) {
+        console.error(`${logPrefix} OCR INTEGRITY FAILURE — hard fail, no fallback`, {
+          reason: ocrError.reason,
+          error: ocrError.message,
+          docId,
+        });
+        throw ocrError;
+      }
       console.error(`${logPrefix} ERROR`, { error: ocrError?.message || ocrError });
       const ocrErrorMessage = getErrorMessage(ocrError);
       const strictPdfStructureFailure = isStrictPdfStructureError(ocrError);
