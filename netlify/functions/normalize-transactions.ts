@@ -1328,6 +1328,11 @@ async function processNormalizationInBackground(
           category_source: null,
           importRunId: resolvedImportRunId,
           documentId,
+          raw_line_text: (tx as any).raw_line_text ?? null,
+          printed_amount: (tx as any).printed_amount ?? null,
+          delta_amount: (tx as any).delta_amount ?? null,
+          running_balance: (tx as any).running_balance ?? null,
+          source_page: (tx as any).source_page ?? null,
         },
         hash,
       };

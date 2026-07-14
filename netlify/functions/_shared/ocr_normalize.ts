@@ -37,6 +37,11 @@ export type NormalizedTransaction = {
     price?: number;
   }>;
   docId?: string;
+  raw_line_text?: string;
+  printed_amount?: number | null;
+  delta_amount?: number | null;
+  running_balance?: number | null;
+  source_page?: number | null;
 };
 
 export interface CategorizationResult {
@@ -203,6 +208,11 @@ export function normalizeOcrResult(
         currency: 'CAD',
         statementType: 'bank',
         confidenceFlags: tx.confidenceFlags,
+        raw_line_text: tx.raw_line_text,
+        printed_amount: tx.printed_amount,
+        delta_amount: tx.delta_amount,
+        running_balance: tx.running_balance,
+        source_page: null,
         docId: undefined
       }));
     }
@@ -227,6 +237,11 @@ export function normalizeOcrResult(
         currency: 'CAD',
         statementType: 'bank',
         confidenceFlags: tx.confidenceFlags,
+        raw_line_text: tx.raw_line_text,
+        printed_amount: tx.printed_amount,
+        delta_amount: tx.delta_amount,
+        running_balance: tx.running_balance,
+        source_page: null,
         docId: undefined
       }));
     }
@@ -1323,6 +1338,9 @@ function parseBmoEverydayStatement(text: string): Array<{
     category?: string;
     raw_line_text?: string;
     confidenceFlags?: string[];
+    printed_amount?: number | null;
+    delta_amount?: number | null;
+    running_balance?: number | null;
   }> = [];
 
   let lastBalance: number | null = null;
@@ -1392,21 +1410,25 @@ function parseBmoEverydayStatement(text: string): Array<{
         if (isFinite(txAmount) && txAmount > 0 && isFinite(txBalance)) {
           const desc = cleanDescription(descLine);
           if (desc && !looksLikeStructuralHeader(desc)) {
-            // Sign from balance delta (primary) or isIncomeDescription (first-row fallback)
+            // Sign from balance delta direction or isIncomeDescription fallback.
+            // Magnitude always from the printed amount column — delta is used for
+            // sign only, never to override the printed figure.
             let signedAmt: number;
             let flags: string[] = ['structured_4line'];
+            let deltaAmount: number | null = null;
             if (lastBalance !== null && isFinite(lastBalance)) {
               const delta = txBalance - lastBalance;
+              deltaAmount = delta;
               const deltaAbs = Math.abs(delta);
               const deltaReasonable = deltaAbs >= 0.01 && deltaAbs <= 50_000;
               if (deltaReasonable && Math.abs(deltaAbs - txAmount) <= 0.02) {
                 // Delta agrees with parsed amount — use parsed magnitude, delta sign
                 signedAmt = delta > 0 ? txAmount : -txAmount;
               } else if (deltaReasonable) {
-                // Delta disagrees — trust delta over parsed column
-                signedAmt = delta;
-                flags.push('balance_delta_override');
-                console.log(`[BMO 4-line] delta override: parsed=${txAmount} delta=${delta} date=${isoDate}`);
+                // Delta disagrees — keep printed amount, use delta sign only, flag for review
+                signedAmt = delta > 0 ? txAmount : -txAmount;
+                flags.push('amount_disputed');
+                console.log(`[BMO 4-line] amount disputed: printed=${txAmount} delta=${delta} date=${isoDate}`);
               } else {
                 // Delta implausible — fall back to description-based sign
                 signedAmt = isIncomeDescription(desc) ? Math.abs(txAmount) : -Math.abs(txAmount);
@@ -1427,6 +1449,9 @@ function parseBmoEverydayStatement(text: string): Array<{
               category: categorizeTransactionSync(desc),
               raw_line_text: rawLineText,
               confidenceFlags: flags,
+              printed_amount: txAmount,
+              delta_amount: deltaAmount,
+              running_balance: txBalance,
             });
             i += 3; // advance past the 3 consumed lines; for-loop adds 1 more
             continue;
@@ -1489,9 +1514,8 @@ function parseBmoEverydayStatement(text: string): Array<{
         : null;
     lastBalance = parsed.balance;
 
-    // Use balance delta as primary amount source — it is mathematically derived
-    // from the balance column which OCR preserves reliably. Fall back to
-    // description-based sign only when delta is unavailable or implausible.
+    // Printed amount is ground truth. Balance delta is used for sign direction
+    // only, never to override the printed magnitude.
     const descSignedAmount = isIncomeDescription(parsed.description)
       ? Math.abs(parsed.amount)
       : -Math.abs(parsed.amount);
@@ -1505,10 +1529,10 @@ function parseBmoEverydayStatement(text: string): Array<{
         // Amount column disagrees with balance-delta beyond tolerance.
         const deltaReasonable = deltaAbs >= 0.01 && deltaAbs <= 50_000;
         if (deltaReasonable) {
-          // Delta is plausible — use it instead of the (likely corrupt) parsed column.
-          signedAmount = deltaBasedAmount > 0 ? deltaAbs : -deltaAbs;
-          rowConfidenceFlags = ['balance_delta_override'];
-          console.log('[BMO Parser] Using delta over parsed (balance_delta_override): parsed=' + parsedAbs + ' delta=' + deltaAbs);
+          // Keep printed amount, use delta sign only, flag for review
+          signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
+          rowConfidenceFlags = ['amount_disputed'];
+          console.log('[BMO Parser] amount disputed: printed=' + parsedAbs + ' delta=' + deltaAbs);
         } else {
           // Delta itself is implausible — keep parsed but flag for review.
           signedAmount = descSignedAmount;
@@ -1543,6 +1567,9 @@ function parseBmoEverydayStatement(text: string): Array<{
       category: categorizeTransactionSync(cleanedDesc),
       raw_line_text: rawLineText,
       confidenceFlags: rowConfidenceFlags,
+      printed_amount: parsed.amount,
+      delta_amount: deltaBasedAmount,
+      running_balance: parsed.balance,
     });
   }
 
