@@ -1425,8 +1425,8 @@ function parseBmoEverydayStatement(text: string): Array<{
                 // Delta agrees with parsed amount — use parsed magnitude, delta sign
                 signedAmt = delta > 0 ? txAmount : -txAmount;
               } else if (deltaReasonable) {
-                // Delta disagrees — keep printed amount, use delta sign only, flag for review
-                signedAmt = delta > 0 ? txAmount : -txAmount;
+                // Delta disagrees — keep printed amount, derive sign from description, flag for review
+                signedAmt = isIncomeDescription(desc) ? Math.abs(txAmount) : -Math.abs(txAmount);
                 flags.push('amount_disputed');
                 console.log(`[BMO 4-line] amount disputed: printed=${txAmount} delta=${delta} date=${isoDate}`);
               } else {
@@ -1529,8 +1529,8 @@ function parseBmoEverydayStatement(text: string): Array<{
         // Amount column disagrees with balance-delta beyond tolerance.
         const deltaReasonable = deltaAbs >= 0.01 && deltaAbs <= 50_000;
         if (deltaReasonable) {
-          // Keep printed amount, use delta sign only, flag for review
-          signedAmount = deltaBasedAmount > 0 ? parsedAbs : -parsedAbs;
+          // Keep printed amount, derive sign from description, flag for review
+          signedAmount = descSignedAmount;
           rowConfidenceFlags = ['amount_disputed'];
           console.log('[BMO Parser] amount disputed: printed=' + parsedAbs + ' delta=' + deltaAbs);
         } else {
