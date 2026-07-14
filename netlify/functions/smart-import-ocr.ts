@@ -1493,9 +1493,16 @@ async function runOCR(
       const visionStart = Date.now();
       const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
 
-      // Read true page count with pdf-lib
-      const srcDoc = await PDFDocument.load(buf, { ignoreEncryption: true });
+      // Read true page count with pdf-lib (lenient parse — some bank PDFs have non-standard objects)
+      const srcDoc = await PDFDocument.load(buf, {
+        ignoreEncryption: true,
+        throwOnInvalidObject: false,
+        updateMetadata: false,
+      });
       const totalPages = srcDoc.getPageCount();
+      if (!totalPages || !Number.isFinite(totalPages)) {
+        throw new OcrIntegrityError('ocr_page_count_invalid', `pdf-lib returned invalid page count: ${totalPages}`);
+      }
 
       // Write pages_detected to user_documents
       if (docId) {
