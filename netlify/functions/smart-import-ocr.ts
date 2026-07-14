@@ -1495,7 +1495,8 @@ async function runOCR(
       // Read true page count with pdfjs-dist (handles bank PDFs that pdf-lib rejects)
       let totalPages: number;
       try {
-        const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.js');
+        const pdfjsModule: any = await import('pdfjs-dist/legacy/build/pdf.js');
+        const pdfjs = pdfjsModule.default || pdfjsModule;
         const loadingTask = pdfjs.getDocument({
           data: new Uint8Array(buf),
           disableWorker: true,
