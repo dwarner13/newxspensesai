@@ -1464,7 +1464,11 @@ function parseBmoEverydayStatement(text: string): Array<{
     // Some BMO rows wrap across multiple lines (date / description / amount / balance).
     // Keep appending lines until we have 2+ amounts, hit the next date, or reach cap.
     // Also stop on section-header lines so a header that OCR split off from its
-    // date prefix can't get glued into the previous transaction's body.
+    // date prefix can't get glued into the previous transaction's body —
+    // UNLESS we already have description text and are still missing amounts,
+    // in which case the structural line is OCR noise between the description
+    // and its figures (e.g. "Closing totals" interleaved before the amount).
+    let trailingRowRecovered = false;
     {
       const extraRaw: string[] = [];
       let j = i + 1;
@@ -1473,16 +1477,29 @@ function parseBmoEverydayStatement(text: string): Array<{
       // loop early with false amounts, leaving the real amount column unread.
       const countAmounts = (s: string): number =>
         (s.replace(/\b\d+\.\d+[Xx]\d+\.\d+\b/g, '').match(amountRegex) || []).length;
+      const bodyHasDescription = () => body.trim().length > 0 && isDescriptionLine(body);
       while (
         countAmounts(body) < 2 &&
         j < lines.length &&
         !lines[j].match(dateHeadRegex) &&
-        !skipLine(lines[j]) &&
-        !looksLikeStructuralHeader(lines[j]) &&
-        j <= i + 5
+        j <= i + 7
       ) {
-        extraRaw.push(lines[j]);
-        body = `${body} ${lines[j]}`.replace(/\s+/g, ' ').trim();
+        const candidate = lines[j];
+        // Structural/skip lines: if we already have description text, skip
+        // the structural line and keep looking for amount/balance figures.
+        // If no description yet, the structural line means this date anchor
+        // is not a real transaction — abort.
+        if (skipLine(candidate) || looksLikeStructuralHeader(candidate)) {
+          if (bodyHasDescription()) {
+            // Skip structural noise, don't append to body, keep scanning
+            trailingRowRecovered = true;
+            j++;
+            continue;
+          }
+          break; // no description yet — abort
+        }
+        extraRaw.push(candidate);
+        body = `${body} ${candidate}`.replace(/\s+/g, ' ').trim();
         j++;
       }
       if (extraRaw.length > 0) {
@@ -1557,6 +1574,11 @@ function parseBmoEverydayStatement(text: string): Array<{
     if (looksLikeStructuralHeader(cleanedDesc)) {
       console.log(`[BMO SKIP phantom emit] date=${isoDate} desc="${cleanedDesc.slice(0,80)}"`);
       continue;
+    }
+
+    if (trailingRowRecovered) {
+      rowConfidenceFlags = [...(rowConfidenceFlags || []), 'trailing_row_recovered'];
+      console.log(`[BMO Parser] trailing row recovered: date=${isoDate} desc="${cleanedDesc.slice(0,60)}" amount=${signedAmount}`);
     }
 
     out.push({
