@@ -29,7 +29,6 @@ import {
 import { mergeOcrPages } from './lib/ocr/mergeOcrPages.js';
 import { selectWorstPagesForFallback, shouldEarlyStopScanning } from './lib/ocr/optimizationPolicy.js';
 import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
-import { PDFDocument } from 'pdf-lib';
 // OpenAI imported dynamically in runOpenAIVisionOcr to avoid init crash
 
 const BUCKET = 'docs';
@@ -1493,15 +1492,24 @@ async function runOCR(
       const visionStart = Date.now();
       const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
 
-      // Read true page count with pdf-lib (lenient parse — some bank PDFs have non-standard objects)
-      const srcDoc = await PDFDocument.load(buf, {
-        ignoreEncryption: true,
-        throwOnInvalidObject: false,
-        updateMetadata: false,
-      });
-      const totalPages = srcDoc.getPageCount();
+      // Read true page count with pdfjs-dist (handles bank PDFs that pdf-lib rejects)
+      let totalPages: number;
+      try {
+        const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.js');
+        const loadingTask = pdfjs.getDocument({
+          data: new Uint8Array(buf),
+          disableWorker: true,
+          stopAtErrors: false,
+          verbosity: 0,
+        });
+        const pdfDoc = await loadingTask.promise;
+        totalPages = pdfDoc.numPages;
+        pdfDoc.destroy();
+      } catch (pdfjsErr: any) {
+        throw new OcrIntegrityError('ocr_page_count_invalid', `pdfjs failed to read page count: ${pdfjsErr?.message || pdfjsErr}`);
+      }
       if (!totalPages || !Number.isFinite(totalPages)) {
-        throw new OcrIntegrityError('ocr_page_count_invalid', `pdf-lib returned invalid page count: ${totalPages}`);
+        throw new OcrIntegrityError('ocr_page_count_invalid', `pdfjs returned invalid page count: ${totalPages}`);
       }
 
       // Write pages_detected to user_documents
@@ -1519,34 +1527,25 @@ async function runOCR(
       const chunkCount = Math.ceil(totalPages / CHUNK_SIZE);
       console.log('[OCR] PDF chunked Vision OCR', { totalPages, chunkCount, docId });
 
+      const base64Pdf = buf.toString('base64');
       const apiKey = process.env.GOOGLE_VISION_API_KEY as string;
       const visionUrl = `https://vision.googleapis.com/v1/files:annotate?key=${apiKey}`;
       const allChunkTexts: string[] = [];
       let pagesOcrd = 0;
 
       for (let chunkIdx = 0; chunkIdx < chunkCount; chunkIdx++) {
-        const startPage = chunkIdx * CHUNK_SIZE; // 0-based index into srcDoc
-        const endPage = Math.min(startPage + CHUNK_SIZE, totalPages); // exclusive
-        const pagesInChunk = endPage - startPage;
-        const chunkLabel = `pages ${startPage + 1}-${endPage}`;
+        const startPage = chunkIdx * CHUNK_SIZE + 1; // 1-based absolute page number
+        const endPage = Math.min(startPage + CHUNK_SIZE - 1, totalPages); // inclusive
+        const chunkLabel = `pages ${startPage}-${endPage}`;
 
-        // Build a sub-PDF containing only this chunk's pages
-        const chunkDoc = await PDFDocument.create();
-        const copiedPages = await chunkDoc.copyPages(srcDoc, Array.from({ length: pagesInChunk }, (_, i) => startPage + i));
-        for (const page of copiedPages) {
-          chunkDoc.addPage(page);
-        }
-        const chunkBytes = await chunkDoc.save();
-        const chunkBase64 = Buffer.from(chunkBytes).toString('base64');
-
-        // Local page numbers within the sub-PDF (1-based, as Vision expects)
-        const localPages = Array.from({ length: pagesInChunk }, (_, i) => i + 1);
+        // Absolute page numbers for this chunk (Vision accepts absolute pages into the source PDF)
+        const absPages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
 
         const visionBody = {
           requests: [{
-            inputConfig: { content: chunkBase64, mimeType: 'application/pdf' },
+            inputConfig: { content: base64Pdf, mimeType: 'application/pdf' },
             features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
-            pages: localPages,
+            pages: absPages,
           }]
         };
 
