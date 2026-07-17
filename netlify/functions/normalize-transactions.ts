@@ -213,6 +213,53 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
     return ratio <= 50;
   };
 
+  // ── Identity validator ──
+  // Extract opening/closing balances once for the whole function.
+  // Every non-null return must pass: opening - totalDeducted + totalAdded ≈ closing (±$0.05).
+  let _cachedOpening: number | null | undefined;
+  let _cachedClosing: number | null | undefined;
+  const getBookendBalances = (): { opening: number | null; closing: number | null } => {
+    if (_cachedOpening !== undefined) return { opening: _cachedOpening, closing: _cachedClosing! };
+    const allLines = text.split(/\r?\n/);
+    const soloAmt = /^\s*\$?(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/;
+    const nextSolo = (from: number, within: number): number | null => {
+      for (let n = from; n < Math.min(from + within, allLines.length); n++) {
+        const mm = allLines[n].match(soloAmt);
+        if (mm) return parse(mm[1]);
+      }
+      return null;
+    };
+    const openIdx = allLines.findIndex(l => /opening\s+balance/i.test(l));
+    _cachedOpening = openIdx >= 0 ? nextSolo(openIdx + 1, 4) : null;
+    const closeIdx = allLines.findIndex(l => /closing/i.test(l));
+    _cachedClosing = closeIdx >= 0 ? nextSolo(closeIdx + 1, 6) : null;
+    return { opening: _cachedOpening, closing: _cachedClosing };
+  };
+  const validateIdentity = (
+    result: { totalDeducted: number; totalAdded: number; source: string }
+  ): { totalDeducted: number; totalAdded: number; source: string } | null => {
+    const { totalDeducted: d, totalAdded: a, source } = result;
+    if (!Number.isFinite(d) || !Number.isFinite(a)) {
+      console.warn('[parseBmoStatementTotals] identity REJECTED (non-finite)', { totalDeducted: d, totalAdded: a, source });
+      return null;
+    }
+    const { opening, closing } = getBookendBalances();
+    if (opening === null || closing === null || !Number.isFinite(opening) || !Number.isFinite(closing)) {
+      // Cannot verify identity — hold, do not commit unverifiable totals
+      console.warn('[parseBmoStatementTotals] identity REJECTED (bookend balances unavailable)', { totalDeducted: d, totalAdded: a, source, opening, closing });
+      return null;
+    }
+    const expected = opening - d + a;
+    if (Math.abs(expected - closing) <= 0.05) {
+      return result;
+    }
+    console.warn('[parseBmoStatementTotals] identity REJECTED', {
+      source, totalDeducted: d, totalAdded: a, opening, closing,
+      expectedClosing: expected, delta: Math.abs(expected - closing),
+    });
+    return null;
+  };
+
   // Strategy 0b: labeled-then-number layout — handles BMO OCR where label lines
   // ("Amounts deducted ($)", "Amounts added ($)", etc.) are INTERLEAVED between the
   // numeric values instead of being shredded. Scans summary zone for each label,
@@ -253,7 +300,7 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
             console.log('[parseBmoStatementTotals] labeled_then_number hit (identity verified)', {
               totalDeducted: ded, totalAdded: add, opening: opn, closing: cls,
             });
-            return { totalDeducted: ded, totalAdded: add, source: 'labeled_then_number' };
+            return validateIdentity({ totalDeducted: ded, totalAdded: add, source: 'labeled_then_number' });
           }
           // Identity failed — totals may be corrupted (e.g. PII redaction ate digits).
           // Do NOT return; fall through to other strategies.
@@ -267,7 +314,7 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
           console.log('[parseBmoStatementTotals] labeled_then_number hit (no identity check — opening/closing unavailable)', {
             totalDeducted: ded, totalAdded: add,
           });
-          return { totalDeducted: ded, totalAdded: add, source: 'labeled_then_number_no_identity' };
+          return validateIdentity({ totalDeducted: ded, totalAdded: add, source: 'labeled_then_number_no_identity' });
         }
       }
     }
@@ -332,7 +379,7 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
                 console.log('[parseBmoStatementTotals] labeled_then_number hit (identity-solved triplet)', {
                   totalDeducted: ded, totalAdded: add, opening, closing,
                 });
-                return { totalDeducted: ded, totalAdded: add, source: 'labeled_then_number' };
+                return validateIdentity({ totalDeducted: ded, totalAdded: add, source: 'labeled_then_number' });
               }
               console.warn('[parseBmoStatementTotals] identity-solved triplet FAILED — no assignment satisfies identity', {
                 triplet, opening, closing,
@@ -351,7 +398,7 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
     const totalDeducted = parse(closingMatch[1]);
     const totalAdded = parse(closingMatch[2]);
     if (totalsPlausible(totalDeducted, totalAdded)) {
-      return { totalDeducted, totalAdded, source: 'closing_totals_inline' };
+      return validateIdentity({ totalDeducted, totalAdded, source: 'closing_totals_inline' });
     }
   }
 
@@ -363,7 +410,7 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
     const totalDeducted = parse(deductedMatch[1]);
     const totalAdded = parse(addedMatch[1]);
     if (isPositiveFinite(totalDeducted) && isPositiveFinite(totalAdded)) {
-      return { totalDeducted, totalAdded, source: 'separate_totals_lines' };
+      return validateIdentity({ totalDeducted, totalAdded, source: 'separate_totals_lines' });
     }
   }
 
@@ -386,7 +433,7 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
       }
     }
     if (collected.length === 2 && totalsPlausible(collected[0], collected[1])) {
-      return { totalDeducted: collected[0], totalAdded: collected[1], source: 'closing_totals_walk_forward' };
+      return validateIdentity({ totalDeducted: collected[0], totalAdded: collected[1], source: 'closing_totals_walk_forward' });
     }
 
     // Diagnostic: anchor found but extraction failed. Fires once per failed call.
