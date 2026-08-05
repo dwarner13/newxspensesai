@@ -471,6 +471,14 @@ export const handler: Handler = async (event) => {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
+  // Endpoint disabled: no auth, no rate-limit, billable Vision calls reachable by anyone.
+  // Use the smart-import pipeline (smart-import-init → finalize → ocr → normalize) instead.
+  return {
+    statusCode: 410,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ok: false, error: 'This endpoint is disabled. Use the smart-import pipeline.' }),
+  };
+
   let body: { base64?: string; fileName?: string; mimeType?: string; userId?: string; importId?: string };
   try {
     body = JSON.parse(event.body ?? '{}');
