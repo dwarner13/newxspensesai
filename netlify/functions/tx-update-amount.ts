@@ -22,6 +22,11 @@ import { verifyAuth } from './_shared/verifyAuth.js';
 type RequestBody = {
   id?: string;        // transactions_staging row id
   amount?: number;    // new SIGNED amount (negative = deducted, positive = added)
+  attestBalances?: {  // user-attested opening/closing from printed statement
+    openingBalance: number;
+    closingBalance: number;
+    importId: string;
+  };
 };
 
 const headers = {
@@ -50,6 +55,107 @@ export const handler: Handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}') as RequestBody;
+
+    // ── Attest-balances path: persist user-supplied opening/closing, then re-run gate ──
+    if (body.attestBalances) {
+      const { openingBalance, closingBalance, importId: attestImportId } = body.attestBalances;
+      if (!attestImportId || !Number.isFinite(openingBalance) || !Number.isFinite(closingBalance)) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'attestBalances requires importId, openingBalance, closingBalance (finite numbers)' }) };
+      }
+      const sb = admin();
+      // Read current SBD + status
+      const { data: impRow, error: impErr } = await sb
+        .from('imports')
+        .select('statement_breakdown_json, status')
+        .eq('id', attestImportId)
+        .eq('user_id', auth.userId)
+        .maybeSingle();
+      if (impErr) throw impErr;
+      if (!impRow) {
+        return { statusCode: 404, headers, body: JSON.stringify({ error: 'Import not found' }) };
+      }
+      const impStatus = String(impRow.status || '');
+      if (impStatus !== 'parsed' && impStatus !== 'parsed_unreconciled') {
+        return { statusCode: 409, headers, body: JSON.stringify({ error: `Import status is '${impStatus}', attestation only allowed on parsed or parsed_unreconciled imports` }) };
+      }
+      const existingSbd = impRow.statement_breakdown_json && typeof impRow.statement_breakdown_json === 'object'
+        ? impRow.statement_breakdown_json as Record<string, unknown>
+        : {};
+      // Block attestation when parser-derived totals already exist — attestation is only
+      // meaningful when the parser could not read the printed totals.
+      const existingTotals = existingSbd.statementTotals;
+      if (existingTotals && typeof existingTotals === 'object') {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'Statement totals were already extracted by the parser. Attestation is not needed — use the existing reconciliation flow.' }) };
+      }
+      // Write attestedBalances as sibling key — never merged into statementTotals
+      const updatedSbd = {
+        ...existingSbd,
+        attestedBalances: {
+          openingBalance,
+          closingBalance,
+          source: 'user_attested',
+          attestedBy: auth.userId,
+          attestedAt: new Date().toISOString(),
+        },
+      };
+      const { error: sbdErr } = await sb
+        .from('imports')
+        .update({ statement_breakdown_json: updatedSbd, updated_at: new Date().toISOString() })
+        .eq('id', attestImportId)
+        .eq('user_id', auth.userId);
+      if (sbdErr) throw sbdErr;
+
+      // Re-sum ALL staging rows for this import
+      const { data: stRows, error: stErr } = await sb
+        .from('transactions_staging')
+        .select('data_json')
+        .eq('import_id', attestImportId)
+        .eq('user_id', auth.userId);
+      if (stErr) throw stErr;
+      let rowDed = 0;
+      let rowAdd = 0;
+      for (const r of stRows || []) {
+        const dj = r?.data_json && typeof r.data_json === 'object' ? r.data_json : {};
+        const amt = Number((dj as any).amount);
+        if (!Number.isFinite(amt)) continue;
+        if (amt < 0) rowDed += Math.abs(amt);
+        else if (amt > 0) rowAdd += amt;
+      }
+      rowDed = round2(rowDed);
+      rowAdd = round2(rowAdd);
+      // Reconcile: opening - totalDeducted + totalAdded ≈ closing (±$0.05)
+      const expectedClosing = round2(openingBalance - rowDed + rowAdd);
+      const discrepancy = Math.abs(expectedClosing - closingBalance);
+      const TOLERANCE = 0.05;
+      const reconciled = discrepancy <= TOLERANCE;
+      const newStatus = reconciled ? 'parsed' : 'parsed_unreconciled';
+      const { error: sErr } = await sb
+        .from('imports')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', attestImportId)
+        .eq('user_id', auth.userId);
+      if (sErr) throw sErr;
+      console.log('[tx-update-amount] Attested balances persisted + gate re-run', {
+        importId: attestImportId, openingBalance, closingBalance,
+        rowDed, rowAdd, expectedClosing, discrepancy, reconciled, userId: auth.userId,
+      });
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          gated: true,
+          reconciled,
+          status: newStatus,
+          reason: reconciled ? 'attested_reconciled' : 'attested_discrepancy',
+          bankTotals: { deducted: rowDed, added: rowAdd },
+          rowTotals: { deducted: rowDed, added: rowAdd },
+          delta: { deducted: round2(discrepancy), added: 0 },
+          attestedBalances: { opening: openingBalance, closing: closingBalance },
+        }),
+      };
+    }
+
     const id = String(body.id || '').trim();
     const amountRaw = body.amount;
 
@@ -131,24 +237,64 @@ export const handler: Handler = async (event) => {
     const stmtTotals =
       sbd && typeof sbd === 'object' ? (sbd as Record<string, unknown>).statementTotals : null;
 
-    // Deliberate non-BMO passthrough: no statementTotals => gate does not apply.
-    // Mirror commit-import's gated:false behaviour — treat as ready, do not hold.
+    // No statementTotals: check for user-attested balances before holding.
     if (!stmtTotals || typeof stmtTotals !== 'object') {
+      const attested = sbd && typeof sbd === 'object' ? (sbd as Record<string, unknown>).attestedBalances : null;
+      if (attested && typeof attested === 'object') {
+        const ab = attested as Record<string, unknown>;
+        const opening = Number(ab.openingBalance);
+        const closing = Number(ab.closingBalance);
+        if (Number.isFinite(opening) && Number.isFinite(closing)) {
+          const expectedClosing = round2(opening - rowDeducted + rowAdded);
+          const discrepancy = Math.abs(expectedClosing - closing);
+          const TOLERANCE = 0.05;
+          const reconciled = discrepancy <= TOLERANCE;
+          const newStatus = reconciled ? 'parsed' : 'parsed_unreconciled';
+          const { error: statusErr } = await sb
+            .from('imports')
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .eq('id', importId)
+            .eq('user_id', auth.userId);
+          if (statusErr) throw statusErr;
+          console.log('[tx-update-amount] Attested-balance reconciliation', {
+            importId, opening, closing, rowDeducted, rowAdded,
+            expectedClosing, discrepancy, reconciled,
+          });
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              ok: true,
+              gated: true,
+              reconciled,
+              status: newStatus,
+              reason: reconciled ? 'attested_reconciled' : 'attested_discrepancy',
+              bankTotals: { deducted: rowDeducted, added: rowAdded },
+              rowTotals: { deducted: rowDeducted, added: rowAdded },
+              delta: { deducted: round2(discrepancy), added: 0 },
+              attestedBalances: { opening, closing },
+              updated: { id, amount: newAmount },
+            }),
+          };
+        }
+      }
+      // No totals and no attested balances — hold the import.
       const { error: statusErr } = await sb
         .from('imports')
-        .update({ status: 'parsed', updated_at: new Date().toISOString() })
+        .update({ status: 'parsed_unreconciled', updated_at: new Date().toISOString() })
         .eq('id', importId)
         .eq('user_id', auth.userId);
       if (statusErr) throw statusErr;
+      console.warn('[tx-update-amount] HELD — no statementTotals and no attested balances', { importId });
 
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           ok: true,
-          gated: false,
-          reconciled: true,
-          status: 'parsed',
+          gated: true,
+          reconciled: false,
+          status: 'parsed_unreconciled',
           reason: 'no_statement_totals',
           rowTotals: { deducted: rowDeducted, added: rowAdded },
         }),

@@ -80,6 +80,13 @@ export default function ReviewStatementPage() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
 
+  // Attested balances (held-state UI)
+  const [attestOpening, setAttestOpening] = useState('');
+  const [attestClosing, setAttestClosing] = useState('');
+  const [attesting, setAttesting] = useState(false);
+  const [attestError, setAttestError] = useState<string | null>(null);
+  const [attestedOnce, setAttestedOnce] = useState(false);
+
   // Drawer
   const [selectedRow, setSelectedRow] = useState<PendingTransaction | null>(null);
 
@@ -148,6 +155,13 @@ export default function ReviewStatementPage() {
             added: Number(totals.totalAdded) || 0,
           });
         }
+        // Pre-fill attested balances if already stored (re-visit scenario)
+        const ab = sbd && typeof sbd === 'object' ? (sbd as any).attestedBalances : null;
+        if (ab && typeof ab === 'object') {
+          if (Number.isFinite(Number(ab.openingBalance))) setAttestOpening(String(ab.openingBalance));
+          if (Number.isFinite(Number(ab.closingBalance))) setAttestClosing(String(ab.closingBalance));
+          setAttestedOnce(true);
+        }
       });
   }, [importId, userId]);
 
@@ -200,6 +214,59 @@ export default function ReviewStatementPage() {
       setSaving(false);
     }
   }, [editAmount, session, refetch]);
+
+  // ── Submit attested balances (held-state) ──
+  const handleAttestBalances = useCallback(async () => {
+    if (!session?.access_token || !importId || attesting) return;
+    const opening = Number(attestOpening);
+    const closing = Number(attestClosing);
+    if (!Number.isFinite(opening) || !Number.isFinite(closing)) {
+      setAttestError('Enter valid numbers for both balances.');
+      return;
+    }
+    setAttesting(true);
+    setAttestError(null);
+    try {
+      const res = await fetch('/.netlify/functions/tx-update-amount', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          attestBalances: {
+            openingBalance: opening,
+            closingBalance: closing,
+            importId,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setImportStatus(data.status);
+        setAttestedOnce(true);
+        if (data.reconciled) {
+          // Only set bankTotals on successful reconciliation — this flips isReconciled
+          // to true and unmounts the held-state banner in favour of the discrepancy banner.
+          setBankTotals({ deducted: data.rowTotals?.deducted ?? 0, added: data.rowTotals?.added ?? 0 });
+        } else if (data.attestedBalances) {
+          // Failed reconciliation — clear bankTotals so heldStateBanner stays mounted
+          // and the error is visible inside it. Handles re-submit after a prior success.
+          setBankTotals(null);
+          setAttestError(
+            `Doesn\u2019t reconcile. Expected closing: $${round2(opening - (data.rowTotals?.deducted ?? 0) + (data.rowTotals?.added ?? 0)).toFixed(2)}, ` +
+            `you entered: $${closing.toFixed(2)} (\u0394 $${(data.delta?.deducted ?? 0).toFixed(2)}). Check the PDF and try again.`
+          );
+        }
+      } else {
+        setAttestError(data.error || 'Failed to submit balances.');
+      }
+    } catch (err: any) {
+      setAttestError(err?.message || 'Network error.');
+    } finally {
+      setAttesting(false);
+    }
+  }, [session, importId, attestOpening, attestClosing, attesting]);
 
   // ── Commit (trigger commit-import) ──
   const handleCommit = useCallback(async () => {
@@ -341,6 +408,84 @@ export default function ReviewStatementPage() {
     </div>
   ) : null;
 
+  // ── Held-state banner: bankTotals absent, user must attest balances ──
+  const heldStateBanner = !bankTotals ? (
+    <div style={{
+      padding: isWide ? '16px 20px' : '14px 16px', borderRadius: 14, marginBottom: isWide ? 20 : 12,
+      background: `${T.amber}08`, border: `1px solid ${T.amber}22`,
+    }}>
+      <div style={{ fontSize: isWide ? 14 : 13, fontWeight: 700, color: T.amber, marginBottom: 8 }}>
+        {'\u26A0'} Statement held — printed totals could not be read
+      </div>
+      <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.6, marginBottom: 14 }}>
+        The parser could not extract the bank{'\u2019'}s printed totals from this statement, so the
+        transactions have not been verified. To proceed, enter the <strong>Opening Balance</strong> and{' '}
+        <strong>Closing Balance</strong> exactly as printed on your statement. The system will verify that
+        the transactions add up correctly before unlocking the import.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: isWide ? 'row' : 'column', gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: T.dim, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Opening Balance
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              value={attestOpening}
+              onChange={e => { setAttestOpening(e.target.value); setAttestError(null); }}
+              placeholder="e.g. 1234.56"
+              style={{
+                width: '100%', padding: '12px 14px', fontSize: 16, fontWeight: 600,
+                background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10,
+                color: T.text, outline: 'none', fontVariantNumeric: 'tabular-nums',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: T.dim, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Closing Balance
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              value={attestClosing}
+              onChange={e => { setAttestClosing(e.target.value); setAttestError(null); }}
+              placeholder="e.g. 2345.67"
+              style={{
+                width: '100%', padding: '12px 14px', fontSize: 16, fontWeight: 600,
+                background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10,
+                color: T.text, outline: 'none', fontVariantNumeric: 'tabular-nums',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        </div>
+        {attestError && (
+          <div style={{ fontSize: 12, color: T.red, lineHeight: 1.5 }}>{attestError}</div>
+        )}
+        <button
+          onClick={handleAttestBalances}
+          disabled={attesting || !attestOpening || !attestClosing}
+          style={{
+            padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+            background: (!attestOpening || !attestClosing) ? T.surface : `linear-gradient(135deg, ${T.accent}, #b8962f)`,
+            border: (!attestOpening || !attestClosing) ? `1px solid ${T.border}` : 'none',
+            color: (!attestOpening || !attestClosing) ? T.dim : '#0b1220',
+            cursor: (!attestOpening || !attestClosing) ? 'not-allowed' : 'pointer',
+            opacity: attesting ? 0.6 : 1,
+            width: '100%',
+          }}
+        >
+          {attesting ? 'Verifying\u2026' : attestedOnce ? 'Re-verify balances' : 'Verify balances'}
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   // Shared card styling for contained-panel look
   const cardStyle = {
     background: T.surface,
@@ -356,6 +501,7 @@ export default function ReviewStatementPage() {
       {!isWide && (
         <div style={{ flexShrink: 0, padding: '12px 16px 0', borderBottom: `1px solid ${T.border}` }}>
           {discrepancyBanner}
+          {heldStateBanner}
           <div style={{ display: 'flex', gap: 0, marginBottom: -1 }}>
             {(['statement', 'transactions'] as const).map(tab => (
               <button
@@ -396,6 +542,7 @@ export default function ReviewStatementPage() {
             {/* Pinned header: banner + buttons + custodian */}
             <div style={{ flexShrink: 0, padding: '20px 24px 0' }}>
             {discrepancyBanner}
+            {heldStateBanner}
 
         {/* Import button */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>

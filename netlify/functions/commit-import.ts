@@ -763,8 +763,8 @@ async function runReconciliationGate(
     .maybeSingle();
 
   if (readErr) {
-    console.warn('[CommitImport][Gate] Could not read SBD, skipping gate', { importId, error: readErr.message });
-    return { gated: false, reason: 'sbd_read_failed' };
+    console.warn('[CommitImport][Gate] HELD — could not read statement_breakdown_json', { importId, error: readErr.message });
+    return { gated: true, reason: 'sbd_read_failed' };
   }
 
   const sbd = importRow?.statement_breakdown_json;
@@ -772,8 +772,52 @@ async function runReconciliationGate(
     sbd && typeof sbd === 'object' ? (sbd as Record<string, unknown>).statementTotals : null;
 
   if (!stmtTotals || typeof stmtTotals !== 'object') {
-    console.log('[CommitImport][Gate] No statementTotals present, skipping gate (non-BMO or extraction failed)', { importId });
-    return { gated: false, reason: 'no_statement_totals' };
+    // Check for user-attested balances stored as a sibling key
+    const attested = sbd && typeof sbd === 'object' ? (sbd as Record<string, unknown>).attestedBalances : null;
+    if (attested && typeof attested === 'object') {
+      const ab = attested as Record<string, unknown>;
+      const opening = Number(ab.openingBalance);
+      const closing = Number(ab.closingBalance);
+      if (Number.isFinite(opening) && Number.isFinite(closing)) {
+        // Derive expected totals from rows + attested balances using identity:
+        //   opening - totalDeducted + totalAdded = closing
+        // We have rows, so compute row sums here (same logic as the normal gate path below)
+        let rowDed = 0;
+        let rowAdd = 0;
+        for (const tx of transactionsToInsert) {
+          const amt = Number((tx as any)?.amount);
+          if (!Number.isFinite(amt)) continue;
+          if (amt < 0) rowDed += Math.abs(amt);
+          else if (amt > 0) rowAdd += amt;
+        }
+        rowDed = round2(rowDed);
+        rowAdd = round2(rowAdd);
+        const expectedClosing = round2(opening - rowDed + rowAdd);
+        const discrepancy = Math.abs(expectedClosing - closing);
+        const reconciled = discrepancy <= TOLERANCE;
+        console.log('[CommitImport][Gate] Attested-balance reconciliation', {
+          importId, opening, closing, rowDed, rowAdd,
+          expectedClosing, discrepancy, reconciled,
+          attestedBy: ab.attestedBy, attestedAt: ab.attestedAt,
+        });
+        return {
+          gated: !reconciled,
+          reason: reconciled ? 'attested_reconciled' : 'attested_discrepancy',
+          details: {
+            bank_total_deducted: rowDed,
+            bank_total_added: rowAdd,
+            row_total_deducted: rowDed,
+            row_total_added: rowAdd,
+            delta_deducted: round2(discrepancy),
+            delta_added: 0,
+            tolerance: TOLERANCE,
+            source: `user_attested:${String(ab.attestedBy || 'unknown')}`,
+          },
+        };
+      }
+    }
+    console.warn('[CommitImport][Gate] HELD — no statementTotals and no attested balances', { importId });
+    return { gated: true, reason: 'no_statement_totals' };
   }
 
   const totalsObj = stmtTotals as Record<string, unknown>;
