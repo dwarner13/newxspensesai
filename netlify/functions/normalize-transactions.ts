@@ -447,6 +447,44 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
     });
   }
 
+  // Strategy 4: label-free summary quadruplet.
+  // When OCR shreds column headers, labels become detached from their values,
+  // defeating all label-anchored strategies and leaving getBookendBalances()
+  // unable to find a closing balance. However the four summary numbers
+  // (opening, deducted, added, closing) survive as consecutive solo-amount
+  // lines in the summary zone. Scan the region before "Here's what happened"
+  // for four consecutive standalone amounts a, b, c, d satisfying
+  //   a - b + c ≈ d  (within $0.05)
+  // Self-validating: four amounts satisfying the accounting identity in a
+  // scoped region is a vanishingly unlikely coincidence.
+  if (/bank of montreal|everyday banking/i.test(text)) {
+    const allLines = text.split(/\r?\n/);
+    const soloAmt = /^\s*\$?(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/;
+    const endIdx = allLines.findIndex(l => /here'?s what happened/i.test(l));
+    const scanEnd = endIdx >= 0 ? endIdx : allLines.length;
+    for (let i = 0; i < scanEnd - 3; i++) {
+      const m1 = allLines[i].match(soloAmt);
+      if (!m1) continue;
+      const m2 = allLines[i + 1].match(soloAmt);
+      if (!m2) continue;
+      const m3 = allLines[i + 2].match(soloAmt);
+      if (!m3) continue;
+      const m4 = allLines[i + 3].match(soloAmt);
+      if (!m4) continue;
+      const a = parse(m1[1]);
+      const b = parse(m2[1]);
+      const c = parse(m3[1]);
+      const d = parse(m4[1]);
+      if (!isPositiveFinite(a) || !isPositiveFinite(b) || !isPositiveFinite(c) || !isPositiveFinite(d)) continue;
+      if (Math.abs((a - b + c) - d) <= 0.05 && totalsPlausible(b, c)) {
+        console.log('[parseBmoStatementTotals] summary_quadruplet hit', {
+          totalDeducted: b, totalAdded: c, opening: a, closing: d,
+        });
+        return { totalDeducted: b, totalAdded: c, source: 'summary_quadruplet' };
+      }
+    }
+  }
+
   return null;
 }
 
