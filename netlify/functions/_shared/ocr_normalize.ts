@@ -188,10 +188,9 @@ export function normalizeOcrResult(
   }
 
   // BMO Everyday Banking detection:
-  // Check for specific BMO statement markers
+  // Check for specific BMO statement markers (any city — EDMONTON restriction removed)
   if (
-    /Your\s*Everyday\s*Banking\s*statement/i.test(normalizedText) &&
-    /EDMONTON[\s,]*AB/i.test(normalizedText)
+    /Your\s*Everyday\s*Banking\s*statement/i.test(normalizedText)
   ) {
     const bmoTransactions = parseBmoEverydayStatement(normalizedText);
     

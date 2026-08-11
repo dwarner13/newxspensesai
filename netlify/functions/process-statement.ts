@@ -610,7 +610,7 @@ export const handler: Handler = async (event) => {
         source: extraction.source,
         period: { start: extraction.period.start, end: extraction.period.end },
         pages: 1,
-        integrity_verified: true,
+        integrity_verified: false,
       },
     });
 
