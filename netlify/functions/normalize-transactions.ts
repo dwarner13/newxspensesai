@@ -433,7 +433,10 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
       }
     }
     if (collected.length === 2 && totalsPlausible(collected[0], collected[1])) {
-      return validateIdentity({ totalDeducted: collected[0], totalAdded: collected[1], source: 'closing_totals_walk_forward' });
+      const walkResult = validateIdentity({ totalDeducted: collected[0], totalAdded: collected[1], source: 'closing_totals_walk_forward' });
+      if (walkResult) return walkResult;
+      // validateIdentity returned null (bookend balances unavailable or identity failed).
+      // Fall through to let later strategies (e.g. summary_quadruplet) attempt extraction.
     }
 
     // Diagnostic: anchor found but extraction failed. Fires once per failed call.
