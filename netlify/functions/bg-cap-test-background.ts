@@ -17,17 +17,22 @@ import { admin } from './_shared/supabase.js';
  *   START only         → container was killed between 0s and 60s
  *   Neither row        → insert itself is broken; test is invalid
  *
+ * Live schema (from information_schema, not TypeScript):
+ *   id uuid, user_id uuid, type text, status text, progress integer,
+ *   title text, message text, payload jsonb, result jsonb, error text,
+ *   created_at timestamptz, updated_at timestamptz
+ *
  * UI side-effect: useJobsRealtime subscribes to `jobs` filtered by user_id.
  * Both inserts will appear in the JobsDrawer and trigger toast notifications.
- * This is harmless and confirms realtime is working. Clean up after test.
+ * Clean up after test: DELETE FROM jobs WHERE type = 'bg_cap_test';
  *
  * VERIFICATION:
  *   1. Deploy via git push
  *   2. curl -X POST https://xspensesai.netlify.app/.netlify/functions/bg-cap-test-background
  *      → expect HTTP 202 (not 200). If 200, -background suffix not recognized.
  *   3. Wait 90 seconds
- *   4. SELECT title, status, result_payload FROM jobs WHERE title LIKE 'BG_CAP_TEST%';
- *   5. DELETE FROM jobs WHERE title LIKE 'BG_CAP_TEST%';
+ *   4. SELECT type, status, result FROM jobs WHERE type = 'bg_cap_test';
+ *   5. DELETE FROM jobs WHERE type = 'bg_cap_test';
  *   6. Remove this file, commit, push
  */
 
@@ -44,12 +49,11 @@ export const handler: Handler = async () => {
   const sb = admin();
   const { error: startErr } = await sb.from('jobs').insert({
     user_id: USER_ID,
-    created_by_employee: 'bg-cap-test',
-    assigned_to_employee: 'bg-cap-test',
-    title: 'BG_CAP_TEST_START',
+    type: 'bg_cap_test',
     status: 'running',
     progress: 0,
-    result_payload: { testId, startedAt, phase: 'start' },
+    title: 'BG_CAP_TEST_START',
+    result: { testId, startedAt, phase: 'start' },
   });
 
   if (startErr) {
@@ -70,13 +74,11 @@ export const handler: Handler = async () => {
   // ── Marker 2: DONE row (after sleep) ────────────────────────────────────
   const { error: doneErr } = await sb.from('jobs').insert({
     user_id: USER_ID,
-    created_by_employee: 'bg-cap-test',
-    assigned_to_employee: 'bg-cap-test',
-    title: 'BG_CAP_TEST_DONE',
+    type: 'bg_cap_test',
     status: 'completed',
     progress: 100,
-    result_payload: { testId, startedAt, completedAt, elapsedMs, phase: 'done' },
-    completed_at: completedAt,
+    title: 'BG_CAP_TEST_DONE',
+    result: { testId, startedAt, completedAt, elapsedMs, phase: 'done' },
   });
 
   if (doneErr) {
