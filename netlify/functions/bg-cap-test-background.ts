@@ -50,7 +50,7 @@ export const handler: Handler = async () => {
   const { error: startErr } = await sb.from('jobs').insert({
     user_id: USER_ID,
     type: 'bg_cap_test',
-    status: 'running',
+    status: 'processing',
     progress: 0,
     title: 'BG_CAP_TEST_START',
     result: { testId, startedAt, phase: 'start' },
@@ -75,7 +75,7 @@ export const handler: Handler = async () => {
   const { error: doneErr } = await sb.from('jobs').insert({
     user_id: USER_ID,
     type: 'bg_cap_test',
-    status: 'completed',
+    status: 'done',
     progress: 100,
     title: 'BG_CAP_TEST_DONE',
     result: { testId, startedAt, completedAt, elapsedMs, phase: 'done' },
