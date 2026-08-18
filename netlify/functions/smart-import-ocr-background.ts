@@ -38,7 +38,7 @@ const BUCKET = 'docs';
 // When ON, Claude Vision runs in parallel with Google OCR.
 // When OFF, zero Anthropic Vision API calls, zero Vision cost.
 const VISION_ENABLED = process.env.OCR_PREFER_VISION_EXTRACTION === '1';
-const CLAUDE_VISION_TIMEOUT_MS = 60_000;
+const CLAUDE_VISION_TIMEOUT_MS = 90_000;
 const CLAUDE_VISION_MODEL = 'claude-sonnet-4-6';
 
 // Proven extraction prompt — derived from scripts/vision-smoke.mjs, extended for multi-account
