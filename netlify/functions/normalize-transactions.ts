@@ -1159,72 +1159,189 @@ async function processNormalizationInBackground(
     // When OCR_PREFER_VISION_EXTRACTION is ON and claude_vision data exists in
     // extracted_data, use Vision's structured transactions as the primary source.
     // This path produces better column parsing than flat-text OCR normalization.
+    // Multi-account: Vision tags every transaction with an account name. Only
+    // transactions belonging to the selected primary account enter staging.
+    // All accounts and all transactions remain in extracted_data.claude_vision.
     const claudeVisionData = (doc as any)?.extracted_data?.claude_vision;
     const claudeVisionTxns = Array.isArray(claudeVisionData?.transactions) ? claudeVisionData.transactions : [];
 
     if (PREFER_VISION_EXTRACTION && claudeVisionTxns.length > 0) {
-      console.log('[normalize-transactions] Vision-primary: using claude_vision transactions', {
-        documentId,
-        importId: importRecord.id,
-        txnCount: claudeVisionTxns.length,
-        hasStatementSummary: Boolean(claudeVisionData?.statementSummary),
-      });
+      // ── Multi-account primary selection ──────────────────────────────────────
+      // Select the primary account from the Vision accounts[] array.
+      // Selection rules (in order):
+      //   1. Single account → use it
+      //   2. Exactly one account with isPrimary === true → use it
+      //   3. Fallback: accounts[0] (document order)
+      //   4. If multiple isPrimary === true → ambiguous, fall through to flat-text
+      const visionAccounts: any[] = Array.isArray(claudeVisionData?.accounts) ? claudeVisionData.accounts : [];
+      let selectedPrimaryName: string | null = null;
+      let selectedPrimarySummary: any = null;
+      let multiAccountAmbiguous = false;
 
-      normalizedTransactions = claudeVisionTxns.map((tx: any) => {
-        const isDebit = tx.type === 'debit';
-        const rawAmount = Number(tx.amount || 0);
-        return {
-          userId: userIdText,
-          kind: 'bank' as const,
-          date: tx.date || undefined,
-          merchant: tx.merchant || undefined,
-          amount: rawAmount,
-          currency: 'CAD',
-          docId: documentId,
-          description: tx.merchant || 'Transaction',
-          category: tx.category || undefined,
-        };
-      });
-      viaMethod = 'claude-vision';
+      if (visionAccounts.length === 0) {
+        // Legacy Vision response without accounts[] — use all transactions, top-level summary
+        selectedPrimaryName = null; // no filtering
+        selectedPrimarySummary = claudeVisionData?.statementSummary ?? null;
+      } else if (visionAccounts.length === 1) {
+        // Single account — use it regardless of isPrimary marker
+        selectedPrimaryName = visionAccounts[0].accountName ?? null;
+        selectedPrimarySummary = visionAccounts[0].statementSummary ?? claudeVisionData?.statementSummary ?? null;
+      } else {
+        // Multiple accounts — find the one marked isPrimary
+        const primaries = visionAccounts.filter((a: any) => a.isPrimary === true);
+        if (primaries.length === 1) {
+          selectedPrimaryName = primaries[0].accountName ?? null;
+          selectedPrimarySummary = primaries[0].statementSummary ?? null;
+        } else if (primaries.length === 0) {
+          // No isPrimary marker — fallback to first account (document order)
+          selectedPrimaryName = visionAccounts[0].accountName ?? null;
+          selectedPrimarySummary = visionAccounts[0].statementSummary ?? claudeVisionData?.statementSummary ?? null;
+          console.warn('[normalize-transactions] Vision: no isPrimary marker, falling back to first account', {
+            documentId,
+            selectedPrimaryName,
+            accountCount: visionAccounts.length,
+          });
+        } else {
+          // Multiple isPrimary === true — ambiguous, cannot safely select
+          multiAccountAmbiguous = true;
+          console.warn('[normalize-transactions] Vision: multiple accounts marked isPrimary — ambiguous, skipping Vision path', {
+            documentId,
+            importId: importRecord.id,
+            primaryCount: primaries.length,
+            accountNames: visionAccounts.map((a: any) => a.accountName),
+          });
+        }
+      }
 
-      // Persist Vision statementSummary as authoritative statementTotals
-      if (claudeVisionData?.statementSummary) {
-        try {
-          const vs = claudeVisionData.statementSummary;
-          const visionTotals = {
-            totalDeducted: vs.totalDeducted ?? null,
-            totalAdded: vs.totalAdded ?? null,
-            openingBalance: vs.openingBalance ?? null,
-            closingBalance: vs.closingBalance ?? null,
-            source: 'claude_vision' as const,
-          };
-          const { data: sbdRow } = await sb
-            .from('imports')
-            .select('statement_breakdown_json')
-            .eq('id', importRecord.id)
-            .maybeSingle();
-          const existingSbd =
-            sbdRow?.statement_breakdown_json && typeof sbdRow.statement_breakdown_json === 'object'
-              ? (sbdRow.statement_breakdown_json as Record<string, unknown>)
-              : {};
-          await sb
-            .from('imports')
-            .update({
-              statement_breakdown_json: { ...existingSbd, statementTotals: visionTotals },
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', importRecord.id);
-          console.log('[normalize-transactions] Vision statementTotals persisted', {
+      if (multiAccountAmbiguous) {
+        // Fall through to flat-text OCR path — do not stage ambiguous data
+        console.log('[normalize-transactions] Vision multi-account ambiguity: falling through to flat-text path', {
+          documentId,
+          importId: importRecord.id,
+        });
+      } else {
+        // Filter transactions to primary account only (when multi-account)
+        let primaryTxns: any[];
+        if (selectedPrimaryName === null || visionAccounts.length <= 1) {
+          // No filtering needed — single account or legacy response
+          primaryTxns = claudeVisionTxns;
+        } else {
+          // Multi-account: keep only transactions tagged with the primary account name
+          primaryTxns = claudeVisionTxns.filter((tx: any) => tx.account === selectedPrimaryName);
+          const nullAccountTxns = claudeVisionTxns.filter((tx: any) => tx.account == null);
+          const knownAccountNames = new Set(visionAccounts.map((a: any) => a.accountName));
+          const unrecognizedAccountTxns = claudeVisionTxns.filter(
+            (tx: any) => tx.account != null && tx.account !== selectedPrimaryName && !knownAccountNames.has(tx.account)
+          );
+          const secondaryTxns = claudeVisionTxns.length - primaryTxns.length - nullAccountTxns.length - unrecognizedAccountTxns.length;
+
+          console.log('[normalize-transactions] Vision multi-account filter applied', {
+            documentId,
             importId: importRecord.id,
-            totalDeducted: visionTotals.totalDeducted,
-            totalAdded: visionTotals.totalAdded,
-            source: 'claude_vision',
+            totalVisionTxns: claudeVisionTxns.length,
+            primaryAccount: selectedPrimaryName,
+            primaryTxns: primaryTxns.length,
+            secondaryTxns,
+            nullAccountTxns: nullAccountTxns.length,
+            unrecognizedAccountTxns: unrecognizedAccountTxns.length,
+            accountCount: visionAccounts.length,
+            allAccountNames: [...knownAccountNames],
           });
-        } catch (visionTotalsErr: any) {
-          console.warn('[normalize-transactions] Failed to persist Vision statementTotals (non-fatal)', {
+
+          if (nullAccountTxns.length > 0) {
+            // Transactions without account attribution are excluded — never silently assigned
+            console.warn('[normalize-transactions] Vision: excluded unattributed transactions (account=null)', {
+              documentId,
+              count: nullAccountTxns.length,
+            });
+          }
+
+          if (unrecognizedAccountTxns.length > 0) {
+            // Transactions tagged with an account label not in accounts[] — excluded, not staged
+            const unrecognizedLabels = [...new Set(unrecognizedAccountTxns.map((tx: any) => tx.account))];
+            console.warn('[normalize-transactions] Vision: excluded transactions with unrecognized account labels', {
+              documentId,
+              count: unrecognizedAccountTxns.length,
+              unrecognizedLabels,
+            });
+          }
+        }
+
+        if (primaryTxns.length === 0 && claudeVisionTxns.length > 0) {
+          // Primary filter eliminated all transactions — fall through to flat-text
+          console.warn('[normalize-transactions] Vision: primary filter left zero transactions, falling through to flat-text', {
+            documentId,
+            selectedPrimaryName,
+            totalVisionTxns: claudeVisionTxns.length,
+          });
+        } else if (primaryTxns.length > 0) {
+          console.log('[normalize-transactions] Vision-primary: using claude_vision transactions', {
+            documentId,
             importId: importRecord.id,
-            error: visionTotalsErr?.message,
+            txnCount: primaryTxns.length,
+            hasStatementSummary: Boolean(selectedPrimarySummary),
+            primaryAccount: selectedPrimaryName,
+            accountCount: visionAccounts.length,
           });
+
+          normalizedTransactions = primaryTxns.map((tx: any) => {
+            const rawAmount = Number(tx.amount || 0);
+            return {
+              userId: userIdText,
+              kind: 'bank' as const,
+              date: tx.date || undefined,
+              merchant: tx.merchant || undefined,
+              amount: rawAmount,
+              currency: 'CAD',
+              docId: documentId,
+              description: tx.merchant || 'Transaction',
+              category: tx.category || undefined,
+              accountName: tx.account || undefined,
+            };
+          });
+          viaMethod = 'claude-vision';
+
+          // Persist primary account's statementSummary as authoritative statementTotals
+          if (selectedPrimarySummary) {
+            try {
+              const vs = selectedPrimarySummary;
+              const visionTotals = {
+                totalDeducted: vs.totalDeducted ?? null,
+                totalAdded: vs.totalAdded ?? null,
+                openingBalance: vs.openingBalance ?? null,
+                closingBalance: vs.closingBalance ?? null,
+                source: 'claude_vision' as const,
+              };
+              const { data: sbdRow } = await sb
+                .from('imports')
+                .select('statement_breakdown_json')
+                .eq('id', importRecord.id)
+                .maybeSingle();
+              const existingSbd =
+                sbdRow?.statement_breakdown_json && typeof sbdRow.statement_breakdown_json === 'object'
+                  ? (sbdRow.statement_breakdown_json as Record<string, unknown>)
+                  : {};
+              await sb
+                .from('imports')
+                .update({
+                  statement_breakdown_json: { ...existingSbd, statementTotals: visionTotals },
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', importRecord.id);
+              console.log('[normalize-transactions] Vision statementTotals persisted', {
+                importId: importRecord.id,
+                totalDeducted: visionTotals.totalDeducted,
+                totalAdded: visionTotals.totalAdded,
+                source: 'claude_vision',
+                primaryAccount: selectedPrimaryName,
+              });
+            } catch (visionTotalsErr: any) {
+              console.warn('[normalize-transactions] Failed to persist Vision statementTotals (non-fatal)', {
+                importId: importRecord.id,
+                error: visionTotalsErr?.message,
+              });
+            }
+          }
         }
       }
     }

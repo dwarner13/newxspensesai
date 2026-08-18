@@ -41,21 +41,33 @@ const VISION_ENABLED = process.env.OCR_PREFER_VISION_EXTRACTION === '1';
 const CLAUDE_VISION_TIMEOUT_MS = 60_000;
 const CLAUDE_VISION_MODEL = 'claude-sonnet-4-6';
 
-// Proven extraction prompt — verbatim from scripts/vision-smoke.mjs
-const CLAUDE_VISION_EXTRACTION_PROMPT = `You are reading a bank statement. Extract every transaction.
+// Proven extraction prompt — derived from scripts/vision-smoke.mjs, extended for multi-account
+const CLAUDE_VISION_EXTRACTION_PROMPT = `You are reading a bank statement. Extract every transaction from every account section.
 Return ONLY valid JSON with no extra text, no markdown, no backticks.
 Format:
 {
   "period": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
-  "accountSummary": { "openingBalance": number, "closingBalance": number },
   "institution": "Bank name if detected (e.g. BMO, TD, RBC)",
+  "accounts": [
+    {
+      "accountName": "account section heading as printed, e.g. Primary Chequing Account",
+      "isPrimary": true,
+      "statementSummary": {
+        "totalDeducted": number,
+        "totalAdded": number,
+        "openingBalance": number,
+        "closingBalance": number
+      }
+    }
+  ],
   "transactions": [
     {
       "date": "YYYY-MM-DD",
       "merchant": "clean readable name with spaces preserved, no terminal IDs",
       "amount": number,
       "type": "debit or credit",
-      "category": "Food | Transport | Shopping | Entertainment | Health | Utilities | Income | Transfer | Other"
+      "category": "Food | Transport | Shopping | Entertainment | Health | Utilities | Income | Transfer | Other",
+      "account": "account section heading matching the accountName in accounts[]"
     }
   ],
   "statementSummary": {
@@ -65,6 +77,15 @@ Format:
     "closingBalance": number
   }
 }
+MULTI-ACCOUNT RULES:
+- A single PDF may contain multiple account sections (e.g. Primary Chequing Account + Premium Rate Savings). List every account in the accounts[] array in document order.
+- Set isPrimary: true on the MAIN account — the first/largest account whose printed totals represent the statement's primary summary block. Set isPrimary: false on all other accounts. Exactly one account should have isPrimary: true.
+- Tag every transaction with "account" matching its account section heading. Use the account name as printed (e.g. "Primary Chequing Account"), NOT the account number.
+- If the PDF has only one account, set isPrimary: true on it.
+- The top-level statementSummary must match the PRIMARY account's statementSummary (for backward compatibility).
+- Each account in accounts[] must have its own statementSummary with that account's own printed totals.
+- If you cannot confidently determine which account a transaction belongs to, set "account": null on that transaction.
+
 CRITICAL RULES:
 - Bank statements have MULTIPLE number columns: Amounts Deducted, Amounts Added, and Balance.
 - Use ONLY the Deducted or Added column for the transaction amount.
@@ -93,7 +114,7 @@ BANK CHEQUING / SAVINGS / CURRENT ACCOUNT STATEMENT RULES (all banks — BMO, TD
 - Strip these prefixes to get the merchant name (they are NOT merchants): "Debit Card Purchase,", "POS Purchase,", "Point of Sale,", "Pre-Authorized Payment,", "Pre-authorized Payment No Fee,", "Pre-authorized Debit,", "Direct Deposit,", "Payroll Deposit,", "Online Bill Payment,", "Bill Payment,".
 - These descriptions ARE the merchant — keep as-is, no other name follows: "Mobile Cheque Deposit", "INTERAC e-Transfer Sent", "INTERAC e-Transfer Received", "Other Bank ABM Withdrawal", "ABM Withdrawal", "ABM Deposit", "Premium Plan Fee", "Service Charge", "Monthly Plan Fee", "Overdraft Fee", "NSF Fee".
 - Strip trailing store/terminal IDs from merchants: "7-ELEVEN STORE 33535" → "7-ELEVEN", "SAVE ON FOODS #6620" → "SAVE ON FOODS", "PETRO-CANADA 77965" → "PETRO-CANADA", "WALMART STORE #3028" → "WALMART", "MCDONALD'S #40449" → "MCDONALD'S".
-- The statement summary block on page 1 contains four numbers: Opening Balance, Total Withdrawn/Deducted, Total Deposited/Added, Closing Balance. Wording varies ("Total amounts deducted/added" at BMO, "Total withdrawals/deposits" at TD/RBC, "Total debits/credits" at US banks). Extract all four into the statementSummary output field — these are the bank's authoritative period totals.
+- The statement summary block on page 1 contains four numbers per account: Opening Balance, Total Withdrawn/Deducted, Total Deposited/Added, Closing Balance. Wording varies ("Total amounts deducted/added" at BMO, "Total withdrawals/deposits" at TD/RBC, "Total debits/credits" at US banks). Extract all four into each account's statementSummary. The top-level statementSummary must contain the PRIMARY account's totals only.
 
 If any field is unclear, use null. Never guess amounts or dates.`;
 
