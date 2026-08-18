@@ -38,7 +38,7 @@
 [functions."process-spreadsheet"]
   timeout = 60
 
-[functions."smart-import-ocr"]
+[functions."smart-import-ocr-background"]
   timeout = 120
 [functions."normalize-transactions"]
   timeout = 120

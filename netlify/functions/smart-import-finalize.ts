@@ -133,7 +133,7 @@ export const handler: Handler = async (event, context) => {
       // Mark processing immediately to avoid stale "ready" reuse while OCR is being retriggered.
       await markDocStatus(docId, 'ocr_processing', 'ocr_retriggered');
       // Trigger OCR processing after successful upload
-      fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
+      fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr-background`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

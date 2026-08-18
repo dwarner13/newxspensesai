@@ -566,7 +566,7 @@ export const handler: Handler = async (event) => {
       // 3) OCR kickoff (idempotent inside pipeline)
       let ocrRes: { ok: boolean; status: number; data: any };
       try {
-        ocrRes = await callFn(event, "smart-import-ocr", {
+        ocrRes = await callFn(event, "smart-import-ocr-background", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -754,7 +754,7 @@ export const handler: Handler = async (event) => {
           documentId: ctx.documentId,
           userId: ctx.userId,
         });
-        const retryRes = await callFn(event, "smart-import-ocr", {
+        const retryRes = await callFn(event, "smart-import-ocr-background", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
