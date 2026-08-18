@@ -33,6 +33,151 @@ import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
 
 const BUCKET = 'docs';
 
+// ── Architecture A': Claude Vision parallel extraction ──────────────────────
+// Feature flag: OCR_PREFER_VISION_EXTRACTION (safe default: OFF)
+// When ON, Claude Vision runs in parallel with Google OCR.
+// When OFF, zero Anthropic Vision API calls, zero Vision cost.
+const VISION_ENABLED = process.env.OCR_PREFER_VISION_EXTRACTION === '1';
+const CLAUDE_VISION_TIMEOUT_MS = 60_000;
+const CLAUDE_VISION_MODEL = 'claude-sonnet-4-6';
+
+// Proven extraction prompt — verbatim from scripts/vision-smoke.mjs
+const CLAUDE_VISION_EXTRACTION_PROMPT = `You are reading a bank statement. Extract every transaction.
+Return ONLY valid JSON with no extra text, no markdown, no backticks.
+Format:
+{
+  "period": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+  "accountSummary": { "openingBalance": number, "closingBalance": number },
+  "institution": "Bank name if detected (e.g. BMO, TD, RBC)",
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "merchant": "clean readable name with spaces preserved, no terminal IDs",
+      "amount": number,
+      "type": "debit or credit",
+      "category": "Food | Transport | Shopping | Entertainment | Health | Utilities | Income | Transfer | Other"
+    }
+  ],
+  "statementSummary": {
+    "totalDeducted": number,
+    "totalAdded": number,
+    "openingBalance": number,
+    "closingBalance": number
+  }
+}
+CRITICAL RULES:
+- Bank statements have MULTIPLE number columns: Amounts Deducted, Amounts Added, and Balance.
+- Use ONLY the Deducted or Added column for the transaction amount.
+- NEVER use the Balance column. It is the running account balance, NOT the transaction amount.
+- If a 7-Eleven purchase shows as $500+, you are reading the Balance column by mistake.
+- Preserve spaces in merchant names: "SAVE ON FOODS" not "SAVEONFOODS", "CANADIAN TIRE" not "CANADIANTIRE".
+- Debits/withdrawals/purchases = negative amounts. Deposits/credits/income = positive amounts.
+
+RBC VISA / CREDIT CARD STATEMENT RULES:
+- RBC Visa statements have only ONE "AMOUNT ($)" column. Positive amounts are charges (type: "debit", amount should be negative in output). Negative amounts (prefixed with -) are payments/credits (type: "credit", amount should be positive in output).
+- Lines starting with "Foreign Currency - USD" are metadata describing the currency conversion for the transaction ABOVE them. Do NOT create a separate transaction for foreign currency lines. Always use the CANADIAN DOLLAR amount from the main transaction line, not the USD amount.
+- Lines that are just long numeric strings (e.g. "74510204352610287899203") are internal reference numbers — skip them entirely, they are not transactions.
+- IGNORE these sections completely — they are NOT transactions and contain NO transaction data: "CALCULATING YOUR BALANCE", "PAYMENTS & INTEREST RATES", "IMPORTANT INFORMATION", "AVION POINTS", "CONTACT US", "INTEREST RATE CHART", "Time to Pay", the payment stub/remittance slip at the bottom, and any text after "TOTAL ACCOUNT BALANCE".
+- "BALANCEPROTECTOR PREMIUM" is a bank fee (category: Utilities), not a plan name.
+- "OVERLIMIT FEE" and "CASH - SERVICE CHARGE" are bank fees (category: Utilities).
+- "PAYMENT - THANK YOU / PAIEMENT - MERCI" is always a payment/credit. The statement shows it as a negative amount. Output it as type: "credit" with a positive amount.
+- The statement period is shown as "STATEMENT FROM [date] TO [date]" — use those dates for the period field.
+- For merchant names: strip the city/province suffix (e.g. "EDMONTON AB", "BRAMPTON ON") and any trailing reference numbers. Keep the core merchant name readable.
+
+BANK CHEQUING / SAVINGS / CURRENT ACCOUNT STATEMENT RULES (all banks — BMO, TD, RBC, CIBC, Scotiabank, National Bank, Desjardins, Tangerine, Simplii, Canadian credit unions, and most US/UK retail banks):
+- Three numeric columns appear in this order on every row: WITHDRAWALS / DEPOSITS / BALANCE. Headers vary by bank: BMO uses "Amounts deducted / Amounts added / Balance"; TD/RBC/Scotia use "Withdrawals / Deposits / Balance"; US banks often use "Debits / Credits / Balance". The third column is ALWAYS the running account balance — NOT the transaction amount. Use ONLY the first two columns for amounts.
+- Every transaction row shows ONE amount (in either Withdrawals OR Deposits, never both) PLUS a Balance. If you see two non-zero numbers on the same row, the rightmost is the Balance — discard it. NEVER sum, average, or concatenate the amount and balance into a single value. If a 7-Eleven purchase shows up as $5,000+, you summed the columns by mistake.
+- Descriptions for pre-authorized payments and direct deposits frequently WRAP onto two physical lines. The continuation line contains only suffix text ("MSP/DIV", "LNS/PRE", "MTG/HYP", "/CC", "/ASS", "/PRE") with NO numbers. Combine both lines into one description. NEVER read the amount column from a continuation line — the amount belongs to the row that has the date.
+- Skip rows labeled "Opening balance", "Previous balance", "Closing totals", "Closing balance", "Ending balance" — they are not transactions, they are period boundaries.
+- Withdrawals/Deducted column → type: "debit", output as negative. Deposits/Added column → type: "credit", output as positive.
+- Strip these prefixes to get the merchant name (they are NOT merchants): "Debit Card Purchase,", "POS Purchase,", "Point of Sale,", "Pre-Authorized Payment,", "Pre-authorized Payment No Fee,", "Pre-authorized Debit,", "Direct Deposit,", "Payroll Deposit,", "Online Bill Payment,", "Bill Payment,".
+- These descriptions ARE the merchant — keep as-is, no other name follows: "Mobile Cheque Deposit", "INTERAC e-Transfer Sent", "INTERAC e-Transfer Received", "Other Bank ABM Withdrawal", "ABM Withdrawal", "ABM Deposit", "Premium Plan Fee", "Service Charge", "Monthly Plan Fee", "Overdraft Fee", "NSF Fee".
+- Strip trailing store/terminal IDs from merchants: "7-ELEVEN STORE 33535" → "7-ELEVEN", "SAVE ON FOODS #6620" → "SAVE ON FOODS", "PETRO-CANADA 77965" → "PETRO-CANADA", "WALMART STORE #3028" → "WALMART", "MCDONALD'S #40449" → "MCDONALD'S".
+- The statement summary block on page 1 contains four numbers: Opening Balance, Total Withdrawn/Deducted, Total Deposited/Added, Closing Balance. Wording varies ("Total amounts deducted/added" at BMO, "Total withdrawals/deposits" at TD/RBC, "Total debits/credits" at US banks). Extract all four into the statementSummary output field — these are the bank's authoritative period totals.
+
+If any field is unclear, use null. Never guess amounts or dates.`;
+
+/**
+ * Run Claude Vision structured extraction on a PDF.
+ * Returns the parsed JSON object on success, null on any failure.
+ * Never throws — Vision failure is fail-open per Architecture A'.
+ */
+async function runClaudeVisionExtraction(
+  pdfBuffer: Buffer,
+  docId: string,
+): Promise<{ result: any; durationMs: number; inputTokens?: number; outputTokens?: number } | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.warn('[Vision] ANTHROPIC_API_KEY not set; skipping Vision extraction', { docId });
+    return null;
+  }
+  const startMs = Date.now();
+  try {
+    const base64Pdf = pdfBuffer.toString('base64');
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'pdfs-2024-09-25',
+      },
+      body: JSON.stringify({
+        model: CLAUDE_VISION_MODEL,
+        max_tokens: 8192,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: base64Pdf,
+              },
+            },
+            {
+              type: 'text',
+              text: CLAUDE_VISION_EXTRACTION_PROMPT,
+            },
+          ],
+        }],
+      }),
+    });
+    const durationMs = Date.now() - startMs;
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.warn('[Vision] API error', { docId, status: res.status, error: errText.slice(0, 300), durationMs });
+      return null;
+    }
+    const data = await res.json();
+    const rawJson = data?.content?.[0]?.text ?? '';
+    const cleaned = rawJson.replace(/^```[\w]*\n?/m, '').replace(/```$/m, '').trim();
+    const parsed = JSON.parse(cleaned);
+    if (!parsed || !Array.isArray(parsed.transactions)) {
+      console.warn('[Vision] Response missing transactions array', { docId, durationMs });
+      return null;
+    }
+    const inputTokens = data?.usage?.input_tokens;
+    const outputTokens = data?.usage?.output_tokens;
+    console.log('[Vision] extraction succeeded', {
+      docId,
+      transactionCount: parsed.transactions.length,
+      hasStatementSummary: Boolean(parsed.statementSummary),
+      institution: parsed.institution || null,
+      durationMs,
+      inputTokens,
+      outputTokens,
+    });
+    return { result: parsed, durationMs, inputTokens, outputTokens };
+  } catch (err: any) {
+    const durationMs = Date.now() - startMs;
+    console.warn('[Vision] extraction failed', { docId, error: err?.message || String(err), durationMs });
+    return null;
+  }
+}
+// ── End Architecture A' Vision extraction ────────────────────────────────────
+
 const bufferCache = new Map<string, Buffer>();
 
 const DEFAULT_OCR_TIMEOUT_MS = 30000;
@@ -2000,6 +2145,8 @@ export const handler: Handler = async (event, context) => {
   let ocrJobId: string | null = null;
   let stopHeartbeat: (() => void) | null = null;
   let ocrSucceeded = false;
+  // Architecture A': Hoisted so finally block can await abandoned Vision promise
+  let visionPromise: Promise<{ result: any; durationMs: number; inputTokens?: number; outputTokens?: number } | null> | null = null;
 
   try {
     const contentType = event.headers['content-type'] || event.headers['Content-Type'] || '';
@@ -2383,6 +2530,29 @@ export const handler: Handler = async (event, context) => {
       .update({ content_hash: fileHash, updated_at: new Date().toISOString() })
       .eq('id', docId)
       .is('content_hash', null);
+
+    // ── Architecture A': Start Claude Vision in parallel with OCR ────────────
+    // Vision runs independently of OCR. Both produce results or fail independently.
+    // Vision promise is awaited after OCR completes (success or failure).
+    const isPdfForVision = effectiveMimeType === 'application/pdf';
+    // Deferred OCR failure: when Vision is active and OCR fails, we defer the
+    // terminal response to await Vision before deciding the final outcome.
+    let ocrDeferredFailure: { response: any; errorCode: string; rejectionReason: string } | null = null;
+
+    if (VISION_ENABLED && isPdfForVision) {
+      console.log('[Vision] Starting parallel extraction', { docId, model: CLAUDE_VISION_MODEL, timeoutMs: CLAUDE_VISION_TIMEOUT_MS });
+      visionPromise = withTimeout(
+        runClaudeVisionExtraction(binaryBuffer, docId),
+        CLAUDE_VISION_TIMEOUT_MS,
+        'claude_vision'
+      ).catch((err: any) => {
+        console.warn('[Vision] Promise rejected (timeout or error)', { docId, error: err?.message || String(err) });
+        return null;
+      });
+    } else if (VISION_ENABLED && !isPdfForVision) {
+      console.log('[Vision] Skipped (not a PDF)', { docId, mimeType: effectiveMimeType });
+    }
+    // ── End Vision start ─────────────────────────────────────────────────────
 
     const jobInsertPayload = {
       user_id: effectiveUserId,
@@ -2882,6 +3052,13 @@ export const handler: Handler = async (event, context) => {
             ocrError: trimErrorMessage(ocrErrorMessage),
             fallbackError: trimErrorMessage(scannedRecoveryMessage),
           });
+          if (visionPromise) {
+            ocrDeferredFailure = {
+              response: { statusCode: 200, body: JSON.stringify({ ok: false, rejected: true, reason: terminalMalformedPdf ? 'parser_incompatible_pdf' : 'ocr_failed', status: classified.status, error_code: errorCode, terminal: true, traceId, importRunId, primeMessage: userMessage }) },
+              errorCode,
+              rejectionReason: userMessage,
+            };
+          } else {
           await finalizeTerminalOcrFailure(sb, {
             ocrJobId,
             docId,
@@ -2904,6 +3081,7 @@ export const handler: Handler = async (event, context) => {
               primeMessage: userMessage,
             }),
           };
+          }
           }
           }
 
@@ -3000,6 +3178,13 @@ export const handler: Handler = async (event, context) => {
               fallbackError: trimErrorMessage(scannedRecoveryMessage),
             });
           }
+          if (visionPromise) {
+            ocrDeferredFailure = {
+              response: { statusCode: 200, body: JSON.stringify({ ok: false, rejected: true, reason: terminalMalformedPdf ? 'parser_incompatible_pdf' : 'ocr_failed', status: classified.status, error_code: errorCode, terminal: true, traceId, importRunId, primeMessage: userMessage }) },
+              errorCode,
+              rejectionReason: userMessage,
+            };
+          } else {
           await finalizeTerminalOcrFailure(sb, {
             ocrJobId,
             docId,
@@ -3024,10 +3209,18 @@ export const handler: Handler = async (event, context) => {
           };
           }
           }
+          }
           } // end if (!recoveredViaClaudeVisionPdf)
         }
       } else {
       const classified = classifyOcrErrorCode(ocrError);
+      if (visionPromise) {
+        ocrDeferredFailure = {
+          response: { statusCode: 200, body: JSON.stringify({ ok: false, rejected: true, reason: 'ocr_failed', status: classified.status, error_code: classified.errorCode, traceId, importRunId }) },
+          errorCode: classified.errorCode,
+          rejectionReason: `OCR failed: ${ocrError.message}`,
+        };
+      } else {
       await finalizeTerminalOcrFailure(sb, {
         ocrJobId,
         docId,
@@ -3036,9 +3229,9 @@ export const handler: Handler = async (event, context) => {
         errorCode: classified.errorCode,
         rejectionReason: `OCR failed: ${ocrError.message}`,
       });
-      return { 
-        statusCode: 200, 
-        body: JSON.stringify({ 
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
           ok: false,
           rejected: true,
           reason: 'ocr_failed',
@@ -3046,8 +3239,9 @@ export const handler: Handler = async (event, context) => {
           error_code: classified.errorCode,
           traceId,
           importRunId,
-        }) 
+        })
       };
+      }
       }
     }
 
@@ -3094,6 +3288,13 @@ export const handler: Handler = async (event, context) => {
           scannedErrorMessage.toLowerCase().includes('pdf.worker.mjs');
         const bestLen = String(ocrText || '').trim().length;
         if (missingPdfWorkerInDev && bestLen < OCR_EMPTY_MIN_LEN) {
+          if (visionPromise) {
+            ocrDeferredFailure = {
+              response: { statusCode: 200, body: JSON.stringify({ ok: false, rejected: true, reason: 'ocr_failed', retryable: true, status: 'failed', error_code: 'pdf_worker_missing', traceId, importRunId }) },
+              errorCode: 'pdf_worker_missing',
+              rejectionReason: 'OCR failed: pdf_worker_missing',
+            };
+          } else {
           await finalizeOcrJobOutcome(sb, {
             ocrJobId,
             docId,
@@ -3116,6 +3317,7 @@ export const handler: Handler = async (event, context) => {
               importRunId,
             }),
           };
+          }
         }
         if (ocrProvider) {
           const bestEffort = buildNormalizedResult({
@@ -3172,7 +3374,7 @@ export const handler: Handler = async (event, context) => {
     }
 
     const finalOcrLen = String(ocrText || '').trim().length;
-    if (finalOcrLen < OCR_EMPTY_MIN_LEN) {
+    if (finalOcrLen < OCR_EMPTY_MIN_LEN && !ocrDeferredFailure) {
       const providerLabel = String(ocrProvider || '').toLowerCase();
       const emptyErrorCode = parserIncompatibilityLikely
         ? 'malformed_pdf'
@@ -3183,6 +3385,13 @@ export const handler: Handler = async (event, context) => {
               ? 'embedded_empty'
               : 'ocr_empty_unknown'
         );
+      if (visionPromise) {
+        ocrDeferredFailure = {
+          response: { statusCode: 200, body: JSON.stringify({ ok: false, rejected: true, reason: 'ocr_failed', retryable: true, status: 'failed', error_code: emptyErrorCode, traceId, importRunId }) },
+          errorCode: emptyErrorCode,
+          rejectionReason: `OCR failed: ${emptyErrorCode}`,
+        };
+      } else {
       await finalizeOcrJobOutcome(sb, {
         ocrJobId,
         docId,
@@ -3205,11 +3414,12 @@ export const handler: Handler = async (event, context) => {
           importRunId,
         }),
       };
+      }
     }
 
     // Early hard-stop: reject boilerplate/non-document OCR text before any success
     // logging, proof writes, or normalize handoff.
-    if (isUselessOcrResponseText(ocrText)) {
+    if (isUselessOcrResponseText(ocrText) && !ocrDeferredFailure) {
       const unusableMessage = 'Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.';
       console.warn('[OCR] unusable_ocr_text_detected', {
         docId,
@@ -3217,6 +3427,13 @@ export const handler: Handler = async (event, context) => {
         preview: String(ocrText || '').slice(0, 220),
         phase: 'pre_extracted_gate',
       });
+      if (visionPromise) {
+        ocrDeferredFailure = {
+          response: { statusCode: 200, body: JSON.stringify({ ok: false, rejected: true, terminal: true, reason: 'failed_or_unusable', status: 'failed', error_code: 'unusable_ocr_text', short_reason: 'Scanned PDF text could not be recognized', primeMessage: unusableMessage, traceId, importRunId }) },
+          errorCode: 'unusable_ocr_text',
+          rejectionReason: unusableMessage,
+        };
+      } else {
       await finalizeTerminalOcrFailure(sb, {
         ocrJobId,
         docId,
@@ -3240,7 +3457,107 @@ export const handler: Handler = async (event, context) => {
           importRunId,
         }),
       };
+      }
     }
+
+    // ── Architecture A': Vision resolution ─────────────────────────────────────
+    // Await Vision result before any terminal ocr_status write.
+    // Four outcomes: OCR+Vision success, OCR success + Vision fail,
+    //                OCR fail + Vision success, OCR fail + Vision fail.
+    if (ocrDeferredFailure && visionPromise) {
+      // OCR failed — await Vision to decide final outcome
+      const visionOutcome = await visionPromise;
+      if (visionOutcome?.result?.transactions?.length > 0) {
+        // OCR failure + Vision success: rescue via Vision
+        console.log('[Vision] OCR failed but Vision succeeded — rescuing upload', {
+          docId,
+          visionTransactions: visionOutcome.result.transactions.length,
+          visionDurationMs: visionOutcome.durationMs,
+          ocrErrorCode: ocrDeferredFailure.errorCode,
+        });
+        const visionCompletedAt = new Date().toISOString();
+        const visionExtractedData: Record<string, any> = {
+          claude_vision: visionOutcome.result,
+          claude_vision_meta: {
+            model: CLAUDE_VISION_MODEL,
+            durationMs: visionOutcome.durationMs,
+            inputTokens: visionOutcome.inputTokens,
+            outputTokens: visionOutcome.outputTokens,
+            extractedAt: visionCompletedAt,
+            ocrFailed: true,
+            ocrErrorCode: ocrDeferredFailure.errorCode,
+          },
+        };
+        const { error: rescueUpdateErr } = await sb
+          .from('user_documents')
+          .update({
+            extracted_data: visionExtractedData,
+            ocr_status: 'ready',
+            ocr_completed_at: visionCompletedAt,
+            status: 'ready',
+            updated_at: visionCompletedAt,
+          })
+          .eq('id', docId);
+        if (rescueUpdateErr) {
+          // Persistence failed — do not claim success
+          console.error('[Vision] Rescue persistence failed; falling through to OCR failure path', {
+            docId,
+            error: rescueUpdateErr.message,
+          });
+          await finalizeTerminalOcrFailure(sb, {
+            ocrJobId,
+            docId,
+            error: ocrDeferredFailure.rejectionReason,
+            errorCode: ocrDeferredFailure.errorCode,
+            rejectionReason: ocrDeferredFailure.rejectionReason,
+          });
+          return ocrDeferredFailure.response;
+        }
+        await setDocumentOcrStatus(sb, docId, 'ready');
+        ocrSucceeded = true;
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            ok: true,
+            status: 'succeeded',
+            docId,
+            importRunId,
+            via: 'claude_vision_only',
+            visionTransactions: visionOutcome.result.transactions.length,
+            visionDurationMs: visionOutcome.durationMs,
+            ocrErrorCode: ocrDeferredFailure.errorCode,
+            traceId,
+          }),
+        };
+      } else {
+        // OCR failure + Vision failure: run original OCR terminal failure path
+        console.warn('[Vision] Both OCR and Vision failed', {
+          docId,
+          ocrErrorCode: ocrDeferredFailure.errorCode,
+          visionResult: visionOutcome ? 'no_transactions' : 'null',
+        });
+        await finalizeTerminalOcrFailure(sb, {
+          ocrJobId,
+          docId,
+          error: ocrDeferredFailure.rejectionReason,
+          errorCode: ocrDeferredFailure.errorCode,
+          rejectionReason: ocrDeferredFailure.rejectionReason,
+        });
+        return ocrDeferredFailure.response;
+      }
+    }
+    if (ocrDeferredFailure && !visionPromise) {
+      // Should not reach here (flag OFF means no deferral), but safety net
+      await finalizeTerminalOcrFailure(sb, {
+        ocrJobId,
+        docId,
+        error: ocrDeferredFailure.rejectionReason,
+        errorCode: ocrDeferredFailure.errorCode,
+        rejectionReason: ocrDeferredFailure.rejectionReason,
+      });
+      return ocrDeferredFailure.response;
+    }
+    // ── End Vision resolution ────────────────────────────────────────────────
 
     console.log(`${logPrefix} EXTRACTED`, { docId, textLength: ocrText.length, provider: ocrProvider, durationMs: ocrDurationMs });
 
@@ -3423,6 +3740,37 @@ export const handler: Handler = async (event, context) => {
       text_hash: textMetrics.hash || null,
       text_length: textMetrics.length ?? 0,
     };
+
+    // ── Architecture A': Await Vision on OCR success path ────────────────────
+    // OCR succeeded. If Vision is running, await it and merge result.
+    let visionResultForStorage: any = null;
+    if (visionPromise) {
+      const visionOutcome = await visionPromise;
+      if (visionOutcome?.result?.transactions?.length > 0) {
+        visionResultForStorage = visionOutcome.result;
+        normalizedForStorage.claude_vision = visionOutcome.result;
+        normalizedForStorage.claude_vision_meta = {
+          model: CLAUDE_VISION_MODEL,
+          durationMs: visionOutcome.durationMs,
+          inputTokens: visionOutcome.inputTokens,
+          outputTokens: visionOutcome.outputTokens,
+          extractedAt: new Date().toISOString(),
+          ocrFailed: false,
+        };
+        console.log('[Vision] Merged Vision result into extracted_data (OCR+Vision success)', {
+          docId,
+          visionTransactions: visionOutcome.result.transactions.length,
+          visionDurationMs: visionOutcome.durationMs,
+        });
+      } else {
+        console.log('[Vision] Vision failed/empty on OCR success path (fail-open)', {
+          docId,
+          visionResult: visionOutcome ? 'no_transactions' : 'null',
+        });
+      }
+    }
+    // ── End Vision merge ─────────────────────────────────────────────────────
+
     const ocrData = {
       normalized: normalizedForStorage,
       text_hash: textMetrics.hash || null,
@@ -3779,6 +4127,71 @@ export const handler: Handler = async (event, context) => {
     const traceIdHeader = event.headers['x-trace-id'] || event.headers['X-Trace-Id'];
     const traceId = traceIdHeader || 'no-trace';
     console.error(`[OCR][${traceId}] ERROR`, e);
+
+    // Architecture A': If Vision is running, await it before writing terminal failure.
+    // An uncaught exception should not discard a usable Vision result.
+    if (visionPromise) {
+      try {
+        const visionOutcome = await visionPromise;
+        if (visionOutcome?.result?.transactions?.length > 0 && lockedDocId) {
+          console.log('[Vision] Catch-block rescue: Vision succeeded despite uncaught exception', {
+            docId: lockedDocId,
+            visionTransactions: visionOutcome.result.transactions.length,
+            caughtError: e?.message || String(e),
+          });
+          const sb = admin();
+          const visionCompletedAt = new Date().toISOString();
+          const { error: rescueWriteErr } = await sb
+            .from('user_documents')
+            .update({
+              extracted_data: {
+                claude_vision: visionOutcome.result,
+                claude_vision_meta: {
+                  model: CLAUDE_VISION_MODEL,
+                  durationMs: visionOutcome.durationMs,
+                  inputTokens: visionOutcome.inputTokens,
+                  outputTokens: visionOutcome.outputTokens,
+                  extractedAt: visionCompletedAt,
+                  ocrFailed: true,
+                  ocrErrorCode: 'uncaught_exception',
+                },
+              },
+              ocr_status: 'ready',
+              ocr_completed_at: visionCompletedAt,
+              status: 'ready',
+              updated_at: visionCompletedAt,
+            })
+            .eq('id', lockedDocId);
+          if (!rescueWriteErr) {
+            await setDocumentOcrStatus(sb, lockedDocId, 'ready');
+            ocrSucceeded = true;
+            return {
+              statusCode: 200,
+              body: JSON.stringify({
+                ok: true,
+                status: 'succeeded',
+                docId: lockedDocId,
+                via: 'claude_vision_only',
+                visionTransactions: visionOutcome.result.transactions.length,
+                ocrErrorCode: 'uncaught_exception',
+                traceId,
+              }),
+            };
+          }
+          console.warn('[Vision] Catch-block rescue: persistence failed, falling through to original failure path', {
+            docId: lockedDocId,
+            error: rescueWriteErr?.message,
+          });
+        }
+      } catch (visionCatchErr: any) {
+        console.warn('[Vision] Catch-block rescue: Vision await failed', {
+          docId: lockedDocId,
+          error: visionCatchErr?.message || String(visionCatchErr),
+        });
+      }
+      // Vision failed/empty/timed-out or rescue persistence failed: fall through to original catch behavior
+    }
+
     if (lockAcquired && lockedDocId) {
       try {
         const sb = admin();
@@ -3803,12 +4216,16 @@ export const handler: Handler = async (event, context) => {
         console.error(`[OCR][${traceId}] ERROR`, { error: 'Failed to set ocr_jobs error', details: jobErr?.message || jobErr });
       }
     }
-    return { 
-      statusCode: 500, 
-      body: JSON.stringify({ ok: false, status: 'failed', error: e.message, error_code: classifyOcrErrorCode(e).errorCode, traceId }) 
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ ok: false, status: 'failed', error: e.message, error_code: classifyOcrErrorCode(e).errorCode, traceId })
     };
   } finally {
     if (stopHeartbeat) stopHeartbeat();
+    // Architecture A': Await abandoned Vision promise to avoid orphaned connections
+    if (visionPromise) {
+      try { await visionPromise; } catch { /* already handled */ }
+    }
     if (lockAcquired && lockedDocId && !ocrSucceeded) {
       try {
         const sb = admin();

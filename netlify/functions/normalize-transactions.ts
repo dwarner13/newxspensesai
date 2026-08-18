@@ -16,6 +16,9 @@ import { safeTextMetrics } from './_shared/textHash.js';
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 import { maskPII as maskPiiFallback } from './_shared/pii.js';
 
+// Architecture A': Prefer Claude Vision structured extraction when available
+const PREFER_VISION_EXTRACTION = process.env.OCR_PREFER_VISION_EXTRACTION === '1';
+
 type ExtractedSummary = Record<string, any> | null;
 type UserDocumentRow = {
   id: string;
@@ -1104,10 +1107,14 @@ async function processNormalizationInBackground(
           importSbdRowEarly?.statement_breakdown_json && typeof importSbdRowEarly.statement_breakdown_json === 'object'
             ? (importSbdRowEarly.statement_breakdown_json as Record<string, unknown>)
             : {};
+        // Architecture A': If Vision statementTotals already exist, preserve them
+        // and store flat-text totals in flatTextTotals diagnostic key instead.
+        const existingTotalsSource = (existingSbdEarly?.statementTotals as any)?.source;
+        const totalsKey = existingTotalsSource === 'claude_vision' ? 'flatTextTotals' : 'statementTotals';
         await sb
           .from('imports')
           .update({
-            statement_breakdown_json: { ...existingSbdEarly, statementTotals: bmoTotalsEarly },
+            statement_breakdown_json: { ...existingSbdEarly, [totalsKey]: bmoTotalsEarly },
             updated_at: new Date().toISOString(),
           })
           .eq('id', importRecord.id);
@@ -1116,6 +1123,7 @@ async function processNormalizationInBackground(
           totalDeducted: bmoTotalsEarly.totalDeducted,
           totalAdded: bmoTotalsEarly.totalAdded,
           source: bmoTotalsEarly.source,
+          storedAs: totalsKey,
         });
       }
     } catch (totalsErrEarly: any) {
@@ -1144,11 +1152,87 @@ async function processNormalizationInBackground(
       : null;
 
     let normalizedTransactions: any[] = [];
-    let viaMethod: 'ocr' | 'vision-parse' = 'ocr';
+    let viaMethod: 'ocr' | 'vision-parse' | 'claude-vision' = 'ocr';
     let usedStructuredArtifacts = false;
 
+    // ── Architecture A': Vision-primary extraction ──────────────────────────────
+    // When OCR_PREFER_VISION_EXTRACTION is ON and claude_vision data exists in
+    // extracted_data, use Vision's structured transactions as the primary source.
+    // This path produces better column parsing than flat-text OCR normalization.
+    const claudeVisionData = (doc as any)?.extracted_data?.claude_vision;
+    const claudeVisionTxns = Array.isArray(claudeVisionData?.transactions) ? claudeVisionData.transactions : [];
+
+    if (PREFER_VISION_EXTRACTION && claudeVisionTxns.length > 0) {
+      console.log('[normalize-transactions] Vision-primary: using claude_vision transactions', {
+        documentId,
+        importId: importRecord.id,
+        txnCount: claudeVisionTxns.length,
+        hasStatementSummary: Boolean(claudeVisionData?.statementSummary),
+      });
+
+      normalizedTransactions = claudeVisionTxns.map((tx: any) => {
+        const isDebit = tx.type === 'debit';
+        const rawAmount = Number(tx.amount || 0);
+        return {
+          userId: userIdText,
+          kind: 'bank' as const,
+          date: tx.date || undefined,
+          merchant: tx.merchant || undefined,
+          amount: rawAmount,
+          currency: 'CAD',
+          docId: documentId,
+          description: tx.merchant || 'Transaction',
+          category: tx.category || undefined,
+        };
+      });
+      viaMethod = 'claude-vision';
+
+      // Persist Vision statementSummary as authoritative statementTotals
+      if (claudeVisionData?.statementSummary) {
+        try {
+          const vs = claudeVisionData.statementSummary;
+          const visionTotals = {
+            totalDeducted: vs.totalDeducted ?? null,
+            totalAdded: vs.totalAdded ?? null,
+            openingBalance: vs.openingBalance ?? null,
+            closingBalance: vs.closingBalance ?? null,
+            source: 'claude_vision' as const,
+          };
+          const { data: sbdRow } = await sb
+            .from('imports')
+            .select('statement_breakdown_json')
+            .eq('id', importRecord.id)
+            .maybeSingle();
+          const existingSbd =
+            sbdRow?.statement_breakdown_json && typeof sbdRow.statement_breakdown_json === 'object'
+              ? (sbdRow.statement_breakdown_json as Record<string, unknown>)
+              : {};
+          await sb
+            .from('imports')
+            .update({
+              statement_breakdown_json: { ...existingSbd, statementTotals: visionTotals },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', importRecord.id);
+          console.log('[normalize-transactions] Vision statementTotals persisted', {
+            importId: importRecord.id,
+            totalDeducted: visionTotals.totalDeducted,
+            totalAdded: visionTotals.totalAdded,
+            source: 'claude_vision',
+          });
+        } catch (visionTotalsErr: any) {
+          console.warn('[normalize-transactions] Failed to persist Vision statementTotals (non-fatal)', {
+            importId: importRecord.id,
+            error: visionTotalsErr?.message,
+          });
+        }
+      }
+    }
+    // ── End Vision-primary ──────────────────────────────────────────────────────
+
     // Structured fallback: if no OCR text is available, try OCR job normalized_json.
-    if (!hasOcrText) {
+    // Skip if Vision-primary already produced transactions.
+    if (!hasOcrText && normalizedTransactions.length === 0) {
       const docStructuredTx = Array.isArray((doc as any)?.normalized_json?.transactions)
         ? (doc as any).normalized_json.transactions
         : [];
@@ -1218,7 +1302,7 @@ async function processNormalizationInBackground(
       }
     }
 
-    if (hasOcrText) {
+    if (hasOcrText && normalizedTransactions.length === 0) {
       const sourceTextPath = transientTextPathActive
         ? 'transient_ocrText'
         : (docTextLength > 0 ? 'persisted_ocr_text' : (hasExtractedData ? 'extracted_data' : 'unknown'));
