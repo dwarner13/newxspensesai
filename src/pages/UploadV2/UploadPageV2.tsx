@@ -55,6 +55,8 @@ type DuplicateCheckResult = {
   hasImport: boolean;
   hasTransactions: boolean;
   isOrphaned: boolean;
+  importId: string | null;
+  importStatus: string | null;
 };
 
 async function checkDuplicateHash(hash: string, userId: string): Promise<DuplicateCheckResult> {
@@ -71,14 +73,17 @@ async function checkDuplicateHash(hash: string, userId: string): Promise<Duplica
   if (!data || data.length === 0) return { isDuplicate: false };
 
   const matched = data[0];
-  // Check for associated imports
+  // Check for associated imports (fetch status for recovery classification)
   const { data: imports } = await supabase
     .from("imports")
-    .select("id")
+    .select("id, status")
     .eq("document_id", matched.id)
     .eq("user_id", userId)
     .limit(1);
   const hasImport = (imports && imports.length > 0) || false;
+  const importId = imports?.[0]?.id || null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const importStatus: string | null = (imports?.[0] as any)?.status || null;
 
   // Check for committed transactions
   const { count } = await supabase
@@ -94,7 +99,9 @@ async function checkDuplicateHash(hash: string, userId: string): Promise<Duplica
     status: matched.status || "unknown",
     hasImport,
     hasTransactions,
-    isOrphaned: !hasImport && !hasTransactions,
+    isOrphaned: !hasTransactions && importStatus !== 'committed',
+    importId,
+    importStatus,
   };
 }
 
@@ -289,6 +296,8 @@ export default function UploadPageV2() {
     queueItemId: string;
     file: File;
     fileHash: string;
+    importId: string | null;
+    importStatus: string | null;
   } | null>(null);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
 
@@ -490,7 +499,7 @@ export default function UploadPageV2() {
       const dupeResult = await checkDuplicateHash(fileHash, userId);
       if (dupeResult.isDuplicate) {
         if (dupeResult.isOrphaned) {
-          setRecoveryDialog({ orphanedDocId: dupeResult.docId, fileName: current.file.name, queueItemId: current.id, file: current.file, fileHash });
+          setRecoveryDialog({ orphanedDocId: dupeResult.docId, fileName: current.file.name, queueItemId: current.id, file: current.file, fileHash, importId: dupeResult.importId, importStatus: dupeResult.importStatus });
           updateItem(current.id, { status: "failed", error: "Incomplete upload found" });
           processingRef.current = false;
           return;
@@ -619,7 +628,7 @@ export default function UploadPageV2() {
         if (dupeResult.isDuplicate) {
           clearInterval(progressInterval);
           if (dupeResult.isOrphaned) {
-            setRecoveryDialog({ orphanedDocId: dupeResult.docId, fileName: next.file.name, queueItemId: next.id, file: next.file, fileHash });
+            setRecoveryDialog({ orphanedDocId: dupeResult.docId, fileName: next.file.name, queueItemId: next.id, file: next.file, fileHash, importId: dupeResult.importId, importStatus: dupeResult.importStatus });
             updateItem(next.id, { status: "failed", error: "Incomplete upload found" });
             processingRef.current = false;
             return; // pause queue — user must resolve dialog before continuing
@@ -800,6 +809,14 @@ export default function UploadPageV2() {
 
   const handleResumeImport = useCallback(async () => {
     if (!recoveryDialog || !userId || recoveryBusy) return;
+
+    // parsed_unreconciled → navigate to review page instead of re-running pipeline
+    if (recoveryDialog.importStatus === 'parsed_unreconciled' && recoveryDialog.importId) {
+      setRecoveryDialog(null);
+      navigate(`/review-statement/${recoveryDialog.importId}`);
+      return;
+    }
+
     setRecoveryBusy(true);
     const { orphanedDocId, queueItemId, fileHash } = recoveryDialog;
     try {
@@ -836,8 +853,8 @@ export default function UploadPageV2() {
           txCount = await getCommittedTxCount(importId, userId);
         }
       }
-      const importStatus = importId ? await getImportStatus(importId, userId) : null;
-      const isHeld = importStatus === 'parsed_unreconciled';
+      const latestImportStatus = importId ? await getImportStatus(importId, userId) : null;
+      const isHeld = latestImportStatus === 'parsed_unreconciled';
       void storeFileHash(userId, recoveryDialog.fileName, fileHash);
       updateItem(queueItemId, { status: isHeld ? "held" : "complete", txCount, progress: 100, importId: importId || undefined });
       toast.success(isHeld ? 'Import resumed — needs review' : `Import resumed — ${txCount} transactions`);
@@ -850,7 +867,7 @@ export default function UploadPageV2() {
       setRecoveryBusy(false);
       processingRef.current = false;
     }
-  }, [recoveryDialog, userId, session, recoveryBusy, updateItem]);
+  }, [recoveryDialog, userId, session, recoveryBusy, updateItem, navigate]);
 
   const handleDeleteAndReupload = useCallback(async () => {
     if (!recoveryDialog || !userId || recoveryBusy) return;
@@ -922,6 +939,7 @@ export default function UploadPageV2() {
               No transactions were imported from it. You can resume where it left off or start fresh.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recoveryDialog.importStatus !== 'failed' && recoveryDialog.importStatus !== 'error' && (
               <button
                 onClick={handleResumeImport}
                 disabled={recoveryBusy}
@@ -932,8 +950,9 @@ export default function UploadPageV2() {
                   boxShadow: recoveryBusy ? 'none' : `0 4px 16px ${T.accent}35`,
                 }}
               >
-                {recoveryBusy ? 'Processing\u2026' : 'Resume Import'}
+                {recoveryBusy ? 'Processing\u2026' : recoveryDialog.importStatus === 'parsed_unreconciled' ? 'Review Statement' : recoveryDialog.importStatus === 'parsed' ? 'Commit Now' : 'Resume Import'}
               </button>
+              )}
               <button
                 onClick={handleDeleteAndReupload}
                 disabled={recoveryBusy}
