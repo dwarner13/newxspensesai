@@ -133,7 +133,7 @@ const TAG_TOOLS = [
   {
     name: 'search_transactions',
     description:
-      'Search and retrieve individual transactions with full details including IDs. Use this when you need to answer questions about SPECIFIC transactions — e.g. "what are my 3 Subscriptions?", "show me my Costco purchases", "what did I spend last week?". Returns up to 200 rows with IDs, merchant names, amounts, dates, and categories. This is a READ-ONLY tool — it does not modify any data. After retrieving transactions, you can use their IDs with update_single_transaction if the user wants to make changes.',
+      'Search and retrieve individual transactions with full details including IDs. READ-ONLY — does not modify data. Returns a subset of matching rows (default 25, max 200) plus totalMatches so you know if more exist. Use when the user asks about SPECIFIC transactions. After retrieving, you can use returned IDs with update_single_transaction.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -174,6 +174,10 @@ const TAG_TOOLS = [
         uncategorizedOnly: {
           type: 'boolean',
           description: 'If true, return only uncategorized transactions.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of rows to return. Default 25, max 200. Use 10-25 for chat display.',
         },
       },
       required: [],
@@ -229,7 +233,7 @@ You have FIVE tools available:
   - rename_merchant — fix a mangled merchant name across all matching transactions
 
 ═══════════════════════════════════════════════════════════════════════
-WHEN TO USE search_transactions
+WHEN AND HOW TO USE search_transactions
 ═══════════════════════════════════════════════════════════════════════
 
 Use search_transactions when the user asks about SPECIFIC transactions and you
@@ -239,11 +243,22 @@ need details beyond the aggregate summaries above. Examples:
   - "What did I spend at restaurants last month?"
   - "Which transactions are uncategorized?"
 
-The search returns individual rows with IDs. You can then use those IDs with
-update_single_transaction if the user wants to change a category.
-
 Do NOT use search_transactions for questions you can already answer from the
 CATEGORY SUMMARY or MERCHANT DATA above (e.g. "how much did I spend on Food?").
+
+SEARCH RESULTS DISPLAY RULES — CRITICAL:
+  - The search returns { totalMatches, returnedCount, transactions[] }.
+  - NEVER dump raw transaction rows into chat. Users don't want a wall of text.
+  - Default limit is 25. Use 10-25 for normal requests.
+  - When results arrive, SUMMARIZE first: "I found **47** Subscriptions
+    transactions totaling **$1,200**. Here are the **10 most recent**:"
+  - Show a USEFUL SUBSET (10-25 rows), formatted cleanly.
+  - When totalMatches > returnedCount, ALWAYS tell the user:
+    "There are **37 more** — want me to narrow by date, merchant, or amount?"
+  - Offer to filter further: by year/month, merchant name, amount range, or
+    statement/import.
+  - Each row includes a transaction ID. You can use these IDs with
+    update_single_transaction if the user wants to change a category.
 
 ═══════════════════════════════════════════════════════════════════════
 TWO-STEP FLOW WHEN A FOCUSED TRANSACTION IS PRESENT
@@ -915,6 +930,9 @@ REQUIREMENTS:
         } else if (toolUseBlock.name === 'search_transactions') {
           // READ-ONLY tool — userId injected server-side, never from model input.
           // The model provides search filters only; user_id is NOT in the schema.
+          const modelLimit = Number.isFinite(Number(toolUseBlock.input.limit))
+            ? Math.max(1, Math.min(200, Number(toolUseBlock.input.limit)))
+            : 25;
           const searchParams = {
             q: toolUseBlock.input.q ? String(toolUseBlock.input.q).trim() : undefined,
             category: toolUseBlock.input.category ? String(toolUseBlock.input.category).trim() : undefined,
@@ -925,24 +943,28 @@ REQUIREMENTS:
             importId: toolUseBlock.input.importId ? String(toolUseBlock.input.importId).trim() : (importId || undefined),
             documentId: toolUseBlock.input.documentId ? String(toolUseBlock.input.documentId).trim() : undefined,
             uncategorizedOnly: toolUseBlock.input.uncategorizedOnly === true,
-            limit: 200,
+            limit: modelLimit,
           };
 
-          const rows = await searchTransactions(supabase, auth.userId, searchParams);
+          const result = await searchTransactions(supabase, auth.userId, searchParams);
           // Mark as read-only — don't trigger Prime notifications or activity logs
           action.applied = false;
           action.readOnly = true;
-          action.affectedCount = rows.length;
-          action.searchResults = rows;
+          action.affectedCount = result.returnedCount;
+          action.totalMatches = result.totalMatches;
+          action.searchResults = result.transactions;
 
           // Format results for the model to read and relay to the user.
-          if (rows.length === 0) {
-            confirmationLine = `\n\nNo transactions found matching your search.`;
+          if (result.returnedCount === 0) {
+            confirmationLine = `\n\n[SEARCH: **0** matches found]`;
           } else {
-            const lines = rows.map((r, i) =>
+            const lines = result.transactions.map((r, i) =>
               `${i + 1}. id:${r.id} | ${r.posted_at || r.date || '?'} | ${r.merchant_name || 'Unknown'} | $${Math.abs(r.amount).toFixed(2)} | ${r.category || 'Uncategorized'}${r.subcategory ? ' / ' + r.subcategory : ''}`
             );
-            confirmationLine = `\n\nFound **${rows.length}** transaction${rows.length !== 1 ? 's' : ''}:\n${lines.join('\n')}`;
+            const moreNote = result.totalMatches > result.returnedCount
+              ? `\n[Showing ${result.returnedCount} of ${result.totalMatches} total matches — tell the user more exist and offer to narrow]`
+              : '';
+            confirmationLine = `\n\n[SEARCH: **${result.totalMatches}** total matches, showing **${result.returnedCount}** newest]\n${lines.join('\n')}${moreNote}`;
           }
         } else {
           confirmationLine = `\n\n⚠ Unknown tool: ${toolUseBlock.name}`;

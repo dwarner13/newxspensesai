@@ -34,6 +34,12 @@ export interface TxSearchRow {
   import_id: string | null;
 }
 
+export interface TxSearchResult {
+  transactions: TxSearchRow[];
+  totalMatches: number;
+  returnedCount: number;
+}
+
 const HARD_CAP = 200;
 
 const ALLOWLISTED_FIELDS = [
@@ -54,68 +60,73 @@ const ALLOWLISTED_FIELDS = [
  * @param supabase  - Supabase admin client (service role)
  * @param userId    - Authenticated user ID (from verifyAuth, NEVER from model)
  * @param params    - Search filters
- * @returns         - Matching transaction rows (max 200)
+ * @returns         - { transactions, totalMatches, returnedCount }
  */
 export async function searchTransactions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   userId: string,
   params: TxSearchParams
-): Promise<TxSearchRow[]> {
-  const limit = Math.max(1, Math.min(HARD_CAP, Number(params.limit) || 50));
+): Promise<TxSearchResult> {
+  const limit = Math.max(1, Math.min(HARD_CAP, Number(params.limit) || 25));
 
-  let query = supabase
-    .from('transactions')
-    .select(ALLOWLISTED_FIELDS.join(','))
-    .eq('user_id', userId);
+  // Build a base query builder so we can reuse filters for both count and data.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applyFilters(q: any): any {
+    q = q.eq('user_id', userId);
 
-  // --- Scope filters ---
-  if (params.importId) {
-    query = query.eq('import_id', params.importId);
-  } else if (params.documentId) {
-    query = query.eq('document_id', params.documentId);
+    if (params.importId) {
+      q = q.eq('import_id', params.importId);
+    } else if (params.documentId) {
+      q = q.eq('document_id', params.documentId);
+    }
+
+    const text = (params.q || '').trim();
+    if (text) {
+      q = q.or(`merchant_name.ilike.%${text}%,description.ilike.%${text}%`);
+    }
+
+    if (params.startDate) q = q.gte('posted_at', params.startDate);
+    if (params.endDate) q = q.lte('posted_at', params.endDate);
+
+    if (params.minAmount !== undefined && params.minAmount !== null && Number.isFinite(params.minAmount)) {
+      const absMin = Math.abs(params.minAmount);
+      q = q.or(`amount.gte.${absMin},amount.lte.${-absMin}`);
+    }
+    if (params.maxAmount !== undefined && params.maxAmount !== null && Number.isFinite(params.maxAmount)) {
+      const absMax = Math.abs(params.maxAmount);
+      q = q.gte('amount', -absMax).lte('amount', absMax);
+    }
+
+    if (params.uncategorizedOnly) {
+      q = q.or('category.is.null,category.eq.Uncategorized');
+    } else if (params.category) {
+      q = q.eq('category', params.category);
+    }
+
+    return q;
   }
 
-  // --- Text search (merchant_name + description) ---
-  const q = (params.q || '').trim();
-  if (q) {
-    query = query.or(
-      `merchant_name.ilike.%${q}%,description.ilike.%${q}%`
-    );
-  }
+  // --- Count query (head-only, no data transfer) ---
+  const countQuery = applyFilters(
+    supabase.from('transactions').select('id', { count: 'exact', head: true })
+  );
+  const { count: totalMatches, error: countError } = await countQuery;
+  if (countError) throw countError;
 
-  // --- Date range ---
-  if (params.startDate) query = query.gte('posted_at', params.startDate);
-  if (params.endDate) query = query.lte('posted_at', params.endDate);
-
-  // --- Amount range (absolute value matching) ---
-  if (params.minAmount !== undefined && params.minAmount !== null && Number.isFinite(params.minAmount)) {
-    const absMin = Math.abs(params.minAmount);
-    query = query.or(`amount.gte.${absMin},amount.lte.${-absMin}`);
-  }
-  if (params.maxAmount !== undefined && params.maxAmount !== null && Number.isFinite(params.maxAmount)) {
-    const absMax = Math.abs(params.maxAmount);
-    query = query.gte('amount', -absMax).lte('amount', absMax);
-  }
-
-  // --- Category filters ---
-  if (params.uncategorizedOnly) {
-    query = query.or('category.is.null,category.eq.Uncategorized');
-  } else if (params.category) {
-    query = query.eq('category', params.category);
-  }
-
-  // --- Order + limit ---
-  query = query
+  // --- Data query (limited, newest-first) ---
+  const dataQuery = applyFilters(
+    supabase.from('transactions').select(ALLOWLISTED_FIELDS.join(','))
+  )
     .order('posted_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
-  const { data, error } = await query;
+  const { data, error } = await dataQuery;
   if (error) throw error;
 
   // Project to allowlisted shape
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data || []).map((row: any): TxSearchRow => ({
+  const transactions = (data || []).map((row: any): TxSearchRow => ({
     id: row.id,
     merchant_name: row.merchant_name || null,
     amount: Number(row.amount || 0),
@@ -126,4 +137,10 @@ export async function searchTransactions(
     description: row.description || null,
     import_id: row.import_id || null,
   }));
+
+  return {
+    transactions,
+    totalMatches: totalMatches || 0,
+    returnedCount: transactions.length,
+  };
 }

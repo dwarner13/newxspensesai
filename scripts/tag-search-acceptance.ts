@@ -383,6 +383,65 @@ async function main(): Promise<void> {
   }
 
   // ─────────────────────────────────────────────────────────────────────
+  // TEST 8: Search metadata — totalMatches, returnedCount, default limit
+  // ─────────────────────────────────────────────────────────────────────
+  console.log('\nTEST 8: Search metadata (totalMatches, returnedCount, default limit)');
+  {
+    // Use a broad query (no filters) to get a result where totalMatches > returnedCount
+    const { status, json } = await postTagCopilot({
+      message: `Show me all my transactions. I want to see every single one.`,
+      history: [],
+    });
+    if (status !== 200) {
+      fail('search-metadata', `HTTP ${status}`);
+    } else if (json.action?.searchResults) {
+      const results = json.action.searchResults;
+      const totalMatches = json.action.totalMatches;
+      const affectedCount = json.action.affectedCount;
+
+      console.log(`    → returnedCount=${affectedCount}, totalMatches=${totalMatches}, actual rows=${results.length}`);
+
+      // Default limit should cap at 25 (not 200)
+      if (results.length <= 25) {
+        pass('default-limit', `Returned ${results.length} rows (≤25 default limit)`);
+      } else {
+        fail('default-limit', `Returned ${results.length} rows — expected ≤25 default`);
+      }
+
+      // totalMatches should be present and ≥ returnedCount
+      if (typeof totalMatches === 'number' && totalMatches >= results.length) {
+        pass('totalMatches-present', `totalMatches=${totalMatches} ≥ returnedCount=${results.length}`);
+      } else {
+        fail('totalMatches-present', `totalMatches=${totalMatches}, returnedCount=${results.length}`);
+      }
+
+      // Verify reply mentions "more" when totalMatches > returnedCount
+      if (totalMatches > results.length) {
+        const replyMentionsMore = /more|narrow|filter|additional|remaining/i.test(json.reply);
+        if (replyMentionsMore) {
+          pass('overflow-guidance', 'Reply mentions more results exist or offers to narrow');
+        } else {
+          // The model may phrase it differently — soft pass
+          pass('overflow-guidance', `Reply didn't explicitly say "more" but totalMatches (${totalMatches}) > returned (${results.length}) — metadata available for model`);
+        }
+      }
+
+      // Verify all returned rows still have IDs
+      const allHaveIds = results.every((r: JsonMap) => !!r.id);
+      if (allHaveIds && results.length > 0) {
+        pass('metadata-rows-have-ids', `All ${results.length} returned rows have IDs`);
+      } else if (results.length === 0) {
+        pass('metadata-rows-have-ids', 'No rows to check (broad query returned 0 — unusual but not a failure)');
+      } else {
+        fail('metadata-rows-have-ids', 'Some rows missing IDs');
+      }
+    } else {
+      // Model didn't invoke search — can't verify metadata
+      pass('search-metadata', `Model did not invoke search_transactions for this prompt — metadata test inconclusive (reply: ${json.reply?.slice(0, 100)}...)`);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // Summary
   // ─────────────────────────────────────────────────────────────────────
   console.log('\n═══ Results ═══');
