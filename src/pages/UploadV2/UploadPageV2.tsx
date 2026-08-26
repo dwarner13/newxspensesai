@@ -300,6 +300,7 @@ export default function UploadPageV2() {
     importStatus: string | null;
   } | null>(null);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryStep, setRecoveryStep] = useState<string | null>(null);
 
   // -- Statement processing overlay ------------------------------------------
   const [overlayOpen, setOverlayOpen] = useState(false);
@@ -872,6 +873,7 @@ export default function UploadPageV2() {
   const handleDeleteAndReupload = useCallback(async () => {
     if (!recoveryDialog || !userId || recoveryBusy) return;
     setRecoveryBusy(true);
+    setRecoveryStep('Deleting old upload\u2026');
     const { orphanedDocId, queueItemId } = recoveryDialog;
     try {
       const authToken = session?.access_token;
@@ -882,16 +884,20 @@ export default function UploadPageV2() {
         body: JSON.stringify({ uploadId: orphanedDocId }),
       });
       if (!delRes.ok) throw new Error(`Delete failed: ${await delRes.text()}`);
+      setRecoveryStep('Starting fresh import\u2026');
       updateItem(queueItemId, { status: "queued", error: undefined });
-      toast.success('Old upload deleted — re-processing');
-      setRecoveryDialog(null);
-      setRecoveryBusy(false);
       processingRef.current = false;
       // Let React flush the queued state update, then restart processing
-      setTimeout(() => processAll(), 100);
+      setTimeout(() => {
+        processAll();
+        setRecoveryDialog(null);
+        setRecoveryBusy(false);
+        setRecoveryStep(null);
+      }, 100);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
       setRecoveryBusy(false);
+      setRecoveryStep(null);
     }
   }, [recoveryDialog, userId, session, recoveryBusy, updateItem, processAll]);
 
@@ -958,11 +964,11 @@ export default function UploadPageV2() {
                 disabled={recoveryBusy}
                 style={{
                   padding: '12px 20px', borderRadius: 12, fontSize: 13, fontWeight: 600,
-                  background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
-                  cursor: recoveryBusy ? 'not-allowed' : 'pointer', opacity: recoveryBusy ? 0.5 : 1,
+                  background: T.bg, border: `1px solid ${T.border}`, color: recoveryStep ? T.text : T.muted,
+                  cursor: recoveryBusy ? 'not-allowed' : 'pointer', opacity: recoveryBusy && !recoveryStep ? 0.5 : 1,
                 }}
               >
-                Delete & Re-upload
+                {recoveryStep || 'Delete & Re-upload'}
               </button>
               <button
                 onClick={() => { if (!recoveryBusy) setRecoveryDialog(null); }}
