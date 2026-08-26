@@ -642,35 +642,84 @@ export default function TransactionsPageV2() {
       <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-3">
           <div className="min-w-0 md:flex-1">
-            {isStatementMode ? (
-              <div>
+            {isStatementMode && (
+              <button
+                onClick={() => { setStatementFilter('all'); setAccountFilter('all'); }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', letterSpacing: 0.2 }}
+              >
+                ← All Transactions
+              </button>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+              <h1 style={{ fontSize: isStatementMode ? 22 : 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0, lineHeight: 1.2 }}>
+                {isStatementMode ? activeStatementLabel : 'Transactions'}
+              </h1>
+              <select
+                value={yearFilter === 'all' ? 'all' : String(yearFilter)}
+                onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                style={{
+                  background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 8,
+                  color: '#e8ecf4', padding: '6px 12px', fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer', outline: 'none',
+                }}
+              >
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                <option value="all">All Years</option>
+              </select>
+              <div className="relative">
                 <button
-                  onClick={() => { setStatementFilter('all'); setAccountFilter('all'); }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', letterSpacing: 0.2 }}
-                >
-                  ← All Transactions
-                </button>
-                <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0, lineHeight: 1.2 }}>{activeStatementLabel}</h1>
-                <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0', fontWeight: 500 }}>
-                  {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-                <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0 }}>Transactions</h1>
-                <select
-                  value={yearFilter === 'all' ? 'all' : String(yearFilter)}
-                  onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  onClick={() => setStmtDropdownOpen(v => !v)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-[13px] font-bold rounded-lg border transition-colors"
                   style={{
-                    background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 8,
-                    color: '#e8ecf4', padding: '6px 12px', fontSize: 14, fontWeight: 600,
-                    cursor: 'pointer', outline: 'none',
+                    background: isStatementMode ? 'rgba(99,102,241,0.1)' : '#111a2e',
+                    border: isStatementMode ? '1px solid rgba(99,102,241,0.3)' : '1px solid #1e2d4a',
+                    color: isStatementMode ? '#a5b4fc' : '#e8ecf4',
+                    cursor: 'pointer',
                   }}
                 >
-                  {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                  <option value="all">All Years</option>
-                </select>
+                  <span className="truncate max-w-[200px]">{isStatementMode ? activeStatementLabel : 'All Statements'}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${stmtDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {stmtDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setStmtDropdownOpen(false)} />
+                    <div className="absolute left-0 top-full mt-1 z-50 min-w-[260px] max-h-[320px] overflow-y-auto rounded-xl border border-slate-700/50 bg-slate-900 shadow-xl">
+                      <button
+                        onClick={() => { setStatementFilter('all'); setAccountFilter('all'); setStmtDropdownOpen(false); }}
+                        className={`w-full text-left px-4 py-3 text-[13px] font-semibold border-b border-slate-800/60 transition-colors ${
+                          statementFilter === 'all' ? 'text-indigo-300 bg-indigo-500/10' : 'text-slate-300 hover:bg-slate-800/50'
+                        }`}
+                      >
+                        All Statements
+                        <span className="ml-2 text-[11px] text-slate-500">{transactions.length} txns</span>
+                      </button>
+                      {stmtOptions.map(s => {
+                        const count = transactions.filter(t => t.import_id === s.id).length;
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => { setStatementFilter(s.id); setStmtDropdownOpen(false); }}
+                            className={`w-full text-left px-4 py-3 text-[13px] border-b border-slate-800/40 last:border-b-0 transition-colors ${
+                              statementFilter === s.id ? 'text-indigo-300 bg-indigo-500/10 font-semibold' : 'text-slate-300 hover:bg-slate-800/50'
+                            }`}
+                          >
+                            <div className="truncate">{s.label}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">{count} transaction{count !== 1 ? 's' : ''}</div>
+                          </button>
+                        );
+                      })}
+                      {stmtOptions.length === 0 && (
+                        <div className="px-4 py-3 text-[13px] text-slate-500">No committed statements</div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
+            </div>
+            {isStatementMode && (
+              <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0', fontWeight: 500 }}>
+                {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
+              </p>
             )}
             <style>{`.acct-scroll::-webkit-scrollbar{height:6px}.acct-scroll::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.3);border-radius:3px}.acct-scroll::-webkit-scrollbar-track{background:transparent}`}</style>
             {!isStatementMode && <div
@@ -893,50 +942,6 @@ export default function TransactionsPageV2() {
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
-          </div>
-          <div className="relative">
-            {/* In statement mode hide the dropdown — the header already shows the name */}
-            {!isStatementMode && <button
-              onClick={() => setStmtDropdownOpen(v => !v)}
-              className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold rounded-lg border text-slate-400 bg-slate-800/40 border-slate-700/30 hover:text-slate-300 transition-colors"
-            >
-              <span className="truncate max-w-[200px]">All Statements</span>
-              <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${stmtDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>}
-            {stmtDropdownOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setStmtDropdownOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 min-w-[260px] max-h-[320px] overflow-y-auto rounded-xl border border-slate-700/50 bg-slate-900 shadow-xl">
-                  <button
-                    onClick={() => { setStatementFilter('all'); setStmtDropdownOpen(false); }}
-                    className={`w-full text-left px-4 py-3 text-[13px] font-semibold border-b border-slate-800/60 transition-colors ${
-                      statementFilter === 'all' ? 'text-indigo-300 bg-indigo-500/10' : 'text-slate-300 hover:bg-slate-800/50'
-                    }`}
-                  >
-                    All Statements
-                    <span className="ml-2 text-[11px] text-slate-500">{transactions.length} txns</span>
-                  </button>
-                  {stmtOptions.map(s => {
-                    const count = transactions.filter(t => t.import_id === s.id).length;
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={() => { setStatementFilter(s.id); setStmtDropdownOpen(false); }}
-                        className={`w-full text-left px-4 py-3 text-[13px] border-b border-slate-800/40 last:border-b-0 transition-colors ${
-                          statementFilter === s.id ? 'text-indigo-300 bg-indigo-500/10 font-semibold' : 'text-slate-300 hover:bg-slate-800/50'
-                        }`}
-                      >
-                        <div className="truncate">{s.label}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{count} transaction{count !== 1 ? 's' : ''}</div>
-                      </button>
-                    );
-                  })}
-                  {stmtOptions.length === 0 && (
-                    <div className="px-4 py-3 text-[13px] text-slate-500">No committed statements</div>
-                  )}
-                </div>
-              </>
-            )}
           </div>
         </div>
 
