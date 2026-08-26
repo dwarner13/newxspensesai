@@ -46,18 +46,56 @@ async function computeFileHash(file: File): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function checkDuplicateHash(hash: string, userId: string): Promise<boolean> {
+type DuplicateCheckResult = {
+  isDuplicate: false;
+} | {
+  isDuplicate: true;
+  docId: string;
+  status: string;
+  hasImport: boolean;
+  hasTransactions: boolean;
+  isOrphaned: boolean;
+};
+
+async function checkDuplicateHash(hash: string, userId: string): Promise<DuplicateCheckResult> {
   const supabase = getSupabase();
-  if (!supabase) return false;
+  if (!supabase) return { isDuplicate: false };
   const { data } = await supabase
     .from("user_documents")
-    .select("id")
+    .select("id, status")
     .eq("user_id", userId)
     .eq("file_hash", hash)
     .neq("status", "rejected") // skip prior failures so they don't block retries
     .neq("status", "discarded") // deleted uploads release dedupe fingerprint
     .limit(1);
-  return (data && data.length > 0) || false;
+  if (!data || data.length === 0) return { isDuplicate: false };
+
+  const matched = data[0];
+  // Check for associated imports
+  const { data: imports } = await supabase
+    .from("imports")
+    .select("id")
+    .eq("document_id", matched.id)
+    .eq("user_id", userId)
+    .limit(1);
+  const hasImport = (imports && imports.length > 0) || false;
+
+  // Check for committed transactions
+  const { count } = await supabase
+    .from("transactions")
+    .select("*", { count: "exact", head: true })
+    .eq("document_id", matched.id)
+    .eq("user_id", userId);
+  const hasTransactions = (count || 0) > 0;
+
+  return {
+    isDuplicate: true,
+    docId: matched.id,
+    status: matched.status || "unknown",
+    hasImport,
+    hasTransactions,
+    isOrphaned: !hasImport && !hasTransactions,
+  };
 }
 
 async function storeFileHash(userId: string, fileName: string, hash: string): Promise<void> {
@@ -243,6 +281,16 @@ export default function UploadPageV2() {
   const [byteReceiptMsg, setByteReceiptMsg] = useState<string | null>(null);
   const [recentReceipts, setRecentReceipts] = useState<any[]>([]);
   const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
+
+  // -- Orphaned upload recovery dialog ----------------------------------------
+  const [recoveryDialog, setRecoveryDialog] = useState<{
+    orphanedDocId: string;
+    fileName: string;
+    queueItemId: string;
+    file: File;
+    fileHash: string;
+  } | null>(null);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
 
   // -- Statement processing overlay ------------------------------------------
   const [overlayOpen, setOverlayOpen] = useState(false);
@@ -439,9 +487,18 @@ export default function UploadPageV2() {
     try {
       // ── Duplicate file check ──
       const fileHash = await computeFileHash(current.file);
-      const isDupe = await checkDuplicateHash(fileHash, userId);
-      if (isDupe) {
-        toast.error(`This file has already been uploaded: ${current.file.name}. Delete the existing statement from History first if you want to re-import.`);
+      const dupeResult = await checkDuplicateHash(fileHash, userId);
+      if (dupeResult.isDuplicate) {
+        if (dupeResult.isOrphaned) {
+          setRecoveryDialog({ orphanedDocId: dupeResult.docId, fileName: current.file.name, queueItemId: current.id, file: current.file, fileHash });
+          updateItem(current.id, { status: "failed", error: "Incomplete upload found" });
+          processingRef.current = false;
+          return;
+        }
+        const msg = dupeResult.status === 'purged'
+          ? `Source document was purged but transactions remain: ${current.file.name}`
+          : `This file has already been uploaded: ${current.file.name}. Delete the existing statement from History first if you want to re-import.`;
+        toast.error(msg);
         updateItem(current.id, { status: "failed", error: "Duplicate file" });
         processingRef.current = false;
         return;
@@ -558,10 +615,19 @@ export default function UploadPageV2() {
       try {
         // ── Duplicate file check ──
         const fileHash = await computeFileHash(next.file);
-        const isDupe = await checkDuplicateHash(fileHash, userId);
-        if (isDupe) {
+        const dupeResult = await checkDuplicateHash(fileHash, userId);
+        if (dupeResult.isDuplicate) {
           clearInterval(progressInterval);
-          toast.error(`This file has already been uploaded: ${next.file.name}. Delete the existing statement from History first if you want to re-import.`);
+          if (dupeResult.isOrphaned) {
+            setRecoveryDialog({ orphanedDocId: dupeResult.docId, fileName: next.file.name, queueItemId: next.id, file: next.file, fileHash });
+            updateItem(next.id, { status: "failed", error: "Incomplete upload found" });
+            processingRef.current = false;
+            return; // pause queue — user must resolve dialog before continuing
+          }
+          const msg = dupeResult.status === 'purged'
+            ? `Source document was purged but transactions remain: ${next.file.name}`
+            : `This file has already been uploaded: ${next.file.name}. Delete the existing statement from History first if you want to re-import.`;
+          toast.error(msg);
           updateItem(next.id, { status: "failed", error: "Duplicate file" });
           processingRef.current = false;
           await processNextInQueue();
@@ -732,6 +798,86 @@ export default function UploadPageV2() {
   const retryItem = (id: string) => { updateItem(id, { status: "queued", error: undefined }); };
   const clearQueued = () => setQueue(prev => prev.filter(q => q.status !== "queued"));
 
+  const handleResumeImport = useCallback(async () => {
+    if (!recoveryDialog || !userId || recoveryBusy) return;
+    setRecoveryBusy(true);
+    const { orphanedDocId, queueItemId, fileHash } = recoveryDialog;
+    try {
+      updateItem(queueItemId, { status: "processing", error: undefined, progress: 10, stepText: "Resuming import\u2026" });
+      const syncRes = await fetch('/.netlify/functions/smart-import-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ userId, docIds: [orphanedDocId], waitForOcrMs: 60000, pollForOcrMs: 500, autoCommit: true }),
+      });
+      if (!syncRes.ok) throw new Error(`Sync failed: ${await syncRes.text()}`);
+      const syncData = await syncRes.json();
+      const importId = syncData?.importIds?.[0] || syncData?.importId || '';
+      updateItem(queueItemId, { status: "categorizing", progress: 85, stepText: "Categorizing\u2026" });
+
+      // Apply category rules
+      if (importId && session?.access_token) {
+        try {
+          await fetch('/.netlify/functions/apply-category-rules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': userId, Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ import_id: importId, limit: 500 }),
+          });
+        } catch { /* silent */ }
+      }
+
+      await new Promise(r => setTimeout(r, 1000));
+      let txCount = importId ? await getCommittedTxCount(importId, userId) : 0;
+      if (txCount === 0 && importId) {
+        for (let retry = 0; retry < 5 && txCount === 0; retry++) {
+          await new Promise(r => setTimeout(r, 2000));
+          txCount = await getCommittedTxCount(importId, userId);
+        }
+      }
+      const importStatus = importId ? await getImportStatus(importId, userId) : null;
+      const isHeld = importStatus === 'parsed_unreconciled';
+      void storeFileHash(userId, recoveryDialog.fileName, fileHash);
+      updateItem(queueItemId, { status: isHeld ? "held" : "complete", txCount, progress: 100, importId: importId || undefined });
+      toast.success(isHeld ? 'Import resumed — needs review' : `Import resumed — ${txCount} transactions`);
+      setHistoryRefreshKey(k => k + 1);
+    } catch (err: unknown) {
+      updateItem(queueItemId, { status: "failed", error: err instanceof Error ? err.message : "Resume failed" });
+      toast.error('Resume failed — try Delete & Re-upload');
+    } finally {
+      setRecoveryDialog(null);
+      setRecoveryBusy(false);
+      processingRef.current = false;
+    }
+  }, [recoveryDialog, userId, session, recoveryBusy, updateItem]);
+
+  const handleDeleteAndReupload = useCallback(async () => {
+    if (!recoveryDialog || !userId || recoveryBusy) return;
+    setRecoveryBusy(true);
+    const { orphanedDocId, queueItemId } = recoveryDialog;
+    try {
+      const authToken = session?.access_token;
+      if (!authToken) throw new Error('Not authenticated');
+      const delRes = await fetch('/.netlify/functions/delete-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ uploadId: orphanedDocId }),
+      });
+      if (!delRes.ok) throw new Error(`Delete failed: ${await delRes.text()}`);
+      updateItem(queueItemId, { status: "queued", error: undefined });
+      toast.success('Old upload deleted — re-processing');
+      setRecoveryDialog(null);
+      setRecoveryBusy(false);
+      processingRef.current = false;
+      // Let React flush the queued state update, then restart processing
+      setTimeout(() => processAll(), 100);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      setRecoveryBusy(false);
+    }
+  }, [recoveryDialog, userId, session, recoveryBusy, updateItem, processAll]);
+
   const stats = {
     total: queue.length,
     complete: queue.filter(q => q.status === "complete").length,
@@ -753,6 +899,68 @@ export default function UploadPageV2() {
 
       {/* First-time welcome — fires only if URL has ?welcome=1 and user hasn't seen it before */}
       <PrimeWelcomeModal userName={(session?.user?.user_metadata as any)?.display_name || (session?.user?.user_metadata as any)?.full_name?.split(' ')[0] || undefined} />
+
+      {/* Orphaned upload recovery dialog */}
+      {recoveryDialog && createPortal(
+        <>
+          <div onClick={() => { if (!recoveryBusy) { setRecoveryDialog(null); } }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 80 }} />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            width: 420, maxWidth: 'calc(100vw - 32px)', zIndex: 81,
+            background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20,
+            padding: '28px 28px 24px', fontFamily: "'Plus Jakarta Sans', sans-serif",
+            boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${T.amber}18`, border: `1.5px solid ${T.amber}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: T.amber }}>B</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>This statement didn't finish importing</div>
+            </div>
+            <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, margin: '0 0 8px' }}>
+              We found an earlier upload of <strong style={{ color: T.text }}>{recoveryDialog.fileName}</strong> that never finished processing.
+            </p>
+            <p style={{ fontSize: 12, color: T.dim, lineHeight: 1.5, margin: '0 0 20px' }}>
+              No transactions were imported from it. You can resume where it left off or start fresh.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={handleResumeImport}
+                disabled={recoveryBusy}
+                style={{
+                  padding: '12px 20px', borderRadius: 12, fontSize: 13, fontWeight: 700,
+                  background: recoveryBusy ? T.dim : `linear-gradient(135deg, ${T.accent}, #a08030)`,
+                  border: 'none', color: recoveryBusy ? T.muted : T.bg, cursor: recoveryBusy ? 'not-allowed' : 'pointer',
+                  boxShadow: recoveryBusy ? 'none' : `0 4px 16px ${T.accent}35`,
+                }}
+              >
+                {recoveryBusy ? 'Processing\u2026' : 'Resume Import'}
+              </button>
+              <button
+                onClick={handleDeleteAndReupload}
+                disabled={recoveryBusy}
+                style={{
+                  padding: '12px 20px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+                  background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
+                  cursor: recoveryBusy ? 'not-allowed' : 'pointer', opacity: recoveryBusy ? 0.5 : 1,
+                }}
+              >
+                Delete & Re-upload
+              </button>
+              <button
+                onClick={() => { if (!recoveryBusy) setRecoveryDialog(null); }}
+                disabled={recoveryBusy}
+                style={{
+                  padding: '8px 20px', borderRadius: 12, fontSize: 12, fontWeight: 500,
+                  background: 'transparent', border: 'none', color: T.dim,
+                  cursor: recoveryBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Keep Existing
+              </button>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
 
       {/* Statement processing overlay — full screen, cinematic */}
       <StatementProcessingOverlay
