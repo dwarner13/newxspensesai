@@ -55,6 +55,7 @@ async function checkDuplicateHash(hash: string, userId: string): Promise<boolean
     .eq("user_id", userId)
     .eq("file_hash", hash)
     .neq("status", "rejected") // skip prior failures so they don't block retries
+    .neq("status", "discarded") // deleted uploads release dedupe fingerprint
     .limit(1);
   return (data && data.length > 0) || false;
 }

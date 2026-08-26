@@ -233,6 +233,8 @@ export const handler: Handler = async (event) => {
         status: 'discarded',
         upload_hash: null,
         file_hash: null,
+        content_hash: null,
+        ocr_text: null,
         storage_path: null,
         updated_at: new Date().toISOString(),
       })
