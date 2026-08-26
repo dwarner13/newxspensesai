@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
 import { TAG_CATEGORIES } from './_shared/tagCategories.js';
+import { searchTransactions } from './_shared/txSearchCore.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -129,6 +130,55 @@ const TAG_TOOLS = [
       required: ['from_name', 'to_name'],
     },
   },
+  {
+    name: 'search_transactions',
+    description:
+      'Search and retrieve individual transactions with full details including IDs. Use this when you need to answer questions about SPECIFIC transactions — e.g. "what are my 3 Subscriptions?", "show me my Costco purchases", "what did I spend last week?". Returns up to 200 rows with IDs, merchant names, amounts, dates, and categories. This is a READ-ONLY tool — it does not modify any data. After retrieving transactions, you can use their IDs with update_single_transaction if the user wants to make changes.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        q: {
+          type: 'string',
+          description:
+            'Text search query. Matches against merchant_name and description (case-insensitive). Example: "Costco", "Netflix", "gas".',
+        },
+        category: {
+          type: 'string',
+          description:
+            'Filter by exact category name. Example: "Subscriptions", "Food & Dining", "Transportation".',
+        },
+        startDate: {
+          type: 'string',
+          description: 'Start date (inclusive) in ISO format. Example: "2026-01-01".',
+        },
+        endDate: {
+          type: 'string',
+          description: 'End date (inclusive) in ISO format. Example: "2026-01-31".',
+        },
+        minAmount: {
+          type: 'number',
+          description: 'Minimum transaction amount (absolute value). Example: 10.',
+        },
+        maxAmount: {
+          type: 'number',
+          description: 'Maximum transaction amount (absolute value). Example: 100.',
+        },
+        importId: {
+          type: 'string',
+          description: 'Filter by import/statement ID. Use this when scoped to a specific statement.',
+        },
+        documentId: {
+          type: 'string',
+          description: 'Filter by document ID.',
+        },
+        uncategorizedOnly: {
+          type: 'boolean',
+          description: 'If true, return only uncategorized transactions.',
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 function buildSystemPrompt(
@@ -171,11 +221,29 @@ ${flaggedText}
 HOW YOU MAKE CHANGES — READ CAREFULLY
 ═══════════════════════════════════════════════════════════════════════
 
-You have FOUR tools available:
+You have FIVE tools available:
+  - search_transactions — LOOK UP individual transactions by merchant, category, date, amount (READ-ONLY)
   - update_single_transaction — change ONE specific transaction
   - set_category_rule — save a permanent rule + apply to all matching transactions
   - bulk_recategorize — move all transactions in one category to another
   - rename_merchant — fix a mangled merchant name across all matching transactions
+
+═══════════════════════════════════════════════════════════════════════
+WHEN TO USE search_transactions
+═══════════════════════════════════════════════════════════════════════
+
+Use search_transactions when the user asks about SPECIFIC transactions and you
+need details beyond the aggregate summaries above. Examples:
+  - "What are my 3 Subscriptions totaling $22?"
+  - "Show me my Costco purchases"
+  - "What did I spend at restaurants last month?"
+  - "Which transactions are uncategorized?"
+
+The search returns individual rows with IDs. You can then use those IDs with
+update_single_transaction if the user wants to change a category.
+
+Do NOT use search_transactions for questions you can already answer from the
+CATEGORY SUMMARY or MERCHANT DATA above (e.g. "how much did I spend on Food?").
 
 ═══════════════════════════════════════════════════════════════════════
 TWO-STEP FLOW WHEN A FOCUSED TRANSACTION IS PRESENT
@@ -843,6 +911,38 @@ REQUIREMENTS:
             action.affectedCount = n;
             action.verification = { transactionsUpdated: n };
             confirmationLine = `\n\n✓ Renamed **${n}** transaction${n !== 1 ? 's' : ''} from **${fromName}** to **${toName}**.`;
+          }
+        } else if (toolUseBlock.name === 'search_transactions') {
+          // READ-ONLY tool — userId injected server-side, never from model input.
+          // The model provides search filters only; user_id is NOT in the schema.
+          const searchParams = {
+            q: toolUseBlock.input.q ? String(toolUseBlock.input.q).trim() : undefined,
+            category: toolUseBlock.input.category ? String(toolUseBlock.input.category).trim() : undefined,
+            startDate: toolUseBlock.input.startDate ? String(toolUseBlock.input.startDate).trim() : undefined,
+            endDate: toolUseBlock.input.endDate ? String(toolUseBlock.input.endDate).trim() : undefined,
+            minAmount: Number.isFinite(Number(toolUseBlock.input.minAmount)) ? Number(toolUseBlock.input.minAmount) : undefined,
+            maxAmount: Number.isFinite(Number(toolUseBlock.input.maxAmount)) ? Number(toolUseBlock.input.maxAmount) : undefined,
+            importId: toolUseBlock.input.importId ? String(toolUseBlock.input.importId).trim() : (importId || undefined),
+            documentId: toolUseBlock.input.documentId ? String(toolUseBlock.input.documentId).trim() : undefined,
+            uncategorizedOnly: toolUseBlock.input.uncategorizedOnly === true,
+            limit: 200,
+          };
+
+          const rows = await searchTransactions(supabase, auth.userId, searchParams);
+          // Mark as read-only — don't trigger Prime notifications or activity logs
+          action.applied = false;
+          action.readOnly = true;
+          action.affectedCount = rows.length;
+          action.searchResults = rows;
+
+          // Format results for the model to read and relay to the user.
+          if (rows.length === 0) {
+            confirmationLine = `\n\nNo transactions found matching your search.`;
+          } else {
+            const lines = rows.map((r, i) =>
+              `${i + 1}. id:${r.id} | ${r.posted_at || r.date || '?'} | ${r.merchant_name || 'Unknown'} | $${Math.abs(r.amount).toFixed(2)} | ${r.category || 'Uncategorized'}${r.subcategory ? ' / ' + r.subcategory : ''}`
+            );
+            confirmationLine = `\n\nFound **${rows.length}** transaction${rows.length !== 1 ? 's' : ''}:\n${lines.join('\n')}`;
           }
         } else {
           confirmationLine = `\n\n⚠ Unknown tool: ${toolUseBlock.name}`;
