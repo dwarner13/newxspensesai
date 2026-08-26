@@ -645,7 +645,7 @@ async function buildStatementBreakdown(args: {
   };
 
   // --- Reconciliation: compare extracted totals vs statement printed totals ---
-  const recon = await reconcileAgainstPrintedTotals(sb, documentId, breakdown.totals);
+  const recon = await reconcileAgainstPrintedTotals(sb, documentId, breakdown.totals, importId, userIdText);
   breakdown.confidence.transaction_match_rate = recon.match_rate;
   breakdown.confidence.reconciled = recon.reconciled;
   breakdown.confidence.recon_method = recon.recon_method;
@@ -665,7 +665,9 @@ async function buildStatementBreakdown(args: {
 async function reconcileAgainstPrintedTotals(
   sb: any,
   documentId: string | null,
-  computedTotals: { total_debits: number; total_credits: number; net: number }
+  computedTotals: { total_debits: number; total_credits: number; net: number },
+  importId?: string,
+  userIdText?: string,
 ): Promise<{
   match_rate: number | null;
   reconciled: boolean;
@@ -675,6 +677,7 @@ async function reconcileAgainstPrintedTotals(
   if (!documentId) return { match_rate: null, reconciled: false, discrepancy: null, recon_method: 'none' };
 
   try {
+    // --- Source 1: Legacy top-level fields from user_documents.extracted_data ---
     const selectAttempts = ['extracted_data', 'id'];
     let doc: any = null;
     for (const clause of selectAttempts) {
@@ -688,15 +691,47 @@ async function reconcileAgainstPrintedTotals(
         break;
       }
     }
-    if (!doc?.extracted_data || typeof doc.extracted_data !== 'object') {
-      return { match_rate: null, reconciled: false, discrepancy: null, recon_method: 'none' };
+
+    let printedDebits: number | null = null;
+    let printedCredits: number | null = null;
+    let printedNewBalance: number | null = null;
+    let printedPrevBalance: number | null = null;
+
+    if (doc?.extracted_data && typeof doc.extracted_data === 'object') {
+      const ed = doc.extracted_data;
+      printedDebits = getFirstMoney(ed, ['total_debits', 'transactions', 'total_charges']);
+      printedCredits = getFirstMoney(ed, ['total_credits', 'payments', 'total_payments']);
+      printedNewBalance = getFirstMoney(ed, ['new_balance', 'ending_balance', 'closing_balance']);
+      printedPrevBalance = getFirstMoney(ed, ['previous_balance', 'opening_balance', 'beginning_balance']);
     }
 
-    const ed = doc.extracted_data;
-    const printedDebits = getFirstMoney(ed, ['total_debits', 'transactions', 'total_charges']);
-    const printedCredits = getFirstMoney(ed, ['total_credits', 'payments', 'total_payments']);
-    const printedNewBalance = getFirstMoney(ed, ['new_balance', 'ending_balance', 'closing_balance']);
-    const printedPrevBalance = getFirstMoney(ed, ['previous_balance', 'opening_balance', 'beginning_balance']);
+    // --- Source 2: Authoritative statementTotals from imports.statement_breakdown_json ---
+    // Written by normalize-transactions from the selected primary account's Vision summary.
+    // This is the same data source the reconciliation gate already validated against.
+    // Used as fallback when extracted_data has no top-level totals (Claude Vision pipeline).
+    if (printedDebits === null && printedCredits === null && printedNewBalance === null && importId && userIdText) {
+      const { data: impRow } = await sb
+        .from('imports')
+        .select('statement_breakdown_json')
+        .eq('id', importId)
+        .eq('user_id', userIdText)
+        .maybeSingle();
+      const stmtTotals = impRow?.statement_breakdown_json?.statementTotals;
+      if (stmtTotals && typeof stmtTotals === 'object') {
+        const td = Number(stmtTotals.totalDeducted);
+        const ta = Number(stmtTotals.totalAdded);
+        const ob = Number(stmtTotals.openingBalance);
+        const cb = Number(stmtTotals.closingBalance);
+        if (Number.isFinite(td) && td > 0) printedDebits = td;
+        if (Number.isFinite(ta) && ta > 0) printedCredits = ta;
+        if (Number.isFinite(ob)) printedPrevBalance = ob;
+        if (Number.isFinite(cb)) printedNewBalance = cb;
+        console.log('[RECONCILIATION] Using statementTotals from imports (Vision fallback)', {
+          importId, source: stmtTotals.source || 'unknown',
+          totalDeducted: td, totalAdded: ta, openingBalance: ob, closingBalance: cb,
+        });
+      }
+    }
 
     let discrepancy: number | null = null;
     let reconMethod: 'direct_debits' | 'balance_equation' | 'direct_credits' | 'none' = 'none';
