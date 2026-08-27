@@ -323,6 +323,108 @@ console.log('\nGOLDEN EXAMPLES:');
     `COSTCO WHOLESALE → ${costcoWholesale?.category}`);
 }
 
+// ─── Auto-Tag All (tag-categorize-committed) regression tests ────────────
+// Replicates the RULES array + sign/category safety from tag-categorize-committed.ts
+console.log('\nAUTO-TAG ALL (tag-categorize-committed) REGRESSION:');
+{
+  // Replicate the inline RULES from tag-categorize-committed.ts
+  const COMMITTED_RULES: Array<{ contains: string[]; category: string }> = [
+    { contains: ['gordon food ser pay', 'gordon foods pay'], category: 'Income' },
+    { contains: ['celtic group'], category: 'Housing' },
+    { contains: ['b/m payt', 'b/m pay', 'b/mpayt', 'b/mpay', 'mtg/hyp'], category: 'Housing' },
+    { contains: ['td loan'], category: 'Transportation' },
+    { contains: ['capital one'], category: 'Transfers' },
+    { contains: ['bmo invinc'], category: 'Transfers' },
+    { contains: ['easyfinancial', 'national money', 'lenddirect', 'lend direct'], category: 'Debt Payments' },
+    { contains: ['ind all saving'], category: 'Savings' },
+    { contains: ['mobile cheque deposit', 'cheque deposit'], category: 'Income' },
+    { contains: ['starbucks', 'tim horton', 'second cup'], category: 'Food & Dining' },
+    { contains: ['uber', 'lyft', 'taxi', 'transit', 'presto'], category: 'Transportation' },
+    { contains: ['amazon', 'amzn'], category: 'Shopping' },
+    { contains: ['payroll', 'salary', 'direct dep', 'employment'], category: 'Income' },
+    { contains: ['gas', 'petro', 'shell', 'esso', 'fuel', 'husky', 'irving'], category: 'Transportation' },
+    { contains: ['walmart', 'costco', 'kroger', 'safeway', 'sobeys', 'superstore', 'loblaws', 'metro ', 'iga ', 'food basics'], category: 'Groceries' },
+  ];
+
+  function applyCommittedRules(merchant: string): string | null {
+    const lower = merchant.toLowerCase();
+    for (const rule of COMMITTED_RULES) {
+      if (rule.contains.some(k => lower.includes(k))) return rule.category;
+    }
+    return null;
+  }
+
+  // Replicate the sign/category safety check from tag-categorize-committed.ts (step 4b)
+  function autoTagWithSafety(
+    merchant: string, amount: number,
+    memoryCategory?: string, source?: string,
+  ): { category: string; source: string } {
+    // Priority 0: vendor memory
+    if (memoryCategory) return { category: memoryCategory, source: 'learned' };
+    // Inline rules fallback
+    const ruleCat = applyCommittedRules(merchant);
+    const result = ruleCat
+      ? { category: ruleCat, source: source || 'inline_rule' }
+      : { category: 'Needs Review', source: 'needs_review' };
+    // Sign/category safety — same as step 4b
+    const userSources = new Set(['learned', 'tag_rule', 'tag_single']);
+    if (result.category === 'Income' && !userSources.has(result.source)) {
+      if (amount < 0) {
+        return { category: 'Needs Review', source: 'sign_conflict' };
+      }
+    }
+    return result;
+  }
+
+  // 1. Auto-Tag All: negative + Income → Needs Review
+  const negIncome = autoTagWithSafety('MOBILE CHEQUE DEPOSIT', -500.00);
+  assert('autotag-negative-income-blocked',
+    negIncome.category === 'Needs Review' && negIncome.source === 'sign_conflict',
+    `Auto-Tag negative cheque deposit → ${negIncome.category} / ${negIncome.source} (expected Needs Review / sign_conflict)`);
+
+  // 2. Auto-Tag All: positive payroll → Income (allowed)
+  const posPayroll = autoTagWithSafety('PAYROLL DIRECT DEPOSIT', 2500.00);
+  assert('autotag-positive-payroll-income',
+    posPayroll.category === 'Income',
+    `Auto-Tag positive payroll → ${posPayroll.category} (expected Income)`);
+
+  // 3. Auto-Tag All: COSTCO GAS → Transportation (gas rule matches before costco)
+  const costcoGasAT = autoTagWithSafety('COSTCO GAS BAR EDMT', -92.51);
+  assert('autotag-costco-gas-transportation',
+    costcoGasAT.category === 'Transportation',
+    `Auto-Tag COSTCO GAS → ${costcoGasAT.category} (expected Transportation)`);
+
+  // 4. Auto-Tag All: learned user category outranks inline rules
+  const learnedOverride = autoTagWithSafety('COSTCO WHOLESALE #1234', -190.00, 'Food & Dining');
+  assert('autotag-learned-overrides-rules',
+    learnedOverride.category === 'Food & Dining' && learnedOverride.source === 'learned',
+    `Auto-Tag learned COSTCO → ${learnedOverride.category} / ${learnedOverride.source} (expected Food & Dining / learned)`);
+
+  // 5. Auto-Tag All: GFS PAY → Income (PAY-specific rule works)
+  const gfsPayAT = autoTagWithSafety('GORDON FOOD SER PAY/PAY', 1793.86);
+  assert('autotag-gfs-pay-income',
+    gfsPayAT.category === 'Income',
+    `Auto-Tag GFS PAY → ${gfsPayAT.category} (expected Income)`);
+
+  // 6. Auto-Tag All: GFS AP/CC → NOT Income (no match in committed RULES)
+  const gfsApAT = autoTagWithSafety('GORDON FOOD SER AP/CC', -988.16);
+  assert('autotag-gfs-apcc-not-income',
+    gfsApAT.category !== 'Income',
+    `Auto-Tag GFS AP/CC → ${gfsApAT.category} (expected NOT Income)`);
+
+  // 7. Auto-Tag All: user vendor memory for negative Income is allowed (user intent)
+  const learnedNegIncome = autoTagWithSafety('SOME VENDOR', -50.00, 'Income');
+  assert('autotag-learned-negative-income-allowed',
+    learnedNegIncome.category === 'Income' && learnedNegIncome.source === 'learned',
+    `Auto-Tag learned negative Income → ${learnedNegIncome.category} (expected Income — user correction respected)`);
+
+  // 8. Auto-Tag All: unmatched merchant → Needs Review
+  const unknown = autoTagWithSafety('XYZZY MYSTERY SHOP', -25.00);
+  assert('autotag-unmatched-needs-review',
+    unknown.category === 'Needs Review',
+    `Auto-Tag unknown merchant → ${unknown.category} (expected Needs Review)`);
+}
+
 // ─── Summary ─────────────────────────────────────────────────────────────
 console.log('\n═══ Results ═══');
 console.log(`  Passed: ${passed}`);

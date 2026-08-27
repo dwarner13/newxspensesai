@@ -290,18 +290,35 @@ export const handler: Handler = async (event) => {
     // Comprehensive merchant map (with subcategories)
     const mapMatch = matchMerchantMap(merchant);
     if (mapMatch) {
-      updates.push({ id: tx.id, category: mapMatch.category, subcategory: mapMatch.subcategory ?? null, source: 'tag_rule' });
+      updates.push({ id: tx.id, category: mapMatch.category, subcategory: mapMatch.subcategory ?? null, source: 'merchant_map' });
       continue;
     }
 
     const ruleCat = applyRules(merchant);
     if (ruleCat) {
-      updates.push({ id: tx.id, category: ruleCat, source: 'tag_rule' });
+      updates.push({ id: tx.id, category: ruleCat, source: 'inline_rule' });
       continue;
     }
 
     // Nothing matched - mark as "Needs Review" instead of leaving as Other/Uncategorized
     updates.push({ id: tx.id, category: 'Needs Review', source: 'needs_review' });
+  }
+
+  // 4b. Sign/category safety — catch impossible automatic categorizations.
+  // A negative amount auto-categorized as Income is semantically impossible.
+  // User corrections (source = 'learned' / 'tag_rule' / 'tag_single') are NOT overridden.
+  const userSources = new Set(['learned', 'tag_rule', 'tag_single']);
+  for (const u of updates) {
+    if (u.category === 'Income' && !userSources.has(u.source)) {
+      const tx = txs.find(t => t.id === u.id);
+      const amt = Number(tx?.amount || 0);
+      if (amt < 0) {
+        safeLog('warn', `[tag-categorize-committed] Sign/category conflict: negative ${amt} as Income for tx ${u.id} — falling back to Needs Review`);
+        u.category = 'Needs Review';
+        u.subcategory = null;
+        u.source = 'sign_conflict';
+      }
+    }
   }
 
   // 5. Batch update (parallel, per-row since categories differ)
@@ -348,12 +365,12 @@ export const handler: Handler = async (event) => {
         if (mapMatch) {
           const payload: Record<string, unknown> = {
             category: mapMatch.category,
-            category_source: 'tag_rule',
+            category_source: 'merchant_map',
             updated_at: new Date().toISOString(),
           };
           if (mapMatch.subcategory) {
             payload.subcategory = mapMatch.subcategory;
-            payload.subcategory_source = 'tag_rule';
+            payload.subcategory_source = 'merchant_map';
           }
           await supabase.from('transactions').update(payload).eq('id', tx.id).eq('user_id', userId);
           reclassified++;
