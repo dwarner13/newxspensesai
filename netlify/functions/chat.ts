@@ -10971,6 +10971,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     } else {
       setStage('model_non_streaming');
       // Non-streaming response with tool calling support
+      let assistantContent = '';
+      const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
       try {
         let openaiTools: any = undefined;
         try {
@@ -11061,7 +11063,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           nonStreamAbortController
         );
 
-        let assistantContent = completion.choices[0]?.message?.content || '';
+        assistantContent = completion.choices[0]?.message?.content || '';
         let toolCalls = completion.choices[0]?.message?.tool_calls || [];
 
         // DEV: Log non-streaming response
@@ -11131,8 +11133,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         // Handle tool calls if any
         if (toolsAllowedThisTurn && toolCalls.length > 0 && Object.keys(toolModules).length > 0) {
         console.log(`[Chat] Processing ${toolCalls.length} tool calls (non-streaming)`);
-        
-        const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+
+        toolResults.length = 0; // Reset hoisted array for this turn
         for (const toolCall of toolCalls) {
           const toolName = toolCall.function.name;
           const toolModule = toolModules[toolName];
