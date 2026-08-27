@@ -67,6 +67,7 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'SAVE ON FOODS', category: 'Groceries' },
   { key: 'LOBLAWS', category: 'Groceries' },
   { key: 'SAFEWAY', category: 'Groceries' },
+  { key: 'COSTCO GAS', category: 'Transportation', subcategory: 'Gas & Fuel' },
   { key: 'COSTCO', category: 'Groceries' },
   { key: 'WALMART', category: 'Shopping' },
   { key: 'POPEYES', category: 'Food & Dining', subcategory: 'Fast Food' },
@@ -74,7 +75,9 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'CDACARBONREBATE', category: 'Income', subcategory: 'Government Rebate' },
   { key: 'CANADA RIT', category: 'Income', subcategory: 'Tax Refund' },
   { key: 'MANULIFE', category: 'Income', subcategory: 'Insurance' },
-  { key: 'GORDON FOOD SER', category: 'Income', subcategory: 'Employment' },
+  { key: 'GORDON FOOD SER PAY', category: 'Income', subcategory: 'Employment' },
+  { key: 'GFS PAY', category: 'Income', subcategory: 'Employment' },
+  { key: 'GORDON FOOD SER', category: 'Groceries', subcategory: 'Food Supply' },
   { key: 'RIVER CITY HYUNDAI', category: 'Transportation', subcategory: 'Auto Service' },
   { key: 'JIFFY LUBE', category: 'Transportation', subcategory: 'Auto Service' },
   { key: 'REVOLUTION MOTO', category: 'Transportation', subcategory: 'Auto Service' },
@@ -164,7 +167,6 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'ATM CASH ADVANCE', category: 'Bank Fees', subcategory: 'Cash Advance Fee' },
   { key: 'ATM CASH ADV', category: 'Bank Fees', subcategory: 'Cash Advance Fee' },
   // Transportation
-  { key: 'COSTCO GAS', category: 'Transportation', subcategory: 'Gas & Fuel' },
   { key: 'MYALBERTA FINE', category: 'Transportation', subcategory: 'Traffic Fine' },
   { key: 'AHS RAH PARKING', category: 'Transportation', subcategory: 'Parking' },
   // Healthcare
@@ -603,7 +605,9 @@ export const handler: Handler = async (event) => {
   });
 
   // ── Step 5: Apply rules in priority order ──
-  // Priority: hardcoded overrides -> vendor memory -> DB rules -> merchant map -> default rules -> inline rules
+  // Priority: user corrections -> hardcoded defaults -> merchant map -> default rules -> inline rules
+  // User-specific rules (vendor memory, DB rules) always override hardcoded defaults
+  // so that explicit user corrections are never silently overwritten.
   const updates: Array<{ id: string; category: string; subcategory?: string | null; source: string; normalizedMerchant?: string | null }> = [];
   let skipped = 0;
 
@@ -615,23 +619,14 @@ export const handler: Handler = async (event) => {
     const currentCat = tx.category || '';
     const needsWork = !currentCat || ['Other', 'Uncategorized', 'Needs Review'].includes(currentCat);
 
-    // Priority 0: Hardcoded overrides — always win, even over existing categories
-    const hardcoded = applyHardcodedOverride(merchant);
-    if (hardcoded) {
-      updates.push({ id: tx.id, category: hardcoded.category, subcategory: hardcoded.subcategory, source: 'hardcoded' });
-      continue;
-    }
-
-    if (!needsWork && !importId) { skipped++; continue; }
-
-    // Priority 1: Vendor memory
+    // Priority 0: User vendor memory (learned corrections) — user intent wins
     const memoryCat = key ? memoryMap.get(key) : undefined;
     if (memoryCat) {
       updates.push({ id: tx.id, category: normalizeCanonicalCategory(memoryCat), source: 'learned' });
       continue;
     }
 
-    // Priority 2: User DB rules
+    // Priority 1: User DB rules (Tag-created rules) — user intent wins
     const dbRuleMatch = applyDbRules(dbRules, merchant, txAmount);
     if (dbRuleMatch) {
       updates.push({
@@ -639,11 +634,19 @@ export const handler: Handler = async (event) => {
         category: normalizeCanonicalCategory(dbRuleMatch.category),
         subcategory: dbRuleMatch.subcategory,
         source: 'tag_rule',
-        // Write-back the normalized merchant so future imports collapse variants.
         normalizedMerchant: dbRuleMatch.rulePattern || null,
       });
       continue;
     }
+
+    // Priority 2: Hardcoded overrides — default for merchants with no user-specific rule
+    const hardcoded = applyHardcodedOverride(merchant);
+    if (hardcoded) {
+      updates.push({ id: tx.id, category: hardcoded.category, subcategory: hardcoded.subcategory, source: 'hardcoded' });
+      continue;
+    }
+
+    if (!needsWork && !importId) { skipped++; continue; }
 
     // Priority 3: Merchant map
     const mapMatch = matchMerchantMap(merchant);
@@ -653,8 +656,6 @@ export const handler: Handler = async (event) => {
     }
 
     // Priority 4: Global default rules (tagDefaultRules.ts)
-    // Uses compact (space-stripped) matching so fused OCR names like "TIMHORTONS"
-    // still resolve correctly.
     const defaultMatch = applyDefaultRules(merchant);
     if (defaultMatch) {
       updates.push({ id: tx.id, category: defaultMatch.category, subcategory: defaultMatch.subcategory ?? null, source: 'tag_rule' });
@@ -673,6 +674,23 @@ export const handler: Handler = async (event) => {
       updates.push({ id: tx.id, category: 'Needs Review', source: 'needs_review' });
     } else {
       skipped++;
+    }
+  }
+
+  // ── Step 5b: Sign/category safety — catch impossible automatic categorizations ──
+  // A negative amount auto-categorized as Income is semantically impossible.
+  // User corrections (source = 'learned' / 'tag_rule') are NOT overridden.
+  const userSources = new Set(['learned', 'tag_rule', 'tag_single']);
+  for (const u of updates) {
+    if (u.category === 'Income' && !userSources.has(u.source)) {
+      const tx = txs.find(t => t.id === u.id);
+      const amt = Number(tx?.amount || 0);
+      if (amt < 0) {
+        safeLog('warn', `[apply-category-rules] Sign/category conflict: negative ${amt} as Income for tx ${u.id} — falling back to Needs Review`);
+        u.category = 'Needs Review';
+        u.subcategory = null;
+        u.source = 'sign_conflict';
+      }
     }
   }
 

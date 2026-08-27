@@ -1453,6 +1453,19 @@ export const handler: Handler = async (event, context) => {
           merchantName = '7-Eleven';
         }
 
+        // ── Sign/category safety: catch impossible automatic categorizations ──
+        // A negative amount (expense) automatically categorized as Income is
+        // semantically impossible. Flag as Needs Review so a human can verify.
+        // Explicit user corrections (category_source = 'learned' / 'tag_rule' /
+        // 'tag_single') are NOT overridden — users may have legitimate reasons.
+        const autoSources = new Set([null, undefined, 'rule', 'ai', 'hardcoded', 'none', '']);
+        const isAutomatic = autoSources.has(categorySource as string | null | undefined);
+        if (isAutomatic && signedAmount < 0 && category === 'Income') {
+          console.warn(`[CommitImport] Sign/category conflict: negative amount ${signedAmount} with category Income for "${merchantName}" — falling back to Needs Review`);
+          category = 'Needs Review';
+          categorySource = 'sign_conflict';
+        }
+
         return {
           id: randomUUID(),
           user_id: userIdText,
