@@ -1,4 +1,3 @@
-import { fetch } from 'undici';
 import { createHash } from 'crypto';
 import { getSupabaseServerClient } from '../db';
 

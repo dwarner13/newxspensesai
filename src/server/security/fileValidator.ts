@@ -1,5 +1,4 @@
 import { Result, Ok, Err } from '../../types/result';
-import { PDFDocument } from 'pdf-lib';
 
 export interface FileValidationResult {
   safe: boolean;
@@ -166,6 +165,7 @@ export class FileValidator {
   
   private async validatePDF(buffer: Buffer): Promise<Result<{ pageCount: number }>> {
     try {
+      const { PDFDocument } = await import('pdf-lib');
       const pdfDoc = await PDFDocument.load(buffer, {
         ignoreEncryption: true,
       });
