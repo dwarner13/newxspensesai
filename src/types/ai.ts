@@ -37,7 +37,7 @@ export type StreamEvent =
   | { type: 'tool_executing'; tool: string }
   | { type: 'tool_result'; tool: string; result: any }  // Phase 3.1: Tool execution result
   | { type: 'tool_error'; tool: string; error: string }  // Phase 3.1: Tool execution error
-  | { type: 'confirmation_required'; tool: string; summary: string }
+  | { type: 'confirmation_required'; tool: string; summary: string; confirmationId: string; token: string; expiresAt: number; argsHash: string }
   | { type: 'handoff'; from: string; to: string; reason?: string; summary?: string }
   | { type: 'employee'; employee: string }
   | { type: 'error'; error: string; partial?: boolean }

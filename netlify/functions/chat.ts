@@ -129,6 +129,13 @@ import OpenAI from 'openai';
 // Import tool system for Tag tools
 import { toOpenAIToolDefs, pickTools, executeTool } from '../../src/agent/tools/index.js';
 import type { ToolContext } from '../../src/agent/tools/index.js';
+// Server-enforced AI tool confirmation gate
+import {
+  requiresConfirmation,
+  createPendingConfirmation,
+  consumeConfirmation,
+  hashArgs,
+} from './_shared/toolConfirmation.js';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
 
@@ -5530,7 +5537,114 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    
+    // ========================================================================
+    // 0.2b. TOOL CONFIRMATION GATE — consume & execute confirmed tools
+    // ========================================================================
+    // Detect structured confirmation messages from the frontend.
+    // Format: __CONFIRM_TOOL__{"__type":"tool_confirmation","confirmationId":...}
+    if (messageTrimmed.startsWith('__CONFIRM_TOOL__')) {
+      console.log('[Chat] Tool confirmation received');
+      try {
+        const confirmJson = JSON.parse(messageTrimmed.slice('__CONFIRM_TOOL__'.length));
+        if (confirmJson?.__type !== 'tool_confirmation' || !confirmJson.confirmationId || !confirmJson.token) {
+          return {
+            statusCode: 400,
+            headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: 'Malformed tool confirmation payload' }),
+          };
+        }
+
+        const sb = admin();
+        const consumeResult = await consumeConfirmation(sb, {
+          confirmationId: confirmJson.confirmationId,
+          token: confirmJson.token,
+          expiresAt: confirmJson.expiresAt,
+          userId,
+          sessionId: sessionId || '',
+          toolName: confirmJson.toolName,
+          argsHash: confirmJson.argsHash,
+        });
+
+        if (!consumeResult.ok) {
+          console.warn('[Chat] Tool confirmation rejected:', consumeResult.reason);
+          const userMessages: Record<string, string> = {
+            invalid_signature: 'That confirmation could not be verified. Please try the action again.',
+            expired: 'That confirmation has expired. Please try the action again.',
+            not_found_or_already_consumed: 'That confirmation was already used or is no longer valid.',
+            rpc_error: 'Something went wrong verifying that confirmation. Please try again.',
+          };
+          return {
+            statusCode: 200,
+            headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              role: 'assistant',
+              content: userMessages[consumeResult.reason] || 'Confirmation failed. Please try again.',
+            }),
+          };
+        }
+
+        // Consume succeeded — execute the stored tool with the stored exact arguments
+        console.log(`[Chat] Confirmation consumed: ${confirmJson.toolName} (${consumeResult.confirmationId})`);
+        const confirmedToolName = confirmJson.toolName;
+        const confirmedArgs = consumeResult.argsSnapshot;
+        const confirmedToolModules = pickTools([confirmedToolName]);
+        const confirmedToolModule = confirmedToolModules[confirmedToolName];
+
+        if (!confirmedToolModule) {
+          console.error(`[Chat] Confirmed tool ${confirmedToolName} not found in modules`);
+          return {
+            statusCode: 200,
+            headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              role: 'assistant',
+              content: `Tool "${confirmedToolName}" is not available. The action could not be completed.`,
+            }),
+          };
+        }
+
+        const toolContext: ToolContext = {
+          userId,
+          conversationId: sessionId || '',
+          sessionId: sessionId || '',
+          authHeader: authHeader || '',
+        };
+
+        const employeeSlugForConfirm = employeeSlug || 'prime-boss';
+        const result = await executeTool(confirmedToolModule, confirmedArgs, toolContext, {
+          employeeSlug: employeeSlugForConfirm,
+          mode: 'propose-confirm',
+          autonomyLevel: 1,
+        });
+
+        console.log(`[Chat] Confirmed tool ${confirmedToolName} executed successfully`);
+
+        // Return the tool result as a JSON response — the frontend will feed it
+        // to the next chat turn so the LLM can synthesize a human-readable message.
+        return {
+          statusCode: 200,
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role: 'assistant',
+            content: typeof result === 'string' ? result : JSON.stringify(result),
+            toolConfirmationResult: {
+              tool: confirmedToolName,
+              result,
+              confirmationId: consumeResult.confirmationId,
+            },
+          }),
+        };
+      } catch (confirmError: any) {
+        console.error('[Chat] Tool confirmation error:', confirmError);
+        return {
+          statusCode: 200,
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role: 'assistant',
+            content: 'Something went wrong processing that confirmation. Please try the action again.',
+          }),
+        };
+      }
+    }
 
     // ========================================================================
     // 0.3. FAST PATH CHECK (Speed Mode for Short Messages)
@@ -10062,25 +10176,72 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     });
                   }
                   
+                  // ── CONFIRMATION GATE (streaming) ──────────────────────────
+                  // Mirror kernel.ts policy: gate when requiresConfirm OR mutates OR costly
+                  if (requiresConfirmation(toolModule.meta)) {
+                    try {
+                      const pending = await createPendingConfirmation(
+                        sb, userId, finalSessionId, toolName, args,
+                      );
+                      console.log(`[Chat] Confirmation gate: ${toolName} requires approval (streaming)`, {
+                        confirmationId: pending.confirmationId,
+                        expiresAt: new Date(pending.expiresAt).toISOString(),
+                      });
+                      // Tell the model the tool is awaiting user approval
+                      toolResults.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify({
+                          _requiresConfirm: true,
+                          toolId: toolName,
+                          summary: `This will ${toolModule.description.toLowerCase()}`,
+                          status: 'awaiting_user_confirmation',
+                        }),
+                      });
+                      // Emit SSE so the frontend shows the confirmation UI
+                      writeSSE({
+                        type: 'confirmation_required',
+                        tool: toolName,
+                        summary: `This will ${toolModule.description.toLowerCase()}`,
+                        confirmationId: pending.confirmationId,
+                        token: pending.token,
+                        expiresAt: pending.expiresAt,
+                        argsHash: pending.argsHash,
+                      });
+                      continue; // Skip execution — wait for user confirmation
+                    } catch (confirmGateError: any) {
+                      console.error(`[Chat] Confirmation gate error for ${toolName}:`, confirmGateError);
+                      // Fail closed: do not execute if we can't create a confirmation record
+                      toolResults.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify({
+                          error: 'Could not create confirmation. Please try again.',
+                        }),
+                      });
+                      continue;
+                    }
+                  }
+
                   // Phase 3.1: Send tool_executing event before execution
                   writeSSE({
                     type: 'tool_executing',
                     tool: toolName
                   });
-                  
+
                   const result = await executeTool(toolModule, args, toolContext, {
                     employeeSlug: finalEmployeeSlug,
-                    mode: 'propose-confirm', // TODO: Get from user preferences
-                    autonomyLevel: 1, // TODO: Get from user preferences or tool metadata
+                    mode: 'propose-confirm',
+                    autonomyLevel: 1,
                   });
-                  
+
                   // Check if result has error field (from executeTool error handling)
                   if (result && typeof result === 'object' && 'error' in result) {
                     console.error(`[Chat] Tool ${toolName} returned error:`, result.error);
                     toolResults.push({
                       role: 'tool',
                       tool_call_id: toolCall.id,
-                      content: JSON.stringify({ 
+                      content: JSON.stringify({
                         error: result.error || 'Tool execution failed',
                         message: 'I had trouble loading stats for this category, but I can still talk about your finances in general.',
                       }),
@@ -11022,20 +11183,68 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                 sessionId: finalSessionId,
               });
             }
-            
+
+            // ── CONFIRMATION GATE (non-streaming) ──────────────────────
+            // Mirror kernel.ts policy: gate when requiresConfirm OR mutates OR costly
+            if (requiresConfirmation(toolModule.meta)) {
+              try {
+                const pending = await createPendingConfirmation(
+                  sb, userId, finalSessionId, toolName, args,
+                );
+                console.log(`[Chat] Confirmation gate: ${toolName} requires approval (non-streaming)`, {
+                  confirmationId: pending.confirmationId,
+                  expiresAt: new Date(pending.expiresAt).toISOString(),
+                });
+                toolResults.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({
+                    _requiresConfirm: true,
+                    toolId: toolName,
+                    summary: `This will ${toolModule.description.toLowerCase()}`,
+                    status: 'awaiting_user_confirmation',
+                  }),
+                });
+                // For non-streaming, embed confirmation_required in the response body
+                // so the frontend can detect it. The SSE writeSSE function may not exist
+                // in non-streaming path, so we attach to response metadata.
+                // The frontend parses `pendingConfirmation` from JSON response.
+                (toolResults as any).__pendingConfirmation = {
+                  type: 'confirmation_required',
+                  tool: toolName,
+                  summary: `This will ${toolModule.description.toLowerCase()}`,
+                  confirmationId: pending.confirmationId,
+                  token: pending.token,
+                  expiresAt: pending.expiresAt,
+                  argsHash: pending.argsHash,
+                };
+                continue; // Skip execution — wait for user confirmation
+              } catch (confirmGateError: any) {
+                console.error(`[Chat] Confirmation gate error for ${toolName}:`, confirmGateError);
+                toolResults.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({
+                    error: 'Could not create confirmation. Please try again.',
+                  }),
+                });
+                continue;
+              }
+            }
+
             const result = await executeTool(toolModule, args, toolContext, {
               employeeSlug: finalEmployeeSlug,
-              mode: 'propose-confirm', // TODO: Get from user preferences
-              autonomyLevel: 1, // TODO: Get from user preferences or tool metadata
+              mode: 'propose-confirm',
+              autonomyLevel: 1,
             });
-            
+
             // Check if result has error field (from executeTool error handling)
             if (result && typeof result === 'object' && 'error' in result) {
               console.error(`[Chat] Tool ${toolName} returned error:`, result.error);
               toolResults.push({
                 role: 'tool',
                 tool_call_id: toolCall.id,
-                content: JSON.stringify({ 
+                content: JSON.stringify({
                   error: result.error || 'Tool execution failed',
                   message: 'I had trouble loading stats for this category, but I can still talk about your finances in general.',
                 }),
@@ -11463,6 +11672,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
           console.log(`[Guardrails] enabled=${guardrailsStatusNonStream.enabled} pii_masking=${guardrailsStatusNonStream.pii_masking} moderation=${guardrailsStatusNonStream.moderation} version=${guardrailsStatusNonStream.policy_version}`);
         }
+        // Extract pending confirmation from tool results if present (non-streaming gate)
+        const pendingConfirmationPayload = (toolResults as any)?.__pendingConfirmation || null;
+
         return {
           statusCode: 200,
           headers: {
@@ -11479,6 +11691,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             thread_id: threadId, // CRITICAL: Return thread_id for frontend to store
             guardrails: guardrailsStatusNonStream,
             ...(handoffMeta && { meta: { handoff: handoffMeta } }),
+            ...(pendingConfirmationPayload && { pendingConfirmation: pendingConfirmationPayload }),
           }),
         };
       } catch (nonStreamingError: any) {

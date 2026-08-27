@@ -70,6 +70,10 @@ export interface PendingConfirmation {
   toolId: string;
   summary: string;
   originalInput: any;
+  confirmationId: string;
+  token: string;
+  expiresAt: number;
+  argsHash: string;
 }
 
 // Grade 4 explanation: This type lists all the employees you can chat with
@@ -851,15 +855,17 @@ export function usePrimeChat(
             }
           }
           
-          // Handle confirmation_required events
-          if (j.type === 'confirmation_required' && j.tool && j.summary) {
+          // Handle confirmation_required events (server-enforced gate)
+          if (j.type === 'confirmation_required' && j.tool && j.summary && j.confirmationId && j.token) {
             log(`[usePrimeChat] Confirmation required for tool: ${j.tool}`, j);
-            // Note: originalInput is stored in the tool result sent to LLM, not in SSE event
-            // The LLM will have access to it when user confirms
             setPendingConfirmation({
               toolId: j.tool,
               summary: j.summary || `This will ${j.tool}`,
-              originalInput: {}, // Not available in SSE event, but LLM has it in conversation history
+              originalInput: {},
+              confirmationId: j.confirmationId,
+              token: j.token,
+              expiresAt: j.expiresAt,
+              argsHash: j.argsHash,
             });
             // Stop streaming while waiting for confirmation
             setIsStreaming(false);
@@ -1626,6 +1632,39 @@ export function usePrimeChat(
             }
           }
 
+          // CONFIRMATION GATE: Detect pendingConfirmation in non-streaming JSON response
+          if (payload?.pendingConfirmation?.confirmationId && payload?.pendingConfirmation?.token) {
+            const pc = payload.pendingConfirmation;
+            log(`[usePrimeChat] Confirmation required (JSON path) for tool: ${pc.tool}`, pc);
+            setPendingConfirmation({
+              toolId: pc.tool,
+              summary: pc.summary || `This will ${pc.tool}`,
+              originalInput: {},
+              confirmationId: pc.confirmationId,
+              token: pc.token,
+              expiresAt: pc.expiresAt,
+              argsHash: pc.argsHash,
+            });
+            // Show the model's message (which explains what it wants to do)
+            const contentText = typeof payload?.content === 'string' ? payload.content : '';
+            if (contentText) {
+              upsertAssistantMessage({
+                messageId,
+                requestId,
+                content: contentText,
+                isStreaming: false,
+                employeeKey: payload?.employeeSlug || payload?.employee || employeeSlugToSend,
+              });
+            }
+            setIsStreaming(false);
+            streamingIdRef.current = null;
+            inFlightRef.current = false;
+            finalizedRequestIdsRef.current.add(requestId);
+            streamingMsgByRequestRef.current.delete(requestId);
+            textByRequestRef.current.delete(requestId);
+            return;
+          }
+
           const contentText = typeof payload?.content === 'string' ? payload.content : '';
           if (contentText) {
             textByRequestRef.current.set(requestId, contentText);
@@ -2166,19 +2205,43 @@ export function usePrimeChat(
     }
   }, [employeeOverride, safeUserId]);
 
-  // Confirm tool execution - sends "yes" message to backend
-  // The backend LLM will re-execute the tool with confirm: true
+  // Confirm tool execution - sends structured confirmation token to backend
+  // Backend verifies HMAC, checks expiry, atomically consumes the pending record,
+  // then executes the stored tool with the stored exact arguments.
   const confirmToolExecution = useCallback(async (confirmation: PendingConfirmation) => {
     if (!pendingConfirmation || pendingConfirmation.toolId !== confirmation.toolId) {
       warn('[usePrimeChat] Confirmation mismatch or no pending confirmation');
       return;
     }
 
+    // Check client-side expiry (server re-checks, but avoid wasted round-trip)
+    if (Date.now() > pendingConfirmation.expiresAt) {
+      warn('[usePrimeChat] Confirmation expired');
+      setPendingConfirmation(null);
+      setMessages(prev => [...prev, {
+        id: `expired-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        role: 'assistant',
+        content: 'That confirmation has expired. Please try the action again.',
+        createdAt: new Date().toISOString(),
+      }]);
+      return;
+    }
+
     // Clear pending confirmation
     setPendingConfirmation(null);
 
-    // Send "yes" message - backend LLM will re-execute the tool with confirm: true
-    await send('yes');
+    // Send structured confirmation via the existing send() mechanism.
+    // The __CONFIRM_TOOL__ prefix lets the backend detect this is a confirmation,
+    // and the JSON payload carries the signed token for server-side verification.
+    const confirmPayload = JSON.stringify({
+      __type: 'tool_confirmation',
+      confirmationId: pendingConfirmation.confirmationId,
+      token: pendingConfirmation.token,
+      expiresAt: pendingConfirmation.expiresAt,
+      toolName: pendingConfirmation.toolId,
+      argsHash: pendingConfirmation.argsHash,
+    });
+    await send(`__CONFIRM_TOOL__${confirmPayload}`, { hidden: true });
   }, [pendingConfirmation, send]);
 
   // Cancel tool execution
