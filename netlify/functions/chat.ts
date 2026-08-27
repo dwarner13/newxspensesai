@@ -11027,15 +11027,18 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               //   - "list", "show me", "breakdown by merchant"
               //   - "when", "last time", "transaction on [date]"
               const needsTools = /\b(which|vendor|merchant|where did|most (common|frequent|used)|top \w+|biggest (transaction|purchase)|list (my|the)|show me (my|the) (transactions|purchases|charges)|breakdown by (merchant|vendor|store)|when did|last time|transaction on|\bon [a-z]+ \d+)\b/i.test(lastUserMsg);
-              if (matchedLabel && !needsTools) {
+              // Mutation/action intents require tools (request_employee_handoff, tx_update_category, etc.)
+              // even when a category label appears in the message — the label is the TARGET, not a query.
+              const isMutationIntent = /\b(change|update|set|recategorize|re-categorize|categorize as|move|switch|make it|mark as|mark this|fix|rename|create rule|remember this|delete|remove)\b/i.test(lastUserMsg);
+              if (matchedLabel && !needsTools && !isMutationIntent) {
                 // Phase 2.5 FIX: Just strip tools entirely. No tool_choice needed when there are
                 // no tools — and sending tool_choice='none' without tools can cause OpenAI to
                 // time out on the first token. Stripping is clean and fast.
                 openaiTools = undefined;
                 primeToolChoice = undefined;
                 console.log('[Chat][PRIME_DEBUG] tools stripped (matched Tax Summary label):', matchedLabel);
-              } else if (matchedLabel && needsTools) {
-                console.log('[Chat][PRIME_DEBUG] Tax Summary match found but question needs tools:', matchedLabel);
+              } else if (matchedLabel && (needsTools || isMutationIntent)) {
+                console.log('[Chat][PRIME_DEBUG] Tax Summary match but tools preserved:', matchedLabel, { needsTools, isMutationIntent });
               }
             }
           } catch (gateError: any) {
