@@ -11111,7 +11111,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           txSearchAvailable &&
           isTransactionQuestionForTxSearch(masked) &&
           toolModules['tx_search'] &&
-          !taxSummaryGateStrippedTools
+          !taxSummaryGateStrippedTools &&
+          !isCategoryChangeIntent(masked)
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,
