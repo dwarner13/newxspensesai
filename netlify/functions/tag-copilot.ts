@@ -954,18 +954,99 @@ REQUIREMENTS:
           action.totalMatches = result.totalMatches;
           action.searchResults = result.transactions;
 
-          // Format results for the model to read and relay to the user.
+          // ── Two-turn pattern: feed results back to Claude ──────────
+          // Build machine-readable tool_result for the model (NOT user-facing).
+          let toolResultContent: string;
           if (result.returnedCount === 0) {
-            confirmationLine = `\n\n[SEARCH: **0** matches found]`;
+            toolResultContent = 'No transactions found matching the search.';
           } else {
-            const lines = result.transactions.map((r, i) =>
-              `${i + 1}. id:${r.id} | ${r.posted_at || r.date || '?'} | ${r.merchant_name || 'Unknown'} | $${Math.abs(r.amount).toFixed(2)} | ${r.category || 'Uncategorized'}${r.subcategory ? ' / ' + r.subcategory : ''}`
+            const dataLines = result.transactions.map((r, i) =>
+              `[${i + 1}] id:${r.id} | ${r.posted_at || r.date || '?'} | ${r.merchant_name || 'Unknown'} | $${Math.abs(r.amount).toFixed(2)} | ${r.category || 'Uncategorized'}${r.subcategory ? ' / ' + r.subcategory : ''}`
             );
-            const moreNote = result.totalMatches > result.returnedCount
-              ? `\n[Showing ${result.returnedCount} of ${result.totalMatches} total matches — tell the user more exist and offer to narrow]`
-              : '';
-            confirmationLine = `\n\n[SEARCH: **${result.totalMatches}** total matches, showing **${result.returnedCount}** newest]\n${lines.join('\n')}${moreNote}`;
+            const totalAmt = result.transactions.reduce((s, r) => s + Math.abs(r.amount), 0);
+            toolResultContent = [
+              `${result.totalMatches} total matches, showing ${result.returnedCount} newest (total $${totalAmt.toFixed(2)}).`,
+              ...dataLines,
+              result.totalMatches > result.returnedCount
+                ? `(${result.totalMatches - result.returnedCount} more matches not shown — offer to narrow by date, merchant, or amount.)`
+                : '',
+            ].filter(Boolean).join('\n');
           }
+
+          // Build a deterministic fallback in case the second call fails/times out.
+          let fallbackSummary: string;
+          if (result.returnedCount === 0) {
+            fallbackSummary = 'No matching transactions found.';
+          } else {
+            const totalAmt = result.transactions.reduce((s, r) => s + Math.abs(r.amount), 0);
+            const topMerchants = Object.entries(
+              result.transactions.reduce<Record<string, number>>((m, r) => {
+                const key = r.merchant_name || 'Unknown';
+                m[key] = (m[key] || 0) + 1;
+                return m;
+              }, {})
+            ).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            const merchantList = topMerchants.map(([name, count]) =>
+              `• ${name} (${count})`
+            ).join('\n');
+            fallbackSummary = `Found **${result.totalMatches}** transaction${result.totalMatches !== 1 ? 's' : ''} totaling **$${totalAmt.toFixed(2)}**.`
+              + `\n\nTop merchants:\n${merchantList}`
+              + (result.totalMatches > result.returnedCount
+                ? `\n\nShowing ${result.returnedCount} of ${result.totalMatches} — want me to narrow by date, merchant, or amount?`
+                : '');
+          }
+
+          // Second Claude call — same pattern as the follow-up question
+          // after update_single_transaction (lines 688–720). 5s timeout
+          // since search summaries are slightly longer than follow-up questions.
+          let naturalReply = '';
+          try {
+            const searchAbort = new AbortController();
+            const searchTimer = setTimeout(() => searchAbort.abort(), 5000);
+            const secondCall = await anthropic.messages.create({
+              model: 'claude-haiku-4-5-20251001',
+              max_tokens: 600,
+              system: (systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome })) + merchantDataBlock + focusedTransactionBlock,
+              messages: [
+                ...history.map((m: { role: string; content: string }) => ({
+                  role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+                  content: m.content,
+                })),
+                { role: 'user', content: message },
+                {
+                  role: 'assistant',
+                  content: [
+                    ...(replyText ? [{ type: 'text' as const, text: replyText }] : []),
+                    { type: 'tool_use' as const, id: toolUseBlock.id, name: toolUseBlock.name, input: toolUseBlock.input },
+                  ],
+                },
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'tool_result' as const, tool_use_id: toolUseBlock.id, content: toolResultContent },
+                  ],
+                },
+              ],
+              tools: TAG_TOOLS,
+            }, { signal: searchAbort.signal as any });
+            clearTimeout(searchTimer);
+
+            const secondText = searchAbort.signal.aborted ? '' :
+              secondCall.content
+                .filter((b: any) => b.type === 'text')
+                .map((b: any) => (b as any).text)
+                .join('\n')
+                .trim();
+            if (secondText) {
+              naturalReply = secondText;
+            }
+          } catch (searchCallErr: any) {
+            console.error('[tag-copilot] search second-call failed:', searchCallErr?.message);
+          }
+
+          // Use the model's conversational reply, or fall back to the
+          // deterministic summary. Never show raw pipe-delimited rows.
+          confirmationLine = `\n\n${naturalReply || fallbackSummary}`;
         } else {
           confirmationLine = `\n\n⚠ Unknown tool: ${toolUseBlock.name}`;
         }
