@@ -6095,11 +6095,10 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime tx_get tool enabled via runtime fallback');
           }
-          if (!employeeTools.includes('tx_update_category')) {
-            employeeTools = [...employeeTools, 'tx_update_category'];
-            toolModules = pickTools(employeeTools);
-            console.log('[Chat] Prime tx_update_category tool enabled via runtime fallback');
-          }
+          // tx_update_category deliberately NOT added to Prime.
+          // Categorization mutations are Tag's responsibility.
+          // Prime delegates via request_employee_handoff → tag-ai.
+          // See: isCategoryChangeIntent() deterministic routing.
           // PHASE 1.1 FIX (Apr 2026): Payoff Engine tools temporarily disabled for Prime.
           // finley_debt_payoff_forecast has a malformed JSON schema (Python `True` used where JSON number expected),
           // which causes OpenAI to 400 the ENTIRE chat request with:
@@ -11093,6 +11092,38 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             seemsIntelligent: hasNumbers && hasContextualData,
           });
           console.groupEnd();
+        }
+
+        // ── DETERMINISTIC CATEGORY-CHANGE DELEGATION (Prime → Tag) ────────
+        // When the user asks to change/recategorize a transaction, Prime delegates
+        // to Tag (the categorization specialist) rather than attempting the mutation
+        // directly. This ensures specialist ownership: Tag handles the confirmation
+        // gate, mutation, and learning — Prime remains the boss/orchestrator.
+        if (
+          isPrime &&
+          toolsAllowedThisTurn &&
+          isCategoryChangeIntent(masked) &&
+          toolModules['request_employee_handoff'] &&
+          !toolCalls.some((tc: any) => tc.function?.name === 'request_employee_handoff')
+        ) {
+          console.log('[Chat][PRIME_DELEGATION] Category-change intent detected — forcing handoff to tag-ai');
+          const handoffArgs = {
+            target_slug: 'tag-ai',
+            reason: 'Transaction category change — Tag owns categorization workflow',
+            summary_for_next_employee: `User request: ${masked.substring(0, 500)}`,
+          };
+          toolCalls = [{
+            id: `prime_delegate_tag_${Date.now()}`,
+            type: 'function',
+            function: {
+              name: 'request_employee_handoff',
+              arguments: JSON.stringify(handoffArgs),
+            },
+          }] as any;
+          // Use model's text if it generated one, otherwise provide a delegation message
+          if (!assistantContent || !assistantContent.trim()) {
+            assistantContent = "I'll have Tag handle this category change for you — she's our categorization specialist.";
+          }
         }
 
         // Guardrail: enforce tx_search for transaction intents when model skips tools.
