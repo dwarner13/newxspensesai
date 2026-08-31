@@ -12,8 +12,8 @@ const T = {
 };
 
 const AGENT_MAP: Record<string, { name: string; role: string; color: string; initial: string }> = {
-  "prime-boss": { name: "Prime", role: "Your Financial Advisor", color: T.gold, initial: "\u265B" },
-  "prime": { name: "Prime", role: "Your Financial Advisor", color: T.gold, initial: "\u265B" },
+  "prime-boss": { name: "Prime", role: "Your Financial Assistant", color: T.gold, initial: "\u265B" },
+  "prime": { name: "Prime", role: "Your Financial Assistant", color: T.gold, initial: "\u265B" },
   "byte-docs":  { name: "Byte",  role: "Statement Processor", color: T.green, initial: "B" },
   "byte":       { name: "Byte",  role: "Statement Processor", color: T.green, initial: "B" },
   "tag-ai":     { name: "Tag",   role: "Categorization Agent", color: T.cyan, initial: "T" },

@@ -122,7 +122,7 @@ export default function SignupPageV2() {
             { icon: "\uD83D\uDCCA", text: "Xspense Score \u2014 your financial health in one number" },
             { icon: "\uD83E\uDDFE", text: "AI tax deduction finder for self-employed" },
             { icon: "\uD83C\uDFAF", text: "Smart goals & debt coaching with AI" },
-            { icon: "\u2655", text: "Prime \u2014 your personal financial advisor" },
+            { icon: "\u2655", text: "Prime \u2014 your personal financial assistant" },
           ].map(f => (
             <div key={f.text} style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 18 }}>{f.icon}</span>

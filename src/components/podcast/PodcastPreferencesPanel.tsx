@@ -22,7 +22,7 @@ const PodcastPreferencesPanel: React.FC<PodcastPreferencesPanelProps> = ({
   };
 
   const aiEmployees = [
-    { id: 'Prime', name: 'Prime', icon: '👑', description: 'Strategic financial advisor' },
+    { id: 'Prime', name: 'Prime', icon: '👑', description: 'Financial strategy assistant' },
     { id: 'Goalie', name: 'Goalie', icon: '🥅', description: 'Motivational goal coach' },
     { id: 'Crystal', name: 'Crystal', icon: '🔮', description: 'Mysterious predictor' },
     { id: 'Blitz', name: 'Blitz', icon: '⚡', description: 'Efficiency expert' },

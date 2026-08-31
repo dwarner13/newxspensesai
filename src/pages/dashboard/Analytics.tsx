@@ -78,7 +78,7 @@ function AnalyticsPage() {
   const getCrystalResponse = (_message: string): string => {
     const responses = [
       "I've analyzed your financial data and identified key trends. Your revenue is showing strong growth patterns, with a 15% increase projected for next quarter based on current spending behaviors.",
-      "Excellent question! I've processed your analytics data and found some interesting patterns. Your expense categorization is 94% accurate, and I've identified three optimization opportunities that could save you $2,400 annually.",
+      "Excellent question! I've processed your analytics data and found some interesting patterns. Your expense categorization is progressing well, and I've identified three spending patterns worth reviewing.",
       "I've generated a comprehensive analytics report for you. The data shows your cash flow is healthy with a 12% improvement over last month. I've also detected some seasonal spending patterns that could help with future planning.",
       "Perfect! I've analyzed your financial metrics and created actionable insights. Your investment returns are outperforming the market by 8%, and I've identified two new opportunities for portfolio optimization.",
       "I've completed a deep dive into your financial analytics. Your debt-to-income ratio has improved by 23% this quarter, and I've prepared recommendations for accelerating your debt payoff strategy."

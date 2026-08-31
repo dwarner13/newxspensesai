@@ -19,6 +19,7 @@ export const outputSchema = z.object({
   })),
   isPayoffPossible: z.boolean(),
   errorMessage: z.string().optional(),
+  assumptions: z.array(z.string()),
 });
 
 export type Input = z.infer<typeof inputSchema>;
@@ -50,6 +51,13 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
     // Check if payment is too small (doesn't cover interest)
     const monthlyInterest = balance * monthlyInterestRate;
+    const assumptions = [
+      `Interest rate assumed constant at ${(annualInterestRate * 100).toFixed(1)}% APR`,
+      'Payments made on schedule with no missed payments',
+      'No additional charges or fees added to balance',
+      'Estimate only — actual results depend on these assumptions holding',
+    ];
+
     if (monthlyPayment <= monthlyInterest) {
       return Ok({
         monthsToPayoff: Infinity,
@@ -58,6 +66,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         projectionTimeline: [],
         isPayoffPossible: false,
         errorMessage: `Your monthly payment of $${monthlyPayment.toFixed(2)} is too small. The monthly interest alone is $${monthlyInterest.toFixed(2)}. You need to pay at least $${(monthlyInterest + 0.01).toFixed(2)} per month to make progress.`,
+        assumptions,
       });
     }
 
@@ -98,6 +107,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
           totalPaid: Math.round(totalPaid * 100) / 100,
           projectionTimeline: timeline,
           isPayoffPossible: true,
+          assumptions,
         });
       }
     }
@@ -109,7 +119,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       totalPaid: Math.round(totalPaid * 100) / 100,
       projectionTimeline: timeline,
       isPayoffPossible: false,
-      errorMessage: `With your current payment of $${monthlyPayment.toFixed(2)}/month, it will take more than ${maxMonths} months (${(maxMonths / 12).toFixed(1)} years) to pay off this debt. Consider increasing your monthly payment to pay it off faster.`,
+      errorMessage: `With your current payment of $${monthlyPayment.toFixed(2)}/month, the estimated payoff period exceeds ${maxMonths} months (${(maxMonths / 12).toFixed(1)} years).`,
+      assumptions,
     });
 
   } catch (error) {
@@ -120,7 +131,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
 export const metadata = {
   name: 'Finley Debt Payoff Forecast',
-  description: 'Calculate how long it will take to pay off a debt given balance, monthly payment, and interest rate. Returns month-by-month projection showing remaining balance over time. Use this when users ask about debt payoff timelines, interest calculations, or "how long until paid off" questions.',
+  description: 'Estimate how long it may take to pay off a debt given balance, monthly payment, and interest rate. Returns month-by-month projection showing remaining balance over time, with stated assumptions. Results are estimates that depend on inputs remaining unchanged.',
   requiresConfirmation: false,
   dangerous: false,
   category: 'forecasting',

@@ -36,6 +36,7 @@ export const outputSchema = z.object({
     }).optional(),
     insights: z.array(z.string()),
     confidence: z.number().min(0).max(100),
+    assumptions: z.array(z.string()),
   }),
   formulas: z.object({
     payoffTime: z.string().optional(),
@@ -92,7 +93,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         payoffTimeMonths = balance / (payment - monthlyInterest);
         totalInterest = (payoffTimeMonths * payment) - balance;
         
-        insights.push(`With a monthly payment of $${payment.toFixed(2)}, you'll pay off this balance in ${Math.ceil(payoffTimeMonths)} months.`);
+        insights.push(`With a monthly payment of $${payment.toFixed(2)}, the estimated payoff period is approximately ${Math.ceil(payoffTimeMonths)} months (assuming rate and payment remain unchanged).`);
         insights.push(`Total interest paid: $${totalInterest.toFixed(2)}`);
       } else {
         insights.push(`⚠️ Your monthly payment ($${payment.toFixed(2)}) is less than the monthly interest ($${monthlyInterest.toFixed(2)}). You'll need to increase payments to pay off the balance.`);
@@ -103,7 +104,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
     if (balance > 0 && rate > 0) {
       projectedBalance = balance * Math.pow(1 + rate / 100, years);
       const growth = projectedBalance - balance;
-      insights.push(`If no payments are made, balance will grow to $${projectedBalance.toFixed(2)} in ${years} year${years !== 1 ? 's' : ''} ($${growth.toFixed(2)} in interest).`);
+      insights.push(`If no payments are made, the estimated balance would grow to approximately $${projectedBalance.toFixed(2)} in ${years} year${years !== 1 ? 's' : ''} ($${growth.toFixed(2)} in interest), assuming the rate remains unchanged.`);
     }
 
     // Formula 3: Monthly Payment Needed (for payoff in specified timeframe)
@@ -113,7 +114,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         const denominator = 1 - Math.pow(1 + monthlyRateDecimal, -months);
         if (denominator > 0) {
           monthlyPaymentNeeded = balance * monthlyRateDecimal / denominator;
-          insights.push(`To pay off in ${months} months, you need to pay $${monthlyPaymentNeeded.toFixed(2)}/month.`);
+          insights.push(`To pay off in ${months} months, the estimated required payment is approximately $${monthlyPaymentNeeded.toFixed(2)}/month (assuming rate remains unchanged).`);
         }
       }
     }
@@ -140,6 +141,12 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       monthlyPayment: monthlyPaymentNeeded ? `monthly_payment = ${balance} * (${rate/12}/100) / (1 - (1 + ${rate/12}/100)^-${months}) = ${monthlyPaymentNeeded.toFixed(2)}` : undefined,
     };
 
+    const assumptions: string[] = [];
+    if (rate > 0) assumptions.push(`Interest rate assumed constant at ${rate}%`);
+    if (payment > 0) assumptions.push(`Payment assumed constant at $${payment.toFixed(2)}/month`);
+    if (avgSpending > 0) assumptions.push('Spending assumed constant based on current average');
+    assumptions.push('Estimates only — actual results depend on these assumptions holding');
+
     return Ok({
       ok: true,
       forecast: {
@@ -151,6 +158,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         spendingProjection,
         insights,
         confidence: Math.min(confidence, 100),
+        assumptions,
       },
       formulas,
     });

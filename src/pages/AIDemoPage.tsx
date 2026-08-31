@@ -15,7 +15,7 @@ const XspensesAIDemoPage = () => {
     },
     { 
       type: 'ai', 
-      content: "Hi! I'm your AI Financial Advisor. Try uploading a document or asking me demo questions like:\n\n- 'Analyze my coffee spending'\n- 'Create a podcast about my finances'\n- 'Help me optimize my budget'",
+      content: "Hi! I'm your AI Financial Assistant. Try uploading a document or asking me demo questions like:\n\n- 'Analyze my coffee spending'\n- 'Create a podcast about my finances'\n- 'Help me optimize my budget'",
       time: '10:30 AM'
     }
   ]);
@@ -342,7 +342,7 @@ const XspensesAIDemoPage = () => {
                   <Brain className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-white font-bold">AI Financial Advisor</h3>
+                  <h3 className="text-white font-bold">AI Financial Assistant</h3>
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                     <span className="text-white/80 text-sm">Online - Demo Mode</span>

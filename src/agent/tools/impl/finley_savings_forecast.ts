@@ -18,6 +18,7 @@ export const outputSchema = z.object({
     monthIndex: z.number(),
     balance: z.number(),
   })),
+  assumptions: z.array(z.string()),
 });
 
 export type Input = z.infer<typeof inputSchema>;
@@ -83,6 +84,12 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       totalContributions: Math.round(totalContributions * 100) / 100,
       totalGrowth: Math.round(totalGrowth * 100) / 100,
       timeline,
+      assumptions: [
+        `Interest rate assumed constant at ${(annualInterestRate * 100).toFixed(1)}% APR`,
+        `Monthly contribution assumed constant at $${monthlyContribution.toFixed(2)}`,
+        'No withdrawals during the projection period',
+        'Estimate only — actual results depend on these assumptions holding',
+      ],
     });
 
   } catch (error) {
@@ -93,7 +100,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
 export const metadata = {
   name: 'Finley Savings Forecast',
-  description: 'Calculate how much savings will grow over time given starting balance, monthly contributions, and interest rate. Returns month-by-month projection showing balance growth. Use this when users ask about savings goals, "how much will I have saved", or future savings projections.',
+  description: 'Estimate how savings may grow over time given starting balance, monthly contributions, and assumed interest rate. Returns month-by-month projection with stated assumptions. Results are estimates that depend on inputs remaining unchanged.',
   requiresConfirmation: false,
   dangerous: false,
   category: 'forecasting',

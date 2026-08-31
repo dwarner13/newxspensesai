@@ -584,7 +584,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         }}>{"\u2655"}</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 0.3 }}>Prime</div>
-          <div style={{ fontSize: 10, color: THEME.textMuted }}>Your Financial Advisor</div>
+          <div style={{ fontSize: 10, color: THEME.textMuted }}>Your Financial Assistant</div>
         </div>
         <div style={{
           padding: "3px 9px", borderRadius: 20,

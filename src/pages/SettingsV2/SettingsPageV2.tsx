@@ -22,7 +22,7 @@ const NAV_ITEMS = [
 ];
 
 const AGENTS_CONFIG = [
-  { name: "Prime", color: "#c8a64e", role: "Financial Advisor", active: true },
+  { name: "Prime", color: "#c8a64e", role: "Financial Assistant", active: true },
   { name: "Byte", color: "#34d399", role: "Smart Import", active: true },
   { name: "Tag", color: "#22d3ee", role: "Categorizer", active: true },
   { name: "Crystal", color: "#a78bfa", role: "Analytics", active: true },

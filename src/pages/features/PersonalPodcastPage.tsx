@@ -27,7 +27,7 @@ export default function PersonalPodcastPage() {
   const aiEmployees = [
     {
       name: 'Prime',
-      role: 'Strategic Financial Advisor',
+      role: 'Financial Strategy Assistant',
       avatar: '👑',
       color: 'from-purple-500 to-pink-500',
       voice: 'Confident and authoritative',

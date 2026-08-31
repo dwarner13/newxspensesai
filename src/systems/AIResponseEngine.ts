@@ -242,7 +242,7 @@ export class AIResponseEngine {
 
     // Tax questions
     if (message.includes('tax') || message.includes('deduction') || message.includes('irs')) {
-      return `I'm your tax optimization expert. I can identify deductions, ensure compliance, and help you save an average of $3,400 annually. What tax questions do you have?`;
+      return `I'm your tax organization assistant. I can categorize tax-relevant transactions and identify potential deduction categories. What would you like to organize?`;
     }
 
     // Accounting questions

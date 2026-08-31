@@ -70,7 +70,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
     primaryButtonGradient: 'from-sky-400 via-blue-500 to-indigo-500',
     primaryButtonShadow: 'shadow-blue-900/60',
     stats: [
-      { value: '99.7%', label: 'Accuracy', colorClass: 'text-cyan-400' },
+      { value: 'High', label: 'Accuracy', colorClass: 'text-cyan-400' },
       { value: '2.3s', label: 'Avg Speed', colorClass: 'text-green-400' },
       { value: '24/7', label: 'Available', colorClass: 'text-purple-400' },
     ],
@@ -96,7 +96,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
     primaryButtonShadow: 'shadow-teal-900/60',
     stats: [
       { value: '1,247', label: 'Items Tagged', colorClass: 'text-cyan-400' },
-      { value: '98.5%', label: 'Accuracy', colorClass: 'text-green-400' },
+      { value: 'High', label: 'Accuracy', colorClass: 'text-green-400' },
       { value: '45', label: 'Categories', colorClass: 'text-purple-400' },
     ],
     chatTitle: 'Tag - Chat',
@@ -122,7 +122,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
     primaryButtonShadow: 'shadow-teal-900/60',
     stats: [
       { value: '1,247', label: 'Items Tagged', colorClass: 'text-cyan-400' },
-      { value: '98.5%', label: 'Accuracy', colorClass: 'text-green-400' },
+      { value: 'High', label: 'Accuracy', colorClass: 'text-green-400' },
       { value: '45', label: 'Categories', colorClass: 'text-purple-400' },
     ],
     chatTitle: 'Tag - Chat',

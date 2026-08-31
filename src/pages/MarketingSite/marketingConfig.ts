@@ -27,7 +27,7 @@ export interface AgentShowcase {
 }
 
 export const AGENTS: AgentShowcase[] = [
-  { name: "Prime", letter: "\u2655", color: "#c8a64e", role: "Your Advisor", quote: "Your dining is up 23% this month. Want me to break it down?" },
+  { name: "Prime", letter: "\u2655", color: "#c8a64e", role: "Your Assistant", quote: "Your dining is up 23% this month. Want me to break it down?" },
   { name: "Byte", letter: "B", color: "#34d399", role: "Smart Import", quote: "Just processed your statement. 24 transactions ready." },
   { name: "Tag", letter: "T", color: "#22d3ee", role: "Categorizer", quote: "Found 3 that don't look right. Takes 2 minutes to fix." },
   { name: "Crystal", letter: "C", color: "#a78bfa", role: "Analytics", quote: "Delivery apps are 68% of your dining spend increase." },

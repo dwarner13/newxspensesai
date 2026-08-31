@@ -457,7 +457,7 @@ export function PrimeChatDrawer({ isOpen, onClose, currentPage = '/', conversati
         }}>{"\u265B"}</div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Prime</div>
-          <div style={{ fontSize: 11, color: T.gold }}>{pageCtx.label} - Your Financial Advisor</div>
+          <div style={{ fontSize: 11, color: T.gold }}>{pageCtx.label} - Your Financial Assistant</div>
         </div>
         <button onClick={() => {
           localStorage.removeItem('prime_chat_history');

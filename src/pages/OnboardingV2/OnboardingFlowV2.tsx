@@ -10,7 +10,7 @@ const C = {
 };
 
 const AGENTS = [
-  { name: "Prime", letter: "\u2655", color: C.accent, line: "I'm Prime, your financial advisor. I see the big picture." },
+  { name: "Prime", letter: "\u2655", color: C.accent, line: "I'm Prime, your financial assistant. I see the big picture." },
   { name: "Byte", letter: "B", color: C.green, line: "I'm Byte. Drop me a statement \u2014 I'll extract every transaction." },
   { name: "Tag", letter: "T", color: C.cyan, line: "I'm Tag. I categorize everything automatically." },
   { name: "Crystal", letter: "C", color: C.purple, line: "I'm Crystal. I find trends you'd never notice." },

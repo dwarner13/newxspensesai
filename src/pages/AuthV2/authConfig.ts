@@ -16,7 +16,7 @@
 } as const;
 
 export const AGENT_SHOWCASE = [
-  { name: "Prime", letter: "\u2655", color: "#c8a64e", role: "Your Advisor" },
+  { name: "Prime", letter: "\u2655", color: "#c8a64e", role: "Your Assistant" },
   { name: "Byte", letter: "B", color: "#34d399", role: "Smart Import" },
   { name: "Tag", letter: "T", color: "#22d3ee", role: "Categorizer" },
   { name: "Crystal", letter: "C", color: "#a78bfa", role: "Analytics" },
