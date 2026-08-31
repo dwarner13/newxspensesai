@@ -123,6 +123,7 @@ import { buildEmployeeJobContextSystemMessage } from './_shared/employeeJobConte
 import { fetchAiUserContext, buildAiContextSystemMessage } from '../../src/lib/ai/userContext.js';
 import { AI_FLUENCY_GLOBAL_SYSTEM_RULE, PRIME_ORCHESTRATION_RULE } from '../../src/lib/ai/systemPrompts.js';
 import { buildEmployeeBrainSystemPrompt } from '../../src/lib/ai/brains/registry.js';
+import { buildTemporalContext, formatTemporalContextForPrompt, detectRelativePeriods, buildAuthoritativeRanges, normalizeToolDateArgs } from './_shared/temporalContext.js';
 // AI Fluency: Event logging
 import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
 import OpenAI from 'openai';
@@ -6099,16 +6100,19 @@ export const handler: Handler = async (event, context) => {
           // Categorization mutations are Tag's responsibility.
           // Prime delegates via request_employee_handoff → tag-ai.
           // See: isCategoryChangeIntent() deterministic routing.
-          // PHASE 1.1 FIX (Apr 2026): Payoff Engine tools temporarily disabled for Prime.
-          // finley_debt_payoff_forecast has a malformed JSON schema (Python `True` used where JSON number expected),
-          // which causes OpenAI to 400 the ENTIRE chat request with:
-          //   "Invalid schema for function 'finley_debt_payoff_forecast': True is not of type 'number'."
-          // Re-enable once the tool definition is fixed upstream.
-          // if (!employeeTools.includes('finley_debt_payoff_forecast')) {
-          //   employeeTools = [...employeeTools, 'finley_debt_payoff_forecast', 'finley_loan_forecast', 'analytics_forecast'];
-          //   toolModules = pickTools(employeeTools);
-          //   console.log('[Chat] Prime Payoff Engine tools enabled via runtime fallback');
-          // }
+
+          // Forecast/calculation tools (read-only) — re-enabled after schema fix in f11dfcb2
+          if (!employeeTools.includes('finley_debt_payoff_forecast')) {
+            employeeTools = [...employeeTools, 'finley_debt_payoff_forecast', 'finley_loan_forecast', 'analytics_forecast', 'finley_savings_forecast'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime forecast tools enabled via runtime fallback');
+          }
+          // Category totals tool (read-only aggregation)
+          if (!employeeTools.includes('transaction_category_totals')) {
+            employeeTools = [...employeeTools, 'transaction_category_totals'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime transaction_category_totals tool enabled via runtime fallback');
+          }
         }
         
         if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {
@@ -8796,7 +8800,7 @@ export const handler: Handler = async (event, context) => {
     const snapshotThinBeforeHydration = isPrimeSnapshotThin(effectivePrimeContext);
     if (isPrimeEmployeeForHydration && primeIntent.isBreakdownReport && snapshotThinBeforeHydration) {
       try {
-        const hydrated = await buildFinancialSnapshot(sb, userId);
+        const hydrated = await buildFinancialSnapshot(sb, userId, userProfile?.timezone || effectivePrimeContext?.timezone || null);
         // PHASE 2.1 FIX (Apr 2026): Preserve all frontend-supplied fields (taxSummary, totalIncome,
         // teamActivitySummary, categorySummary, etc.) via spread. Previously this block REPLACED
         // effectivePrimeContext with a narrow snapshot object, wiping everything PrimeChatV2 sent.
@@ -8858,6 +8862,22 @@ export const handler: Handler = async (event, context) => {
     timingLogs.profile = Date.now() - profileStartTime;
     const userContextBlock = userProfile ? formatUserContextForPrompt(userProfile) : null;
 
+    // ── Authoritative date-range normalization ──────────────────────────
+    // Detect relative date periods in the user message and resolve them
+    // deterministically using the user's timezone. These authoritative
+    // ranges are used later to correct UTC-shifted dates in tool arguments.
+    const effectiveTimezone =
+      userProfile?.timezone ||
+      (effectivePrimeContext as any)?.timezone ||
+      null;
+    const detectedPeriods = detectRelativePeriods(messageTrimmed);
+    const authoritativeRanges = detectedPeriods.length > 0
+      ? buildAuthoritativeRanges(detectedPeriods, effectiveTimezone)
+      : [];
+    if (authoritativeRanges.length > 0 && (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development')) {
+      console.log('[Chat] Authoritative date ranges resolved:', authoritativeRanges.map(r => `${r.label}: ${r.startDate} to ${r.endDate}`));
+    }
+
     // ========================================================================
     // 8. BUILD MODEL MESSAGES
     // ========================================================================
@@ -8899,55 +8919,8 @@ export const handler: Handler = async (event, context) => {
         systemMessages.push({ role: 'system', content: compactUserContext });
       }
 
-      if (effectivePrimeContext) {
-        const pc = effectivePrimeContext as any;
-        let primeContextMessage = 'PRIME CONTEXT (User State Snapshot):\n\n';
-        primeContextMessage += `User: ${pc.displayName || 'User'}\n`;
-        if (pc.timezone) primeContextMessage += `Timezone: ${pc.timezone}\n`;
-        if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
-        if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
-        // Totals (top-level fields from PrimeChatV2's additionalPrimeContext)
-        if (typeof pc.totalIncome === 'number') primeContextMessage += `Total Income: ${pc.totalIncome}\n`;
-        if (typeof pc.totalSpent === 'number') primeContextMessage += `Total Spent: ${pc.totalSpent}\n`;
-        if (typeof pc.statementCount === 'number') primeContextMessage += `Statements: ${pc.statementCount}\n`;
-        if (typeof pc.transactionCount === 'number') primeContextMessage += `Transactions: ${pc.transactionCount}\n`;
-        if (typeof pc.pendingImports === 'number' && pc.pendingImports > 0) {
-          primeContextMessage += `Pending Imports: ${pc.pendingImports}\n`;
-        }
-        if (pc.topMerchant) primeContextMessage += `Top Merchant: ${pc.topMerchant}\n`;
-        if (pc.categorySummary) primeContextMessage += `Category Mix: ${pc.categorySummary}\n`;
-        if (pc.financialSnapshot) {
-          const fs = pc.financialSnapshot;
-          primeContextMessage += `\nSnapshot:\n`;
-          primeContextMessage += `- hasTransactions: ${fs.hasTransactions}\n`;
-          primeContextMessage += `- uncategorizedCount: ${fs.uncategorizedCount}\n`;
-          if (fs.monthlySpend !== undefined) primeContextMessage += `- monthlySpend: ${fs.monthlySpend}\n`;
-          if (fs.topCategories && fs.topCategories.length > 0) {
-            primeContextMessage += `- topCategories: ${fs.topCategories.map((c: any) => `${c.name} (${c.amount})`).join(', ')}\n`;
-          }
-        }
-        // Tax-workspace mirror: section totals + top subcategories.
-        // Prime can answer "how much did I pay on car payments", "gas & fuel", "insurance", etc. from this block.
-        if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
-          primeContextMessage += `\nTax Summary (by section):\n`;
-          for (const section of pc.taxSummary) {
-            if (!section || typeof section.total !== 'number') continue;
-            primeContextMessage += `- ${section.section}: ${section.total} (${section.count} txns)`;
-            if (Array.isArray(section.topSubcategories) && section.topSubcategories.length > 0) {
-              const subs = section.topSubcategories
-                .map((b: any) => `${b.name}=${b.amount}`)
-                .join(', ');
-              primeContextMessage += ` [${subs}]`;
-            }
-            primeContextMessage += `\n`;
-          }
-        }
-        // Team activity summary (what other agents did recently)
-        if (pc.teamActivitySummary) {
-          primeContextMessage += `\nRecent Team Activity:\n${pc.teamActivitySummary}\n`;
-        }
-        systemMessages.push({ role: 'system', content: primeContextMessage });
-      }
+      // (Duplicate prime context block removed — consolidated into the single
+      // authoritative PRIME CONTEXT block below at the "3. Prime Context" section.)
 
       if (!isPrimeFastLane && handoffContext) {
         const handoffBits: string[] = [];
@@ -9251,43 +9224,22 @@ export const handler: Handler = async (event, context) => {
         }
       } catch { /* non-blocking */ }
 
-      // CEO PERSONA INJECTION
+      // PRIME DATA USAGE INSTRUCTIONS
       primeContextMessage += `
-PRIME CEO PERSONA - CRITICAL RULES:
-You are Prime, the lead financial AI and CEO of the XspensesAI agent team.
-Your team: Byte (OCR/imports), Tag (categorization), Crystal (analytics), Goalie (goals), Ledger (tax).
-You have full visibility of everything they have done - shown above.
-
-RESPONSE RULES (non-negotiable):
-1. Always end with ONE specific question - never more, never zero.
-2. Reference real numbers from the data above - never invent figures.
-3. Max 3 sentences before your question. After 3 sentences you are rambling.
-4. Be direct: "You overspent on Food & Dining by $340" not "it looks like spending may be elevated."
-5. If an agent did something, you know about it - own the team output.
-6. Never use bullet points for conversational replies. Bullets for breakdowns only.
-
-ERROR RECOGNITION - name the real problem, never say "I hit a delay":
-- Uncategorized count jumped -> "Your uncategorized count jumped to X - Tag's sweep likely didn't run on the last import. Want me to trigger it?"
-- Import stalled -> "Byte processed [file] but nothing committed - import is in [status] state. Want me to check what's blocking it?"
-- Rules saved but not applied -> "Tag saved [N] rules but the sweep predates them - those transactions are still miscategorized. Want me to run a backfill?"
-- Missing data -> "I don't have [specific thing] loaded - that comes from [source]. Want me to pull it?"
-
-CLARIFICATION - do NOT ask for clarification when:
-- User asks about "this month" or "last month" -> use most recent statement data, just answer
-- User asks "how am I doing" -> give net flow + top 2 categories + one question
-- User uploads a statement -> give headline numbers, ask what they want to know
-- User asks about a category -> answer from real totals you have
-
-HANDOFF - never hand off without context:
-- To Tag: "I'll ask Tag to handle that - [one sentence of context]."
-- To Byte: "Byte needs to look at that - [one sentence about the issue]."
-
-PRIORITIZE IN THIS ORDER: uncategorized transactions -> income gaps -> budget overruns -> deductibles.
-TONE: CFO giving a Monday morning briefing - direct, warm, data-first. Not a chatbot.
-GREETING RULE: When responding to [PRIME_GREETING], never start with "Good morning/afternoon/evening". Use varied openers like "Darrell -", "Here's where things stand -", "Quick read on your books -", "Your numbers right now -". Always lead with a real number from the data.
+PRIME DATA INSTRUCTIONS:
+- Reference real numbers from the data above — never invent figures.
+- Be direct: "You overspent Food by $340" not "spending appears elevated."
+- When a question can be answered from context above, answer directly without calling tx_search.
+- When data is insufficient, use tools to investigate further.
+- When handing off, provide context: "I'll have Tag handle that category change."
 `;
 
-      // Prepend Prime context BEFORE orchestration rule (so orchestration can reference context)
+      // Inject temporal context (trusted server time + user timezone)
+      const userTz = pc.timezone || userProfile?.timezone || null;
+      const temporalCtx = buildTemporalContext(userTz);
+      primeContextMessage += '\n' + formatTemporalContextForPrompt(temporalCtx) + '\n';
+
+      // Push Prime context (single authoritative block)
       systemMessages.push({ role: 'system', content: primeContextMessage });
       
       // Dev logging (redacted)
@@ -10123,7 +10075,17 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                 try {
                   // Parse args once for logging and execution
                   const args = JSON.parse(toolCall.function.arguments || '{}');
-                  
+
+                  // Authoritative date normalization for financial query tools
+                  if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
+                    const norm = normalizeToolDateArgs(args, authoritativeRanges);
+                    if (norm.corrected) {
+                      args.startDate = norm.startDate;
+                      args.endDate = norm.endDate;
+                      console.log(`[Chat] Date args normalized (streaming) for ${toolName}: ${norm.correctionLabel} -> ${norm.startDate} to ${norm.endDate}`);
+                    }
+                  }
+
                   // Inject Tone Profile for summarize_import
                   if (toolName === 'summarize_import') {
                     if (finalEmployeeSlug === 'roast-master') {
@@ -11182,7 +11144,17 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           try {
             // Parse args once for logging and execution
             const args = JSON.parse(toolCall.function.arguments || '{}');
-            
+
+            // Authoritative date normalization for financial query tools
+            if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
+              const norm = normalizeToolDateArgs(args, authoritativeRanges);
+              if (norm.corrected) {
+                args.startDate = norm.startDate;
+                args.endDate = norm.endDate;
+                console.log(`[Chat] Date args normalized (non-streaming) for ${toolName}: ${norm.correctionLabel} -> ${norm.startDate} to ${norm.endDate}`);
+              }
+            }
+
             // Enhanced logging for all tools
             console.log(`[Chat] Executing tool: ${toolName}`, {
               employee: finalEmployeeSlug,
@@ -11454,77 +11426,175 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           }
         }
 
-        // Second completion with tool results
-        if (toolResults.length > 0) {
+        // ── Multi-round tool loop (bounded at MAX_TOOL_ROUNDS) ────────────
+        // After the first tool execution, call the model again. If the model
+        // produces more tool calls, execute and loop. Stop when:
+        //   - Model produces final content (no tool calls)
+        //   - confirmation_required was generated
+        //   - Handoff occurred
+        //   - Maximum rounds reached
+        const MAX_TOOL_ROUNDS = 3;
+        let toolRound = 0;
+        let currentToolCalls = toolCalls;
+        let currentToolResults = toolResults;
+        let hadConfirmation = currentToolResults.some((r: any) => {
+          try { return JSON.parse(r.content)?._requiresConfirm; } catch { return false; }
+        });
+        let hadHandoff = currentToolCalls.some((tc: any) => tc.function?.name === 'request_employee_handoff');
+
+        while (currentToolResults.length > 0 && toolRound < MAX_TOOL_ROUNDS && !hadConfirmation) {
+          toolRound++;
           try {
             messages.push(
-              { role: 'assistant', content: assistantContent || null, tool_calls: toolCalls },
-              ...toolResults
+              { role: 'assistant', content: assistantContent || null, tool_calls: currentToolCalls },
+              ...currentToolResults
             );
             const txUpdateRefreshMessage = buildTxUpdateRefreshSystemMessage({
-              didUpdate: didLastTxUpdateCategorySucceed(toolCalls, toolResults),
+              didUpdate: didLastTxUpdateCategorySucceed(currentToolCalls, currentToolResults),
               importId: importIdContextForTurn,
             });
             if (txUpdateRefreshMessage) {
               messages.push({ role: 'system', content: txUpdateRefreshMessage });
             }
-            const txComputedMetricsHint = buildTxDeterministicMetricsHint(masked, toolCalls, toolResults);
+            const txComputedMetricsHint = buildTxDeterministicMetricsHint(masked, currentToolCalls, currentToolResults);
             if (txComputedMetricsHint) {
               messages.push({ role: 'system', content: txComputedMetricsHint });
             }
-            const txVendorAmbiguityHint = buildVendorRuleAmbiguityHint(masked, toolCalls, toolResults);
+            const txVendorAmbiguityHint = buildVendorRuleAmbiguityHint(masked, currentToolCalls, currentToolResults);
             if (txVendorAmbiguityHint) {
               messages.push({ role: 'system', content: txVendorAmbiguityHint });
             }
 
-            // If handoff occurred, reload tools for new employee
-            let openaiToolsAfterHandoff: any = undefined;
+            // Reload tools (may have changed after handoff)
+            let loopOpenaiTools: any = undefined;
             try {
-              openaiToolsAfterHandoff = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+              loopOpenaiTools = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
             } catch (toolError: any) {
-              console.warn('[Chat] Failed to convert tools after handoff (non-fatal):', toolError);
+              console.warn('[Chat] Failed to convert tools for loop round (non-fatal):', toolError);
             }
 
-            // Use model config for current employee (may have changed after handoff)
-            let modelConfigAfterHandoff;
+            let loopModelConfig;
             try {
-              modelConfigAfterHandoff = await getEmployeeModelConfig(finalEmployeeSlug);
+              loopModelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
             } catch (configError: any) {
-              console.warn('[Chat] Failed to get model config after handoff (non-fatal, using defaults):', configError);
-              modelConfigAfterHandoff = {
-                model: 'gpt-4o-mini',
-                temperature: 0.7,
-                maxTokens: 2000,
-              };
+              console.warn('[Chat] Failed to get model config for loop round (non-fatal, using defaults):', configError);
+              loopModelConfig = { model: 'gpt-4o-mini', temperature: 0.7, maxTokens: 2000 };
             }
-            modelConfigAfterHandoff = applyPrimeChatStyleModelConfig(modelConfigAfterHandoff, {
+            loopModelConfig = applyPrimeChatStyleModelConfig(loopModelConfig, {
               employeeSlug: finalEmployeeSlug,
               qualityMode: shouldPreferPrimeQualityMode,
               preferLongForm: true,
             });
 
-            const secondNonStreamAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+            const loopAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
             completion = await withTimeout(
               openai.chat.completions.create({
-                model: modelConfigAfterHandoff.model,
+                model: loopModelConfig.model,
                 messages,
-                temperature: modelConfigAfterHandoff.temperature,
-                max_tokens: modelConfigAfterHandoff.maxTokens,
+                temperature: loopModelConfig.temperature,
+                max_tokens: loopModelConfig.maxTokens,
                 stream: false,
-                tools: openaiToolsAfterHandoff,
+                tools: hadHandoff ? undefined : loopOpenaiTools,
               } as any),
               resolveOpenAiTimeoutMs(),
-              'model_non_streaming_tool_followup',
+              `model_non_streaming_tool_round_${toolRound}`,
               orchCtx,
-              secondNonStreamAbortController
+              loopAbortController,
             );
 
             assistantContent = completion.choices[0]?.message?.content || assistantContent;
-          } catch (secondCompletionError: any) {
-            console.error('[Chat] Second completion call failed after tool execution:', secondCompletionError);
-            // Use original assistant content or add error message
+            const newToolCalls = completion.choices[0]?.message?.tool_calls || [];
+
+            console.log(`[Chat] Tool loop round ${toolRound}: ${newToolCalls.length} new tool calls`);
+
+            // If no more tool calls or handoff already happened, break
+            if (newToolCalls.length === 0 || hadHandoff) {
+              break;
+            }
+
+            // Execute new tool calls
+            currentToolCalls = newToolCalls;
+            currentToolResults = [];
+            for (const toolCall of currentToolCalls) {
+              const toolName = toolCall.function.name;
+              const toolModule = toolModules[toolName];
+              if (!toolModule) {
+                currentToolResults.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ error: `Tool ${toolName} not available` }),
+                });
+                continue;
+              }
+              try {
+                const args = JSON.parse(toolCall.function.arguments || '{}');
+
+                // Authoritative date normalization for financial query tools (tool loop)
+                if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
+                  const norm = normalizeToolDateArgs(args, authoritativeRanges);
+                  if (norm.corrected) {
+                    args.startDate = norm.startDate;
+                    args.endDate = norm.endDate;
+                    console.log(`[Chat] Date args normalized (tool-loop round ${toolRound}) for ${toolName}: ${norm.correctionLabel} -> ${norm.startDate} to ${norm.endDate}`);
+                  }
+                }
+
+                console.log(`[Chat] Tool loop round ${toolRound}: executing ${toolName}`);
+
+                // Confirmation gate
+                if (requiresConfirmation(toolModule.meta)) {
+                  const pending = await createPendingConfirmation(sb, userId, finalSessionId, toolName, args);
+                  currentToolResults.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify({
+                      _requiresConfirm: true,
+                      confirmationId: pending.confirmationId,
+                      expiresAt: pending.expiresAt,
+                      toolName,
+                      args,
+                      message: `This action requires your confirmation before proceeding.`,
+                    }),
+                  });
+                  hadConfirmation = true;
+                  continue;
+                }
+
+                // Handoff detection
+                if (toolName === 'request_employee_handoff') {
+                  hadHandoff = true;
+                }
+
+                const toolContext: ToolContext = {
+                  userId,
+                  conversationId: finalSessionId,
+                  sessionId: finalSessionId,
+                  authHeader: authHeader || '',
+                };
+                const result = await executeTool(toolName, args, toolContext);
+                currentToolResults.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify(result),
+                });
+              } catch (error: any) {
+                console.error(`[Chat] Tool loop round ${toolRound} error for ${toolName}:`, error.message);
+                currentToolResults.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ error: error.message || 'Tool execution failed' }),
+                });
+              }
+            }
+          } catch (loopError: any) {
+            console.error(`[Chat] Tool loop round ${toolRound} failed:`, loopError);
             assistantContent = assistantContent || "I had trouble processing the tool results, but I can still help you with your question.";
+            break;
           }
+        }
+
+        if (toolRound > 0) {
+          console.log(`[Chat] Tool loop completed: ${toolRound} round(s)`);
         }
       }
 

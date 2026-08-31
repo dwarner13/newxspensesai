@@ -38,32 +38,54 @@ const snapshotCache = new Map<string, SnapshotCacheEntry>();
 
 /**
  * Build financial snapshot for a user
- * 
+ *
  * @param supabase - Supabase client (service role)
  * @param userId - User ID
+ * @param userTimezone - Optional IANA timezone (e.g. "America/Edmonton") for correct month boundaries
  * @returns FinancialSnapshot
  */
 export async function buildFinancialSnapshot(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  userTimezone?: string | null,
 ): Promise<FinancialSnapshot> {
   // 1. Lightweight count check to determine if full fetch is needed
   const { count } = await supabase
     .from('transactions')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId);
-    
+
   const currentCount = count || 0;
-  const cached = snapshotCache.get(userId);
-  
+  const cacheKey = `${userId}:${userTimezone || 'utc'}`;
+  const cached = snapshotCache.get(cacheKey);
+
   // Return cached if transaction count is the same and cache is < 5 mins old
   if (cached && cached.count === currentCount && Date.now() - cached.timestamp < 5 * 60 * 1000) {
     return cached.snapshot;
   }
 
+  // Derive user-local month boundaries using timezone-aware logic.
+  // This prevents the Edmonton 11PM problem where UTC is already next month.
+  let localYear: number, localMonth: number;
   const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  if (userTimezone) {
+    try {
+      const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: userTimezone, year: 'numeric', month: '2-digit',
+      });
+      const parts = fmt.formatToParts(now);
+      localYear = parseInt(parts.find(p => p.type === 'year')?.value || '', 10);
+      localMonth = parseInt(parts.find(p => p.type === 'month')?.value || '', 10) - 1; // 0-indexed
+    } catch {
+      localYear = now.getFullYear();
+      localMonth = now.getMonth();
+    }
+  } else {
+    localYear = now.getFullYear();
+    localMonth = now.getMonth();
+  }
+  const currentMonthStart = new Date(localYear, localMonth, 1);
+  const currentMonthEnd = new Date(localYear, localMonth + 1, 0);
   
   // 1. Fetch transactions, debt, and goals in parallel
   const [
@@ -242,7 +264,7 @@ export async function buildFinancialSnapshot(
   };
 
   // Cache the result
-  snapshotCache.set(userId, {
+  snapshotCache.set(cacheKey, {
     snapshot,
     count: currentCount,
     timestamp: Date.now()

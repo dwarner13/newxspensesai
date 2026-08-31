@@ -411,11 +411,12 @@ export const handler: Handler = async (event) => {
     const supabase = admin();
 
     // Build all components of PrimeState in parallel (all queries are independent)
-    const [profileSummary, financialSnapshot, memorySummary] = await Promise.all([
-      getUserProfileSummary(supabase, userId),
-      buildFinancialSnapshot(supabase, userId),
+    const profileSummaryPre = await getUserProfileSummary(supabase, userId);
+    const [financialSnapshot, memorySummary] = await Promise.all([
+      buildFinancialSnapshot(supabase, userId, profileSummaryPre?.timezone || null),
       buildMemorySummary(supabase, userId),
     ]);
+    const profileSummary = profileSummaryPre;
     const workspaceSummary = await buildWorkspaceSummary(supabase, userId, memorySummary);
     const currentStage = determineCurrentStage(profileSummary, financialSnapshot);
     const featureVisibilityMap = buildFeatureVisibilityMap(profileSummary);
