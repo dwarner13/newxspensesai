@@ -11208,7 +11208,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             const pc = (effectivePrimeContext as any) || {};
             const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
             if (taxSummary.length > 0) {
-              const { shouldRetainTools } = await import('../../../src/shared/tool-gate');
+              const { shouldRetainTools } = await import('../../src/shared/tool-gate');
               const lastUserMsg = String(messageTrimmed || '').toLowerCase();
               const contextYear = new Date().getFullYear();
               const retain = shouldRetainTools(taxSummary, lastUserMsg, contextYear);

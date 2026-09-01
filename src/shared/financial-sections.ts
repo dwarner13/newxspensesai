@@ -63,8 +63,8 @@
  * - No user-facing totals change because we match existing behavior exactly.
  */
 
-import type { ClassifiableTransaction } from './financial-taxonomy.js';
-import { isIncomeStrict } from './financial-taxonomy.js';
+import type { ClassifiableTransaction } from './financial-taxonomy';
+import { isIncomeStrict } from './financial-taxonomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES

@@ -1,8 +1,8 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
-import { TAX_SECTIONS, SECTION_BUCKETS, classifyTransactions, groupIntoBuckets } from '../../../src/shared/financial-sections';
-import { getYearRange } from '../../../src/shared/financial-dates';
+import { TAX_SECTIONS, SECTION_BUCKETS, classifyTransactions, groupIntoBuckets } from '../../src/shared/financial-sections';
+import { getYearRange } from '../../src/shared/financial-dates';
 
 const headers = {
   'Content-Type': 'application/json',

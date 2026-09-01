@@ -2,7 +2,7 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { normalizeMerchantName, merchantKey } from './_shared/merchantNormalize.js';
-import { resolveCategoryOrPassthrough } from '../../../src/shared/financial-taxonomy';
+import { resolveCategoryOrPassthrough } from '../../src/shared/financial-taxonomy';
 
 // Categories that are internal money movement, NOT real spending. Excluded from
 // totals.spending so Prime doesn't report "Transfers" as the #1 expense.
