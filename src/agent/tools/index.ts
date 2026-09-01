@@ -52,6 +52,7 @@ import * as getRecentDocuments from './impl/get_recent_documents';
 import * as getDocumentById from './impl/get_document_by_id';
 import * as getTransactionsByDocument from './impl/get_transactions_by_document';
 import * as txSearch from './impl/tx_search';
+import * as taxSummary from './impl/tax_summary';
 import * as txGet from './impl/tx_get';
 import * as txUpdateCategory from './impl/tx_update_category';
 import * as summarizeImport from './impl/summarize_import';
@@ -696,13 +697,24 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tx_search', {
     id: 'tx_search',
-    description: 'Search structured transactions. MUST CALL BEFORE ANSWERING transaction questions. Guidelines: 1) Prefer passing importId if context exists. 2) If asked about pending/review, use includePending=true. 3) For uncategorized, use uncategorizedOnly=true and offer categorization. 4) For comparisons/top-merchants, use relevant date filters first. 5) If user provides a vendor rule ("all Amazon=Office"), run tx_search first then tx_update_category. Ground answers entirely in tool results.',
+    description: 'Search structured transactions. MUST CALL BEFORE ANSWERING transaction questions. Guidelines: 1) Prefer passing importId if context exists. 2) If asked about pending/review, use includePending=true. 3) For uncategorized, use uncategorizedOnly=true and offer categorization. 4) For comparisons/top-merchants, use relevant date filters first. 5) If user provides a vendor rule ("all Amazon=Office"), run tx_search first then tx_update_category. 6) Use natural-language category names (e.g., "fuel", "gas", "restaurants") — the resolver maps them to DB taxonomy. 7) Use subcategory for precise filtering (e.g., category="Transportation", subcategory="Gas & Fuel"). 8) Check queryStatus in the response: "verified" = real data, "verified_zero" = genuinely no results, "unresolved_category" = category term not recognized. Ground answers entirely in tool results.',
     inputSchema: txSearch.inputSchema,
     outputSchema: txSearch.outputSchema,
     run: txSearch.execute,
     meta: {
       timeout: 15000,
       rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['tax_summary', {
+    id: 'tax_summary',
+    description: 'Get the full Tax Summary for a year: section totals (Vehicle, Meals, Home, Business, Personal, Income) with detailed bucket breakdowns (Gas/Fuel, Car Payments, Insurance, etc.). Uses canonical first-match-wins classification matching the Tax Workspace page exactly. READ-ONLY — does not modify any data. Use when the user asks about tax deductions, annual spending breakdowns, or section/bucket totals.',
+    inputSchema: taxSummary.inputSchema,
+    outputSchema: taxSummary.outputSchema,
+    run: taxSummary.execute,
+    meta: {
+      timeout: 20000,
+      rateLimit: { perMinute: 10 },
     },
   }],
   ['tx_get', {

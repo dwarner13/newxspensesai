@@ -12,6 +12,7 @@ export const inputSchema = z.object({
   minAmount: z.number().optional(),
   maxAmount: z.number().optional(),
   category: z.string().optional(),
+  subcategory: z.string().optional(),
   uncategorizedOnly: z.boolean().optional(),
   includePending: z.boolean().optional(),
   limit: z.number().min(1).max(200).optional().default(25),
@@ -30,6 +31,7 @@ export const outputSchema = z.object({
     possible_duplicate: z.boolean().optional(),
     duplicate_group_size: z.number().optional(),
     category: z.string().nullable().optional(),
+    subcategory: z.string().nullable().optional(),
     type: z.string().nullable().optional(),
     import_id: z.string().nullable().optional(),
     document_id: z.string().nullable().optional(),
@@ -43,6 +45,15 @@ export const outputSchema = z.object({
   topSpendCategory: z.object({
     category: z.string(),
     amount: z.number(),
+  }).nullable().optional(),
+  queryStatus: z.enum([
+    'verified', 'verified_zero', 'unresolved_category',
+    'insufficient_scope', 'query_error',
+  ]).optional(),
+  resolvedCategory: z.object({
+    category: z.string(),
+    subcategory: z.string().optional(),
+    section: z.string().optional(),
   }).nullable().optional(),
   pendingRows: z.array(z.object({
     id: z.string(),

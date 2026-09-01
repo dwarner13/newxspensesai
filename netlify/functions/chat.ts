@@ -6113,6 +6113,12 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime transaction_category_totals tool enabled via runtime fallback');
           }
+          // Tax summary tool (read-only, canonical section/bucket breakdown)
+          if (!employeeTools.includes('tax_summary')) {
+            employeeTools = [...employeeTools, 'tax_summary'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime tax_summary tool enabled via runtime fallback');
+          }
         }
         
         if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {
@@ -6983,6 +6989,35 @@ export const handler: Handler = async (event, context) => {
         deterministic_intent: 'how_are_you',
         assistantText,
       };
+    }
+    // Deterministic temporal lane: answer "what time/date/day is it" without OpenAI.
+    // detectTemporalIntent() already excludes financial questions (spend, transactions, etc.)
+    if (!forcedPrimeDecision && isPrimeBossRequest) {
+      const temporalIntent = detectTemporalIntent(masked);
+      if (temporalIntent) {
+        // Resolve timezone: frontend primeContext → profile metadata → null (UTC fallback)
+        let resolvedTz: string | null = (effectivePrimeContext as any)?.timezone || null;
+        if (!resolvedTz) {
+          try {
+            const { data: tzRow } = await sb
+              .from('profiles')
+              .select('time_zone, metadata')
+              .eq('id', userId)
+              .maybeSingle();
+            if (tzRow) {
+              resolvedTz = (tzRow.metadata as any)?.timezone || tzRow.time_zone || null;
+            }
+          } catch { /* non-blocking — UTC fallback is acceptable */ }
+        }
+        const assistantText = formatTemporalResponse(temporalIntent, resolvedTz);
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'temporal',
+          deterministic_intent: temporalIntent,
+          assistantText,
+        };
+        console.log(`[Chat] Deterministic temporal lane: intent=${temporalIntent} tz=${resolvedTz || 'UTC'}`);
+      }
     }
     // Keep "last/latest upload summary" deterministic recalls authoritative.
     // Without this guard, generic pipeline reuse can override recall responses
@@ -9224,14 +9259,22 @@ export const handler: Handler = async (event, context) => {
         }
       } catch { /* non-blocking */ }
 
-      // PRIME DATA USAGE INSTRUCTIONS
+      // PRIME FINANCIAL GROUNDING CONTRACT
       primeContextMessage += `
-PRIME DATA INSTRUCTIONS:
-- Reference real numbers from the data above — never invent figures.
-- Be direct: "You overspent Food by $340" not "spending appears elevated."
-- When a question can be answered from context above, answer directly without calling tx_search.
-- When data is insufficient, use tools to investigate further.
-- When handing off, provide context: "I'll have Tag handle that category change."
+PRIME FINANCIAL GROUNDING CONTRACT:
+1. GROUNDED ANSWERS: Reference real numbers from the data above — never invent figures.
+   Be direct: "You spent $6,472.65 on fuel" not "spending appears elevated."
+2. CONTEXT-FIRST: When a question can be answered from Tax Summary or Snapshot above, answer directly without calling tx_search.
+3. TOOL INVESTIGATION: When data is insufficient or the user asks about something not in context, use tx_search to investigate.
+   - Use natural-language category names in tx_search (e.g., "fuel", "restaurants") — they auto-resolve to DB taxonomy.
+   - Use subcategory for precise queries (e.g., category="Transportation", subcategory="Gas & Fuel").
+4. QUERY STATUS RULES:
+   - queryStatus="verified" → data found, totals are real. Report them confidently.
+   - queryStatus="verified_zero" → query succeeded, genuinely zero results. Say "I found no [X] transactions in [period]."
+   - queryStatus="unresolved_category" → the category term was not recognized. Say "I'm not sure what category '[term]' maps to. Could you clarify?"
+   - NEVER say "you have no fuel expenses" unless queryStatus is verified_zero. Absence from Snapshot does NOT mean zero.
+5. HANDOFF: When handing off, provide context: "I'll have Tag handle that category change."
+6. NEVER FABRICATE: If you cannot verify a number from context or tools, say so. Do not guess.
 `;
 
       // Inject temporal context (trusted server time + user timezone)
@@ -11156,60 +11199,25 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           console.warn('[Chat] Failed to convert tools to OpenAI format (non-fatal):', toolError);
         }
         
-        // PHASE 2.3 FIX (Apr 2026): Tool gating for Prime when user asks about Tax Summary categories.
-        // GPT-4o has a strong bias toward calling tools when available, even when the answer is
-        // already in the system prompt. When the user asks about a category/subcategory that's in
-        // our Tax Summary AUTHORITATIVE block, force tool_choice='none' so Prime MUST answer from
-        // the prompt instead of calling tx_search (which returns inaccurate merchant-pattern matches).
+        // PHASE 1B.1: Exact-scope tool gating for Prime financial read tools.
+        // Only strip tools when authoritative context contains the EXACT answer.
+        // A broader scope (section total) NEVER satisfies a narrower one (subcategory, merchant, different year).
         let primeToolChoice: any = undefined;
         if (isPrime && openaiTools) {
           try {
             const pc = (effectivePrimeContext as any) || {};
             const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
             if (taxSummary.length > 0) {
-              // Collect all subcategory names + section titles from Tax Summary
-              const knownLabels: string[] = [];
-              for (const section of taxSummary) {
-                if (section?.section) knownLabels.push(String(section.section).toLowerCase());
-                if (Array.isArray(section?.topSubcategories)) {
-                  for (const sub of section.topSubcategories) {
-                    if (sub?.name) knownLabels.push(String(sub.name).toLowerCase());
-                  }
-                }
-              }
-              // Normalize the user's latest message for matching
+              const { shouldRetainTools } = await import('../../../src/shared/tool-gate');
               const lastUserMsg = String(messageTrimmed || '').toLowerCase();
-              // Match if ANY label's core word appears in the user message.
-              // Use first word of each label (e.g., "Car Payments" -> "car", "Gas & Fuel" -> "gas").
-              const matchedLabel = knownLabels.find(label => {
-                // Direct substring match (e.g., user says "car payments", label is "car payments")
-                if (lastUserMsg.includes(label)) return true;
-                // Match first word of label (e.g., user says "cars", label "car payments" -> first word "car")
-                const firstWord = label.split(/[\s\/&]+/).filter(Boolean)[0];
-                if (firstWord && firstWord.length >= 3 && lastUserMsg.includes(firstWord)) return true;
-                return false;
-              });
-              // PHASE 2.9 FIX (Apr 2026): Only strip tools when the question is AMOUNT-seeking.
-              // Tax Summary has category totals but NOT merchant/transaction-level detail.
-              // Merchant questions like "which gas station did I use most" require tx_search.
-              // Question-intent patterns that need tools:
-              //   - "which", "what vendor", "what merchant", "where did I"
-              //   - "most common", "most frequent", "top", "biggest transaction"
-              //   - "list", "show me", "breakdown by merchant"
-              //   - "when", "last time", "transaction on [date]"
-              const needsTools = /\b(which|vendor|merchant|where did|most (common|frequent|used)|top \w+|biggest (transaction|purchase)|list (my|the)|show me (my|the) (transactions|purchases|charges)|breakdown by (merchant|vendor|store)|when did|last time|transaction on|\bon [a-z]+ \d+)\b/i.test(lastUserMsg);
-              // Mutation/action intents require tools (request_employee_handoff, tx_update_category, etc.)
-              // even when a category label appears in the message — the label is the TARGET, not a query.
-              const isMutationIntent = /\b(change|update|set|recategorize|re-categorize|categorize as|move|switch|make it|mark as|mark this|fix|rename|create rule|remember this|delete|remove)\b/i.test(lastUserMsg);
-              if (matchedLabel && !needsTools && !isMutationIntent) {
-                // Phase 2.5 FIX: Just strip tools entirely. No tool_choice needed when there are
-                // no tools — and sending tool_choice='none' without tools can cause OpenAI to
-                // time out on the first token. Stripping is clean and fast.
+              const contextYear = new Date().getFullYear();
+              const retain = shouldRetainTools(taxSummary, lastUserMsg, contextYear);
+              if (!retain) {
                 openaiTools = undefined;
                 primeToolChoice = undefined;
-                console.log('[Chat][PRIME_DEBUG] tools stripped (matched Tax Summary label):', matchedLabel);
-              } else if (matchedLabel && (needsTools || isMutationIntent)) {
-                console.log('[Chat][PRIME_DEBUG] Tax Summary match but tools preserved:', matchedLabel, { needsTools, isMutationIntent });
+                console.log('[Chat][PRIME_DEBUG] tools stripped (exact-scope match in Tax Summary)');
+              } else {
+                console.log('[Chat][PRIME_DEBUG] tools retained (exact scope not satisfied by context)');
               }
             }
           } catch (gateError: any) {
@@ -11221,6 +11229,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         // (No need to resolve again - already available in scope)
         
         const nonStreamAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+        const _tPrimeStart = Date.now();
+        console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=prime_openai_start model=${modelConfig.model} employee=${finalEmployeeSlug} elapsedMs=${_tPrimeStart - requestStartTime} remainingMs=${60000 - (_tPrimeStart - requestStartTime)} timeoutMs=${resolveOpenAiTimeoutMs()}`);
         let completion = await withTimeout(
           openai.chat.completions.create({
             model: modelConfig.model,
@@ -11236,6 +11246,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           orchCtx,
           nonStreamAbortController
         );
+        console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=prime_openai_end durationMs=${Date.now() - _tPrimeStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)} toolCalls=${completion.choices[0]?.message?.tool_calls?.length || 0}`);
 
         assistantContent = completion.choices[0]?.message?.content || '';
         let toolCalls = completion.choices[0]?.message?.tool_calls || [];
@@ -11540,6 +11551,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   }
                   
                   // Phase 3.2: Store handoff context in database (non-streaming)
+                  const _tHandoffDbStart = Date.now();
+                  console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=handoff_db_start target=${targetSlug} elapsedMs=${_tHandoffDbStart - requestStartTime} remainingMs=${60000 - (_tHandoffDbStart - requestStartTime)}`);
                   try {
                     await sb.from('handoffs').insert({
                       user_id: userId,
@@ -11596,7 +11609,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // Update finalEmployeeSlug for this request
                   finalEmployeeSlug = targetSlug;
                   
+                  console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=handoff_db_end durationMs=${Date.now() - _tHandoffDbStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
                   // Reload employee profile and tools for new employee
+                  const _tToolReloadStart = Date.now();
                   try {
                     const newEmployeeProfile = await getEmployeeProfileCached(sb, finalEmployeeSlug, orchCtx);
                     if (newEmployeeProfile?.tools_allowed && Array.isArray(newEmployeeProfile.tools_allowed)) {
@@ -11607,6 +11622,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   } catch (error: any) {
                     console.warn('[Chat] Failed to reload employee tools after handoff:', error);
                   }
+                  console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=tool_reload_end durationMs=${Date.now() - _tToolReloadStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)} toolCount=${employeeTools.length}`);
                 }
               }
               
@@ -11756,6 +11772,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               : undefined;
 
             const loopAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+            const _tLoopCallStart = Date.now();
+            console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=specialist_openai_r${toolRound}_start model=${loopModelConfig.model} employee=${finalEmployeeSlug} toolChoice=${loopToolChoice || 'auto'} elapsedMs=${_tLoopCallStart - requestStartTime} remainingMs=${60000 - (_tLoopCallStart - requestStartTime)} timeoutMs=${resolveOpenAiTimeoutMs()}`);
             completion = await withTimeout(
               openai.chat.completions.create({
                 model: loopModelConfig.model,
@@ -11771,6 +11789,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               orchCtx,
               loopAbortController,
             );
+            console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=specialist_openai_r${toolRound}_end durationMs=${Date.now() - _tLoopCallStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)} toolCalls=${completion.choices[0]?.message?.tool_calls?.length || 0}`);
 
             assistantContent = completion.choices[0]?.message?.content || assistantContent;
             const newToolCalls = completion.choices[0]?.message?.tool_calls || [];
@@ -11809,7 +11828,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   }
                 }
 
-                console.log(`[Chat] Tool loop round ${toolRound}: executing ${toolName}`);
+                const _tToolExecStart = Date.now();
+                console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=tool_exec_r${toolRound}_start tool=${toolName} elapsedMs=${_tToolExecStart - requestStartTime} remainingMs=${60000 - (_tToolExecStart - requestStartTime)}`);
 
                 // Confirmation gate
                 if (requiresConfirmation(toolModule.meta)) {
@@ -11855,6 +11875,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   tool_call_id: toolCall.id,
                   content: JSON.stringify(result),
                 });
+                console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=tool_exec_r${toolRound}_end tool=${toolName} durationMs=${Date.now() - _tToolExecStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
               } catch (error: any) {
                 console.error(`[Chat] Tool loop round ${toolRound} error for ${toolName}:`, error.message);
                 currentToolResults.push({
@@ -11865,6 +11886,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               }
             }
           } catch (loopError: any) {
+            const _sanitizedMsg = String(loopError?.message || '').slice(0, 80).replace(/[^\w\s.:_-]/g, '');
+            console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=specialist_loop_error employee=${finalEmployeeSlug} round=${toolRound} errorName=${loopError?.name || 'Unknown'} errorMsg="${_sanitizedMsg}" model=${loopModelConfig?.model || '?'} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
             console.error(`[Chat] Tool loop round ${toolRound} failed:`, loopError);
             assistantContent = assistantContent || "I had trouble processing the tool results, but I can still help you with your question.";
             break;
@@ -11899,6 +11922,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               preferLongForm: false,
             });
             const confirmAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+            const _tConfirmStart = Date.now();
+            console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=confirm_text_openai_start model=${confirmModelConfig.model} employee=${finalEmployeeSlug} elapsedMs=${_tConfirmStart - requestStartTime} remainingMs=${60000 - (_tConfirmStart - requestStartTime)} timeoutMs=${resolveOpenAiTimeoutMs()}`);
             const confirmCompletion = await withTimeout(
               openai.chat.completions.create({
                 model: confirmModelConfig.model,
@@ -11912,6 +11937,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               orchCtx,
               confirmAbort,
             );
+            console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=confirm_text_openai_end durationMs=${Date.now() - _tConfirmStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
             const confirmText = confirmCompletion.choices[0]?.message?.content;
             if (confirmText) {
               assistantContent = confirmText;
@@ -12130,6 +12156,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         // Extract pending confirmation from tool results if present (non-streaming gate)
         const pendingConfirmationPayload = (toolResults as any)?.__pendingConfirmation || null;
 
+        console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=response_serialize employee=${finalEmployeeSlug} hasHandoff=${!!handoffMeta} hasConfirmation=${!!pendingConfirmationPayload} contentLen=${(assistantContent||'').length} totalElapsedMs=${Date.now() - requestStartTime}`);
         return {
           statusCode: 200,
           headers: {
@@ -12150,6 +12177,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           }),
         };
       } catch (nonStreamingError: any) {
+        console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=non_streaming_error errorName=${nonStreamingError?.name} totalElapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
         console.error('[Chat] Non-streaming OpenAI call failed:', nonStreamingError);
         const isTimeout = isOpenAiTimeoutError(nonStreamingError);
         if (isTimeout) {
@@ -12208,11 +12236,18 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             sessionId: finalSessionId,
             thread_id: threadId, // CRITICAL: Return thread_id even on error
             message: process.env.NETLIFY_DEV === 'true' ? nonStreamingError.message : undefined,
+            _diagnostic: {
+              stage: orchestrationStage,
+              fallback: true,
+              timeout: isTimeout,
+              elapsedMs: Date.now() - requestStartTime,
+            },
           }),
         };
       }
     }
   } catch (err: any) {
+    console.log(`[ChatTiming] request=${requestId?.slice?.(0,12) || '?'} stage=FATAL errorName=${err?.name} totalElapsedMs=${Date.now() - (requestStartTime || Date.now())}`);
     console.error('[chat] FATAL', {
       requestId,
       employeeSlug: employeeSlugForLog,
@@ -12252,6 +12287,12 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         meta: {
           failed_stage: orchestrationStage || null,
           fallback_used: true,
+        },
+        _diagnostic: {
+          stage: orchestrationStage || 'pipeline',
+          fallback: true,
+          fatal: true,
+          elapsedMs: Date.now() - (requestStartTime || Date.now()),
         },
       }),
     };

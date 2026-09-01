@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { normalizeMerchantName, merchantKey } from './_shared/merchantNormalize.js';
+import { resolveCategoryOrPassthrough } from '../../../src/shared/financial-taxonomy';
 
 // Categories that are internal money movement, NOT real spending. Excluded from
 // totals.spending so Prime doesn't report "Transfers" as the #1 expense.
@@ -29,6 +30,7 @@ type RequestBody = {
   minAmount?: number;
   maxAmount?: number;
   category?: string;
+  subcategory?: string;
   uncategorizedOnly?: boolean;
   includePending?: boolean;
   limit?: number;
@@ -149,8 +151,30 @@ export const handler: Handler = async (event) => {
     const importId = String(body.importId || '').trim() || null;
     const documentId = String(body.documentId || '').trim() || null;
     const q = String(body.q || '').trim();
-    const category = String(body.category || '').trim();
+    const rawCategory = String(body.category || '').trim();
+    const rawSubcategory = String(body.subcategory || '').trim();
     const uncategorizedOnly = parseBool(body.uncategorizedOnly);
+
+    // ── Canonical resolver: map natural-language terms to DB taxonomy ──
+    // If category is provided, resolve it. If subcategory is provided directly, use as-is.
+    let resolvedCategory: { category: string; subcategory?: string; section?: string } | null = null;
+    let category = rawCategory;
+    let subcategory = rawSubcategory;
+    let queryStatus: 'verified' | 'verified_zero' | 'unresolved_category' | 'insufficient_scope' | 'query_error' = 'verified';
+
+    if (rawCategory && !uncategorizedOnly) {
+      resolvedCategory = resolveCategoryOrPassthrough(rawCategory);
+      if (resolvedCategory) {
+        category = resolvedCategory.category;
+        // If resolver provides a subcategory and none was explicitly provided, use it
+        if (resolvedCategory.subcategory && !rawSubcategory) {
+          subcategory = resolvedCategory.subcategory;
+        }
+      } else {
+        // Category term could not be mapped — signal unresolved
+        queryStatus = 'unresolved_category';
+      }
+    }
     const includePending = parseBool(body.includePending);
     const minAmount = Number.isFinite(Number(body.minAmount)) ? Number(body.minAmount) : null;
     const maxAmount = Number.isFinite(Number(body.maxAmount)) ? Number(body.maxAmount) : null;
@@ -177,6 +201,7 @@ export const handler: Handler = async (event) => {
     }
 
     const hasCategory = await detectColumn(sb, 'transactions', userId, 'category', columnCache);
+    const hasSubcategory = await detectColumn(sb, 'transactions', userId, 'subcategory', columnCache);
     const hasType = await detectColumn(sb, 'transactions', userId, 'type', columnCache);
 
     const selectFields = [
@@ -188,6 +213,7 @@ export const handler: Handler = async (event) => {
       dateColumn,
       ...textCols,
       hasCategory ? 'category' : null,
+      hasSubcategory ? 'subcategory' : null,
     ]
       .filter(Boolean)
       .join(',');
@@ -231,6 +257,10 @@ export const handler: Handler = async (event) => {
       }
     }
 
+    if (hasSubcategory && subcategory && !uncategorizedOnly) {
+      query = query.eq('subcategory', subcategory);
+    }
+
     if (orClauses.length > 0) {
       query = query.or(orClauses.join(','));
     }
@@ -252,6 +282,7 @@ export const handler: Handler = async (event) => {
       amount: toNumber(row.amount),
       signed_amount: buildSignedAmount(row),
       category: row.category || null,
+      subcategory: row.subcategory || null,
       type: row.type || null,
       import_id: row.import_id || null,
       document_id: row.document_id || null,
@@ -357,6 +388,12 @@ export const handler: Handler = async (event) => {
       }
     }
 
+    // Determine final queryStatus: if we got results, it's verified. If zero and no error, verified_zero.
+    // unresolved_category was set earlier if the resolver couldn't map the category term.
+    if (queryStatus !== 'unresolved_category') {
+      queryStatus = rowsWithDupes.length > 0 ? 'verified' : 'verified_zero';
+    }
+
     return {
       statusCode: 200,
       headers,
@@ -364,6 +401,8 @@ export const handler: Handler = async (event) => {
         rows: rowsWithDupes,
         totals,
         topSpendCategory,
+        queryStatus,
+        resolvedCategory,
         pendingRows,
         meta: {
           usedFilters: {
@@ -375,6 +414,7 @@ export const handler: Handler = async (event) => {
             minAmount,
             maxAmount,
             category: category || null,
+            subcategory: subcategory || null,
             uncategorizedOnly,
             includePending,
             limit,
@@ -384,6 +424,7 @@ export const handler: Handler = async (event) => {
             hasDocumentId,
             dateColumn,
             textCols,
+            hasSubcategory,
           },
         },
       }),
@@ -392,7 +433,10 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error?.message || 'tx-search failed' }),
+      body: JSON.stringify({
+        error: error?.message || 'tx-search failed',
+        queryStatus: 'query_error',
+      }),
     };
   }
 };
