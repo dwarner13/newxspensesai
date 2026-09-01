@@ -9263,8 +9263,19 @@ PRIME DATA INSTRUCTIONS:
         });
       }
       systemMessages.push({ role: 'system', content: PRIME_ORCHESTRATION_RULE });
+
+      // Inject temporal context for ALL Prime requests (not gated on effectivePrimeContext).
+      // Uses trusted server time + stored user timezone from profile.
+      if (!effectivePrimeContext) {
+        const userTzFallback = userProfile?.timezone || effectiveTimezone || null;
+        const temporalCtxFallback = buildTemporalContext(userTzFallback);
+        systemMessages.push({
+          role: 'system',
+          content: formatTemporalContextForPrompt(temporalCtxFallback),
+        });
+      }
     }
-    
+
     // 3.6. Custodian Context (ONLY for Custodian, if custodian slug)
     const isCustodian = finalEmployeeSlug === 'custodian' || finalEmployeeSlug === 'custodian-settings';
     if (isCustodian) {
@@ -9340,8 +9351,11 @@ CUSTODIAN CONTEXT (Account Security & Settings):
       if (memoryContext) {
         systemMessages.push({ role: 'system', content: memoryContext });
       }
-    } else if (employeeSystemPrompt) {
+    } else if (employeeSystemPrompt && !isPrime) {
       // Use system_prompt from employee_profiles table (includes org chart, handoff rules, etc.)
+      // SKIP for Prime: Prime's brain pack (injected at step 2.5) is the authoritative prompt.
+      // The DB system_prompt for Prime contains legacy receptionist routing rules that conflict
+      // with Prime Boss V1's reasoning-first contract.
       systemMessages.push({ role: 'system', content: employeeSystemPrompt });
       if (memoryContext) {
         systemMessages.push({ role: 'system', content: memoryContext });
@@ -10453,6 +10467,57 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           messages.push({ role: 'system', content: txVendorAmbiguityHint });
         }
 
+        // ── Same-Turn Specialist Continuation (streaming path) ──────────
+        // After handoff, the receiving specialist must ACT on the user's request
+        // in the SAME HTTP response — not merely acknowledge.
+        const streamingHandoffOccurred = finalEmployeeSlug !== originalEmployeeSlug;
+        if (streamingHandoffOccurred) {
+          // Inject specialist identity + continuation instruction
+          try {
+            const specialistProfile = await getEmployeeProfileCached(sb, finalEmployeeSlug, orchCtx);
+            if (specialistProfile?.system_prompt) {
+              messages.push({ role: 'system', content: specialistProfile.system_prompt });
+              console.log(`[Chat] Injected specialist system_prompt for ${finalEmployeeSlug} (${specialistProfile.system_prompt.length} chars)`);
+            }
+          } catch (e: any) {
+            console.warn('[Chat] Failed to load specialist system_prompt for continuation:', e?.message);
+          }
+          // Recompute Tag authority hint (was null when computed pre-handoff)
+          if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {
+            messages.push({
+              role: 'system' as const,
+              content: `TAG ESCALATION & RULE-SETTING INSTRUCTIONS
+
+ESCALATION: If the user asks about financial strategy, tax advice, deduction optimization, budgeting goals, or anything beyond categorization - do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my categorization expertise - let me bring in Prime for that."
+
+RULE-SETTING: You can set categorization rules. When a user says "mark X as business" or "X should be categorized as Y", insert into category_rules table: { user_id, merchant_pattern (the match_value), category, is_business, match_type: "contains", is_active: true }. Then confirm: "Rule saved - all future X transactions will be categorized as Y." Use the tag-learn function or direct Supabase insert via tag_upsert_rule if available.`,
+            });
+          }
+          // Inject Byte context if handing to Byte
+          if ((finalEmployeeSlug === 'byte-docs' || finalEmployeeSlug === 'byte') && byteContextHint) {
+            messages.push(byteContextHint);
+          }
+          messages.push({
+            role: 'system',
+            content: `SAME-TURN SPECIALIST EXECUTION — MANDATORY
+
+You are now ${finalEmployeeSlug}. The previous employee (${originalEmployeeSlug}) handed off to you.
+
+ORIGINAL USER REQUEST (act on this NOW):
+"${masked}"
+
+INSTRUCTIONS:
+1. You MUST use your tools immediately to fulfill this request. Do NOT merely acknowledge, greet, or re-state the request.
+2. Start by searching/investigating with the appropriate read tool (e.g. tx_search for transactions).
+3. Once you have the data, proceed to the action the user requested (e.g. category mutation).
+4. If a mutation requires confirmation, call the gated tool — the server confirmation gate will handle the rest.
+5. If you cannot find a match, report that clearly. If multiple matches exist, ask the user to clarify.
+
+This is a SAME-TURN continuation. The user is waiting for you to act, not to introduce yourself.`,
+          });
+          console.log(`[Chat] Injected same-turn continuation instruction for ${finalEmployeeSlug}`);
+        }
+
         // Second completion with tool results
         try {
           // If handoff occurred, reload tools for new employee
@@ -10462,7 +10527,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           } catch (toolError: any) {
             console.warn('[Chat] Failed to convert tools after handoff (non-fatal):', toolError);
           }
-          
+
           // Use model config for current employee (may have changed after handoff)
           let modelConfigAfterHandoff;
           try {
@@ -10480,7 +10545,151 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             qualityMode: shouldPreferPrimeQualityMode,
             preferLongForm: true,
           });
-          
+
+          // ── After handoff: non-streaming specialist tool loop ──────────
+          // The specialist may need to call tools (tx_search, tx_update_category,
+          // etc.) to fulfill the request. Use non-streaming so we can handle
+          // the tool loop properly with confirmation gates.
+          if (streamingHandoffOccurred && openaiToolsAfterHandoff) {
+            console.log(`[Chat] Specialist continuation: non-streaming tool loop for ${finalEmployeeSlug}`);
+            const SPECIALIST_MAX_ROUNDS = 3;
+            let specRound = 0;
+            let specConfirmation = false;
+
+            // Initial specialist completion (non-streaming)
+            // Force tool use on first round to prevent acknowledgment-only responses
+            const specAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+            let specCompletion = await withTimeout(
+              openai.chat.completions.create({
+                model: modelConfigAfterHandoff.model,
+                messages,
+                temperature: modelConfigAfterHandoff.temperature,
+                max_tokens: modelConfigAfterHandoff.maxTokens,
+                stream: false,
+                tools: openaiToolsAfterHandoff,
+                tool_choice: 'required' as any,
+              } as any),
+              resolveOpenAiTimeoutMs(),
+              'specialist_continuation_initial',
+              orchCtx,
+              specAbort,
+            );
+
+            assistantContent = specCompletion.choices[0]?.message?.content || '';
+            let specToolCalls = specCompletion.choices[0]?.message?.tool_calls || [];
+
+            // Tool loop for specialist
+            while (specToolCalls.length > 0 && specRound < SPECIALIST_MAX_ROUNDS && !specConfirmation) {
+              specRound++;
+              const specToolResults: any[] = [];
+
+              for (const tc of specToolCalls) {
+                const tn = tc.function.name;
+                const tm = toolModules[tn];
+                if (!tm) {
+                  specToolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ error: `Tool ${tn} not available` }) });
+                  continue;
+                }
+                try {
+                  const tArgs = JSON.parse(tc.function.arguments || '{}');
+
+                  // Date normalization
+                  if ((tn === 'tx_search' || tn === 'transaction_category_totals') && authoritativeRanges.length > 0) {
+                    const norm = normalizeToolDateArgs(tArgs, authoritativeRanges);
+                    if (norm.corrected) {
+                      tArgs.startDate = norm.startDate;
+                      tArgs.endDate = norm.endDate;
+                    }
+                  }
+
+                  console.log(`[Chat] Specialist tool loop round ${specRound}: executing ${tn}`);
+
+                  // Confirmation gate
+                  if (requiresConfirmation(tm.meta)) {
+                    const pending = await createPendingConfirmation(sb, userId, finalSessionId, tn, tArgs);
+                    specToolResults.push({
+                      role: 'tool', tool_call_id: tc.id,
+                      content: JSON.stringify({
+                        _requiresConfirm: true,
+                        confirmationId: pending.confirmationId,
+                        expiresAt: pending.expiresAt,
+                        toolName: tn, args: tArgs,
+                        message: `This action requires your confirmation before proceeding.`,
+                      }),
+                    });
+                    specConfirmation = true;
+                    continue;
+                  }
+
+                  // Track tx_search IDs
+                  const toolCtx: ToolContext = { userId, conversationId: finalSessionId, sessionId: finalSessionId, authHeader: authHeader || '' };
+                  const tResult = await executeTool(tm, tArgs, toolCtx);
+
+                  if (tn === 'tx_search' && finalSessionId) {
+                    const rows = Array.isArray((tResult as any)?.rows) ? (tResult as any).rows : [];
+                    const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
+                    if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
+                  }
+
+                  // Send tool events to stream
+                  writeSSE({ type: 'tool_call', tool: tn, args: tArgs });
+                  let displayRes = tResult;
+                  try {
+                    displayRes = JSON.parse(JSON.stringify(tResult));
+                    if (Array.isArray(displayRes) && displayRes.length > 10) {
+                      displayRes = displayRes.slice(0, 10).concat([`... and ${displayRes.length - 10} more items`]);
+                    }
+                  } catch { displayRes = String(tResult).substring(0, 500); }
+                  writeSSE({ type: 'tool_result', tool: tn, result: displayRes });
+
+                  specToolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(tResult) });
+                } catch (err: any) {
+                  console.error(`[Chat] Specialist tool loop error for ${tn}:`, err.message);
+                  specToolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ error: err.message || 'Tool execution failed' }) });
+                }
+              }
+
+              // Push results and get next completion
+              messages.push(
+                { role: 'assistant', content: assistantContent || null, tool_calls: specToolCalls },
+                ...specToolResults
+              );
+              const specHint = buildTxDeterministicMetricsHint(masked, specToolCalls, specToolResults);
+              if (specHint) messages.push({ role: 'system', content: specHint });
+              const specVendorHint = buildVendorRuleAmbiguityHint(masked, specToolCalls, specToolResults);
+              if (specVendorHint) messages.push({ role: 'system', content: specVendorHint });
+
+              if (specConfirmation) break;
+
+              const nextAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+              specCompletion = await withTimeout(
+                openai.chat.completions.create({
+                  model: modelConfigAfterHandoff.model,
+                  messages,
+                  temperature: modelConfigAfterHandoff.temperature,
+                  max_tokens: modelConfigAfterHandoff.maxTokens,
+                  stream: false,
+                  tools: openaiToolsAfterHandoff,
+                } as any),
+                resolveOpenAiTimeoutMs(),
+                `specialist_continuation_round_${specRound}`,
+                orchCtx,
+                nextAbort,
+              );
+              assistantContent = specCompletion.choices[0]?.message?.content || assistantContent;
+              specToolCalls = specCompletion.choices[0]?.message?.tool_calls || [];
+            }
+
+            if (specRound > 0) {
+              console.log(`[Chat] Specialist tool loop completed: ${specRound} round(s), confirmation: ${specConfirmation}`);
+            }
+
+            // Stream the final specialist text
+            if (assistantContent) {
+              writeSSE({ type: 'text', content: assistantContent });
+            }
+          } else {
+            // ── Normal (non-handoff) streaming second completion ──────────
           const secondStreamAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
           const secondStream = await withTimeout(
             openai.chat.completions.create({
@@ -10511,6 +10720,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     }
                   }
                 }
+          }
               } catch (secondStreamError: any) {
                 console.error('[Chat] Second streaming call failed after tool execution:', secondStreamError);
                 // Add error message to stream
@@ -11441,6 +11651,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           try { return JSON.parse(r.content)?._requiresConfirm; } catch { return false; }
         });
         let hadHandoff = currentToolCalls.some((tc: any) => tc.function?.name === 'request_employee_handoff');
+        let specialistContinuationInjected = false;
 
         while (currentToolResults.length > 0 && toolRound < MAX_TOOL_ROUNDS && !hadConfirmation) {
           toolRound++;
@@ -11465,6 +11676,58 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               messages.push({ role: 'system', content: txVendorAmbiguityHint });
             }
 
+            // ── Same-Turn Specialist Continuation (non-streaming path) ──────
+            // After handoff, inject specialist identity + continuation instruction
+            // AFTER the assistant+tool messages so the model sees:
+            //   assistant: Prime's handoff call → tool: result → system: "You are Tag, ACT NOW"
+            // This ordering ensures the continuation instruction is the last context
+            // before generation, making it authoritative.
+            if (hadHandoff && !specialistContinuationInjected && finalEmployeeSlug !== originalEmployeeSlug) {
+              specialistContinuationInjected = true;
+              try {
+                const specialistProfile = await getEmployeeProfileCached(sb, finalEmployeeSlug, orchCtx);
+                if (specialistProfile?.system_prompt) {
+                  messages.push({ role: 'system', content: specialistProfile.system_prompt });
+                  console.log(`[Chat] Injected specialist system_prompt (non-streaming) for ${finalEmployeeSlug}`);
+                }
+              } catch (e: any) {
+                console.warn('[Chat] Failed to load specialist system_prompt (non-streaming):', e?.message);
+              }
+              // Recompute Tag authority hint (was null when computed pre-handoff)
+              if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {
+                messages.push({
+                  role: 'system' as const,
+                  content: `TAG ESCALATION & RULE-SETTING INSTRUCTIONS
+
+ESCALATION: If the user asks about financial strategy, tax advice, deduction optimization, budgeting goals, or anything beyond categorization - do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my categorization expertise - let me bring in Prime for that."
+
+RULE-SETTING: You can set categorization rules. When a user says "mark X as business" or "X should be categorized as Y", insert into category_rules table: { user_id, merchant_pattern (the match_value), category, is_business, match_type: "contains", is_active: true }. Then confirm: "Rule saved - all future X transactions will be categorized as Y." Use the tag-learn function or direct Supabase insert via tag_upsert_rule if available.`,
+                });
+              }
+              if ((finalEmployeeSlug === 'byte-docs' || finalEmployeeSlug === 'byte') && byteContextHint) {
+                messages.push(byteContextHint);
+              }
+              messages.push({
+                role: 'system',
+                content: `SAME-TURN SPECIALIST EXECUTION — MANDATORY
+
+You are now ${finalEmployeeSlug}. The previous employee (${originalEmployeeSlug}) handed off to you.
+
+ORIGINAL USER REQUEST (act on this NOW):
+"${masked}"
+
+INSTRUCTIONS:
+1. You MUST use your tools immediately to fulfill this request. Do NOT merely acknowledge, greet, or re-state the request.
+2. Start by searching/investigating with the appropriate read tool (e.g. tx_search for transactions).
+3. Once you have the data, proceed to the action the user requested (e.g. category mutation).
+4. If a mutation requires confirmation, call the gated tool — the server confirmation gate will handle the rest.
+5. If you cannot find a match, report that clearly. If multiple matches exist, ask the user to clarify.
+
+This is a SAME-TURN continuation. The user is waiting for you to act, not to introduce yourself.`,
+              });
+              console.log(`[Chat] Injected same-turn continuation instruction (non-streaming, AFTER tool results) for ${finalEmployeeSlug}`);
+            }
+
             // Reload tools (may have changed after handoff)
             let loopOpenaiTools: any = undefined;
             try {
@@ -11486,6 +11749,12 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               preferLongForm: true,
             });
 
+            // Force tool use on first specialist round after handoff to prevent
+            // the model from merely acknowledging instead of acting.
+            const loopToolChoice = (hadHandoff && toolRound === 1 && loopOpenaiTools)
+              ? 'required' as const
+              : undefined;
+
             const loopAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
             completion = await withTimeout(
               openai.chat.completions.create({
@@ -11494,7 +11763,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                 temperature: loopModelConfig.temperature,
                 max_tokens: loopModelConfig.maxTokens,
                 stream: false,
-                tools: hadHandoff ? undefined : loopOpenaiTools,
+                tools: loopOpenaiTools,
+                ...(loopToolChoice ? { tool_choice: loopToolChoice } : {}),
               } as any),
               resolveOpenAiTimeoutMs(),
               `model_non_streaming_tool_round_${toolRound}`,
@@ -11507,8 +11777,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
 
             console.log(`[Chat] Tool loop round ${toolRound}: ${newToolCalls.length} new tool calls`);
 
-            // If no more tool calls or handoff already happened, break
-            if (newToolCalls.length === 0 || hadHandoff) {
+            // If no more tool calls, break
+            if (newToolCalls.length === 0) {
               break;
             }
 
@@ -11544,6 +11814,10 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                 // Confirmation gate
                 if (requiresConfirmation(toolModule.meta)) {
                   const pending = await createPendingConfirmation(sb, userId, finalSessionId, toolName, args);
+                  console.log(`[Chat] Confirmation gate (tool loop round ${toolRound}): ${toolName} requires approval`, {
+                    confirmationId: pending.confirmationId,
+                    expiresAt: new Date(pending.expiresAt).toISOString(),
+                  });
                   currentToolResults.push({
                     role: 'tool',
                     tool_call_id: toolCall.id,
@@ -11571,7 +11845,11 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   sessionId: finalSessionId,
                   authHeader: authHeader || '',
                 };
-                const result = await executeTool(toolName, args, toolContext);
+                const result = await executeTool(toolModule, args, toolContext, {
+                  employeeSlug: finalEmployeeSlug,
+                  mode: 'propose-confirm',
+                  autonomyLevel: 1,
+                });
                 currentToolResults.push({
                   role: 'tool',
                   tool_call_id: toolCall.id,
@@ -11594,7 +11872,77 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         }
 
         if (toolRound > 0) {
-          console.log(`[Chat] Tool loop completed: ${toolRound} round(s)`);
+          console.log(`[Chat] Tool loop completed: ${toolRound} round(s), confirmation: ${hadConfirmation}`);
+        }
+
+        // ── Post-loop confirmation handling ────────────────────────────────
+        // When hadConfirmation is set in the multi-round loop, the confirmation
+        // tool result is in currentToolResults but was never pushed to messages.
+        // Generate a final specialist completion to produce user-facing confirmation text.
+        if (hadConfirmation && currentToolResults.length > 0) {
+          // Push the final assistant + confirmation tool results
+          messages.push(
+            { role: 'assistant', content: assistantContent || null, tool_calls: currentToolCalls },
+            ...currentToolResults
+          );
+          // One final model call (no tools) to generate confirmation text
+          try {
+            let confirmModelConfig;
+            try {
+              confirmModelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
+            } catch {
+              confirmModelConfig = { model: 'gpt-4o-mini', temperature: 0.7, maxTokens: 1000 };
+            }
+            confirmModelConfig = applyPrimeChatStyleModelConfig(confirmModelConfig, {
+              employeeSlug: finalEmployeeSlug,
+              qualityMode: false,
+              preferLongForm: false,
+            });
+            const confirmAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+            const confirmCompletion = await withTimeout(
+              openai.chat.completions.create({
+                model: confirmModelConfig.model,
+                messages,
+                temperature: confirmModelConfig.temperature,
+                max_tokens: 500,
+                stream: false,
+              } as any),
+              resolveOpenAiTimeoutMs(),
+              'specialist_confirmation_text',
+              orchCtx,
+              confirmAbort,
+            );
+            const confirmText = confirmCompletion.choices[0]?.message?.content;
+            if (confirmText) {
+              assistantContent = confirmText;
+              console.log(`[Chat] Generated confirmation text for ${finalEmployeeSlug}: ${confirmText.slice(0, 100)}...`);
+            }
+          } catch (confirmTextError: any) {
+            console.warn('[Chat] Failed to generate confirmation text (non-fatal):', confirmTextError?.message);
+            // Fall back to a generic confirmation message
+            assistantContent = `I found the transaction and would like to make the requested change. Please confirm to proceed.`;
+          }
+
+          // Propagate pendingConfirmation metadata for the JSON response
+          const confirmToolResult = currentToolResults.find((r: any) => {
+            try { return JSON.parse(r.content)?._requiresConfirm; } catch { return false; }
+          });
+          if (confirmToolResult) {
+            try {
+              const parsed = JSON.parse(confirmToolResult.content);
+              (toolResults as any).__pendingConfirmation = {
+                type: 'confirmation_required',
+                tool: parsed.toolName,
+                summary: `Change category for the requested transaction`,
+                confirmationId: parsed.confirmationId,
+                expiresAt: parsed.expiresAt,
+                args: parsed.args,
+              };
+              console.log(`[Chat] Set pendingConfirmation metadata: ${parsed.confirmationId}`);
+            } catch (e: any) {
+              console.warn('[Chat] Failed to parse confirmation metadata:', e?.message);
+            }
+          }
         }
       }
 

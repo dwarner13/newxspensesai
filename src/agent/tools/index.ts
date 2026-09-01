@@ -730,6 +730,30 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
 ]);
 
+/**
+ * Fix JSON Schema draft-04 boolean exclusiveMinimum/Maximum to draft 2020-12
+ * number form. zod-to-json-schema with openApi3 target emits
+ * `{ exclusiveMinimum: true, minimum: 0 }` for `.positive()`, but OpenAI
+ * expects `{ exclusiveMinimum: 0 }` (number, not boolean).
+ */
+function fixExclusiveBounds(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(fixExclusiveBounds);
+  const out: any = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = fixExclusiveBounds(v);
+  }
+  if (out.exclusiveMinimum === true && typeof out.minimum === 'number') {
+    out.exclusiveMinimum = out.minimum;
+    delete out.minimum;
+  }
+  if (out.exclusiveMaximum === true && typeof out.maximum === 'number') {
+    out.exclusiveMaximum = out.maximum;
+    delete out.maximum;
+  }
+  return out;
+}
+
 export function toOpenAIToolDefs(ids: string[]): OpenAIToolDef[] {
   return ids
     .map(id => toolModules.get(id))
@@ -739,10 +763,10 @@ export function toOpenAIToolDefs(ids: string[]): OpenAIToolDef[] {
       function: {
         name: tool!.id,
         description: tool!.description,
-        parameters: zodToJsonSchema(tool!.inputSchema, {
+        parameters: fixExclusiveBounds(zodToJsonSchema(tool!.inputSchema, {
           target: 'openApi3',
           $refStrategy: 'none',
-        }),
+        })),
       },
     }));
 }
