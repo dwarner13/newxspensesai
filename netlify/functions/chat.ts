@@ -137,6 +137,16 @@ import {
   consumeConfirmation,
   hashArgs,
 } from './_shared/toolConfirmation.js';
+// Phase 1B.2: Server-enforced financial grounding (static imports — must not fail-open)
+import { classifyFinancialQuery } from '../../src/shared/financial-query-classifier';
+import {
+  isAnswerInContext,
+  buildPreExecutionPlan,
+  buildEvidenceSystemMessage,
+  validateGroundedAnswer,
+} from '../../src/shared/financial-grounding';
+// Phase 1B.1: Tool-gate exact-scope sufficiency
+import { shouldRetainTools } from '../../src/shared/tool-gate';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
 
@@ -11204,24 +11214,19 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         // A broader scope (section total) NEVER satisfies a narrower one (subcategory, merchant, different year).
         let primeToolChoice: any = undefined;
         if (isPrime && openaiTools) {
-          try {
-            const pc = (effectivePrimeContext as any) || {};
-            const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
-            if (taxSummary.length > 0) {
-              const { shouldRetainTools } = await import('../../src/shared/tool-gate');
-              const lastUserMsg = String(messageTrimmed || '').toLowerCase();
-              const contextYear = new Date().getFullYear();
-              const retain = shouldRetainTools(taxSummary, lastUserMsg, contextYear);
-              if (!retain) {
-                openaiTools = undefined;
-                primeToolChoice = undefined;
-                console.log('[Chat][PRIME_DEBUG] tools stripped (exact-scope match in Tax Summary)');
-              } else {
-                console.log('[Chat][PRIME_DEBUG] tools retained (exact scope not satisfied by context)');
-              }
+          const pc = (effectivePrimeContext as any) || {};
+          const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
+          if (taxSummary.length > 0) {
+            const lastUserMsg = String(messageTrimmed || '').toLowerCase();
+            const contextYear = new Date().getFullYear();
+            const retain = shouldRetainTools(taxSummary, lastUserMsg, contextYear);
+            if (!retain) {
+              openaiTools = undefined;
+              primeToolChoice = undefined;
+              console.log('[Chat][PRIME_DEBUG] tools stripped (exact-scope match in Tax Summary)');
+            } else {
+              console.log('[Chat][PRIME_DEBUG] tools retained (exact scope not satisfied by context)');
             }
-          } catch (gateError: any) {
-            console.warn('[Chat] Prime tool-gating check failed (non-fatal):', gateError?.message || gateError);
           }
         }
         
@@ -11236,79 +11241,71 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         let financialEvidence: { grounded: boolean; toolName?: string; queryStatus?: string; fromContext?: boolean } = { grounded: false };
         let financialClassification: any = null;
         if (isPrime && toolsAllowedThisTurn) {
-          try {
-            const { classifyFinancialQuery } = await import('../../src/shared/financial-query-classifier');
-            const { isAnswerInContext, buildPreExecutionPlan, buildEvidenceSystemMessage } = await import('../../src/shared/financial-grounding');
+          const lastUserMsg = String(messageTrimmed || masked || '');
+          financialClassification = classifyFinancialQuery(lastUserMsg);
+          console.log(`[FinancialGrounding] classifier=${financialClassification.requiresGrounding ? 'GROUNDED' : 'none'} queryType=${financialClassification.queryType} resolvedCategory=${JSON.stringify(financialClassification.resolvedCategory ?? null)} merchant=${financialClassification.merchantHint ?? 'none'} years=${JSON.stringify(financialClassification.years)}`);
 
-            const lastUserMsg = String(messageTrimmed || masked || '');
-            financialClassification = classifyFinancialQuery(lastUserMsg);
+          if (financialClassification.requiresGrounding) {
+            const pc = (effectivePrimeContext as any) || {};
+            const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
+            const contextYear = new Date().getFullYear();
 
-            if (financialClassification.requiresGrounding) {
-              const pc = (effectivePrimeContext as any) || {};
-              const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
-              const contextYear = new Date().getFullYear();
+            // Check if context already has the answer
+            const contextEvidence = isAnswerInContext(financialClassification, taxSummary, contextYear);
 
-              // Check if context already has the answer
-              const contextEvidence = isAnswerInContext(financialClassification, taxSummary, contextYear);
+            if (contextEvidence) {
+              financialEvidence = contextEvidence;
+              console.log(`[FinancialGrounding] evidence=context fromContext=true`);
+            } else {
+              // Pre-execute the right tool
+              const plan = buildPreExecutionPlan(financialClassification, contextYear);
+              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName]) {
+                console.log(`[FinancialGrounding] pre-executing tool=${plan.toolName} args=${JSON.stringify(plan.toolArgs)}`);
+                try {
+                  const toolContext: ToolContext = {
+                    userId,
+                    conversationId: finalSessionId,
+                    sessionId: finalSessionId,
+                    authHeader: authHeader || '',
+                  };
+                  const preResult = await executeTool(toolModules[plan.toolName], plan.toolArgs || {}, toolContext, {
+                    employeeSlug: finalEmployeeSlug,
+                    mode: 'propose-confirm',
+                    autonomyLevel: 1,
+                  });
 
-              if (contextEvidence) {
-                financialEvidence = contextEvidence;
-                console.log(`[Chat][GROUNDING] Evidence found in context (fromContext=true)`);
-              } else {
-                // Pre-execute the right tool
-                const plan = buildPreExecutionPlan(financialClassification, contextYear);
-                if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName]) {
-                  console.log(`[Chat][GROUNDING] Pre-executing ${plan.toolName} for financial grounding`, plan.toolArgs);
-                  try {
-                    const toolContext: ToolContext = {
-                      userId,
-                      conversationId: finalSessionId,
-                      sessionId: finalSessionId,
-                      authHeader: authHeader || '',
-                    };
-                    const preResult = await executeTool(toolModules[plan.toolName], plan.toolArgs || {}, toolContext, {
-                      employeeSlug: finalEmployeeSlug,
-                      mode: 'propose-confirm',
-                      autonomyLevel: 1,
-                    });
-
-                    if (preResult && typeof preResult === 'object' && !('error' in preResult)) {
-                      // Determine queryStatus from result
-                      let qs = 'verified';
-                      if (plan.toolName === 'tax_summary') {
-                        const sections = (preResult as any)?.sections || (preResult as any)?.data?.sections || [];
-                        if (!Array.isArray(sections) || sections.length === 0) qs = 'verified_zero';
-                      } else if (plan.toolName === 'tx_search') {
-                        qs = (preResult as any)?.queryStatus || 'verified';
-                        const rows = (preResult as any)?.rows || [];
-                        if (rows.length === 0 && qs === 'verified') qs = 'verified_zero';
-                      }
-
-                      financialEvidence = {
-                        grounded: true,
-                        toolName: plan.toolName,
-                        queryStatus: qs,
-                      };
-
-                      // Inject evidence into messages as system prompt
-                      const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, preResult, financialClassification);
-                      messages.push({ role: 'system', content: evidenceMsg });
-                      console.log(`[Chat][GROUNDING] Injected evidence: ${plan.toolName} queryStatus=${qs}`);
-                    } else {
-                      console.warn(`[Chat][GROUNDING] Pre-execution returned error:`, preResult);
-                      financialEvidence = { grounded: false };
+                  if (preResult && typeof preResult === 'object' && !('error' in preResult)) {
+                    // Determine queryStatus from result
+                    let qs = 'verified';
+                    if (plan.toolName === 'tax_summary') {
+                      const sections = (preResult as any)?.sections || (preResult as any)?.data?.sections || [];
+                      if (!Array.isArray(sections) || sections.length === 0) qs = 'verified_zero';
+                    } else if (plan.toolName === 'tx_search') {
+                      qs = (preResult as any)?.queryStatus || 'verified';
+                      const rows = (preResult as any)?.rows || [];
+                      if (rows.length === 0 && qs === 'verified') qs = 'verified_zero';
                     }
-                  } catch (preExecErr: any) {
-                    console.error(`[Chat][GROUNDING] Pre-execution failed:`, preExecErr?.message || preExecErr);
+
+                    financialEvidence = {
+                      grounded: true,
+                      toolName: plan.toolName,
+                      queryStatus: qs,
+                    };
+
+                    // Inject evidence into messages as system prompt
+                    const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, preResult, financialClassification);
+                    messages.push({ role: 'system', content: evidenceMsg });
+                    console.log(`[FinancialGrounding] evidence=tool tool=${plan.toolName} queryStatus=${qs}`);
+                  } else {
+                    console.warn(`[FinancialGrounding] pre-execution returned error:`, preResult);
                     financialEvidence = { grounded: false };
                   }
+                } catch (preExecErr: any) {
+                  console.error(`[FinancialGrounding] pre-execution failed:`, preExecErr?.message || preExecErr);
+                  financialEvidence = { grounded: false };
                 }
               }
-            } else {
-              console.log(`[Chat][GROUNDING] Non-financial query — no grounding required`);
             }
-          } catch (groundingErr: any) {
-            console.warn('[Chat][GROUNDING] Financial grounding check failed (non-fatal):', groundingErr?.message || groundingErr);
           }
         }
 
@@ -12097,72 +12094,67 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       // no verified_zero evidence, reject the answer and retry once with
       // the authoritative evidence in the prompt.
       if (isPrime && financialClassification?.requiresGrounding) {
-        try {
-          const { validateGroundedAnswer, buildPreExecutionPlan, buildEvidenceSystemMessage } = await import('../../src/shared/financial-grounding');
-          const validationResult = validateGroundedAnswer(assistantContent, financialEvidence as any, financialClassification);
+        const validationResult = validateGroundedAnswer(assistantContent, financialEvidence as any, financialClassification);
 
-          if (validationResult === 'false_zero_ungrounded' || validationResult === 'false_zero_without_evidence') {
-            console.warn(`[Chat][GROUNDING] FALSE-ZERO DETECTED: "${validationResult}" — retrying with evidence`);
+        if (validationResult === 'false_zero_ungrounded' || validationResult === 'false_zero_without_evidence') {
+          console.warn(`[FinancialGrounding] FALSE-ZERO DETECTED: "${validationResult}" — retrying with evidence`);
 
-            // One bounded retry: force tool execution and re-prompt
-            let retrySucceeded = false;
-            try {
-              const contextYear = new Date().getFullYear();
-              const plan = buildPreExecutionPlan(financialClassification, contextYear);
-              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName]) {
-                const toolCtx: ToolContext = {
-                  userId,
-                  conversationId: finalSessionId,
-                  sessionId: finalSessionId,
-                  authHeader: authHeader || '',
-                };
-                const retryResult = await executeTool(toolModules[plan.toolName], plan.toolArgs || {}, toolCtx, {
-                  employeeSlug: finalEmployeeSlug,
-                  mode: 'propose-confirm',
-                  autonomyLevel: 1,
-                });
+          // One bounded retry: force tool execution and re-prompt
+          let retrySucceeded = false;
+          try {
+            const contextYear = new Date().getFullYear();
+            const plan = buildPreExecutionPlan(financialClassification, contextYear);
+            if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName]) {
+              const toolCtx: ToolContext = {
+                userId,
+                conversationId: finalSessionId,
+                sessionId: finalSessionId,
+                authHeader: authHeader || '',
+              };
+              const retryResult = await executeTool(toolModules[plan.toolName], plan.toolArgs || {}, toolCtx, {
+                employeeSlug: finalEmployeeSlug,
+                mode: 'propose-confirm',
+                autonomyLevel: 1,
+              });
 
-                if (retryResult && typeof retryResult === 'object' && !('error' in retryResult)) {
-                  const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification);
-                  messages.push(
-                    { role: 'assistant', content: assistantContent },
-                    { role: 'system', content: `CORRECTION: Your previous answer claimed zero/no data but the database query found results. Here is the actual evidence:\n\n${evidenceMsg}\n\nPlease rewrite your answer using this verified data. Do NOT claim zero unless the evidence shows zero.` }
-                  );
+              if (retryResult && typeof retryResult === 'object' && !('error' in retryResult)) {
+                const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification);
+                messages.push(
+                  { role: 'assistant', content: assistantContent },
+                  { role: 'system', content: `CORRECTION: Your previous answer claimed zero/no data but the database query found results. Here is the actual evidence:\n\n${evidenceMsg}\n\nPlease rewrite your answer using this verified data. Do NOT claim zero unless the evidence shows zero.` }
+                );
 
-                  const retryAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-                  const retryCompletion = await withTimeout(
-                    openai.chat.completions.create({
-                      model: modelConfig.model,
-                      messages,
-                      temperature: modelConfig.temperature,
-                      max_tokens: modelConfig.maxTokens,
-                      stream: false,
-                    } as any),
-                    resolveOpenAiTimeoutMs(),
-                    'grounding_false_zero_retry',
-                    orchCtx,
-                    retryAbort,
-                  );
-                  const retryContent = retryCompletion.choices[0]?.message?.content;
-                  if (retryContent && retryContent.trim()) {
-                    assistantContent = retryContent;
-                    retrySucceeded = true;
-                    console.log(`[Chat][GROUNDING] False-zero retry succeeded, answer corrected`);
-                  }
+                const retryAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+                const retryCompletion = await withTimeout(
+                  openai.chat.completions.create({
+                    model: modelConfig.model,
+                    messages,
+                    temperature: modelConfig.temperature,
+                    max_tokens: modelConfig.maxTokens,
+                    stream: false,
+                  } as any),
+                  resolveOpenAiTimeoutMs(),
+                  'grounding_false_zero_retry',
+                  orchCtx,
+                  retryAbort,
+                );
+                const retryContent = retryCompletion.choices[0]?.message?.content;
+                if (retryContent && retryContent.trim()) {
+                  assistantContent = retryContent;
+                  retrySucceeded = true;
+                  console.log(`[FinancialGrounding] false-zero retry succeeded`);
                 }
               }
-            } catch (retryErr: any) {
-              console.error(`[Chat][GROUNDING] False-zero retry failed:`, retryErr?.message || retryErr);
             }
-
-            // If retry also failed, return an honest error instead of the false zero
-            if (!retrySucceeded) {
-              assistantContent = "I wasn't able to verify the exact figures for your question right now. Let me look into this — could you try asking again?";
-              console.warn('[Chat][GROUNDING] False-zero retry failed — returning honest uncertainty');
-            }
+          } catch (retryErr: any) {
+            console.error(`[FinancialGrounding] false-zero retry failed:`, retryErr?.message || retryErr);
           }
-        } catch (falseZeroErr: any) {
-          console.warn('[Chat][GROUNDING] False-zero check failed (non-fatal):', falseZeroErr?.message || falseZeroErr);
+
+          // If retry also failed, return an honest error instead of the false zero
+          if (!retrySucceeded) {
+            assistantContent = "I wasn't able to verify the exact figures for your question right now. Let me look into this — could you try asking again?";
+            console.warn('[FinancialGrounding] false-zero retry failed — returning honest uncertainty');
+          }
         }
       }
 
