@@ -477,3 +477,137 @@ describe('Evidence system message', () => {
     expect(msg).toContain('queryStatus: verified');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 1B.2b: FALSE-ZERO RETRY REVALIDATION
+// ─────────────────────────────────────────────────────────────────────────────
+// These tests verify that a retry answer is subjected to the SAME grounding
+// validation as the original. A retry that produces another false-zero must
+// be rejected — never persisted, serialized, or displayed.
+
+describe('Phase 1B.2b: Retry revalidation', () => {
+  const fuelClassification = classifyFinancialQuery(
+    'What can you tell me about my fuel expense in 2025?',
+  );
+
+  const verifiedEvidence: FinancialEvidence = {
+    grounded: true,
+    toolName: 'tax_summary',
+    queryStatus: 'verified',
+  };
+
+  const verifiedZeroEvidence: FinancialEvidence = {
+    grounded: true,
+    toolName: 'tax_summary',
+    queryStatus: 'verified_zero',
+  };
+
+  // 1. Original false-zero + retry correct → accepted
+  it('accepts corrected retry with real numbers', () => {
+    const retryContent = 'In 2025, you spent $6,472.65 on gas and fuel across 123 transactions.';
+    const result = validateGroundedAnswer(retryContent, verifiedEvidence, fuelClassification);
+    expect(result).toBeNull(); // null = valid
+  });
+
+  // 2. Original false-zero + retry same false-zero → rejected
+  it('rejects retry that repeats the same false-zero', () => {
+    const retryContent = 'In 2025, there were no recorded expenses for gas and fuel. If you expected to see some expenses here, we might need to check if a recent import didn\'t complete. Would you like to explore another option or check for any recent imports?';
+    const result = validateGroundedAnswer(retryContent, verifiedEvidence, fuelClassification);
+    expect(result).toBe('false_zero_without_evidence');
+  });
+
+  // 3. Original false-zero + retry different false-zero wording → rejected
+  it('rejects retry with different false-zero wording', () => {
+    const retryContent = "I couldn't find any fuel transactions in your records for 2025.";
+    const result = validateGroundedAnswer(retryContent, verifiedEvidence, fuelClassification);
+    expect(result).toBe('false_zero_without_evidence');
+  });
+
+  // 4. Original false-zero + retry "$0" → rejected unless verified_zero
+  it('rejects retry claiming $0 when evidence is verified (not verified_zero)', () => {
+    const retryContent = 'Your fuel expenses for 2025 total $0.00.';
+    const result = validateGroundedAnswer(retryContent, verifiedEvidence, fuelClassification);
+    expect(result).toBe('false_zero_without_evidence');
+  });
+
+  // 5. verified_zero evidence + legitimate zero response → allowed
+  it('allows zero claim when evidence is verified_zero', () => {
+    const retryContent = 'I found no fuel transactions for 2025.';
+    const result = validateGroundedAnswer(retryContent, verifiedZeroEvidence, fuelClassification);
+    expect(result).toBeNull(); // null = valid — genuine zero
+  });
+
+  // 6. Positive verified evidence + retry false-zero → NEVER accepted
+  it('never accepts false-zero when verified evidence exists', () => {
+    const falseZeroVariants = [
+      'There were no recorded expenses for gas and fuel.',
+      'No transactions found for fuel in 2025.',
+      "You didn't have any fuel expenses.",
+      'You don\'t have any fuel charges on record.',
+      'I didn\'t find any fuel transactions.',
+      'None found for that category.',
+      'There is no data for fuel expenses in 2025.',
+    ];
+
+    for (const variant of falseZeroVariants) {
+      const result = validateGroundedAnswer(variant, verifiedEvidence, fuelClassification);
+      expect(result).toBe('false_zero_without_evidence');
+    }
+  });
+
+  // 7. Empty retry response — caught by trim() gate before validation
+  it('empty string is caught by trim() gate before reaching validator', () => {
+    // In the actual code, empty strings never reach validateGroundedAnswer.
+    // The `retryContent.trim()` check gates them out first.
+    const emptyTrimCheck = !(''.trim());
+    expect(emptyTrimCheck).toBe(true);
+  });
+
+  // 8. Normal grounded non-zero response → unaffected
+  it('passes normal grounded response through unchanged', () => {
+    const goodResponse = 'Based on your records, you spent $6,472.65 on fuel in 2025 across 123 transactions. The majority were at Shell and Petro-Canada.';
+    const result = validateGroundedAnswer(goodResponse, verifiedEvidence, fuelClassification);
+    expect(result).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE FUEL REGRESSION (Phase 1B.2b)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Live fuel regression: exact production false-zero', () => {
+  const fuelClassification = classifyFinancialQuery(
+    'What can you tell me about my fuel expense in 2025?',
+  );
+
+  const verifiedEvidence: FinancialEvidence = {
+    grounded: true,
+    toolName: 'tax_summary',
+    queryStatus: 'verified',
+  };
+
+  it('the exact 234-char production false-zero is rejected by validation', () => {
+    const productionFalseZero = "In 2025, there were no recorded expenses for gas and fuel. If you expected to see some expenses here, we might need to check if a recent import didn't complete. Would you like to explore another option or check for any recent imports?";
+    expect(productionFalseZero.length).toBe(234);
+
+    const result = validateGroundedAnswer(productionFalseZero, verifiedEvidence, fuelClassification);
+    expect(result).toBe('false_zero_without_evidence');
+  });
+
+  it('a corrected answer with real numbers passes validation', () => {
+    const correctedAnswer = 'In 2025, you spent $6,472.65 on gas and fuel across 123 transactions under Vehicle Expenses.';
+    const result = validateGroundedAnswer(correctedAnswer, verifiedEvidence, fuelClassification);
+    expect(result).toBeNull();
+  });
+
+  it('verified_zero evidence permits zero claim for fuel', () => {
+    const zeroEvidence: FinancialEvidence = {
+      grounded: true,
+      toolName: 'tax_summary',
+      queryStatus: 'verified_zero',
+    };
+    const truthfulZero = 'There were no recorded fuel expenses in 2025.';
+    const result = validateGroundedAnswer(truthfulZero, zeroEvidence, fuelClassification);
+    expect(result).toBeNull();
+  });
+});

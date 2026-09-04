@@ -12118,6 +12118,22 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               });
 
               if (retryResult && typeof retryResult === 'object' && !('error' in retryResult)) {
+                // Build evidence for retry validation
+                let retryQs: string = 'verified';
+                if (plan.toolName === 'tax_summary') {
+                  const sections = (retryResult as any)?.sections || (retryResult as any)?.data?.sections || [];
+                  if (!Array.isArray(sections) || sections.length === 0) retryQs = 'verified_zero';
+                } else if (plan.toolName === 'tx_search') {
+                  retryQs = (retryResult as any)?.queryStatus || 'verified';
+                  const rows = (retryResult as any)?.rows || [];
+                  if (rows.length === 0 && retryQs === 'verified') retryQs = 'verified_zero';
+                }
+                const retryEvidence: { grounded: boolean; toolName?: string; queryStatus?: string } = {
+                  grounded: true,
+                  toolName: plan.toolName,
+                  queryStatus: retryQs,
+                };
+
                 const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification);
                 messages.push(
                   { role: 'assistant', content: assistantContent },
@@ -12140,9 +12156,18 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 );
                 const retryContent = retryCompletion.choices[0]?.message?.content;
                 if (retryContent && retryContent.trim()) {
-                  assistantContent = retryContent;
-                  retrySucceeded = true;
-                  console.log(`[FinancialGrounding] false-zero retry succeeded`);
+                  // PHASE 1B.2b: Revalidate retry through the SAME grounding check.
+                  // The retry is only accepted if validateGroundedAnswer says it's clean.
+                  const retryValidation = validateGroundedAnswer(retryContent, retryEvidence as any, financialClassification);
+                  if (retryValidation === null) {
+                    // null = valid grounded answer, no false-zero detected
+                    assistantContent = retryContent;
+                    retrySucceeded = true;
+                    console.log(`[FinancialGrounding] false-zero retry succeeded validation=pass`);
+                  } else {
+                    // Retry ALSO produced a false-zero — reject it
+                    console.warn(`[FinancialGrounding] retry rejected validation=${retryValidation}`);
+                  }
                 }
               }
             }
@@ -12150,10 +12175,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             console.error(`[FinancialGrounding] false-zero retry failed:`, retryErr?.message || retryErr);
           }
 
-          // If retry also failed, return an honest error instead of the false zero
+          // If retry also failed or was rejected, return an honest fallback instead of the false zero
           if (!retrySucceeded) {
-            assistantContent = "I wasn't able to verify the exact figures for your question right now. Let me look into this — could you try asking again?";
-            console.warn('[FinancialGrounding] false-zero retry failed — returning honest uncertainty');
+            assistantContent = "I found financial data for that request, but I wasn't able to produce a reliable summary from it. Could you try asking again?";
+            console.warn('[FinancialGrounding] false-zero retry failed — returning grounded fallback');
           }
         }
       }
