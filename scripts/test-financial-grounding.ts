@@ -259,7 +259,7 @@ console.log('\n=== Evidence system message ===');
   const toolResult = {
     sections: [{
       title: 'Vehicle Expenses', total: 22825.72, count: 189,
-      buckets: [{ label: 'Gas / Fuel', amount: 6472.65, count: 123 }],
+      buckets: [{ label: 'Gas / Fuel', total: 6472.65, count: 123 }],
     }],
   };
   const msg = buildEvidenceSystemMessage('tax_summary', toolResult, c);

@@ -295,7 +295,7 @@ export function buildEvidenceSystemMessage(
         if (Array.isArray(section.buckets)) {
           for (const bucket of section.buckets) {
             if (!bucket?.label) continue;
-            lines.push(`  - ${bucket.label}: $${(bucket.amount || 0).toFixed(2)} (${bucket.count || 0} txns)`);
+            lines.push(`  - ${bucket.label}: $${(bucket.total || 0).toFixed(2)} (${bucket.count || 0} txns)`);
           }
         }
       }

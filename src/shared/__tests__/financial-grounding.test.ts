@@ -465,7 +465,7 @@ describe('Evidence system message', () => {
           total: 22825.72,
           count: 189,
           buckets: [
-            { label: 'Gas / Fuel', amount: 6472.65, count: 123 },
+            { label: 'Gas / Fuel', total: 6472.65, count: 123 },
           ],
         },
       ],
