@@ -188,24 +188,29 @@ export function buildPreExecutionPlan(
     };
   }
 
-  // ── Merchant queries → tx_search with q ──
+  // ── Merchant queries → tx_search with q + optional date/amount ──
   if (classification.queryType === 'merchant' && classification.merchantHint) {
-    const startDate = `${year}-01-01`;
-    const endDate = `${year}-12-31`;
+    const startDate = classification.exactDate || `${year}-01-01`;
+    const endDate = classification.exactDate || `${year}-12-31`;
+    const args: Record<string, any> = {
+      q: classification.merchantHint,
+      startDate,
+      endDate,
+      limit: classification.exactDate ? 5 : 25,
+    };
+    if (classification.exactAmount !== undefined) {
+      args.minAmount = classification.exactAmount;
+      args.maxAmount = classification.exactAmount;
+    }
     return {
       shouldPreExecute: true,
       toolName: 'tx_search',
-      toolArgs: {
-        q: classification.merchantHint,
-        startDate,
-        endDate,
-        limit: 25,
-      },
+      toolArgs: args,
       classification,
     };
   }
 
-  // ── Detail queries → tx_search with category ──
+  // ── Detail queries → tx_search with category + optional date/amount ──
   if (classification.queryType === 'detail') {
     const args: Record<string, any> = { limit: 25 };
     if (classification.resolvedCategory) {
@@ -214,7 +219,15 @@ export function buildPreExecutionPlan(
         args.subcategory = classification.resolvedCategory.subcategory;
       }
     }
-    // Don't set date range for detail — the user may have mentioned a specific month
+    if (classification.exactDate) {
+      args.startDate = classification.exactDate;
+      args.endDate = classification.exactDate;
+      args.limit = 5;
+    }
+    if (classification.exactAmount !== undefined) {
+      args.minAmount = classification.exactAmount;
+      args.maxAmount = classification.exactAmount;
+    }
     return {
       shouldPreExecute: true,
       toolName: 'tx_search',

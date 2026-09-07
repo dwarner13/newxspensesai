@@ -36,6 +36,10 @@ export interface FinancialQueryClassification {
   years: number[];
   /** The analyzed scope from tool-gate */
   scope: UserQueryScope;
+  /** Exact dollar amount mentioned (e.g., "$76.72" → 76.72) */
+  exactAmount?: number;
+  /** Exact calendar date mentioned (YYYY-MM-DD) */
+  exactDate?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,21 +76,55 @@ const CATEGORY_NOT_MERCHANT = new Set([
   'transfers', 'income', 'vehicle',
 ]);
 
+/** Month name → number mapping for date extraction. */
+const MONTH_MAP: Record<string, number> = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3,
+  april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7,
+  august: 8, aug: 8, september: 9, sep: 9, sept: 9,
+  october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12,
+};
+const MONTH_NAMES = new Set(Object.keys(MONTH_MAP));
+const DAYS_IN_MONTH = [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+function isLeapYear(y: number): boolean { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+
 /**
  * Extract a merchant name from a user message.
- * Looks for patterns like "at Costco", "from Amazon", "spent at Walmart".
- * Excludes known financial category terms (e.g., "at restaurants" is not a merchant query).
+ * Looks for patterns like "at Costco", "from Amazon", "spent at Walmart",
+ * and secondary patterns like "Costco transaction", "Petro-Canada charge".
+ * Excludes month names in date phrases and known category terms.
  */
 function extractMerchantHint(msg: string): string | undefined {
+  // Primary: preposition + word (e.g., "from Costco", "at Walmart")
   const match = msg.match(/\b(?:at|from|to|paid to|spent at|bought at|purchased at|charges? from)\s+([A-Z][a-zA-Z0-9'&-]{1,30})\b/i);
-  if (!match?.[1]) return undefined;
-  const candidate = match[1].trim();
-  // Strip trailing prepositions/time words that got captured
-  const cleaned = candidate.replace(/\s+(in|for|on|during|from|to|this|last)\s.*$/i, '').trim();
-  if (!cleaned) return undefined;
-  // Don't treat known categories as merchants
-  if (CATEGORY_NOT_MERCHANT.has(cleaned.toLowerCase())) return undefined;
-  return cleaned;
+  if (match?.[1]) {
+    const candidate = match[1].trim();
+    // Reject month names — they are part of date phrases ("from August 21")
+    if (!MONTH_NAMES.has(candidate.toLowerCase())) {
+      const cleaned = candidate.replace(/\s+(in|for|on|during|from|to|this|last)\s.*$/i, '').trim();
+      if (cleaned && !CATEGORY_NOT_MERCHANT.has(cleaned.toLowerCase())) {
+        return cleaned;
+      }
+    }
+  }
+
+  // Secondary: <Merchant> transaction/charge/purchase/payment
+  // Catches "Costco transaction", "Petro-Canada charge" where no preposition is used
+  const secondary = msg.match(/\b([A-Z][a-zA-Z0-9'&-]{1,30})\s+(?:transactions?|charges?|purchases?|payments?)\b/i);
+  if (secondary?.[1]) {
+    const candidate = secondary[1].trim();
+    const lower = candidate.toLowerCase();
+    const NON_MERCHANT_WORDS = new Set([
+      'my', 'the', 'a', 'an', 'this', 'that', 'each', 'every', 'any',
+      'no', 'your', 'his', 'her', 'our', 'their', 'some', 'one',
+      'recent', 'last', 'first', 'next', 'new', 'old', 'all',
+      'find', 'show', 'get', 'see', 'check', 'make',
+    ]);
+    if (!CATEGORY_NOT_MERCHANT.has(lower) && !MONTH_NAMES.has(lower) && !NON_MERCHANT_WORDS.has(lower)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -101,6 +139,40 @@ function extractCategoryTerm(msg: string): string | undefined {
   // Then single-word category terms
   const single = lower.match(/\b(fuel|gas|gasoline|petrol|groceries|grocery|restaurants?|dining|food|meals|rent|mortgage|insurance|parking|coffee|gym|pharmacy|medical|dental|entertainment|golf|shopping|subscriptions|income|salary|utilities|internet|phone|vehicle|transportation|healthcare|transfers?|investments?|travel|streaming|software|advertising|chiropractic|vision|supplements)\b/);
   return single?.[1];
+}
+
+/**
+ * Extract an exact calendar date from a message.
+ * Recognizes: "August 21, 2025", "Aug 21 2025", "January 23rd, 2025".
+ * Rejects impossible dates (e.g., February 30).
+ */
+function extractExactDate(msg: string): string | undefined {
+  const match = msg.match(
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})\b/i
+  );
+  if (!match) return undefined;
+  const month = MONTH_MAP[match[1].toLowerCase()];
+  if (!month) return undefined;
+  const day = parseInt(match[2], 10);
+  const year = parseInt(match[3], 10);
+  if (year < 2020 || year > 2030) return undefined;
+  let maxDays = DAYS_IN_MONTH[month];
+  if (month === 2 && !isLeapYear(year)) maxDays = 28;
+  if (day < 1 || day > maxDays) return undefined;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
+ * Extract an exact dollar amount from a message.
+ * Recognizes "$76.72", "$60", "$50.00".
+ * Does NOT interpret years as amounts (requires $ prefix).
+ */
+function extractExactAmount(msg: string): number | undefined {
+  const match = msg.match(/\$(\d{1,7}(?:\.\d{1,2})?)\b/);
+  if (!match) return undefined;
+  const amount = parseFloat(match[1]);
+  if (isNaN(amount) || amount <= 0) return undefined;
+  return amount;
 }
 
 /**
@@ -137,17 +209,27 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
   // ── Merchant extraction ──
   const merchantHint = extractMerchantHint(msg);
 
+  // ── Exact identifiers ──
+  const exactDate = extractExactDate(msg);
+  const exactAmount = extractExactAmount(msg);
+
   // ── Determine if this is about user data ──
   // Financial terms + possessive/first-person → user data
   // Financial terms + spending verbs (even without "my") → user data
   // Resolved category + year mention → user data (e.g., "how much fuel in 2024")
+  // Transaction lookup verb + financial noun + strong identifier → user data
+  const hasTransactionLookup = /\b(find|search|look|locate|show|get)\b/i.test(lower) &&
+    /\b(transactions?|charges?|purchases?|payments?|expenses?)\b/i.test(lower);
+  const hasStrongIdentifier = exactAmount !== undefined || exactDate !== undefined;
   const isUserDataQuery =
     USER_DATA_PATTERNS.test(lower) ||
     (FINANCIAL_CATEGORY_TERMS.test(lower) && /\b(my|i|me|mine)\b/i.test(lower)) ||
     (FINANCIAL_CATEGORY_TERMS.test(lower) && /\b(how much|total|spent|spend|spending|expense|expenses|paid)\b/i.test(lower)) ||
     (resolved && scope.mentionedYears.length > 0) ||
     scope.isMutation ||
-    (merchantHint && /\b(how much|spend|spent|charge|total)\b/i.test(lower));
+    (merchantHint && /\b(how much|spend|spent|charge|total)\b/i.test(lower)) ||
+    (hasTransactionLookup && hasStrongIdentifier) ||
+    (merchantHint && hasStrongIdentifier);
 
   if (!isUserDataQuery) {
     return {
@@ -157,22 +239,23 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
       merchantHint,
       years: scope.mentionedYears,
       scope,
+      exactAmount,
+      exactDate,
     };
   }
 
   // ── Determine query type ──
+  // Strong explicit identifiers (exact date/amount) favor detail lookup,
+  // but a real merchant hint still gets merchant queryType.
   let queryType: FinancialQueryType;
 
   if (merchantHint) {
-    // Only treat as merchant query if we extracted an actual merchant name
-    // (excludes known category terms like "restaurants")
     queryType = 'merchant';
-  } else if (scope.needsDetail || DETAIL_PATTERNS.test(lower)) {
+  } else if (hasStrongIdentifier || scope.needsDetail || DETAIL_PATTERNS.test(lower)) {
     queryType = 'detail';
   } else if (AGGREGATE_PATTERNS.test(lower) || resolved) {
     queryType = 'aggregate';
   } else {
-    // Default: if about user data but unclear, treat as aggregate
     queryType = 'aggregate';
   }
 
@@ -183,5 +266,7 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     merchantHint,
     years: scope.mentionedYears,
     scope,
+    exactAmount,
+    exactDate,
   };
 }
