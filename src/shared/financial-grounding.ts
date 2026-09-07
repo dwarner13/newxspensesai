@@ -327,6 +327,29 @@ export function buildEvidenceSystemMessage(
     if (toolResult?.resolvedCategory) {
       lines.push(`Resolved: ${JSON.stringify(toolResult.resolvedCategory)}`);
     }
+
+    // Serialize row-level details so GPT can answer specific transaction questions.
+    // Cap at 10 rows to keep prompt size bounded.
+    const MAX_EVIDENCE_ROWS = 10;
+    if (Array.isArray(rows) && rows.length > 0) {
+      lines.push('');
+      const displayRows = rows.slice(0, MAX_EVIDENCE_ROWS);
+      for (let i = 0; i < displayRows.length; i++) {
+        const r = displayRows[i];
+        const parts: string[] = [];
+        if (r.date) parts.push(`date: ${r.date}`);
+        if (r.merchant || r.merchant_normalized) parts.push(`merchant: ${r.merchant_normalized || r.merchant}`);
+        if (r.amount !== undefined && r.amount !== null) parts.push(`amount: $${Math.abs(r.amount).toFixed(2)}`);
+        if (r.category) parts.push(`category: ${r.category}`);
+        if (r.subcategory) parts.push(`subcategory: ${r.subcategory}`);
+        if (r.type) parts.push(`type: ${r.type}`);
+        if (r.description) parts.push(`description: ${r.description.slice(0, 80)}`);
+        lines.push(`  [${i + 1}] ${parts.join(' | ')}`);
+      }
+      if (rows.length > MAX_EVIDENCE_ROWS) {
+        lines.push(`  ... and ${rows.length - MAX_EVIDENCE_ROWS} more rows (not shown)`);
+      }
+    }
   }
 
   // ── Grounding directive ──

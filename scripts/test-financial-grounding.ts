@@ -269,6 +269,76 @@ console.log('\n=== Evidence system message ===');
   assert('ESM4: contains verified', msg.includes('queryStatus: verified'));
 }
 
+console.log('\n=== tx_search evidence rows ===');
+{
+  // A. Single row — all fields serialized
+  const c = classifyFinancialQuery('find my $76.72 transaction from August 21, 2025');
+  const txResult = {
+    rows: [{
+      id: 'bf3f238a-560c-4090-afe9-168ab783e368',
+      date: '2025-08-21',
+      merchant: 'PETRO-CANADA 36379 Debit Card Purchase, VITALITY HEALTH FOODS',
+      merchant_normalized: 'PETRO-CANADA',
+      amount: -76.72,
+      category: 'Transportation',
+      subcategory: 'Medical',
+      type: 'Purchase',
+      description: 'POS PURCHASE',
+    }],
+    totals: { count: 1, sum: -76.72, income: 0, spending: 76.72 },
+    queryStatus: 'verified',
+  };
+  const msg = buildEvidenceSystemMessage('tx_search', txResult, c);
+  assert('TXE1: contains date', msg.includes('2025-08-21'));
+  assert('TXE2: contains merchant', msg.includes('PETRO-CANADA'));
+  assert('TXE3: contains amount', msg.includes('76.72'));
+  assert('TXE4: contains category', msg.includes('Transportation'));
+  assert('TXE5: contains subcategory', msg.includes('Medical'));
+  assert('TXE6: contains type', msg.includes('Purchase'));
+  assert('TXE7: NOT just row count', !msg.match(/^[^[]*Rows: 1[^[]*$/s));
+
+  // B. verified_zero — no fake rows
+  const zeroResult = {
+    rows: [],
+    totals: { count: 0, sum: 0, income: 0, spending: 0 },
+    queryStatus: 'verified_zero',
+  };
+  const zeroMsg = buildEvidenceSystemMessage('tx_search', zeroResult, c);
+  assert('TXE8: verified_zero has no row details', !zeroMsg.includes('[1]'));
+  assert('TXE9: verified_zero shows Rows: 0', zeroMsg.includes('Rows: 0'));
+
+  // C. Multiple rows — bounded
+  const multiRows = Array.from({ length: 15 }, (_, i) => ({
+    id: `row-${i}`,
+    date: '2025-08-21',
+    merchant: `MERCHANT-${i}`,
+    amount: 10 + i,
+    category: 'Shopping',
+    subcategory: 'General',
+    type: 'Purchase',
+  }));
+  const multiResult = {
+    rows: multiRows,
+    totals: { count: 15, sum: 0, income: 0, spending: 255 },
+    queryStatus: 'verified',
+  };
+  const multiMsg = buildEvidenceSystemMessage('tx_search', multiResult, c);
+  assert('TXE10: shows first 10 rows', multiMsg.includes('[10]'));
+  assert('TXE11: does NOT show row 11', !multiMsg.includes('[11]'));
+  assert('TXE12: indicates more rows exist', multiMsg.includes('5 more rows'));
+
+  // D. Missing fields remain missing
+  const sparseResult = {
+    rows: [{ id: 'sparse-1', amount: 50, date: '2025-01-01' }],
+    totals: { count: 1, sum: 50, income: 0, spending: 50 },
+    queryStatus: 'verified',
+  };
+  const sparseMsg = buildEvidenceSystemMessage('tx_search', sparseResult, c);
+  assert('TXE13: sparse row has date', sparseMsg.includes('2025-01-01'));
+  assert('TXE14: sparse row has amount', sparseMsg.includes('50.00'));
+  assert('TXE15: sparse row has no fake category', !sparseMsg.includes('category:'));
+}
+
 // ─── Summary ──────────────────────────────────────────────────────────────
 
 console.log(`\n${'='.repeat(60)}`);
