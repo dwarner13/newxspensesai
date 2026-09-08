@@ -8993,13 +8993,12 @@ export const handler: Handler = async (event, context) => {
       const firstName = rawFirst7807 === 'there' ? 'there' : rawFirst7807.charAt(0).toUpperCase() + rawFirst7807.slice(1);
       mergedUserContext += `\n\n**User Name Context (IMPORTANT):**
 - User display name: ${userProfile.preferredName}
-- Address the user as "${firstName}" in greetings and responses
-- NEVER show their email address as their name
-- If name is missing or unavailable, address them as "there"`;
+- You may address the user as "${firstName}" naturally when it improves the conversation, especially during greetings or significant planning discussions
+- Do not use the name mechanically in every response
+- NEVER show their email address as their name`;
     } else {
       mergedUserContext += `\n\n**User Name Context (IMPORTANT):**
 - User name is not available
-- Address the user as "there" in greetings and responses
 - NEVER show their email address as their name`;
     }
     
@@ -9315,7 +9314,17 @@ PRIME FINANCIAL GROUNDING CONTRACT:
             'MEMORY BRAIN SIGNAL: user has prior financial stress signals. Use a calm, empathetic tone first, then give a short practical next step.',
         });
       }
-      systemMessages.push({ role: 'system', content: PRIME_ORCHESTRATION_RULE });
+      // PRIME_ORCHESTRATION_RULE is a document-summary template — only inject when
+      // the user is discussing an upload/import, not for general conversation.
+      const isDocumentContext =
+        isPipelineFollowupMessage(masked) ||
+        isLastUploadRecallIntent(masked) ||
+        isLastUploadDetailIntent(masked) ||
+        isWorkspaceActivityIntent(masked) ||
+        (documentIds && documentIds.length > 0);
+      if (isDocumentContext) {
+        systemMessages.push({ role: 'system', content: PRIME_ORCHESTRATION_RULE });
+      }
 
       // Inject temporal context for ALL Prime requests (not gated on effectivePrimeContext).
       // Uses trusted server time + stored user timezone from profile.
