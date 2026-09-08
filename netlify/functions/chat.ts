@@ -8721,62 +8721,97 @@ export const handler: Handler = async (event, context) => {
     }
 
     // ========================================================================
-    // 7. GET RECENT MESSAGES (by thread_id if available, else session_id)
+    // 7. GET RECENT MESSAGES (session-scoped when available, thread fallback)
     // ========================================================================
+    // V2.2: Load by session_id first so "New Chat" starts a clean conversation.
+    // Falls back to thread_id for legacy paths where session_id is unavailable.
     // FAST lane: use smaller history window for speed.
     const messageLimit = isPrimeFastLane ? 6 : (isFastPath ? 10 : 50);
     let recentMessages: any[] = [];
+    let historyLoadMode: 'session' | 'thread' | 'legacy' | 'none' = 'none';
     try {
       const messagesStartTime = Date.now();
-      const cacheScope = threadId || normalizeSessionId(finalSessionId) || 'none';
+      const normalizedSessionIdForMessages = normalizeSessionId(finalSessionId);
+      const cacheScope = normalizedSessionIdForMessages || threadId || 'none';
       const cacheKey = `${userId}:${cacheScope}:${messageLimit}:${isPrimeFastLane ? 'fast' : 'default'}`;
       const cachedMessages = runtimeCacheTtlSeconds > 0
         ? readRuntimeCache<any[]>(runtimeCache.threadLookup, cacheKey)
         : null;
       if (cachedMessages) {
         recentMessages = cachedMessages.map((m: any) => ({ ...m }));
+        historyLoadMode = 'session'; // cache was keyed by session
       }
-      if (recentMessages.length === 0 && threadId) {
-        // Load by thread_id (preferred)
-        const { data: threadMessages, error: threadError } = await sb
+
+      // PRIMARY: Load by session_id (isolates "New Chat" from old conversations)
+      if (recentMessages.length === 0 && normalizedSessionIdForMessages) {
+        const { data: sessionMessages, error: sessionError } = await sb
           .from('chat_messages')
           .select('id, role, content, created_at')
-          .eq('thread_id', threadId)
-          // Load newest first for limit, then reverse in-memory to preserve chronology.
+          .eq('session_id', normalizedSessionIdForMessages)
           .order('created_at', { ascending: false })
           .limit(messageLimit);
-        
-        if (!threadError && threadMessages) {
-          recentMessages = [...threadMessages].reverse().map((m: any) => ({
+
+        if (!sessionError && sessionMessages && sessionMessages.length > 0) {
+          recentMessages = [...sessionMessages].reverse().map((m: any) => ({
             role: m.role,
             content: m.content,
             id: m.id,
           }));
-          console.log(`[Chat] ✅ Loaded ${recentMessages.length} messages from thread ${threadId.substring(0, 8)}...`);
-        } else {
-          console.warn('[Chat] Failed to load messages by thread_id, falling back to session_id');
+          historyLoadMode = 'session';
+          console.log(`[Chat] ✅ Loaded ${recentMessages.length} messages from session ${normalizedSessionIdForMessages.substring(0, 8)}... (session-scoped)`);
         }
       }
-      
-        // Fallback to session_id if thread_id didn't work or wasn't available
-        if (recentMessages.length === 0) {
-          const normalizedSessionIdForMessages = normalizeSessionId(finalSessionId);
-          if (normalizedSessionIdForMessages) {
-            // FAST PATH: Use smaller token limit for short messages
-            const tokenLimit = isPrimeFastLane ? 800 : (isFastPath ? 1000 : 4000);
-            recentMessages = await getRecentMessages(sb, normalizedSessionIdForMessages, tokenLimit);
-          const normalizedSessionIdForLog = normalizeSessionId(finalSessionId) || 'no-session';
-          const safeSessionId2 =
-            typeof normalizedSessionIdForLog === "string"
-              ? normalizedSessionIdForLog
-              : String(normalizedSessionIdForLog || "");
-          if (recentMessages.length > 0) {
-            console.log(`[Chat] ✅ Loaded ${recentMessages.length} previous messages from session ${safeSessionId2.substring(0, 8)}...`);
+
+      // FALLBACK: Load by thread_id if session produced no results and thread is available
+      // This handles legacy conversations and the first message of a new session
+      // (which has no prior session messages yet).
+      if (recentMessages.length === 0 && threadId) {
+        // For brand-new sessions, intentionally load ZERO history so the model
+        // starts fresh. Only fall back to thread history when there is no session_id
+        // at all (true legacy path).
+        if (normalizedSessionIdForMessages) {
+          // Session exists but has no messages yet — this IS a new conversation.
+          // Do not load old thread history.
+          historyLoadMode = 'session';
+          console.log(`[Chat] ℹ️ New session ${normalizedSessionIdForMessages.substring(0, 8)}... — starting with clean history`);
+        } else {
+          // No session_id at all — legacy path, load from thread
+          const { data: threadMessages, error: threadError } = await sb
+            .from('chat_messages')
+            .select('id, role, content, created_at')
+            .eq('thread_id', threadId)
+            .order('created_at', { ascending: false })
+            .limit(messageLimit);
+
+          if (!threadError && threadMessages) {
+            recentMessages = [...threadMessages].reverse().map((m: any) => ({
+              role: m.role,
+              content: m.content,
+              id: m.id,
+            }));
+            historyLoadMode = 'thread';
+            console.log(`[Chat] ✅ Loaded ${recentMessages.length} messages from thread ${threadId.substring(0, 8)}... (legacy fallback)`);
           } else {
-            console.log(`[Chat] ℹ️ No previous messages found for session ${safeSessionId2.substring(0, 8)}... (this is normal for new conversations)`);
+            console.warn('[Chat] Failed to load messages by thread_id');
           }
         }
       }
+
+      // FINAL FALLBACK: getRecentMessages by session_id (token-based loading)
+      if (recentMessages.length === 0 && normalizedSessionIdForMessages && historyLoadMode === 'none') {
+        const tokenLimit = isPrimeFastLane ? 800 : (isFastPath ? 1000 : 4000);
+        recentMessages = await getRecentMessages(sb, normalizedSessionIdForMessages, tokenLimit);
+        if (recentMessages.length > 0) {
+          historyLoadMode = 'legacy';
+          console.log(`[Chat] ✅ Loaded ${recentMessages.length} messages via getRecentMessages (legacy token-based)`);
+        }
+      }
+
+      if (historyLoadMode === 'none') {
+        console.log(`[Chat] ℹ️ No history loaded — new conversation`);
+      }
+      console.log(`[Chat] History: mode=${historyLoadMode} messages=${recentMessages.length} session=${(normalizedSessionIdForMessages || 'none').substring(0, 8)} thread=${threadId.substring(0, 8)}`);
+
       if (runtimeCacheTtlSeconds > 0 && recentMessages.length > 0) {
         writeRuntimeCache(runtimeCache.threadLookup, cacheKey, recentMessages, runtimeCacheTtlSeconds);
       }
