@@ -2,10 +2,12 @@
  * Prime Reasoning & Conversation V2.1 — Prompt Surgery Tests
  *
  * Verifies that prompt surgery removed rigid formatting mandates,
- * gated the document template, and preserved financial grounding.
+ * gated the document template, fixed authority contract, and preserved
+ * financial grounding.
  */
 import { GLOBAL_BRAIN_RULES, PRIME_ORCHESTRATION_RULE, PRIME_WATCHER_INTELLIGENCE_MODE } from '../src/lib/ai/systemPrompts';
 import { buildEmployeeBrainSystemPrompt } from '../src/lib/ai/brains/registry';
+import { buildPrimeAuthoritySystemMessage } from '../netlify/functions/_shared/primePolicy';
 import { classifyFinancialQuery } from '../src/shared/financial-query-classifier';
 import { buildPreExecutionPlan, buildEvidenceSystemMessage } from '../src/shared/financial-grounding';
 
@@ -56,6 +58,39 @@ console.log('\n=== 2: PRIME_ORCHESTRATION_RULE content ===\n');
   assert('2b. orchestration rule has bullets-only directive',
     PRIME_ORCHESTRATION_RULE.includes('Use bullets only'));
   // (Gating is tested via chat.ts logic — see manual acceptance tests)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2.5. Prime Authority Contract — no rigid formatting mandates
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
+{
+  const deep = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasSnapshot: true, hasDocs: false });
+  const fast = buildPrimeAuthoritySystemMessage({ lane: 'fast', intent: 'general', hasSnapshot: true, hasDocs: false });
+
+  // Removed mandates
+  assert('PA1. no "grade-4 clarity"', !deep.includes('grade-4'));
+  assert('PA2. no "(a) Direct answer (b) What I used (c) Next steps"', !deep.includes('(a) Direct answer'));
+  assert('PA3. no forced "## headings"', !deep.includes('## headings'));
+  assert('PA4. no "plain bullet lists" mandate', !deep.includes('plain bullet lists'));
+  assert('PA5. no "Ask at most one question"', !deep.includes('Ask at most one question'));
+
+  // Adaptive guidance present
+  assert('PA6. has adaptive conversation guidance', deep.includes('natural conversational prose'));
+  assert('PA7. no forced closing question', deep.includes('Do not append a closing question'));
+  assert('PA8. distinguishes facts from assumptions', deep.includes('Distinguish known facts'));
+  assert('PA9. financial truth override present', deep.includes('Server-verified financial evidence'));
+
+  // Lane behavior preserved
+  assert('PA10. fast lane is brief', fast.includes('brief'));
+  assert('PA11. deep lane uses tools', deep.includes('read-only tools'));
+
+  // Document handling preserved
+  const withDocs = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasSnapshot: true, hasDocs: true });
+  assert('PA12. document handling preserved', withDocs.includes('STATEMENT FINANCIAL DATA'));
+
+  // Anti-bold preserved
+  assert('PA13. anti-bold preserved', deep.includes('Do not bold'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
