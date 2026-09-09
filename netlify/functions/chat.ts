@@ -537,16 +537,59 @@ function applyPrimeChatStyleModelConfig(
   const preferredModel = String(process.env.OPENAI_PRIME_CHAT_MODEL || '').trim();
   if (preferredModel) {
     next.model = preferredModel;
-  } else if (/mini/i.test(String(next.model || ''))) {
-    next.model = 'gpt-4o';
+  } else {
+    // Default Prime model: o4-mini (reasoning-capable, cheaper than gpt-4o)
+    next.model = 'o4-mini';
   }
+  // o-series models don't use temperature — keep the value in config
+  // but it will be excluded from the API call by buildModelCallParams.
   next.temperature = Math.min(Number(next.temperature || 0.3), 0.35);
-  const minTokens = opts.preferLongForm ? 1200 : 280;
+  const minTokens = opts.preferLongForm ? 4000 : 1000;
   next.maxTokens = Math.max(
     Number(next.maxTokens || 0),
     minTokens
   );
   return next;
+}
+
+/** Check if model is an o-series reasoning model (o1, o3, o4-mini, etc.) */
+function isOSeriesModel(model: string): boolean {
+  return /^o[1-4]/.test(String(model || ''));
+}
+
+/**
+ * Build OpenAI API call parameters, adapting for o-series models.
+ * o-series: no temperature, system→developer role, max_completion_tokens instead of max_tokens.
+ */
+function buildModelCallParams(
+  modelConfig: { model: string; temperature: number; maxTokens: number },
+  messages: any[],
+  opts?: { tools?: any; tool_choice?: any; stream?: boolean }
+): Record<string, any> {
+  const oSeries = isOSeriesModel(modelConfig.model);
+  // Convert system messages to developer role for o-series
+  const adaptedMessages = oSeries
+    ? messages.map((m: any) => m.role === 'system' ? { ...m, role: 'developer' } : m)
+    : messages;
+
+  const params: Record<string, any> = {
+    model: modelConfig.model,
+    messages: adaptedMessages,
+    stream: opts?.stream ?? false,
+  };
+
+  if (oSeries) {
+    params.max_completion_tokens = modelConfig.maxTokens;
+    // No temperature for o-series
+  } else {
+    params.temperature = modelConfig.temperature;
+    params.max_tokens = modelConfig.maxTokens;
+  }
+
+  if (opts?.tools) params.tools = opts.tools;
+  if (opts?.tool_choice) params.tool_choice = opts.tool_choice;
+
+  return params;
 }
 
 function formatCurrency(amount: number, currency: string): string {
@@ -11357,15 +11400,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         const _tPrimeStart = Date.now();
         console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=prime_openai_start model=${modelConfig.model} employee=${finalEmployeeSlug} elapsedMs=${_tPrimeStart - requestStartTime} remainingMs=${60000 - (_tPrimeStart - requestStartTime)} timeoutMs=${resolveOpenAiTimeoutMs()}`);
         let completion = await withTimeout(
-          openai.chat.completions.create({
-            model: modelConfig.model,
-            messages,
-            temperature: modelConfig.temperature,
-            max_tokens: modelConfig.maxTokens,
-            stream: false,
+          openai.chat.completions.create(buildModelCallParams(modelConfig, messages, {
             tools: openaiTools,
-            ...(primeToolChoice ? { tool_choice: primeToolChoice } : {}),
-          } as any),
+            tool_choice: primeToolChoice || undefined,
+            stream: false,
+          }) as any),
           resolveOpenAiTimeoutMs(),
           'model_non_streaming_primary',
           orchCtx,
@@ -11900,15 +11939,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             const _tLoopCallStart = Date.now();
             console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=specialist_openai_r${toolRound}_start model=${loopModelConfig.model} employee=${finalEmployeeSlug} toolChoice=${loopToolChoice || 'auto'} elapsedMs=${_tLoopCallStart - requestStartTime} remainingMs=${60000 - (_tLoopCallStart - requestStartTime)} timeoutMs=${resolveOpenAiTimeoutMs()}`);
             completion = await withTimeout(
-              openai.chat.completions.create({
-                model: loopModelConfig.model,
-                messages,
-                temperature: loopModelConfig.temperature,
-                max_tokens: loopModelConfig.maxTokens,
-                stream: false,
+              openai.chat.completions.create(buildModelCallParams(loopModelConfig, messages, {
                 tools: loopOpenaiTools,
-                ...(loopToolChoice ? { tool_choice: loopToolChoice } : {}),
-              } as any),
+                tool_choice: loopToolChoice || undefined,
+                stream: false,
+              }) as any),
               resolveOpenAiTimeoutMs(),
               `model_non_streaming_tool_round_${toolRound}`,
               orchCtx,
@@ -12050,13 +12085,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             const _tConfirmStart = Date.now();
             console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=confirm_text_openai_start model=${confirmModelConfig.model} employee=${finalEmployeeSlug} elapsedMs=${_tConfirmStart - requestStartTime} remainingMs=${60000 - (_tConfirmStart - requestStartTime)} timeoutMs=${resolveOpenAiTimeoutMs()}`);
             const confirmCompletion = await withTimeout(
-              openai.chat.completions.create({
-                model: confirmModelConfig.model,
-                messages,
-                temperature: confirmModelConfig.temperature,
-                max_tokens: 500,
-                stream: false,
-              } as any),
+              openai.chat.completions.create(buildModelCallParams(
+                { ...confirmModelConfig, maxTokens: 500 }, messages, { stream: false }
+              ) as any),
               resolveOpenAiTimeoutMs(),
               'specialist_confirmation_text',
               orchCtx,
@@ -12186,13 +12217,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
                 const retryAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
                 const retryCompletion = await withTimeout(
-                  openai.chat.completions.create({
-                    model: modelConfig.model,
-                    messages,
-                    temperature: modelConfig.temperature,
-                    max_tokens: modelConfig.maxTokens,
+                  openai.chat.completions.create(buildModelCallParams(modelConfig, messages, {
                     stream: false,
-                  } as any),
+                  }) as any),
                   resolveOpenAiTimeoutMs(),
                   'grounding_false_zero_retry',
                   orchCtx,
