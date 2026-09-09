@@ -89,8 +89,14 @@ console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
   const withDocs = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasSnapshot: true, hasDocs: true });
   assert('PA12. document handling preserved', withDocs.includes('STATEMENT FINANCIAL DATA'));
 
-  // Anti-bold preserved
-  assert('PA13. anti-bold preserved', deep.includes('Do not bold'));
+  // Anti-markdown formatting
+  assert('PA13. prohibits markdown headings', deep.includes('Do NOT use markdown headings'));
+  assert('PA14. prohibits bullet lists', deep.includes('bullet lists'));
+  assert('PA15. prohibits nested sub-items', deep.includes('nested sub-items'));
+  assert('PA16. permits numbered lists when user asks', deep.includes('simple numbered list is fine'));
+  assert('PA17. items should read as natural analysis', deep.includes('natural analysis'));
+  assert('PA18. conversational prose as default', deep.includes('natural conversational prose'));
+  assert('PA19. speak-to-client framing', deep.includes('speak to a client'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
