@@ -117,6 +117,15 @@ console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
   assert('PA35. use facts as reasoning inputs', deep.includes('Use known facts as inputs to reasoning'));
   assert('PA36. history never overrides verified data', deep.includes('history never override'));
   assert('PA37. V2.4b concise behavior intact', deep.includes('100-250 visible words'));
+
+  // Fact integrity (V2.4d)
+  assert('PA38. unknown facts must not be stated as known', deep.includes('NEVER state a material user fact as known'));
+  assert('PA39. must not invent values for calculations', deep.includes('Do not invent a plausible value'));
+  assert('PA40. derived numbers identified as estimates', deep.includes('identify it as an estimate'));
+  assert('PA41. assumptions must be stated', deep.includes('state the assumption'));
+  assert('PA42. multi-period totals not silently annualized', deep.includes('annualizing a multi-period'));
+  assert('PA43. hypothetical assumptions allowed when labeled', deep.includes('clearly labeled'));
+  assert('PA44. natural communication of unknowns', deep.includes('say so naturally'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
