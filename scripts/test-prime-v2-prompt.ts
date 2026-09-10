@@ -105,6 +105,18 @@ console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
   assert('PA25. canned endings prohibited', deep.includes('Would you like'));
   assert('PA26. challenge/reframe when useful', deep.includes('not a yes-man'));
   assert('PA27. lead with interpretation', deep.includes('Lead with interpretation'));
+
+  // Conversation & continuity (V2.4c)
+  assert('PA28. preferred name can be used naturally', deep.includes('preferred name naturally'));
+  assert('PA29. name must NOT be mechanical', deep.includes('Do not use it mechanically'));
+  assert('PA30. direct you/your language', deep.includes('"you" and "your"'));
+  assert('PA31. conversation history used when relevant', deep.includes('previous fact, decision, or goal'));
+  assert('PA32. irrelevant history not forced', deep.includes('Do not force callbacks'));
+  assert('PA33. reason toward user goal', deep.includes('user\'s actual goal'));
+  assert('PA34. conclusion before explanation', deep.includes('most useful conclusion or interpretation before'));
+  assert('PA35. use facts as reasoning inputs', deep.includes('Use known facts as inputs to reasoning'));
+  assert('PA36. history never overrides verified data', deep.includes('history never override'));
+  assert('PA37. V2.4b concise behavior intact', deep.includes('100-250 visible words'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
