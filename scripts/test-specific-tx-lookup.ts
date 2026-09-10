@@ -233,6 +233,58 @@ console.log('\n=== N: Exact live production query ===\n');
   assert('N11. no q arg', plan.toolArgs?.q === undefined);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// O. Interrogative words must NOT become merchants
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n=== O: Interrogative-as-merchant regression ===\n');
+{
+  // "What transaction..." — "What" must not be merchant
+  const c1 = classifyFinancialQuery('What transaction did I have on March 6, 2026 for $92.94?');
+  assert('O1. "What" not merchant', c1.merchantHint !== 'What');
+  assert('O2. merchant null', c1.merchantHint === undefined);
+  assert('O3. exactDate = 2026-03-06', c1.exactDate === '2026-03-06');
+  assert('O4. exactAmount = 92.94', c1.exactAmount === 92.94);
+  assert('O5. grounded', c1.requiresGrounding === true);
+  assert('O6. queryType = detail', c1.queryType === 'detail');
+  const p1 = buildPreExecutionPlan(c1, 2026);
+  assert('O7. no q arg', p1.toolArgs?.q === undefined);
+  assert('O8. startDate', p1.toolArgs?.startDate === '2026-03-06');
+  assert('O9. minAmount', p1.toolArgs?.minAmount === 92.94);
+
+  // "Which transaction..." — "Which" must not be merchant
+  const c2 = classifyFinancialQuery('Which transaction was $50 on January 15, 2025?');
+  assert('O10. "Which" not merchant', c2.merchantHint !== 'Which');
+  assert('O11. grounded', c2.requiresGrounding === true);
+  assert('O12. queryType = detail', c2.queryType === 'detail');
+
+  // "What was the $76.72 transaction..." — grounding-intent gap fix
+  const c3 = classifyFinancialQuery('What was the $76.72 transaction on August 21, 2025?');
+  assert('O13. grounded (intent gap fix)', c3.requiresGrounding === true);
+  assert('O14. exactDate = 2025-08-21', c3.exactDate === '2025-08-21');
+  assert('O15. exactAmount = 76.72', c3.exactAmount === 76.72);
+  assert('O16. queryType = detail', c3.queryType === 'detail');
+  assert('O17. merchant null', c3.merchantHint === undefined);
+  const p3 = buildPreExecutionPlan(c3, 2026);
+  assert('O18. tx_search', p3.toolName === 'tx_search');
+  assert('O19. no q arg', p3.toolArgs?.q === undefined);
+
+  // Real merchants must still work
+  const c4 = classifyFinancialQuery('What did I spend at Costco on May 4, 2026?');
+  assert('O20. Costco still merchant', c4.merchantHint === 'Costco');
+
+  const c5 = classifyFinancialQuery('Show me the Petro-Canada transaction on March 6, 2026.');
+  assert('O21. Petro-Canada still merchant', c5.merchantHint === 'Petro-Canada');
+
+  // "Find my..." still works (existing behavior)
+  const c6 = classifyFinancialQuery('Find my $60 purchase on February 10, 2025.');
+  assert('O22. Find still works', c6.requiresGrounding === true);
+  assert('O23. no false merchant', c6.merchantHint === undefined);
+
+  // "What is August?" must NOT trigger lookup (education, no exact date+amount)
+  const c7 = classifyFinancialQuery('What is August?');
+  assert('O24. education not grounded', c7.requiresGrounding === false);
+}
+
 console.log(`\n============================================================`);
 console.log(`SPECIFIC TX LOOKUP V1: ${passed} passed, ${failed} failed`);
 console.log(`============================================================`);

@@ -118,6 +118,8 @@ function extractMerchantHint(msg: string): string | undefined {
       'no', 'your', 'his', 'her', 'our', 'their', 'some', 'one',
       'recent', 'last', 'first', 'next', 'new', 'old', 'all',
       'find', 'show', 'get', 'see', 'check', 'make',
+      'what', 'which', 'where', 'when', 'how', 'who',
+      'did', 'does', 'do', 'is', 'was', 'were',
     ]);
     if (!CATEGORY_NOT_MERCHANT.has(lower) && !MONTH_NAMES.has(lower) && !NON_MERCHANT_WORDS.has(lower)) {
       return candidate;
@@ -218,9 +220,11 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
   // Financial terms + spending verbs (even without "my") → user data
   // Resolved category + year mention → user data (e.g., "how much fuel in 2024")
   // Transaction lookup verb + financial noun + strong identifier → user data
-  const hasTransactionLookup = /\b(find|search|look|locate|show|get)\b/i.test(lower) &&
-    /\b(transactions?|charges?|purchases?|payments?|expenses?)\b/i.test(lower);
+  const hasFinancialNoun = /\b(transactions?|charges?|purchases?|payments?|expenses?)\b/i.test(lower);
+  const hasTransactionLookup = /\b(find|search|look|locate|show|get)\b/i.test(lower) && hasFinancialNoun;
   const hasStrongIdentifier = exactAmount !== undefined || exactDate !== undefined;
+  // Financial noun + BOTH exact date and exact amount → clearly a specific transaction query
+  const hasExactTransactionRef = hasFinancialNoun && exactAmount !== undefined && exactDate !== undefined;
   const isUserDataQuery =
     USER_DATA_PATTERNS.test(lower) ||
     (FINANCIAL_CATEGORY_TERMS.test(lower) && /\b(my|i|me|mine)\b/i.test(lower)) ||
@@ -229,7 +233,8 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     scope.isMutation ||
     (merchantHint && /\b(how much|spend|spent|charge|total)\b/i.test(lower)) ||
     (hasTransactionLookup && hasStrongIdentifier) ||
-    (merchantHint && hasStrongIdentifier);
+    (merchantHint && hasStrongIdentifier) ||
+    hasExactTransactionRef;
 
   if (!isUserDataQuery) {
     return {
