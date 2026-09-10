@@ -68,35 +68,43 @@ console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
   const deep = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasSnapshot: true, hasDocs: false });
   const fast = buildPrimeAuthoritySystemMessage({ lane: 'fast', intent: 'general', hasSnapshot: true, hasDocs: false });
 
-  // Removed mandates
+  // Removed old mandates
   assert('PA1. no "grade-4 clarity"', !deep.includes('grade-4'));
   assert('PA2. no "(a) Direct answer (b) What I used (c) Next steps"', !deep.includes('(a) Direct answer'));
-  assert('PA3. no forced "## headings"', !deep.includes('## headings'));
-  assert('PA4. no "plain bullet lists" mandate', !deep.includes('plain bullet lists'));
-  assert('PA5. no "Ask at most one question"', !deep.includes('Ask at most one question'));
-
-  // Adaptive guidance present
-  assert('PA6. has adaptive conversation guidance', deep.includes('natural conversational prose'));
-  assert('PA7. no forced closing question', deep.includes('Do not append a closing question'));
-  assert('PA8. distinguishes facts from assumptions', deep.includes('Distinguish known facts'));
-  assert('PA9. financial truth override present', deep.includes('Server-verified financial evidence'));
+  assert('PA3. no forced "## headings" mandate', !deep.includes('## headings and plain'));
+  assert('PA4. no "Ask at most one question"', !deep.includes('Ask at most one question'));
 
   // Lane behavior preserved
-  assert('PA10. fast lane is brief', fast.includes('brief'));
-  assert('PA11. deep lane uses tools', deep.includes('read-only tools'));
+  assert('PA5. fast lane is brief', fast.includes('brief'));
+  assert('PA6. deep lane uses tools', deep.includes('read-only tools'));
 
   // Document handling preserved
   const withDocs = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasSnapshot: true, hasDocs: true });
-  assert('PA12. document handling preserved', withDocs.includes('STATEMENT FINANCIAL DATA'));
+  assert('PA7. document handling preserved', withDocs.includes('STATEMENT FINANCIAL DATA'));
 
   // Anti-markdown formatting
-  assert('PA13. prohibits markdown headings', deep.includes('Do NOT use markdown headings'));
-  assert('PA14. prohibits bullet lists', deep.includes('bullet lists'));
-  assert('PA15. prohibits nested sub-items', deep.includes('nested sub-items'));
-  assert('PA16. permits numbered lists when user asks', deep.includes('simple numbered list is fine'));
-  assert('PA17. items should read as natural analysis', deep.includes('natural analysis'));
-  assert('PA18. conversational prose as default', deep.includes('natural conversational prose'));
-  assert('PA19. speak-to-client framing', deep.includes('speak to a client'));
+  assert('PA8. prohibits markdown headings', deep.includes('Do NOT use markdown headings'));
+  assert('PA9. prohibits bullet lists', deep.includes('bullet lists'));
+  assert('PA10. prohibits nested sub-items', deep.includes('nested sub-items'));
+  assert('PA11. permits numbered lists when user asks', deep.includes('simple numbered list is fine'));
+  assert('PA12. situation-specific reasoning required', deep.includes('situation-specific reasoning'));
+  assert('PA13. conversational prose as default', deep.includes('natural conversational prose'));
+  assert('PA14. speak-to-client framing', deep.includes('client across the table'));
+
+  // Safety preserved
+  assert('PA15. financial truth override', deep.includes('Server-verified financial evidence'));
+  assert('PA16. confirmation gates preserved', deep.includes('confirmation gates'));
+  assert('PA17. specialist write ownership preserved', deep.includes('specialist write ownership'));
+
+  // Response contract — material user facts
+  assert('PA20. requires using material user facts', deep.includes('USE those facts in your reasoning'));
+  assert('PA21. prioritize based on THIS user', deep.includes('THIS person'));
+  assert('PA22. no generic definitions', deep.includes('not a generic definition'));
+  assert('PA23. missing info explains what and why', deep.includes('what is missing and why it matters'));
+  assert('PA24. concise default (100-250 words)', deep.includes('100-250 visible words'));
+  assert('PA25. canned endings prohibited', deep.includes('Would you like'));
+  assert('PA26. challenge/reframe when useful', deep.includes('not a yes-man'));
+  assert('PA27. lead with interpretation', deep.includes('Lead with interpretation'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
