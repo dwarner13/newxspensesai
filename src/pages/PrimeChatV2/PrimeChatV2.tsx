@@ -230,6 +230,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         .filter((r: any) => (r.role === "user" || r.role === "assistant") && r.metadata?.hidden !== true)
         .reverse()
         .map((r: any) => ({ id: r.id, role: r.role, content: r.content ?? "", createdAt: r.created_at }));
+      // Pre-seed typedIdsRef with all hydrated assistant messages so they
+      // render immediately without typewriter animation (Bug 2 fix).
+      for (const m of mapped) {
+        if (m.role === 'assistant') typedIdsRef.current.add(m.id);
+      }
       setHistory(mapped);
       setHistoryChecked(true);
     })();

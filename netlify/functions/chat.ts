@@ -8627,6 +8627,8 @@ export const handler: Handler = async (event, context) => {
     }
 
     setStage('memory');
+    const _tMemoryStart = Date.now();
+    console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=memory_start elapsedMs=${_tMemoryStart - requestStartTime} remainingMs=${60000 - (_tMemoryStart - requestStartTime)}`);
     // ========================================================================
     // 6. MEMORY RETRIEVAL
     // ========================================================================
@@ -8763,6 +8765,7 @@ export const handler: Handler = async (event, context) => {
       console.log(`[CHAT] memory recall userId=${typeof userId === 'string' && userId.length > 8 ? userId.substring(0, 8) : userId}... sessionId=${sessionIdForLog}... employee=${finalEmployeeSlug} hasContext=${memoryContext.length > 0}`);
     }
 
+    console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=memory_end durationMs=${Date.now() - _tMemoryStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
     // ========================================================================
     // 7. GET RECENT MESSAGES (session-scoped when available, thread fallback)
     // ========================================================================
@@ -9140,6 +9143,7 @@ export const handler: Handler = async (event, context) => {
       // Replaces raw totals, snapshot flags, and duplicated real-time summary.
       let financialPositionText = '';
       let financialPositionMissing: string[] = [];
+      const _tFpStart = Date.now();
       try {
         const { buildFinancialPosition: buildFP, formatPositionForPrompt: fmtFP } = await import('./financial-position.js');
         const fpResult = await buildFP({
@@ -9151,7 +9155,7 @@ export const handler: Handler = async (event, context) => {
         financialPositionText = fmtFP(fpResult);
         financialPositionMissing = fpResult.missingAreas || [];
         primeContextMessage += '\n' + financialPositionText + '\n';
-        console.log(`[Chat] Financial Position injected: ${financialPositionText.length} chars, missing=[${financialPositionMissing.join(', ')}], coverage=${fpResult.dataCoverage.monthsCovered}mo`);
+        console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=financial_position_end durationMs=${Date.now() - _tFpStart} elapsedMs=${Date.now() - requestStartTime} chars=${financialPositionText.length} missing=[${financialPositionMissing.join(', ')}]`);
       } catch (fpErr: any) {
         console.warn('[Chat] Financial Position build failed (non-fatal, continuing with legacy context):', fpErr?.message);
         // Fallback: include legacy totals if Financial Position failed
@@ -9635,6 +9639,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     }
 
     // ========================================================================
+    console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=context_assembly_end elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
     // 8.5. RESOLVE MODEL CONFIGURATION (before dev logging and API calls)
     // ========================================================================
     setStage('model_config');
@@ -12532,7 +12537,7 @@ function buildSafeFallbackResponse(stage: string, ctx?: OrchCtx): string {
     ctx.failed_stage = (stage as OrchStage) || ctx.failed_stage;
     ctx.fallback_used = true;
   }
-  return `I'm processing your data - one moment. I hit a delay in the ${stage} step, so please retry and I'll continue from there.\n\nThis is taking longer than normal. I can still help - tell me if you want a quick answer or a detailed one.`;
+  return `I hit a delay while preparing your response. Please try again and I'll pick up where I left off.`;
 }
 
 function ensureAssistantContent(content: string | null | undefined, stage: string, ctx?: OrchCtx): string {
