@@ -9125,24 +9125,27 @@ export const handler: Handler = async (event, context) => {
       console.warn('[chat] job context inject failed', { employeeKey, error: e?.message });
     }
     
+    // Financial Position variables — declared before the Prime context block
+    // so they are accessible in PRIME_DEBUG logging further down.
+    let financialPositionText = '';
+    let financialPositionMissing: string[] = [];
+
     // 3. Prime Context System Message (ONLY for Prime, if prime_context provided)
     if (isPrime && effectivePrimeContext) {
       const pc = effectivePrimeContext as any;
-      
+
       // Build Prime context system message (convenience overlay, verified server-side)
       let primeContextMessage = 'PRIME CONTEXT (User State Snapshot):\n\n';
-      
+
       // User identity
       primeContextMessage += `User: ${pc.displayName || 'User'}\n`;
       if (pc.timezone) primeContextMessage += `Timezone: ${pc.timezone}\n`;
       if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
       if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
-      
+
       // ── FINANCIAL POSITION (V1.1b) ──────────────────────────────────────────
       // Canonical period-aware financial overview with provenance.
       // Replaces raw totals, snapshot flags, and duplicated real-time summary.
-      let financialPositionText = '';
-      let financialPositionMissing: string[] = [];
       const _tFpStart = Date.now();
       try {
         const { buildFinancialPosition: buildFP, formatPositionForPrompt: fmtFP } = await import('./_shared/financial-position.js');

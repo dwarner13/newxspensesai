@@ -73,6 +73,44 @@ console.log('\n=== FPI: Financial Position import path ===\n');
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FPS1-FPS7: financialPositionText scope safety
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n=== FPS: financialPositionText scope ===\n');
+{
+  const chatSrc = readFileSync('netlify/functions/chat.ts', 'utf8');
+
+  // FPS1: declared before any later reference
+  const declIdx = chatSrc.indexOf("let financialPositionText = ''");
+  const primeContextIf = chatSrc.indexOf('if (isPrime && effectivePrimeContext)');
+  assert('FPS1. declared before Prime context block', declIdx < primeContextIf);
+
+  // FPS2: assignment occurs inside try block
+  assert('FPS2. assigned inside FP try block', chatSrc.includes('financialPositionText = fmtFP(fpResult)'));
+
+  // FPS3: default value is empty string (safe fallback)
+  assert('FPS3. default is empty string', chatSrc.includes("let financialPositionText = ''"));
+
+  // FPS4: prompt debug can reference without ReferenceError
+  const debugRef = chatSrc.indexOf('financialPosition: financialPositionText.length > 0');
+  assert('FPS4. debug reference exists after declaration', debugRef > declIdx);
+
+  // FPS5: debug logging references are all after declaration
+  const charRef = chatSrc.indexOf('financialPositionChars: financialPositionText.length');
+  assert('FPS5. char-count reference after declaration', charRef > declIdx);
+
+  // FPS6: only one declaration of each variable
+  const textDecls = chatSrc.match(/let financialPositionText/g) || [];
+  const missDecls = chatSrc.match(/let financialPositionMissing/g) || [];
+  assert('FPS6a. one financialPositionText declaration', textDecls.length === 1);
+  assert('FPS6b. one financialPositionMissing declaration', missDecls.length === 1);
+
+  // FPS7: financialPositionMissing also declared before references
+  const missDeclIdx = chatSrc.indexOf("let financialPositionMissing");
+  const missRef = chatSrc.indexOf('financialPositionMissing: financialPositionMissing');
+  assert('FPS7. financialPositionMissing declared before reference', missDeclIdx < missRef);
+}
+
 console.log(`\n${'='.repeat(60)}`);
 console.log(`RUNTIME FIXES: ${passed} passed, ${failed} failed`);
 console.log(`${'='.repeat(60)}`);
