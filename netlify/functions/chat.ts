@@ -9135,30 +9135,33 @@ export const handler: Handler = async (event, context) => {
       if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
       if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
       
-      // PHASE 2.2 FIX (Apr 2026): Top-level totals from PrimeChatV2.additionalPrimeContext
-      // These were being dropped in this path — only rendered in the parallel path at line 8756.
-      if (typeof pc.totalIncome === 'number') primeContextMessage += `Total Income: ${pc.totalIncome}\n`;
-      if (typeof pc.totalSpent === 'number') primeContextMessage += `Total Spent: ${pc.totalSpent}\n`;
-      if (typeof pc.statementCount === 'number') primeContextMessage += `Statements: ${pc.statementCount}\n`;
-      if (typeof pc.transactionCount === 'number') primeContextMessage += `Transactions: ${pc.transactionCount}\n`;
+      // ── FINANCIAL POSITION (V1.1b) ──────────────────────────────────────────
+      // Canonical period-aware financial overview with provenance.
+      // Replaces raw totals, snapshot flags, and duplicated real-time summary.
+      let financialPositionText = '';
+      let financialPositionMissing: string[] = [];
+      try {
+        const { buildFinancialPosition: buildFP, formatPositionForPrompt: fmtFP } = await import('./financial-position.js');
+        const fpResult = await buildFP({
+          supabase: sb,
+          userId,
+          currency: (pc.currency || userProfile?.currency || 'CAD'),
+          userTimezone: pc.timezone || userProfile?.timezone || null,
+        });
+        financialPositionText = fmtFP(fpResult);
+        financialPositionMissing = fpResult.missingAreas || [];
+        primeContextMessage += '\n' + financialPositionText + '\n';
+        console.log(`[Chat] Financial Position injected: ${financialPositionText.length} chars, missing=[${financialPositionMissing.join(', ')}], coverage=${fpResult.dataCoverage.monthsCovered}mo`);
+      } catch (fpErr: any) {
+        console.warn('[Chat] Financial Position build failed (non-fatal, continuing with legacy context):', fpErr?.message);
+        // Fallback: include legacy totals if Financial Position failed
+        if (typeof pc.totalIncome === 'number') primeContextMessage += `Total Income: ${pc.totalIncome}\n`;
+        if (typeof pc.totalSpent === 'number') primeContextMessage += `Total Spent: ${pc.totalSpent}\n`;
+        if (typeof pc.transactionCount === 'number') primeContextMessage += `Transactions: ${pc.transactionCount}\n`;
+      }
+
       if (typeof pc.pendingImports === 'number' && pc.pendingImports > 0) {
         primeContextMessage += `Pending Imports: ${pc.pendingImports}\n`;
-      }
-      if (pc.topMerchant) primeContextMessage += `Top Merchant: ${pc.topMerchant}\n`;
-      if (pc.categorySummary) primeContextMessage += `Category Mix: ${pc.categorySummary}\n`;
-      
-      // Financial snapshot
-      if (pc.financialSnapshot) {
-        const fs = pc.financialSnapshot;
-        primeContextMessage += `\nSnapshot:\n`;
-        primeContextMessage += `- hasTransactions: ${fs.hasTransactions}\n`;
-        primeContextMessage += `- uncategorizedCount: ${fs.uncategorizedCount}\n`;
-        if (fs.monthlySpend !== undefined) primeContextMessage += `- monthlySpend: ${fs.monthlySpend}\n`;
-        if (fs.topCategories && fs.topCategories.length > 0) {
-          primeContextMessage += `- topCategories: ${fs.topCategories.map((c: any) => `${c.name} (${c.amount})`).join(', ')}\n`;
-        }
-        if (fs.hasDebt !== undefined) primeContextMessage += `- hasDebt: ${fs.hasDebt}\n`;
-        if (fs.hasGoals !== undefined) primeContextMessage += `- hasGoals: ${fs.hasGoals}\n`;
       }
       
       // PHASE 2.2 FIX: Tax-workspace mirror with authority instruction.
@@ -9224,127 +9227,50 @@ export const handler: Handler = async (event, context) => {
         }
       }
 
-      // Fetch recent agent activity for Prime awareness
-      try {
-        const { data: recentActivity } = await sb
-          .from('ai_activity_events')
-          .select('employee_id, label, created_at')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(5);
-        if (recentActivity && recentActivity.length > 0) {
-          primeContextMessage += '\nRecent agent activity:\n' +
-            recentActivity.map((e: any) => `- ${e.employee_id}: ${e.label}`).join('\n') + '\n';
-        }
-      } catch { /* non-blocking */ }
+      // ── DOCUMENT/IMPORT CONTEXT (only for document-related conversations) ──
+      // Tag rules, import history, agent activity, and notifications are only
+      // relevant when discussing documents/imports. For general financial
+      // conversations, Financial Position provides the canonical overview.
+      const isDocumentConversation =
+        isPipelineFollowupMessage(masked) ||
+        isLastUploadRecallIntent(masked) ||
+        isLastUploadDetailIntent(masked) ||
+        isWorkspaceActivityIntent(masked) ||
+        (documentIds && documentIds.length > 0);
 
-      // ── Full Team Intelligence Feed ─────────────────────────────────────────
-      // Prime is CEO - he needs to know everything every agent has done
+      if (isDocumentConversation) {
+        // Include team/import context for document-related conversations
+        try {
+          const { data: recentActivity } = await sb
+            .from('ai_activity_events')
+            .select('employee_id, label, created_at')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(5);
+          if (recentActivity && recentActivity.length > 0) {
+            primeContextMessage += '\nRecent agent activity:\n' +
+              recentActivity.map((e: any) => `- ${e.employee_id}: ${e.label}`).join('\n') + '\n';
+          }
+        } catch { /* non-blocking */ }
 
-      // 1. Category rules Tag has saved
-      try {
-        const { data: rules } = await sb
-          .from('category_rules')
-          .select('merchant_pattern, category, subcategory, match_type, is_active, updated_at')
-          .eq('user_id', userId)
-          .eq('is_active', true)
-          .order('updated_at', { ascending: false })
-          .limit(20);
-        if (rules && rules.length > 0) {
-          primeContextMessage += '\nTag\'s saved category rules (most recent first):\n' +
-            rules.map((r: any) =>
-              `- "${r.merchant_pattern}" -> ${r.category}${r.subcategory ? ' / ' + r.subcategory : ''}`
-            ).join('\n') + '\n';
-        }
-      } catch { /* non-blocking */ }
-
-      // 2. Tag conversations - what merchants were discussed and last outcome
-      try {
-        const { data: tagConvs } = await sb
-          .from('tag_conversations')
-          .select('merchant_name, messages, last_active')
-          .eq('user_id', userId)
-          .order('last_active', { ascending: false })
-          .limit(10);
-        if (tagConvs && tagConvs.length > 0) {
-          primeContextMessage += '\nTag\'s recent merchant conversations:\n';
-          for (const conv of tagConvs) {
-            const msgs = Array.isArray(conv.messages) ? conv.messages : [];
-            const lastAssistant = [...msgs].reverse().find((m: any) => m.role === 'assistant' || m.role === 'tag');
-            if (lastAssistant) {
-              const preview = String(lastAssistant.content || lastAssistant.text || '').slice(0, 100);
-              primeContextMessage += `- ${conv.merchant_name}: "${preview}"
-`;
+        try {
+          const { data: imports } = await sb
+            .from('imports')
+            .select('id, file_url, status, created_at, issuer')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(10);
+          if (imports && imports.length > 0) {
+            primeContextMessage += '\nStatements Byte has processed:\n';
+            for (const imp of imports) {
+              const filename = String(imp.file_url || '').split('/').pop() || 'Unknown';
+              const date = imp.created_at ? new Date(imp.created_at).toLocaleDateString('en-CA') : '?';
+              const { count } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('import_id', imp.id);
+              primeContextMessage += `- ${decodeURIComponent(filename)} (${date}) - ${imp.status}, ${count || 0} transactions\n`;
             }
           }
-        }
-      } catch { /* non-blocking */ }
-
-      // 3. Import history - all statements Byte processed
-      try {
-        const { data: imports } = await sb
-          .from('imports')
-          .select('id, file_url, status, created_at, issuer')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(10);
-        if (imports && imports.length > 0) {
-          primeContextMessage += '\nStatements Byte has processed:\n';
-          for (const imp of imports) {
-            const filename = String(imp.file_url || '').split('/').pop() || 'Unknown';
-            const date = imp.created_at ? new Date(imp.created_at).toLocaleDateString('en-CA') : '?';
-            const { count } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('import_id', imp.id);
-            primeContextMessage += `- ${decodeURIComponent(filename)} (${date}) - ${imp.status}, ${count || 0} transactions\n`;
-          }
-        }
-      } catch { /* non-blocking */ }
-
-      // 4. Full category breakdown from real transaction data
-      try {
-        const { data: txCats } = await sb
-          .from('transactions')
-          .select('category, subcategory, amount, type')
-          .eq('user_id', userId)
-          .limit(2000);
-        if (txCats && txCats.length > 0) {
-          const catMap: Record<string, number> = {};
-          let totalInc = 0, totalExp = 0, uncatCount = 0;
-          for (const tx of txCats) {
-            const amt = Math.abs(Number(tx.amount || 0));
-            const isInc = tx.type === 'Credit' || (tx.category || '').toLowerCase() === 'income';
-            if (isInc) { totalInc += amt; continue; }
-            if (!tx.category || tx.category === 'Needs Review' || tx.category === 'Uncategorized') { uncatCount++; continue; }
-            if (tx.category === 'Transfers') continue;
-            catMap[tx.category] = (catMap[tx.category] || 0) + amt;
-            totalExp += amt;
-          }
-          const sorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
-          primeContextMessage += `\nReal-time financial summary:\n`;
-          primeContextMessage += `- Total income: ${totalInc.toLocaleString('en-CA', {maximumFractionDigits:0})}\n`;
-          primeContextMessage += `- Total expenses: ${totalExp.toLocaleString('en-CA', {maximumFractionDigits:0})}\n`;
-          primeContextMessage += `- Net flow: ${(totalInc - totalExp).toLocaleString('en-CA', {maximumFractionDigits:0})}\n`;
-          primeContextMessage += `- Uncategorized: ${uncatCount}\n`;
-          primeContextMessage += `- Category breakdown:\n` + sorted.map(([cat, amt]) =>
-            `  - ${cat}: ${amt.toLocaleString('en-CA', {maximumFractionDigits:0})}`
-          ).join('\n') + '\n';
-        }
-      } catch { /* non-blocking */ }
-
-      // 5. Recent Prime notifications sent to Inbox
-      try {
-        const { data: notifs } = await sb
-          .from('user_notifications')
-          .select('title, message, type, created_at, employee_slug')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(5);
-        if (notifs && notifs.length > 0) {
-          primeContextMessage += '\nRecent agent notifications sent to Inbox:\n' +
-            notifs.map((n: any) =>
-              `- [${n.employee_slug}] ${n.title}: "${String(n.message || '').slice(0, 80)}"`
-            ).join('\n') + '\n';
-        }
-      } catch { /* non-blocking */ }
+        } catch { /* non-blocking */ }
+      }
 
       // PRIME FINANCIAL GROUNDING CONTRACT
       primeContextMessage += `
@@ -9689,7 +9615,11 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           fluencyGlobal: systemMessages.some((m) => m.content.includes('SYSTEM RULE: AI FLUENCY ADAPTATION')),
           primeOrchestration: systemMessages.some((m) => m.content.includes('ROLE: PRIME - AI FINANCIAL CEO')),
           dbEmployeePrompt: systemMessages.some((m) => m.content === employeeSystemPrompt),
-          brainPack: systemMessages.some((m) => m.content.includes('EMPLOYEE BRAIN PACK')),
+          brainPack: systemMessages.some((m) => m.content.includes('PRIME BOSS CONTRACT')),
+          financialPosition: financialPositionText.length > 0,
+          financialPositionChars: financialPositionText.length,
+          financialPositionMissing: financialPositionMissing,
+          documentContextIncluded: isDocumentConversation,
         },
         promptSizeChars,
         promptSizeTokensEstimate: Math.ceil(promptSizeChars / 4),
