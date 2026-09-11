@@ -9145,7 +9145,7 @@ export const handler: Handler = async (event, context) => {
       let financialPositionMissing: string[] = [];
       const _tFpStart = Date.now();
       try {
-        const { buildFinancialPosition: buildFP, formatPositionForPrompt: fmtFP } = await import('./financial-position.js');
+        const { buildFinancialPosition: buildFP, formatPositionForPrompt: fmtFP } = await import('./_shared/financial-position.js');
         const fpResult = await buildFP({
           supabase: sb,
           userId,
@@ -9720,8 +9720,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         preferLongForm: !isFastPath,
       });
     }
-    // Track request timing (used in both streaming and non-streaming paths)
-    const requestStartTime = Date.now();
+    // Track streaming/model timing (requestStartTime already declared at line 5414)
     let firstTokenTime: number | null = null;
 
     // DEV: Comprehensive AI request logging
