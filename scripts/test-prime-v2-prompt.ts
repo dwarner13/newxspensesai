@@ -133,6 +133,9 @@ console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
   assert('PA47. retirement spending is a separate question', deep.includes('retirement spending'));
   assert('PA48. debt ranking requires rates/balances', deep.includes('Do not rank debt elimination'));
   assert('PA49. cost of debt determines priority', deep.includes('cost of debt determines'));
+  // Spending vs withdrawal separation
+  assert('PA52. spending and withdrawal are separate concepts', deep.includes('sustainable withdrawal are separate questions'));
+  assert('PA53. spending question != withdrawal answer', deep.includes('do not substitute withdrawal-rate calculations'));
   // Verify existing V2.4d rules still present
   assert('PA50. unknown facts rule preserved', deep.includes('NEVER state a material user fact'));
   assert('PA51. no invented values rule preserved', deep.includes('Do not invent a plausible value'));
