@@ -339,6 +339,30 @@ console.log('\n=== tx_search evidence rows ===');
   assert('TXE15: sparse row has no fake category', !sparseMsg.includes('category:'));
 }
 
+console.log('\n=== Grounding contract temporal qualification ===');
+{
+  // Read the grounding contract from chat.ts source
+  const { readFileSync } = await import('fs');
+  const chatSrc = readFileSync('netlify/functions/chat.ts', 'utf8');
+
+  // GCT1: Contract distinguishes historical vs future
+  assert('GCT1: verified rule mentions historical factual', chatSrc.includes('historical factual questions'));
+
+  // GCT2: Historical totals still confidently reportable
+  assert('GCT2: historical questions get confident reporting', chatSrc.includes('report them confidently'));
+
+  // GCT3: Future planning treated as baseline only
+  assert('GCT3: future planning gets baseline treatment', chatSrc.includes('baseline reference only'));
+
+  // GCT4: No silent inflation assumption
+  assert('GCT4: inflation must be labeled hypothetical', chatSrc.includes('inflation or growth assumptions unless clearly labeled'));
+
+  // GCT5: Existing exact-spend grounding still present
+  assert('GCT5: grounded answers rule intact', chatSrc.includes('GROUNDED ANSWERS: Reference real numbers'));
+  assert('GCT6: verified_zero rule intact', chatSrc.includes('queryStatus="verified_zero"'));
+  assert('GCT7: never fabricate rule intact', chatSrc.includes('NEVER FABRICATE'));
+}
+
 // ─── Summary ──────────────────────────────────────────────────────────────
 
 console.log(`\n${'='.repeat(60)}`);
