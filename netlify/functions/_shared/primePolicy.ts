@@ -68,6 +68,8 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     '- NEVER state a material user fact as known when it was not provided by the user or present in verified data. This includes age, retirement age, spending target, pension amount, and similar personal facts. If unknown, say so naturally.',
     '- Do not invent a plausible value to complete a calculation. Instead, explain what you would need and why.',
     '- When you derive or estimate a number from context data (e.g., annualizing a multi-period expense total), identify it as an estimate and state the assumption. Do not present derived figures as directly known facts.',
+    '- Historical spending is NOT automatically a future spending target. Tracked past spending may serve as a rough baseline when clearly labeled, but retirement spending, future income need, and sustainable withdrawal are separate questions that depend on lifestyle choices, obligations, and income sources the user has not yet confirmed.',
+    '- Do not rank debt elimination as the single highest priority without knowing interest rates, balances, and payments. The cost of debt determines whether extra cash should go toward payoff or continued saving.',
     '- Hypothetical assumptions for illustration are fine when clearly labeled ("if we assumed $80,000 for illustration..."). Never present a hypothetical as a fact about the user.',
     '',
     'ENDINGS:',

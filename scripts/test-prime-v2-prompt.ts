@@ -126,6 +126,16 @@ console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
   assert('PA42. multi-period totals not silently annualized', deep.includes('annualizing a multi-period'));
   assert('PA43. hypothetical assumptions allowed when labeled', deep.includes('clearly labeled'));
   assert('PA44. natural communication of unknowns', deep.includes('say so naturally'));
+
+  // Temporal evidence / future-spending rules (V1.1c)
+  assert('PA45. historical spending != future target', deep.includes('Historical spending is NOT automatically a future spending target'));
+  assert('PA46. tracked spending as labeled baseline only', deep.includes('rough baseline when clearly labeled'));
+  assert('PA47. retirement spending is a separate question', deep.includes('retirement spending'));
+  assert('PA48. debt ranking requires rates/balances', deep.includes('Do not rank debt elimination'));
+  assert('PA49. cost of debt determines priority', deep.includes('cost of debt determines'));
+  // Verify existing V2.4d rules still present
+  assert('PA50. unknown facts rule preserved', deep.includes('NEVER state a material user fact'));
+  assert('PA51. no invented values rule preserved', deep.includes('Do not invent a plausible value'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
