@@ -80,10 +80,19 @@ console.log('\n=== FPS: financialPositionText scope ===\n');
 {
   const chatSrc = readFileSync('netlify/functions/chat.ts', 'utf8');
 
-  // FPS1: declared before any later reference
+  // FPS1: declared before any later reference AND before the bare block scope
   const declIdx = chatSrc.indexOf("let financialPositionText = ''");
   const primeContextIf = chatSrc.indexOf('if (isPrime && effectivePrimeContext)');
-  assert('FPS1. declared before Prime context block', declIdx < primeContextIf);
+  assert('FPS1a. declared before Prime context block', declIdx < primeContextIf);
+  // The critical structural check: declaration must be BEFORE the bare block `{`
+  // that encloses the prompt assembly. Find the specific PHASE 1 FIX comment
+  // about removing the isPrimeBoss gate (not the earlier one at line ~6446).
+  const phase1Comment = chatSrc.indexOf('Removed the `if (!(isPrimeBoss))` gate');
+  const bareBlockOpen = chatSrc.indexOf('{', phase1Comment);
+  assert('FPS1b. declared before bare block scope', declIdx < bareBlockOpen);
+  // And the debug reference is AFTER the bare block closes
+  const debugRef2 = chatSrc.indexOf('financialPosition: financialPositionText.length > 0');
+  assert('FPS1c. debug reference is after declaration (structural)', debugRef2 > declIdx);
 
   // FPS2: assignment occurs inside try block
   assert('FPS2. assigned inside FP try block', chatSrc.includes('financialPositionText = fmtFP(fpResult)'));

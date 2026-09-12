@@ -9016,6 +9016,11 @@ export const handler: Handler = async (event, context) => {
     }
     const isPrime = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
     const isPrimeBoss = finalEmployeeSlug === 'prime-boss';
+    // Financial Position variables — declared at outer scope so they are
+    // accessible in PRIME_DEBUG logging after the prompt assembly blocks.
+    let financialPositionText = '';
+    let financialPositionMissing: string[] = [];
+
     // PHASE 1 FIX (Apr 2026): Removed the `if (!(isPrimeBoss))` gate that was skipping
     // brain pack, DB prompt, AI fluency rule, and user context for Prime.
     // Prime now gets the same full prompt stack as other agents, PLUS its Prime-specific
@@ -9125,11 +9130,6 @@ export const handler: Handler = async (event, context) => {
       console.warn('[chat] job context inject failed', { employeeKey, error: e?.message });
     }
     
-    // Financial Position variables — declared before the Prime context block
-    // so they are accessible in PRIME_DEBUG logging further down.
-    let financialPositionText = '';
-    let financialPositionMissing: string[] = [];
-
     // 3. Prime Context System Message (ONLY for Prime, if prime_context provided)
     if (isPrime && effectivePrimeContext) {
       const pc = effectivePrimeContext as any;
