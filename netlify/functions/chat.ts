@@ -9016,10 +9016,11 @@ export const handler: Handler = async (event, context) => {
     }
     const isPrime = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
     const isPrimeBoss = finalEmployeeSlug === 'prime-boss';
-    // Financial Position variables — declared at outer scope so they are
-    // accessible in PRIME_DEBUG logging after the prompt assembly blocks.
+    // Variables declared at outer scope so they are accessible in
+    // PRIME_DEBUG logging after the prompt assembly blocks close.
     let financialPositionText = '';
     let financialPositionMissing: string[] = [];
+    let isDocumentConversation = false;
 
     // PHASE 1 FIX (Apr 2026): Removed the `if (!(isPrimeBoss))` gate that was skipping
     // brain pack, DB prompt, AI fluency rule, and user context for Prime.
@@ -9238,12 +9239,12 @@ export const handler: Handler = async (event, context) => {
       // Tag rules, import history, agent activity, and notifications are only
       // relevant when discussing documents/imports. For general financial
       // conversations, Financial Position provides the canonical overview.
-      const isDocumentConversation =
+      isDocumentConversation =
         isPipelineFollowupMessage(masked) ||
         isLastUploadRecallIntent(masked) ||
         isLastUploadDetailIntent(masked) ||
         isWorkspaceActivityIntent(masked) ||
-        (documentIds && documentIds.length > 0);
+        !!(documentIds && documentIds.length > 0);
 
       if (isDocumentConversation) {
         // Include team/import context for document-related conversations

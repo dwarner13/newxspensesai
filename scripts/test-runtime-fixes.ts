@@ -115,7 +115,15 @@ console.log('\n=== FPS: financialPositionText scope ===\n');
   assert('FPS6b. one financialPositionMissing declaration', missDecls.length === 1);
 
   // FPS7: financialPositionMissing also declared before references
-  const missDeclIdx = chatSrc.indexOf("let financialPositionMissing");
+  const missDeclIdx = chatSrc.indexOf('let financialPositionMissing');
+
+  // FPS8: isDocumentConversation declared at outer scope
+  const docConvDecl = chatSrc.indexOf('let isDocumentConversation');
+  const docConvRef = chatSrc.indexOf('documentContextIncluded: isDocumentConversation');
+  assert('FPS8a. isDocumentConversation has outer let', docConvDecl > 0);
+  assert('FPS8b. no const isDocumentConversation', !chatSrc.includes('const isDocumentConversation'));
+  assert('FPS8c. declared before PRIME_DEBUG reference', docConvDecl < docConvRef);
+  assert('FPS8d. declared before bare block scope', docConvDecl < bareBlockOpen);
   const missRef = chatSrc.indexOf('financialPositionMissing: financialPositionMissing');
   assert('FPS7. financialPositionMissing declared before reference', missDeclIdx < missRef);
 }
