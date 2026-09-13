@@ -626,7 +626,7 @@ function detectPrimeIntent(message: string): PrimeIntent {
   const isUploadHowTo =
     /\b(upload|import)\b/.test(text) && /\b(how\s+(?:do|can|should|would|to|you)|where\s+(?:do|can|to)|guide\s+me|walk\s+me\s+through|show\s+me\s+how|tell\s+me\s+how)\b/.test(text);
   const isBreakdownReport =
-    /\b(break\s*down|breakdown|report|cashflow|categories?|last month|spend|spending|budget|summary|statement|transactions?)\b/.test(text);
+    /\b(break\s*down|breakdown|report|cashflow|categories?|summary|statement)\b/.test(text);
   if (isUploadHowTo) return { label: 'upload_howto', isBreakdownReport, isUploadHowTo };
   if (isBreakdownReport) return { label: 'breakdown_report', isBreakdownReport, isUploadHowTo };
   return { label: 'general', isBreakdownReport, isUploadHowTo };
@@ -11349,7 +11349,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           if (temporalIntent === 'future_spending') {
             messages.push({
               role: 'system',
-              content: 'QUERY INTENT: future_spending. The user is asking about future spending need, not portfolio withdrawal capacity. Answer about what they may spend. Historical transaction data may be used only as supporting reference. Do not substitute withdrawal-rate calculations or portfolio-capacity analysis unless the user explicitly asks for them. If future spending inputs are missing, explain which inputs are needed.',
+              content: 'QUERY INTENT: future_spending. The user is asking about future spending need, not portfolio withdrawal capacity. Answer about what they may spend. Historical transaction data may be used only as supporting reference. Do not substitute withdrawal-rate calculations or portfolio-capacity analysis unless the user explicitly asks for them. Do not introduce inflation, growth, or projection assumptions unless the user explicitly requests a forecast or scenario. If future spending inputs are missing, explain which inputs are needed.',
             });
             console.log(`[Chat] Temporal intent: future_spending`);
           } else if (temporalIntent === 'withdrawal_capacity') {

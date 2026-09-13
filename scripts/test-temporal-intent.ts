@@ -90,6 +90,37 @@ console.log('\n=== 6: Runtime integration ===\n');
   assert('RI4. directive injected into messages array', chatSrc.includes("messages.push") && chatSrc.includes('QUERY INTENT:'));
   assert('RI5. only runs when grounding=none', chatSrc.includes('!financialClassification.requiresGrounding'));
   assert('RI6. future spending says no withdrawal substitution', chatSrc.includes('Do not substitute withdrawal-rate'));
+  assert('RI7. future spending blocks unrequested inflation/growth', chatSrc.includes('Do not introduce inflation, growth, or projection assumptions'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. Prime intent detection — breakdown_report narrowed
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n=== 7: Breakdown report intent ===\n');
+{
+  // These should NOT trigger breakdown_report (ordinary financial questions)
+  const chatSrc = readFileSync('netlify/functions/chat.ts', 'utf8');
+  const breakdownRe = /\b(break\s*down|breakdown|report|cashflow|categories?|summary|statement)\b/;
+
+  assert('BR1. "spend in retirement" not breakdown', !breakdownRe.test('how much will i spend in retirement'));
+  assert('BR2. "what is my spending" not breakdown', !breakdownRe.test('what is my spending'));
+  assert('BR3. "spent last month" not breakdown', !breakdownRe.test('what did i spend last month'));
+  assert('BR4. "show my transactions" not breakdown', !breakdownRe.test('show my transactions'));
+  assert('BR5. "budget for retirement" not breakdown', !breakdownRe.test('what should my budget be'));
+
+  // These SHOULD trigger breakdown_report
+  assert('BR6. "breakdown of spending" is breakdown', breakdownRe.test('give me a breakdown of my spending'));
+  assert('BR7. "spending report" is breakdown', breakdownRe.test('give me a spending report'));
+  assert('BR8. "summary by category" is breakdown', breakdownRe.test('show a summary by category'));
+  assert('BR9. "statement summary" is breakdown', breakdownRe.test('show my statement summary'));
+  assert('BR10. "cashflow" is breakdown', breakdownRe.test('show my cashflow'));
+
+  // Verify chat.ts uses the narrowed regex (no spend/spending/budget/transactions)
+  const intentBlock = chatSrc.match(/isBreakdownReport\s*=\s*\/.+?\//)?.[0] || '';
+  assert('BR11. regex does not contain "spend"', !intentBlock.includes('spend'));
+  assert('BR12. regex does not contain "budget"', !intentBlock.includes('budget'));
+  assert('BR13. regex does not contain "transactions"', !intentBlock.includes('transactions'));
+  assert('BR14. regex does contain "breakdown"', intentBlock.includes('breakdown'));
 }
 
 console.log(`\n${'='.repeat(60)}`);
