@@ -23,12 +23,33 @@ import { extractAndSaveMemories } from './_shared/memory-extraction.js';
 const MAX_JOBS_PER_RUN = 10; // Process up to 10 jobs per invocation
 
 export const handler: Handler = async (event, context) => {
-  // Allow manual trigger or cron
+  // Method check
   if (event.httpMethod && event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Method not allowed. Use POST.' }),
+    };
+  }
+
+  // ── Internal auth gate ──────────────────────────────────────────────────
+  // Requires MEMORY_WORKER_SECRET env var. Caller must send matching value
+  // in x-worker-secret header. Prevents unauthenticated public invocation.
+  const expectedSecret = process.env.MEMORY_WORKER_SECRET;
+  if (!expectedSecret) {
+    console.error('[Memory Worker] MEMORY_WORKER_SECRET env var is not set — rejecting request');
+    return {
+      statusCode: 503,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Worker not configured' }),
+    };
+  }
+  const providedSecret = event.headers?.['x-worker-secret'] || event.headers?.['X-Worker-Secret'];
+  if (!providedSecret || providedSecret !== expectedSecret) {
+    return {
+      statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Unauthorized' }),
     };
   }
 
