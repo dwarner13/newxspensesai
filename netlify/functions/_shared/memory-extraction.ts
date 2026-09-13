@@ -52,7 +52,7 @@ async function callLLMJson(prompt: string): Promise<ExtractedMemory> {
         messages: [
           {
             role: 'system',
-            content: 'Extract persistent user memories as strict JSON only. Be conservative - only extract truly durable information.'
+            content: 'Extract persistent user memories as strict JSON only. Extract facts the user explicitly states about themselves, including financial positions, goals, and personal details.'
           },
           {
             role: 'user',
@@ -135,12 +135,18 @@ Return STRICT JSON with this exact structure:
 RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-FACTS (stable personal/business info):
+FACTS (personal, financial, and business info stated by the user):
 ✓ "age" -> "32"
 ✓ "business_type" -> "freelance consulting"
 ✓ "home_city" -> "Toronto"
+✓ "savings_balance" -> "250000" (from "I have $250,000 saved")
+✓ "vehicle_debt_balance" -> "31000" (from "I owe $31,000 on my car")
+✓ "annual_income" -> "180000" (from "I make $180,000 a year")
+✓ "tfsa_contribution" -> "500 weekly" (from "I contribute $500 a week to my TFSA")
+✓ "retirement_timeline" -> "3 years" (from "I want to retire in three years")
 ✓ "savings_goal" -> "$50k by Dec 2026"
-✗ Don't extract: temporary statements, questions, current transactions
+A financial amount is a durable fact when the user states it about themselves, even if it may change later.
+✗ Don't extract: greetings, questions, hypothetical numbers, one-time transaction mentions ("I spent $52 at Costco yesterday"), numbers the assistant calculated, examples not about the user
 
 PREFERENCES (stable settings/ways of working):
 ✓ "export_format" -> "CSV"
