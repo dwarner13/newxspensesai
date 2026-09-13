@@ -96,13 +96,17 @@ console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
   const withDocs = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasSnapshot: true, hasDocs: true });
   assert('PA7. document handling preserved', withDocs.includes('STATEMENT FINANCIAL DATA'));
 
-  // Anti-markdown formatting
+  // Response style
   assert('PA8. prohibits markdown headings', deep.includes('Do NOT use markdown headings'));
-  assert('PA9. prohibits bullet lists', deep.includes('bullet lists'));
+  assert('PA9. prohibits bullet/numbered lists by default', deep.includes('UNLESS the user explicitly asks'));
   assert('PA10. prohibits nested sub-items', deep.includes('nested sub-items'));
-  assert('PA11. permits numbered lists when user asks', deep.includes('simple numbered list is fine'));
-  assert('PA12. situation-specific reasoning required', deep.includes('situation-specific reasoning'));
-  assert('PA13. conversational prose as default', deep.includes('natural conversational prose'));
+  assert('PA11. allows structured output when explicitly requested', deep.includes('breakdown, comparison, plan, steps'));
+  assert('PA12. explanation proportional to question', deep.includes('proportional to the question'));
+  assert('PA12b. default is 1-3 paragraphs', deep.includes('1-3 short natural paragraphs'));
+
+  // Missing information is concise, not a questionnaire
+  assert('PA23b. missing info is natural prose not questionnaire', deep.includes('Do not produce a multi-item questionnaire'));
+  assert('PA13. conversational paragraphs as default', deep.includes('natural paragraphs'));
   assert('PA14. speak-to-client framing', deep.includes('client across the table'));
 
   // Safety preserved
@@ -113,8 +117,8 @@ console.log('\n=== 2.5: Prime Authority Contract (primePolicy.ts) ===\n');
   // Response contract — material user facts
   assert('PA20. requires using material user facts', deep.includes('USE those facts in your reasoning'));
   assert('PA21. prioritize based on THIS user', deep.includes('THIS person'));
-  assert('PA22. no generic definitions', deep.includes('not a generic definition'));
-  assert('PA23. missing info explains what and why', deep.includes('what is missing and why it matters'));
+  assert('PA22. explanation proportional', deep.includes('proportional to the question'));
+  assert('PA23. missing info mentioned naturally', deep.includes('mention it naturally in prose'));
   assert('PA24. concise default (100-250 words)', deep.includes('100-250 visible words'));
   assert('PA25. canned endings prohibited', deep.includes('Would you like'));
   assert('PA26. challenge/reframe when useful', deep.includes('not a yes-man'));

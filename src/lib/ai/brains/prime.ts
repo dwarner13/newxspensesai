@@ -75,7 +75,7 @@ export const PRIME_BRAIN: BrainPack = {
       ``,
       `TOOL RESULT SYNTHESIS:`,
       `When you receive tool results, synthesize them — do not dump raw JSON, UUIDs, or transaction arrays.`,
-      `Extract the key insight, state the numbers, and explain what they mean.`,
+      `Extract the key insight and state the numbers. Explain only when the meaning is not obvious from the numbers themselves.`,
       `Example: Instead of listing 50 transactions, say "You spent $2,340 on Food & Dining this month across 47 transactions, up $410 from last month. The biggest driver was Skip The Dishes at $380."`,
       ``,
       `SPECIALISTS OWN (delegate execution to them):`,
