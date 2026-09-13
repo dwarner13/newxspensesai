@@ -275,3 +275,37 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     exactDate,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEMPORAL INTENT CLASSIFIER
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TemporalIntent = 'future_spending' | 'withdrawal_capacity' | null;
+
+/** Future spending patterns — questions about what the user WILL spend. */
+const FUTURE_SPENDING_RE = /\b(how much will .*(spend|cost|need|expenses?)|what will .*(spend|expenses?|cost|budget)|retirement (spending|expenses?|budget|cost)|spend .*(in|during|after) retirement|expenses? .*(in|during|after) retirement|need .*(each|per|every) (month|year) .*(after|in|during) retirement|how much .* need .*(retire|after .* stop working)|budget .*(for|in|during) retirement)\b/i;
+
+/** Withdrawal capacity patterns — questions about what savings can support. */
+const WITHDRAWAL_CAPACITY_RE = /\b(how much can .* withdraw|sustainable withdrawal|withdrawal rate|how long will .*(savings?|investments?|portfolio|money|\$[\d,]+) (last|sustain)|portfolio .*(pay|support|generate)|safe .* withdraw|draw ?down rate|how much .*(savings?|investments?|portfolio) .*(pay|support|give|provide)|what can .*(savings?|portfolio|investments?) .*(support|pay|generate))\b/i;
+
+/** Historical spending patterns — should NOT match future_spending. */
+const HISTORICAL_SPENDING_RE = /\b(how much did|what did .* spend|what have .* spent|how much .* spent|spending (last|this) (month|year|week)|spent (on|at|in|for|last|this))\b/i;
+
+/**
+ * Classify whether a user message is asking about future spending need
+ * vs portfolio withdrawal capacity.
+ *
+ * Returns null for historical questions, general education, or anything
+ * that doesn't clearly match either future pattern.
+ */
+export function classifyTemporalIntent(message: string): TemporalIntent {
+  const lower = message.toLowerCase().trim();
+
+  // Historical questions are never future_spending
+  if (HISTORICAL_SPENDING_RE.test(lower)) return null;
+
+  if (FUTURE_SPENDING_RE.test(lower)) return 'future_spending';
+  if (WITHDRAWAL_CAPACITY_RE.test(lower)) return 'withdrawal_capacity';
+
+  return null;
+}

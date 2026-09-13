@@ -138,7 +138,7 @@ import {
   hashArgs,
 } from './_shared/toolConfirmation.js';
 // Phase 1B.2: Server-enforced financial grounding (static imports — must not fail-open)
-import { classifyFinancialQuery } from '../../src/shared/financial-query-classifier';
+import { classifyFinancialQuery, classifyTemporalIntent } from '../../src/shared/financial-query-classifier';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -11331,6 +11331,29 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 }
               }
             }
+          }
+        }
+
+        // ── TEMPORAL INTENT (future spending vs withdrawal capacity) ──────────
+        // When the financial grounding classifier says 'none' (not a historical
+        // factual query), check whether the user is asking about future spending
+        // need vs portfolio withdrawal capacity. Inject a compact directive so
+        // the model does not substitute one concept for the other.
+        if (isPrime && (!financialClassification || !financialClassification.requiresGrounding)) {
+          const lastUserMsg = String(messageTrimmed || masked || '');
+          const temporalIntent = classifyTemporalIntent(lastUserMsg);
+          if (temporalIntent === 'future_spending') {
+            messages.push({
+              role: 'system',
+              content: 'QUERY INTENT: future_spending. The user is asking about future spending need, not portfolio withdrawal capacity. Answer about what they may spend. Historical transaction data may be used only as supporting reference. Do not substitute withdrawal-rate calculations or portfolio-capacity analysis unless the user explicitly asks for them. If future spending inputs are missing, explain which inputs are needed.',
+            });
+            console.log(`[Chat] Temporal intent: future_spending`);
+          } else if (temporalIntent === 'withdrawal_capacity') {
+            messages.push({
+              role: 'system',
+              content: 'QUERY INTENT: withdrawal_capacity. The user is asking about what their savings or investments may support. Withdrawal calculations and sustainability analysis are appropriate. Clearly label assumptions.',
+            });
+            console.log(`[Chat] Temporal intent: withdrawal_capacity`);
           }
         }
 
