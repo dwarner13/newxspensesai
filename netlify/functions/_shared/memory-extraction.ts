@@ -12,6 +12,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'crypto';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -216,7 +217,7 @@ Return ONLY the JSON object, no commentary.
   
   // Helper: Create MD5 hash of lowercase string
   function md5Lower(s: string): string {
-    return crypto.createHash('md5').update(s.toLowerCase()).digest('hex');
+    return createHash('md5').update(s.toLowerCase()).digest('hex');
   }
 
   // Convert extracted items to normalized fact strings
