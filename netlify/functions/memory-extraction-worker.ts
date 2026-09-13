@@ -57,8 +57,110 @@ export const handler: Handler = async (event, context) => {
   const processedJobs: string[] = [];
   const failedJobs: string[] = [];
 
+  // ── Single-job mode: process one specific job by ID ─────────────────────
+  // When POST body contains { "jobId": "<uuid>" }, process ONLY that row.
+  // Does NOT enter the batch claim loop. Requires valid auth (checked above).
+  let requestedJobId: string | null = null;
   try {
-    // Process up to MAX_JOBS_PER_RUN jobs
+    const body = event.body ? JSON.parse(event.body) : {};
+    if (body.jobId && typeof body.jobId === 'string') {
+      // Validate UUID format
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRe.test(body.jobId)) {
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'Invalid jobId format' }),
+        };
+      }
+      requestedJobId = body.jobId;
+    }
+  } catch { /* invalid JSON body — fall through to batch mode */ }
+
+  if (requestedJobId) {
+    // Atomic claim: update pending -> processing only if still pending
+    const { data: claimed, error: claimErr } = await sb
+      .from('memory_extraction_queue')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .eq('id', requestedJobId)
+      .eq('status', 'pending')
+      .select('id, user_id, session_id, user_message, assistant_response, retry_count, max_retries')
+      .maybeSingle();
+
+    if (claimErr) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Failed to claim job', detail: claimErr.message }),
+      };
+    }
+    if (!claimed) {
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Job not found or not pending' }),
+      };
+    }
+    if (claimed.retry_count >= claimed.max_retries) {
+      // Revert to pending — this row has exhausted retries
+      await sb.from('memory_extraction_queue').update({ status: 'pending' }).eq('id', requestedJobId);
+      return {
+        statusCode: 409,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Job has exhausted retries' }),
+      };
+    }
+
+    console.log(`[Memory Worker] Single-job mode: processing ${requestedJobId.substring(0, 8)}...`);
+
+    try {
+      await extractAndSaveMemories({
+        userId: claimed.user_id,
+        sessionId: claimed.session_id,
+        redactedUserText: claimed.user_message,
+        assistantResponse: claimed.assistant_response || undefined,
+      });
+
+      await sb.rpc('complete_memory_extraction_job', { job_id: requestedJobId });
+
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: true,
+          mode: 'single-job',
+          processed: 1,
+          failed: 0,
+          processedJobs: [requestedJobId.substring(0, 8) + '...'],
+          jobId: requestedJobId,
+          status: 'completed',
+        }),
+      };
+    } catch (extractErr: any) {
+      console.error(`[Memory Worker] Single-job extraction failed:`, extractErr?.message);
+      await sb.rpc('fail_memory_extraction_job', {
+        job_id: requestedJobId,
+        error_msg: extractErr?.message || 'Single-job extraction failed',
+      });
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: false,
+          mode: 'single-job',
+          processed: 0,
+          failed: 1,
+          failedJobs: [requestedJobId.substring(0, 8) + '...'],
+          jobId: requestedJobId,
+          status: 'failed',
+          error: extractErr?.message,
+        }),
+      };
+    }
+  }
+
+  try {
+    // Process up to MAX_JOBS_PER_RUN jobs (batch mode — no jobId specified)
     for (let i = 0; i < MAX_JOBS_PER_RUN; i++) {
       // Claim next pending job
       const { data: job, error: claimError } = await sb

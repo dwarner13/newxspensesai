@@ -87,6 +87,53 @@ console.log('\n=== MW5: Post-auth contract ===\n');
   assert('MW5f. still processes MAX_JOBS_PER_RUN', workerSrc.includes('MAX_JOBS_PER_RUN'));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MW6. Single-job mode
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n=== MW6: Single-job mode ===\n');
+{
+  // Accepts jobId from POST body
+  assert('MW6a. parses jobId from body', workerSrc.includes('body.jobId'));
+
+  // Validates UUID format
+  assert('MW6b. validates UUID format', workerSrc.includes('uuidRe.test'));
+
+  // Returns 400 on invalid UUID
+  assert('MW6c. rejects invalid UUID with 400', workerSrc.includes("'Invalid jobId format'"));
+
+  // Atomic claim: update WHERE status=pending
+  assert('MW6d. atomic claim checks pending status',
+    workerSrc.includes(".eq('status', 'pending')") && workerSrc.includes(".eq('id', requestedJobId)"));
+
+  // Returns 404 when job not found or not pending
+  assert('MW6e. 404 for missing/non-pending job', workerSrc.includes("'Job not found or not pending'"));
+
+  // Checks retry exhaustion
+  assert('MW6f. checks retry_count vs max_retries', workerSrc.includes('retry_count >= claimed.max_retries'));
+
+  // Single-job path returns before the batch claim RPC is called
+  const singleJobReturn = workerSrc.indexOf("mode: 'single-job'");
+  const batchClaimRpc = workerSrc.indexOf("rpc('claim_memory_extraction_job')");
+  assert('MW6g. single-job returns before batch claim RPC', singleJobReturn < batchClaimRpc);
+
+  // user_id comes from queue row, not request body
+  assert('MW6h. user_id from claimed row', workerSrc.includes('claimed.user_id'));
+  assert('MW6i. no user_id from request body',
+    !workerSrc.includes('body.user_id') && !workerSrc.includes('body.userId'));
+
+  // Auth still required (jobId path is after auth gate)
+  const authGate = workerSrc.indexOf('MEMORY_WORKER_SECRET');
+  const jobIdParse = workerSrc.indexOf('body.jobId');
+  assert('MW6j. auth gate before jobId parsing', authGate < jobIdParse);
+
+  // Response includes mode and jobId
+  assert('MW6k. response includes mode', workerSrc.includes("mode: 'single-job'"));
+  assert('MW6l. response includes jobId', workerSrc.includes('jobId: requestedJobId'));
+
+  // Normal batch unchanged
+  assert('MW6m. batch mode comment preserved', workerSrc.includes('batch mode'));
+}
+
 console.log(`\n${'='.repeat(60)}`);
 console.log(`MEMORY WORKER AUTH: ${passed} passed, ${failed} failed`);
 console.log(`${'='.repeat(60)}`);
