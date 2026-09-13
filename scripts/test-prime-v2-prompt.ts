@@ -38,13 +38,27 @@ console.log('\n=== 1: GLOBAL_BRAIN_RULES formatting ===\n');
   assert('1e. allows answers to simply end',
     GLOBAL_BRAIN_RULES.includes('answer may simply end'));
 
+  // RULE 1 next-step is now optional
+  assert('1f. next step is optional not mandatory',
+    GLOBAL_BRAIN_RULES.includes('If relevant, suggest a natural next step'));
+  assert('1f2. no mandatory "Provide the next best action"',
+    !GLOBAL_BRAIN_RULES.includes('Provide the next best action'));
+
   // Financial boundary must remain
-  assert('1f. financial boundary intact',
+  assert('1g. financial boundary intact',
     GLOBAL_BRAIN_RULES.includes('FINANCIAL BOUNDARY'));
-  assert('1g. no invented data rule intact',
+  assert('1h. no invented data rule intact',
     GLOBAL_BRAIN_RULES.includes('NO INVENTED DATA'));
-  assert('1h. question detection intact',
+  assert('1i. question detection intact',
     GLOBAL_BRAIN_RULES.includes('QUESTION DETECTION'));
+
+  // AI Fluency skipped for Prime
+  const { readFileSync } = await import('fs');
+  const chatSrc = readFileSync('netlify/functions/chat.ts', 'utf8');
+  assert('1j. AI_FLUENCY skipped for Prime',
+    chatSrc.includes('if (!isPrime)') && chatSrc.includes('AI_FLUENCY_GLOBAL_SYSTEM_RULE'));
+  assert('1k. AI_FLUENCY still injected for non-Prime',
+    chatSrc.includes("systemMessages.push({ role: 'system', content: AI_FLUENCY_GLOBAL_SYSTEM_RULE }"));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

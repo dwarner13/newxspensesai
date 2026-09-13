@@ -9028,8 +9028,12 @@ export const handler: Handler = async (event, context) => {
     // additions (primeContextMessage, PRIME_ORCHESTRATION_RULE) further below.
     {
 
-    // 1. Global AI Fluency Rule (ALL employees) - Single merged global rules message
-    systemMessages.push({ role: 'system', content: AI_FLUENCY_GLOBAL_SYSTEM_RULE });
+    // 1. Global AI Fluency Rule (non-Prime employees only).
+    // Prime has dedicated style/reasoning instructions in primePolicy.ts that conflict
+    // with Explorer-level fluency rules ("go step by step", "ask confirmation questions").
+    if (!isPrime) {
+      systemMessages.push({ role: 'system', content: AI_FLUENCY_GLOBAL_SYSTEM_RULE });
+    }
     
     // 2. Merged User Context (fluency level + user preferences in ONE message to avoid duplication)
     // Combine buildAiContextSystemMessage(ctx) with userContextBlock if available
