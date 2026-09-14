@@ -13,6 +13,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
+import { groundFactsAgainstSource } from './memory-grounding.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -126,51 +127,47 @@ export async function extractAndSaveMemories(params: {
 You are a memory extraction helper for a financial assistant.
 From the user's latest message (already PII-redacted), extract ONLY durable, actionable information.
 
+CRITICAL: Every value you extract MUST come from the user's message text below.
+NEVER copy values, amounts, dates, names, locations, or goals from these instructions.
+If the user's message is vague ("some debt", "a lot", "soon"), do NOT invent a specific number or date.
+
 Return STRICT JSON with this exact structure:
 {
-  "facts": [{"key": "string", "value": "string", "confidence": 0.0-1.0}],
-  "preferences": [{"key": "string", "value": "string", "confidence": 0.0-1.0}],
+  "facts": [{"key": "string", "value": "<from user message>", "confidence": 0.0-1.0}],
+  "preferences": [{"key": "string", "value": "<from user message>", "confidence": 0.0-1.0}],
   "tasks": [{"description": "string", "due": "ISO8601 or empty", "confidence": 0.0-1.0}],
-  "corrections": [{"key": "string", "value": "string", "confidence": 0.0-1.0}]
+  "corrections": [{"key": "string", "value": "<from user message>", "confidence": 0.0-1.0}]
 }
 
 RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-FACTS (personal, financial, and business info stated by the user):
-✓ "age" -> "32"
-✓ "business_type" -> "freelance consulting"
-✓ "home_city" -> "Toronto"
-✓ "savings_balance" -> "250000" (from "I have $250,000 saved")
-✓ "vehicle_debt_balance" -> "31000" (from "I owe $31,000 on my car")
-✓ "annual_income" -> "180000" (from "I make $180,000 a year")
-✓ "tfsa_contribution" -> "500 weekly" (from "I contribute $500 a week to my TFSA")
-✓ "retirement_timeline" -> "3 years" (from "I want to retire in three years")
-✓ "savings_goal" -> "$50k by Dec 2026"
-A financial amount is a durable fact when the user states it about themselves, even if it may change later.
-✗ Don't extract: greetings, questions, hypothetical numbers, one-time transaction mentions ("I spent $52 at Costco yesterday"), numbers the assistant calculated, examples not about the user
+FACTS — extract personal, financial, and business info the user explicitly states.
+Use these key names when applicable:
+  age, home_city, business_type, annual_income, savings_balance,
+  mortgage_balance, vehicle_debt_balance, other_debt_balance,
+  credit_card_balance, investment_balance, tfsa_contribution,
+  rrsp_contribution, retirement_timeline, savings_goal
+The VALUE must be taken directly from the user's message — never invented.
+A financial amount is a durable fact when the user states it about themselves.
+✗ Don't extract: greetings, questions, hypothetical numbers, one-time transaction mentions, numbers the assistant calculated
 
-PREFERENCES (stable settings/ways of working):
-✓ "export_format" -> "CSV"
-✓ "notification_frequency" -> "weekly"
-✓ "budget_tracking" -> "envelope method"
+PREFERENCES — stable settings or ways of working (export_format, notification_frequency, budget_tracking, etc.)
 ✗ Don't extract: one-time choices, vague likes
 
-TASKS (explicit commitments with clear action):
-✓ "Review Q4 expenses before tax filing"
-✓ "Set up recurring transfer to savings"
+TASKS — explicit commitments with clear action
 ✗ Don't extract: vague ideas ("I should probably..."), questions
 
-CORRECTIONS (explicit updates/fixes):
-✓ "business_name" -> "Acme Corp" (was "ABC Inc")
-✓ "budget_limit" -> "$3000" (was "$2500")
+CORRECTIONS — explicit updates to previously stored information
 ✗ Don't extract: casual clarifications
 
 CONFIDENCE SCORING:
-1.0 = Explicit statement ("My export format is CSV")
-0.8 = Strongly implied ("I always use CSV files")
-0.6 = Moderate implication (context suggests)
-<0.6 = Too vague (DROP IT)
+1.0 = Explicit statement with specific value
+0.8 = Strongly implied
+0.6 = Moderate implication
+<0.6 = Too vague — DROP IT. "some debt" without an amount = drop. "soon" without a timeframe = drop.
+
+If the user's message contains no extractable durable facts, return empty arrays.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -178,7 +175,7 @@ User message:
 """
 ${redactedUserText}
 """
-${assistantResponse ? `\nAssistant response (for context):\n"""\n${assistantResponse}\n"""` : ''}
+${assistantResponse ? `\nAssistant response (for context only — do NOT extract facts from the assistant's words):\n"""\n${assistantResponse}\n"""` : ''}
 
 Return ONLY the JSON object, no commentary.
   `.trim();
@@ -210,7 +207,25 @@ Return ONLY the JSON object, no commentary.
     return conf >= CONFIDENCE_THRESHOLD && c.key && c.value;
   });
 
-  console.log(`[Memory Extraction] Extracted: ${facts.length} facts, ${prefs.length} prefs, ${tasks.length} tasks, ${corrections.length} corrections`);
+  console.log(`[Memory Extraction] Pre-grounding: ${facts.length} facts, ${prefs.length} prefs, ${tasks.length} tasks, ${corrections.length} corrections`);
+
+  // ========================================================================
+  // 2b. GROUNDING VALIDATION — reject values not supported by user message
+  // ========================================================================
+  const groundedFacts = groundFactsAgainstSource(facts, redactedUserText);
+  const groundedCorrections = groundFactsAgainstSource(corrections, redactedUserText);
+
+  const droppedFacts = facts.length - groundedFacts.length;
+  const droppedCorrections = corrections.length - groundedCorrections.length;
+  if (droppedFacts > 0 || droppedCorrections > 0) {
+    console.warn(`[Memory Extraction] Grounding dropped ${droppedFacts} facts, ${droppedCorrections} corrections`);
+  }
+
+  // Replace with grounded versions for downstream processing
+  const validatedFacts = groundedFacts;
+  const validatedCorrections = groundedCorrections;
+
+  console.log(`[Memory Extraction] Post-grounding: ${validatedFacts.length} facts, ${prefs.length} prefs, ${tasks.length} tasks, ${validatedCorrections.length} corrections`);
 
   // ========================================================================
   // 3. NORMALIZE & UPSERT FACTS (Hash-Based Deduplication)
@@ -226,7 +241,7 @@ Return ONLY the JSON object, no commentary.
   function toKeyedFacts(): KeyedFact[] {
     const out: KeyedFact[] = [];
 
-    for (const f of facts) {
+    for (const f of validatedFacts) {
       if (!f?.key || !f?.value) continue;
       out.push({ prefix: 'fact', key: String(f.key).trim(), value: String(f.value).trim() });
     }
@@ -236,7 +251,7 @@ Return ONLY the JSON object, no commentary.
       out.push({ prefix: 'pref', key: String(p.key).trim(), value: String(p.value).trim() });
     }
 
-    for (const c of corrections) {
+    for (const c of validatedCorrections) {
       if (!c?.key || !c?.value) continue;
       out.push({ prefix: 'correct', key: String(c.key).trim(), value: String(c.value).trim() });
     }
@@ -370,16 +385,16 @@ Return ONLY the JSON object, no commentary.
   // ========================================================================
   return {
     extracted: {
-      facts: facts.length,
+      facts: validatedFacts.length,
       preferences: prefs.length,
       tasks: tasks.length,
-      corrections: corrections.length
+      corrections: validatedCorrections.length
     },
     details: {
-      facts: facts.map((f: any) => ({ key: f.key, confidence: f.confidence })),
+      facts: validatedFacts.map((f: any) => ({ key: f.key, confidence: f.confidence })),
       preferences: prefs.map((p: any) => ({ key: p.key, confidence: p.confidence })),
       tasks: tasks.map((t: any) => ({ description: t.description.slice(0, 50) + '...', confidence: t.confidence })),
-      corrections: corrections.map((c: any) => ({ key: c.key, confidence: c.confidence }))
+      corrections: validatedCorrections.map((c: any) => ({ key: c.key, confidence: c.confidence }))
     }
   };
 }
