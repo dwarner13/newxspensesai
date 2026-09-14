@@ -84,7 +84,7 @@ export const handler: Handler = async (event, context) => {
       .update({ status: 'processing', updated_at: new Date().toISOString() })
       .eq('id', requestedJobId)
       .eq('status', 'pending')
-      .select('id, user_id, session_id, user_message, assistant_response, retry_count, max_retries')
+      .select('id, user_id, session_id, user_message, assistant_response, retry_count, max_retries, created_at')
       .maybeSingle();
 
     if (claimErr) {
@@ -119,6 +119,7 @@ export const handler: Handler = async (event, context) => {
         sessionId: claimed.session_id,
         redactedUserText: claimed.user_message,
         assistantResponse: claimed.assistant_response || undefined,
+        statedAt: claimed.created_at,
       });
 
       await sb.rpc('complete_memory_extraction_job', { job_id: requestedJobId });
@@ -188,7 +189,8 @@ export const handler: Handler = async (event, context) => {
           userId: jobData.user_id,
           sessionId: jobData.session_id,
           redactedUserText: jobData.user_message, // Should already be PII-masked
-          assistantResponse: jobData.assistant_response || undefined
+          assistantResponse: jobData.assistant_response || undefined,
+          statedAt: jobData.created_at,
         });
 
         // Mark as completed

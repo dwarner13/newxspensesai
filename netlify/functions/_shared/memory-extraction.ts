@@ -113,8 +113,9 @@ export async function extractAndSaveMemories(params: {
   sessionId: string;
   redactedUserText: string;  // Already PII-masked
   assistantResponse?: string; // Optional: include assistant context
+  statedAt?: string; // ISO8601 — when the user originally said this (queue.created_at)
 }) {
-  const { userId, sessionId, redactedUserText, assistantResponse } = params;
+  const { userId, sessionId, redactedUserText, assistantResponse, statedAt } = params;
 
   console.log(`[Memory Extraction] Processing for user ${String(userId).slice(0, 8)}...`);
 
@@ -220,48 +221,70 @@ Return ONLY the JSON object, no commentary.
     return createHash('md5').update(s.toLowerCase()).digest('hex');
   }
 
-  // Convert extracted items to normalized fact strings
-  function toNormalizedFacts(): string[] {
-    const out: string[] = [];
+  // Convert extracted items to keyed fact records
+  type KeyedFact = { prefix: string; key: string; value: string };
+  function toKeyedFacts(): KeyedFact[] {
+    const out: KeyedFact[] = [];
 
     for (const f of facts) {
       if (!f?.key || !f?.value) continue;
-      out.push(`fact:${String(f.key).trim()}=${String(f.value).trim()}`);
+      out.push({ prefix: 'fact', key: String(f.key).trim(), value: String(f.value).trim() });
     }
-    
+
     for (const p of prefs) {
       if (!p?.key || !p?.value) continue;
-      out.push(`pref:${String(p.key).trim()}=${String(p.value).trim()}`);
+      out.push({ prefix: 'pref', key: String(p.key).trim(), value: String(p.value).trim() });
     }
-    
+
     for (const c of corrections) {
       if (!c?.key || !c?.value) continue;
-      // Corrections overwrite; storing latest wins naturally by created_at
-      out.push(`correct:${String(c.key).trim()}=${String(c.value).trim()}`);
+      out.push({ prefix: 'correct', key: String(c.key).trim(), value: String(c.value).trim() });
     }
-    
+
     return out;
   }
 
-  const normalizedFacts = toNormalizedFacts();
+  const keyedFacts = toKeyedFacts();
+  const effectiveStatedAt = statedAt || new Date().toISOString();
 
-  // Upsert with hash-based deduplication
-  for (const factStr of normalizedFacts) {
+  // Upsert with key-based superseding (stated_at guard prevents older values overwriting newer)
+  for (const kf of keyedFacts) {
+    const factStr = `${kf.prefix}:${kf.key}=${kf.value}`;
     const fact_hash = md5Lower(factStr);
 
     try {
-      await supabase
-        .from('user_memory_facts')
-        .upsert({
-          user_id: userId,
-          source: 'extractor:v1',
-          fact: factStr,
-          fact_hash: fact_hash,
-          confidence: 80, // Default confidence for extracted facts
-          created_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,fact_hash'
-        });
+      // Try keyed upsert RPC first (requires V1.1 migration)
+      const { error: rpcError } = await supabase.rpc('upsert_memory_fact', {
+        p_user_id: userId,
+        p_fact_key: kf.key,
+        p_fact_value: kf.value,
+        p_fact: factStr,
+        p_fact_hash: fact_hash,
+        p_stated_at: effectiveStatedAt,
+        p_source: 'extractor:v1',
+        p_confidence: 80,
+      });
+
+      if (rpcError) {
+        // Fallback: RPC not yet deployed — use legacy hash-based upsert
+        if (rpcError.code === 'PGRST202' || rpcError.message?.includes('Could not find')) {
+          console.warn('[Memory Extraction] upsert_memory_fact RPC not found, using legacy upsert');
+          await supabase
+            .from('user_memory_facts')
+            .upsert({
+              user_id: userId,
+              source: 'extractor:v1',
+              fact: factStr,
+              fact_hash: fact_hash,
+              confidence: 80,
+              created_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,fact_hash'
+            });
+        } else {
+          console.error(`[Memory Extraction] RPC error for ${kf.key}:`, rpcError.message);
+        }
+      }
     } catch (err) {
       console.error(`[Memory Extraction] Failed to upsert fact ${factStr}:`, err);
     }
