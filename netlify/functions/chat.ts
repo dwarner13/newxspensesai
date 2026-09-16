@@ -512,26 +512,28 @@ function normalizeSessionId(raw: unknown): string | null {
 }
 
 /**
- * Fire-and-forget memory extraction enqueue.
- * Safe to call from any response path — non-blocking, catches errors.
- * Validates session ID and silently no-ops if invalid.
+ * Reliably enqueue a memory extraction job.
+ * Awaits the queue-row insert so it completes before the Lambda freezes.
+ * Catches all errors — a queue failure never crashes a successful chat response.
  */
-function fireAndForgetMemoryEnqueue(
+async function enqueueMemoryExtraction(
   userId: string,
   sessionId: unknown,
   userMessage: string,
   assistantResponse: string
-): void {
+): Promise<void> {
   const normalizedId = normalizeSessionId(sessionId);
   if (!normalizedId) return;
-  queueMemoryExtraction({
-    userId,
-    sessionId: normalizedId,
-    userMessage,
-    assistantResponse,
-  }).catch((error: any) => {
+  try {
+    await queueMemoryExtraction({
+      userId,
+      sessionId: normalizedId,
+      userMessage,
+      assistantResponse,
+    });
+  } catch (error: any) {
     console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error?.message || error);
-  });
+  }
 }
 
 function flagEnabled(raw: string | undefined | null): boolean {
@@ -7380,7 +7382,7 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Memory extraction for deterministic router responses
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -7988,7 +7990,7 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Memory extraction for deterministic temporal responses
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -8088,7 +8090,7 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Memory extraction for deterministic grounded facts responses
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -8202,7 +8204,7 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Memory extraction for deterministic clarification responses
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -8302,7 +8304,7 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Memory extraction for deterministic coaching responses
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -8402,7 +8404,7 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Memory extraction for deterministic financial insight responses
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -8502,7 +8504,7 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Memory extraction for deterministic predictive responses
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -8602,7 +8604,7 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Memory extraction for deterministic automation responses
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -11128,7 +11130,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       }
 
       // Phase 2.3: Queue memory extraction for async processing (non-blocking, fire-and-forget)
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       // Custodian: Update conversation summary (non-blocking, fire-and-forget)
       // CRITICAL: Do NOT await - this runs after response is returned
@@ -12299,7 +12301,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       }
 
       // Phase 2.3: Queue memory extraction for async processing (non-blocking)
-      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
 
       // Custodian: Update conversation summary (non-blocking)
       // Fetch all messages for this conversation and generate summary
