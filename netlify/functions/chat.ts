@@ -661,6 +661,17 @@ function detectTemporalIntent(message: string): TemporalIntent {
   return detectCurrentTimeIntent(message);
 }
 
+/**
+ * Extract a human-friendly city name from an IANA timezone identifier.
+ * e.g. "America/Edmonton" → "Edmonton", "America/New_York" → "New York"
+ * Returns null if the identifier has no city segment.
+ */
+function timezoneDisplayCity(iana: string): string | null {
+  const parts = iana.split('/');
+  const city = parts.length >= 2 ? parts[parts.length - 1] : null;
+  return city ? city.replace(/_/g, ' ') : null;
+}
+
 function formatTemporalResponse(intent: Exclude<TemporalIntent, null>, timezone: string | null): string {
   const now = new Date();
   const locale = 'en-CA';
@@ -675,6 +686,8 @@ function formatTemporalResponse(intent: Exclude<TemporalIntent, null>, timezone:
     }
   }
 
+  const cityName = zone ? timezoneDisplayCity(zone) : null;
+
   const dateText = new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     year: 'numeric',
@@ -686,24 +699,19 @@ function formatTemporalResponse(intent: Exclude<TemporalIntent, null>, timezone:
   const timeText = new Intl.DateTimeFormat(locale, {
     hour: 'numeric',
     minute: '2-digit',
-    second: '2-digit',
     hour12: true,
     ...(zone ? { timeZone: zone } : {}),
   }).format(now);
 
+  const locationSuffix = cityName ? ` in ${cityName}` : '';
+
   if (intent === 'datetime') {
-    return zone
-      ? `Right now it is ${dateText} at ${timeText} (${zone}).`
-      : `Right now it is ${dateText} at ${timeText}.`;
+    return `It's ${timeText} on ${dateText}${locationSuffix}.`;
   }
   if (intent === 'time') {
-    return zone
-      ? `The current time is ${timeText} (${zone}).`
-      : `The current time is ${timeText}.`;
+    return `It's ${timeText}${locationSuffix}.`;
   }
-  return zone
-    ? `Today's date is ${dateText} (${zone}).`
-    : `Today's date is ${dateText}.`;
+  return `Today is ${dateText}${locationSuffix}.`;
 }
 
 function detectGroundedFactsIntent(message: string): GroundedFactsIntent {

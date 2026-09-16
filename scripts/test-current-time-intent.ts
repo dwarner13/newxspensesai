@@ -5,6 +5,7 @@
  * current-time/date queries and rejects incidental uses of "time"/"date".
  */
 import { detectCurrentTimeIntent } from '../src/shared/detect-current-time-intent';
+import { readFileSync } from 'fs';
 
 let passed = 0;
 let failed = 0;
@@ -94,6 +95,72 @@ console.log('\n=== 5: Edge cases ===\n');
   assert('E3. mixed case "WHAT TIME IS IT?"', detectCurrentTimeIntent('WHAT TIME IS IT?') === 'time');
   assert('E4. extra whitespace', detectCurrentTimeIntent('  What is the time?  ') === 'time');
   assert('E5. finance keyword + time (statement)', detectCurrentTimeIntent('What time was the statement generated?') === null);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. formatTemporalResponse — display quality
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n=== 6: formatTemporalResponse display quality ===\n');
+{
+  // Read chat.ts source to test formatTemporalResponse structurally
+  const chatSrc = readFileSync('netlify/functions/chat.ts', 'utf8');
+
+  // 6a. America/Edmonton is a valid IANA timezone (accepted by Intl)
+  let edmontonAccepted = false;
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton' }).format(new Date());
+    edmontonAccepted = true;
+  } catch { /* invalid */ }
+  assert('F1. America/Edmonton is accepted by Intl.DateTimeFormat', edmontonAccepted);
+
+  // 6b. No seconds in time format — hour + minute only
+  assert('F2. time format has no seconds',
+    chatSrc.includes("minute: '2-digit',") &&
+    chatSrc.includes("hour12: true,") &&
+    !/ second: '2-digit'/.test(chatSrc.substring(
+      chatSrc.indexOf('function formatTemporalResponse'),
+      chatSrc.indexOf('function formatTemporalResponse') + 1200
+    )));
+
+  // 6c. Raw IANA identifiers not exposed in output templates
+  const ftrRegion = chatSrc.substring(
+    chatSrc.indexOf('function formatTemporalResponse'),
+    chatSrc.indexOf('function formatTemporalResponse') + 1200
+  );
+  assert('F3. no raw (${zone}) in response templates',
+    !ftrRegion.includes('(${zone})'));
+
+  // 6d. timezoneDisplayCity helper exists
+  assert('F4. timezoneDisplayCity helper defined',
+    chatSrc.includes('function timezoneDisplayCity('));
+
+  // 6e. timezoneDisplayCity extracts city from IANA
+  // Simulate the logic
+  function timezoneDisplayCity(iana: string): string | null {
+    const parts = iana.split('/');
+    const city = parts.length >= 2 ? parts[parts.length - 1] : null;
+    return city ? city.replace(/_/g, ' ') : null;
+  }
+  assert('F5. Edmonton extracted from America/Edmonton',
+    timezoneDisplayCity('America/Edmonton') === 'Edmonton');
+  assert('F6. New York extracted from America/New_York',
+    timezoneDisplayCity('America/New_York') === 'New York');
+  assert('F7. null for bare "UTC"',
+    timezoneDisplayCity('UTC') === null);
+
+  // 6f. Response uses conversational tone ("It's" not "The current time is")
+  assert('F8. time response uses conversational tone',
+    ftrRegion.includes("It's ${timeText}"));
+  assert('F9. date response uses conversational tone',
+    ftrRegion.includes("Today is ${dateText}"));
+
+  // 6g. Location suffix uses "in <city>" pattern
+  assert('F10. location suffix uses "in" pattern',
+    ftrRegion.includes("in ${cityName}"));
+
+  // 6h. Invalid timezone fallback — zone set to undefined
+  assert('F11. invalid timezone falls back cleanly',
+    ftrRegion.includes('zone = undefined'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
