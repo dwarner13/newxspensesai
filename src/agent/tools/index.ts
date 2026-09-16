@@ -451,7 +451,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['account_balances_query', {
     id: 'account_balances_query',
-    description: 'Query account balances and summaries. Use this when Finley needs current account balances for wealth calculations or net worth projections.',
+    description: 'Query verified account balances from linked accounts. Returns only balances sourced from the accounts table. When no linked accounts exist, returns hasVerifiedBalances: false and provenance: unavailable. Never estimates or synthesizes balances.',
     inputSchema: accountBalancesQuery.inputSchema,
     outputSchema: accountBalancesQuery.outputSchema,
     run: accountBalancesQuery.execute,
