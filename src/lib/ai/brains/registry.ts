@@ -3,7 +3,7 @@ import { PRIME_BRAIN } from './prime';
 import { BYTE_BRAIN } from './byte';
 import { CRYSTAL_BRAIN } from './crystal';
 import { GOALIE_BRAIN } from './goalie';
-import { GLOBAL_BRAIN_RULES, PRIME_WATCHER_INTELLIGENCE_MODE } from '../systemPrompts';
+import { GLOBAL_BRAIN_RULES, PRIME_SAFETY_RULES, PRIME_WATCHER_INTELLIGENCE_MODE } from '../systemPrompts';
 
 const FALLBACK_BRAIN: BrainPack = {
   employee_key: 'generic',
@@ -81,7 +81,7 @@ export function buildEmployeeBrainSystemPrompt(args: {
   const isPrime = key === 'prime' || key === 'prime-boss';
   return [
     basePrompt,
-    GLOBAL_BRAIN_RULES,
+    isPrime ? PRIME_SAFETY_RULES : GLOBAL_BRAIN_RULES,
     isPrime ? PRIME_WATCHER_INTELLIGENCE_MODE : null,
   ]
     .filter(Boolean)

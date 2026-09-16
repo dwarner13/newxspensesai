@@ -127,7 +127,7 @@ function buildCEOGreeting(options: PrimeGreetingOptions): PrimeGreetingData {
   // RETURNING USER
   else {
     titleLine = `The boardroom is clear, CEO.`;
-    subLine = `Your current net worth is $0.00. Ready for a new import?`;
+    subLine = `What would you like to work on?`;
   }
 
   // Vibe tag

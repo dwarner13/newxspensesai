@@ -92,10 +92,16 @@ function isLeapYear(y: number): boolean { return (y % 4 === 0 && y % 100 !== 0) 
  * Looks for patterns like "at Costco", "from Amazon", "spent at Walmart",
  * and secondary patterns like "Costco transaction", "Petro-Canada charge".
  * Excludes month names in date phrases and known category terms.
+ *
+ * This is the SINGLE authoritative merchant extraction for the entire app.
+ * Do not duplicate this logic — import and call this function instead.
  */
-function extractMerchantHint(msg: string): string | undefined {
+export function extractMerchantHint(msg: string): string | undefined {
   // Primary: preposition + word (e.g., "from Costco", "at Walmart")
-  const match = msg.match(/\b(?:at|from|to|paid to|spent at|bought at|purchased at|charges? from)\s+([A-Z][a-zA-Z0-9'&-]{1,30})\b/i);
+  // NOTE: Bare "to" is excluded — it causes false positives on conversational
+  // phrases like "talk to if", "go to for". Compound forms (paid to, sent to)
+  // are retained because they strongly signal a merchant/payee context.
+  const match = msg.match(/\b(?:at|from|paid to|sent to|spent at|bought at|purchased at|charges? from)\s+([A-Z][a-zA-Z0-9'&-]{1,30})\b/i);
   if (match?.[1]) {
     const candidate = match[1].trim();
     // Reject month names — they are part of date phrases ("from August 21")
@@ -117,7 +123,7 @@ function extractMerchantHint(msg: string): string | undefined {
       'my', 'the', 'a', 'an', 'this', 'that', 'each', 'every', 'any',
       'no', 'your', 'his', 'her', 'our', 'their', 'some', 'one',
       'recent', 'last', 'first', 'next', 'new', 'old', 'all',
-      'find', 'show', 'get', 'see', 'check', 'make',
+      'find', 'show', 'get', 'see', 'check', 'make', 'handles',
       'what', 'which', 'where', 'when', 'how', 'who',
       'did', 'does', 'do', 'is', 'was', 'were',
     ]);

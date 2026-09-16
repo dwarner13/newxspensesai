@@ -90,17 +90,18 @@ export async function fetchAiUserContext(userId: string): Promise<AiUserContext>
  * @param ctx - AI user context
  * @returns User context system message block
  */
-export function buildAiContextSystemMessage(ctx: AiUserContext): string {
-  return `XspensesAI User Context (do not reveal unless user asks):
+export function buildAiContextSystemMessage(ctx: AiUserContext, options?: { skipFluencyReference?: boolean }): string {
+  const base = `XspensesAI User Context (do not reveal unless user asks):
 - user_id: ${ctx.user_id}
 - display_name: ${ctx.display_name ?? "Unknown"}
 - currency: ${ctx.currency ?? "CAD"}
 - timezone: ${ctx.timezone ?? "America/Edmonton"}
 - memory_enabled: ${ctx.memory_enabled ? "true" : "false"}
 - ai_fluency_level: ${ctx.ai_fluency_level}
-- ai_fluency_score: ${ctx.ai_fluency_score} (internal only; never mention)
+- ai_fluency_score: ${ctx.ai_fluency_score} (internal only; never mention)`;
 
-You MUST follow the AI FLUENCY ADAPTATION RULES provided in system policy.`;
+  if (options?.skipFluencyReference) return base;
+  return base + '\n\nYou MUST follow the AI FLUENCY ADAPTATION RULES provided in system policy.';
 }
 
 /**

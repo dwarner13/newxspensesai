@@ -68,7 +68,7 @@ export async function execute(
 
 export const metadata = {
   name: 'Request Employee Handoff',
-  description: 'Transfer the conversation to another AI employee better suited to answer. Routing: file uploads or OCR -> byte-docs; category rules or fixing miscategorized transactions -> tag-ai; trends, anomalies, why did X change -> crystal-analytics; savings goals or debt payoff -> goalie-goals; how do I, where do I find X, app navigation, how-to questions -> custodian; return to orchestrator -> prime-boss.',
+  description: 'Transfer the conversation to another AI employee to PERFORM specialist work. Only use when the user wants an action executed — not when they ask about who handles something, what an employee does, or whether a capability exists. Routing: category mutations (change, recategorize) -> tag-ai; file uploads or OCR processing -> byte-docs; trends, anomalies, why did X change -> crystal-analytics; goal creation or modification -> goalie-goals; app navigation, how-to -> custodian; return to orchestrator -> prime-boss.',
   requiresConfirmation: false,
   dangerous: false,
 };

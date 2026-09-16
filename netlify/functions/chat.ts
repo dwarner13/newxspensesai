@@ -116,6 +116,7 @@ import {
   buildPrimeAuthoritySystemMessage,
   type PrimeLane,
 } from './_shared/primePolicy.js';
+import { buildPrimePersonalityMessage } from './_shared/primePersonality.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
 import { buildContextInjection } from './_shared/contextInjection.js';
@@ -138,7 +139,7 @@ import {
   hashArgs,
 } from './_shared/toolConfirmation.js';
 // Phase 1B.2: Server-enforced financial grounding (static imports — must not fail-open)
-import { classifyFinancialQuery, classifyTemporalIntent } from '../../src/shared/financial-query-classifier';
+import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint } from '../../src/shared/financial-query-classifier';
 import { detectCurrentTimeIntent, type CurrentTimeIntent } from '../../src/shared/detect-current-time-intent';
 import {
   isAnswerInContext,
@@ -1682,7 +1683,12 @@ function isStatementQaIntent(message: string): boolean {
   if (monthMentioned && !statementKeywords && !merchantNeedle) {
     return false;
   }
-  return statementKeywords || monthMentioned || (asksMerchantRecentDate && Boolean(merchantNeedle));
+  // Phase 2B.1: Topic keywords alone (category, transactions, balance, etc.) are NOT
+  // proof the user is asking about statement data. They appear in capability questions,
+  // general conversation, and employee routing. Require a data-scope signal (month or
+  // merchant) to co-occur with keywords before entering the deterministic statement_qa
+  // path. Unscoped data questions fall through to the LLM + financial grounding system.
+  return (statementKeywords && (monthMentioned || Boolean(merchantNeedle))) || (asksMerchantRecentDate && Boolean(merchantNeedle));
 }
 
 function asksForLatestStatement(message: string): boolean {
@@ -3271,32 +3277,15 @@ type LatestImportFacts = {
   currency: string;
 };
 
+/**
+ * Extract a merchant needle from a user question for statement_qa matching.
+ * Delegates to the shared extractMerchantHint() — single source of truth for
+ * merchant extraction across the entire app (financial-query-classifier.ts).
+ * Returns lowercase for fuzzy DB matching.
+ */
 function extractMerchantNeedleFromQuestion(question: string): string | null {
-  const q = String(question || '').toLowerCase();
-  const connectorCapture = q.match(/\b(?:with|on|for|at)\s+([a-z0-9][a-z0-9&*'.,\-\s]{1,60})/i);
-  if (connectorCapture?.[1]) {
-    const cleanedConnector = normalizeMerchantQueryText(String(connectorCapture[1]));
-    if (cleanedConnector.length >= 2) return cleanedConnector;
-  }
-  const patterns = [
-    /\bspend with\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-    /\bspent with\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-    /\bpaid for\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-    /\bspend for\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-    /\bspent for\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-    /\bfor\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-    /\bwith\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-    /\bon\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-    /\bat\s+([a-z0-9&*'.,\-\s]{2,})$/i,
-  ];
-  for (const pattern of patterns) {
-    const m = q.match(pattern);
-    if (m?.[1]) {
-      const cleaned = normalizeMerchantQueryText(String(m[1]));
-      if (cleaned.length >= 2) return cleaned;
-    }
-  }
-  return null;
+  const hint = extractMerchantHint(question);
+  return hint ? hint.toLowerCase() : null;
 }
 
 async function loadMerchantSpendForLatestImportBestEffort(
@@ -5723,39 +5712,11 @@ export const handler: Handler = async (event, context) => {
     const hasAttachments = Array.isArray(documentIds) && documentIds.length > 0;
     let classifiedLane = classifyPrimeLane(messageTrimmed, hasAttachments);
 
-    // PHASE 3 FIX-B (2026-04-23): Handoff-intent promotion.
-    // Short affirmative replies ("yes please", "sure", "go ahead") to a Prime
-    // handoff offer get fast-laned by the classifier, which strips tools and
-    // breaks handoffs. Detect the pattern and force DEEP lane so tools stay on.
-    // - current message must be short + affirmative-looking
-    // - previous assistant message must have offered a handoff
-    try {
-      // NOTE: no employee check here - requestedEmployeeSlug not yet initialized at this
-      // point in the function. Scoping to Prime is enforced by primeDebug/isPrimeEmployee
-      // checks further down. Worst case this runs for non-Prime and finds no match.
-      if (classifiedLane === 'fast') {
-        const msgLower = String(messageTrimmed || '').toLowerCase().trim();
-        const wordCount = msgLower.split(/\s+/).filter(Boolean).length;
-        const isAffirmative = wordCount <= 12 && /\b(yes|sure|ok(?:ay)?|please|yep|yeah|go ahead|do it|connect me|let's|sounds good|lets|speak to (tag|byte|crystal|goalie)|i (would|want|wanna) (like to )?(speak|talk) to)\b/.test(msgLower);
-        if (isAffirmative && Array.isArray(recentMessages) && recentMessages.length > 0) {
-          // Find most recent assistant message (not counting tool results)
-          const lastAsst = [...recentMessages].reverse().find((m: any) =>
-            m?.role === 'assistant' && typeof m?.content === 'string' && m.content.length > 20
-          );
-          const lastAsstText = String(lastAsst?.content || '').toLowerCase();
-          const offeredHandoff = /\b(connect you with|would you like me to (connect|hand|get|bring)|let me get|i'?ll (connect|hand|bring|get)|pass (you|this) (to|over)|hand (you |this )?(off )?(to|over to)|reach out to (tag|byte|crystal|goalie)|tag can help|byte can help|crystal can help|goalie can help)\b/.test(lastAsstText);
-          if (offeredHandoff) {
-            console.log('[Chat][PRIME_DEBUG] FIX-B: handoff-intent detected, promoting fast -> deep (tools stay on)', {
-              userMsgPreview: msgLower.slice(0, 60),
-              priorOfferPreview: lastAsstText.slice(0, 80),
-            });
-            classifiedLane = 'deep';
-          }
-        }
-      }
-    } catch (fixBError: any) {
-      console.warn('[Chat] FIX-B handoff-intent promotion error (non-fatal):', fixBError?.message || fixBError);
-    }
+    // FIX-B (removed 2026-09-16): The handoff-intent lane promotion block was
+    // dead code. OPTION A (line ~6083) unconditionally forces Prime to 'deep'
+    // lane, guaranteeing tools are always available. The model sees full
+    // conversation history at invocation time and decides whether to use
+    // request_employee_handoff — no deterministic pre-classification needed.
     const primeChatGptStyleMode = isPrimeChatGptStyleModeEnabled();
     let shouldPreferPrimeQualityMode = false;
     let isFastPath = messageLength <= 30 || isGreeting;
@@ -6084,9 +6045,9 @@ export const handler: Handler = async (event, context) => {
     }
     orchCtx.employee = finalEmployeeSlug;
     const isPrimeEmployee = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    // OPTION A (2026-04-23): Force Prime to deep lane always. Keeps tools enabled every
-    // turn so handoffs fire regardless of message shape (greetings, short replies,
-    // casual asks all work). Replaces the fragile Fix-B regex approach.
+    // Prime always deep lane: tools available every turn so handoffs, greetings,
+    // short replies, and affirmative follow-ups all work. The model sees full
+    // conversation history and decides intent — no deterministic lane promotion needed.
     const primeLane: PrimeLane = (finalEmployeeSlug === 'prime-boss') ? 'deep' : classifiedLane;
     const isPrimeFastLane = finalEmployeeSlug === 'prime-boss' && primeLane === 'fast';
     const isPrimeDeepLane = finalEmployeeSlug === 'prime-boss' && primeLane === 'deep';
@@ -6166,7 +6127,7 @@ export const handler: Handler = async (event, context) => {
           // tx_update_category deliberately NOT added to Prime.
           // Categorization mutations are Tag's responsibility.
           // Prime delegates via request_employee_handoff → tag-ai.
-          // See: isCategoryChangeIntent() deterministic routing.
+          // Model-driven: Prime's INFORMATION vs ACTION rule + tool description.
 
           // Forecast/calculation tools (read-only) — re-enabled after schema fix in f11dfcb2
           if (!employeeTools.includes('finley_debt_payoff_forecast')) {
@@ -9076,7 +9037,7 @@ export const handler: Handler = async (event, context) => {
     // 2. Merged User Context (fluency level + user preferences in ONE message to avoid duplication)
     // Combine buildAiContextSystemMessage(ctx) with userContextBlock if available
     // PHASE 1.1 FIX: Defensive — skip if ctx is null (happens if fetchAiUserContext returned null).
-    let mergedUserContext = ctx ? buildAiContextSystemMessage(ctx) : '';
+    let mergedUserContext = ctx ? buildAiContextSystemMessage(ctx, { skipFluencyReference: isPrime }) : '';
     if (userContextBlock) {
       // Merge: AI fluency context + detailed user preferences
       mergedUserContext = `${mergedUserContext}\n\n---\n\n${userContextBlock}`;
@@ -9574,6 +9535,16 @@ CUSTODIAN CONTEXT (Account Security & Settings):
           }
         : null;
 
+    const primePersonalityHint =
+      isPrimeBoss
+        ? {
+            role: 'system' as const,
+            content: buildPrimePersonalityMessage({
+              preferredName: preferredNameForPrime,
+            }),
+          }
+        : null;
+
     // Tag-specific: escalation + rule-setting instructions
     const tagAuthorityHint =
       (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag')
@@ -9639,6 +9610,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     // Build final messages: system messages + chat history + current user message
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       ...(primeAuthorityHint ? [primeAuthorityHint] : []),
+      ...(primePersonalityHint ? [primePersonalityHint] : []),
       ...(tagAuthorityHint ? [tagAuthorityHint] : []),
       ...(byteContextHint ? [byteContextHint] : []),
       ...systemMessages,
@@ -9662,6 +9634,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           attachmentContext: Boolean(attachmentContext),
           userProfileContext: Boolean(userProfile),
           primeAuthority: Boolean(primeAuthorityHint),
+          primePersonality: Boolean(primePersonalityHint),
           fluencyGlobal: systemMessages.some((m) => m.content.includes('SYSTEM RULE: AI FLUENCY ADAPTATION')),
           primeOrchestration: systemMessages.some((m) => m.content.includes('ROLE: PRIME - AI FINANCIAL CEO')),
           dbEmployeePrompt: systemMessages.some((m) => m.content === employeeSystemPrompt),
@@ -11430,37 +11403,13 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           console.groupEnd();
         }
 
-        // ── DETERMINISTIC CATEGORY-CHANGE DELEGATION (Prime → Tag) ────────
-        // When the user asks to change/recategorize a transaction, Prime delegates
-        // to Tag (the categorization specialist) rather than attempting the mutation
-        // directly. This ensures specialist ownership: Tag handles the confirmation
-        // gate, mutation, and learning — Prime remains the boss/orchestrator.
-        if (
-          isPrime &&
-          toolsAllowedThisTurn &&
-          isCategoryChangeIntent(masked) &&
-          toolModules['request_employee_handoff'] &&
-          !toolCalls.some((tc: any) => tc.function?.name === 'request_employee_handoff')
-        ) {
-          console.log('[Chat][PRIME_DELEGATION] Category-change intent detected — forcing handoff to tag-ai');
-          const handoffArgs = {
-            target_slug: 'tag-ai',
-            reason: 'Transaction category change — Tag owns categorization workflow',
-            summary_for_next_employee: `User request: ${masked.substring(0, 500)}`,
-          };
-          toolCalls = [{
-            id: `prime_delegate_tag_${Date.now()}`,
-            type: 'function',
-            function: {
-              name: 'request_employee_handoff',
-              arguments: JSON.stringify(handoffArgs),
-            },
-          }] as any;
-          // Use model's text if it generated one, otherwise provide a delegation message
-          if (!assistantContent || !assistantContent.trim()) {
-            assistantContent = "I'll have Tag handle this category change for you — she's our categorization specialist.";
-          }
-        }
+        // ── CATEGORY-CHANGE DELEGATION (Prime → Tag) ────────
+        // Phase 2B.1: Removed deterministic forced handoff based on isCategoryChangeIntent().
+        // The regex matched informational questions ("who handles category changes?") and
+        // overrode valid model intent decisions. Prime now has request_employee_handoff in
+        // its tools with clear INFORMATION vs ACTION instructions — the model decides when
+        // a real mutation request requires Tag. Category mutation remains Tag-owned; Prime
+        // does not have tx_update_category and will delegate via tool call when appropriate.
 
         // Guardrail: enforce tx_search for transaction intents when model skips tools.
         // PHASE 2.6 FIX: Skip this guardrail if the Tax Summary gate intentionally stripped tools —

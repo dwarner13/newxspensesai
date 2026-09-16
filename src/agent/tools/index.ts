@@ -382,7 +382,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['request_employee_handoff', {
     id: 'request_employee_handoff',
-    description: 'Transfer the conversation to another AI employee who is better suited to answer the user\'s question. Use this when users ask about Smart Import/OCR/document uploads (-> Byte), high-level strategy or "who should I talk to" questions (-> Prime), analytics/trends (-> Crystal), tax questions (-> Ledger), or goal setting (-> Goalie).',
+    description: 'Transfer the conversation to another AI employee to PERFORM specialist work. Only use when the user wants an action executed — not when they ask about who handles something, what an employee does, or whether a capability exists. Routing: category mutations (change, recategorize) -> tag-ai; file uploads or OCR processing -> byte-docs; analytics/trends -> crystal-analytics; goal creation or modification -> goalie-goals; app navigation, how-to -> custodian; return to orchestrator -> prime-boss.',
     inputSchema: requestEmployeeHandoff.inputSchema,
     outputSchema: requestEmployeeHandoff.outputSchema,
     run: requestEmployeeHandoff.execute,
