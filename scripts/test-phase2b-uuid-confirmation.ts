@@ -326,6 +326,124 @@ console.log('\n=== I2: Confirmation Gate — Backend State Machine ===\n');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ISSUE 2B: Non-streaming tool-loop confirmation carries token to frontend
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n=== I2B: Non-streaming confirmation token propagation ===\n');
+
+// T25: loopPendingConfirmationData captures full pending data at gate time
+{
+  assert('T25.1 loopPendingConfirmationData declared in non-streaming path',
+    chatSrc.includes('let loopPendingConfirmationData'));
+
+  assert('T25.2 loopPendingConfirmationData captures token from pending',
+    chatSrc.includes('token: pending.token,') &&
+    chatSrc.includes('argsHash: pending.argsHash,') &&
+    chatSrc.includes('loopPendingConfirmationData = {'));
+
+  assert('T25.3 loopPendingConfirmationData captured at tool-loop confirmation gate',
+    // Verify it's set within the requiresConfirmation block in the tool loop
+    (() => {
+      const gateIdx = chatSrc.indexOf('Confirmation gate (tool loop round');
+      const assignIdx = chatSrc.indexOf('loopPendingConfirmationData = {', gateIdx);
+      return gateIdx > 0 && assignIdx > 0 && assignIdx - gateIdx < 2000;
+    })());
+}
+
+// T26: Model-visible tool result does NOT contain token or argsHash
+{
+  // The tool result content pushed at the confirmation gate must not leak secrets
+  // Find the JSON.stringify block near the confirmation gate in the tool loop
+  const toolLoopGateIdx = chatSrc.indexOf('Confirmation gate (tool loop round');
+  const nextJsonStringify = chatSrc.indexOf('JSON.stringify({', toolLoopGateIdx);
+  const closingParen = chatSrc.indexOf('})', nextJsonStringify);
+  const jsonBlock = chatSrc.substring(nextJsonStringify, closingParen + 2);
+
+  assert('T26.1 Tool result content does NOT contain token',
+    !jsonBlock.includes('token'));
+
+  assert('T26.2 Tool result content does NOT contain argsHash',
+    !jsonBlock.includes('argsHash'));
+
+  assert('T26.3 Tool result content DOES contain confirmationId (for logging)',
+    jsonBlock.includes('confirmationId'));
+}
+
+// T27: Post-loop __pendingConfirmation DOES include token and argsHash
+{
+  // Find the post-loop block that uses loopPendingConfirmationData
+  const postLoopIdx = chatSrc.indexOf('HARD CONFIRMATION BOUNDARY (non-streaming post-loop)');
+  const metadataBlock = chatSrc.substring(postLoopIdx, postLoopIdx + 2500);
+
+  assert('T27.1 Post-loop uses loopPendingConfirmationData (not parsed tool result)',
+    metadataBlock.includes('loopPendingConfirmationData.token'));
+
+  assert('T27.2 Post-loop includes token in __pendingConfirmation',
+    metadataBlock.includes('token: loopPendingConfirmationData.token'));
+
+  assert('T27.3 Post-loop includes argsHash in __pendingConfirmation',
+    metadataBlock.includes('argsHash: loopPendingConfirmationData.argsHash'));
+
+  assert('T27.4 Post-loop includes confirmationId in __pendingConfirmation',
+    metadataBlock.includes('confirmationId: loopPendingConfirmationData.confirmationId'));
+
+  assert('T27.5 Post-loop includes expiresAt in __pendingConfirmation',
+    metadataBlock.includes('expiresAt: loopPendingConfirmationData.expiresAt'));
+
+  assert('T27.6 Log message confirms token is included',
+    metadataBlock.includes('Set pendingConfirmation metadata (with token)'));
+}
+
+// T28: Frontend contract — usePrimeChat requires confirmationId AND token
+{
+  const hookSrc = readFileSync('src/hooks/usePrimeChat.ts', 'utf8');
+
+  assert('T28.1 Frontend checks both confirmationId and token',
+    hookSrc.includes('pendingConfirmation?.confirmationId && payload?.pendingConfirmation?.token'));
+
+  assert('T28.2 Frontend stores argsHash from response',
+    hookSrc.includes('argsHash: pc.argsHash'));
+
+  assert('T28.3 Frontend stores token from response',
+    hookSrc.includes('token: pc.token'));
+}
+
+// T29: Backend does NOT execute mutation before confirmation
+{
+  // The tool loop confirmation gate uses `continue` — skips executeTool
+  const toolLoopGateIdx2 = chatSrc.indexOf('Confirmation gate (tool loop round');
+  const continueIdx = chatSrc.indexOf('hadConfirmation = true;\n                  continue;', toolLoopGateIdx2);
+  assert('T29.1 Tool loop gate skips execution with continue',
+    continueIdx > 0 && continueIdx - toolLoopGateIdx2 < 2000);
+}
+
+// T30: Backend does NOT generate false-success text
+{
+  assert('T30.1 Non-streaming post-loop uses deterministic text (not model call)',
+    chatSrc.includes('Confirmation hard boundary (non-streaming): deterministic text, no model call'));
+
+  // Verify old model call for confirmation text is removed
+  assert('T30.2 Old specialist_confirmation_text model call removed',
+    !chatSrc.includes("'specialist_confirmation_text'"));
+}
+
+// T31: Cancel does not mutate (structural — frontend only clears state)
+{
+  const hookSrc2 = readFileSync('src/hooks/usePrimeChat.ts', 'utf8');
+  const cancelIdx = hookSrc2.indexOf('cancelToolExecution');
+  const cancelBlock = hookSrc2.substring(cancelIdx, cancelIdx + 300);
+  assert('T31.1 cancelToolExecution clears state without backend call',
+    cancelBlock.includes('setPendingConfirmation(null)') && !cancelBlock.includes('__CONFIRM_TOOL__'));
+}
+
+// T32: Consumed confirmation cannot execute twice (existing protection)
+{
+  const migrationSrc = readFileSync('sql/migrations/20260826_tool_confirmation_requests.sql', 'utf8');
+  assert('T32.1 Atomic consume via UPDATE WHERE status=pending',
+    migrationSrc.includes("tcr.status      = 'pending'"));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CROSS-CUTTING: Existing protections preserved
 // ═══════════════════════════════════════════════════════════════════════════
 

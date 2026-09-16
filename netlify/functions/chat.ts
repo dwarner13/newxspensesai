@@ -11854,6 +11854,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         });
         let hadHandoff = currentToolCalls.some((tc: any) => tc.function?.name === 'request_employee_handoff');
         let specialistContinuationInjected = false;
+        // Capture full pending confirmation data from the tool loop (token/argsHash
+        // must NOT appear in model-visible tool results but MUST reach the frontend
+        // via the trusted JSON response metadata).
+        let loopPendingConfirmationData: { confirmationId: string; token: string; expiresAt: number; argsHash: string; toolName: string; args: any; summary: string } | null = null;
 
         while (currentToolResults.length > 0 && toolRound < MAX_TOOL_ROUNDS && !hadConfirmation) {
           toolRound++;
@@ -12036,10 +12040,12 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // Confirmation gate
                 if (requiresConfirmation(toolModule.meta)) {
                   const pending = await createPendingConfirmation(sb, userId, finalSessionId, toolName, args);
+                  const confirmSummary = `This will ${toolModule.description?.toLowerCase() || toolName}`;
                   console.log(`[Chat] Confirmation gate (tool loop round ${toolRound}): ${toolName} requires approval`, {
                     confirmationId: pending.confirmationId,
                     expiresAt: new Date(pending.expiresAt).toISOString(),
                   });
+                  // Model-visible result: NO token or argsHash (security boundary)
                   currentToolResults.push({
                     role: 'tool',
                     tool_call_id: toolCall.id,
@@ -12052,6 +12058,16 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                       message: `This action requires your confirmation before proceeding.`,
                     }),
                   });
+                  // Trusted metadata: token + argsHash for frontend confirmation UI
+                  loopPendingConfirmationData = {
+                    confirmationId: pending.confirmationId,
+                    token: pending.token,
+                    expiresAt: pending.expiresAt,
+                    argsHash: pending.argsHash,
+                    toolName,
+                    args,
+                    summary: confirmSummary,
+                  };
                   hadConfirmation = true;
                   continue;
                 }
@@ -12104,42 +12120,41 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         // When hadConfirmation is set, the mutation was NOT executed.
         // Use deterministic text — NO model call that could produce false success.
         if (hadConfirmation && currentToolResults.length > 0) {
-          // Extract confirmation metadata from tool results
-          const confirmToolResult = currentToolResults.find((r: any) => {
-            try { return JSON.parse(r.content)?._requiresConfirm; } catch { return false; }
-          });
-          if (confirmToolResult) {
-            try {
-              const parsed = JSON.parse(confirmToolResult.content);
-              const confirmArgs = parsed.args || {};
-              const txDesc = confirmArgs.merchantName || confirmArgs.description || 'the requested transaction';
-              const newCat = confirmArgs.newCategory || 'the requested category';
+          // Use loopPendingConfirmationData (captured at gate time with full token/argsHash)
+          // or fall back to initial gate metadata if already set.
+          if (loopPendingConfirmationData) {
+            const confirmArgs = loopPendingConfirmationData.args || {};
+            const txDesc = confirmArgs.merchantName || confirmArgs.description || 'the requested transaction';
+            const newCat = confirmArgs.newCategory || 'the requested category';
 
-              // Deterministic confirmation text — never model-generated
-              assistantContent = `I found ${txDesc} and I'd like to change its category to "${newCat}". This change requires your confirmation — please use the Confirm button below to proceed, or Cancel to skip.`;
-              console.log(`[Chat] Confirmation hard boundary (non-streaming): deterministic text, no model call`);
+            // Deterministic confirmation text — never model-generated
+            assistantContent = `I found ${txDesc} and I'd like to change its category to "${newCat}". This change requires your confirmation — please use the Confirm button below to proceed, or Cancel to skip.`;
+            console.log(`[Chat] Confirmation hard boundary (non-streaming): deterministic text, no model call`);
 
-              // Propagate pendingConfirmation metadata for the JSON response
-              // Only set if not already set by the initial confirmation gate (which has full metadata)
-              if (!(toolResults as any).__pendingConfirmation) {
-                (toolResults as any).__pendingConfirmation = {
-                  type: 'confirmation_required',
-                  tool: parsed.toolName,
-                  summary: `Change category for ${txDesc}`,
-                  confirmationId: parsed.confirmationId,
-                  expiresAt: parsed.expiresAt,
-                  args: parsed.args,
-                };
-                console.log(`[Chat] Set pendingConfirmation metadata: ${parsed.confirmationId}`);
-              } else {
-                console.log(`[Chat] pendingConfirmation metadata already set by initial gate — preserving`);
-              }
-            } catch (e: any) {
-              console.warn('[Chat] Failed to parse confirmation metadata:', e?.message);
-              assistantContent = `I found the transaction and would like to make the requested change. Please use the Confirm button to proceed.`;
+            // Propagate COMPLETE pendingConfirmation metadata for the JSON response
+            // Includes token + argsHash (never exposed to model, only to trusted frontend)
+            if (!(toolResults as any).__pendingConfirmation) {
+              (toolResults as any).__pendingConfirmation = {
+                type: 'confirmation_required',
+                tool: loopPendingConfirmationData.toolName,
+                summary: `Change category for ${txDesc}`,
+                confirmationId: loopPendingConfirmationData.confirmationId,
+                token: loopPendingConfirmationData.token,
+                expiresAt: loopPendingConfirmationData.expiresAt,
+                argsHash: loopPendingConfirmationData.argsHash,
+                args: loopPendingConfirmationData.args,
+              };
+              console.log(`[Chat] Set pendingConfirmation metadata (with token): ${loopPendingConfirmationData.confirmationId}`);
+            } else {
+              console.log(`[Chat] pendingConfirmation metadata already set by initial gate — preserving`);
             }
+          } else if ((toolResults as any).__pendingConfirmation) {
+            // Initial gate already set complete metadata — use deterministic text only
+            assistantContent = `This action requires your confirmation before proceeding. Please use the Confirm button to proceed, or Cancel to skip.`;
+            console.log(`[Chat] Confirmation hard boundary (non-streaming): using initial gate metadata`);
           } else {
             assistantContent = `This action requires your confirmation before proceeding. Please use the Confirm button to proceed, or Cancel to skip.`;
+            console.log(`[Chat] Confirmation hard boundary (non-streaming): no confirmation data available for response`);
           }
         }
       }
