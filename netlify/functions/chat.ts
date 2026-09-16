@@ -10341,164 +10341,41 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                     }
                     // Special handling for employee handoff (streaming)
-                    // Check for new schema: data.requested_handoff === true
                     // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
-              // Users open Prime's drawer which sets userForcedEmployee=true, but Prime is the
-              // orchestrator - handoffs FROM Prime are the entire use case. Preserve the guard
-              // for other agents so a user locked to Tag can't get switched to Byte unexpectedly.
               const allowHandoffFromForcedPrime = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
               if ((!userForcedEmployee || allowHandoffFromForcedPrime) && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
-                      const handoffData = (result as any).data;
-                      if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
-                        // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
-                        if (!finalSessionId) {
-                          console.error('[Chat] ❌ HANDOFF FAILED: No valid sessionId available. Cannot proceed with handoff.');
-                          // Continue without handoff - don't crash
-                          continue;
-                        }
-                        
-                        const targetSlug = handoffData.target_slug;
-                        const reason = handoffData.reason || 'Better suited for this question';
-                        const summary = handoffData.summary_for_next_employee;
-                        const handoffType: 'standard' | 'plugin' =
-                          handoffData.handoff_type === 'plugin' ? 'plugin' : 'standard';
-                        const pluginPayload =
-                          handoffType === 'plugin' && handoffData.plugin_payload && typeof handoffData.plugin_payload === 'object'
-                            ? handoffData.plugin_payload
-                            : null;
-                        const pluginMarker = encodePluginPayloadForHandoff(pluginPayload);
-                        const summaryForStorage = pluginMarker
-                          ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
-                          : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
-                        
-                        console.log(`[Chat] ✅ HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} -> ${targetSlug}`, {
-                          reason,
-                          summary: summary?.substring(0, 100),
-                          sessionId: finalSessionId,
-                        });
-                        
-                        // Phase 3.2: Gather handoff context
-                        let recentMessages: any[] = [];
-                        let keyFacts: string[] = [];
-                        
-                        try {
-                          // Get recent messages (last 10)
-                          const { data: messagesData } = await sb
-                            .from('chat_messages')
-                            .select('role, content, created_at')
-                            .eq('session_id', finalSessionId)
-                            .order('created_at', { ascending: false })
-                            .limit(10);
-                          
-                          if (messagesData) {
-                            recentMessages = messagesData.reverse(); // Oldest first
-                          }
-                          
-                          // Extract key facts from memory
-                          if (memoryFacts && memoryFacts.length > 0) {
-                            keyFacts = memoryFacts.slice(0, 5).map(f => f.fact);
-                          }
-                        } catch (error: any) {
-                          console.warn('[Chat] Failed to gather handoff context:', error);
-                        }
-                        
-                        // Phase 3.2: Store handoff context in database
-                        try {
-                          await sb.from('handoffs').insert({
-                            user_id: userId,
-                            session_id: finalSessionId,
-                            from_employee: originalEmployeeSlug,
-                            to_employee: targetSlug,
-                            reason: reason,
-                            context_summary: summaryForStorage,
-                            key_facts: keyFacts,
-                            recent_messages: recentMessages,
-                            user_intent: masked.substring(0, 500), // Current user message
-                            status: 'initiated',
-                          });
-                          
-                          console.log(`[Chat] Stored handoff context for session ${finalSessionId}`);
-                        } catch (error: any) {
-                          console.warn('[Chat] Failed to store handoff context:', error);
-                        }
-                        
-                        // Update session's employee_slug (tool-based handoff - explicit action, safe to persist)
-                        // This is from Prime calling request_employee_handoff tool, which is an explicit handoff action
-                        try {
-                          await sb
-                            .from('chat_sessions')
-                            .update({ employee_slug: targetSlug })
-                            .eq('id', finalSessionId);
-                          
-                          console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug} (tool-based handoff)`);
-                        } catch (error: any) {
-                          console.warn('[Chat] Failed to update session employee_slug:', error);
-                        }
-                        
-                        // Insert system message about handoff
-                        try {
-                          const handoffMessage = summary 
-                            ? `Handoff: Conversation moved to ${targetSlug}. Context: ${summary}`
-                            : `Handoff: Conversation moved to ${targetSlug}.`;
-                          
-                          await sb.from('chat_messages').insert({
-                            session_id: finalSessionId,
-                            user_id: userId,
-                            role: 'system',
-                            content: handoffMessage,
-                            tokens: estimateTokens(handoffMessage),
-                            thread_id: threadId, // CRITICAL: thread_id is always required
-                          });
-                          console.log(`[Chat] Inserting system handoff message with thread_id: ${threadId}`);
-                          
-                          console.log(`[Chat] Inserted handoff system message for session ${finalSessionId}`);
-                        } catch (error: any) {
-                          console.warn('[Chat] Failed to insert handoff system message:', error);
-                        }
-                        
-                        // Update finalEmployeeSlug for this request
-                        finalEmployeeSlug = targetSlug;
-                        
-                        // Reload employee profile and tools for new employee
-                        try {
-                          const newEmployeeProfile = await getEmployeeProfileCached(sb, finalEmployeeSlug, orchCtx);
-                          if (newEmployeeProfile?.tools_allowed && Array.isArray(newEmployeeProfile.tools_allowed)) {
-                            employeeTools = newEmployeeProfile.tools_allowed;
-                            toolModules = pickTools(employeeTools);
-                            console.log(`[Chat] Loaded ${employeeTools.length} tools for new employee ${finalEmployeeSlug}:`, employeeTools);
-                          }
-                        } catch (error: any) {
-                          console.warn('[Chat] Failed to reload employee tools after handoff:', error);
-                        }
-                        
-                        // Send handoff event in stream
-                        const handoffEvent = {
-                          type: 'handoff',
-                          from: originalEmployeeSlug,
-                          to: targetSlug,
-                          reason,
-                          summary,
-                          handoff_type: handoffType,
-                          plugin_payload: pluginPayload,
-                        };
-                        writeSSE(handoffEvent);
-                        writeSSE({ type: 'employee', employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug });
-                        
-                        // Emit thought stream for Byte
-                        if (targetSlug === 'byte-docs') {
-                          writeSSE({
-                            type: 'specialist_thought',
-                            employee: 'byte-docs',
-                            content: 'Byte is scanning...',
-                          });
-                        }
-                        
-                        // Enhanced logging for debugging (guarded by env flag)
-                        if (process.env.NETLIFY_DEV === 'true' || process.env.DEBUG_HANDOFF === 'true') {
-                          console.log(`[Chat] 📤 HANDOFF EVENT SENT (streaming):`, handoffEvent);
-                        }
-                      }
-                    }
+                const lifecycleResult = await performHandoffLifecycle(result, 'streaming-initial');
+                if (lifecycleResult) {
+                  finalEmployeeSlug = lifecycleResult.targetSlug;
+                  employeeTools = lifecycleResult.newEmployeeTools;
+                  toolModules = lifecycleResult.newToolModules;
+                  // Update handoffContext so specialist continuation can read plugin_payload
+                  handoffContext = {
+                    from_employee: originalEmployeeSlug,
+                    reason: lifecycleResult.reason,
+                    context_summary: lifecycleResult.summary,
+                    handoff_type: lifecycleResult.handoffType,
+                    plugin_payload: lifecycleResult.pluginPayload || undefined,
+                  };
+
+                  // Send handoff event in stream
+                  const handoffEvent = {
+                    type: 'handoff',
+                    from: originalEmployeeSlug,
+                    to: lifecycleResult.targetSlug,
+                    reason: lifecycleResult.reason,
+                    summary: lifecycleResult.summary,
+                    handoff_type: lifecycleResult.handoffType,
+                    plugin_payload: lifecycleResult.pluginPayload,
+                  };
+                  writeSSE(handoffEvent);
+                  writeSSE({ type: 'employee', employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug });
+
+                  if (lifecycleResult.targetSlug === 'byte-docs') {
+                    writeSSE({ type: 'specialist_thought', employee: 'byte-docs', content: 'Byte is scanning...' });
+                  }
+                }
+              }
                     
                     // executeTool handles Result unwrapping and returns the validated output directly
                     
@@ -11487,6 +11364,149 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           console.groupEnd();
         }
 
+        // ── AUTHORITATIVE HANDOFF LIFECYCLE ──────────────────────────────
+        // Single implementation for ALL handoff entry points (initial batch,
+        // tool-loop round 1+). Returns mutations to apply to outer state.
+        // This function is called from both the initial non-streaming tool
+        // processing and the multi-round tool loop.
+        async function performHandoffLifecycle(
+          handoffResult: any,
+          sourceLabel: string,
+        ): Promise<{
+          success: boolean;
+          targetSlug: string;
+          newEmployeeTools: string[];
+          newToolModules: Record<string, any>;
+          pluginPayload: Record<string, any> | null;
+          handoffType: 'standard' | 'plugin';
+          reason: string;
+          summary: string | undefined;
+        } | null> {
+          const handoffData = handoffResult?.data;
+          if (!handoffData || handoffData.requested_handoff !== true || !handoffData.target_slug) {
+            return null;
+          }
+          if (!finalSessionId) {
+            console.error(`[Chat] HANDOFF FAILED (${sourceLabel}): No valid sessionId available.`);
+            return null;
+          }
+
+          const targetSlug = handoffData.target_slug;
+          const reason = handoffData.reason || 'Better suited for this question';
+          const summary = handoffData.summary_for_next_employee;
+          const handoffType: 'standard' | 'plugin' =
+            handoffData.handoff_type === 'plugin' ? 'plugin' : 'standard';
+          const pluginPayload =
+            handoffType === 'plugin' && handoffData.plugin_payload && typeof handoffData.plugin_payload === 'object'
+              ? handoffData.plugin_payload
+              : null;
+          const pluginMarker = encodePluginPayloadForHandoff(pluginPayload);
+          const summaryForStorage = pluginMarker
+            ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
+            : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
+
+          console.log(`[Chat] HANDOFF COMPLETE (${sourceLabel}): ${originalEmployeeSlug} -> ${targetSlug}`, {
+            reason,
+            summary: summary?.substring(0, 100),
+            sessionId: finalSessionId,
+          });
+
+          // Gather handoff context
+          let recentMsgs: any[] = [];
+          let kFacts: string[] = [];
+          try {
+            const { data: messagesData } = await sb
+              .from('chat_messages')
+              .select('role, content, created_at')
+              .eq('session_id', finalSessionId)
+              .order('created_at', { ascending: false })
+              .limit(10);
+            if (messagesData) recentMsgs = messagesData.reverse();
+            if (memoryFacts && memoryFacts.length > 0) {
+              kFacts = memoryFacts.slice(0, 5).map(f => f.fact);
+            }
+          } catch (error: any) {
+            console.warn(`[Chat] Failed to gather handoff context (${sourceLabel}):`, error);
+          }
+
+          // Store handoff in DB
+          const _tHandoffDbStart = Date.now();
+          console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=handoff_db_start target=${targetSlug} elapsedMs=${_tHandoffDbStart - requestStartTime} remainingMs=${60000 - (_tHandoffDbStart - requestStartTime)}`);
+          try {
+            await sb.from('handoffs').insert({
+              user_id: userId,
+              session_id: finalSessionId,
+              from_employee: originalEmployeeSlug,
+              to_employee: targetSlug,
+              reason: reason,
+              context_summary: summaryForStorage,
+              key_facts: kFacts,
+              recent_messages: recentMsgs,
+              user_intent: masked.substring(0, 500),
+              status: 'initiated',
+            });
+            console.log(`[Chat] Stored handoff context (${sourceLabel}) for session ${finalSessionId}`);
+          } catch (error: any) {
+            console.warn(`[Chat] Failed to store handoff context (${sourceLabel}):`, error);
+          }
+
+          // Update session employee
+          try {
+            await sb
+              .from('chat_sessions')
+              .update({ employee_slug: targetSlug })
+              .eq('id', finalSessionId);
+            console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug} (${sourceLabel})`);
+          } catch (error: any) {
+            console.warn(`[Chat] Failed to update session employee_slug (${sourceLabel}):`, error);
+          }
+
+          // Insert system handoff message
+          try {
+            const handoffMessage = summary
+              ? `Handoff: Conversation moved to ${targetSlug}. Context: ${summary}`
+              : `Handoff: Conversation moved to ${targetSlug}.`;
+            await sb.from('chat_messages').insert({
+              session_id: finalSessionId,
+              user_id: userId,
+              role: 'system',
+              content: handoffMessage,
+              tokens: estimateTokens(handoffMessage),
+              thread_id: threadId,
+            });
+            console.log(`[Chat] Inserted handoff system message (${sourceLabel}) with thread_id: ${threadId}`);
+          } catch (error: any) {
+            console.warn(`[Chat] Failed to insert handoff system message (${sourceLabel}):`, error);
+          }
+
+          // Reload employee profile and tools for target employee
+          let newEmployeeTools = employeeTools;
+          let newToolModules = toolModules;
+          try {
+            const newProfile = await getEmployeeProfileCached(sb, targetSlug, orchCtx);
+            if (newProfile?.tools_allowed && Array.isArray(newProfile.tools_allowed)) {
+              newEmployeeTools = newProfile.tools_allowed;
+              newToolModules = pickTools(newEmployeeTools);
+              console.log(`[Chat] Loaded ${newEmployeeTools.length} tools for new employee ${targetSlug} (${sourceLabel}):`, newEmployeeTools);
+            }
+          } catch (error: any) {
+            console.warn(`[Chat] Failed to reload employee tools after handoff (${sourceLabel}):`, error);
+          }
+
+          console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=handoff_db_end durationMs=${Date.now() - _tHandoffDbStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
+
+          return {
+            success: true,
+            targetSlug,
+            newEmployeeTools,
+            newToolModules,
+            pluginPayload,
+            handoffType,
+            reason,
+            summary,
+          };
+        }
+
         // ── CATEGORY-CHANGE DELEGATION (Prime → Tag) ────────
         // Phase 2B.1: Removed deterministic forced handoff based on isCategoryChangeIntent().
         // The regex matched informational questions ("who handles category changes?") and
@@ -11675,140 +11695,22 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
               }
               // Special handling for employee handoff (non-streaming)
-              // Check for new schema: data.requested_handoff === true
               // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
-              // Users open Prime's drawer which sets userForcedEmployee=true, but Prime is the
-              // orchestrator - handoffs FROM Prime are the entire use case. Preserve the guard
-              // for other agents so a user locked to Tag can't get switched to Byte unexpectedly.
               const allowHandoffFromForcedPrime = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
               if ((!userForcedEmployee || allowHandoffFromForcedPrime) && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
-                const handoffData = (result as any).data;
-                if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
-                  // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
-                  if (!finalSessionId) {
-                    console.error('[Chat] ❌ HANDOFF FAILED: No valid sessionId available. Cannot proceed with handoff.');
-                    // Continue without handoff - don't crash
-                    continue;
-                  }
-                  
-                  const targetSlug = handoffData.target_slug;
-                  const reason = handoffData.reason || 'Better suited for this question';
-                  const summary = handoffData.summary_for_next_employee;
-                  const handoffType: 'standard' | 'plugin' =
-                    handoffData.handoff_type === 'plugin' ? 'plugin' : 'standard';
-                  const pluginPayload =
-                    handoffType === 'plugin' && handoffData.plugin_payload && typeof handoffData.plugin_payload === 'object'
-                      ? handoffData.plugin_payload
-                      : null;
-                  const pluginMarker = encodePluginPayloadForHandoff(pluginPayload);
-                  const summaryForStorage = pluginMarker
-                    ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
-                    : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
-                  
-                  console.log(`[Chat] ✅ HANDOFF COMPLETE (non-streaming): ${originalEmployeeSlug} -> ${targetSlug}`, {
-                    reason,
-                    summary: summary?.substring(0, 100),
-                    sessionId: finalSessionId,
-                  });
-                  
-                  // Phase 3.2: Gather handoff context (non-streaming)
-                  let recentMessagesNonStream: any[] = [];
-                  let keyFactsNonStream: string[] = [];
-                  
-                  try {
-                    // Get recent messages (last 10)
-                    const { data: messagesData } = await sb
-                      .from('chat_messages')
-                      .select('role, content, created_at')
-                      .eq('session_id', finalSessionId)
-                      .order('created_at', { ascending: false })
-                      .limit(10);
-                    
-                    if (messagesData) {
-                      recentMessagesNonStream = messagesData.reverse(); // Oldest first
-                    }
-                    
-                    // Extract key facts from memory
-                    if (memoryFacts && memoryFacts.length > 0) {
-                      keyFactsNonStream = memoryFacts.slice(0, 5).map(f => f.fact);
-                    }
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to gather handoff context (non-streaming):', error);
-                  }
-                  
-                  // Phase 3.2: Store handoff context in database (non-streaming)
-                  const _tHandoffDbStart = Date.now();
-                  console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=handoff_db_start target=${targetSlug} elapsedMs=${_tHandoffDbStart - requestStartTime} remainingMs=${60000 - (_tHandoffDbStart - requestStartTime)}`);
-                  try {
-                    await sb.from('handoffs').insert({
-                      user_id: userId,
-                      session_id: finalSessionId,
-                      from_employee: originalEmployeeSlug,
-                      to_employee: targetSlug,
-                      reason: reason,
-                      context_summary: summaryForStorage,
-                      key_facts: keyFactsNonStream,
-                      recent_messages: recentMessagesNonStream,
-                      user_intent: masked.substring(0, 500),
-                      status: 'initiated',
-                    });
-                    
-                    console.log(`[Chat] Stored handoff context (non-streaming) for session ${finalSessionId}`);
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to store handoff context (non-streaming):', error);
-                  }
-                  
-                  // Update session's employee_slug
-                  try {
-                    await sb
-                      .from('chat_sessions')
-                      .update({ employee_slug: targetSlug })
-                      .eq('id', finalSessionId);
-                    
-                    console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug}`);
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to update session employee_slug:', error);
-                  }
-                  
-                  // Insert system message about handoff
-                  try {
-                    const handoffMessage = summary 
-                      ? `Handoff: Conversation moved to ${targetSlug}. Context: ${summary}`
-                      : `Handoff: Conversation moved to ${targetSlug}.`;
-                    
-                    await sb.from('chat_messages').insert({
-                      session_id: finalSessionId,
-                      user_id: userId,
-                      role: 'system',
-                      content: handoffMessage,
-                      tokens: estimateTokens(handoffMessage),
-                      thread_id: threadId, // CRITICAL: thread_id is always required
-                    });
-                    console.log(`[Chat] Inserting system handoff message (non-streaming) with thread_id: ${threadId}`);
-                    console.log(`[Chat] Inserting system handoff message (non-streaming) with thread_id: ${threadId}`);
-                    
-                    console.log(`[Chat] Inserted handoff system message for session ${finalSessionId}`);
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to insert handoff system message:', error);
-                  }
-                  
-                  // Update finalEmployeeSlug for this request
-                  finalEmployeeSlug = targetSlug;
-                  
-                  console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=handoff_db_end durationMs=${Date.now() - _tHandoffDbStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
-                  // Reload employee profile and tools for new employee
-                  const _tToolReloadStart = Date.now();
-                  try {
-                    const newEmployeeProfile = await getEmployeeProfileCached(sb, finalEmployeeSlug, orchCtx);
-                    if (newEmployeeProfile?.tools_allowed && Array.isArray(newEmployeeProfile.tools_allowed)) {
-                      employeeTools = newEmployeeProfile.tools_allowed;
-                      toolModules = pickTools(employeeTools);
-                      console.log(`[Chat] Loaded ${employeeTools.length} tools for new employee ${finalEmployeeSlug}:`, employeeTools);
-                    }
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to reload employee tools after handoff:', error);
-                  }
-                  console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=tool_reload_end durationMs=${Date.now() - _tToolReloadStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)} toolCount=${employeeTools.length}`);
+                const lifecycleResult = await performHandoffLifecycle(result, 'non-streaming-initial');
+                if (lifecycleResult) {
+                  finalEmployeeSlug = lifecycleResult.targetSlug;
+                  employeeTools = lifecycleResult.newEmployeeTools;
+                  toolModules = lifecycleResult.newToolModules;
+                  // Update handoffContext so specialist continuation can read plugin_payload
+                  handoffContext = {
+                    from_employee: originalEmployeeSlug,
+                    reason: lifecycleResult.reason,
+                    context_summary: lifecycleResult.summary,
+                    handoff_type: lifecycleResult.handoffType,
+                    plugin_payload: lifecycleResult.pluginPayload || undefined,
+                  };
                 }
               }
               
@@ -12072,11 +11974,6 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   continue;
                 }
 
-                // Handoff detection
-                if (toolName === 'request_employee_handoff') {
-                  hadHandoff = true;
-                }
-
                 const toolContext: ToolContext = {
                   userId,
                   conversationId: finalSessionId,
@@ -12088,6 +11985,29 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   mode: 'propose-confirm',
                   autonomyLevel: 1,
                 });
+
+                // Handoff lifecycle (authoritative — same implementation as initial path)
+                if (toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
+                  const allowHandoffFromForcedPrimeLoop = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
+                  if (!userForcedEmployee || allowHandoffFromForcedPrimeLoop) {
+                    const lifecycleResult = await performHandoffLifecycle(result, `non-streaming-tool-loop-r${toolRound}`);
+                    if (lifecycleResult) {
+                      finalEmployeeSlug = lifecycleResult.targetSlug;
+                      employeeTools = lifecycleResult.newEmployeeTools;
+                      toolModules = lifecycleResult.newToolModules;
+                      hadHandoff = true;
+                      // Update handoffContext so specialist continuation can read plugin_payload
+                      handoffContext = {
+                        from_employee: originalEmployeeSlug,
+                        reason: lifecycleResult.reason,
+                        context_summary: lifecycleResult.summary,
+                        handoff_type: lifecycleResult.handoffType,
+                        plugin_payload: lifecycleResult.pluginPayload || undefined,
+                      };
+                    }
+                  }
+                }
+
                 currentToolResults.push({
                   role: 'tool',
                   tool_call_id: toolCall.id,

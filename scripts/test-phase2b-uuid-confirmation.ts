@@ -444,6 +444,238 @@ console.log('\n=== I2B: Non-streaming confirmation token propagation ===\n');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ISSUE 3: Authoritative Handoff Lifecycle — ONE path for all entry points
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n=== I3: Authoritative handoff lifecycle ===\n');
+
+// TEST A: performHandoffLifecycle is the single authoritative implementation
+{
+  assert('TA.1 performHandoffLifecycle function defined',
+    chatSrc.includes('async function performHandoffLifecycle('));
+
+  assert('TA.2 performHandoffLifecycle validates requested_handoff === true',
+    chatSrc.includes('handoffData.requested_handoff !== true'));
+
+  assert('TA.3 performHandoffLifecycle validates target_slug exists',
+    chatSrc.includes('!handoffData.target_slug'));
+
+  assert('TA.4 performHandoffLifecycle validates finalSessionId',
+    chatSrc.includes('HANDOFF FAILED') && chatSrc.includes('No valid sessionId'));
+
+  assert('TA.5 performHandoffLifecycle inserts handoffs row',
+    (() => {
+      const fnStart = chatSrc.indexOf('async function performHandoffLifecycle(');
+      const fnBody = chatSrc.substring(fnStart, fnStart + 5000);
+      return fnBody.includes("sb.from('handoffs').insert(");
+    })());
+
+  assert('TA.6 performHandoffLifecycle updates session employee_slug',
+    (() => {
+      const fnStart = chatSrc.indexOf('async function performHandoffLifecycle(');
+      const fnBody = chatSrc.substring(fnStart, fnStart + 5000);
+      return fnBody.includes("update({ employee_slug: targetSlug })");
+    })());
+
+  assert('TA.7 performHandoffLifecycle inserts system handoff message',
+    (() => {
+      const fnStart = chatSrc.indexOf('async function performHandoffLifecycle(');
+      const fnBody = chatSrc.substring(fnStart, fnStart + 5000);
+      return fnBody.includes("sb.from('chat_messages').insert(");
+    })());
+
+  assert('TA.8 performHandoffLifecycle reloads target employee tools',
+    (() => {
+      const fnStart = chatSrc.indexOf('async function performHandoffLifecycle(');
+      const fnEnd = chatSrc.indexOf('\n        // ── CATEGORY-CHANGE DELEGATION', fnStart);
+      const fnBody = chatSrc.substring(fnStart, fnEnd);
+      return fnBody.includes('getEmployeeProfileCached') && fnBody.includes('pickTools(');
+    })());
+
+  assert('TA.9 performHandoffLifecycle returns newEmployeeTools + newToolModules',
+    (() => {
+      const fnStart = chatSrc.indexOf('async function performHandoffLifecycle(');
+      const fnBody = chatSrc.substring(fnStart, fnStart + 5000);
+      return fnBody.includes('newEmployeeTools') && fnBody.includes('newToolModules');
+    })());
+
+  assert('TA.10 performHandoffLifecycle extracts pluginPayload',
+    (() => {
+      const fnStart = chatSrc.indexOf('async function performHandoffLifecycle(');
+      const fnEnd = chatSrc.indexOf('\n        // ── CATEGORY-CHANGE DELEGATION', fnStart);
+      const fnBody = chatSrc.substring(fnStart, fnEnd);
+      return fnBody.includes('pluginPayload') && fnBody.includes('encodePluginPayloadForHandoff');
+    })());
+}
+
+// TEST B: All three call sites use performHandoffLifecycle (not inline code)
+{
+  const lifecycleCalls = chatSrc.split('performHandoffLifecycle(').length - 1;
+  // 1 definition + 3 calls = 4 occurrences of the string; but split gives N+1 for N matches
+  // Actually: definition line has "async function performHandoffLifecycle(" = 1
+  // streaming-initial call = 1, non-streaming-initial call = 1, tool-loop call = 1
+  // Total references = 4, but for calls specifically:
+  assert('TB.1 performHandoffLifecycle called from streaming-initial path',
+    chatSrc.includes("performHandoffLifecycle(result, 'streaming-initial')"));
+
+  assert('TB.2 performHandoffLifecycle called from non-streaming-initial path',
+    chatSrc.includes("performHandoffLifecycle(result, 'non-streaming-initial')"));
+
+  assert('TB.3 performHandoffLifecycle called from tool-loop path',
+    chatSrc.includes('performHandoffLifecycle(result, `non-streaming-tool-loop-r'));
+
+  assert('TB.4 No remaining inline handoff DB insert outside performHandoffLifecycle',
+    (() => {
+      // Count occurrences of the handoff DB insert pattern
+      const insertPattern = "sb.from('handoffs').insert(";
+      const allMatches = chatSrc.split(insertPattern).length - 1;
+      // Should be exactly 1 (inside performHandoffLifecycle)
+      return allMatches === 1;
+    })());
+
+  assert('TB.5 No remaining inline session employee_slug update outside performHandoffLifecycle for handoff',
+    (() => {
+      // The pattern "update({ employee_slug: targetSlug })" should only be in performHandoffLifecycle
+      const pattern = 'update({ employee_slug: targetSlug })';
+      const allMatches = chatSrc.split(pattern).length - 1;
+      return allMatches === 1;
+    })());
+}
+
+// TEST C: Tool-loop handoff updates finalEmployeeSlug (the root cause fix)
+{
+  const toolLoopIdx = chatSrc.indexOf('performHandoffLifecycle(result, `non-streaming-tool-loop-r');
+  const toolLoopBlock = chatSrc.substring(toolLoopIdx, toolLoopIdx + 1000);
+
+  assert('TC.1 Tool-loop path sets finalEmployeeSlug from lifecycle result',
+    toolLoopBlock.includes('finalEmployeeSlug = lifecycleResult.targetSlug'));
+
+  assert('TC.2 Tool-loop path sets employeeTools from lifecycle result',
+    toolLoopBlock.includes('employeeTools = lifecycleResult.newEmployeeTools'));
+
+  assert('TC.3 Tool-loop path sets toolModules from lifecycle result',
+    toolLoopBlock.includes('toolModules = lifecycleResult.newToolModules'));
+
+  assert('TC.4 Tool-loop path sets hadHandoff = true',
+    toolLoopBlock.includes('hadHandoff = true'));
+
+  assert('TC.5 Tool-loop path updates handoffContext for plugin_payload',
+    toolLoopBlock.includes('handoffContext = {') &&
+    toolLoopBlock.includes('plugin_payload: lifecycleResult.pluginPayload'));
+}
+
+// TEST D: Specialist continuation block fires when finalEmployeeSlug changed
+{
+  assert('TD.1 Continuation guard checks finalEmployeeSlug !== originalEmployeeSlug',
+    chatSrc.includes('hadHandoff && !specialistContinuationInjected && finalEmployeeSlug !== originalEmployeeSlug'));
+
+  // Verify continuation injects specialist system_prompt
+  const contIdx = chatSrc.indexOf('hadHandoff && !specialistContinuationInjected && finalEmployeeSlug !== originalEmployeeSlug');
+  const contBlock = chatSrc.substring(contIdx, contIdx + 6000);
+
+  assert('TD.2 Continuation injects specialist system_prompt',
+    contBlock.includes('specialistProfile.system_prompt'));
+
+  assert('TD.3 Continuation injects TAG_TRANSACTION_IDENTITY_RULE for Tag',
+    contBlock.includes('TAG_TRANSACTION_IDENTITY_RULE'));
+
+  assert('TD.4 Continuation injects MUTATION_TRUTH_RULE',
+    contBlock.includes('MUTATION_TRUTH_RULE'));
+
+  assert('TD.5 Continuation injects SAME-TURN SPECIALIST EXECUTION',
+    contBlock.includes('SAME-TURN SPECIALIST EXECUTION'));
+}
+
+// TEST E: Plugin payload reaches specialist continuation via handoffContext
+{
+  // After lifecycle, handoffContext is updated with plugin_payload
+  const nsInitialIdx = chatSrc.indexOf("performHandoffLifecycle(result, 'non-streaming-initial')");
+  const nsInitialBlock = chatSrc.substring(nsInitialIdx, nsInitialIdx + 900);
+
+  assert('TE.1 Non-streaming-initial sets handoffContext.handoff_type from lifecycle',
+    nsInitialBlock.includes('handoff_type: lifecycleResult.handoffType'));
+
+  assert('TE.2 Non-streaming-initial sets handoffContext.plugin_payload from lifecycle',
+    nsInitialBlock.includes('plugin_payload: lifecycleResult.pluginPayload'));
+
+  // Use a fixed search string that won't be interpolated by the test runtime
+  const toolLoopIdx2 = chatSrc.indexOf('performHandoffLifecycle(result, `non-streaming-tool-loop-r');
+  const toolLoopBlock2 = chatSrc.substring(toolLoopIdx2, toolLoopIdx2 + 1000);
+
+  assert('TE.3 Tool-loop sets handoffContext.handoff_type from lifecycle',
+    toolLoopBlock2.includes('handoff_type: lifecycleResult.handoffType'));
+
+  assert('TE.4 Tool-loop sets handoffContext.plugin_payload from lifecycle',
+    toolLoopBlock2.includes('plugin_payload: lifecycleResult.pluginPayload'));
+
+  // Continuation block reads handoffContext for plugin transaction hint
+  const contBlock2 = chatSrc.substring(
+    chatSrc.indexOf('hadHandoff && !specialistContinuationInjected && finalEmployeeSlug !== originalEmployeeSlug'),
+    chatSrc.indexOf('hadHandoff && !specialistContinuationInjected && finalEmployeeSlug !== originalEmployeeSlug') + 3000
+  );
+
+  assert('TE.5 Continuation block reads handoffContext.plugin_payload.transaction.id',
+    contBlock2.includes("handoffContext?.plugin_payload?.transaction?.id"));
+}
+
+// TEST F: No false handoff success — impossible to return tool result without updating state
+{
+  // The old bug: tool-loop only set hadHandoff=true but never changed finalEmployeeSlug.
+  // Verify that the ONLY place hadHandoff is set to true in the tool loop is AFTER
+  // performHandoffLifecycle succeeds (which updates finalEmployeeSlug).
+  const toolLoopSection = chatSrc.substring(
+    chatSrc.indexOf('while (currentToolResults.length > 0 && toolRound < MAX_TOOL_ROUNDS'),
+    chatSrc.indexOf('HARD CONFIRMATION BOUNDARY (non-streaming post-loop)')
+  );
+
+  assert('TF.1 Tool-loop hadHandoff only set after lifecycle success',
+    (() => {
+      const hadHandoffIdx = toolLoopSection.indexOf('hadHandoff = true');
+      if (hadHandoffIdx < 0) return false;
+      // It should be preceded by finalEmployeeSlug assignment in the same block
+      const preceding = toolLoopSection.substring(Math.max(0, hadHandoffIdx - 300), hadHandoffIdx);
+      return preceding.includes('finalEmployeeSlug = lifecycleResult.targetSlug');
+    })());
+
+  assert('TF.2 Old 3-line stub removed (no bare hadHandoff=true without lifecycle)',
+    (() => {
+      // Search for the old pattern: "if (toolName === 'request_employee_handoff') {\n  hadHandoff = true;\n}"
+      // This pattern should no longer exist
+      return !toolLoopSection.includes("if (toolName === 'request_employee_handoff') {\n                  hadHandoff = true;\n                }");
+    })());
+}
+
+// TEST G: Permissions — tools after handoff are target employee's tools
+{
+  const fnStartG = chatSrc.indexOf('async function performHandoffLifecycle(');
+  const fnEndG = chatSrc.indexOf('\n        // ── CATEGORY-CHANGE DELEGATION', fnStartG);
+  const fnBodyG = chatSrc.substring(fnStartG, fnEndG);
+
+  assert('TG.1 Lifecycle reloads tools via getEmployeeProfileCached with targetSlug',
+    fnBodyG.includes('getEmployeeProfileCached(sb, targetSlug'));
+
+  assert('TG.2 Lifecycle returns new tools (not Prime\'s tools)',
+    fnBodyG.includes('newEmployeeTools = newProfile.tools_allowed') || fnBodyG.includes('newEmployeeTools = newProfile?.tools_allowed'));
+
+  // Verify tool-loop reloads openai tools from employeeTools (which was updated)
+  assert('TG.3 Tool-loop rebuilds openaiTools from employeeTools after handoff',
+    chatSrc.includes('loopOpenaiTools = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools)'));
+}
+
+// TEST H: Session continuity — same session/thread through Prime → Tag
+{
+  const fnStartH = chatSrc.indexOf('async function performHandoffLifecycle(');
+  const fnEndH = chatSrc.indexOf('\n        // ── CATEGORY-CHANGE DELEGATION', fnStartH);
+  const fnBodyH = chatSrc.substring(fnStartH, fnEndH);
+
+  assert('TH.1 Lifecycle updates same session (not creating new session)',
+    fnBodyH.includes("from('chat_sessions')") && fnBodyH.includes('.update(') && fnBodyH.includes("eq('id', finalSessionId)"));
+
+  assert('TH.2 Lifecycle uses existing thread_id for system message',
+    fnBodyH.includes('thread_id'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CROSS-CUTTING: Existing protections preserved
 // ═══════════════════════════════════════════════════════════════════════════
 
