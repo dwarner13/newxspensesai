@@ -5,7 +5,7 @@ import { getSupabaseServerClient } from '../../../server/db';
 export const id = 'tag_update_transaction_category';
 
 export const inputSchema = z.object({
-  transactionId: z.string().min(1, 'Transaction ID is required'),
+  transactionId: z.string().uuid('Transaction ID must be a valid UUID — never reconstruct or invent an ID from merchant name, date, amount, or other fields'),
   merchantName: z.string().optional(), // Optional merchant name for learning
   oldCategory: z.string().optional(), // Optional old category (will be fetched if not provided)
   newCategory: z.string().min(1, 'New category is required'),
@@ -132,9 +132,9 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
 export const metadata = {
   name: 'Tag Update Transaction Category',
-  description: 'Update the category of an existing transaction and save the correction for learning. Use this when users say things like "move this to Income", "change this category to X", "this is in the wrong category", or "fix the category for transaction Y". Always confirm which transaction and which category before calling this tool. This tool automatically saves corrections to Tag\'s learning system so future categorizations improve.',
-  requiresConfirmation: false,
-  dangerous: false,
+  description: 'Update the category of an existing transaction and save the correction for learning. The transactionId MUST be a real database UUID (e.g. "85f64784-7cf8-461a-943e-5c02260de191"). Never use merchant names, dates, amounts, or fabricated strings as the transactionId — the server will reject them. If you received a transaction UUID from a handoff plugin_payload, use it directly. Otherwise, use tx_search to find the real UUID first.',
+  requiresConfirm: true,
+  mutates: true,
   category: 'categorization',
 };
 

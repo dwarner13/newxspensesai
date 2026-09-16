@@ -126,6 +126,30 @@ export async function createPendingConfirmation(
 
   const token = signToken(confirmationId, userId, sessionId, toolName, argsHash, expiresAt);
 
+  // ── Deduplication: cancel any existing pending confirmations for the same mutation ──
+  // Prevents duplicate-operation risk when the user types "yes" instead of clicking
+  // Confirm, causing the model to call the mutation tool again and create a second
+  // pending confirmation. Without this, both tokens could be independently consumed,
+  // executing the same mutation twice.
+  try {
+    const { data: cancelled, error: cancelError } = await sb
+      .from('tool_confirmation_requests')
+      .update({ status: 'cancelled' })
+      .eq('user_id', userId)
+      .eq('session_id', sessionId)
+      .eq('tool_name', toolName)
+      .eq('args_hash', argsHash)
+      .eq('status', 'pending')
+      .select('id');
+    if (cancelError) {
+      console.warn('[toolConfirmation] Failed to cancel prior pending confirmations (non-fatal):', cancelError.message);
+    } else if (cancelled && cancelled.length > 0) {
+      console.log(`[toolConfirmation] Cancelled ${cancelled.length} prior pending confirmation(s) for ${toolName} (dedup)`);
+    }
+  } catch (dedupError: any) {
+    console.warn('[toolConfirmation] Dedup cancel failed (non-fatal):', dedupError?.message);
+  }
+
   const { error } = await sb.from('tool_confirmation_requests').insert({
     id: confirmationId,
     user_id: userId,

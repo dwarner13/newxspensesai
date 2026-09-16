@@ -1843,6 +1843,23 @@ function stripPluginMarkerFromSummary(summary: string | null | undefined): strin
   return stripped || undefined;
 }
 
+// ── Reusable prompt rules for mutation safety ──────────────────────────────
+
+const MUTATION_TRUTH_RULE = `MUTATION TRUTH RULE (MANDATORY — applies to ALL employees):
+A mutation tool result containing "_requiresConfirm": true or "awaiting_user_confirmation" means the action WAS NOT EXECUTED.
+- You MUST NOT state or imply the action succeeded, was completed, or will happen automatically.
+- Tell the user clearly: the change requires their confirmation before it can proceed.
+- Only a tool result showing actual successful execution (e.g. "success": true with changed data) means the action completed.
+- Awaiting confirmation != executed. Attempted != executed. Handed off != executed. Planned != executed.`;
+
+const TAG_TRANSACTION_IDENTITY_RULE = `TRANSACTION IDENTITY RULE (MANDATORY — Tag):
+- Transaction mutations require the real database UUID (a standard UUID like "85f64784-7cf8-461a-943e-5c02260de191").
+- If a plugin handoff provides a transaction object with an "id" field, use that exact UUID.
+- NEVER invent, reconstruct, or derive a transaction ID from date, merchant name, amount, description, array position, or concatenated strings.
+- IDs like "1", "2", "tx-123", "2026-05-04-COSTCO-190.27" are INVALID and will be rejected by the server.
+- If you do not have a trustworthy UUID, use tx_search to find the real transaction first.
+- If tx_search is not available and no UUID was provided in the handoff, explain that you need the transaction to be identified first and hand back to prime-boss.`;
+
 function didLastTxUpdateCategorySucceed(toolCalls: any[], toolResults: any[]): boolean {
   const toolNameById = new Map<string, string>();
   for (const tc of toolCalls || []) {
@@ -10534,8 +10551,13 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               }
             }
 
+      // Check if ANY tool result has _requiresConfirm — if so, this is a hard boundary
+      const initialConfirmationFired = toolResults.some((r: any) => {
+        try { return JSON.parse(r.content)?._requiresConfirm; } catch { return false; }
+      });
+
       // If we have tool results, make another completion call with tool results
-      if (toolResults.length > 0) {
+      if (toolResults.length > 0 && !initialConfirmationFired) {
         messages.push(
           { role: 'assistant', content: assistantContent, tool_calls: toolCalls.map(tc => ({
             id: tc.id,
@@ -10590,6 +10612,25 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           if ((finalEmployeeSlug === 'byte-docs' || finalEmployeeSlug === 'byte') && byteContextHint) {
             messages.push(byteContextHint);
           }
+          // Build plugin context instruction for Tag when transaction identity was passed
+          let pluginTransactionHint = '';
+          if ((finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') && handoffContext?.handoff_type === 'plugin' && handoffContext?.plugin_payload?.transaction?.id) {
+            const tx = handoffContext.plugin_payload.transaction;
+            const action = handoffContext.plugin_payload.requested_action;
+            pluginTransactionHint = `\n\nTRANSACTION IDENTITY PROVIDED BY PRIME (use directly — do NOT search again):
+Transaction UUID: ${tx.id}
+${tx.description ? `Description: ${tx.description}` : ''}${tx.amount !== undefined ? ` | Amount: ${tx.amount}` : ''}${tx.date ? ` | Date: ${tx.date}` : ''}${tx.current_category ? ` | Current category: ${tx.current_category}` : ''}
+${action?.type === 'change_category' && action?.new_category ? `Requested new category: ${action.new_category}` : ''}
+Use the UUID "${tx.id}" directly as transactionId. Do NOT search for this transaction again.`;
+          }
+
+          // Tag-specific: inject transaction identity + mutation truth rules
+          const isTagContinuation = finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag';
+          if (isTagContinuation) {
+            messages.push({ role: 'system', content: TAG_TRANSACTION_IDENTITY_RULE });
+          }
+          messages.push({ role: 'system', content: MUTATION_TRUTH_RULE });
+
           messages.push({
             role: 'system',
             content: `SAME-TURN SPECIALIST EXECUTION — MANDATORY
@@ -10606,9 +10647,9 @@ INSTRUCTIONS:
 4. If a mutation requires confirmation, call the gated tool — the server confirmation gate will handle the rest.
 5. If you cannot find a match, report that clearly. If multiple matches exist, ask the user to clarify.
 
-This is a SAME-TURN continuation. The user is waiting for you to act, not to introduce yourself.`,
+This is a SAME-TURN continuation. The user is waiting for you to act, not to introduce yourself.${pluginTransactionHint}`,
           });
-          console.log(`[Chat] Injected same-turn continuation instruction for ${finalEmployeeSlug}`);
+          console.log(`[Chat] Injected same-turn continuation instruction for ${finalEmployeeSlug}${pluginTransactionHint ? ' (with plugin transaction identity)' : ''}`);
         }
 
         // Second completion with tool results
@@ -10648,6 +10689,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             const SPECIALIST_MAX_ROUNDS = 3;
             let specRound = 0;
             let specConfirmation = false;
+            let specPendingConfirmationData: { confirmationId: string; token: string; expiresAt: number; argsHash: string; toolName: string; args: any; summary: string } | null = null;
 
             // Initial specialist completion (non-streaming)
             // Force tool use on first round to prevent acknowledgment-only responses
@@ -10700,6 +10742,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // Confirmation gate
                   if (requiresConfirmation(tm.meta)) {
                     const pending = await createPendingConfirmation(sb, userId, finalSessionId, tn, tArgs);
+                    const confirmSummary = `This will ${tm.description?.toLowerCase() || tn}`;
                     specToolResults.push({
                       role: 'tool', tool_call_id: tc.id,
                       content: JSON.stringify({
@@ -10711,6 +10754,18 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                       }),
                     });
                     specConfirmation = true;
+                    specPendingConfirmationData = {
+                      confirmationId: pending.confirmationId,
+                      token: pending.token,
+                      expiresAt: pending.expiresAt,
+                      argsHash: pending.argsHash,
+                      toolName: tn,
+                      args: tArgs,
+                      summary: confirmSummary,
+                    };
+                    console.log(`[Chat] Specialist confirmation gate (streaming): ${tn} requires approval`, {
+                      confirmationId: pending.confirmationId,
+                    });
                     continue;
                   }
 
@@ -10777,8 +10832,29 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               console.log(`[Chat] Specialist tool loop completed: ${specRound} round(s), confirmation: ${specConfirmation}`);
             }
 
-            // Stream the final specialist text
-            if (assistantContent) {
+            // ── HARD CONFIRMATION BOUNDARY (streaming specialist path) ──────
+            // When confirmation gate fired, STOP. Emit confirmation SSE,
+            // use deterministic text, and do NOT let model text through.
+            if (specConfirmation && specPendingConfirmationData) {
+              // Emit confirmation_required SSE so frontend renders Confirm/Cancel UI
+              writeSSE({
+                type: 'confirmation_required',
+                tool: specPendingConfirmationData.toolName,
+                summary: specPendingConfirmationData.summary,
+                confirmationId: specPendingConfirmationData.confirmationId,
+                token: specPendingConfirmationData.token,
+                expiresAt: specPendingConfirmationData.expiresAt,
+                argsHash: specPendingConfirmationData.argsHash,
+              });
+              // Deterministic confirmation text — model must not describe this as success
+              const confirmArgs = specPendingConfirmationData.args || {};
+              const txDesc = confirmArgs.merchantName || confirmArgs.description || 'the requested transaction';
+              const newCat = confirmArgs.newCategory || 'the requested category';
+              assistantContent = `I found ${txDesc} and I'd like to change its category to "${newCat}". This change requires your confirmation — please use the Confirm button below to proceed, or Cancel to skip.`;
+              writeSSE({ type: 'text', content: assistantContent });
+              console.log(`[Chat] Confirmation hard boundary (streaming specialist): emitted deterministic text, skipped model call`);
+            } else if (assistantContent) {
+              // Stream the final specialist text (non-confirmation path)
               writeSSE({ type: 'text', content: assistantContent });
             }
           } else {
@@ -10821,6 +10897,14 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 assistantContent = errorMsg;
                 writeSSE({ type: 'text', content: errorMsg });
               }
+      } else if (initialConfirmationFired) {
+        // ── HARD CONFIRMATION BOUNDARY (initial streaming path) ──────────
+        // A confirmation gate fired on the FIRST model call (not after handoff).
+        // The confirmation_required SSE was already emitted (line 10270-10278).
+        // Use deterministic text — do NOT make a second model call.
+        assistantContent = `This action requires your confirmation before proceeding. Please use the Confirm button to proceed, or Cancel to skip.`;
+        writeSSE({ type: 'text', content: assistantContent });
+        console.log(`[Chat] Confirmation hard boundary (initial streaming): deterministic text, no second model call`);
       }
 
       // ========================================================================
@@ -11825,6 +11909,26 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               if ((finalEmployeeSlug === 'byte-docs' || finalEmployeeSlug === 'byte') && byteContextHint) {
                 messages.push(byteContextHint);
               }
+
+              // Build plugin context instruction for Tag when transaction identity was passed (non-streaming)
+              let pluginTransactionHintNS = '';
+              if ((finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') && handoffContext?.handoff_type === 'plugin' && handoffContext?.plugin_payload?.transaction?.id) {
+                const tx = handoffContext.plugin_payload.transaction;
+                const action = handoffContext.plugin_payload.requested_action;
+                pluginTransactionHintNS = `\n\nTRANSACTION IDENTITY PROVIDED BY PRIME (use directly — do NOT search again):
+Transaction UUID: ${tx.id}
+${tx.description ? `Description: ${tx.description}` : ''}${tx.amount !== undefined ? ` | Amount: ${tx.amount}` : ''}${tx.date ? ` | Date: ${tx.date}` : ''}${tx.current_category ? ` | Current category: ${tx.current_category}` : ''}
+${action?.type === 'change_category' && action?.new_category ? `Requested new category: ${action.new_category}` : ''}
+Use the UUID "${tx.id}" directly as transactionId. Do NOT search for this transaction again.`;
+              }
+
+              // Tag-specific: inject transaction identity + mutation truth rules (non-streaming)
+              const isTagContinuationNS = finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag';
+              if (isTagContinuationNS) {
+                messages.push({ role: 'system', content: TAG_TRANSACTION_IDENTITY_RULE });
+              }
+              messages.push({ role: 'system', content: MUTATION_TRUTH_RULE });
+
               messages.push({
                 role: 'system',
                 content: `SAME-TURN SPECIALIST EXECUTION — MANDATORY
@@ -11841,9 +11945,9 @@ INSTRUCTIONS:
 4. If a mutation requires confirmation, call the gated tool — the server confirmation gate will handle the rest.
 5. If you cannot find a match, report that clearly. If multiple matches exist, ask the user to clarify.
 
-This is a SAME-TURN continuation. The user is waiting for you to act, not to introduce yourself.`,
+This is a SAME-TURN continuation. The user is waiting for you to act, not to introduce yourself.${pluginTransactionHintNS}`,
               });
-              console.log(`[Chat] Injected same-turn continuation instruction (non-streaming, AFTER tool results) for ${finalEmployeeSlug}`);
+              console.log(`[Chat] Injected same-turn continuation instruction (non-streaming, AFTER tool results) for ${finalEmployeeSlug}${pluginTransactionHintNS ? ' (with plugin transaction identity)' : ''}`);
             }
 
             // Reload tools (may have changed after handoff)
@@ -11996,72 +12100,46 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           console.log(`[Chat] Tool loop completed: ${toolRound} round(s), confirmation: ${hadConfirmation}`);
         }
 
-        // ── Post-loop confirmation handling ────────────────────────────────
-        // When hadConfirmation is set in the multi-round loop, the confirmation
-        // tool result is in currentToolResults but was never pushed to messages.
-        // Generate a final specialist completion to produce user-facing confirmation text.
+        // ── HARD CONFIRMATION BOUNDARY (non-streaming post-loop) ──────────
+        // When hadConfirmation is set, the mutation was NOT executed.
+        // Use deterministic text — NO model call that could produce false success.
         if (hadConfirmation && currentToolResults.length > 0) {
-          // Push the final assistant + confirmation tool results
-          messages.push(
-            { role: 'assistant', content: assistantContent || null, tool_calls: currentToolCalls },
-            ...currentToolResults
-          );
-          // One final model call (no tools) to generate confirmation text
-          try {
-            let confirmModelConfig;
-            try {
-              confirmModelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
-            } catch {
-              confirmModelConfig = { model: 'gpt-4o-mini', temperature: 0.7, maxTokens: 1000 };
-            }
-            confirmModelConfig = applyPrimeChatStyleModelConfig(confirmModelConfig, {
-              employeeSlug: finalEmployeeSlug,
-              qualityMode: false,
-              preferLongForm: false,
-            });
-            const confirmAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-            const _tConfirmStart = Date.now();
-            console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=confirm_text_openai_start model=${confirmModelConfig.model} employee=${finalEmployeeSlug} elapsedMs=${_tConfirmStart - requestStartTime} remainingMs=${60000 - (_tConfirmStart - requestStartTime)} timeoutMs=${resolveOpenAiTimeoutMs()}`);
-            const confirmCompletion = await withTimeout(
-              openai.chat.completions.create(buildModelCallParams(
-                { ...confirmModelConfig, maxTokens: 500 }, messages, { stream: false }
-              ) as any),
-              resolveOpenAiTimeoutMs(),
-              'specialist_confirmation_text',
-              orchCtx,
-              confirmAbort,
-            );
-            console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=confirm_text_openai_end durationMs=${Date.now() - _tConfirmStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
-            const confirmText = confirmCompletion.choices[0]?.message?.content;
-            if (confirmText) {
-              assistantContent = confirmText;
-              console.log(`[Chat] Generated confirmation text for ${finalEmployeeSlug}: ${confirmText.slice(0, 100)}...`);
-            }
-          } catch (confirmTextError: any) {
-            console.warn('[Chat] Failed to generate confirmation text (non-fatal):', confirmTextError?.message);
-            // Fall back to a generic confirmation message
-            assistantContent = `I found the transaction and would like to make the requested change. Please confirm to proceed.`;
-          }
-
-          // Propagate pendingConfirmation metadata for the JSON response
+          // Extract confirmation metadata from tool results
           const confirmToolResult = currentToolResults.find((r: any) => {
             try { return JSON.parse(r.content)?._requiresConfirm; } catch { return false; }
           });
           if (confirmToolResult) {
             try {
               const parsed = JSON.parse(confirmToolResult.content);
-              (toolResults as any).__pendingConfirmation = {
-                type: 'confirmation_required',
-                tool: parsed.toolName,
-                summary: `Change category for the requested transaction`,
-                confirmationId: parsed.confirmationId,
-                expiresAt: parsed.expiresAt,
-                args: parsed.args,
-              };
-              console.log(`[Chat] Set pendingConfirmation metadata: ${parsed.confirmationId}`);
+              const confirmArgs = parsed.args || {};
+              const txDesc = confirmArgs.merchantName || confirmArgs.description || 'the requested transaction';
+              const newCat = confirmArgs.newCategory || 'the requested category';
+
+              // Deterministic confirmation text — never model-generated
+              assistantContent = `I found ${txDesc} and I'd like to change its category to "${newCat}". This change requires your confirmation — please use the Confirm button below to proceed, or Cancel to skip.`;
+              console.log(`[Chat] Confirmation hard boundary (non-streaming): deterministic text, no model call`);
+
+              // Propagate pendingConfirmation metadata for the JSON response
+              // Only set if not already set by the initial confirmation gate (which has full metadata)
+              if (!(toolResults as any).__pendingConfirmation) {
+                (toolResults as any).__pendingConfirmation = {
+                  type: 'confirmation_required',
+                  tool: parsed.toolName,
+                  summary: `Change category for ${txDesc}`,
+                  confirmationId: parsed.confirmationId,
+                  expiresAt: parsed.expiresAt,
+                  args: parsed.args,
+                };
+                console.log(`[Chat] Set pendingConfirmation metadata: ${parsed.confirmationId}`);
+              } else {
+                console.log(`[Chat] pendingConfirmation metadata already set by initial gate — preserving`);
+              }
             } catch (e: any) {
               console.warn('[Chat] Failed to parse confirmation metadata:', e?.message);
+              assistantContent = `I found the transaction and would like to make the requested change. Please use the Confirm button to proceed.`;
             }
+          } else {
+            assistantContent = `This action requires your confirmation before proceeding. Please use the Confirm button to proceed, or Cancel to skip.`;
           }
         }
       }
