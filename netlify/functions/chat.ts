@@ -139,6 +139,7 @@ import {
 } from './_shared/toolConfirmation.js';
 // Phase 1B.2: Server-enforced financial grounding (static imports — must not fail-open)
 import { classifyFinancialQuery, classifyTemporalIntent } from '../../src/shared/financial-query-classifier';
+import { detectCurrentTimeIntent, type CurrentTimeIntent } from '../../src/shared/detect-current-time-intent';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -510,6 +511,29 @@ function normalizeSessionId(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * Fire-and-forget memory extraction enqueue.
+ * Safe to call from any response path — non-blocking, catches errors.
+ * Validates session ID and silently no-ops if invalid.
+ */
+function fireAndForgetMemoryEnqueue(
+  userId: string,
+  sessionId: unknown,
+  userMessage: string,
+  assistantResponse: string
+): void {
+  const normalizedId = normalizeSessionId(sessionId);
+  if (!normalizedId) return;
+  queueMemoryExtraction({
+    userId,
+    sessionId: normalizedId,
+    userMessage,
+    assistantResponse,
+  }).catch((error: any) => {
+    console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error?.message || error);
+  });
+}
+
 function flagEnabled(raw: string | undefined | null): boolean {
   if (!raw) return false;
   const normalized = String(raw).trim().toLowerCase();
@@ -610,7 +634,8 @@ type PrimeIntent = {
   isUploadHowTo: boolean;
 };
 
-type TemporalIntent = 'date' | 'time' | 'datetime' | null;
+// CurrentTimeIntent imported from src/shared/detect-current-time-intent.ts
+type TemporalIntent = CurrentTimeIntent;
 type GroundedFactsIntent = 'monthly_spend' | 'uncategorized_count' | 'top_categories' | 'snapshot_overview' | null;
 type ClarificationDecision = {
   question: string;
@@ -633,28 +658,7 @@ function detectPrimeIntent(message: string): PrimeIntent {
 }
 
 function detectTemporalIntent(message: string): TemporalIntent {
-  const text = String(message || '').trim().toLowerCase();
-  if (!text) return null;
-  const likelyFinanceQuestion =
-    /\b(statement|statements|transaction|transactions|merchant|merchants|spend|spent|charge|charges|category|categories|import|upload)\b/i.test(text) ||
-    /\bmost\s+recent\s+date\s+for\b/i.test(text);
-  if (likelyFinanceQuestion) return null;
-
-  const datePattern =
-    /\b(what(?:'s| is)\s+(?:the\s+)?date|today(?:'s)?\s+date|date\s+today|what\s+day\s+is\s+it|which\s+day\s+is\s+it)\b/i;
-  const timePattern =
-    /\b(what(?:'s| is)\s+(?:the\s+)?time|current\s+time|time\s+now|what\s+time\s+is\s+it)\b/i;
-  const dateWordPattern = /\b(today|date)\b/i;
-  const timeWordPattern = /\b(time|clock)\b/i;
-
-  const asksDate = datePattern.test(text) || (dateWordPattern.test(text) && !timeWordPattern.test(text));
-  const asksTime = timePattern.test(text) || (timeWordPattern.test(text) && !dateWordPattern.test(text));
-  const asksBoth = datePattern.test(text) && timePattern.test(text);
-
-  if (asksBoth) return 'datetime';
-  if (asksDate) return 'date';
-  if (asksTime) return 'time';
-  return null;
+  return detectCurrentTimeIntent(message);
 }
 
 function formatTemporalResponse(intent: Exclude<TemporalIntent, null>, timezone: string | null): string {
@@ -7367,6 +7371,9 @@ export const handler: Handler = async (event, context) => {
         console.warn('[Chat] Failed to persist deterministic router response (non-fatal):', persistError?.message || persistError);
       }
 
+      // Memory extraction for deterministic router responses
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+
       const headers = buildResponseHeaders({
         guardrailsActive: true,
         piiMaskEnabled: (guardrailResult.signals?.piiTypes || []).length > 0,
@@ -7972,6 +7979,9 @@ export const handler: Handler = async (event, context) => {
         console.warn('[Chat] Failed to persist deterministic temporal response (non-fatal):', persistError?.message || persistError);
       }
 
+      // Memory extraction for deterministic temporal responses
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+
       const headers = buildResponseHeaders({
         guardrailsActive: true,
         piiMaskEnabled: (guardrailResult.signals?.piiTypes || []).length > 0,
@@ -8068,6 +8078,9 @@ export const handler: Handler = async (event, context) => {
       } catch (persistError: any) {
         console.warn('[Chat] Failed to persist deterministic grounded facts response (non-fatal):', persistError?.message || persistError);
       }
+
+      // Memory extraction for deterministic grounded facts responses
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -8180,6 +8193,9 @@ export const handler: Handler = async (event, context) => {
         console.warn('[Chat] Failed to persist deterministic clarification response (non-fatal):', persistError?.message || persistError);
       }
 
+      // Memory extraction for deterministic clarification responses
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+
       const headers = buildResponseHeaders({
         guardrailsActive: true,
         piiMaskEnabled: (guardrailResult.signals?.piiTypes || []).length > 0,
@@ -8276,6 +8292,9 @@ export const handler: Handler = async (event, context) => {
       } catch (persistError: any) {
         console.warn('[Chat] Failed to persist deterministic coaching response (non-fatal):', persistError?.message || persistError);
       }
+
+      // Memory extraction for deterministic coaching responses
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -8374,6 +8393,9 @@ export const handler: Handler = async (event, context) => {
         console.warn('[Chat] Failed to persist deterministic financial insight response (non-fatal):', persistError?.message || persistError);
       }
 
+      // Memory extraction for deterministic financial insight responses
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+
       const headers = buildResponseHeaders({
         guardrailsActive: true,
         piiMaskEnabled: (guardrailResult.signals?.piiTypes || []).length > 0,
@@ -8471,6 +8493,9 @@ export const handler: Handler = async (event, context) => {
         console.warn('[Chat] Failed to persist deterministic predictive response (non-fatal):', persistError?.message || persistError);
       }
 
+      // Memory extraction for deterministic predictive responses
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
+
       const headers = buildResponseHeaders({
         guardrailsActive: true,
         piiMaskEnabled: (guardrailResult.signals?.piiTypes || []).length > 0,
@@ -8567,6 +8592,9 @@ export const handler: Handler = async (event, context) => {
       } catch (persistError: any) {
         console.warn('[Chat] Failed to persist deterministic automation response (non-fatal):', persistError?.message || persistError);
       }
+
+      // Memory extraction for deterministic automation responses
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
 
       const headers = buildResponseHeaders({
         guardrailsActive: true,
@@ -11092,21 +11120,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       }
 
       // Phase 2.3: Queue memory extraction for async processing (non-blocking, fire-and-forget)
-      // CRITICAL: Do NOT await - this runs after response is returned
-      const normalizedSessionIdForExtraction = normalizeSessionId(finalSessionId);
-      if (normalizedSessionIdForExtraction) {
-        // Fire-and-forget: don't await, don't block response
-        queueMemoryExtraction({
-          userId,
-          sessionId: normalizedSessionIdForExtraction,
-          userMessage: masked,
-          assistantResponse: assistantContent
-        }).catch((error: any) => {
-          // Log but don't fail - extraction failures shouldn't break chat
-          console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error);
-          // Worker will retry failed jobs automatically
-        });
-      }
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
 
       // Custodian: Update conversation summary (non-blocking, fire-and-forget)
       // CRITICAL: Do NOT await - this runs after response is returned
@@ -12277,20 +12291,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       }
 
       // Phase 2.3: Queue memory extraction for async processing (non-blocking)
-      // Extraction happens in background worker, doesn't block chat response
-      const normalizedSessionIdForExtraction2 = normalizeSessionId(finalSessionId);
-      if (normalizedSessionIdForExtraction2) {
-        queueMemoryExtraction({
-          userId,
-          sessionId: normalizedSessionIdForExtraction2,
-          userMessage: masked,
-          assistantResponse: assistantContent
-        }).catch((error: any) => {
-          // Log but don't fail - extraction failures shouldn't break chat
-          console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error);
-          // Worker will retry failed jobs automatically
-        });
-      }
+      fireAndForgetMemoryEnqueue(userId, finalSessionId, masked, assistantContent);
 
       // Custodian: Update conversation summary (non-blocking)
       // Fetch all messages for this conversation and generate summary
