@@ -17,6 +17,7 @@ import {
   buildThoughtsText,
 } from "./usePrimeBriefingData";
 import type { ChatMessage } from "@/hooks/usePrimeChat";
+import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
 
 /* ── File upload helpers ── */
 
@@ -101,6 +102,9 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     isStreaming,
     clearMessages,
     resetThread,
+    pendingConfirmation,
+    confirmToolExecution,
+    cancelToolExecution,
   } = useUnifiedChatEngine({
     employeeSlug: "prime-boss",
     initialMessages: history,
@@ -956,6 +960,14 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               );
             })}
           </div>
+        )}
+        {pendingConfirmation && (
+          <ConfirmationCard
+            pending={pendingConfirmation}
+            onConfirm={confirmToolExecution}
+            onCancel={cancelToolExecution}
+            disabled={isStreaming}
+          />
         )}
         <div ref={bottomRef} />
       </div>
