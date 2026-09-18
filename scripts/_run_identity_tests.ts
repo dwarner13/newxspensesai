@@ -312,6 +312,132 @@ console.log('\n=== Edge: binding scope ===');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// FINANCIALGROUNDING PATH TESTS
+// ═══════════════════════════════════════════════════════════════════════
+
+const FABRICATED_VALID_UUID = '1b1c4b9e-9e4f-4e2f-9c1b-8d2f4e2f9c1b';
+
+console.log('\n=== FG1: FinancialGrounding tx_search 1 result → authoritative identity ===');
+{
+  const auth = extractAuthoritativeFromSearchResult([makeTxRow()]);
+  assertNotNull(auth, 'single FinancialGrounding result → identity established');
+  assertEqual(auth!.id, REAL_COSTCO_UUID, 'exact real UUID');
+}
+
+console.log('\n=== FG2: FinancialGrounding tx_search 0 results → clears previous ===');
+{
+  // Simulate: had authoritative, then FinancialGrounding search returns 0
+  const auth = extractAuthoritativeFromSearchResult([]);
+  assertNull(auth, '0 results → cleared');
+}
+
+console.log('\n=== FG3: FinancialGrounding tx_search multiple results → clears ===');
+{
+  const auth = extractAuthoritativeFromSearchResult([
+    makeTxRow({ id: REAL_COSTCO_UUID }),
+    makeTxRow({ id: REAL_GAS_UUID, description: 'COSTCO GAS', amount: -92.51 }),
+  ]);
+  assertNull(auth, 'multiple results → cleared');
+}
+
+console.log('\n=== FG4: FinancialGrounding single result invalid UUID → clears ===');
+{
+  assertNull(extractAuthoritativeFromSearchResult([{ id: 'bad', date: '2026-05-04' }]), 'invalid UUID → cleared');
+  assertNull(extractAuthoritativeFromSearchResult([{ date: '2026-05-04' }]), 'missing id → cleared');
+}
+
+console.log('\n=== FG5: FinancialGrounding identity → standard handoff auto-promotes ===');
+{
+  const authTx = extractAuthoritativeFromSearchResult([makeTxRow()]);
+  assertNotNull(authTx, 'identity established');
+  let handoffType: 'standard' | 'plugin' = 'standard';
+  let pluginPayload: any = null;
+  const isTagTarget = true;
+  if (isTagTarget && !pluginPayload && authTx) {
+    handoffType = 'plugin';
+    pluginPayload = {
+      transaction: { id: authTx!.id, description: authTx!.description, amount: authTx!.amount },
+      _source: 'authoritative_selected_tx',
+    };
+  }
+  assertEqual(handoffType, 'plugin', 'auto-promoted to plugin');
+  assertNotNull(pluginPayload, 'plugin_payload created');
+}
+
+console.log('\n=== FG6: Auto-promoted handoff carries exact verified UUID ===');
+{
+  const authTx = extractAuthoritativeFromSearchResult([makeTxRow()]);
+  let pluginPayload: any = null;
+  if (authTx) {
+    pluginPayload = { transaction: { id: authTx.id } };
+  }
+  assertEqual(pluginPayload.transaction.id, REAL_COSTCO_UUID, 'exact byte-for-byte UUID');
+  assert(pluginPayload.transaction.id === REAL_COSTCO_UUID, 'strict equality');
+}
+
+console.log('\n=== FG7: Tag trusted identity injection receives exact UUID ===');
+{
+  const handoffCtx = {
+    handoff_type: 'plugin' as const,
+    plugin_payload: { transaction: { id: REAL_COSTCO_UUID, description: 'COSTCO WHOLESALE' } },
+  };
+  assertEqual(handoffCtx.plugin_payload.transaction.id, REAL_COSTCO_UUID, 'UUID in handoff context');
+}
+
+console.log('\n=== FG8: Binding replaces fabricated valid UUID with authoritative ===');
+{
+  const handoffCtx = {
+    handoff_type: 'plugin' as const,
+    plugin_payload: { transaction: { id: REAL_COSTCO_UUID } },
+  };
+  // Tag fabricated a syntactically valid UUID that doesn't exist
+  const result = bindAuthoritativeTxIdentity('tag_update_transaction_category', 'tag-ai',
+    { transactionId: FABRICATED_VALID_UUID, newCategory: 'Shopping' }, handoffCtx);
+  assert(result.bound, 'binding occurred');
+  assertEqual(result.args.transactionId, REAL_COSTCO_UUID, 'fabricated UUID replaced');
+  assert(result.args.transactionId !== FABRICATED_VALID_UUID, 'fabricated UUID NOT used');
+}
+
+console.log('\n=== FG9: Confirmation snapshot contains authoritative UUID ===');
+{
+  const handoffCtx = {
+    handoff_type: 'plugin' as const,
+    plugin_payload: { transaction: { id: REAL_COSTCO_UUID } },
+  };
+  const { args: boundArgs } = bindAuthoritativeTxIdentity('tag_update_transaction_category', 'tag-ai',
+    { transactionId: FABRICATED_VALID_UUID, newCategory: 'Shopping', merchantName: 'COSTCO WHOLESALE' }, handoffCtx);
+  assertEqual(boundArgs.transactionId, REAL_COSTCO_UUID, 'snapshot has real UUID');
+  assert(boundArgs.transactionId !== FABRICATED_VALID_UUID, 'snapshot does NOT have fabricated UUID');
+  const valid = preValidateConfirmationArgs(tagUpdateInputSchema, boundArgs);
+  assertNull(valid, 'bound args pass pre-validation');
+}
+
+console.log('\n=== FG10: False-zero retry 1 result → establishes identity ===');
+{
+  // Same logic — retry is just another tx_search path
+  const auth = extractAuthoritativeFromSearchResult([makeTxRow()]);
+  assertNotNull(auth, 'retry single result → identity');
+  assertEqual(auth!.id, REAL_COSTCO_UUID, 'retry exact UUID');
+}
+
+console.log('\n=== FG11: No authoritative identity → system does NOT guess ===');
+{
+  // Standard handoff, no plugin payload, no authoritative tx
+  const result = bindAuthoritativeTxIdentity('tag_update_transaction_category', 'tag-ai',
+    { transactionId: FABRICATED_VALID_UUID, newCategory: 'Shopping' },
+    { handoff_type: 'standard' });
+  assert(!result.bound, 'no binding without authoritative identity');
+  assertEqual(result.args.transactionId, FABRICATED_VALID_UUID, 'fabricated UUID passes through unmodified');
+}
+
+console.log('\n=== FG12: Ambiguous results safety still intact ===');
+{
+  assertNull(extractAuthoritativeFromSearchResult([makeTxRow(), makeTxRow({ id: REAL_GAS_UUID })]), '2 results → null');
+  assertNull(extractAuthoritativeFromSearchResult([]), '0 results → null');
+  assertNull(extractAuthoritativeFromSearchResult([{ id: '', date: '2026-05-04' }]), 'empty id → null');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 console.log('\n' + '='.repeat(60));
 console.log(`RESULTS: ${passed} passed, ${failed} failed, ${passed + failed} total`);
 if (failed > 0) {

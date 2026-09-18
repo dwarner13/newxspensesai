@@ -11455,6 +11455,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, preResult, financialClassification);
                     messages.push({ role: 'system', content: evidenceMsg });
                     console.log(`[FinancialGrounding] evidence=tool tool=${plan.toolName} queryStatus=${qs}`);
+
+                    // Capture authoritative transaction identity from FinancialGrounding tx_search
+                    if (plan.toolName === 'tx_search' && finalSessionId) {
+                      updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, preResult);
+                    }
                   } else {
                     console.warn(`[FinancialGrounding] pre-execution returned error:`, preResult);
                     financialEvidence = { grounded: false };
@@ -12397,6 +12402,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   toolName: plan.toolName,
                   queryStatus: retryQs,
                 };
+
+                // Capture authoritative transaction identity from false-zero retry tx_search
+                if (plan.toolName === 'tx_search' && finalSessionId) {
+                  updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, retryResult);
+                }
 
                 const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification);
                 messages.push(
