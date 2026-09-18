@@ -103,6 +103,27 @@ export function requiresConfirmation(meta: ToolMeta): boolean {
   return !!(meta.requiresConfirm || meta.mutates || meta.costly);
 }
 
+// ── Pre-validation before confirmation ─────────────────────────────────────
+
+/**
+ * Validate tool arguments against the tool's input schema BEFORE creating a
+ * confirmation record.  Returns null when valid, or a structured error object
+ * that can be fed back to the model/tool loop so it can self-correct.
+ *
+ * Invariant: INVALID TOOL ARGUMENTS MUST NEVER BECOME A CONFIRMABLE ACTION.
+ */
+export function preValidateConfirmationArgs(
+  inputSchema: { safeParse: (v: unknown) => { success: boolean; error?: { errors: unknown[] } } },
+  args: unknown,
+): { error: string; details: unknown[] } | null {
+  const result = inputSchema.safeParse(args);
+  if (result.success) return null;
+  return {
+    error: 'Invalid input — confirmation rejected before creation',
+    details: result.error?.errors ?? [],
+  };
+}
+
 // ── Create pending confirmation ────────────────────────────────────────────
 
 export interface PendingConfirmationRecord {

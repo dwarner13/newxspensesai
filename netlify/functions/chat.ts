@@ -137,6 +137,7 @@ import {
   createPendingConfirmation,
   consumeConfirmation,
   hashArgs,
+  preValidateConfirmationArgs,
 } from './_shared/toolConfirmation.js';
 // Phase 1B.2: Server-enforced financial grounding (static imports — must not fail-open)
 import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint } from '../../src/shared/financial-query-classifier';
@@ -302,6 +303,32 @@ type LastTxSearchCacheEntry = {
   ids: string[];
   createdAt: number;
 };
+/**
+ * Authoritative Selected Transaction — established when a tx_search
+ * resolves to EXACTLY ONE result row.  Carries the verified database
+ * UUID so the orchestration layer can bind it to downstream mutations
+ * without relying on the LLM to copy/remember it.
+ *
+ * The identity is set when:
+ *  - A tx_search returns exactly 1 row, OR
+ *  - A narrowing tx_search (after disambiguation) returns exactly 1 row
+ *
+ * The identity is cleared when:
+ *  - A new tx_search returns >1 or 0 results (ambiguous/no match)
+ *  - The session TTL expires
+ */
+type AuthoritativeSelectedTransaction = {
+  id: string;          // database UUID
+  date: string | null;
+  description: string | null;
+  merchant: string | null;
+  amount: number | null;
+  current_category: string | null;
+};
+type AuthoritativeSelectedTxCacheEntry = {
+  transaction: AuthoritativeSelectedTransaction;
+  createdAt: number;
+};
 type ForcedTxSearchLatchEntry = {
   argsKey: string;
   createdAt: number;
@@ -312,6 +339,7 @@ const FORCED_TX_SEARCH_DEDUPE_MS = 10 * 1000;
 const THREAD_STATEMENT_CONTEXT_TTL_SECONDS = 2 * 60 * 60;
 const employeeProfileCache = new Map<string, EmployeeProfileCacheEntry>();
 const lastTxSearchCache = new Map<string, LastTxSearchCacheEntry>();
+const authoritativeSelectedTxCache = new Map<string, AuthoritativeSelectedTxCacheEntry>();
 const forcedTxSearchLatch = new Map<string, ForcedTxSearchLatchEntry>();
 const statementContextByThread = new Map<string, RuntimeCacheEntry<{ importId: string; label?: string | null }>>();
 const runtimeCache = {
@@ -1626,6 +1654,110 @@ function writeLastTxSearchIds(sessionId: string, ids: string[]): void {
     ids: ids.slice(0, 25),
     createdAt: Date.now(),
   });
+}
+
+// ── Authoritative Selected Transaction Identity ───────────────────────────
+// Established when tx_search resolves to exactly 1 row.
+// Cleared when a subsequent search returns 0 or >1 rows.
+
+function readAuthoritativeSelectedTx(sessionId: string): AuthoritativeSelectedTransaction | null {
+  const hit = authoritativeSelectedTxCache.get(sessionId);
+  if (!hit) return null;
+  if ((Date.now() - hit.createdAt) > LAST_TX_SEARCH_CACHE_TTL_MS) {
+    authoritativeSelectedTxCache.delete(sessionId);
+    return null;
+  }
+  return hit.transaction;
+}
+
+function writeAuthoritativeSelectedTx(sessionId: string, row: any): void {
+  if (!sessionId || !row?.id) return;
+  const id = String(row.id).trim();
+  // Validate UUID format before storing
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return;
+  authoritativeSelectedTxCache.set(sessionId, {
+    transaction: {
+      id,
+      date: row.date ?? null,
+      description: row.description ?? row.merchant ?? null,
+      merchant: row.merchant ?? row.merchant_normalized ?? null,
+      amount: typeof row.amount === 'number' ? row.amount : (typeof row.signed_amount === 'number' ? row.signed_amount : null),
+      current_category: row.category ?? null,
+    },
+    createdAt: Date.now(),
+  });
+}
+
+function clearAuthoritativeSelectedTx(sessionId: string): void {
+  authoritativeSelectedTxCache.delete(sessionId);
+}
+
+/**
+ * After a tx_search execution, inspect the result rows:
+ *  - Exactly 1 row → establish authoritative selected transaction
+ *  - 0 or >1 rows → clear any prior authoritative selection (ambiguous)
+ */
+function updateAuthoritativeSelectedTxFromSearchResult(sessionId: string, result: any): void {
+  if (!sessionId) return;
+  const rows = Array.isArray(result?.rows) ? result.rows : [];
+  if (rows.length === 1 && rows[0]?.id) {
+    const id = String(rows[0].id).trim();
+    // Only establish if the single result has a valid UUID — otherwise clear
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      writeAuthoritativeSelectedTx(sessionId, rows[0]);
+      console.log(`[Chat] Authoritative selected transaction established: ${id}`);
+    } else {
+      // 1 row but invalid UUID → cannot be authoritative, clear stale
+      clearAuthoritativeSelectedTx(sessionId);
+      console.warn(`[Chat] Authoritative selected transaction cleared: single result has invalid UUID "${id}"`);
+    }
+  } else {
+    // 0 results, >1 results, or 1 result with missing id — clear prior selection
+    clearAuthoritativeSelectedTx(sessionId);
+    if (rows.length > 1) {
+      console.log(`[Chat] Authoritative selected transaction cleared: ${rows.length} results (ambiguous)`);
+    }
+  }
+}
+
+/**
+ * Bind authoritative selected transaction UUID to mutation args.
+ *
+ * CONDITIONS for binding (ALL must be true):
+ *  1. The tool is tag_update_transaction_category (category mutation)
+ *  2. The employee is tag-ai or tag (specialist doing the mutation)
+ *  3. The handoff carried an authoritative plugin_payload with a transaction.id
+ *  4. The args have a transactionId field (model attempted to supply one)
+ *
+ * When these conditions hold, the model-supplied transactionId is REPLACED
+ * with the authoritative UUID.  The model still controls newCategory, reason,
+ * etc. — only the database identity is bound from the trusted source.
+ *
+ * Returns the (possibly modified) args and whether binding occurred.
+ */
+function bindAuthoritativeTxIdentity(
+  toolName: string,
+  employeeSlug: string,
+  args: Record<string, any>,
+  handoffCtx: { handoff_type?: string; plugin_payload?: Record<string, any> } | null,
+): { args: Record<string, any>; bound: boolean } {
+  if (toolName !== 'tag_update_transaction_category') return { args, bound: false };
+  const isTag = employeeSlug === 'tag-ai' || employeeSlug === 'tag';
+  if (!isTag) return { args, bound: false };
+  if (!handoffCtx || handoffCtx.handoff_type !== 'plugin') return { args, bound: false };
+  const txId = handoffCtx.plugin_payload?.transaction?.id;
+  if (!txId || typeof txId !== 'string') return { args, bound: false };
+  // Validate the authoritative UUID format
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(txId)) return { args, bound: false };
+  // Only bind if args has a transactionId field (model attempted the mutation)
+  if (!('transactionId' in args)) return { args, bound: false };
+
+  const modelSupplied = args.transactionId;
+  const bound = { ...args, transactionId: txId };
+  if (modelSupplied !== txId) {
+    console.log(`[Chat] Authoritative UUID binding: replaced model-supplied "${modelSupplied}" with trusted "${txId}"`);
+  }
+  return { args: bound, bound: true };
 }
 
 function shouldRunForcedTxSearch(sessionId: string, args: Record<string, any>): boolean {
@@ -5690,7 +5822,13 @@ export const handler: Handler = async (event, context) => {
           autonomyLevel: 1,
         });
 
-        console.log(`[Chat] Confirmed tool ${confirmedToolName} executed successfully`);
+        // Determine success/failure from the tool result
+        const isToolError = result && typeof result === 'object' && 'error' in result;
+        if (isToolError) {
+          console.error(`[Chat] Confirmed tool ${confirmedToolName} FAILED:`, result.error);
+        } else {
+          console.log(`[Chat] Confirmed tool ${confirmedToolName} executed successfully`);
+        }
 
         // Return the tool result as a JSON response — the frontend will feed it
         // to the next chat turn so the LLM can synthesize a human-readable message.
@@ -5703,6 +5841,7 @@ export const handler: Handler = async (event, context) => {
             toolConfirmationResult: {
               tool: confirmedToolName,
               result,
+              success: !isToolError,
               confirmationId: consumeResult.confirmationId,
             },
           }),
@@ -10264,6 +10403,22 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   // ── CONFIRMATION GATE (streaming) ──────────────────────────
                   // Mirror kernel.ts policy: gate when requiresConfirm OR mutates OR costly
                   if (requiresConfirmation(toolModule.meta)) {
+                    // Bind authoritative transaction UUID for Tag mutations
+                    const bindResult = bindAuthoritativeTxIdentity(toolName, finalEmployeeSlug, args, handoffContext || null);
+                    if (bindResult.bound) Object.assign(args, bindResult.args);
+
+                    // Pre-validate args BEFORE creating confirmation — invalid args must never become confirmable
+                    const preValidation = preValidateConfirmationArgs(toolModule.inputSchema, args);
+                    if (preValidation) {
+                      console.warn(`[Chat] Confirmation pre-validation FAILED for ${toolName} (streaming):`, preValidation.details);
+                      toolResults.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify(preValidation),
+                      });
+                      continue;
+                    }
+
                     try {
                       const pending = await createPendingConfirmation(
                         sb, userId, finalSessionId, toolName, args,
@@ -10339,6 +10494,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                         .filter((id: string) => id.length > 0)
                         .slice(0, 25);
                       if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
+                      updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
                     }
                     // Special handling for employee handoff (streaming)
                     // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
@@ -10618,6 +10774,21 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
                   // Confirmation gate
                   if (requiresConfirmation(tm.meta)) {
+                    // Bind authoritative transaction UUID for Tag mutations
+                    const bindResult = bindAuthoritativeTxIdentity(tn, finalEmployeeSlug, tArgs, handoffContext || null);
+                    if (bindResult.bound) Object.assign(tArgs, bindResult.args);
+
+                    // Pre-validate args BEFORE creating confirmation
+                    const preValidation = preValidateConfirmationArgs(tm.inputSchema, tArgs);
+                    if (preValidation) {
+                      console.warn(`[Chat] Confirmation pre-validation FAILED for ${tn} (specialist):`, preValidation.details);
+                      specToolResults.push({
+                        role: 'tool', tool_call_id: tc.id,
+                        content: JSON.stringify(preValidation),
+                      });
+                      continue;
+                    }
+
                     const pending = await createPendingConfirmation(sb, userId, finalSessionId, tn, tArgs);
                     const confirmSummary = `This will ${tm.description?.toLowerCase() || tn}`;
                     specToolResults.push({
@@ -10654,6 +10825,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     const rows = Array.isArray((tResult as any)?.rows) ? (tResult as any).rows : [];
                     const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
                     if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
+                    updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, tResult);
                   }
 
                   // Send tool events to stream
@@ -11394,12 +11566,37 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           const targetSlug = handoffData.target_slug;
           const reason = handoffData.reason || 'Better suited for this question';
           const summary = handoffData.summary_for_next_employee;
-          const handoffType: 'standard' | 'plugin' =
+          let handoffType: 'standard' | 'plugin' =
             handoffData.handoff_type === 'plugin' ? 'plugin' : 'standard';
-          const pluginPayload =
+          let pluginPayload =
             handoffType === 'plugin' && handoffData.plugin_payload && typeof handoffData.plugin_payload === 'object'
               ? handoffData.plugin_payload
               : null;
+
+          // ── Auto-promote standard → plugin when authoritative selected transaction exists ──
+          // When Prime hands off to tag-ai with a standard handoff but the session
+          // has an authoritative selected transaction (from a resolved tx_search),
+          // inject the trusted transaction identity into the plugin_payload.
+          // This prevents Tag from needing to fabricate/guess the transaction UUID.
+          const isTagTarget = targetSlug === 'tag-ai' || targetSlug === 'tag';
+          if (isTagTarget && !pluginPayload && finalSessionId) {
+            const authTx = readAuthoritativeSelectedTx(finalSessionId);
+            if (authTx) {
+              handoffType = 'plugin';
+              pluginPayload = {
+                transaction: {
+                  id: authTx.id,
+                  description: authTx.description,
+                  amount: authTx.amount,
+                  date: authTx.date,
+                  current_category: authTx.current_category,
+                },
+                requested_action: { type: 'change_category' },
+                _source: 'authoritative_selected_tx',
+              };
+              console.log(`[Chat] Auto-promoted standard → plugin handoff with authoritative tx: ${authTx.id} (${sourceLabel})`);
+            }
+          }
           const pluginMarker = encodePluginPayloadForHandoff(pluginPayload);
           const summaryForStorage = pluginMarker
             ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
@@ -11623,6 +11820,22 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             // ── CONFIRMATION GATE (non-streaming) ──────────────────────
             // Mirror kernel.ts policy: gate when requiresConfirm OR mutates OR costly
             if (requiresConfirmation(toolModule.meta)) {
+              // Bind authoritative transaction UUID for Tag mutations
+              const bindResult = bindAuthoritativeTxIdentity(toolName, finalEmployeeSlug, args, handoffContext || null);
+              if (bindResult.bound) Object.assign(args, bindResult.args);
+
+              // Pre-validate args BEFORE creating confirmation
+              const preValidation = preValidateConfirmationArgs(toolModule.inputSchema, args);
+              if (preValidation) {
+                console.warn(`[Chat] Confirmation pre-validation FAILED for ${toolName} (non-streaming):`, preValidation.details);
+                toolResults.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify(preValidation),
+                });
+                continue;
+              }
+
               try {
                 const pending = await createPendingConfirmation(
                   sb, userId, finalSessionId, toolName, args,
@@ -11693,6 +11906,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   .filter((id: string) => id.length > 0)
                   .slice(0, 25);
                 if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
+                updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
               }
               // Special handling for employee handoff (non-streaming)
               // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
@@ -11941,6 +12155,22 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
                 // Confirmation gate
                 if (requiresConfirmation(toolModule.meta)) {
+                  // Bind authoritative transaction UUID for Tag mutations
+                  const bindResult = bindAuthoritativeTxIdentity(toolName, finalEmployeeSlug, args, handoffContext || null);
+                  if (bindResult.bound) Object.assign(args, bindResult.args);
+
+                  // Pre-validate args BEFORE creating confirmation
+                  const preValidation = preValidateConfirmationArgs(toolModule.inputSchema, args);
+                  if (preValidation) {
+                    console.warn(`[Chat] Confirmation pre-validation FAILED for ${toolName} (tool-loop r${toolRound}):`, preValidation.details);
+                    currentToolResults.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify(preValidation),
+                    });
+                    continue;
+                  }
+
                   const pending = await createPendingConfirmation(sb, userId, finalSessionId, toolName, args);
                   const confirmSummary = `This will ${toolModule.description?.toLowerCase() || toolName}`;
                   console.log(`[Chat] Confirmation gate (tool loop round ${toolRound}): ${toolName} requires approval`, {
@@ -11985,6 +12215,14 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   mode: 'propose-confirm',
                   autonomyLevel: 1,
                 });
+
+                // Track tx_search results + authoritative selection (non-streaming tool loop)
+                if (toolName === 'tx_search' && finalSessionId && result && typeof result === 'object' && !('error' in result)) {
+                  const rows = Array.isArray(result?.rows) ? result.rows : [];
+                  const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
+                  if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
+                  updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
+                }
 
                 // Handoff lifecycle (authoritative — same implementation as initial path)
                 if (toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
