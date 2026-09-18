@@ -5830,6 +5830,37 @@ export const handler: Handler = async (event, context) => {
           console.log(`[Chat] Confirmed tool ${confirmedToolName} executed successfully`);
         }
 
+        // Build the toolConfirmationResult for the live response
+        const toolConfirmationResult = {
+          tool: confirmedToolName,
+          result,
+          success: !isToolError,
+          confirmationId: consumeResult.confirmationId,
+        };
+
+        // Persist the receipt to chat_messages so it survives page refresh.
+        // Sanitized: no confirmationId, HMAC, token, or argsHash in persisted metadata.
+        // Persistence failure must NEVER block the mutation result.
+        try {
+          const sanitizedReceipt = {
+            tool: confirmedToolName,
+            result,
+            success: !isToolError,
+          };
+          const contentForPersist = typeof result === 'string' ? result : JSON.stringify(result);
+          await sb.from('chat_messages').insert({
+            session_id: sessionId || null,
+            user_id: userId,
+            role: 'assistant',
+            content: contentForPersist,
+            tokens: Math.ceil((contentForPersist || '').length / 4),
+            thread_id: requestThreadId || sessionId || null,
+            metadata: { actionReceipt: sanitizedReceipt },
+          });
+        } catch (persistErr) {
+          console.error('[Chat] Receipt persistence failed (non-fatal):', persistErr);
+        }
+
         // Return the tool result as a JSON response — the frontend will feed it
         // to the next chat turn so the LLM can synthesize a human-readable message.
         return {
@@ -5838,12 +5869,7 @@ export const handler: Handler = async (event, context) => {
           body: JSON.stringify({
             role: 'assistant',
             content: typeof result === 'string' ? result : JSON.stringify(result),
-            toolConfirmationResult: {
-              tool: confirmedToolName,
-              result,
-              success: !isToolError,
-              confirmationId: consumeResult.confirmationId,
-            },
+            toolConfirmationResult,
           }),
         };
       } catch (confirmError: any) {

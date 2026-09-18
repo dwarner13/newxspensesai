@@ -18,6 +18,7 @@ import {
 } from "./usePrimeBriefingData";
 import type { ChatMessage } from "@/hooks/usePrimeChat";
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
+import { ActionReceiptCard, parseActionReceipt } from "@/components/chat/ActionReceiptCard";
 
 /* ── File upload helpers ── */
 
@@ -944,7 +945,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                         <span style={{ width: 6, height: 6, borderRadius: "50%", background: THEME.accent, opacity: 0.6, animation: "primeDot 1.4s ease-in-out 0.4s infinite" }} />
                         <style>{`@keyframes primeDot { 0%,80%,100% { transform: scale(0.6); opacity: 0.3; } 40% { transform: scale(1); opacity: 0.8; } }`}</style>
                       </div>
-                    ) : (
+                    ) : (() => {
+                      const metaAny = msg.meta as any;
+                      const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult) || parseActionReceipt(metaAny?.actionReceipt);
+                      return actionReceipt ? <ActionReceiptCard receipt={actionReceipt} /> : null;
+                    })() || (
                       <TypingMessage
                         content={msg.content}
                         messageId={msg.id}

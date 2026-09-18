@@ -7459,7 +7459,7 @@ export default function UnifiedAssistantChat({
                                               Sorry - no response was returned. Please try again.
                                             </span>
                                           ) : (() => {
-                                            const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult);
+                                            const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult) || parseActionReceipt(metaAny?.actionReceipt);
                                             return actionReceipt ? <ActionReceiptCard receipt={actionReceipt} /> : null;
                                           })() || (
                                             <TypingMessage

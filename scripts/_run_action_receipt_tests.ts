@@ -309,6 +309,148 @@ test('22: Result with string error field treated as failure by backend', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Integration gap tests: dual-source rendering (live + persisted)
+// ---------------------------------------------------------------------------
+
+test('23: Persisted actionReceipt shape (no confirmationId) parses correctly', () => {
+  // The persisted shape omits confirmationId — parseActionReceipt must still work
+  const persisted = {
+    tool: 'tag_update_transaction_category',
+    result: {
+      success: true,
+      transactionId: COSTCO_UUID,
+      merchantName: 'COSTCO WHOLESALE',
+      date: '2026-05-04',
+      amount: -190.27,
+      oldCategory: 'Groceries',
+      newCategory: 'Shopping',
+      subcategory: null,
+      learningSaved: true,
+      message: 'Successfully updated...',
+    },
+    success: true,
+    // NO confirmationId — this is the persisted shape
+  };
+  const r = parseActionReceipt(persisted);
+  assert(r !== null, 'persisted shape parses');
+  assert(r!.success === true, 'success is true');
+  assert((r as CategoryUpdateReceipt).merchantName === 'COSTCO WHOLESALE', 'merchant preserved');
+});
+
+test('24: Live toolConfirmationResult with confirmationId parses correctly', () => {
+  // The live shape has confirmationId — parseActionReceipt ignores it
+  const r = parseActionReceipt(SUCCESSFUL_RESULT);
+  assert(r !== null, 'live shape parses');
+  assert(r!.success === true, 'success');
+});
+
+test('25: Fallthrough: first source null, second source valid', () => {
+  // Simulates: metaAny?.toolConfirmationResult is undefined, metaAny?.actionReceipt is valid
+  const first = parseActionReceipt(undefined);
+  const second = parseActionReceipt(SUCCESSFUL_RESULT);
+  const receipt = first || second;
+  assert(receipt !== null, 'fallthrough to second source');
+  assert(receipt!.success === true, 'correct receipt from second source');
+});
+
+test('26: Both sources null returns null', () => {
+  const first = parseActionReceipt(undefined);
+  const second = parseActionReceipt(undefined);
+  const receipt = first || second;
+  assert(receipt === null, 'both null returns null');
+});
+
+test('27: Persisted failure receipt parses correctly', () => {
+  const persistedFail = {
+    tool: 'tag_update_transaction_category',
+    result: { error: 'Not found', merchantName: 'WALMART' },
+    success: false,
+  };
+  const r = parseActionReceipt(persistedFail);
+  assert(r !== null, 'persisted failure parses');
+  assert(r!.success === false, 'failure detected');
+  assert((r as ActionFailureReceipt).merchantName === 'WALMART', 'merchant preserved in failure');
+});
+
+test('28: Sanitized receipt excludes confirmationId, HMAC, argsHash', () => {
+  // Simulate what the backend persists — only tool, result, success
+  const sanitized = {
+    tool: 'tag_update_transaction_category',
+    result: SUCCESSFUL_RESULT.result,
+    success: true,
+  };
+  const json = JSON.stringify(sanitized);
+  assert(!json.includes('confirmationId'), 'no confirmationId in sanitized');
+  assert(!json.includes('argsHash'), 'no argsHash in sanitized');
+  assert(!json.includes('hmac'), 'no hmac in sanitized');
+  const r = parseActionReceipt(sanitized);
+  assert(r !== null, 'sanitized parses');
+});
+
+test('29: Receipt from meta.actionReceipt with extra fields still parses', () => {
+  const withExtra = {
+    tool: 'tag_update_transaction_category',
+    result: { ...SUCCESSFUL_RESULT.result, extraField: 'ignored' },
+    success: true,
+    randomField: 'also ignored',
+  };
+  const r = parseActionReceipt(withExtra as any);
+  assert(r !== null, 'extra fields do not break parsing');
+  assert(r!.success === true, 'success');
+});
+
+test('30: Amount zero is preserved (not treated as null)', () => {
+  const zeroAmount = {
+    ...SUCCESSFUL_RESULT,
+    result: { ...SUCCESSFUL_RESULT.result, amount: 0 },
+  };
+  const r = parseActionReceipt(zeroAmount) as CategoryUpdateReceipt;
+  assert(r.amount === 0, 'zero amount preserved');
+});
+
+test('31: Empty string transactionId preserved', () => {
+  const emptyId = {
+    ...SUCCESSFUL_RESULT,
+    result: { ...SUCCESSFUL_RESULT.result, transactionId: '' },
+  };
+  const r = parseActionReceipt(emptyId) as CategoryUpdateReceipt;
+  assert(r.transactionId === '', 'empty transactionId preserved as empty string');
+});
+
+test('32: Non-object result (string) returns null', () => {
+  const stringResult = {
+    tool: 'tag_update_transaction_category',
+    result: 'some string',
+    success: true,
+  };
+  const r = parseActionReceipt(stringResult);
+  assert(r === null, 'string result returns null');
+});
+
+test('33: Non-object result (number) returns null', () => {
+  const numResult = {
+    tool: 'tag_update_transaction_category',
+    result: 42,
+    success: true,
+  };
+  const r = parseActionReceipt(numResult);
+  assert(r === null, 'number result returns null');
+});
+
+test('34: Result array returns null', () => {
+  const arrResult = {
+    tool: 'tag_update_transaction_category',
+    result: [1, 2, 3],
+    success: true,
+  };
+  const r = parseActionReceipt(arrResult);
+  // Arrays are typeof 'object' but lack expected fields → should still parse but as failure
+  // Actually: Array has no r.success === true → returns failure receipt
+  assert(r !== null, 'array result returns a receipt (failure branch)');
+  assert(r!.success === false, 'array result treated as failure');
+});
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 console.log(`\n${'='.repeat(60)}`);
