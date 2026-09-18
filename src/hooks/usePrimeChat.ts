@@ -43,6 +43,7 @@ interface AssistantUpsertParams {
   content: string;
   isStreaming: boolean;
   employeeKey?: string;
+  extraMeta?: Record<string, unknown>;
 }
 
 const STREAM_IDLE_TIMEOUT_MS = 45_000;
@@ -593,7 +594,7 @@ export function usePrimeChat(
   // One request => one assistant bubble.
   // Updates existing placeholder (id/request_id), and collapses accidental duplicates.
   const upsertAssistantMessage = useCallback((params: AssistantUpsertParams) => {
-    const { messageId, requestId, content, isStreaming, employeeKey } = params;
+    const { messageId, requestId, content, isStreaming, employeeKey, extraMeta } = params;
     const normalizedContent = String(content || '');
     setMessages(prev => {
       let matched = false;
@@ -628,6 +629,7 @@ export function usePrimeChat(
             ...(msg.meta || {}),
             ...(employeeKey ? { employee_key: employeeKey } : {}),
             ...(requestId ? { request_id: requestId } : {}),
+            ...(extraMeta || {}),
             is_streaming: isStreaming,
           },
         });
@@ -659,6 +661,7 @@ export function usePrimeChat(
           meta: {
             ...(employeeKey ? { employee_key: employeeKey } : {}),
             ...(requestId ? { request_id: requestId } : {}),
+            ...(extraMeta || {}),
             is_streaming: isStreaming,
           },
         });
@@ -1675,12 +1678,18 @@ export function usePrimeChat(
             const responseEmployee = hasHandoff
               ? handoffInfo.from
               : (payload?.employeeSlug || payload?.employee || employeeSlugToSend);
+            // Carry toolConfirmationResult in meta so the renderer can display
+            // a structured ActionReceiptCard instead of raw JSON.
+            const confirmMeta = payload?.toolConfirmationResult
+              ? { toolConfirmationResult: payload.toolConfirmationResult }
+              : undefined;
             upsertAssistantMessage({
               messageId,
               requestId,
               content: contentText,
               isStreaming: false,
               employeeKey: responseEmployee,
+              extraMeta: confirmMeta,
             });
           }
           setIsStreaming(false);

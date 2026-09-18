@@ -53,6 +53,7 @@ import { buildPrimeGreeting, type PrimeGreetingData, type PrimeGreetingChip } fr
 import { PrimeGreetingCard } from './PrimeGreetingCard';
 import { PrimeQuickActions } from './PrimeQuickActions';
 import { TypingMessage, FormattedMessageText, renderInlineStrong } from './TypingMessage';
+import { ActionReceiptCard, parseActionReceipt } from './ActionReceiptCard';
 import type { ChatMessage } from '../../hooks/usePrimeChat';
 import { onBus, emitBus } from '../../lib/bus';
 import { usePostImportHandoff } from '../../hooks/usePostImportHandoff';
@@ -7457,7 +7458,10 @@ export default function UnifiedAssistantChat({
                                             <span className="whitespace-pre-wrap break-words text-slate-300">
                                               Sorry - no response was returned. Please try again.
                                             </span>
-                                          ) : (
+                                          ) : (() => {
+                                            const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult);
+                                            return actionReceipt ? <ActionReceiptCard receipt={actionReceipt} /> : null;
+                                          })() || (
                                             <TypingMessage
                                               content={message.content}
                                               messageId={message.id}
