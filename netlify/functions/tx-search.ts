@@ -242,7 +242,9 @@ export const handler: Handler = async (event) => {
 
     if (minAmount !== null) {
       const absMin = Math.abs(minAmount);
-      orClauses.push(`amount.gte.${absMin}`, `amount.lte.${-absMin}`);
+      // Apply as separate AND-scoped OR: |amount| >= absMin
+      // Must NOT be mixed into text-search orClauses or text matches bypass amount filtering
+      query = query.or(`amount.gte.${absMin},amount.lte.${-absMin}`);
     }
     if (maxAmount !== null) {
       const absMax = Math.abs(maxAmount);
