@@ -1,7 +1,7 @@
 /**
  * Chat Return Context
  *
- * Deterministic mechanism for "Back to Prime" navigation after viewing
+ * Deterministic mechanism for "Back to Conversation" navigation after viewing
  * a transaction from an Action Receipt in chat.
  *
  * Primary: React Router navigation state (`location.state.chatReturn`).

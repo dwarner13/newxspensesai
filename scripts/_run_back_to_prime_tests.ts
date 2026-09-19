@@ -151,13 +151,13 @@ test('10: stale context cleaned in loadChatReturnContext', () => {
   assert(RETURN_CTX_SRC.includes('sessionStorage.removeItem'), 'removes stale entries');
 });
 
-test('11: drawer conditionally renders Back to Prime via onBackToChat prop', () => {
+test('11: drawer conditionally renders Back to Conversation via onBackToChat prop', () => {
   assert(DRAWER_SRC.includes('onBackToChat'), 'drawer accepts onBackToChat prop');
-  assert(DRAWER_SRC.includes('Back to Prime'), 'drawer renders Back to Prime text');
+  assert(DRAWER_SRC.includes('Back to Conversation'), 'drawer renders Back to Conversation text');
   assert(DRAWER_SRC.includes('{onBackToChat && ('), 'conditionally rendered');
 });
 
-test('12: normal transaction does NOT show Back to Prime', () => {
+test('12: normal transaction does NOT show Back to Conversation', () => {
   // When onBackToChat is undefined, the button is not rendered
   assert(DRAWER_SRC.includes('onBackToChat?:'), 'onBackToChat is optional in interface');
   // TransactionsPageV2 passes onBackToChat only when chatReturnCtx is truthy
@@ -177,7 +177,7 @@ test('14: ~44px mobile touch target', () => {
 });
 
 test('15: aria-label present', () => {
-  assert(DRAWER_SRC.includes('aria-label="Back to Prime chat"'), 'accessible aria-label');
+  assert(DRAWER_SRC.includes('aria-label="Back to Conversation"'), 'accessible aria-label');
 });
 
 test('16: iPhone safe-area handling present', () => {
@@ -188,15 +188,20 @@ test('17: Back to Prime navigates /dashboard', () => {
   assert(TX_PAGE_SRC.includes("navigate('/dashboard')"), 'navigates to /dashboard');
 });
 
-test('18: Prime panel is reopened', () => {
-  assert(TX_PAGE_SRC.includes('setIsPrimeBriefingOpen(true)'), 'opens Prime panel');
-  // handleBackToChat calls both navigate and setIsPrimeBriefingOpen
+test('18: Panel reopen via sessionStorage intent', () => {
+  // handleBackToChat sets a one-shot sessionStorage intent instead of
+  // calling setIsPrimeBriefingOpen(true) directly (which gets overridden
+  // by DashboardLayout's route-change effect).
   const handleBackSrc = TX_PAGE_SRC.substring(
     TX_PAGE_SRC.indexOf('handleBackToChat'),
-    TX_PAGE_SRC.indexOf('handleBackToChat') + 300,
+    TX_PAGE_SRC.indexOf('handleBackToChat') + 400,
   );
   assert(handleBackSrc.includes("navigate('/dashboard')"), 'handleBackToChat navigates');
-  assert(handleBackSrc.includes('setIsPrimeBriefingOpen(true)'), 'handleBackToChat opens Prime');
+  assert(handleBackSrc.includes("sessionStorage.setItem('returnToConversation'"), 'handleBackToChat sets intent flag');
+  // DashboardLayout consumes the intent
+  const layoutSrc = readFileSync(join(__dirname_local, '..', 'src', 'layouts', 'DashboardLayout.tsx'), 'utf-8');
+  assert(layoutSrc.includes("sessionStorage.getItem('returnToConversation')"), 'DashboardLayout reads intent');
+  assert(layoutSrc.includes("sessionStorage.removeItem('returnToConversation')"), 'DashboardLayout consumes intent once');
 });
 
 test('19: context consumed on Back to Prime click', () => {
@@ -328,6 +333,101 @@ test('32: generic source field supports future extension', () => {
   assert(RETURN_CTX_SRC.includes("source: 'chat'"), 'source type is chat');
   // Mechanism can be extended without breaking existing code
   assert(RETURN_CTX_SRC.includes('interface ChatReturnContext'), 'typed interface exists');
+});
+
+// ---------------------------------------------------------------------------
+// Back to Conversation — new tests
+// ---------------------------------------------------------------------------
+
+const LAYOUT_SRC = readFileSync(
+  join(__dirname_local, '..', 'src', 'layouts', 'DashboardLayout.tsx'),
+  'utf-8',
+);
+
+test('33: visible label is Back to Conversation', () => {
+  assert(DRAWER_SRC.includes('Back to Conversation'), 'drawer shows Back to Conversation');
+  assert(!DRAWER_SRC.includes('Back to Prime'), 'drawer does NOT show Back to Prime');
+});
+
+test('34: chat-origin required for Back to Conversation', () => {
+  assert(DRAWER_SRC.includes('onBackToChat && ('), 'guard on onBackToChat');
+  assert(TX_PAGE_SRC.includes('chatReturnCtx ? handleBackToChat : undefined'), 'only passed with chatReturn context');
+});
+
+test('35: normal transaction browsing does not show Back to Conversation', () => {
+  // onBackToChat is undefined when chatReturnCtx is null
+  assert(TX_PAGE_SRC.includes('chatReturnCtx ? handleBackToChat : undefined'), 'conditional prop');
+});
+
+test('36: exact txId behavior preserved', () => {
+  assert(ACTION_RECEIPT_SRC.includes('txId='), 'txId in URL');
+  assert(ACTION_RECEIPT_SRC.includes('encodeURIComponent(receipt.transactionId)'), 'encoded txId');
+});
+
+test('37: returnToConversation intent is one-shot', () => {
+  assert(LAYOUT_SRC.includes("sessionStorage.removeItem('returnToConversation')"), 'intent consumed immediately');
+});
+
+test('38: returnToConversation intent sets isPrimeBriefingOpen', () => {
+  // After consuming the flag, layout opens the panel
+  const intentBlock = LAYOUT_SRC.substring(
+    LAYOUT_SRC.indexOf("getItem('returnToConversation')"),
+    LAYOUT_SRC.indexOf("getItem('returnToConversation')") + 300,
+  );
+  assert(intentBlock.includes('setIsPrimeBriefingOpen(true)'), 'intent opens panel');
+});
+
+test('39: no new session generated by return navigation', () => {
+  // handleBackToChat must NOT call crypto.randomUUID or create a new session
+  const handleBackSrc = TX_PAGE_SRC.substring(
+    TX_PAGE_SRC.indexOf('handleBackToChat'),
+    TX_PAGE_SRC.indexOf('handleBackToChat') + 400,
+  );
+  assert(!handleBackSrc.includes('randomUUID'), 'no UUID generation');
+  assert(!handleBackSrc.includes('setSessionId'), 'no session mutation');
+});
+
+test('40: no LLM request triggered by return navigation', () => {
+  // handleBackToChat must not call sendMessage, send, or fetch
+  const handleBackSrc = TX_PAGE_SRC.substring(
+    TX_PAGE_SRC.indexOf('handleBackToChat'),
+    TX_PAGE_SRC.indexOf('handleBackToChat') + 400,
+  );
+  assert(!handleBackSrc.includes('sendMessage'), 'no sendMessage call');
+  assert(!handleBackSrc.includes('fetch('), 'no fetch call');
+});
+
+test('41: drawer X does not set returnToConversation intent', () => {
+  const handleCloseSrc = TX_PAGE_SRC.substring(
+    TX_PAGE_SRC.indexOf('handleDrawerClose'),
+    TX_PAGE_SRC.indexOf('handleDrawerClose') + 300,
+  );
+  assert(!handleCloseSrc.includes('returnToConversation'), 'X close does not set intent');
+});
+
+test('42: returnToConversation intent depends on location.pathname', () => {
+  // The effect consuming the intent fires on route change
+  const intentEffect = LAYOUT_SRC.substring(
+    LAYOUT_SRC.indexOf("getItem('returnToConversation')") - 100,
+    LAYOUT_SRC.indexOf("getItem('returnToConversation')") + 300,
+  );
+  assert(intentEffect.includes('location.pathname'), 'depends on pathname');
+});
+
+test('43: existing Action Receipt navigation preserved', () => {
+  assert(ACTION_RECEIPT_SRC.includes('createChatReturnContext'), 'creates return context');
+  assert(ACTION_RECEIPT_SRC.includes('saveChatReturnContext'), 'saves return context');
+  assert(ACTION_RECEIPT_SRC.includes('/dashboard/transactions'), 'navigates to transactions');
+});
+
+test('44: handleOpenPrime still uses direct atom set', () => {
+  // handleOpenPrime (non-navigation) can still directly set the atom
+  assert(TX_PAGE_SRC.includes('const handleOpenPrime'), 'handleOpenPrime exists');
+  const openPrimeSrc = TX_PAGE_SRC.substring(
+    TX_PAGE_SRC.indexOf('const handleOpenPrime'),
+    TX_PAGE_SRC.indexOf('const handleOpenPrime') + 200,
+  );
+  assert(openPrimeSrc.includes('setIsPrimeBriefingOpen(true)'), 'direct atom set still works');
 });
 
 // ---------------------------------------------------------------------------

@@ -363,16 +363,20 @@ export default function TransactionsPageV2() {
     setIsPrimeBriefingOpen(true);
   }, [setIsPrimeBriefingOpen]);
 
-  // Back to Prime: navigate to dashboard and open Prime panel
+  // Back to Conversation: navigate to dashboard and reopen chat panel.
+  // We cannot call setIsPrimeBriefingOpen(true) synchronously here because
+  // DashboardLayout's route-change effect resets it to false when the path
+  // changes. Instead, set a one-shot sessionStorage intent that the layout
+  // consumes after the route-change effect fires.
   const handleBackToChat = useCallback(() => {
     clearChatReturnContext();
     setChatReturnCtx(null);
     setSelectedTx(null);
+    try { sessionStorage.setItem('returnToConversation', '1'); } catch { /* noop */ }
     navigate('/dashboard');
-    setIsPrimeBriefingOpen(true);
-  }, [navigate, setIsPrimeBriefingOpen]);
+  }, [navigate]);
 
-  // Close drawer: clear chat return context so Back to Prime disappears
+  // Close drawer: clear chat return context so Back to Conversation disappears
   const handleDrawerClose = useCallback(() => {
     clearChatReturnContext();
     setChatReturnCtx(null);

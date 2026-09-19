@@ -546,6 +546,19 @@ export default function DashboardLayout() {
     }
   }, [location.pathname, isChatOpen, closeChat, setIsPrimeBriefingOpen]);
 
+  // Return-to-conversation intent: after "Back to Conversation" navigates here
+  // from /dashboard/transactions, consume the one-shot flag and reopen the panel.
+  // Runs after the route-change effect above so its setIsPrimeBriefingOpen(true)
+  // overrides the route-change false in the same React batch.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('returnToConversation') === '1') {
+        sessionStorage.removeItem('returnToConversation');
+        setIsPrimeBriefingOpen(true);
+      }
+    } catch { /* noop */ }
+  }, [location.pathname, setIsPrimeBriefingOpen]);
+
   // Auto-open Prime briefing once per session (mirrors Tag autopen pattern).
   useEffect(() => {
     if (!ready || !userId || !profile) return;

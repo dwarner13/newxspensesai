@@ -428,13 +428,13 @@ export function TransactionInsightDrawer({
           </div>
         )}
 
-        {/* Back to Prime bar — only when opened from chat Action Receipt */}
+        {/* Back to Conversation bar — only when opened from chat Action Receipt */}
         {onBackToChat && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 16px' : '0 20px', paddingTop: isMobile ? 0 : 'max(0px, env(safe-area-inset-top, 0px))', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <button
               type="button"
               onClick={onBackToChat}
-              aria-label="Back to Prime chat"
+              aria-label="Back to Conversation"
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 minHeight: 44, padding: '8px 4px',
@@ -446,7 +446,7 @@ export function TransactionInsightDrawer({
               onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
             >
               <span aria-hidden="true" style={{ fontSize: 14 }}>{'\u2190'}</span>
-              Back to Prime
+              Back to Conversation
             </button>
             <button type="button" onClick={onClose} aria-label="Close" style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X style={{ width: 16, height: 16 }} />
@@ -472,7 +472,7 @@ export function TransactionInsightDrawer({
               )}
             </div>
           </div>
-          {/* Only show standalone X when Back to Prime bar is NOT present (avoids double X) */}
+          {/* Only show standalone X when Back to Conversation bar is NOT present (avoids double X) */}
           {!onBackToChat && (
             <button type="button" onClick={onClose} style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X style={{ width: 16, height: 16 }} />
