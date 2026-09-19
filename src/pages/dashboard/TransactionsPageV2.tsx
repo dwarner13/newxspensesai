@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
 import { Search, ChevronRight, ChevronDown, ArrowDownLeft, ArrowUpRight, TrendingDown, Hash, Upload, Download, Star } from 'lucide-react';
@@ -14,6 +14,8 @@ import { getSupabase } from '@/lib/supabase';
 import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
 import { AgentFloatingBubble } from '@/components/ui/AgentFloatingBubble';
 import { useProfile } from '@/hooks/useProfile';
+import { loadChatReturnContext, clearChatReturnContext } from '@/lib/chatReturnContext';
+import type { ChatReturnContext } from '@/lib/chatReturnContext';
 
 const CAT_COLORS: Record<string, string> = {
   'Personal Care': '#ec4899', Subscriptions: '#818cf8', Shopping: '#a78bfa',
@@ -52,8 +54,19 @@ const fmtDate = (d: string) => {
 
 export default function TransactionsPageV2() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { fullName } = useProfile();
   const firstName = fullName?.split(' ')[0] || '';
+
+  // Chat return context: detect if opened from Action Receipt in Prime chat.
+  // Primary: React Router state. Fallback: sessionStorage (survives refresh).
+  const [chatReturnCtx, setChatReturnCtx] = useState<ChatReturnContext | null>(() => {
+    const fromState = (location.state as any)?.chatReturn;
+    if (fromState?.source === 'chat' && typeof fromState.timestamp === 'number') {
+      return fromState as ChatReturnContext;
+    }
+    return loadChatReturnContext();
+  });
   // Read import_id, issuer, and openTag from URL synchronously so the initial
   // filter + Tag panel state are in sync on mount (no flicker).
   const initialParams = (() => {
@@ -349,6 +362,22 @@ export default function TransactionsPageV2() {
   const handleOpenPrime = useCallback(() => {
     setIsPrimeBriefingOpen(true);
   }, [setIsPrimeBriefingOpen]);
+
+  // Back to Prime: navigate to dashboard and open Prime panel
+  const handleBackToChat = useCallback(() => {
+    clearChatReturnContext();
+    setChatReturnCtx(null);
+    setSelectedTx(null);
+    navigate('/dashboard');
+    setIsPrimeBriefingOpen(true);
+  }, [navigate, setIsPrimeBriefingOpen]);
+
+  // Close drawer: clear chat return context so Back to Prime disappears
+  const handleDrawerClose = useCallback(() => {
+    clearChatReturnContext();
+    setChatReturnCtx(null);
+    setSelectedTx(null);
+  }, []);
 
   const fetchTagInsight = useCallback(async (tx: CommittedTransaction) => {
     setTagInsight(null);
@@ -1408,7 +1437,8 @@ export default function TransactionsPageV2() {
           open={!!selectedTx}
           row={selectedTx ? { kind: 'committed', transaction: selectedTx } : null}
           allCommittedTransactions={transactions}
-          onClose={() => setSelectedTx(null)}
+          onClose={handleDrawerClose}
+          onBackToChat={chatReturnCtx ? handleBackToChat : undefined}
           onCommittedCategorySaved={(txId, category) => {
             // Update the selected transaction in-place - don't close the drawer
             // and don't refetch (which would trigger filter eviction).

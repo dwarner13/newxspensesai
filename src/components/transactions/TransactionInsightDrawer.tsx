@@ -26,6 +26,7 @@ interface TransactionInsightDrawerProps {
   onFlagReview?: (row: DrawerTransaction) => void;
   tagInsight?: { category?: string; categorySource?: string; confidence?: number; message?: string; proactiveInsights?: string[]; merchantSeenCount?: number; isAmountAnomaly?: boolean } | null;
   tagInsightLoading?: boolean;
+  onBackToChat?: () => void;
 }
 
 const TAX_INFO: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -71,6 +72,7 @@ export function TransactionInsightDrawer({
   onCommittedCategorySaved, onPendingCategorySaved,
   onAskTag,
   tagInsight, tagInsightLoading = false,
+  onBackToChat,
 }: TransactionInsightDrawerProps) {
   const [localCategory, setLocalCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -419,14 +421,41 @@ export function TransactionInsightDrawer({
         fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '-8px 0 60px rgba(0,0,0,0.5)',
       }}>
 
-        {/* Mobile drag handle */}
+        {/* Mobile drag handle + safe-area inset */}
         {isMobile && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 'max(10px, env(safe-area-inset-top, 10px))', paddingBottom: 4, flexShrink: 0 }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
           </div>
         )}
+
+        {/* Back to Prime bar — only when opened from chat Action Receipt */}
+        {onBackToChat && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 16px' : '0 20px', paddingTop: isMobile ? 0 : 'max(0px, env(safe-area-inset-top, 0px))', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <button
+              type="button"
+              onClick={onBackToChat}
+              aria-label="Back to Prime chat"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                minHeight: 44, padding: '8px 4px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, fontWeight: 600, color: '#fbbf24',
+                transition: 'opacity 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            >
+              <span aria-hidden="true" style={{ fontSize: 14 }}>{'\u2190'}</span>
+              Back to Prime
+            </button>
+            <button type="button" onClick={onClose} aria-label="Close" style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X style={{ width: 16, height: 16 }} />
+            </button>
+          </div>
+        )}
+
         {/* HEADER */}
-        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ padding: onBackToChat ? '12px 20px 16px' : '20px 20px 16px', paddingTop: !onBackToChat && !isMobile ? 'max(20px, env(safe-area-inset-top, 20px))' : (onBackToChat ? 12 : 20), borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
             <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 800, color: amountColor, marginTop: 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
@@ -443,9 +472,12 @@ export function TransactionInsightDrawer({
               )}
             </div>
           </div>
-          <button type="button" onClick={onClose} style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X style={{ width: 16, height: 16 }} />
-          </button>
+          {/* Only show standalone X when Back to Prime bar is NOT present (avoids double X) */}
+          {!onBackToChat && (
+            <button type="button" onClick={onClose} style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X style={{ width: 16, height: 16 }} />
+            </button>
+          )}
         </div>
 
         {/* SCROLLABLE BODY */}

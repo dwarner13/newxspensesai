@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createChatReturnContext, saveChatReturnContext } from '@/lib/chatReturnContext';
 
 // ---------------------------------------------------------------------------
 // Action Receipt types — deterministic rendering of confirmed tool results.
@@ -95,7 +96,11 @@ function SuccessReceiptCard({ receipt }: { receipt: CategoryUpdateReceipt }) {
   const navigate = useNavigate();
 
   const handleViewTransaction = useCallback(() => {
-    navigate(`/dashboard/transactions?txId=${encodeURIComponent(receipt.transactionId)}`);
+    const returnCtx = createChatReturnContext();
+    saveChatReturnContext(returnCtx);
+    navigate(`/dashboard/transactions?txId=${encodeURIComponent(receipt.transactionId)}`, {
+      state: { chatReturn: returnCtx },
+    });
   }, [navigate, receipt.transactionId]);
 
   const details: string[] = [];
