@@ -383,7 +383,7 @@ export function usePrimeChat(
       });
     };
   }, [safeUserId, suppressByteThoughtsInPrime]);
-  
+
   // PART A: Hard dedupe key (no time component)
   const normalizeText = (s: string) => {
     return (s || '')
@@ -688,6 +688,34 @@ export function usePrimeChat(
     return employeeOverride ? (slugMap[employeeOverride] || 'prime-boss') : 'prime-boss';
   }, [employeeOverride]);
 
+  // ── Session capture helper ──────────────────────────────────────────
+  // Captures a backend-issued session ID from any response path.
+  // Validates, updates React state, and persists to localStorage under
+  // the CURRENT active employee's key so handoff migrations work.
+  const captureBackendSessionId = useCallback((
+    receivedId: string | null | undefined,
+    requestId?: string,
+  ) => {
+    if (!receivedId || typeof receivedId !== 'string') return;
+    // Guard: stale response must not overwrite an intentional New Chat
+    if (requestId && activeRequestIdRef.current !== null && activeRequestIdRef.current !== requestId) return;
+    // Already captured this exact ID — nothing to do
+    if (receivedId === effectiveSessionId) return;
+
+    setEffectiveSessionId(receivedId);
+
+    if (safeUserId) {
+      try {
+        // Use the current active employee slug (respects handoff state)
+        const currentSlug = activeEmployeeSlug || originEmployeeSlug;
+        const storageKey = `chat_session_${safeUserId}_${currentSlug}`;
+        localStorage.setItem(storageKey, receivedId);
+      } catch {
+        // localStorage write is non-critical
+      }
+    }
+  }, [effectiveSessionId, safeUserId, activeEmployeeSlug, originEmployeeSlug]);
+
   // Initialize activeEmployeeSlug from session on mount (canonical source: chat_sessions.employee_slug)
   // CRITICAL: On /dashboard/prime-chat, allow handoffs to stick (don't force Prime after handoff)
   useEffect(() => {
@@ -991,13 +1019,18 @@ export function usePrimeChat(
             frag = j?.choices?.[0]?.delta?.content ?? j?.content ?? j?.token ?? '';
           }
           
+          // Capture backend-issued sessionId from SSE content payload
+          if (j.sessionId) {
+            captureBackendSessionId(String(j.sessionId), requestId);
+          }
+
           if (frag) {
             // CRITICAL: Only process if requestId is provided
             if (!requestId) {
               // If no requestId, skip processing (this shouldn't happen in normal flow)
               continue;
             }
-            
+
             // Guards already checked at function entry - proceed with processing
             // PART B: Parse SSE "type":"text" and append to the mapped message
             const mid = streamingMsgByRequestRef.current.get(requestId);
@@ -1049,7 +1082,7 @@ export function usePrimeChat(
     }
     
     return { aiText, hasContent };
-  }, [eventTap, safeUserId]);
+  }, [eventTap, safeUserId, captureBackendSessionId]);
 
   const send = useCallback(async (text?: string | Promise<string>, opts?: SendOptions) => {
     // CRITICAL: In-flight guard - prevent duplicate sends
@@ -1535,43 +1568,10 @@ export function usePrimeChat(
         };
         setHeaders(extractedHeaders);
         
-        // Extract sessionId from response header (if backend returns it)
-        const responseSessionId = res.headers.get('X-Session-Id') || effectiveSessionId || sessionId;
-        
-        // Update effectiveSessionId state if we got a new one from backend
-        if (responseSessionId && responseSessionId !== effectiveSessionId) {
-          setEffectiveSessionId(responseSessionId);
-        }
-        
-        // Store sessionId in localStorage if we have userId and employeeOverride
-        if (responseSessionId && safeUserId && employeeOverride) {
-          try {
-            // Map employeeOverride back to employeeSlug for storage key
-            const employeeSlugMap: Record<EmployeeOverride, string> = {
-              prime: 'prime-boss',
-              tag: 'tag-ai',
-              byte: 'byte-docs',
-              crystal: 'crystal-ai',
-              goalie: 'goalie-agent',
-              automa: 'automa-automation',
-              blitz: 'blitz-debt',
-              liberty: 'liberty-freedom',
-              chime: 'chime-bills',
-              roundtable: 'roundtable-podcast',
-              serenity: 'serenity-therapist',
-              harmony: 'harmony-wellness',
-              wave: 'wave-spotify',
-              ledger: 'ledger-tax',
-              intelia: 'intelia-bi',
-              dash: 'dash-analytics',
-              custodian: 'custodian-settings'
-            };
-            const employeeSlug = employeeOverride ? employeeSlugMap[employeeOverride] || 'prime-boss' : 'prime-boss';
-            const storageKey = `chat_session_${safeUserId}_${employeeSlug}`;
-            localStorage.setItem(storageKey, responseSessionId);
-          } catch (e) {
-            warn('[usePrimeChat] Failed to store sessionId in localStorage:', e);
-          }
+        // Capture sessionId from response header (belt-and-suspenders with body capture)
+        const headerSessionId = res.headers.get('X-Session-Id');
+        if (headerSessionId) {
+          captureBackendSessionId(headerSessionId, requestId);
         }
 
         // Report headers to dev tools
@@ -1601,6 +1601,10 @@ export function usePrimeChat(
         const contentType = res.headers.get('content-type')?.toLowerCase() || '';
         if (!contentType.includes('text/event-stream')) {
           const payload = await res.json().catch(() => null);
+          // Capture backend-issued sessionId from JSON response body
+          if (payload?.sessionId) {
+            captureBackendSessionId(String(payload.sessionId), requestId);
+          }
           if (payload?.type === 'noop' || payload?.deduped === true) {
             setIsStreaming(false);
             streamingIdRef.current = null;
@@ -2049,7 +2053,11 @@ export function usePrimeChat(
               }
               
               const fallbackData = await fallbackRes.json();
-              
+              // Capture backend-issued sessionId from fallback JSON response body
+              if (fallbackData?.sessionId) {
+                captureBackendSessionId(String(fallbackData.sessionId), requestId);
+              }
+
               // Extract assistant content from JSON response
               const assistantContent = fallbackData.content || fallbackData.message?.content || '';
               const responseThreadId = fallbackData.thread_id || fallbackData.threadId;
@@ -2244,6 +2252,7 @@ export function usePrimeChat(
     threadByEmployee,
     parseSSEEvent,
     upsertAssistantMessage,
+    captureBackendSessionId,
     additionalPrimeContext
   ]);
 
@@ -2255,6 +2264,8 @@ export function usePrimeChat(
   // map entry, and the durable localStorage key. Used by New Chat so a rotated
   // sessionId doesn't drag a dead thread_id along (zombie-session fix).
   const resetThread = useCallback(() => {
+    // Abort any in-flight request so a late response cannot overwrite the new session
+    resetStream();
     const employeeSlugMap: Record<EmployeeOverride, string> = {
       prime: 'prime-boss', tag: 'tag-ai', byte: 'byte-docs', crystal: 'crystal-ai',
       goalie: 'goalie-agent', automa: 'automa-automation', blitz: 'blitz-debt',
@@ -2277,7 +2288,7 @@ export function usePrimeChat(
         warn('[usePrimeChat] Failed to clear thread_id from localStorage:', e);
       }
     }
-  }, [employeeOverride, safeUserId]);
+  }, [employeeOverride, safeUserId, resetStream]);
 
   // Confirm tool execution - sends structured confirmation token to backend
   // Backend verifies HMAC, checks expiry, atomically consumes the pending record,
