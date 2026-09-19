@@ -1722,6 +1722,24 @@ export function usePrimeChat(
                 log(`[usePrimeChat] Specialist complete: ${sc.from_employee} -> ${sc.to_employee} (${sc.outcome})`);
                 setActiveEmployeeSlug(sc.to_employee);
                 setEffectiveThreadId(undefined);
+
+                // Migrate localStorage session key back to origin employee (symmetrical with forward handoff)
+                if (effectiveSessionId && safeUserId && sc.from_employee !== sc.to_employee) {
+                  try {
+                    const fromKey = `chat_session_${safeUserId}_${sc.from_employee}`;
+                    const toKey = `chat_session_${safeUserId}_${sc.to_employee}`;
+                    const sid = localStorage.getItem(fromKey) || effectiveSessionId;
+                    if (sid) {
+                      localStorage.setItem(toKey, sid);
+                      if (fromKey !== toKey) {
+                        localStorage.removeItem(fromKey);
+                      }
+                    }
+                  } catch (e) {
+                    // Fail silently — localStorage update is non-critical
+                  }
+                }
+
                 setMessages(prev => [...prev, {
                   id: `specialist-complete-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
                   role: 'system',
@@ -2323,6 +2341,24 @@ export function usePrimeChat(
       log(`[usePrimeChat] Cancel return-to-origin: ${specialistSlug} -> ${originEmployeeSlug}`);
       setActiveEmployeeSlug(originEmployeeSlug);
       setEffectiveThreadId(undefined);
+
+      // Migrate localStorage session key back to origin (symmetrical with forward handoff)
+      if (effectiveSessionId && safeUserId && specialistSlug !== originEmployeeSlug) {
+        try {
+          const fromKey = `chat_session_${safeUserId}_${specialistSlug}`;
+          const toKey = `chat_session_${safeUserId}_${originEmployeeSlug}`;
+          const sid = localStorage.getItem(fromKey) || effectiveSessionId;
+          if (sid) {
+            localStorage.setItem(toKey, sid);
+            if (fromKey !== toKey) {
+              localStorage.removeItem(fromKey);
+            }
+          }
+        } catch (e) {
+          // Fail silently — localStorage update is non-critical
+        }
+      }
+
       setMessages(prev => [...prev, {
         id: `specialist-complete-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         role: 'system',
@@ -2338,7 +2374,7 @@ export function usePrimeChat(
         },
       }]);
     }
-  }, [pendingConfirmation, activeEmployeeSlug, originEmployeeSlug]);
+  }, [pendingConfirmation, activeEmployeeSlug, originEmployeeSlug, effectiveSessionId, safeUserId]);
 
   return {
     messages,
