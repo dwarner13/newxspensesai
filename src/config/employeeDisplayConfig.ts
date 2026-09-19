@@ -17,6 +17,7 @@ export interface EmployeeStat {
 export interface EmployeeDisplayConfig {
   emoji: string;
   displayName: string; // Short name, e.g. "Prime", "Byte"
+  role: string; // Team role label for handoff announcements, e.g. "Financial Assistant"
   title: string; // Full title, e.g. "Prime - AI Command Center"
   subtitle: string; // Short description
   gradient: string; // Tailwind gradient classes for buttons/accents
@@ -37,6 +38,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'prime-boss': {
     emoji: '👑',
     displayName: 'Prime',
+    role: 'Financial Assistant',
     title: 'Prime - AI Command Center',
     subtitle: 'Your financial CEO · Routing tasks and coordinating your AI team',
     gradient: 'from-amber-400 via-orange-500 to-pink-500',
@@ -61,6 +63,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'byte-docs': {
     emoji: '📄',
     displayName: 'Byte',
+    role: 'Document Specialist',
     title: 'Byte - Smart Import AI',
     subtitle: 'Smart Import specialist · Handles documents, OCR and clean transaction data',
     gradient: 'from-sky-400 via-cyan-400 to-emerald-400',
@@ -86,6 +89,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'tag-ai': {
     emoji: '🏷️',
     displayName: 'Tag',
+    role: 'Transaction Specialist',
     title: 'Tag - Smart Categories AI',
     subtitle: 'Intelligent categorization · Auto-organize your transactions',
     gradient: 'from-yellow-300 via-amber-400 to-orange-500',
@@ -112,6 +116,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'tag-agent': {
     emoji: '🏷️',
     displayName: 'Tag',
+    role: 'Transaction Specialist',
     title: 'Tag - Smart Categories AI',
     subtitle: 'Intelligent categorization · Auto-organize your transactions',
     gradient: 'from-yellow-300 via-amber-400 to-orange-500',
@@ -137,6 +142,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'finley-forecasts': {
     emoji: '💰',
     displayName: 'Finley',
+    role: 'Financial Planner',
     title: 'Finley - AI Financial Assistant',
     subtitle: 'Personalized financial brain · Ask anything about your finances',
     gradient: 'from-yellow-400 via-orange-500 to-amber-500',
@@ -162,6 +168,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'goalie-goals': {
     emoji: '🥅',
     displayName: 'Goalie',
+    role: 'Goals & Debt Specialist',
     title: 'Goalie - AI Goal Concierge',
     subtitle: 'Goal tracking specialist · Turn dreams into achievable milestones',
     gradient: 'from-amber-400 via-yellow-500 to-orange-500',
@@ -187,6 +194,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'crystal-analytics': {
     emoji: '📈',
     displayName: 'Crystal',
+    role: 'Insights Specialist',
     title: 'Analytics - AI Insights Engine',
     subtitle: 'Deep financial analysis · Uncover patterns and opportunities',
     gradient: 'from-purple-400 via-indigo-400 to-sky-400',
@@ -212,6 +220,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'debt-payoff-planner': {
     emoji: '🔥',
     displayName: 'Spark',
+    role: 'Debt Payoff Specialist',
     title: 'Spark - Payoff Planner',
     subtitle: 'Debt payoff & savings · Your hype man for financial freedom!',
     gradient: 'from-yellow-400 via-orange-500 to-red-500',
@@ -237,6 +246,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'crystal-spending': {
     emoji: '🔮',
     displayName: 'Crystal',
+    role: 'Spending Predictions Specialist',
     title: 'Crystal - Spending Predictions AI',
     subtitle: 'Future spending oracle · See what\'s coming before it happens',
     gradient: 'from-fuchsia-400 via-purple-400 to-pink-400',
@@ -262,6 +272,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'dash-analytics': {
     emoji: '📊',
     displayName: 'Dash',
+    role: 'Business Intelligence Specialist',
     title: 'Dash - Business Intelligence',
     subtitle: 'Strategic insights engine · Transform data into business decisions',
     gradient: 'from-indigo-400 via-blue-400 to-purple-400',
@@ -287,6 +298,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'smart-automation': {
     emoji: '⚙️',
     displayName: 'Automation',
+    role: 'Automation Specialist',
     title: 'Smart Automation - Rule Engine',
     subtitle: 'Intelligent automation · Set rules and let AI handle the rest',
     gradient: 'from-violet-400 via-purple-400 to-fuchsia-400',
@@ -312,6 +324,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'bank-accounts': {
     emoji: '🏦',
     displayName: 'Bank',
+    role: 'Account Specialist',
     title: 'Bank Accounts - Connected Hub',
     subtitle: 'Secure bank connections · Real-time balance tracking',
     gradient: 'from-emerald-400 via-green-400 to-teal-400',
@@ -337,6 +350,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'bill-reminders': {
     emoji: '🔔',
     displayName: 'Chime',
+    role: 'Bill Tracking Specialist',
     title: 'Chime - Bill Reminders',
     subtitle: 'Never miss a bill again - Chime keeps you on time and in control.',
     gradient: 'from-sky-400 via-blue-400 to-cyan-400',
@@ -362,6 +376,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'wellness-studio': {
     emoji: '💚',
     displayName: 'Harmony',
+    role: 'Wellness Specialist',
     title: 'Harmony - Wellness Studio',
     subtitle: 'Mindful money practices to balance your financial health and reduce stress.',
     gradient: 'from-teal-400 via-emerald-400 to-green-400',
@@ -387,6 +402,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'financial-therapist': {
     emoji: '💚',
     displayName: 'Serenity',
+    role: 'Financial Therapist',
     title: 'Serenity - Financial Therapist',
     subtitle: 'Emotional support for money decisions - reduce stress and build healthier habits.',
     gradient: 'from-emerald-400 via-green-400 to-teal-400',
@@ -412,6 +428,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'financial-story': {
     emoji: '🎙️',
     displayName: 'The Roundtable',
+    role: 'Financial Storyteller',
     title: 'The Roundtable - Financial Story',
     subtitle: 'Turn your financial journey into a story - milestones, insights, and weekly highlights.',
     gradient: 'from-amber-400 via-yellow-400 to-orange-400',
@@ -437,6 +454,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'personal-podcast': {
     emoji: '🎙️',
     displayName: 'Podcast',
+    role: 'Audio Content Creator',
     title: 'Podcast - AI Audio Creator',
     subtitle: 'Transform your finances into engaging audio content',
     gradient: 'from-red-400 via-rose-400 to-pink-400',
@@ -462,6 +480,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'spotify-integration': {
     emoji: '🌊',
     displayName: 'Wave',
+    role: 'Music Integration Specialist',
     title: 'Wave - Spotify Integration',
     subtitle: 'Connect your music to your workflow - playlists, focus, and motivation.',
     gradient: 'from-green-400 via-emerald-400 to-teal-400',
@@ -487,6 +506,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'tax-assistant': {
     emoji: '📋',
     displayName: 'Ledger',
+    role: 'Tax Specialist',
     title: 'Ledger - Tax Assistant',
     subtitle: 'Maximize deductions and minimize tax stress - guidance and organization.',
     gradient: 'from-blue-400 via-indigo-400 to-purple-400',
@@ -512,6 +532,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'liberty-financial-freedom': {
     emoji: '🕊️',
     displayName: 'Liberty',
+    role: 'Financial Freedom Specialist',
     title: 'Liberty - Financial Freedom',
     subtitle: 'Financial freedom specialist · Break free from debt and achieve independence',
     gradient: 'from-red-400 via-rose-400 to-pink-400',
@@ -537,6 +558,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'transactions': {
     emoji: '🧾',
     displayName: 'Transactions',
+    role: 'Transaction Manager',
     title: 'Transactions - Financial Hub',
     subtitle: 'Complete transaction history · Track every dollar in and out',
     gradient: 'from-slate-400 via-gray-400 to-zinc-400',
@@ -562,6 +584,7 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
   'custodian': {
     emoji: '🔧',
     displayName: 'Custodian',
+    role: 'Settings & Security Specialist',
     title: 'Custodian - Settings & Security',
     subtitle: 'Account security, settings, and system diagnostics',
     gradient: 'from-slate-500 via-slate-600 to-slate-700',
@@ -594,6 +617,7 @@ export function getEmployeeDisplayConfig(slug: string): EmployeeDisplayConfig {
   return EMPLOYEE_DISPLAY_CONFIG[slug] || {
     emoji: '✨',
     displayName: 'AI Assistant',
+    role: 'AI Assistant',
     title: 'AI Assistant',
     subtitle: 'Your AI assistant',
     gradient: 'from-slate-400 to-slate-600',

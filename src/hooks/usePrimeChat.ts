@@ -675,6 +675,19 @@ export function usePrimeChat(
   // Track active employee for handoff handling
   const [activeEmployeeSlug, setActiveEmployeeSlug] = useState<string | undefined>(undefined);
 
+  // Stable reference to the hook's origin employee slug (for return-to-origin after cancel)
+  const originEmployeeSlug = useMemo(() => {
+    const slugMap: Record<string, string> = {
+      prime: 'prime-boss', tag: 'tag-ai', byte: 'byte-docs',
+      crystal: 'crystal-ai', goalie: 'goalie-agent', automa: 'automa-automation',
+      blitz: 'blitz-debt', liberty: 'liberty-freedom', chime: 'chime-bills',
+      roundtable: 'roundtable-podcast', serenity: 'serenity-therapist',
+      harmony: 'harmony-wellness', wave: 'wave-spotify', ledger: 'ledger-tax',
+      intelia: 'intelia-bi', dash: 'dash-analytics', custodian: 'custodian-settings',
+    };
+    return employeeOverride ? (slugMap[employeeOverride] || 'prime-boss') : 'prime-boss';
+  }, [employeeOverride]);
+
   // Initialize activeEmployeeSlug from session on mount (canonical source: chat_sessions.employee_slug)
   // CRITICAL: On /dashboard/prime-chat, allow handoffs to stick (don't force Prime after handoff)
   useEffect(() => {
@@ -818,12 +831,20 @@ export function usePrimeChat(
               }
             }
             
-            // Add a system message to indicate the handoff
+            // Add a system message with structured lifecycle metadata
         setMessages(prev => [...prev, {
           id: `handoff-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
           role: 'system',
           content: String(j.message || `Transferred from ${j.from} to ${j.to}`),
           createdAt: new Date().toISOString(),
+          meta: {
+            lifecycle: {
+              type: 'employee_handoff',
+              from_employee: j.from,
+              to_employee: j.to,
+              reason: j.reason || undefined,
+            },
+          },
         }]);
             return { aiText, hasContent }; // Don't process further for handoff events
           }
@@ -1691,6 +1712,32 @@ export function usePrimeChat(
               employeeKey: responseEmployee,
               extraMeta: confirmMeta,
             });
+
+            // Handle return-to-origin: if the backend reverted the session after
+            // a specialist tool execution, update the active employee slug and
+            // add a specialist_complete lifecycle message.
+            if (payload?.specialistComplete) {
+              const sc = payload.specialistComplete;
+              if (sc.to_employee && sc.from_employee) {
+                log(`[usePrimeChat] Specialist complete: ${sc.from_employee} -> ${sc.to_employee} (${sc.outcome})`);
+                setActiveEmployeeSlug(sc.to_employee);
+                setEffectiveThreadId(undefined);
+                setMessages(prev => [...prev, {
+                  id: `specialist-complete-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                  role: 'system',
+                  content: `${sc.from_employee} ${sc.outcome === 'success' ? 'finished' : sc.outcome === 'failed' ? 'encountered an issue' : 'completed'}. Returning to ${sc.to_employee}.`,
+                  createdAt: new Date().toISOString(),
+                  meta: {
+                    lifecycle: {
+                      type: 'specialist_complete',
+                      from_employee: sc.from_employee,
+                      to_employee: sc.to_employee,
+                      outcome: sc.outcome || 'success',
+                    },
+                  },
+                }]);
+              }
+            }
           }
           setIsStreaming(false);
           streamingIdRef.current = null;
@@ -2253,9 +2300,12 @@ export function usePrimeChat(
     await send(`__CONFIRM_TOOL__${confirmPayload}`, { hidden: true });
   }, [pendingConfirmation, send]);
 
-  // Cancel tool execution
+  // Cancel tool execution — revert to origin employee if delegated
   const cancelToolExecution = useCallback(() => {
     if (!pendingConfirmation) return;
+
+    // Capture the current specialist slug before clearing
+    const specialistSlug = activeEmployeeSlug;
 
     // Clear pending confirmation
     setPendingConfirmation(null);
@@ -2267,7 +2317,28 @@ export function usePrimeChat(
       content: "Okay, I won't run that change.",
       createdAt: new Date().toISOString(),
     }]);
-  }, [pendingConfirmation]);
+
+    // Return to origin employee (Prime) if we're at a specialist via delegation.
+    if (specialistSlug && specialistSlug !== originEmployeeSlug) {
+      log(`[usePrimeChat] Cancel return-to-origin: ${specialistSlug} -> ${originEmployeeSlug}`);
+      setActiveEmployeeSlug(originEmployeeSlug);
+      setEffectiveThreadId(undefined);
+      setMessages(prev => [...prev, {
+        id: `specialist-complete-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        role: 'system',
+        content: `${specialistSlug} cancelled. Returning to ${originEmployeeSlug}.`,
+        createdAt: new Date().toISOString(),
+        meta: {
+          lifecycle: {
+            type: 'specialist_complete',
+            from_employee: specialistSlug,
+            to_employee: originEmployeeSlug,
+            outcome: 'cancelled',
+          },
+        },
+      }]);
+    }
+  }, [pendingConfirmation, activeEmployeeSlug, originEmployeeSlug]);
 
   return {
     messages,

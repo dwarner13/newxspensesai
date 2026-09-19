@@ -249,62 +249,6 @@ export default function TransactionsPageV2() {
   // Tell badge consumers the data is live on mount
   useEffect(() => { try { window.dispatchEvent(new Event('tag:stats-refresh')); } catch { /* noop */ } }, []);
 
-  // ── txId deep-link: open exact transaction from Action Receipt ──
-  // Reacts to data readiness (not a fixed timer). Searches the FULL
-  // transactions collection (pre-filter) so it works regardless of
-  // active year/category/search filters. Falls back to a single-row
-  // Supabase fetch if the UUID is valid but outside the loaded 5000.
-  const txIdConsumedRef = useRef<string | null>(null);
-  useEffect(() => {
-    const txId = searchParams.get('txId');
-    if (!txId) return;
-    // Validate UUID format before doing anything
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(txId)) {
-      setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
-      return;
-    }
-    // Prevent repeated consumption on rerenders
-    if (txIdConsumedRef.current === txId) return;
-    // Wait for transactions to finish loading
-    if (isLoading) return;
-
-    // Search full (pre-filter) transactions array
-    const tx = transactions.find(t => t.id === txId);
-    if (tx) {
-      txIdConsumedRef.current = txId;
-      setSelectedTx(tx);
-      setTagInsight(null);
-      void fetchTagInsight(tx);
-      setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
-      return;
-    }
-
-    // UUID valid but not in loaded collection — fetch single row via RLS
-    txIdConsumedRef.current = txId;
-    (async () => {
-      try {
-        const supabase = getSupabase();
-        if (!supabase) return;
-        const { data, error } = await supabase
-          .from('transactions')
-          .select('id,user_id,posted_at,merchant_name,merchant,description,amount,category,subcategory,subcategory_source,category_source,date,type,import_id,document_id,created_at,updated_at')
-          .eq('id', txId)
-          .maybeSingle();
-        if (error || !data) {
-          // Not found or inaccessible — clean URL silently
-          setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
-          return;
-        }
-        setSelectedTx(data as CommittedTransaction);
-        setTagInsight(null);
-        void fetchTagInsight(data as CommittedTransaction);
-      } catch {
-        // Network error — clean URL silently
-      }
-      setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
-    })();
-  }, [searchParams, transactions, isLoading, fetchTagInsight, setSearchParams]);
-
   // Sweep apply/dismiss
   const applySweepFromChat = useCallback(async (payload: any) => {
     try {
@@ -422,6 +366,63 @@ export default function TransactionsPageV2() {
       if (res.ok) setTagInsight(await res.json());
     } catch { /* silent */ } finally { setTagInsightLoading(false); }
   }, []);
+
+  // ── txId deep-link: open exact transaction from Action Receipt ──
+  // Reacts to data readiness (not a fixed timer). Searches the FULL
+  // transactions collection (pre-filter) so it works regardless of
+  // active year/category/search filters. Falls back to a single-row
+  // Supabase fetch if the UUID is valid but outside the loaded 5000.
+  // IMPORTANT: Must be declared AFTER fetchTagInsight to avoid TDZ crash.
+  const txIdConsumedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const txId = searchParams.get('txId');
+    if (!txId) return;
+    // Validate UUID format before doing anything
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(txId)) {
+      setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
+      return;
+    }
+    // Prevent repeated consumption on rerenders
+    if (txIdConsumedRef.current === txId) return;
+    // Wait for transactions to finish loading
+    if (isLoading) return;
+
+    // Search full (pre-filter) transactions array
+    const tx = transactions.find(t => t.id === txId);
+    if (tx) {
+      txIdConsumedRef.current = txId;
+      setSelectedTx(tx);
+      setTagInsight(null);
+      void fetchTagInsight(tx);
+      setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
+      return;
+    }
+
+    // UUID valid but not in loaded collection — fetch single row via RLS
+    txIdConsumedRef.current = txId;
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        if (!supabase) return;
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('id,user_id,posted_at,merchant_name,merchant,description,amount,category,subcategory,subcategory_source,category_source,date,type,import_id,document_id,created_at,updated_at')
+          .eq('id', txId)
+          .maybeSingle();
+        if (error || !data) {
+          // Not found or inaccessible — clean URL silently
+          setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
+          return;
+        }
+        setSelectedTx(data as CommittedTransaction);
+        setTagInsight(null);
+        void fetchTagInsight(data as CommittedTransaction);
+      } catch {
+        // Network error — clean URL silently
+      }
+      setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
+    })();
+  }, [searchParams, transactions, isLoading, fetchTagInsight, setSearchParams]);
 
   // Account membership: importId -> accountId (computed before `filtered`)
   type AccountCard = {

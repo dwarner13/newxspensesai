@@ -218,6 +218,100 @@ test('20: Repeated rerenders do not repeatedly call fetchTagInsight', () => {
 });
 
 // ---------------------------------------------------------------------------
+// RUNTIME ORDER / TDZ regression tests
+// These verify that the txId useEffect is declared AFTER all symbols it
+// references, preventing the ReferenceError: Cannot access 'X' before
+// initialization crash that occurred in production (commit 46fe3a36).
+// ---------------------------------------------------------------------------
+
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename_local = fileURLToPath(import.meta.url);
+const __dirname_local = dirname(__filename_local);
+
+const TX_SOURCE = readFileSync(
+  join(__dirname_local, '..', 'src', 'pages', 'dashboard', 'TransactionsPageV2.tsx'),
+  'utf-8',
+);
+const sourceLines = TX_SOURCE.split('\n');
+
+function firstLineContaining(pattern: string): number {
+  for (let i = 0; i < sourceLines.length; i++) {
+    if (sourceLines[i].includes(pattern)) return i + 1; // 1-based
+  }
+  return -1;
+}
+
+test('21: fetchTagInsight is declared BEFORE the txId useEffect', () => {
+  const declLine = firstLineContaining('const fetchTagInsight = useCallback');
+  const effectLine = firstLineContaining('const txIdConsumedRef = useRef');
+  assert(declLine > 0, `fetchTagInsight declaration found (line ${declLine})`);
+  assert(effectLine > 0, `txIdConsumedRef declaration found (line ${effectLine})`);
+  assert(declLine < effectLine, `fetchTagInsight (${declLine}) declared before txId effect (${effectLine})`);
+});
+
+test('22: setSelectedTx is declared BEFORE the txId useEffect', () => {
+  const declLine = firstLineContaining('const [selectedTx, setSelectedTx]');
+  const effectLine = firstLineContaining('const txIdConsumedRef = useRef');
+  assert(declLine > 0, `setSelectedTx declaration found (line ${declLine})`);
+  assert(declLine < effectLine, `setSelectedTx (${declLine}) declared before txId effect (${effectLine})`);
+});
+
+test('23: setTagInsight is declared BEFORE the txId useEffect', () => {
+  const declLine = firstLineContaining('const [tagInsight, setTagInsight]');
+  const effectLine = firstLineContaining('const txIdConsumedRef = useRef');
+  assert(declLine > 0, `setTagInsight declaration found (line ${declLine})`);
+  assert(declLine < effectLine, `setTagInsight (${declLine}) declared before txId effect (${effectLine})`);
+});
+
+test('24: searchParams is declared BEFORE the txId useEffect', () => {
+  const declLine = firstLineContaining('const [searchParams, setSearchParams]');
+  const effectLine = firstLineContaining('const txIdConsumedRef = useRef');
+  assert(declLine > 0, `searchParams declaration found (line ${declLine})`);
+  assert(declLine < effectLine, `searchParams (${declLine}) declared before txId effect (${effectLine})`);
+});
+
+test('25: transactions/isLoading are declared BEFORE the txId useEffect', () => {
+  const declLine = firstLineContaining('const { transactions, isLoading');
+  const effectLine = firstLineContaining('const txIdConsumedRef = useRef');
+  assert(declLine > 0, `transactions declaration found (line ${declLine})`);
+  assert(declLine < effectLine, `transactions (${declLine}) declared before txId effect (${effectLine})`);
+});
+
+test('26: txId effect dependency array includes fetchTagInsight', () => {
+  // Find the closing of the txId useEffect
+  const effectStart = firstLineContaining('const txIdConsumedRef = useRef');
+  // Search for the dependency array in the ~60 lines after the effect start
+  let found = false;
+  for (let i = effectStart; i < Math.min(effectStart + 60, sourceLines.length); i++) {
+    if (sourceLines[i].includes('fetchTagInsight, setSearchParams')) {
+      found = true;
+      break;
+    }
+  }
+  assert(found, 'fetchTagInsight is in the dependency array');
+});
+
+test('27: No useEffect dependency array references fetchTagInsight before its declaration', () => {
+  // A useEffect that references fetchTagInsight in its DEPENDENCY ARRAY
+  // before it's declared causes a TDZ crash. References inside setTimeout
+  // callbacks are safe (deferred execution). We scan for dependency arrays only.
+  const fetchDecl = firstLineContaining('const fetchTagInsight = useCallback');
+  let violationFound = false;
+  for (let i = 0; i < fetchDecl - 1; i++) {
+    const line = sourceLines[i];
+    // Dependency arrays look like: }, [x, y, fetchTagInsight, z]);
+    if (line.includes('fetchTagInsight') && /\]\s*\)/.test(line) && /\[/.test(line)) {
+      violationFound = true;
+      break;
+    }
+  }
+  assert(!violationFound, 'No useEffect dependency array before fetchTagInsight references it');
+});
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 console.log(`\n${'='.repeat(60)}`);

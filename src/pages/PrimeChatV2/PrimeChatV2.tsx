@@ -19,6 +19,7 @@ import {
 import type { ChatMessage } from "@/hooks/usePrimeChat";
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
 import { ActionReceiptCard, parseActionReceipt } from "@/components/chat/ActionReceiptCard";
+import { TeamHandoffAnnouncement, SpecialistCompleteMessage, parseLifecycleMessage } from "@/components/chat/TeamHandoffAnnouncement";
 
 /* ── File upload helpers ── */
 
@@ -891,8 +892,19 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         {chatMessages.length > 0 && (
           <div style={{ marginTop: 24, borderTop: `1px solid ${THEME.border}`, paddingTop: 18 }}>
             {chatMessages.map((msg) => {
-              // Skip system messages (handoff dividers etc) — backend still records them for audit.
-              if (msg.role === "system") return null;
+              // Render structured lifecycle messages (handoff, specialist complete).
+              // Skip unstructured system messages.
+              if (msg.role === "system") {
+                const lifecycle = parseLifecycleMessage(msg.meta as Record<string, unknown>);
+                if (!lifecycle) return null;
+                if (lifecycle.type === 'employee_handoff') {
+                  return <div key={msg.id} style={{ marginBottom: 12 }}><TeamHandoffAnnouncement data={lifecycle} /></div>;
+                }
+                if (lifecycle.type === 'specialist_complete') {
+                  return <div key={msg.id} style={{ marginBottom: 12 }}><SpecialistCompleteMessage data={lifecycle} /></div>;
+                }
+                return null;
+              }
               if (msg.role === "user") {
                 return (
                   <div key={msg.id} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>

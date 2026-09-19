@@ -54,6 +54,7 @@ import { PrimeGreetingCard } from './PrimeGreetingCard';
 import { PrimeQuickActions } from './PrimeQuickActions';
 import { TypingMessage, FormattedMessageText, renderInlineStrong } from './TypingMessage';
 import { ActionReceiptCard, parseActionReceipt } from './ActionReceiptCard';
+import { TeamHandoffAnnouncement, SpecialistCompleteMessage, parseLifecycleMessage } from './TeamHandoffAnnouncement';
 import type { ChatMessage } from '../../hooks/usePrimeChat';
 import { onBus, emitBus } from '../../lib/bus';
 import { usePostImportHandoff } from '../../hooks/usePostImportHandoff';
@@ -699,10 +700,18 @@ export default function UnifiedAssistantChat({
         
         if (data && data.length > 0) {
           const historyMessages: ChatMessage[] = data
-            .filter(m => m.role !== 'system' && !(m as any).metadata?.hidden && !(m as any).meta?.hidden)
+            .filter(m => {
+              if ((m as any).metadata?.hidden || (m as any).meta?.hidden) return false;
+              // Keep system messages that carry structured lifecycle metadata (handoff/completion announcements)
+              if (m.role === 'system') {
+                const meta = (m as any).meta ?? (m as any).metadata;
+                return meta?.lifecycle?.type === 'employee_handoff' || meta?.lifecycle?.type === 'specialist_complete';
+              }
+              return true;
+            })
             .map(m => ({
               id: m.id,
-              role: m.role as 'user' | 'assistant',
+              role: m.role as 'user' | 'assistant' | 'system',
               content: m.content || '',
               createdAt: m.created_at,
               meta: (m as any).meta ?? (m as any).metadata ?? undefined,
@@ -7289,15 +7298,27 @@ export default function UnifiedAssistantChat({
                         // Detect handoff messages
                         const isHandoffMessage = message.role === 'assistant' && message.meta?.isHandoff === true;
                         const metaAny = message.meta as any;
+
+                        // Render structured lifecycle messages (handoff, specialist complete)
+                        const lifecycleData = message.role === 'system' ? parseLifecycleMessage(metaAny) : null;
+                        if (lifecycleData) {
+                          if (lifecycleData.type === 'employee_handoff') {
+                            return <div key={message.id} className="mb-3"><TeamHandoffAnnouncement data={lifecycleData} /></div>;
+                          }
+                          if (lifecycleData.type === 'specialist_complete') {
+                            return <div key={message.id} className="mb-3"><SpecialistCompleteMessage data={lifecycleData} /></div>;
+                          }
+                        }
+
                         const suppressNarrationBody =
                           !PRIME_MINIMAL_UPLOAD_CHAT &&
                           metaAny?.type === 'prime_upload_narration' &&
                           !metaAny?.done &&
                           !metaAny?.failed;
-                        
+
                         // When greeting is typing, TypingIndicatorRow renders its own avatar - don't render message row avatar
                         const isGreetingTyping = chatReady && isGreetingMessage && isTypingFor(currentEmployeeSlug);
-                        
+
                         // Reserved (post-MVP): PrimeGreetingCard pathway.
                         // Keep disabled for MVP to avoid branching/duplicate greeting surfaces.
                         const isPrimeGreetingCard = false;

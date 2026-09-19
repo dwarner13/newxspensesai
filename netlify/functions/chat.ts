@@ -5861,6 +5861,73 @@ export const handler: Handler = async (event, context) => {
           console.error('[Chat] Receipt persistence failed (non-fatal):', persistErr);
         }
 
+        // ── Return-to-origin: revert session to the delegating employee ──
+        // After a confirmed tool execution, look up the handoff that brought us
+        // to this specialist and return the session to the origin employee.
+        let specialistComplete: { from_employee: string; to_employee: string; outcome: string } | undefined;
+        try {
+          const activeSessionId = sessionId || '';
+          if (activeSessionId) {
+            // Find the most recent handoff TO this specialist for this session.
+            // The handoffs table may have multiple rows per session (sequential
+            // handoffs), so we order by created_at DESC and take the first match.
+            const { data: handoffRow } = await sb
+              .from('handoffs')
+              .select('id, from_employee, to_employee')
+              .eq('session_id', activeSessionId)
+              .eq('to_employee', employeeSlugForConfirm)
+              .in('status', ['initiated', 'completed'])
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (handoffRow && handoffRow.from_employee) {
+              const originSlug = handoffRow.from_employee;
+              const outcome = isToolError ? 'failed' : 'success';
+              console.log(`[Chat] Return-to-origin: ${employeeSlugForConfirm} -> ${originSlug} (outcome=${outcome})`);
+
+              // Revert session employee_slug to origin
+              await sb
+                .from('chat_sessions')
+                .update({ employee_slug: originSlug })
+                .eq('id', activeSessionId);
+
+              // Mark the handoff as returned
+              await sb
+                .from('handoffs')
+                .update({ status: 'returned' })
+                .eq('id', handoffRow.id);
+
+              // Persist specialist_complete system message
+              const completeMsg = `${employeeSlugForConfirm} ${outcome === 'success' ? 'finished' : outcome === 'failed' ? 'encountered an issue' : 'completed'}. Returning to ${originSlug}.`;
+              await sb.from('chat_messages').insert({
+                session_id: activeSessionId,
+                user_id: userId,
+                role: 'system',
+                content: completeMsg,
+                tokens: Math.ceil(completeMsg.length / 4),
+                thread_id: requestThreadId || activeSessionId || null,
+                metadata: {
+                  lifecycle: {
+                    type: 'specialist_complete',
+                    from_employee: employeeSlugForConfirm,
+                    to_employee: originSlug,
+                    outcome,
+                  },
+                },
+              });
+
+              specialistComplete = {
+                from_employee: employeeSlugForConfirm,
+                to_employee: originSlug,
+                outcome,
+              };
+            }
+          }
+        } catch (returnErr) {
+          console.error('[Chat] Return-to-origin failed (non-fatal):', returnErr);
+        }
+
         // Return the tool result as a JSON response — the frontend will feed it
         // to the next chat turn so the LLM can synthesize a human-readable message.
         return {
@@ -5870,6 +5937,7 @@ export const handler: Handler = async (event, context) => {
             role: 'assistant',
             content: typeof result === 'string' ? result : JSON.stringify(result),
             toolConfirmationResult,
+            ...(specialistComplete ? { specialistComplete } : {}),
           }),
         };
       } catch (confirmError: any) {
@@ -11689,7 +11757,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             console.warn(`[Chat] Failed to update session employee_slug (${sourceLabel}):`, error);
           }
 
-          // Insert system handoff message
+          // Insert system handoff message with structured lifecycle metadata
           try {
             const handoffMessage = summary
               ? `Handoff: Conversation moved to ${targetSlug}. Context: ${summary}`
@@ -11701,6 +11769,14 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               content: handoffMessage,
               tokens: estimateTokens(handoffMessage),
               thread_id: threadId,
+              metadata: {
+                lifecycle: {
+                  type: 'employee_handoff',
+                  from_employee: originalEmployeeSlug,
+                  to_employee: targetSlug,
+                  reason: reason || undefined,
+                },
+              },
             });
             console.log(`[Chat] Inserted handoff system message (${sourceLabel}) with thread_id: ${threadId}`);
           } catch (error: any) {
