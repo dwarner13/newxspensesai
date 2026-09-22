@@ -1760,6 +1760,29 @@ function bindAuthoritativeTxIdentity(
   return { args: bound, bound: true };
 }
 
+/**
+ * SAFETY GATE: Transaction mutations require authoritative UUID binding.
+ *
+ * When Tag attempts tag_update_transaction_category but authoritative binding
+ * failed (bound === false), the mutation must be blocked. This prevents the
+ * model from using a stale or fabricated transaction UUID from conversation
+ * history.
+ *
+ * Returns an error object if blocked, or null if the mutation may proceed.
+ */
+function checkMutationIdentityGate(
+  toolName: string,
+  bindResult: { bound: boolean },
+): { blocked: true; error: string } | null {
+  if (toolName !== 'tag_update_transaction_category') return null;
+  if (bindResult.bound) return null;
+  console.warn(`[Chat] MUTATION IDENTITY GATE: blocked ${toolName} — no authoritative transaction binding`);
+  return {
+    blocked: true,
+    error: 'Transaction identity could not be authoritatively verified for this request. No category change was made. Please ask Prime to look up the specific transaction first, then try the category change again.',
+  };
+}
+
 function shouldRunForcedTxSearch(sessionId: string, args: Record<string, any>): boolean {
   if (!sessionId) return true;
   const now = Date.now();
@@ -10501,6 +10524,17 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     const bindResult = bindAuthoritativeTxIdentity(toolName, finalEmployeeSlug, args, handoffContext || null);
                     if (bindResult.bound) Object.assign(args, bindResult.args);
 
+                    // SAFETY GATE: block mutation without authoritative identity
+                    const mutationGate = checkMutationIdentityGate(toolName, bindResult);
+                    if (mutationGate) {
+                      toolResults.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify({ error: mutationGate.error }),
+                      });
+                      continue;
+                    }
+
                     // Pre-validate args BEFORE creating confirmation — invalid args must never become confirmable
                     const preValidation = preValidateConfirmationArgs(toolModule.inputSchema, args);
                     if (preValidation) {
@@ -10871,6 +10905,16 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // Bind authoritative transaction UUID for Tag mutations
                     const bindResult = bindAuthoritativeTxIdentity(tn, finalEmployeeSlug, tArgs, handoffContext || null);
                     if (bindResult.bound) Object.assign(tArgs, bindResult.args);
+
+                    // SAFETY GATE: block mutation without authoritative identity
+                    const mutationGate = checkMutationIdentityGate(tn, bindResult);
+                    if (mutationGate) {
+                      specToolResults.push({
+                        role: 'tool', tool_call_id: tc.id,
+                        content: JSON.stringify({ error: mutationGate.error }),
+                      });
+                      continue;
+                    }
 
                     // Pre-validate args BEFORE creating confirmation
                     const preValidation = preValidateConfirmationArgs(tm.inputSchema, tArgs);
@@ -11931,6 +11975,17 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               const bindResult = bindAuthoritativeTxIdentity(toolName, finalEmployeeSlug, args, handoffContext || null);
               if (bindResult.bound) Object.assign(args, bindResult.args);
 
+              // SAFETY GATE: block mutation without authoritative identity
+              const mutationGate = checkMutationIdentityGate(toolName, bindResult);
+              if (mutationGate) {
+                toolResults.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify({ error: mutationGate.error }),
+                });
+                continue;
+              }
+
               // Pre-validate args BEFORE creating confirmation
               const preValidation = preValidateConfirmationArgs(toolModule.inputSchema, args);
               if (preValidation) {
@@ -12265,6 +12320,17 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // Bind authoritative transaction UUID for Tag mutations
                   const bindResult = bindAuthoritativeTxIdentity(toolName, finalEmployeeSlug, args, handoffContext || null);
                   if (bindResult.bound) Object.assign(args, bindResult.args);
+
+                  // SAFETY GATE: block mutation without authoritative identity
+                  const mutationGate = checkMutationIdentityGate(toolName, bindResult);
+                  if (mutationGate) {
+                    currentToolResults.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify({ error: mutationGate.error }),
+                    });
+                    continue;
+                  }
 
                   // Pre-validate args BEFORE creating confirmation
                   const preValidation = preValidateConfirmationArgs(toolModule.inputSchema, args);
