@@ -1,0 +1,560 @@
+#!/usr/bin/env tsx
+/**
+ * Layer 2 Phase 1 — TransactionResolutionContext regression tests.
+ *
+ * Tests verify code structure (AST-level grep) for:
+ *   - candidate persistence from tx_search
+ *   - select_transaction tool behavior
+ *   - session/user isolation
+ *   - TTL enforcement
+ *   - existing context preservation
+ *   - cold-start recovery
+ *
+ * Run: npx tsx scripts/_run_tx_resolution_tests.ts
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const CHAT_PATH = path.resolve(__dirname, '../netlify/functions/chat.ts');
+const TOOL_INDEX_PATH = path.resolve(__dirname, '../src/agent/tools/index.ts');
+const SELECT_TX_PATH = path.resolve(__dirname, '../src/agent/tools/impl/select_transaction.ts');
+
+const chat = fs.readFileSync(CHAT_PATH, 'utf8');
+const toolIndex = fs.readFileSync(TOOL_INDEX_PATH, 'utf8');
+
+let passed = 0;
+let failed = 0;
+
+function test(name: string, fn: () => boolean) {
+  const ok = fn();
+  console.log(`=== ${name} ===`);
+  if (ok) { passed++; } else { failed++; console.error(`  ✗ FAILED`); }
+  console.log();
+}
+
+// ── Type definitions ──
+
+test('T1 — TxResolutionCandidate type defined', () =>
+  chat.includes('type TxResolutionCandidate'));
+
+test('T2 — TxResolutionCandidate has id, merchant, amount, date, category', () => {
+  const m = chat.match(/type TxResolutionCandidate = \{([^}]+)\}/s);
+  if (!m) return false;
+  const body = m[1];
+  return ['id: string', 'merchant:', 'amount:', 'date:', 'category:'].every(f => body.includes(f));
+});
+
+test('T3 — TxResolutionContext type defined', () =>
+  chat.includes('type TxResolutionContext'));
+
+test('T4 — TxResolutionContext has candidates, selectedId, selectedIndex, updatedAt', () => {
+  const m = chat.match(/type TxResolutionContext = \{([^}]+)\}/s);
+  if (!m) return false;
+  const body = m[1];
+  return ['candidates:', 'selectedId:', 'selectedIndex:', 'updatedAt:'].every(f => body.includes(f));
+});
+
+test('T5 — TX_RESOLUTION_TTL_MS = 30 minutes', () =>
+  chat.includes('TX_RESOLUTION_TTL_MS = 30 * 60 * 1000'));
+
+// ── Persistence helpers ──
+
+test('T6 — readTxResolution exists and requires sessionId + userId', () => {
+  const m = chat.match(/async function readTxResolution\(\s*sb:\s*any,\s*sessionId:\s*string,\s*userId:\s*string/);
+  return !!m;
+});
+
+test('T7 — readTxResolution scopes query to both session id and user_id', () => {
+  const fnMatch = chat.match(/async function readTxResolution[\s\S]*?^}/m);
+  if (!fnMatch) return false;
+  const fn = fnMatch[0];
+  return fn.includes(".eq('id', sessionId)") && fn.includes(".eq('user_id', userId)");
+});
+
+test('T8 — readTxResolution enforces TTL', () => {
+  const fnMatch = chat.match(/async function readTxResolution[\s\S]*?^}/m);
+  if (!fnMatch) return false;
+  return fnMatch[0].includes('TX_RESOLUTION_TTL_MS');
+});
+
+test('T9 — writeTxResolution exists and requires sessionId + userId', () => {
+  const m = chat.match(/async function writeTxResolution\(\s*sb:\s*any,\s*sessionId:\s*string,\s*userId:\s*string/);
+  return !!m;
+});
+
+test('T10 — writeTxResolution reads existing context before merge', () => {
+  const fnStart = chat.indexOf('async function writeTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  return fnBody.includes("select('context')") && fnBody.includes('...existing.context') || fnBody.includes('{ ...existing.context }') || fnBody.includes('...existing?.context');
+});
+
+test('T11 — writeTxResolution uses update (not insert/replace)', () => {
+  const fnStart = chat.indexOf('async function writeTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  return fnBody.includes('.update(') && !fnBody.includes('.insert(') && !fnBody.includes('.upsert(');
+});
+
+test('T12 — writeTxResolution sets ctx.tx_resolution (merge, not replace)', () => {
+  const fnStart = chat.indexOf('async function writeTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  return fnBody.includes('ctx.tx_resolution = txr') || fnBody.includes("ctx.tx_resolution");
+});
+
+test('T13 — writeTxResolution scopes update to sessionId + userId', () => {
+  const fnStart = chat.indexOf('async function writeTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  return fnBody.includes(".eq('id', sessionId)") && fnBody.includes(".eq('user_id', userId)");
+});
+
+// ── persistTxResolutionFromSearchResult ──
+
+test('T14 — persistTxResolutionFromSearchResult exists', () =>
+  chat.includes('async function persistTxResolutionFromSearchResult'));
+
+test('T15 — persist extracts candidates from result.rows', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1200);
+  return fnBody.includes('result.rows') || fnBody.includes("result?.rows");
+});
+
+test('T16 — persist validates UUID format before including candidate', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1200);
+  return fnBody.includes('UUID_RE.test');
+});
+
+test('T17 — persist caps candidates at tx_search max (200)', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('TX_SEARCH_MAX_RESULTS') && fnBody.includes('.slice(0, TX_SEARCH_MAX_RESULTS)');
+});
+
+test('T18 — persist stores only id, merchant, amount, date, category per candidate', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1200);
+  return fnBody.includes('id:') && fnBody.includes('merchant:') && fnBody.includes('amount:')
+    && fnBody.includes('date:') && fnBody.includes('category:');
+});
+
+test('T19 — persist auto-selects when exactly 1 candidate', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1200);
+  return fnBody.includes('candidates.length === 1') && fnBody.includes('selectedId = candidates[0].id');
+});
+
+test('T20 — persist does NOT auto-select when multiple candidates', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('candidates.length > 1') && fnBody.includes('no auto-selection');
+});
+
+test('T21 — persist clears selectedId for 0 candidates', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1200);
+  // selectedId starts as null, which means 0 candidates = cleared
+  return fnBody.includes('let selectedId: string | null = null');
+});
+
+test('T22 — new search always replaces candidates (no merge)', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 2500);
+  // writeTxResolution is called with fresh txr object, not merged with previous
+  return fnBody.includes('const txr: TxResolutionContext') && fnBody.includes('await writeTxResolution');
+});
+
+// ── Persistence call sites ──
+
+test('T23 — persistTxResolutionFromSearchResult called at streaming tx_search site', () =>
+  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (streaming):'"));
+
+test('T24 — persistTxResolutionFromSearchResult called at specialist tx_search site', () =>
+  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, tResult).catch(e => console.warn('[Chat] TxResolution persist error (specialist):'"));
+
+test('T25 — persistTxResolutionFromSearchResult called at FinancialGrounding pre-execution site', () =>
+  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, preResult).catch(e => console.warn('[Chat] TxResolution persist error (grounding):'"));
+
+test('T26 — persistTxResolutionFromSearchResult called at non-streaming tx_search site', () =>
+  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):'"));
+
+test('T27 — persistTxResolutionFromSearchResult called at tool-loop tx_search site', () =>
+  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):'"));
+
+test('T28 — persistTxResolutionFromSearchResult called at false-zero retry site', () =>
+  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, retryResult).catch(e => console.warn('[Chat] TxResolution persist error (retry):'"));
+
+test('T29 — all persist calls are fire-and-forget (.catch)', () => {
+  const calls = chat.match(/persistTxResolutionFromSearchResult\([^)]+\)\.catch/g) || [];
+  return calls.length === 6;
+});
+
+// ── select_transaction tool ──
+
+test('T30 — select_transaction tool module file exists', () =>
+  fs.existsSync(SELECT_TX_PATH));
+
+test('T31 — select_transaction registered in tool index', () =>
+  toolIndex.includes("['select_transaction',"));
+
+test('T32 — select_transaction schema has candidateNumber (not index, not transactionId)', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  return selectTx.includes('candidateNumber') && !selectTx.includes('transactionId') && !selectTx.includes('uuid');
+});
+
+test('T33 — select_transaction candidateNumber is integer with min 1', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  return selectTx.includes('.int()') && selectTx.includes('.min(1)');
+});
+
+test('T34 — select_transaction candidateNumber has max 200 (matches tx_search)', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  return selectTx.includes('.max(200)');
+});
+
+test('T35 — select_transaction has no UUID/transactionId in inputSchema', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  const schemaMatch = selectTx.match(/inputSchema = z\.object\(\{([^}]+)\}/s);
+  if (!schemaMatch) return false;
+  const schema = schemaMatch[1];
+  return !schema.includes('transactionId') && !schema.includes('uuid') && !schema.includes('id:');
+});
+
+test('T36 — select_transaction stub execute returns error (handled by chat.ts)', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  return selectTx.includes('must be handled by the chat orchestrator');
+});
+
+// ── handleSelectTransaction ──
+
+test('T37 — handleSelectTransaction exists', () =>
+  chat.includes('async function handleSelectTransaction'));
+
+test('T38 — handleSelectTransaction reads from readTxResolution', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('readTxResolution(sb, sessionId, userId)');
+});
+
+test('T39 — handleSelectTransaction converts candidateNumber - 1 to index', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('candidateNumber - 1');
+});
+
+test('T40 — handleSelectTransaction rejects candidateNumber < 1', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('candidateNumber < 1');
+});
+
+test('T41 — handleSelectTransaction rejects out-of-range candidateNumber', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('idx >= txr.candidates.length');
+});
+
+test('T42 — handleSelectTransaction rejects when no candidates', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('No transaction search results available');
+});
+
+test('T43 — handleSelectTransaction derives UUID from candidates array (not args)', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('txr.candidates[idx]') && !fnBody.includes('args.transactionId') && !fnBody.includes('args.id');
+});
+
+test('T44 — handleSelectTransaction validates UUID of selected candidate', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('UUID_RE.test(candidate.id)');
+});
+
+test('T45 — handleSelectTransaction persists via writeTxResolution', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('writeTxResolution(sb, sessionId, userId, txr)');
+});
+
+test('T46 — handleSelectTransaction sets selectedId and selectedIndex', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('txr.selectedId = candidate.id') && fnBody.includes('txr.selectedIndex = idx');
+});
+
+// ── Tool interception in chat.ts ──
+
+test('T47 — select_transaction intercepted in streaming path', () =>
+  chat.includes("// ── select_transaction interception (streaming) ──"));
+
+test('T48 — select_transaction intercepted in specialist path', () =>
+  chat.includes("// ── select_transaction interception (specialist) ──"));
+
+test('T49 — select_transaction intercepted in non-streaming path', () =>
+  chat.includes("// ── select_transaction interception (non-streaming) ──"));
+
+test('T50 — select_transaction intercepted in tool-loop path', () =>
+  chat.includes("// ── select_transaction interception (tool-loop) ──"));
+
+test('T51 — all interceptions use handleSelectTransaction', () => {
+  const intercepts = chat.match(/handleSelectTransaction\(sb, finalSessionId, userId/g) || [];
+  return intercepts.length === 4;
+});
+
+test('T52 — all interceptions continue after handling (skip executeTool)', () => {
+  // Each interception block should have 'continue;' after pushing the result
+  const blocks = chat.match(/select_transaction interception[^]*?continue;/g) || [];
+  return blocks.length === 4;
+});
+
+// ── Prime tool registration ──
+
+test('T53 — select_transaction added to Prime runtime fallback', () =>
+  chat.includes("employeeTools.includes('select_transaction')"));
+
+// ── No mutation binding changes (Phase 1 scope) ──
+
+test('T54 — bindAuthoritativeTxIdentity does NOT reference TxResolutionContext', () => {
+  const fnStart = chat.indexOf('function bindAuthoritativeTxIdentity');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return !fnBody.includes('TxResolution') && !fnBody.includes('readTxResolution') && !fnBody.includes('tx_resolution');
+});
+
+test('T55 — checkMutationIdentityGate unchanged', () => {
+  const fnStart = chat.indexOf('function checkMutationIdentityGate');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 500);
+  return !fnBody.includes('TxResolution') && !fnBody.includes('tx_resolution');
+});
+
+test('T56 — request_employee_handoff auto-promote unchanged (no tx_resolution reference)', () => {
+  // The auto-promote section should still reference authoritativeSelectedTxCache, not tx_resolution
+  const autoPromoteIdx = chat.indexOf('Auto-promoted standard');
+  if (autoPromoteIdx < 0) return false;
+  const nearby = chat.substring(autoPromoteIdx - 600, autoPromoteIdx + 200);
+  return nearby.includes('readAuthoritativeSelectedTx') && !nearby.includes('readTxResolution');
+});
+
+// ── UUID regex shared constant ──
+
+test('T57 — UUID_RE constant defined once and shared', () =>
+  chat.includes('const UUID_RE'));
+
+// ── Cold-start safety ──
+
+test('T58 — readTxResolution queries DB (not in-memory cache)', () => {
+  const fnStart = chat.indexOf('async function readTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 600);
+  return fnBody.includes("from('chat_sessions')") && !fnBody.includes('Map') && !fnBody.includes('cache');
+});
+
+test('T59 — writeTxResolution writes to DB (not in-memory cache)', () => {
+  const fnStart = chat.indexOf('async function writeTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  return fnBody.includes("from('chat_sessions')") && !fnBody.includes('Map') && !fnBody.includes('cache');
+});
+
+test('T60 — handleSelectTransaction uses readTxResolution (DB) not in-memory', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('readTxResolution') && !fnBody.includes('authoritativeSelectedTxCache');
+});
+
+// ── Existing context safety ──
+
+test('T61 — writeTxResolution preserves existing context keys', () => {
+  const fnStart = chat.indexOf('async function writeTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  // Must spread existing context, not replace
+  return fnBody.includes('...existing') || fnBody.includes('{ ...existing.context }') || fnBody.includes('...existing?.context');
+});
+
+test('T62 — writeTxResolution only sets tx_resolution key', () => {
+  const fnStart = chat.indexOf('async function writeTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  // Should assign ctx.tx_resolution, not overwrite workspace or other keys
+  return fnBody.includes('ctx.tx_resolution') && !fnBody.includes('ctx.workspace');
+});
+
+// ── Existing authoritative cache untouched ──
+
+test('T63 — authoritativeSelectedTxCache still exists', () =>
+  chat.includes('const authoritativeSelectedTxCache = new Map'));
+
+test('T64 — updateAuthoritativeSelectedTxFromSearchResult still called at all original sites', () => {
+  const calls = chat.match(/updateAuthoritativeSelectedTxFromSearchResult\(/g) || [];
+  return calls.length >= 7; // 1 definition + 6 call sites
+});
+
+// ── Error handling ──
+
+test('T65 — readTxResolution has try/catch', () => {
+  const fnStart = chat.indexOf('async function readTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 900);
+  return fnBody.includes('try {') && fnBody.includes('catch');
+});
+
+test('T66 — writeTxResolution has try/catch', () => {
+  const fnStart = chat.indexOf('async function writeTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1200);
+  return fnBody.includes('try {') && fnBody.includes('catch');
+});
+
+test('T67 — handleSelectTransaction validates non-integer candidateNumber', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('Number.isInteger(candidateNumber)');
+});
+
+// ── select_transaction description ──
+
+test('T68 — select_transaction description mentions candidateNumber not index', () =>
+  toolIndex.includes('candidateNumber') && toolIndex.includes('1-based'));
+
+test('T69 — select_transaction description says do NOT pass a transaction ID', () =>
+  toolIndex.includes('do NOT pass a transaction ID'));
+
+// ── updatedAt always set ──
+
+test('T70 — persistTxResolutionFromSearchResult sets updatedAt', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 2500);
+  return fnBody.includes('updatedAt: Date.now()');
+});
+
+test('T71 — handleSelectTransaction updates updatedAt on selection', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('txr.updatedAt = Date.now()');
+});
+
+// ── Fix 1: Failed persistence must fail closed ──
+
+test('T72 — handleSelectTransaction checks writeTxResolution return value', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1800);
+  return fnBody.includes('const persisted = await writeTxResolution') || fnBody.includes('const persisted=await writeTxResolution');
+});
+
+test('T73 — handleSelectTransaction returns selected:false when persistence fails', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1800);
+  return fnBody.includes('if (!persisted)') && fnBody.includes("selected: false, error: 'Could not persist transaction selection");
+});
+
+test('T74 — handleSelectTransaction only returns selected:true after persistence succeeds', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1800);
+  // The selected:true return must come AFTER the persisted check
+  const persistedCheckIdx = fnBody.indexOf('if (!persisted)');
+  const selectedTrueIdx = fnBody.indexOf('selected: true');
+  return persistedCheckIdx > 0 && selectedTrueIdx > persistedCheckIdx;
+});
+
+test('T75 — failed persistence logs warning', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1800);
+  return fnBody.includes('selection persistence FAILED') && fnBody.includes('failing closed');
+});
+
+// ── Fix 2: Candidate cap matches tx_search max ──
+
+test('T76 — TX_SEARCH_MAX_RESULTS = 200 in persist function', () => {
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return fnBody.includes('TX_SEARCH_MAX_RESULTS = 200');
+});
+
+test('T77 — select_transaction schema max matches tx_search max (200)', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  return selectTx.includes('.max(200)');
+});
+
+test('T78 — candidateNumber 30 would select candidates[29] (1-based)', () => {
+  // Structural: handleSelectTransaction uses candidateNumber - 1 as index
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1800);
+  return fnBody.includes('const idx = candidateNumber - 1');
+});
+
+test('T79 — candidateNumber at max (200) would select candidates[199]', () => {
+  // Schema allows max 200, and idx = 200 - 1 = 199 — within array bounds if 200 candidates exist
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  return selectTx.includes('.max(200)') && chat.includes('const idx = candidateNumber - 1');
+});
+
+test('T80 — candidateNumber above max (201) rejected by schema validation', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  // .max(200) means 201 fails zod validation before reaching handleSelectTransaction
+  return selectTx.includes('.max(200)');
+});
+
+test('T81 — UUID is derived server-side from persisted candidates (not args)', () => {
+  // Re-verify: handleSelectTransaction reads from txr.candidates[idx], not from args
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1800);
+  return fnBody.includes('const candidate = txr.candidates[idx]')
+    && fnBody.includes('txr.selectedId = candidate.id')
+    && !fnBody.includes('args.id')
+    && !fnBody.includes('args.transactionId');
+});
+
+test('T82 — candidate cap and schema max are aligned (both 200)', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  const schemaMax200 = selectTx.includes('.max(200)');
+  const fnStart = chat.indexOf('async function persistTxResolutionFromSearchResult');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  const capMax200 = fnBody.includes('TX_SEARCH_MAX_RESULTS = 200');
+  return schemaMax200 && capMax200;
+});
+
+// ============================================================
+console.log(`============================================================`);
+console.log(`TransactionResolutionContext Tests: ${passed} passed, ${failed} failed (${passed + failed} total)`);
+console.log(`============================================================`);
+
+if (failed > 0) process.exit(1);

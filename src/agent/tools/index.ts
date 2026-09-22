@@ -54,6 +54,7 @@ import * as getTransactionsByDocument from './impl/get_transactions_by_document'
 import * as txSearch from './impl/tx_search';
 import * as taxSummary from './impl/tax_summary';
 import * as txGet from './impl/tx_get';
+import * as selectTransaction from './impl/select_transaction';
 import * as txUpdateCategory from './impl/tx_update_category';
 import * as summarizeImport from './impl/summarize_import';
 import * as byteRenameImport from './impl/byte_rename_import';
@@ -725,6 +726,17 @@ const toolModules: Map<string, ToolModule> = new Map([
     run: txGet.execute,
     meta: {
       timeout: 15000,
+      rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['select_transaction', {
+    id: 'select_transaction',
+    description: 'Select a specific transaction from the current search results by position number (1-based). Use this when the user refers to a transaction from the last tx_search results by ordinal ("the second one", "that last Costco", "the largest one"). Provide the candidateNumber corresponding to the position in the results. The server resolves the exact transaction identity — do NOT pass a transaction ID.',
+    inputSchema: selectTransaction.inputSchema,
+    outputSchema: selectTransaction.outputSchema,
+    run: selectTransaction.execute,
+    meta: {
+      timeout: 10000,
       rateLimit: { perMinute: 30 },
     },
   }],

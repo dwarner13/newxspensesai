@@ -335,6 +335,25 @@ type ForcedTxSearchLatchEntry = {
 };
 const EMPLOYEE_PROFILE_TTL_MS = 5 * 60 * 1000;
 const LAST_TX_SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
+const TX_RESOLUTION_TTL_MS = 30 * 60 * 1000;
+
+// ── TransactionResolutionContext ───────────────────────────────────────────
+// Persisted in chat_sessions.context.tx_resolution (JSONB).
+// Populated by tx_search results, selected by select_transaction tool.
+// Phase 1: read/write only — not yet wired into mutation binding.
+type TxResolutionCandidate = {
+  id: string;
+  merchant: string | null;
+  amount: number | null;
+  date: string | null;
+  category: string | null;
+};
+type TxResolutionContext = {
+  candidates: TxResolutionCandidate[];
+  selectedId: string | null;
+  selectedIndex: number | null;
+  updatedAt: number;
+};
 const FORCED_TX_SEARCH_DEDUPE_MS = 10 * 1000;
 const THREAD_STATEMENT_CONTEXT_TTL_SECONDS = 2 * 60 * 60;
 const employeeProfileCache = new Map<string, EmployeeProfileCacheEntry>();
@@ -1718,6 +1737,163 @@ function updateAuthoritativeSelectedTxFromSearchResult(sessionId: string, result
       console.log(`[Chat] Authoritative selected transaction cleared: ${rows.length} results (ambiguous)`);
     }
   }
+}
+
+// ── TransactionResolutionContext persistence ──────────────────────────────
+// Reads/writes chat_sessions.context.tx_resolution using jsonb_set merge
+// to preserve other context keys (e.g. workspace).
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function readTxResolution(
+  sb: any, sessionId: string, userId: string,
+): Promise<TxResolutionContext | null> {
+  if (!sessionId || !userId) return null;
+  try {
+    const { data, error } = await sb
+      .from('chat_sessions')
+      .select('context')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data?.context) return null;
+    const txr = data.context.tx_resolution;
+    if (!txr || typeof txr !== 'object') return null;
+    // TTL check
+    if (typeof txr.updatedAt === 'number' && (Date.now() - txr.updatedAt) > TX_RESOLUTION_TTL_MS) {
+      return null;
+    }
+    return txr as TxResolutionContext;
+  } catch (err: any) {
+    console.warn('[Chat] readTxResolution error:', err?.message);
+    return null;
+  }
+}
+
+async function writeTxResolution(
+  sb: any, sessionId: string, userId: string, txr: TxResolutionContext,
+): Promise<boolean> {
+  if (!sessionId || !userId) return false;
+  try {
+    // Use RPC-free jsonb_set merge: read context, merge, write back
+    const { data: existing } = await sb
+      .from('chat_sessions')
+      .select('context')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    const ctx = (existing?.context && typeof existing.context === 'object')
+      ? { ...existing.context }
+      : {};
+    ctx.tx_resolution = txr;
+    const { error } = await sb
+      .from('chat_sessions')
+      .update({ context: ctx })
+      .eq('id', sessionId)
+      .eq('user_id', userId);
+    if (error) {
+      console.warn('[Chat] writeTxResolution error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.warn('[Chat] writeTxResolution error:', err?.message);
+    return false;
+  }
+}
+
+/**
+ * After tx_search: build and persist TxResolutionContext from verified results.
+ * - Replaces previous candidates
+ * - Clears previous selectedId
+ * - Auto-selects if exactly 1 result with valid UUID
+ */
+async function persistTxResolutionFromSearchResult(
+  sb: any, sessionId: string, userId: string, result: any,
+): Promise<void> {
+  if (!sessionId || !userId) return;
+  const rows = Array.isArray(result?.rows) ? result.rows : [];
+  // Cap matches tx_search schema max (200) so Prime and tx_resolution see the same set
+  const TX_SEARCH_MAX_RESULTS = 200;
+  const candidates: TxResolutionCandidate[] = rows
+    .filter((r: any) => r?.id && UUID_RE.test(String(r.id).trim()))
+    .slice(0, TX_SEARCH_MAX_RESULTS)
+    .map((r: any) => ({
+      id: String(r.id).trim(),
+      merchant: r.merchant ?? r.merchant_normalized ?? null,
+      amount: typeof r.amount === 'number' ? r.amount : (typeof r.signed_amount === 'number' ? r.signed_amount : null),
+      date: r.date ?? null,
+      category: r.category ?? null,
+    }));
+
+  let selectedId: string | null = null;
+  let selectedIndex: number | null = null;
+  if (candidates.length === 1) {
+    selectedId = candidates[0].id;
+    selectedIndex = 0;
+    console.log(`[Chat] TxResolution: auto-selected single candidate ${selectedId}`);
+  } else if (candidates.length > 1) {
+    console.log(`[Chat] TxResolution: ${candidates.length} candidates, no auto-selection`);
+  } else {
+    console.log(`[Chat] TxResolution: 0 valid candidates, clearing`);
+  }
+
+  const txr: TxResolutionContext = {
+    candidates,
+    selectedId,
+    selectedIndex,
+    updatedAt: Date.now(),
+  };
+  await writeTxResolution(sb, sessionId, userId, txr);
+}
+
+/**
+ * Handle select_transaction tool call inline.
+ * Reads persisted candidates, validates candidateNumber bounds,
+ * sets selectedId from candidates array (never from model-supplied UUID).
+ */
+async function handleSelectTransaction(
+  sb: any, sessionId: string, userId: string, args: Record<string, any>,
+): Promise<{ selected: boolean; candidateNumber?: number; transaction?: TxResolutionCandidate; error?: string }> {
+  const candidateNumber = args?.candidateNumber;
+  if (typeof candidateNumber !== 'number' || !Number.isInteger(candidateNumber) || candidateNumber < 1) {
+    return { selected: false, error: 'candidateNumber must be a positive integer (1, 2, 3...)' };
+  }
+
+  const txr = await readTxResolution(sb, sessionId, userId);
+  if (!txr || !txr.candidates || txr.candidates.length === 0) {
+    return { selected: false, error: 'No transaction search results available. Run a transaction search first.' };
+  }
+
+  const idx = candidateNumber - 1;
+  if (idx >= txr.candidates.length) {
+    return {
+      selected: false,
+      error: `candidateNumber ${candidateNumber} is out of range. There are ${txr.candidates.length} candidate(s) available.`,
+    };
+  }
+
+  const candidate = txr.candidates[idx];
+  if (!candidate?.id || !UUID_RE.test(candidate.id)) {
+    return { selected: false, error: 'Selected candidate has invalid identity. Please search again.' };
+  }
+
+  // Persist the selection — fail closed if DB write fails
+  txr.selectedId = candidate.id;
+  txr.selectedIndex = idx;
+  txr.updatedAt = Date.now();
+  const persisted = await writeTxResolution(sb, sessionId, userId, txr);
+  if (!persisted) {
+    console.warn(`[Chat] TxResolution: selection persistence FAILED for candidateNumber=${candidateNumber} — failing closed`);
+    return { selected: false, error: 'Could not persist transaction selection. Please try again.' };
+  }
+
+  console.log(`[Chat] TxResolution: selected candidateNumber=${candidateNumber} → ${candidate.id}`);
+  return {
+    selected: true,
+    candidateNumber,
+    transaction: candidate,
+  };
 }
 
 /**
@@ -6439,6 +6615,11 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime tx_get tool enabled via runtime fallback');
           }
+          if (!employeeTools.includes('select_transaction')) {
+            employeeTools = [...employeeTools, 'select_transaction'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime select_transaction tool enabled via runtime fallback');
+          }
           // tx_update_category deliberately NOT added to Prime.
           // Categorization mutations are Tag's responsibility.
           // Prime delegates via request_employee_handoff → tag-ai.
@@ -10498,6 +10679,21 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   // Parse args once for logging and execution
                   const args = JSON.parse(toolCall.function.arguments || '{}');
 
+                  // ── select_transaction interception (streaming) ──
+                  if (toolName === 'select_transaction' && finalSessionId) {
+                    const selResult = await handleSelectTransaction(sb, finalSessionId, userId, args);
+                    toolResults.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify(selResult),
+                    });
+                    if (selResult.selected) {
+                      writeSSE({ type: 'tool_call', tool: toolName, args });
+                      writeSSE({ type: 'tool_result', tool: toolName, result: selResult });
+                    }
+                    continue;
+                  }
+
                   // Authoritative date normalization for financial query tools
                   if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
                     const norm = normalizeToolDateArgs(args, authoritativeRanges);
@@ -10677,6 +10873,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                         .slice(0, 25);
                       if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                       updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
+                      persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (streaming):', e?.message));
                     }
                     // Special handling for employee handoff (streaming)
                     // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
@@ -10943,6 +11140,13 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 try {
                   const tArgs = JSON.parse(tc.function.arguments || '{}');
 
+                  // ── select_transaction interception (specialist) ──
+                  if (tn === 'select_transaction' && finalSessionId) {
+                    const selResult = await handleSelectTransaction(sb, finalSessionId, userId, tArgs);
+                    specToolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(selResult) });
+                    continue;
+                  }
+
                   // Date normalization
                   if ((tn === 'tx_search' || tn === 'transaction_category_totals') && authoritativeRanges.length > 0) {
                     const norm = normalizeToolDateArgs(tArgs, authoritativeRanges);
@@ -11028,6 +11232,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
                     if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                     updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, tResult);
+                    persistTxResolutionFromSearchResult(sb, finalSessionId, userId, tResult).catch(e => console.warn('[Chat] TxResolution persist error (specialist):', e?.message));
                   }
 
                   // Send tool events to stream
@@ -11658,6 +11863,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // Capture authoritative transaction identity from FinancialGrounding tx_search
                     if (plan.toolName === 'tx_search' && finalSessionId) {
                       updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, preResult);
+                      persistTxResolutionFromSearchResult(sb, finalSessionId, userId, preResult).catch(e => console.warn('[Chat] TxResolution persist error (grounding):', e?.message));
                     }
                   } else {
                     console.warn(`[FinancialGrounding] pre-execution returned error:`, preResult);
@@ -11981,6 +12187,17 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             // Parse args once for logging and execution
             const args = JSON.parse(toolCall.function.arguments || '{}');
 
+            // ── select_transaction interception (non-streaming) ──
+            if (toolName === 'select_transaction' && finalSessionId) {
+              const selResult = await handleSelectTransaction(sb, finalSessionId, userId, args);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify(selResult),
+              });
+              continue;
+            }
+
             // Authoritative date normalization for financial query tools
             if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
               const norm = normalizeToolDateArgs(args, authoritativeRanges);
@@ -12142,6 +12359,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   .slice(0, 25);
                 if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                 updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
+                persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):', e?.message));
               }
               // Special handling for employee handoff (non-streaming)
               // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
@@ -12375,6 +12593,17 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               try {
                 const args = JSON.parse(toolCall.function.arguments || '{}');
 
+                // ── select_transaction interception (tool-loop) ──
+                if (toolName === 'select_transaction' && finalSessionId) {
+                  const selResult = await handleSelectTransaction(sb, finalSessionId, userId, args);
+                  currentToolResults.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify(selResult),
+                  });
+                  continue;
+                }
+
                 // Authoritative date normalization for financial query tools (tool loop)
                 if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
                   const norm = normalizeToolDateArgs(args, authoritativeRanges);
@@ -12479,6 +12708,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
                   if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
+                  persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):', e?.message));
                 }
 
                 // Handoff lifecycle (authoritative — same implementation as initial path)
@@ -12654,6 +12884,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // Capture authoritative transaction identity from false-zero retry tx_search
                 if (plan.toolName === 'tx_search' && finalSessionId) {
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, retryResult);
+                  persistTxResolutionFromSearchResult(sb, finalSessionId, userId, retryResult).catch(e => console.warn('[Chat] TxResolution persist error (retry):', e?.message));
                 }
 
                 const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification);
