@@ -1783,6 +1783,48 @@ function checkMutationIdentityGate(
   };
 }
 
+// ── Verified Confirmation Summary ──────────────────────────────────────────
+// For tag_update_transaction_category, build a user-facing summary from the
+// verified transaction row (NOT LLM-supplied fields). Fail closed: if the
+// row cannot be fetched, return null so the caller can use the existing
+// failure path (which blocks the mutation entirely).
+async function buildVerifiedConfirmationSummary(
+  sb: SupabaseClient,
+  toolName: string,
+  args: Record<string, any>,
+  userId: string,
+): Promise<string | null> {
+  if (toolName !== 'tag_update_transaction_category') return null;
+  const txId = args?.transactionId;
+  if (!txId || typeof txId !== 'string') return null;
+  try {
+    const { data: tx, error } = await sb
+      .from('transactions')
+      .select('merchant, merchant_name, amount, date, category')
+      .eq('id', txId)
+      .eq('user_id', userId)
+      .single();
+    if (error || !tx) {
+      console.warn(`[Chat] buildVerifiedConfirmationSummary: cannot fetch tx ${txId} for user ${userId}:`, error?.message || 'no row');
+      return null;
+    }
+    const merchant = tx.merchant_name || tx.merchant || 'Unknown';
+    const amount = typeof tx.amount === 'number'
+      ? `$${Math.abs(tx.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : '';
+    const date = tx.date
+      ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
+    const oldCategory = tx.category || 'Uncategorized';
+    const newCategory = args.newCategory || 'Unknown';
+    const identityParts = [merchant, amount, date].filter(Boolean).join(' \u00b7 ');
+    return `${identityParts}\n${oldCategory} \u2192 ${newCategory}`;
+  } catch (err: any) {
+    console.error(`[Chat] buildVerifiedConfirmationSummary error:`, err?.message);
+    return null;
+  }
+}
+
 function shouldRunForcedTxSearch(sessionId: string, args: Record<string, any>): boolean {
   if (!sessionId) return true;
   const now = Date.now();
@@ -10548,6 +10590,18 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     }
 
                     try {
+                      // Build verified summary BEFORE creating confirmation record (no orphans)
+                      const verifiedSummary = await buildVerifiedConfirmationSummary(sb, toolName, args, userId);
+                      if (!verifiedSummary && toolName === 'tag_update_transaction_category') {
+                        console.warn(`[Chat] VERIFIED SUMMARY FAIL-CLOSED (streaming): cannot verify transaction identity for display — no confirmation record created`);
+                        toolResults.push({
+                          role: 'tool',
+                          tool_call_id: toolCall.id,
+                          content: JSON.stringify({ error: 'Could not verify transaction details for confirmation. Please try again.' }),
+                        });
+                        continue;
+                      }
+                      const displaySummary = verifiedSummary || `This will ${toolModule.description.toLowerCase()}`;
                       const pending = await createPendingConfirmation(
                         sb, userId, finalSessionId, toolName, args,
                       );
@@ -10562,7 +10616,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                         content: JSON.stringify({
                           _requiresConfirm: true,
                           toolId: toolName,
-                          summary: `This will ${toolModule.description.toLowerCase()}`,
+                          summary: displaySummary,
                           status: 'awaiting_user_confirmation',
                         }),
                       });
@@ -10570,7 +10624,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       writeSSE({
                         type: 'confirmation_required',
                         tool: toolName,
-                        summary: `This will ${toolModule.description.toLowerCase()}`,
+                        summary: displaySummary,
                         confirmationId: pending.confirmationId,
                         token: pending.token,
                         expiresAt: pending.expiresAt,
@@ -10927,8 +10981,18 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                       continue;
                     }
 
+                    // Build verified summary BEFORE creating confirmation record (no orphans)
+                    const verifiedSummary = await buildVerifiedConfirmationSummary(sb, tn, tArgs, userId);
+                    if (!verifiedSummary && tn === 'tag_update_transaction_category') {
+                      console.warn(`[Chat] VERIFIED SUMMARY FAIL-CLOSED (specialist): cannot verify transaction identity for display — no confirmation record created`);
+                      specToolResults.push({
+                        role: 'tool', tool_call_id: tc.id,
+                        content: JSON.stringify({ error: 'Could not verify transaction details for confirmation. Please try again.' }),
+                      });
+                      continue;
+                    }
+                    const confirmSummary = verifiedSummary || `This will ${tm.description?.toLowerCase() || tn}`;
                     const pending = await createPendingConfirmation(sb, userId, finalSessionId, tn, tArgs);
-                    const confirmSummary = `This will ${tm.description?.toLowerCase() || tn}`;
                     specToolResults.push({
                       role: 'tool', tool_call_id: tc.id,
                       content: JSON.stringify({
@@ -11034,10 +11098,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 argsHash: specPendingConfirmationData.argsHash,
               });
               // Deterministic confirmation text — model must not describe this as success
-              const confirmArgs = specPendingConfirmationData.args || {};
-              const txDesc = confirmArgs.merchantName || confirmArgs.description || 'the requested transaction';
-              const newCat = confirmArgs.newCategory || 'the requested category';
-              assistantContent = `I found ${txDesc} and I'd like to change its category to "${newCat}". This change requires your confirmation — please use the Confirm button below to proceed, or Cancel to skip.`;
+              assistantContent = `I'd like to make this category change. This requires your confirmation — please use the Confirm button below to proceed, or Cancel to skip.`;
               writeSSE({ type: 'text', content: assistantContent });
               console.log(`[Chat] Confirmation hard boundary (streaming specialist): emitted deterministic text, skipped model call`);
             } else if (assistantContent) {
@@ -11999,6 +12060,18 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               }
 
               try {
+                // Build verified summary BEFORE creating confirmation record (no orphans)
+                const verifiedSummary = await buildVerifiedConfirmationSummary(sb, toolName, args, userId);
+                if (!verifiedSummary && toolName === 'tag_update_transaction_category') {
+                  console.warn(`[Chat] VERIFIED SUMMARY FAIL-CLOSED (non-streaming): cannot verify transaction identity for display — no confirmation record created`);
+                  toolResults.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify({ error: 'Could not verify transaction details for confirmation. Please try again.' }),
+                  });
+                  continue;
+                }
+                const displaySummary = verifiedSummary || `This will ${toolModule.description.toLowerCase()}`;
                 const pending = await createPendingConfirmation(
                   sb, userId, finalSessionId, toolName, args,
                 );
@@ -12012,7 +12085,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   content: JSON.stringify({
                     _requiresConfirm: true,
                     toolId: toolName,
-                    summary: `This will ${toolModule.description.toLowerCase()}`,
+                    summary: displaySummary,
                     status: 'awaiting_user_confirmation',
                   }),
                 });
@@ -12023,7 +12096,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 (toolResults as any).__pendingConfirmation = {
                   type: 'confirmation_required',
                   tool: toolName,
-                  summary: `This will ${toolModule.description.toLowerCase()}`,
+                  summary: displaySummary,
                   confirmationId: pending.confirmationId,
                   token: pending.token,
                   expiresAt: pending.expiresAt,
@@ -12344,8 +12417,19 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     continue;
                   }
 
+                  // Build verified summary BEFORE creating confirmation record (no orphans)
+                  const verifiedSummary = await buildVerifiedConfirmationSummary(sb, toolName, args, userId);
+                  if (!verifiedSummary && toolName === 'tag_update_transaction_category') {
+                    console.warn(`[Chat] VERIFIED SUMMARY FAIL-CLOSED (tool-loop r${toolRound}): cannot verify transaction identity for display — no confirmation record created`);
+                    currentToolResults.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify({ error: 'Could not verify transaction details for confirmation. Please try again.' }),
+                    });
+                    continue;
+                  }
+                  const confirmSummary = verifiedSummary || `This will ${toolModule.description?.toLowerCase() || toolName}`;
                   const pending = await createPendingConfirmation(sb, userId, finalSessionId, toolName, args);
-                  const confirmSummary = `This will ${toolModule.description?.toLowerCase() || toolName}`;
                   console.log(`[Chat] Confirmation gate (tool loop round ${toolRound}): ${toolName} requires approval`, {
                     confirmationId: pending.confirmationId,
                     expiresAt: new Date(pending.expiresAt).toISOString(),
@@ -12454,12 +12538,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           // Use loopPendingConfirmationData (captured at gate time with full token/argsHash)
           // or fall back to initial gate metadata if already set.
           if (loopPendingConfirmationData) {
-            const confirmArgs = loopPendingConfirmationData.args || {};
-            const txDesc = confirmArgs.merchantName || confirmArgs.description || 'the requested transaction';
-            const newCat = confirmArgs.newCategory || 'the requested category';
-
             // Deterministic confirmation text — never model-generated
-            assistantContent = `I found ${txDesc} and I'd like to change its category to "${newCat}". This change requires your confirmation — please use the Confirm button below to proceed, or Cancel to skip.`;
+            assistantContent = `I'd like to make this category change. This requires your confirmation — please use the Confirm button below to proceed, or Cancel to skip.`;
             console.log(`[Chat] Confirmation hard boundary (non-streaming): deterministic text, no model call`);
 
             // Propagate COMPLETE pendingConfirmation metadata for the JSON response
@@ -12468,7 +12548,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               (toolResults as any).__pendingConfirmation = {
                 type: 'confirmation_required',
                 tool: loopPendingConfirmationData.toolName,
-                summary: `Change category for ${txDesc}`,
+                summary: loopPendingConfirmationData.summary,
                 confirmationId: loopPendingConfirmationData.confirmationId,
                 token: loopPendingConfirmationData.token,
                 expiresAt: loopPendingConfirmationData.expiresAt,
