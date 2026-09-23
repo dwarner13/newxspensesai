@@ -9816,6 +9816,24 @@ PRIME FINANCIAL GROUNDING CONTRACT:
       }
     }
     
+    // ── Layer 2 Phase 1D: Preserve candidate frame across follow-up references ──
+    // Read persisted tx_resolution ONCE at request start. When candidates exist,
+    // grounding pre-exec and forced tx_search are suppressed — the model decides
+    // whether to call select_transaction (follow-up) or tx_search (new search).
+    // MUST be declared before system message construction (which injects candidates).
+    let existingTxResolution: TxResolutionContext | null = null;
+    if (isPrime && finalSessionId) {
+      try {
+        existingTxResolution = await readTxResolution(sb, finalSessionId, userId);
+        if (existingTxResolution?.candidates?.length) {
+          console.log(`[Chat] Phase1D: existing tx_resolution found — ${existingTxResolution.candidates.length} candidates, selectedId=${existingTxResolution.selectedId || 'none'}`);
+        }
+      } catch (e: any) {
+        console.warn('[Chat] Phase1D: readTxResolution failed (non-fatal):', e?.message);
+      }
+    }
+    const hasExistingCandidates = !!(existingTxResolution?.candidates?.length);
+
     // 3.5. Prime Orchestration Rule (ONLY for Prime, after context)
     if (isPrime) {
       if (hasStressMemorySignal) {
@@ -10462,23 +10480,6 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       txResolutionLockedThisTurn = true;
       console.log(`[Chat] TxResolution: candidates established (source=${source}), ownership locked for this request`);
     }
-
-    // ── Layer 2 Phase 1D: Preserve candidate frame across follow-up references ──
-    // Read persisted tx_resolution ONCE at request start. When candidates exist,
-    // grounding pre-exec and forced tx_search are suppressed — the model decides
-    // whether to call select_transaction (follow-up) or tx_search (new search).
-    let existingTxResolution: TxResolutionContext | null = null;
-    if (isPrime && finalSessionId) {
-      try {
-        existingTxResolution = await readTxResolution(sb, finalSessionId, userId);
-        if (existingTxResolution?.candidates?.length) {
-          console.log(`[Chat] Phase1D: existing tx_resolution found — ${existingTxResolution.candidates.length} candidates, selectedId=${existingTxResolution.selectedId || 'none'}`);
-        }
-      } catch (e: any) {
-        console.warn('[Chat] Phase1D: readTxResolution failed (non-fatal):', e?.message);
-      }
-    }
-    const hasExistingCandidates = !!(existingTxResolution?.candidates?.length);
 
     if (stream) {
       setStage('model_streaming');
