@@ -181,28 +181,28 @@ test('T22 — new search always replaces candidates (no merge)', () => {
   return fnBody.includes('const txr: TxResolutionContext') && fnBody.includes('await writeTxResolution');
 });
 
-// ── Persistence call sites ──
+// ── Persistence call sites (Phase 1C: all go through guardedPersistTxResolution) ──
 
-test('T23 — persistTxResolutionFromSearchResult called at streaming tx_search site', () =>
-  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (streaming):'"));
+test('T23 — guardedPersistTxResolution called at streaming tx_search site', () =>
+  chat.includes("guardedPersistTxResolution(sb, finalSessionId, userId, result, 'streaming')"));
 
-test('T24 — persistTxResolutionFromSearchResult called at specialist tx_search site', () =>
-  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, tResult).catch(e => console.warn('[Chat] TxResolution persist error (specialist):'"));
+test('T24 — guardedPersistTxResolution called at specialist tx_search site', () =>
+  chat.includes("guardedPersistTxResolution(sb, finalSessionId, userId, tResult, 'specialist')"));
 
-test('T25 — persistTxResolutionFromSearchResult called at FinancialGrounding pre-execution site', () =>
-  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, preResult).catch(e => console.warn('[Chat] TxResolution persist error (grounding):'"));
+test('T25 — guardedPersistTxResolution called at FinancialGrounding pre-execution site', () =>
+  chat.includes("guardedPersistTxResolution(sb, finalSessionId, userId, preResult, 'grounding')"));
 
-test('T26 — persistTxResolutionFromSearchResult called at non-streaming tx_search site', () =>
-  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):'"));
+test('T26 — guardedPersistTxResolution called at non-streaming tx_search site', () =>
+  chat.includes("guardedPersistTxResolution(sb, finalSessionId, userId, result, 'non-streaming')"));
 
-test('T27 — persistTxResolutionFromSearchResult called at tool-loop tx_search site', () =>
-  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):'"));
+test('T27 — guardedPersistTxResolution called at tool-loop tx_search site', () =>
+  chat.includes("guardedPersistTxResolution(sb, finalSessionId, userId, result, 'tool-loop')"));
 
 test('T28 — false-zero retry does NOT call persistTxResolutionFromSearchResult (Phase 1B)', () =>
   !chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, retryResult)"));
 
-test('T29 — all persist calls are fire-and-forget (.catch) — 5 sites (retry excluded)', () => {
-  const calls = chat.match(/persistTxResolutionFromSearchResult\([^)]+\)\.catch/g) || [];
+test('T29 — all guarded persist calls are fire-and-forget (.catch) — 5 sites', () => {
+  const calls = chat.match(/guardedPersistTxResolution\([^)]+\)\.catch/g) || [];
   return calls.length === 5;
 });
 
@@ -666,6 +666,122 @@ test('T103 — buildVerifiedConfirmationSummary not modified (still references t
 
 test('T104 — createPendingConfirmation still imported and used', () =>
   chat.includes('createPendingConfirmation') && chat.includes('confirmation_required'));
+
+// ── Phase 1C: Deterministic request-scoped candidate ownership ──
+
+test('T105 — txResolutionLockedThisTurn declared at request scope', () =>
+  chat.includes('let txResolutionLockedThisTurn = false'));
+
+test('T106 — guardedPersistTxResolution function defined', () =>
+  chat.includes('async function guardedPersistTxResolution'));
+
+test('T107 — guardedPersistTxResolution checks lock before persisting', () => {
+  const fnStart = chat.indexOf('async function guardedPersistTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 600);
+  return fnBody.includes('if (txResolutionLockedThisTurn)') && fnBody.includes('skipping candidate replacement');
+});
+
+test('T108 — guardedPersistTxResolution sets lock after successful persist', () => {
+  const fnStart = chat.indexOf('async function guardedPersistTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 600);
+  return fnBody.includes('txResolutionLockedThisTurn = true');
+});
+
+test('T109 — guardedPersistTxResolution delegates to persistTxResolutionFromSearchResult', () => {
+  const fnStart = chat.indexOf('async function guardedPersistTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 600);
+  return fnBody.includes('await persistTxResolutionFromSearchResult(');
+});
+
+test('T110 — guardedPersistTxResolution accepts source parameter for logging', () => {
+  const fnStart = chat.indexOf('async function guardedPersistTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 200);
+  return fnBody.includes('source: string');
+});
+
+test('T111 — all 5 call sites use guardedPersistTxResolution (not direct)', () => {
+  const guardedCalls = chat.match(/guardedPersistTxResolution\(/g) || [];
+  // 1 definition + 5 call sites = 6 total occurrences
+  return guardedCalls.length === 6;
+});
+
+test('T112 — no direct persistTxResolutionFromSearchResult calls remain at call sites', () => {
+  // The only direct calls should be: 1 function definition + 1 call inside guardedPersistTxResolution
+  const directCalls = chat.match(/persistTxResolutionFromSearchResult\(/g) || [];
+  return directCalls.length === 2; // definition + one call inside guarded wrapper
+});
+
+test('T113 — streaming select_transaction sets lock on success', () => {
+  const idx = chat.indexOf('select_transaction interception (streaming)');
+  if (idx < 0) return false;
+  const block = chat.substring(idx, idx + 400);
+  return block.includes('if (selResult.selected) txResolutionLockedThisTurn = true');
+});
+
+test('T114 — specialist select_transaction sets lock on success', () => {
+  const idx = chat.indexOf('select_transaction interception (specialist)');
+  if (idx < 0) return false;
+  const block = chat.substring(idx, idx + 400);
+  return block.includes('if (selResult.selected) txResolutionLockedThisTurn = true');
+});
+
+test('T115 — non-streaming select_transaction sets lock on success', () => {
+  const idx = chat.indexOf('select_transaction interception (non-streaming)');
+  if (idx < 0) return false;
+  const block = chat.substring(idx, idx + 400);
+  return block.includes('if (selResult.selected) txResolutionLockedThisTurn = true');
+});
+
+test('T116 — tool-loop select_transaction sets lock on success', () => {
+  const idx = chat.indexOf('select_transaction interception (tool-loop)');
+  if (idx < 0) return false;
+  const block = chat.substring(idx, idx + 400);
+  return block.includes('if (selResult.selected) txResolutionLockedThisTurn = true');
+});
+
+test('T117 — lock only set on selResult.selected (failed selection does not lock)', () => {
+  // All 4 sites use `if (selResult.selected)` — not unconditional
+  const lockSites = chat.match(/if \(selResult\.selected\) txResolutionLockedThisTurn = true/g) || [];
+  return lockSites.length === 4;
+});
+
+test('T118 — guardedPersistTxResolution lock only set AFTER persist call (not before)', () => {
+  const fnStart = chat.indexOf('async function guardedPersistTxResolution');
+  if (fnStart < 0) return false;
+  const fnBody = chat.substring(fnStart, fnStart + 600);
+  const persistIdx = fnBody.indexOf('await persistTxResolutionFromSearchResult(');
+  const lockIdx = fnBody.indexOf('txResolutionLockedThisTurn = true');
+  return persistIdx > 0 && lockIdx > persistIdx;
+});
+
+test('T119 — supplemental tx_search still executes (only Layer 2 persist skipped)', () => {
+  // updateAuthoritativeSelectedTxFromSearchResult is NOT guarded — still called at all sites
+  const layer1Calls = chat.match(/updateAuthoritativeSelectedTxFromSearchResult\(/g) || [];
+  // 1 definition + 6 call sites (streaming, specialist, grounding, non-streaming, tool-loop, retry)
+  return layer1Calls.length >= 7;
+});
+
+test('T120 — false-zero retry still excluded from Layer 2 (Phase 1B preserved)', () =>
+  !chat.includes("guardedPersistTxResolution") || // if we renamed, check retry doesn't use it
+  !chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, retryResult)"));
+
+test('T121 — lock is request-scoped (declared inside handler, not module-level)', () => {
+  // The lock declaration must appear AFTER the streaming/non-streaming fork area,
+  // not at the top of the file near module-level constants
+  const lockIdx = chat.indexOf('let txResolutionLockedThisTurn = false');
+  const guardedIdx = chat.indexOf('async function guardedPersistTxResolution');
+  // Both must exist and the guarded function must follow the lock declaration
+  return lockIdx > 0 && guardedIdx > lockIdx && (guardedIdx - lockIdx) < 500;
+});
+
+test('T122 — existing select_transaction 1-based behavior preserved', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  return selectTx.includes('.min(1)') && selectTx.includes('.max(200)');
+});
 
 // ============================================================
 console.log(`============================================================`);

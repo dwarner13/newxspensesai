@@ -10416,6 +10416,27 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       // Continue even if save fails
     }
 
+    // ── Layer 2 Phase 1C: Request-scoped candidate ownership lock ──────────
+    // Once tx_resolution candidates are established (via persist or selection)
+    // within this request, subsequent tx_search results in the SAME request
+    // cannot replace them. This prevents supplemental/grounding re-searches
+    // from destroying the user's conversational reference frame.
+    // The lock resets automatically on the next request (new invocation scope).
+    let txResolutionLockedThisTurn = false;
+
+    /** Guarded candidate persistence — skips if lock is set, sets lock on success. */
+    async function guardedPersistTxResolution(
+      sb: any, sessionId: string, userId: string, result: any, source: string,
+    ): Promise<void> {
+      if (txResolutionLockedThisTurn) {
+        console.log(`[Chat] TxResolution: skipping candidate replacement (source=${source}) — candidates locked this turn`);
+        return;
+      }
+      await persistTxResolutionFromSearchResult(sb, sessionId, userId, result);
+      txResolutionLockedThisTurn = true;
+      console.log(`[Chat] TxResolution: candidates established (source=${source}), ownership locked for this request`);
+    }
+
     if (stream) {
       setStage('model_streaming');
       // Streaming response (SSE) with tool support
@@ -10690,6 +10711,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   // ── select_transaction interception (streaming) ──
                   if (toolName === 'select_transaction' && finalSessionId) {
                     const selResult = await handleSelectTransaction(sb, finalSessionId, userId, args);
+                    if (selResult.selected) txResolutionLockedThisTurn = true;
                     toolResults.push({
                       role: 'tool',
                       tool_call_id: toolCall.id,
@@ -10881,7 +10903,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                         .slice(0, 25);
                       if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                       updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
-                      persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (streaming):', e?.message));
+                      guardedPersistTxResolution(sb, finalSessionId, userId, result, 'streaming').catch(e => console.warn('[Chat] TxResolution persist error (streaming):', e?.message));
                     }
                     // Special handling for employee handoff (streaming)
                     // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
@@ -11151,6 +11173,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // ── select_transaction interception (specialist) ──
                   if (tn === 'select_transaction' && finalSessionId) {
                     const selResult = await handleSelectTransaction(sb, finalSessionId, userId, tArgs);
+                    if (selResult.selected) txResolutionLockedThisTurn = true;
                     specToolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(selResult) });
                     continue;
                   }
@@ -11240,7 +11263,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
                     if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                     updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, tResult);
-                    persistTxResolutionFromSearchResult(sb, finalSessionId, userId, tResult).catch(e => console.warn('[Chat] TxResolution persist error (specialist):', e?.message));
+                    guardedPersistTxResolution(sb, finalSessionId, userId, tResult, 'specialist').catch(e => console.warn('[Chat] TxResolution persist error (specialist):', e?.message));
                   }
 
                   // Send tool events to stream
@@ -11871,7 +11894,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // Capture authoritative transaction identity from FinancialGrounding tx_search
                     if (plan.toolName === 'tx_search' && finalSessionId) {
                       updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, preResult);
-                      persistTxResolutionFromSearchResult(sb, finalSessionId, userId, preResult).catch(e => console.warn('[Chat] TxResolution persist error (grounding):', e?.message));
+                      guardedPersistTxResolution(sb, finalSessionId, userId, preResult, 'grounding').catch(e => console.warn('[Chat] TxResolution persist error (grounding):', e?.message));
                     }
                   } else {
                     console.warn(`[FinancialGrounding] pre-execution returned error:`, preResult);
@@ -12198,6 +12221,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             // ── select_transaction interception (non-streaming) ──
             if (toolName === 'select_transaction' && finalSessionId) {
               const selResult = await handleSelectTransaction(sb, finalSessionId, userId, args);
+              if (selResult.selected) txResolutionLockedThisTurn = true;
               toolResults.push({
                 role: 'tool',
                 tool_call_id: toolCall.id,
@@ -12367,7 +12391,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   .slice(0, 25);
                 if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                 updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
-                persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):', e?.message));
+                guardedPersistTxResolution(sb, finalSessionId, userId, result, 'non-streaming').catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):', e?.message));
               }
               // Special handling for employee handoff (non-streaming)
               // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
@@ -12604,6 +12628,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // ── select_transaction interception (tool-loop) ──
                 if (toolName === 'select_transaction' && finalSessionId) {
                   const selResult = await handleSelectTransaction(sb, finalSessionId, userId, args);
+                  if (selResult.selected) txResolutionLockedThisTurn = true;
                   currentToolResults.push({
                     role: 'tool',
                     tool_call_id: toolCall.id,
@@ -12716,7 +12741,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
                   if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
-                  persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):', e?.message));
+                  guardedPersistTxResolution(sb, finalSessionId, userId, result, 'tool-loop').catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):', e?.message));
                 }
 
                 // Handoff lifecycle (authoritative — same implementation as initial path)
