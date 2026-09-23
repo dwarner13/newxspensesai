@@ -951,6 +951,125 @@ test('T148 — model cannot provide UUID via select_transaction', () => {
 test('T149 — failed selection remains fail-closed', () =>
   chat.includes("'Could not persist transaction selection. Please try again.'"));
 
+// ── Phase 1D: Scope & TDZ regression tests ──────────────────────────────────
+// These tests verify that hasExistingCandidates and existingTxResolution are
+// declared BEFORE every reference in the source, and at a scope level that
+// encloses both streaming and non-streaming paths.
+
+test('T150 — hasExistingCandidates declared before first reference (TDZ safety)', () => {
+  const lines = chat.split('\n');
+  let declLine = -1;
+  let firstRefLine = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (declLine === -1 && /const\s+hasExistingCandidates\s*=/.test(line)) {
+      declLine = i + 1;
+    }
+    if (declLine === -1 && firstRefLine === -1 && /hasExistingCandidates/.test(line) && !/const\s+hasExistingCandidates/.test(line) && !/\/\//.test(line.split('hasExistingCandidates')[0])) {
+      firstRefLine = i + 1;
+    }
+  }
+  if (declLine === -1) { console.error('  declaration not found'); return false; }
+  if (firstRefLine !== -1 && firstRefLine < declLine) {
+    console.error(`  TDZ: first reference at line ${firstRefLine}, declaration at line ${declLine}`);
+    return false;
+  }
+  return true;
+});
+
+test('T151 — existingTxResolution declared before first reference (TDZ safety)', () => {
+  const lines = chat.split('\n');
+  let declLine = -1;
+  let firstRefLine = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (declLine === -1 && /let\s+existingTxResolution\s*[:=]/.test(line)) {
+      declLine = i + 1;
+    }
+    if (declLine === -1 && firstRefLine === -1 && /existingTxResolution/.test(line) && !/let\s+existingTxResolution/.test(line) && !/\/\//.test(line.split('existingTxResolution')[0]) && !/import/.test(line)) {
+      firstRefLine = i + 1;
+    }
+  }
+  if (declLine === -1) { console.error('  declaration not found'); return false; }
+  if (firstRefLine !== -1 && firstRefLine < declLine) {
+    console.error(`  TDZ: first reference at line ${firstRefLine}, declaration at line ${declLine}`);
+    return false;
+  }
+  return true;
+});
+
+test('T152 — Phase 1D declarations outside bare block that precedes stream fork (scope safety)', () => {
+  // The system-message construction code is wrapped in a bare block `{` (a block
+  // with no if/for/while/try). If hasExistingCandidates is declared INSIDE that
+  // bare block, esbuild will scope-isolate it and later references outside the
+  // block become orphaned ReferenceErrors.
+  //
+  // This test finds the bare block `{` (a line matching /^\s+\{$/) that appears
+  // between the declaration and the `if (stream)` fork, and verifies the
+  // declaration is BEFORE that bare block opens.
+  const lines = chat.split('\n');
+  let declLine = -1;
+  let bareBlockLine = -1;
+  let streamForkLine = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (declLine === -1 && /const\s+hasExistingCandidates\s*=/.test(line)) {
+      declLine = i + 1;
+    }
+    // Bare block: a line that is ONLY whitespace + `{` (no if/for/while/try/catch/else)
+    if (bareBlockLine === -1 && declLine !== -1 && /^\s+\{$/.test(line)) {
+      bareBlockLine = i + 1;
+    }
+    if (streamForkLine === -1 && /if\s*\(stream\)\s*\{/.test(line)) {
+      streamForkLine = i + 1;
+    }
+  }
+  if (declLine === -1) { console.error('  declaration not found'); return false; }
+  if (streamForkLine === -1) { console.error('  stream fork not found'); return false; }
+  // If there's a bare block between decl and stream fork, the declaration must be BEFORE it
+  if (bareBlockLine !== -1 && bareBlockLine > declLine && bareBlockLine < streamForkLine) {
+    // Declaration is before the bare block — correct
+    return true;
+  }
+  if (bareBlockLine !== -1 && bareBlockLine <= declLine) {
+    console.error(`  declaration (line ${declLine}) is INSIDE bare block (opens line ${bareBlockLine})`);
+    return false;
+  }
+  // No bare block found between decl and stream fork — also fine
+  return true;
+});
+
+test('T153 — declaration indent level matches or is shallower than all reference indent levels', () => {
+  // Verify the declaration's indent level is <= every reference's indent level.
+  // This is a reliable proxy for scope containment that isn't affected by
+  // braces inside string literals.
+  const lines = chat.split('\n');
+  let declIndent = -1;
+  let declLine = -1;
+  const violations: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (declIndent === -1 && /const\s+hasExistingCandidates\s*=/.test(line)) {
+      declIndent = line.match(/^(\s*)/)?.[1].length || 0;
+      declLine = i + 1;
+      continue;
+    }
+    if (/^\s*\/\//.test(line)) continue;
+    if (declLine !== -1 && /hasExistingCandidates/.test(line)) {
+      const refIndent = line.match(/^(\s*)/)?.[1].length || 0;
+      if (refIndent < declIndent) {
+        violations.push(`line ${i + 1}: indent=${refIndent} < declIndent=${declIndent}`);
+      }
+    }
+  }
+  if (declLine === -1) { console.error('  declaration not found'); return false; }
+  if (violations.length > 0) {
+    for (const v of violations) console.error(`  scope violation: ${v}`);
+    return false;
+  }
+  return true;
+});
+
 // ============================================================
 console.log(`============================================================`);
 console.log(`TransactionResolutionContext Tests: ${passed} passed, ${failed} failed (${passed + failed} total)`);

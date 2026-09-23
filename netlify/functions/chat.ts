@@ -9517,6 +9517,27 @@ export const handler: Handler = async (event, context) => {
     let financialPositionMissing: string[] = [];
     let isDocumentConversation = false;
 
+    // ── Layer 2 Phase 1D: Preserve candidate frame across follow-up references ──
+    // Read persisted tx_resolution ONCE at request start. When candidates exist,
+    // grounding pre-exec and forced tx_search are suppressed — the model decides
+    // whether to call select_transaction (follow-up) or tx_search (new search).
+    // MUST be declared at request scope (outside bare block at line ~9524) so both
+    // the system-message construction AND later streaming/non-streaming paths can
+    // reference them. Declaring inside the bare block causes esbuild to scope-isolate
+    // them, producing ReferenceError in the generated bundle.
+    let existingTxResolution: TxResolutionContext | null = null;
+    if (isPrime && finalSessionId) {
+      try {
+        existingTxResolution = await readTxResolution(sb, finalSessionId, userId);
+        if (existingTxResolution?.candidates?.length) {
+          console.log(`[Chat] Phase1D: existing tx_resolution found — ${existingTxResolution.candidates.length} candidates, selectedId=${existingTxResolution.selectedId || 'none'}`);
+        }
+      } catch (e: any) {
+        console.warn('[Chat] Phase1D: readTxResolution failed (non-fatal):', e?.message);
+      }
+    }
+    const hasExistingCandidates = !!(existingTxResolution?.candidates?.length);
+
     // PHASE 1 FIX (Apr 2026): Removed the `if (!(isPrimeBoss))` gate that was skipping
     // brain pack, DB prompt, AI fluency rule, and user context for Prime.
     // Prime now gets the same full prompt stack as other agents, PLUS its Prime-specific
@@ -9816,24 +9837,6 @@ PRIME FINANCIAL GROUNDING CONTRACT:
       }
     }
     
-    // ── Layer 2 Phase 1D: Preserve candidate frame across follow-up references ──
-    // Read persisted tx_resolution ONCE at request start. When candidates exist,
-    // grounding pre-exec and forced tx_search are suppressed — the model decides
-    // whether to call select_transaction (follow-up) or tx_search (new search).
-    // MUST be declared before system message construction (which injects candidates).
-    let existingTxResolution: TxResolutionContext | null = null;
-    if (isPrime && finalSessionId) {
-      try {
-        existingTxResolution = await readTxResolution(sb, finalSessionId, userId);
-        if (existingTxResolution?.candidates?.length) {
-          console.log(`[Chat] Phase1D: existing tx_resolution found — ${existingTxResolution.candidates.length} candidates, selectedId=${existingTxResolution.selectedId || 'none'}`);
-        }
-      } catch (e: any) {
-        console.warn('[Chat] Phase1D: readTxResolution failed (non-fatal):', e?.message);
-      }
-    }
-    const hasExistingCandidates = !!(existingTxResolution?.candidates?.length);
-
     // 3.5. Prime Orchestration Rule (ONLY for Prime, after context)
     if (isPrime) {
       if (hasStressMemorySignal) {
