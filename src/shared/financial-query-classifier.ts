@@ -47,7 +47,7 @@ export interface FinancialQueryClassification {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Patterns that indicate a query about the USER's actual financial data. */
-const USER_DATA_PATTERNS = /\b(how much did i|what did i spend|my .*(expense|spending|transaction|income|charge|payment|purchase)|did i (spend|pay|buy|purchase)|tell me about my .*(expense|spending|fuel|gas|grocery|food|rent|insurance|income)|i (spent|paid|bought)|show me my|what were my|what was my|what are my|my .*(total|balance|budget)|compare my|my .*(this month|this year|last month|last year|in \d{4}))\b/i;
+const USER_DATA_PATTERNS = /\b(how much did i|what did i spend|my .*(expenses?|spending|transactions?|income|charges?|payments?|purchases?)|did i (spend|pay|buy|purchase)|tell me about my .*(expenses?|spending|fuel|gas|grocery|food|rent|insurance|income)|i (spent|paid|bought)|show me my|what were my|what was my|what are my|my .*(total|balance|budget)|compare my|my .*(this month|this year|last month|last year|in \d{4}))\b/i;
 
 /** Patterns that indicate aggregate questions (full-period totals). */
 const AGGREGATE_PATTERNS = /\b(how much|total|altogether|in total|sum|all of|overall|full year|year to date|ytd|all .*(in|for|during) \d{4}|spend(ing)? on|expense[ds]? (on|for|in)|what .* my .* expense)\b/i;
@@ -240,7 +240,8 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     (merchantHint && /\b(how much|spend|spent|charge|total)\b/i.test(lower)) ||
     (hasTransactionLookup && hasStrongIdentifier) ||
     (merchantHint && hasStrongIdentifier) ||
-    hasExactTransactionRef;
+    hasExactTransactionRef ||
+    (merchantHint && hasFinancialNoun);
 
   if (!isUserDataQuery) {
     return {

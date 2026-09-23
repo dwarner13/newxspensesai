@@ -9538,6 +9538,19 @@ export const handler: Handler = async (event, context) => {
     }
     const hasExistingCandidates = !!(existingTxResolution?.candidates?.length);
 
+    // Phase 1D new-search vs follow-up: determine if the current message is a NEW
+    // grounded financial search (which should replace candidates) vs a referential
+    // follow-up (which should preserve them).
+    let isNewGroundedSearch = false;
+    if (hasExistingCandidates && isPrime) {
+      const earlyClassification = classifyFinancialQuery(masked);
+      isNewGroundedSearch = earlyClassification.requiresGrounding === true;
+      if (isNewGroundedSearch) {
+        console.log(`[Chat] Phase1D: new grounded search detected — will NOT preserve existing candidates`);
+      }
+    }
+    const shouldPreserveCandidates = hasExistingCandidates && !isNewGroundedSearch;
+
     // PHASE 1 FIX (Apr 2026): Removed the `if (!(isPrimeBoss))` gate that was skipping
     // brain pack, DB prompt, AI fluency rule, and user context for Prime.
     // Prime now gets the same full prompt stack as other agents, PLUS its Prime-specific
@@ -10710,7 +10723,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         txSearchAvailable &&
         isTransactionQuestionForTxSearch(masked) &&
         toolModules['tx_search'] &&
-        !hasExistingCandidates
+        !shouldPreserveCandidates
       ) {
         const forcedArgs: Record<string, any> = {
           limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -10730,7 +10743,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             assistantContent = 'I need to search your transactions first.';
           }
         }
-      } else if (hasExistingCandidates && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
+      } else if (shouldPreserveCandidates && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
         console.log(`[Chat] Phase1D: skipping forced tx_search (streaming) — existing candidates preserved`);
       }
 
@@ -11910,7 +11923,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               // A grounding pre-exec tx_search would replace them before the model gets
               // a chance to call select_transaction for follow-up references.
               // tax_summary pre-exec is still allowed (it doesn't affect candidates).
-              const phase1dSuppressed = hasExistingCandidates && plan.toolName === 'tx_search';
+              const phase1dSuppressed = shouldPreserveCandidates && plan.toolName === 'tx_search';
               if (phase1dSuppressed) {
                 console.log(`[FinancialGrounding] Phase1D: skipping tx_search pre-exec — ${existingTxResolution!.candidates.length} existing candidates preserved for model selection`);
               }
@@ -12241,7 +12254,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           toolModules['tx_search'] &&
           !taxSummaryGateStrippedTools &&
           !isCategoryChangeIntent(masked) &&
-          !hasExistingCandidates
+          !shouldPreserveCandidates
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -12261,7 +12274,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               assistantContent = 'I need to search your transactions first.';
             }
           }
-        } else if (hasExistingCandidates && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
+        } else if (shouldPreserveCandidates && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
           console.log(`[Chat] Phase1D: skipping forced tx_search (non-streaming) — existing candidates preserved`);
         }
 

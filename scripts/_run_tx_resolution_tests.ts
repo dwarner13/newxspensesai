@@ -16,6 +16,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { classifyFinancialQuery } from '../src/shared/financial-query-classifier';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -804,7 +805,7 @@ test('T128 — candidate prompt tells model tx_search allowed for genuinely diff
   chat.includes('Only call tx_search if the user asks for a genuinely DIFFERENT search'));
 
 test('T129 — grounding pre-exec tx_search gated by Phase 1D', () =>
-  chat.includes("phase1dSuppressed = hasExistingCandidates && plan.toolName === 'tx_search'"));
+  chat.includes("phase1dSuppressed = shouldPreserveCandidates && plan.toolName === 'tx_search'"));
 
 test('T130 — grounding pre-exec condition includes !phase1dSuppressed', () =>
   chat.includes('!phase1dSuppressed'));
@@ -814,25 +815,25 @@ test('T131 — tax_summary pre-exec NOT gated by Phase 1D', () => {
   return chat.includes("plan.toolName === 'tx_search'") &&
          !chat.includes("plan.toolName === 'tax_summary'") ||
          // Alternative: check that the suppression variable only mentions tx_search
-         chat.includes("hasExistingCandidates && plan.toolName === 'tx_search'");
+         chat.includes("shouldPreserveCandidates && plan.toolName === 'tx_search'");
 });
 
-test('T132 — forced tx_search (streaming) gated by !hasExistingCandidates', () => {
-  // Find the streaming forced tx_search block and verify hasExistingCandidates gate
+test('T132 — forced tx_search (streaming) gated by !shouldPreserveCandidates', () => {
+  // Find the streaming forced tx_search block and verify shouldPreserveCandidates gate
   const streamingBlock = chat.substring(
     chat.indexOf('// Guardrail: enforce tx_search for transaction intents when model skips tools.'),
     chat.indexOf('// Guardrail: enforce tx_search for transaction intents when model skips tools.') + 1000,
   );
-  return streamingBlock.includes('!hasExistingCandidates');
+  return streamingBlock.includes('!shouldPreserveCandidates');
 });
 
-test('T133 — forced tx_search (non-streaming) gated by !hasExistingCandidates', () => {
+test('T133 — forced tx_search (non-streaming) gated by !shouldPreserveCandidates', () => {
   // Find the non-streaming forced tx_search block (second occurrence)
   const firstIdx = chat.indexOf('// Guardrail: enforce tx_search for transaction intents when model skips tools.');
   const secondIdx = chat.indexOf('// Guardrail: enforce tx_search for transaction intents when model skips tools.', firstIdx + 1);
   if (secondIdx < 0) return false;
-  const nsBlock = chat.substring(secondIdx, secondIdx + 1000);
-  return nsBlock.includes('!hasExistingCandidates');
+  const nsBlock = chat.substring(secondIdx, secondIdx + 1500);
+  return nsBlock.includes('!shouldPreserveCandidates');
 });
 
 test('T134 — Phase 1D suppression log for grounding pre-exec', () =>
@@ -885,10 +886,10 @@ test('T141 — REGRESSION: candidate frame preserved across follow-up reference 
   // a. existingTxResolution read + hasExistingCandidates flag
   const hasRead = chat.includes('existingTxResolution = await readTxResolution');
   const hasFlag = chat.includes('const hasExistingCandidates');
-  // b. pre-exec gate
-  const hasPreExecGate = chat.includes("hasExistingCandidates && plan.toolName === 'tx_search'");
-  // c. forced tx_search gate
-  const hasForcedGate = chat.includes('!hasExistingCandidates');
+  // b. pre-exec gate (uses shouldPreserveCandidates since Phase 1D new-search fix)
+  const hasPreExecGate = chat.includes("shouldPreserveCandidates && plan.toolName === 'tx_search'");
+  // c. forced tx_search gate (uses shouldPreserveCandidates since Phase 1D new-search fix)
+  const hasForcedGate = chat.includes('!shouldPreserveCandidates');
   // d. candidate injection
   const hasInjection = chat.includes('ACTIVE TRANSACTION CANDIDATES');
   // e. select_transaction still works (uses readTxResolution from DB, not new search)
@@ -1065,6 +1066,125 @@ test('T153 — declaration indent level matches or is shallower than all referen
   if (declLine === -1) { console.error('  declaration not found'); return false; }
   if (violations.length > 0) {
     for (const v of violations) console.error(`  scope violation: ${v}`);
+    return false;
+  }
+  return true;
+});
+
+// ============================================================
+// PHASE 1D NEW-SEARCH VS FOLLOW-UP TESTS (T154–T164)
+// ============================================================
+
+// T154 — shouldPreserveCandidates is derived in chat.ts
+test('T154: shouldPreserveCandidates derived from hasExistingCandidates && !isNewGroundedSearch', () => {
+  return /const\s+shouldPreserveCandidates\s*=\s*hasExistingCandidates\s*&&\s*!isNewGroundedSearch/.test(chat);
+});
+
+// T155 — isNewGroundedSearch uses classifyFinancialQuery
+test('T155: isNewGroundedSearch uses classifyFinancialQuery for early classification', () => {
+  return /isNewGroundedSearch/.test(chat) &&
+    /classifyFinancialQuery\(masked\)/.test(chat) &&
+    /earlyClassification\.requiresGrounding\s*===\s*true/.test(chat);
+});
+
+// T156 — streaming forced tx_search gate uses shouldPreserveCandidates (not hasExistingCandidates)
+test('T156: streaming forced tx_search gate uses !shouldPreserveCandidates', () => {
+  // Find the streaming forced tx_search block — it has forced_tx_search_ and no "as any"
+  const streamingBlock = chat.match(/!shouldPreserveCandidates\s*\)\s*\{[\s\S]*?forced_tx_search_[\s\S]*?\}\s*\} else if \(shouldPreserveCandidates && toolCalls\.length === 0/);
+  if (!streamingBlock) { console.error('  streaming forced tx_search block not found with shouldPreserveCandidates'); return false; }
+  return true;
+});
+
+// T157 — non-streaming forced tx_search gate uses shouldPreserveCandidates
+test('T157: non-streaming forced tx_search gate uses !shouldPreserveCandidates', () => {
+  // The non-streaming block has "as any" cast on toolCalls
+  const nonStreamBlock = chat.match(/!shouldPreserveCandidates\s*\)\s*\{[\s\S]*?forced_tx_search_[\s\S]*?as any[\s\S]*?\} else if \(shouldPreserveCandidates && toolCalls\.length === 0/);
+  if (!nonStreamBlock) { console.error('  non-streaming forced tx_search block not found with shouldPreserveCandidates'); return false; }
+  return true;
+});
+
+// T158 — grounding pre-exec gate uses shouldPreserveCandidates
+test('T158: phase1dSuppressed uses shouldPreserveCandidates (not hasExistingCandidates)', () => {
+  return /const\s+phase1dSuppressed\s*=\s*shouldPreserveCandidates\s*&&\s*plan\.toolName\s*===\s*'tx_search'/.test(chat);
+});
+
+// T159 — candidate injection still uses hasExistingCandidates (not shouldPreserveCandidates)
+test('T159: candidate injection uses hasExistingCandidates (always inject, even for new searches)', () => {
+  // The candidate injection block: if (hasExistingCandidates && existingTxResolution)
+  return /if\s*\(hasExistingCandidates\s*&&\s*existingTxResolution\)/.test(chat);
+});
+
+// T160 — no gate uses bare hasExistingCandidates where shouldPreserveCandidates should be used
+test('T160: no forced-tx or pre-exec gate uses bare hasExistingCandidates', () => {
+  // After declarations, hasExistingCandidates should only appear in:
+  //   1. the declaration itself
+  //   2. isNewGroundedSearch derivation block
+  //   3. shouldPreserveCandidates derivation
+  //   4. candidate injection (line with existingTxResolution)
+  // It should NOT appear in forced_tx_search or phase1dSuppressed contexts
+  const violations: string[] = [];
+  const lines = chat.split('\n');
+  let pastDeclarations = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/const\s+shouldPreserveCandidates/.test(line)) { pastDeclarations = true; continue; }
+    if (!pastDeclarations) continue;
+    if (/hasExistingCandidates/.test(line)) {
+      // Allow: candidate injection (with existingTxResolution on same line)
+      if (/existingTxResolution/.test(line)) continue;
+      // Allow: comments
+      if (/^\s*\/\//.test(line)) continue;
+      violations.push(`line ${i + 1}: ${line.trim().slice(0, 80)}`);
+    }
+  }
+  if (violations.length > 0) {
+    for (const v of violations) console.error(`  bare hasExistingCandidates: ${v}`);
+    return false;
+  }
+  return true;
+});
+
+// ── Classifier behavior tests ──
+
+// T161 — "find my Starbucks purchases" requires grounding (merchant + plural noun)
+test('T161: classifier: "find my Starbucks purchases" requires grounding', () => {
+  const r = classifyFinancialQuery('find my Starbucks purchases');
+  if (!r.requiresGrounding) { console.error(`  requiresGrounding=${r.requiresGrounding}, expected true`); return false; }
+  if (r.queryType !== 'merchant') { console.error(`  queryType=${r.queryType}, expected merchant`); return false; }
+  return true;
+});
+
+// T162 — "show me my Walmart transactions" requires grounding (new search)
+test('T162: classifier: "show me my Walmart transactions" requires grounding', () => {
+  const r = classifyFinancialQuery('show me my Walmart transactions');
+  if (!r.requiresGrounding) { console.error(`  requiresGrounding=${r.requiresGrounding}`); return false; }
+  return true;
+});
+
+// T163 — "Now show me my Walmart transactions" requires grounding (new search)
+test('T163: classifier: "Now show me my Walmart transactions" requires grounding', () => {
+  const r = classifyFinancialQuery('Now show me my Walmart transactions');
+  if (!r.requiresGrounding) { console.error(`  requiresGrounding=${r.requiresGrounding}`); return false; }
+  return true;
+});
+
+// T164 — follow-up references do NOT require grounding
+test('T164: classifier: follow-up phrases do not require grounding', () => {
+  const followUps = [
+    'tell me more about that one',
+    'what about the second one',
+    'which one was the largest',
+    'can you select number 3',
+  ];
+  const failures: string[] = [];
+  for (const phrase of followUps) {
+    const r = classifyFinancialQuery(phrase);
+    if (r.requiresGrounding) {
+      failures.push(`"${phrase}" → requiresGrounding=true (expected false)`);
+    }
+  }
+  if (failures.length > 0) {
+    for (const f of failures) console.error(`  ${f}`);
     return false;
   }
   return true;
