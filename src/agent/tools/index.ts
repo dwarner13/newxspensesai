@@ -731,7 +731,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['select_transaction', {
     id: 'select_transaction',
-    description: 'Select a specific transaction from the current search results by position number (1-based). Use this when the user refers to a transaction from the last tx_search results by ordinal ("the second one", "that last Costco", "the largest one"). Provide the candidateNumber corresponding to the position in the results. The server resolves the exact transaction identity — do NOT pass a transaction ID.',
+    description: 'Select a specific transaction from the current search results by position number (1-based). You MUST call this tool whenever you identify which specific transaction the user is referring to — whether by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination/correction ("no, the other one"). Provide the candidateNumber corresponding to the position in your most recent tx_search results. Call select_transaction BEFORE providing your detailed answer about the transaction. The server resolves the exact transaction identity — do NOT pass a transaction ID.',
     inputSchema: selectTransaction.inputSchema,
     outputSchema: selectTransaction.outputSchema,
     run: selectTransaction.execute,

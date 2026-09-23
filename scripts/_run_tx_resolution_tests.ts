@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Layer 2 Phase 1 — TransactionResolutionContext regression tests.
+ * Layer 2 Phase 1 + 1B — TransactionResolutionContext regression tests.
  *
  * Tests verify code structure (AST-level grep) for:
  *   - candidate persistence from tx_search
@@ -9,6 +9,7 @@
  *   - TTL enforcement
  *   - existing context preservation
  *   - cold-start recovery
+ *   - Phase 1B: selection protocol, do-not-re-search, false-zero isolation
  *
  * Run: npx tsx scripts/_run_tx_resolution_tests.ts
  */
@@ -22,9 +23,11 @@ const __dirname = path.dirname(__filename);
 const CHAT_PATH = path.resolve(__dirname, '../netlify/functions/chat.ts');
 const TOOL_INDEX_PATH = path.resolve(__dirname, '../src/agent/tools/index.ts');
 const SELECT_TX_PATH = path.resolve(__dirname, '../src/agent/tools/impl/select_transaction.ts');
+const GROUNDING_PATH = path.resolve(__dirname, '../src/shared/financial-grounding.ts');
 
 const chat = fs.readFileSync(CHAT_PATH, 'utf8');
 const toolIndex = fs.readFileSync(TOOL_INDEX_PATH, 'utf8');
+const grounding = fs.readFileSync(GROUNDING_PATH, 'utf8');
 
 let passed = 0;
 let failed = 0;
@@ -195,12 +198,12 @@ test('T26 — persistTxResolutionFromSearchResult called at non-streaming tx_sea
 test('T27 — persistTxResolutionFromSearchResult called at tool-loop tx_search site', () =>
   chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, result).catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):'"));
 
-test('T28 — persistTxResolutionFromSearchResult called at false-zero retry site', () =>
-  chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, retryResult).catch(e => console.warn('[Chat] TxResolution persist error (retry):'"));
+test('T28 — false-zero retry does NOT call persistTxResolutionFromSearchResult (Phase 1B)', () =>
+  !chat.includes("persistTxResolutionFromSearchResult(sb, finalSessionId, userId, retryResult)"));
 
-test('T29 — all persist calls are fire-and-forget (.catch)', () => {
+test('T29 — all persist calls are fire-and-forget (.catch) — 5 sites (retry excluded)', () => {
   const calls = chat.match(/persistTxResolutionFromSearchResult\([^)]+\)\.catch/g) || [];
-  return calls.length === 6;
+  return calls.length === 5;
 });
 
 // ── select_transaction tool ──
@@ -551,6 +554,118 @@ test('T82 — candidate cap and schema max are aligned (both 200)', () => {
   const capMax200 = fnBody.includes('TX_SEARCH_MAX_RESULTS = 200');
   return schemaMax200 && capMax200;
 });
+
+// ── Phase 1B: select_transaction tool description covers all reference types ──
+
+test('T83 — tool description requires selection for ordinal reference', () =>
+  toolIndex.includes('by ordinal ("the second one")'));
+
+test('T84 — tool description requires selection for name reference', () =>
+  toolIndex.includes('by name ("the Costco gas one")'));
+
+test('T85 — tool description requires selection for attribute reference', () =>
+  toolIndex.includes('by attribute ("the largest one")'));
+
+test('T86 — tool description requires selection for context reference', () =>
+  toolIndex.includes('by conversational context ("the one we just talked about")'));
+
+test('T87 — tool description requires selection for elimination/correction reference', () =>
+  toolIndex.includes('by elimination/correction ("no, the other one")'));
+
+test('T88 — tool description says MUST call (not optional)', () =>
+  toolIndex.includes('You MUST call this tool whenever'));
+
+test('T89 — tool description says call BEFORE answering', () =>
+  toolIndex.includes('Call select_transaction BEFORE providing your detailed answer'));
+
+test('T90 — select_transaction remains 1-based in description', () =>
+  toolIndex.includes('position number (1-based)'));
+
+// ── Phase 1B: TRANSACTION SELECTION PROTOCOL in Prime system messages ──
+
+test('T91 — TRANSACTION SELECTION PROTOCOL injected for Prime', () =>
+  chat.includes('TRANSACTION SELECTION PROTOCOL:'));
+
+test('T92 — protocol requires MUST call select_transaction', () => {
+  const protocolIdx = chat.indexOf('TRANSACTION SELECTION PROTOCOL:');
+  if (protocolIdx < 0) return false;
+  const block = chat.substring(protocolIdx, protocolIdx + 800);
+  return block.includes('you MUST call select_transaction({ candidateNumber })');
+});
+
+test('T93 — protocol covers ordinal, name, attribute, context, elimination', () => {
+  const protocolIdx = chat.indexOf('TRANSACTION SELECTION PROTOCOL:');
+  if (protocolIdx < 0) return false;
+  const block = chat.substring(protocolIdx, protocolIdx + 800);
+  return block.includes('by ordinal') && block.includes('by name')
+    && block.includes('by attribute') && block.includes('by conversational context')
+    && block.includes('by elimination');
+});
+
+test('T94 — protocol requires selection even when answer known from history', () => {
+  const protocolIdx = chat.indexOf('TRANSACTION SELECTION PROTOCOL:');
+  if (protocolIdx < 0) return false;
+  const block = chat.substring(protocolIdx, protocolIdx + 800);
+  return block.includes('even if you already know which transaction the user means');
+});
+
+test('T95 — protocol requires selection BEFORE answering', () => {
+  const protocolIdx = chat.indexOf('TRANSACTION SELECTION PROTOCOL:');
+  if (protocolIdx < 0) return false;
+  const block = chat.substring(protocolIdx, protocolIdx + 800);
+  return block.includes('BEFORE you answer about that transaction');
+});
+
+// ── Phase 1B: Do-not-re-search directive in evidence message ──
+
+test('T96 — financial-grounding adds do-not-re-search directive for tx_search evidence', () =>
+  grounding.includes("Do NOT call tx_search for this query"));
+
+test('T97 — do-not-re-search is unconditional (not gated on resolvedCategory)', () => {
+  // The directive must be inside a `if (toolName === 'tx_search')` block,
+  // NOT inside the `if (classification.resolvedCategory)` block.
+  const resolvedCatIdx = grounding.indexOf("if (classification.resolvedCategory)");
+  const doNotResearchIdx = grounding.indexOf("Do NOT call tx_search for this query");
+  if (resolvedCatIdx < 0 || doNotResearchIdx < 0) return false;
+  // The do-not-re-search must appear AFTER the resolvedCategory block closes
+  return doNotResearchIdx > resolvedCatIdx;
+});
+
+test('T98 — do-not-re-search allows different queries', () =>
+  grounding.includes('You may call tx_search only if the user asks a DIFFERENT question'));
+
+test('T99 — do-not-re-search says data is authoritative', () =>
+  grounding.includes('the data is authoritative'));
+
+// ── Phase 1B: False-zero retry does not replace candidates ──
+
+test('T100 — false-zero retry still updates Layer 1 in-memory cache', () => {
+  // updateAuthoritativeSelectedTxFromSearchResult should still be called at retry
+  const retryComment = chat.indexOf('false-zero retry tx_search');
+  if (retryComment < 0) return false;
+  const nearby = chat.substring(retryComment, retryComment + 500);
+  return nearby.includes('updateAuthoritativeSelectedTxFromSearchResult');
+});
+
+test('T101 — false-zero retry does NOT persist to Layer 2 DB candidates', () => {
+  const retryComment = chat.indexOf('false-zero retry tx_search');
+  if (retryComment < 0) return false;
+  const nearby = chat.substring(retryComment, retryComment + 300);
+  return !nearby.includes('persistTxResolutionFromSearchResult');
+});
+
+test('T102 — false-zero retry comment explains why candidates are not replaced', () => {
+  const retryComment = chat.indexOf('false-zero retry is a re-verification');
+  return retryComment >= 0;
+});
+
+// ── Phase 1B: Layer 1 mutation safety unchanged ──
+
+test('T103 — buildVerifiedConfirmationSummary not modified (still references transaction)', () =>
+  chat.includes('function buildVerifiedConfirmationSummary'));
+
+test('T104 — createPendingConfirmation still imported and used', () =>
+  chat.includes('createPendingConfirmation') && chat.includes('confirmation_required'));
 
 // ============================================================
 console.log(`============================================================`);

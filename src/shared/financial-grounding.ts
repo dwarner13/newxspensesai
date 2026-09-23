@@ -365,5 +365,14 @@ export function buildEvidenceSystemMessage(
     lines.push('NEVER claim zero unless queryStatus is verified_zero.');
   }
 
+  // ── Do-not-re-search directive (unconditional) ──
+  // Prevents the model from calling tx_search again for the same query after
+  // pre-exec has already provided authoritative evidence. Applied regardless
+  // of resolvedCategory so merchant queries (e.g. "Costco") are covered.
+  if (toolName === 'tx_search') {
+    lines.push('');
+    lines.push('You already have verified transaction data above. Do NOT call tx_search for this query — the data is authoritative. You may call tx_search only if the user asks a DIFFERENT question requiring different search parameters.');
+  }
+
   return lines.join('\n');
 }

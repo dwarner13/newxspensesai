@@ -9837,6 +9837,14 @@ PRIME FINANCIAL GROUNDING CONTRACT:
         systemMessages.push({ role: 'system', content: PRIME_ORCHESTRATION_RULE });
       }
 
+      // ── TRANSACTION SELECTION PROTOCOL ──
+      // Ensures structured tx_resolution state stays in sync with the model's
+      // language-level understanding of which transaction the user means.
+      systemMessages.push({
+        role: 'system',
+        content: 'TRANSACTION SELECTION PROTOCOL: After any tx_search returns results, those results become the active candidate set numbered [1], [2], [3], etc. When the user refers to a specific transaction from those results — by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination ("no, the other one") — you MUST call select_transaction({ candidateNumber }) to lock in the selection BEFORE you answer about that transaction. This is required even if you already know which transaction the user means from conversation history.',
+      });
+
       // Inject temporal context for ALL Prime requests (not gated on effectivePrimeContext).
       // Uses trusted server time + stored user timezone from profile.
       if (!effectivePrimeContext) {
@@ -12882,9 +12890,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 };
 
                 // Capture authoritative transaction identity from false-zero retry tx_search
+                // NOTE: Layer 1 in-memory cache is updated, but Layer 2 DB candidates
+                // are NOT replaced — false-zero retry is a re-verification, not a new
+                // user-initiated search, so it must not overwrite conversational candidates.
                 if (plan.toolName === 'tx_search' && finalSessionId) {
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, retryResult);
-                  persistTxResolutionFromSearchResult(sb, finalSessionId, userId, retryResult).catch(e => console.warn('[Chat] TxResolution persist error (retry):', e?.message));
                 }
 
                 const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification);
