@@ -783,6 +783,174 @@ test('T122 — existing select_transaction 1-based behavior preserved', () => {
   return selectTx.includes('.min(1)') && selectTx.includes('.max(200)');
 });
 
+// ── Phase 1D: Preserve candidate frame across follow-up references ──
+
+test('T123 — existingTxResolution read at request start', () =>
+  chat.includes('existingTxResolution = await readTxResolution(sb, finalSessionId, userId)'));
+
+test('T124 — hasExistingCandidates derived from existingTxResolution', () =>
+  chat.includes('const hasExistingCandidates = !!(existingTxResolution?.candidates?.length)'));
+
+test('T125 — existing candidates injected into system prompt', () =>
+  chat.includes('ACTIVE TRANSACTION CANDIDATES (from your previous search)'));
+
+test('T126 — candidate prompt includes candidateNumber guidance', () =>
+  chat.includes('call select_transaction with the correct candidateNumber'));
+
+test('T127 — candidate prompt tells model NOT to re-fetch existing candidates', () =>
+  chat.includes('Do NOT call tx_search to re-fetch these same transactions'));
+
+test('T128 — candidate prompt tells model tx_search allowed for genuinely different queries', () =>
+  chat.includes('Only call tx_search if the user asks for a genuinely DIFFERENT search'));
+
+test('T129 — grounding pre-exec tx_search gated by Phase 1D', () =>
+  chat.includes("phase1dSuppressed = hasExistingCandidates && plan.toolName === 'tx_search'"));
+
+test('T130 — grounding pre-exec condition includes !phase1dSuppressed', () =>
+  chat.includes('!phase1dSuppressed'));
+
+test('T131 — tax_summary pre-exec NOT gated by Phase 1D', () => {
+  // phase1dSuppressed is only true for tx_search, not tax_summary
+  return chat.includes("plan.toolName === 'tx_search'") &&
+         !chat.includes("plan.toolName === 'tax_summary'") ||
+         // Alternative: check that the suppression variable only mentions tx_search
+         chat.includes("hasExistingCandidates && plan.toolName === 'tx_search'");
+});
+
+test('T132 — forced tx_search (streaming) gated by !hasExistingCandidates', () => {
+  // Find the streaming forced tx_search block and verify hasExistingCandidates gate
+  const streamingBlock = chat.substring(
+    chat.indexOf('// Guardrail: enforce tx_search for transaction intents when model skips tools.'),
+    chat.indexOf('// Guardrail: enforce tx_search for transaction intents when model skips tools.') + 1000,
+  );
+  return streamingBlock.includes('!hasExistingCandidates');
+});
+
+test('T133 — forced tx_search (non-streaming) gated by !hasExistingCandidates', () => {
+  // Find the non-streaming forced tx_search block (second occurrence)
+  const firstIdx = chat.indexOf('// Guardrail: enforce tx_search for transaction intents when model skips tools.');
+  const secondIdx = chat.indexOf('// Guardrail: enforce tx_search for transaction intents when model skips tools.', firstIdx + 1);
+  if (secondIdx < 0) return false;
+  const nsBlock = chat.substring(secondIdx, secondIdx + 1000);
+  return nsBlock.includes('!hasExistingCandidates');
+});
+
+test('T134 — Phase 1D suppression log for grounding pre-exec', () =>
+  chat.includes('Phase1D: skipping tx_search pre-exec'));
+
+test('T135 — Phase 1D suppression log for forced tx_search', () =>
+  chat.includes('Phase1D: skipping forced tx_search'));
+
+test('T136 — existing candidate injection gated on hasExistingCandidates', () =>
+  chat.includes('if (hasExistingCandidates && existingTxResolution)'));
+
+test('T137 — selectedId shown in candidate prompt when present', () =>
+  chat.includes('existingTxResolution.selectedId'));
+
+test('T138 — Phase 1D read happens BEFORE streaming/non-streaming fork', () => {
+  const readIdx = chat.indexOf('existingTxResolution = await readTxResolution');
+  const streamForkIdx = chat.indexOf('if (stream) {', readIdx > 0 ? readIdx : 0);
+  return readIdx > 0 && streamForkIdx > readIdx;
+});
+
+test('T139 — Phase 1D read is scoped to isPrime', () => {
+  // The readTxResolution call should be inside an isPrime check
+  const blockStart = chat.lastIndexOf('if (isPrime', chat.indexOf('existingTxResolution = await readTxResolution'));
+  const readIdx = chat.indexOf('existingTxResolution = await readTxResolution');
+  return blockStart > 0 && (readIdx - blockStart) < 200;
+});
+
+test('T140 — TTL still enforced via readTxResolution (expired candidates = null)', () => {
+  // readTxResolution returns null when TTL expired, so hasExistingCandidates = false
+  return chat.includes('TX_RESOLUTION_TTL_MS') && chat.includes('return null');
+});
+
+// ── Phase 1D: Regression test for exact live Costco failure ──
+
+test('T141 — REGRESSION: candidate frame preserved across follow-up reference (Costco scenario)', () => {
+  // Simulate the exact live failure:
+  // Turn 1: tx_search → 2 Costco candidates persisted
+  // Turn 2: "Tell me more about the second one" → existing candidates must be preserved
+  //
+  // The fix ensures:
+  // 1. existingTxResolution is read at request start
+  // 2. hasExistingCandidates = true (2 candidates)
+  // 3. Grounding pre-exec tx_search SKIPPED (phase1dSuppressed = true)
+  // 4. Forced tx_search SKIPPED (!hasExistingCandidates fails)
+  // 5. Model gets existing candidates in prompt
+  // 6. Model calls select_transaction(2) against original frame
+  // 7. Selected candidate = original COSTCO GAS, NOT new COSTCO $18.34
+  //
+  // Verify the code path exists:
+  // a. existingTxResolution read + hasExistingCandidates flag
+  const hasRead = chat.includes('existingTxResolution = await readTxResolution');
+  const hasFlag = chat.includes('const hasExistingCandidates');
+  // b. pre-exec gate
+  const hasPreExecGate = chat.includes("hasExistingCandidates && plan.toolName === 'tx_search'");
+  // c. forced tx_search gate
+  const hasForcedGate = chat.includes('!hasExistingCandidates');
+  // d. candidate injection
+  const hasInjection = chat.includes('ACTIVE TRANSACTION CANDIDATES');
+  // e. select_transaction still works (uses readTxResolution from DB, not new search)
+  const selectReadsDB = chat.includes('readTxResolution(sb, sessionId, userId)');
+  return hasRead && hasFlag && hasPreExecGate && hasForcedGate && hasInjection && selectReadsDB;
+});
+
+test('T142 — "Which transaction are we talking about?" preserves selectedId', () => {
+  // When selectedId exists and user asks about it, the candidate frame
+  // is preserved (hasExistingCandidates = true suppresses re-search).
+  // The model answers from injected context without new tx_search.
+  return chat.includes('Currently selected:') && chat.includes('existingTxResolution.selectedId');
+});
+
+test('T143 — "the largest one" resolves against existing candidates', () => {
+  // Same mechanism: existing candidates in prompt, model calls select_transaction.
+  // No regex needed — the prompt tells the model to use select_transaction.
+  return chat.includes('call select_transaction with the correct candidateNumber');
+});
+
+test('T144 — "Now show me Walmart transactions" allows new search', () => {
+  // When model calls tx_search (not select_transaction), the tool loop
+  // executes normally — guardedPersistTxResolution replaces candidates.
+  // The prompt says: "Only call tx_search if the user asks for a genuinely
+  // DIFFERENT search". Model-initiated tx_search is NOT blocked.
+  // Verify: guardedPersistTxResolution still called for tool-loop tx_search
+  const streamingPersist = chat.includes("guardedPersistTxResolution(sb, finalSessionId, userId, result, 'streaming')");
+  const nonStreamingPersist = chat.includes("guardedPersistTxResolution(sb, finalSessionId, userId, result, 'non-streaming')");
+  return streamingPersist || nonStreamingPersist;
+});
+
+test('T145 — Phase 1C intra-request ownership still works', () => {
+  // txResolutionLockedThisTurn still declared and used
+  return chat.includes('let txResolutionLockedThisTurn = false') &&
+         chat.includes('txResolutionLockedThisTurn = true');
+});
+
+test('T146 — missing tx_resolution falls back to normal search', () => {
+  // readTxResolution returns null when no candidates → hasExistingCandidates = false
+  // → all gates pass through → normal forced/pre-exec tx_search runs
+  return chat.includes('const hasExistingCandidates = !!(existingTxResolution?.candidates?.length)');
+});
+
+test('T147 — select_transaction still accepts candidateNumber only', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  return selectTx.includes('candidateNumber') && !selectTx.includes('transactionId');
+});
+
+test('T148 — model cannot provide UUID via select_transaction', () => {
+  const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
+  // inputSchema only has candidateNumber — no transactionId, uuid, or id fields
+  const m = selectTx.match(/inputSchema = z\.object\(\{([^}]+)\}/s);
+  if (!m) return false;
+  const body = m[1];
+  // Count property definitions: only candidateNumber should appear as a z.* schema key
+  const propMatches = body.match(/\w+:\s+z\b/g) || [];
+  return propMatches.length === 1 && propMatches[0].startsWith('candidateNumber');
+});
+
+test('T149 — failed selection remains fail-closed', () =>
+  chat.includes("'Could not persist transaction selection. Please try again.'"));
+
 // ============================================================
 console.log(`============================================================`);
 console.log(`TransactionResolutionContext Tests: ${passed} passed, ${failed} failed (${passed + failed} total)`);

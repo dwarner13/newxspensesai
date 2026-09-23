@@ -9845,6 +9845,32 @@ PRIME FINANCIAL GROUNDING CONTRACT:
         content: 'TRANSACTION SELECTION PROTOCOL: After any tx_search returns results, those results become the active candidate set numbered [1], [2], [3], etc. When the user refers to a specific transaction from those results — by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination ("no, the other one") — you MUST call select_transaction({ candidateNumber }) to lock in the selection BEFORE you answer about that transaction. This is required even if you already know which transaction the user means from conversation history.',
       });
 
+      // ── Phase 1D: Inject existing candidate frame ──
+      // When persisted candidates exist from a previous turn, inject them so the
+      // model can call select_transaction directly for follow-up references
+      // WITHOUT needing a new tx_search. The model decides: select_transaction
+      // for follow-ups, tx_search for genuinely new searches.
+      if (hasExistingCandidates && existingTxResolution) {
+        const cLines: string[] = ['ACTIVE TRANSACTION CANDIDATES (from your previous search):'];
+        for (let i = 0; i < existingTxResolution.candidates.length; i++) {
+          const c = existingTxResolution.candidates[i];
+          const parts: string[] = [];
+          if (c.merchant) parts.push(c.merchant);
+          if (c.amount !== null && c.amount !== undefined) parts.push(`$${Math.abs(c.amount).toFixed(2)}`);
+          if (c.date) parts.push(c.date);
+          if (c.category) parts.push(c.category);
+          cLines.push(`[${i + 1}] ${parts.join(' | ')}`);
+        }
+        if (existingTxResolution.selectedId) {
+          const selIdx = existingTxResolution.selectedIndex;
+          cLines.push(`Currently selected: [${selIdx !== null && selIdx !== undefined ? selIdx + 1 : '?'}] (ID: ${existingTxResolution.selectedId})`);
+        }
+        cLines.push('');
+        cLines.push('These candidates are already loaded. If the user refers to one of these transactions, call select_transaction with the correct candidateNumber. Do NOT call tx_search to re-fetch these same transactions. Only call tx_search if the user asks for a genuinely DIFFERENT search (different merchant, different date range, different query).');
+        systemMessages.push({ role: 'system', content: cLines.join('\n') });
+        console.log(`[Chat] Phase1D: injected ${existingTxResolution.candidates.length} existing candidates into prompt`);
+      }
+
       // Inject temporal context for ALL Prime requests (not gated on effectivePrimeContext).
       // Uses trusted server time + stored user timezone from profile.
       if (!effectivePrimeContext) {
@@ -10437,6 +10463,23 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       console.log(`[Chat] TxResolution: candidates established (source=${source}), ownership locked for this request`);
     }
 
+    // ── Layer 2 Phase 1D: Preserve candidate frame across follow-up references ──
+    // Read persisted tx_resolution ONCE at request start. When candidates exist,
+    // grounding pre-exec and forced tx_search are suppressed — the model decides
+    // whether to call select_transaction (follow-up) or tx_search (new search).
+    let existingTxResolution: TxResolutionContext | null = null;
+    if (isPrime && finalSessionId) {
+      try {
+        existingTxResolution = await readTxResolution(sb, finalSessionId, userId);
+        if (existingTxResolution?.candidates?.length) {
+          console.log(`[Chat] Phase1D: existing tx_resolution found — ${existingTxResolution.candidates.length} candidates, selectedId=${existingTxResolution.selectedId || 'none'}`);
+        }
+      } catch (e: any) {
+        console.warn('[Chat] Phase1D: readTxResolution failed (non-fatal):', e?.message);
+      }
+    }
+    const hasExistingCandidates = !!(existingTxResolution?.candidates?.length);
+
     if (stream) {
       setStage('model_streaming');
       // Streaming response (SSE) with tool support
@@ -10654,13 +10697,16 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         }
 
       // Guardrail: enforce tx_search for transaction intents when model skips tools.
+      // Phase 1D: Skip when existing candidates exist — the model has them in context
+      // and can call select_transaction for follow-ups or tx_search for new queries.
       if (
         toolsAllowedThisTurn &&
         toolCalls.length === 0 &&
         finalSessionId &&
         txSearchAvailable &&
         isTransactionQuestionForTxSearch(masked) &&
-        toolModules['tx_search']
+        toolModules['tx_search'] &&
+        !hasExistingCandidates
       ) {
         const forcedArgs: Record<string, any> = {
           limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -10680,6 +10726,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             assistantContent = 'I need to search your transactions first.';
           }
         }
+      } else if (hasExistingCandidates && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
+        console.log(`[Chat] Phase1D: skipping forced tx_search (streaming) — existing candidates preserved`);
       }
 
       // Handle tool calls if any
@@ -11853,7 +11901,16 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             } else {
               // Pre-execute the right tool
               const plan = buildPreExecutionPlan(financialClassification, contextYear);
-              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName]) {
+              // ── Phase 1D gate: skip tx_search pre-exec when existing candidates exist ──
+              // Existing candidates represent the user's conversational reference frame.
+              // A grounding pre-exec tx_search would replace them before the model gets
+              // a chance to call select_transaction for follow-up references.
+              // tax_summary pre-exec is still allowed (it doesn't affect candidates).
+              const phase1dSuppressed = hasExistingCandidates && plan.toolName === 'tx_search';
+              if (phase1dSuppressed) {
+                console.log(`[FinancialGrounding] Phase1D: skipping tx_search pre-exec — ${existingTxResolution!.candidates.length} existing candidates preserved for model selection`);
+              }
+              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed) {
                 console.log(`[FinancialGrounding] pre-executing tool=${plan.toolName} args=${JSON.stringify(plan.toolArgs)}`);
                 try {
                   const toolContext: ToolContext = {
@@ -12164,6 +12221,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         // Guardrail: enforce tx_search for transaction intents when model skips tools.
         // PHASE 2.6 FIX: Skip this guardrail if the Tax Summary gate intentionally stripped tools —
         // we WANT the model to answer from context, not fall back to tx_search.
+        // Phase 1D: Skip when existing candidates exist — model has them in context.
         const taxSummaryGateStrippedTools = (openaiTools === undefined && isPrime && (() => {
           try {
             const pc = (effectivePrimeContext as any) || {};
@@ -12178,7 +12236,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           isTransactionQuestionForTxSearch(masked) &&
           toolModules['tx_search'] &&
           !taxSummaryGateStrippedTools &&
-          !isCategoryChangeIntent(masked)
+          !isCategoryChangeIntent(masked) &&
+          !hasExistingCandidates
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -12198,6 +12257,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               assistantContent = 'I need to search your transactions first.';
             }
           }
+        } else if (hasExistingCandidates && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
+          console.log(`[Chat] Phase1D: skipping forced tx_search (non-streaming) — existing candidates preserved`);
         }
 
         // Handle tool calls if any
