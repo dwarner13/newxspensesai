@@ -9994,6 +9994,17 @@ PRIME FINANCIAL GROUNDING CONTRACT:
         console.log(`[Chat] Phase1D: injected ${existingTxResolution.candidates.length} existing candidates into prompt`);
       }
 
+      // ── P2.2: Current-turn intent isolation ──
+      // When Phase1D detects a new grounded search, tell the model to focus
+      // on the current request and not resume stale actions from history.
+      if (isNewGroundedSearch) {
+        systemMessages.push({
+          role: 'system',
+          content: 'CURRENT-TURN INTENT: The user\'s current message is a new request. Focus on it. Do not resume or retry unfinished actions from previous turns unless the user explicitly asks to continue them (e.g. "try that again", "retry").',
+        });
+        console.log('[Chat] P2.2: injected current-turn isolation directive (new grounded search detected)');
+      }
+
       // Inject temporal context for ALL Prime requests (not gated on effectivePrimeContext).
       // Uses trusted server time + stored user timezone from profile.
       if (!effectivePrimeContext) {
@@ -13603,7 +13614,7 @@ function buildSafeFallbackResponse(stage: string, ctx?: OrchCtx): string {
     ctx.failed_stage = (stage as OrchStage) || ctx.failed_stage;
     ctx.fallback_used = true;
   }
-  return `I hit a delay while preparing your response. Please try again and I'll pick up where I left off.`;
+  return `I wasn't able to complete that request. Could you try again?`;
 }
 
 function ensureAssistantContent(content: string | null | undefined, stage: string, ctx?: OrchCtx): string {
