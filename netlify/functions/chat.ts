@@ -1946,7 +1946,7 @@ async function promoteLayer2SelectedTx(
   try {
     const { data: tx, error } = await sb
       .from('transactions')
-      .select('id, date, description, merchant, merchant_normalized, amount, signed_amount, category')
+      .select('id, date, description, merchant, merchant_name, amount, category')
       .eq('id', selectedId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -1962,8 +1962,8 @@ async function promoteLayer2SelectedTx(
       id: String(tx.id).trim(),
       date: tx.date ?? null,
       description: tx.description ?? tx.merchant ?? null,
-      merchant: tx.merchant ?? tx.merchant_normalized ?? null,
-      amount: typeof tx.amount === 'number' ? tx.amount : (typeof tx.signed_amount === 'number' ? tx.signed_amount : null),
+      merchant: tx.merchant_name ?? tx.merchant ?? null,
+      amount: typeof tx.amount === 'number' ? tx.amount : null,
       current_category: tx.category ?? null,
     };
   } catch (err: any) {

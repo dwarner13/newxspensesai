@@ -522,6 +522,39 @@ test('44: no-select regression — null selectedId produces no promotion', () =>
 });
 
 // ---------------------------------------------------------------------------
+// Layer 2 schema/column regression guard
+// ---------------------------------------------------------------------------
+
+test('45: promoteLayer2SelectedTx does NOT query merchant_normalized (computed, not a DB column)', () => {
+  const helper = extractBlock(CHAT_SRC, 'async function promoteLayer2SelectedTx', 2000);
+  const selectLine = helper.match(/\.select\(['"]([^'"]+)['"]\)/)?.[1] || '';
+  assert(!selectLine.includes('merchant_normalized'), 'merchant_normalized must not be in SELECT');
+});
+
+test('46: promoteLayer2SelectedTx does NOT query signed_amount (computed, not a DB column)', () => {
+  const helper = extractBlock(CHAT_SRC, 'async function promoteLayer2SelectedTx', 2000);
+  const selectLine = helper.match(/\.select\(['"]([^'"]+)['"]\)/)?.[1] || '';
+  assert(!selectLine.includes('signed_amount'), 'signed_amount must not be in SELECT');
+});
+
+test('47: promoteLayer2SelectedTx queries merchant_name (known-working DB column)', () => {
+  const helper = extractBlock(CHAT_SRC, 'async function promoteLayer2SelectedTx', 2000);
+  const selectLine = helper.match(/\.select\(['"]([^'"]+)['"]\)/)?.[1] || '';
+  assert(selectLine.includes('merchant_name'), 'merchant_name must be in SELECT');
+});
+
+test('48: promoteLayer2SelectedTx SELECT columns are subset of buildVerifiedConfirmationSummary columns', () => {
+  // buildVerifiedConfirmationSummary queries: merchant, merchant_name, amount, date, category
+  // promoteLayer2SelectedTx should only use columns that are known to exist
+  const helper = extractBlock(CHAT_SRC, 'async function promoteLayer2SelectedTx', 2000);
+  const selectLine = helper.match(/\.select\(['"]([^'"]+)['"]\)/)?.[1] || '';
+  const cols = selectLine.split(',').map(c => c.trim());
+  const knownGoodCols = ['id', 'date', 'description', 'merchant', 'merchant_name', 'amount', 'category'];
+  const unknown = cols.filter(c => !knownGoodCols.includes(c));
+  assert(unknown.length === 0, `no unknown columns (found: ${unknown.join(', ') || 'none'})`);
+});
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 console.log(`\n${'='.repeat(60)}`);
