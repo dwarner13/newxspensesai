@@ -1389,7 +1389,7 @@ function isTransactionQuestionForTxSearch(message: string): boolean {
 function isCategoryChangeIntent(message: string): boolean {
   const text = String(message || '').toLowerCase();
   if (!text) return false;
-  return /\b(change|recategorize|re-categorize|set)\b.*\b(category|to)\b|\bcategory\b.*\b(change|set|to)\b/.test(text);
+  return /\b(change|recategorize|re-categorize|categorize|move|switch|set)\b.*\b(category|to)\b|\bcategory\b.*\b(change|set|move|switch|to)\b/.test(text);
 }
 
 function isUncategorizedIntent(message: string): boolean {
@@ -11096,7 +11096,16 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               const allowHandoffFromForcedPrime = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
               if ((!userForcedEmployee || allowHandoffFromForcedPrime) && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                 const lifecycleResult = await performHandoffLifecycle(result, 'streaming-initial');
-                if (lifecycleResult) {
+                if (lifecycleResult?.blocked) {
+                  // P2: transaction-specific Tag handoff blocked — feed error back to model
+                  toolResults.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify({ error: lifecycleResult.blockError }),
+                  });
+                  console.log(`[Chat] P2: handoff blocked — injecting tool error and continuing as Prime (streaming-initial)`);
+                  continue;
+                } else if (lifecycleResult) {
                   finalEmployeeSlug = lifecycleResult.targetSlug;
                   employeeTools = lifecycleResult.newEmployeeTools;
                   toolModules = lifecycleResult.newToolModules;
@@ -12193,6 +12202,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           sourceLabel: string,
         ): Promise<{
           success: boolean;
+          blocked?: false;
           targetSlug: string;
           newEmployeeTools: string[];
           newToolModules: Record<string, any>;
@@ -12200,6 +12210,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           handoffType: 'standard' | 'plugin';
           reason: string;
           summary: string | undefined;
+        } | {
+          success: false;
+          blocked: true;
+          blockError: string;
         } | null> {
           const handoffData = handoffResult?.data;
           if (!handoffData || handoffData.requested_handoff !== true || !handoffData.target_slug) {
@@ -12229,6 +12243,16 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           // Precedence: Layer 1 (in-memory, single-result) first, then Layer 2
           // (DB-persisted, conversational selection via select_transaction).
           const isTagTarget = targetSlug === 'tag-ai' || targetSlug === 'tag';
+
+          // ── P2.1: Strip model-supplied transaction identity for Tag handoffs ──
+          // Model-written plugin_payload.transaction is NEVER authoritative.
+          // Force re-derivation through Layer 1 / Layer 2 validation below.
+          if (isTagTarget && pluginPayload?.transaction?.id) {
+            console.log(`[Chat] P2.1: stripping model-supplied plugin_payload.transaction for Tag handoff (${sourceLabel}) — will re-derive from Layer 1/Layer 2`);
+            pluginPayload = null;
+            handoffType = 'standard';
+          }
+
           if (isTagTarget && !pluginPayload && finalSessionId) {
             // Layer 1: ephemeral in-memory cache (single-result tx_search)
             const authTx = readAuthoritativeSelectedTx(finalSessionId);
@@ -12267,6 +12291,23 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   _source: 'layer2_selected_tx',
                 };
                 console.log(`[Chat] Layer2 promoted → plugin handoff with selected tx: ${layer2Tx.id} (${sourceLabel})`);
+              }
+            }
+
+            // ── P2: Transaction-specific Tag handoff pre-gate ──
+            // If both Layer 1 and Layer 2 failed to produce identity, check whether
+            // this handoff is transaction-specific (category mutation). If so, block
+            // it — Tag cannot mutate without authoritative identity.
+            // General advisory handoffs (no mutation intent) remain allowed.
+            if (!pluginPayload) {
+              const isTxSpecific = isCategoryChangeIntent(masked);
+              if (isTxSpecific) {
+                console.warn(`[Chat] P2: Tag handoff BLOCKED (${sourceLabel}) — category change intent but no authoritative transaction identity (Layer 1 miss, Layer 2 miss)`);
+                return {
+                  success: false,
+                  blocked: true,
+                  blockError: 'Transaction identity required for category changes. Use select_transaction to choose which transaction to modify, then retry the handoff to Tag.',
+                };
               }
             }
           }
@@ -12634,7 +12675,16 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               const allowHandoffFromForcedPrime = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
               if ((!userForcedEmployee || allowHandoffFromForcedPrime) && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                 const lifecycleResult = await performHandoffLifecycle(result, 'non-streaming-initial');
-                if (lifecycleResult) {
+                if (lifecycleResult?.blocked) {
+                  // P2: transaction-specific Tag handoff blocked — feed error back to model
+                  toolResults.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify({ error: lifecycleResult.blockError }),
+                  });
+                  console.log(`[Chat] P2: handoff blocked — injecting tool error and continuing as Prime (non-streaming-initial)`);
+                  continue;
+                } else if (lifecycleResult) {
                   finalEmployeeSlug = lifecycleResult.targetSlug;
                   employeeTools = lifecycleResult.newEmployeeTools;
                   toolModules = lifecycleResult.newToolModules;
@@ -12648,7 +12698,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   };
                 }
               }
-              
+
               // executeTool handles Result unwrapping and returns the validated output directly
               toolResults.push({
                 role: 'tool',
@@ -12985,7 +13035,16 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   const allowHandoffFromForcedPrimeLoop = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
                   if (!userForcedEmployee || allowHandoffFromForcedPrimeLoop) {
                     const lifecycleResult = await performHandoffLifecycle(result, `non-streaming-tool-loop-r${toolRound}`);
-                    if (lifecycleResult) {
+                    if (lifecycleResult?.blocked) {
+                      // P2: transaction-specific Tag handoff blocked — feed error back to model
+                      currentToolResults.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify({ error: lifecycleResult.blockError }),
+                      });
+                      console.log(`[Chat] P2: handoff blocked — injecting tool error and continuing as Prime (tool-loop-r${toolRound})`);
+                      continue;
+                    } else if (lifecycleResult) {
                       finalEmployeeSlug = lifecycleResult.targetSlug;
                       employeeTools = lifecycleResult.newEmployeeTools;
                       toolModules = lifecycleResult.newToolModules;

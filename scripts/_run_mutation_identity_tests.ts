@@ -282,7 +282,7 @@ test('19: read-only tools bypass mutation identity gate', () => {
 // ---------------------------------------------------------------------------
 
 test('20: non-Tag handoffs unaffected by auto-promotion', () => {
-  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 1200);
+  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 1800);
   assert(autoPromote.includes('isTagTarget'), 'auto-promotion only for Tag');
   // isTagTarget is defined right before
   assert(CHAT_SRC.includes("const isTagTarget = targetSlug === 'tag-ai' || targetSlug === 'tag'"), 'isTagTarget narrowly defined');
@@ -435,7 +435,7 @@ test('34: challenge message does not bypass gate (tool-level defense)', () => {
 // ---------------------------------------------------------------------------
 
 test('35: auto-promotion injects exact UUID, not description/amount', () => {
-  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 1200);
+  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 1800);
   assert(autoPromote.includes('id: authTx.id'), 'injects exact UUID');
   // Also carries description, amount, date for context — but id is the authoritative identity
   assert(autoPromote.includes('description: authTx.description'), 'carries description');
