@@ -1191,6 +1191,172 @@ test('T164: classifier: follow-up phrases do not require grounding', () => {
 });
 
 // ============================================================
+// PHASE 2 — LAYER 2 → TAG HANDOFF BRIDGE TESTS (T165–T185)
+// ============================================================
+
+// ── Part 1: promoteLayer2SelectedTx structural tests ──
+
+test('T165: promoteLayer2SelectedTx function exists', () => {
+  return /async function promoteLayer2SelectedTx\(/.test(chat);
+});
+
+test('T166: promoteLayer2SelectedTx reads from readTxResolution (not model/cache)', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 2000);
+  return fnBody.includes('readTxResolution(sb, sessionId, userId)') &&
+    !fnBody.includes('authoritativeSelectedTxCache');
+});
+
+test('T167: promoteLayer2SelectedTx validates selectedId exists', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 2000);
+  return fnBody.includes('selectedId') && fnBody.includes('if (!selectedId)');
+});
+
+test('T168: promoteLayer2SelectedTx validates UUID format', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 2000);
+  return fnBody.includes('UUID_RE.test(selectedId)');
+});
+
+test('T169: promoteLayer2SelectedTx validates candidate membership', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 2000);
+  return fnBody.includes('candidates') && fnBody.includes('c.id === selectedId');
+});
+
+test('T170: promoteLayer2SelectedTx does DB re-fetch with user_id', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 2000);
+  return fnBody.includes("from('transactions')") &&
+    fnBody.includes("eq('id', selectedId)") &&
+    fnBody.includes("eq('user_id', userId)");
+});
+
+test('T171: promoteLayer2SelectedTx returns null on all failure paths', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 2000);
+  // Count return null statements — should have at least 5 (empty params, no txr, no selectedId, bad UUID, not member, DB fail, catch)
+  const nullReturns = (fnBody.match(/return null/g) || []).length;
+  if (nullReturns < 5) { console.error(`  only ${nullReturns} null returns, expected >= 5`); return false; }
+  return true;
+});
+
+test('T172: promoteLayer2SelectedTx returns AuthoritativeSelectedTransaction shape', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 2000);
+  // Must return object with id, date, description, merchant, amount, current_category from DB
+  return fnBody.includes('id:') && fnBody.includes('date:') &&
+    fnBody.includes('description:') && fnBody.includes('amount:') &&
+    fnBody.includes('current_category:');
+});
+
+test('T173: promoteLayer2SelectedTx never accepts model UUID input', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnSig = chat.substring(fnStart, fnStart + 200);
+  // Signature should only take sb, sessionId, userId — no transactionId/uuid param
+  return /promoteLayer2SelectedTx\(\s*sb:\s*any,\s*sessionId:\s*string,\s*userId:\s*string/.test(fnSig) &&
+    !fnSig.includes('transactionId') && !fnSig.includes('uuid');
+});
+
+// ── Part 2: performHandoffLifecycle wiring ──
+
+test('T174: performHandoffLifecycle calls promoteLayer2SelectedTx', () => {
+  const fnStart = chat.indexOf('async function performHandoffLifecycle');
+  const fnBody = chat.substring(fnStart, fnStart + 5000);
+  return fnBody.includes('promoteLayer2SelectedTx(sb, finalSessionId, userId)');
+});
+
+test('T175: Layer 2 promotion only fires when Layer 1 did not produce pluginPayload', () => {
+  const fnStart = chat.indexOf('async function performHandoffLifecycle');
+  const fnBody = chat.substring(fnStart, fnStart + 5000);
+  // Layer 2 block should be inside an if (!pluginPayload) check
+  const layer2Idx = fnBody.indexOf('promoteLayer2SelectedTx');
+  if (layer2Idx < 0) { console.error('  promoteLayer2SelectedTx not found in performHandoffLifecycle'); return false; }
+  const before = fnBody.substring(Math.max(0, layer2Idx - 200), layer2Idx);
+  return before.includes('if (!pluginPayload)');
+});
+
+test('T176: Layer 1 (readAuthoritativeSelectedTx) still checked FIRST', () => {
+  const fnStart = chat.indexOf('async function performHandoffLifecycle');
+  const fnBody = chat.substring(fnStart, fnStart + 5000);
+  const layer1Idx = fnBody.indexOf('readAuthoritativeSelectedTx(finalSessionId)');
+  const layer2Idx = fnBody.indexOf('promoteLayer2SelectedTx');
+  if (layer1Idx < 0 || layer2Idx < 0) { console.error('  missing Layer 1 or Layer 2 in handoff'); return false; }
+  return layer1Idx < layer2Idx;
+});
+
+test('T177: Layer 2 promotion uses _source: "layer2_selected_tx"', () => {
+  return chat.includes("_source: 'layer2_selected_tx'");
+});
+
+test('T178: Layer 2 promotion constructs same plugin_payload shape as Layer 1', () => {
+  const fnStart = chat.indexOf('async function performHandoffLifecycle');
+  const fnBody = chat.substring(fnStart, fnStart + 5000);
+  // Both Layer 1 and Layer 2 blocks should have: transaction: { id, description, amount, date, current_category }
+  const layer2Block = fnBody.substring(fnBody.indexOf('layer2_selected_tx') - 500, fnBody.indexOf('layer2_selected_tx') + 100);
+  return layer2Block.includes('id: layer2Tx.id') &&
+    layer2Block.includes('description: layer2Tx.description') &&
+    layer2Block.includes('requested_action:');
+});
+
+// ── Part 3: Precedence / stale Layer 1 safety ──
+
+test('T179: select_transaction does NOT write to authoritativeSelectedTxCache', () => {
+  const fnStart = chat.indexOf('async function handleSelectTransaction');
+  const fnBody = chat.substring(fnStart, fnStart + 1500);
+  return !fnBody.includes('writeAuthoritativeSelectedTx') &&
+    !fnBody.includes('authoritativeSelectedTxCache');
+});
+
+test('T180: updateAuthoritativeSelectedTxFromSearchResult clears Layer 1 when rows != 1', () => {
+  const fnStart = chat.indexOf('function updateAuthoritativeSelectedTxFromSearchResult');
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  return fnBody.includes('clearAuthoritativeSelectedTx') &&
+    fnBody.includes('rows.length === 1');
+});
+
+test('T181: updateAuthoritativeSelectedTxFromSearchResult called in all tx_search paths', () => {
+  // Should be called 6 times: streaming, specialist, grounding, non-streaming, tool-loop, false-zero
+  const callCount = (chat.match(/updateAuthoritativeSelectedTxFromSearchResult\(finalSessionId/g) || []).length;
+  if (callCount < 6) { console.error(`  only ${callCount} calls, expected >= 6`); return false; }
+  return true;
+});
+
+// ── Part 6: Fail-closed structural tests ──
+
+test('T182: promoteLayer2SelectedTx fails closed on empty sessionId', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 300);
+  return fnBody.includes('!sessionId') && fnBody.includes('return null');
+});
+
+test('T183: promoteLayer2SelectedTx fails closed on empty userId', () => {
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 300);
+  return fnBody.includes('!userId') && fnBody.includes('return null');
+});
+
+// ── Part 9: No-select regression ──
+
+test('T184: promoteLayer2SelectedTx returns null when selectedId is null', () => {
+  // Structural: the function checks selectedId before proceeding
+  const fnStart = chat.indexOf('async function promoteLayer2SelectedTx');
+  const fnBody = chat.substring(fnStart, fnStart + 800);
+  const selectedIdCheck = fnBody.indexOf('if (!selectedId)');
+  const uuidCheck = fnBody.indexOf('UUID_RE.test(selectedId)');
+  return selectedIdCheck > 0 && uuidCheck > selectedIdCheck;
+});
+
+test('T185: existing bindAuthoritativeTxIdentity/checkMutationIdentityGate unchanged', () => {
+  // Layer 1 mutation safety chain must still exist unchanged
+  const bindFn = chat.includes("function bindAuthoritativeTxIdentity(");
+  const gateFn = chat.includes("function checkMutationIdentityGate(");
+  const gateCheck = chat.includes("if (bindResult.bound) return null");
+  return bindFn && gateFn && gateCheck;
+});
+
+// ============================================================
 console.log(`============================================================`);
 console.log(`TransactionResolutionContext Tests: ${passed} passed, ${failed} failed (${passed + failed} total)`);
 console.log(`============================================================`);

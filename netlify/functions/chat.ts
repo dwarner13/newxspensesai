@@ -1897,6 +1897,81 @@ async function handleSelectTransaction(
 }
 
 /**
+ * Layer 2 → trusted handoff promotion.
+ *
+ * Validates a Layer 2 tx_resolution.selectedId and returns a trusted
+ * transaction object suitable for plugin_payload — or null if any
+ * validation step fails (fail-closed).
+ *
+ * This function NEVER accepts a model-supplied UUID. Identity comes
+ * exclusively from readTxResolution (DB-persisted, user+session scoped,
+ * TTL-enforced).
+ *
+ * Validation chain:
+ *  A. readTxResolution returns non-null (enforces 30-min TTL)
+ *  B. selectedId exists
+ *  C. selectedId passes UUID_RE
+ *  D. selectedId is present in candidates[].id
+ *  E. Transaction exists in DB with matching user_id
+ *  F. Return DB-sourced fields only (never candidate/model text)
+ */
+async function promoteLayer2SelectedTx(
+  sb: any, sessionId: string, userId: string,
+): Promise<AuthoritativeSelectedTransaction | null> {
+  if (!sessionId || !userId) return null;
+
+  // A. Read persisted tx_resolution (TTL-enforced, user+session scoped)
+  const txr = await readTxResolution(sb, sessionId, userId);
+  if (!txr) return null;
+
+  // B. selectedId must exist
+  const selectedId = txr.selectedId;
+  if (!selectedId) return null;
+
+  // C. UUID format validation
+  if (!UUID_RE.test(selectedId)) {
+    console.warn(`[Chat] Layer2 promotion rejected: selectedId "${selectedId}" fails UUID validation`);
+    return null;
+  }
+
+  // D. selectedId must be a member of the current candidate set
+  const isMember = Array.isArray(txr.candidates) && txr.candidates.some(c => c.id === selectedId);
+  if (!isMember) {
+    console.warn(`[Chat] Layer2 promotion rejected: selectedId "${selectedId}" not found in ${txr.candidates?.length ?? 0} candidates`);
+    return null;
+  }
+
+  // E. DB re-fetch with user_id ownership check
+  try {
+    const { data: tx, error } = await sb
+      .from('transactions')
+      .select('id, date, description, merchant, merchant_normalized, amount, signed_amount, category')
+      .eq('id', selectedId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error || !tx) {
+      console.warn(`[Chat] Layer2 promotion rejected: DB lookup failed for ${selectedId} / user ${userId}:`, error?.message || 'no row');
+      return null;
+    }
+
+    // F. Return DB-sourced fields only
+    console.log(`[Chat] Layer2 promotion validated: ${selectedId}`);
+    return {
+      id: String(tx.id).trim(),
+      date: tx.date ?? null,
+      description: tx.description ?? tx.merchant ?? null,
+      merchant: tx.merchant ?? tx.merchant_normalized ?? null,
+      amount: typeof tx.amount === 'number' ? tx.amount : (typeof tx.signed_amount === 'number' ? tx.signed_amount : null),
+      current_category: tx.category ?? null,
+    };
+  } catch (err: any) {
+    console.warn(`[Chat] Layer2 promotion error:`, err?.message);
+    return null;
+  }
+}
+
+/**
  * Bind authoritative selected transaction UUID to mutation args.
  *
  * CONDITIONS for binding (ALL must be true):
@@ -12093,8 +12168,12 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           // has an authoritative selected transaction (from a resolved tx_search),
           // inject the trusted transaction identity into the plugin_payload.
           // This prevents Tag from needing to fabricate/guess the transaction UUID.
+          //
+          // Precedence: Layer 1 (in-memory, single-result) first, then Layer 2
+          // (DB-persisted, conversational selection via select_transaction).
           const isTagTarget = targetSlug === 'tag-ai' || targetSlug === 'tag';
           if (isTagTarget && !pluginPayload && finalSessionId) {
+            // Layer 1: ephemeral in-memory cache (single-result tx_search)
             const authTx = readAuthoritativeSelectedTx(finalSessionId);
             if (authTx) {
               handoffType = 'plugin';
@@ -12110,6 +12189,28 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 _source: 'authoritative_selected_tx',
               };
               console.log(`[Chat] Auto-promoted standard → plugin handoff with authoritative tx: ${authTx.id} (${sourceLabel})`);
+            }
+
+            // Layer 2: DB-persisted conversational selection (select_transaction)
+            // Only consulted when Layer 1 didn't produce a result (cold start,
+            // multi-result search that cleared Layer 1, or TTL expiry).
+            if (!pluginPayload) {
+              const layer2Tx = await promoteLayer2SelectedTx(sb, finalSessionId, userId);
+              if (layer2Tx) {
+                handoffType = 'plugin';
+                pluginPayload = {
+                  transaction: {
+                    id: layer2Tx.id,
+                    description: layer2Tx.description,
+                    amount: layer2Tx.amount,
+                    date: layer2Tx.date,
+                    current_category: layer2Tx.current_category,
+                  },
+                  requested_action: { type: 'change_category' },
+                  _source: 'layer2_selected_tx',
+                };
+                console.log(`[Chat] Layer2 promoted → plugin handoff with selected tx: ${layer2Tx.id} (${sourceLabel})`);
+              }
             }
           }
           const pluginMarker = encodePluginPayloadForHandoff(pluginPayload);

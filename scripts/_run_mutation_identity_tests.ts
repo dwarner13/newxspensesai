@@ -233,7 +233,7 @@ test('14: malformed UUID in single result clears authoritative', () => {
 // ---------------------------------------------------------------------------
 
 test('15: authoritative UUID enables plugin handoff and binding', () => {
-  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 1200);
+  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 2000);
   assert(autoPromote.includes("handoffType = 'plugin'"), 'auto-promotes to plugin');
   assert(autoPromote.includes('authTx.id'), 'injects authoritative UUID');
   assert(autoPromote.includes("_source: 'authoritative_selected_tx'"), 'tags source');
@@ -441,6 +441,84 @@ test('35: auto-promotion injects exact UUID, not description/amount', () => {
   assert(autoPromote.includes('description: authTx.description'), 'carries description');
   assert(autoPromote.includes('amount: authTx.amount'), 'carries amount');
   assert(autoPromote.includes('date: authTx.date'), 'carries date');
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: Layer 2 → Tag handoff bridge
+// ---------------------------------------------------------------------------
+
+test('36: promoteLayer2SelectedTx exists and feeds performHandoffLifecycle', () => {
+  assert(CHAT_SRC.includes('async function promoteLayer2SelectedTx('), 'helper exists');
+  const lifecycle = extractBlock(CHAT_SRC, 'async function performHandoffLifecycle', 5000);
+  assert(lifecycle.includes('promoteLayer2SelectedTx(sb, finalSessionId, userId)'), 'wired into lifecycle');
+});
+
+test('37: Layer 2 promotion enters same plugin_payload path as Layer 1', () => {
+  const lifecycle = extractBlock(CHAT_SRC, 'async function performHandoffLifecycle', 5000);
+  // Both Layer 1 and Layer 2 set handoffType = 'plugin' and pluginPayload
+  assert(lifecycle.includes("_source: 'authoritative_selected_tx'"), 'Layer 1 source marker');
+  assert(lifecycle.includes("_source: 'layer2_selected_tx'"), 'Layer 2 source marker');
+  // Both use same downstream: bindAuthoritativeTxIdentity reads plugin_payload.transaction.id
+  const bindFn = extractBlock(CHAT_SRC, 'function bindAuthoritativeTxIdentity', 800);
+  assert(bindFn.includes('plugin_payload?.transaction?.id'), 'bind reads plugin_payload.transaction.id');
+});
+
+test('38: Layer 2 plugin_payload consumed by existing bindAuthoritativeTxIdentity', () => {
+  // bindAuthoritativeTxIdentity checks handoff_type === 'plugin' and plugin_payload.transaction.id
+  // It does NOT check _source — trust comes from server construction path
+  const bindFn = extractBlock(CHAT_SRC, 'function bindAuthoritativeTxIdentity', 800);
+  assert(!bindFn.includes('_source'), 'bind does not check _source string (trust is path-based)');
+  assert(bindFn.includes("handoff_type !== 'plugin'"), 'bind requires plugin handoff type');
+});
+
+test('39: promoteLayer2SelectedTx validates via DB re-fetch (not candidate text)', () => {
+  const helper = extractBlock(CHAT_SRC, 'async function promoteLayer2SelectedTx', 2000);
+  assert(helper.includes("from('transactions')"), 'queries transactions table');
+  assert(helper.includes("eq('id', selectedId)"), 'filters by selectedId');
+  assert(helper.includes("eq('user_id', userId)"), 'filters by userId');
+  // Return values come from tx. (DB result), not candidate
+  assert(helper.includes('tx.date'), 'date from DB');
+  assert(helper.includes('tx.category'), 'category from DB');
+});
+
+test('40: Layer 2 does not bypass checkMutationIdentityGate', () => {
+  // Gate is called AFTER bind, regardless of source (Layer 1 or Layer 2)
+  // Count gate calls — should still be >= 4 (streaming, specialist, non-streaming, tool-loop)
+  const gateCalls = (CHAT_SRC.match(/const mutationGate = checkMutationIdentityGate\(/g) || []).length;
+  assert(gateCalls >= 4, `gate called in ${gateCalls} paths (need >= 4)`);
+});
+
+test('41: Layer 2 does not bypass buildVerifiedConfirmationSummary', () => {
+  const summaryCalls = (CHAT_SRC.match(/buildVerifiedConfirmationSummary\(/g) || []).length;
+  assert(summaryCalls >= 2, `verified summary called in ${summaryCalls} paths (need >= 2)`);
+});
+
+test('42: stale Layer 1 structurally prevented — multi-result search clears cache', () => {
+  const updateFn = extractBlock(CHAT_SRC, 'function updateAuthoritativeSelectedTxFromSearchResult', 800);
+  assert(updateFn.includes('rows.length === 1'), 'only 1-row establishes Layer 1');
+  assert(updateFn.includes('clearAuthoritativeSelectedTx'), 'clears on 0 or >1 rows');
+  // handleSelectTransaction must NOT write to Layer 1
+  const selectFn = extractBlock(CHAT_SRC, 'async function handleSelectTransaction', 1500);
+  assert(!selectFn.includes('writeAuthoritativeSelectedTx'), 'select_transaction does not write Layer 1');
+  assert(!selectFn.includes('authoritativeSelectedTxCache'), 'select_transaction does not touch Layer 1 cache');
+});
+
+test('43: Layer 1 precedence — checked before Layer 2 in performHandoffLifecycle', () => {
+  const lifecycle = extractBlock(CHAT_SRC, 'async function performHandoffLifecycle', 5000);
+  const l1Idx = lifecycle.indexOf('readAuthoritativeSelectedTx(finalSessionId)');
+  const l2Idx = lifecycle.indexOf('promoteLayer2SelectedTx');
+  assert(l1Idx > 0, 'Layer 1 check exists');
+  assert(l2Idx > 0, 'Layer 2 check exists');
+  assert(l1Idx < l2Idx, 'Layer 1 checked before Layer 2');
+});
+
+test('44: no-select regression — null selectedId produces no promotion', () => {
+  const helper = extractBlock(CHAT_SRC, 'async function promoteLayer2SelectedTx', 2000);
+  // selectedId null check before UUID validation
+  const nullCheck = helper.indexOf('if (!selectedId)');
+  const uuidCheck = helper.indexOf('UUID_RE.test');
+  assert(nullCheck > 0, 'null selectedId check exists');
+  assert(uuidCheck > nullCheck, 'UUID check after null check');
 });
 
 // ---------------------------------------------------------------------------
