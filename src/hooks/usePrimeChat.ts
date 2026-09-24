@@ -944,6 +944,25 @@ export function usePrimeChat(
             return { aiText, hasContent: true };
           }
           
+          // P0: Handle tx_candidates SSE event — attach authoritative candidate frame
+          // to the current assistant message for deterministic rendering.
+          if (j.type === 'tx_candidates' && Array.isArray(j.txCandidates) && j.txCandidates.length > 0) {
+            log(`[usePrimeChat] P0: received ${j.txCandidates.length} txCandidates via SSE`);
+            // Attach to the current assistant message via extraMeta
+            if (messageId) {
+              const currentText = textByRequestRef.current.get(requestId) || aiText || '';
+              upsertAssistantMessage({
+                messageId,
+                requestId,
+                content: currentText,
+                isStreaming: false,
+                employeeKey: employeeSlugToSend,
+                extraMeta: { txCandidates: j.txCandidates },
+              });
+            }
+            return { aiText, hasContent };
+          }
+
           // Handle tool_executing events (dev mode)
           // QUIET MODE GATE: VITE_DISABLE_AUTO_HANDOFFS prevents request_employee_handoff tool execution
           // Purpose: Suppress handoff storms during OCR/Smart Import debugging
@@ -1703,18 +1722,22 @@ export function usePrimeChat(
             const responseEmployee = hasHandoff
               ? handoffInfo.from
               : (payload?.employeeSlug || payload?.employee || employeeSlugToSend);
-            // Carry toolConfirmationResult in meta so the renderer can display
-            // a structured ActionReceiptCard instead of raw JSON.
-            const confirmMeta = payload?.toolConfirmationResult
-              ? { toolConfirmationResult: payload.toolConfirmationResult }
-              : undefined;
+            // Carry toolConfirmationResult and txCandidates in meta so the renderer
+            // can display structured cards (ActionReceiptCard, TransactionCandidateListCard).
+            const extraMetaFromPayload: Record<string, unknown> = {};
+            if (payload?.toolConfirmationResult) {
+              extraMetaFromPayload.toolConfirmationResult = payload.toolConfirmationResult;
+            }
+            if (Array.isArray(payload?.txCandidates) && payload.txCandidates.length > 0) {
+              extraMetaFromPayload.txCandidates = payload.txCandidates;
+            }
             upsertAssistantMessage({
               messageId,
               requestId,
               content: contentText,
               isStreaming: false,
               employeeKey: responseEmployee,
-              extraMeta: confirmMeta,
+              extraMeta: Object.keys(extraMetaFromPayload).length > 0 ? extraMetaFromPayload : undefined,
             });
 
             // Handle return-to-origin: if the backend reverted the session after

@@ -40,6 +40,8 @@ export interface FinancialQueryClassification {
   exactAmount?: number;
   /** Exact calendar date mentioned (YYYY-MM-DD) */
   exactDate?: string;
+  /** Explicit result count requested by user (e.g., "last 3" → 3). Capped at 25. */
+  requestedCount?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -184,6 +186,29 @@ function extractExactAmount(msg: string): number | undefined {
 }
 
 /**
+ * Extract an explicit result count from the user message.
+ * Requires a keyword prefix (last/show/top/first/recent/latest/newest/oldest)
+ * followed by a 1-2 digit number. Rejects dollar amounts, dates, and years.
+ */
+function extractRequestedCount(msg: string): number | undefined {
+  const match = msg.match(
+    /\b(?:last|show(?:\s+me)?|top|first|recent|latest|newest|oldest)\s+(\d{1,2})\b/i
+  );
+  if (!match) return undefined;
+  const n = parseInt(match[1], 10);
+  if (n < 1 || n > 25) return undefined;
+  // Reject if the digit is actually part of a dollar amount or date
+  // e.g. "show me $3 transactions" or "show me June 3 transactions"
+  const fullMatch = match[0];
+  const idx = msg.indexOf(fullMatch);
+  if (idx >= 0) {
+    const before = msg.slice(Math.max(0, idx - 1), idx);
+    if (before === '$') return undefined;
+  }
+  return n;
+}
+
+/**
  * Classify a user message to determine if it's a factual query about
  * the user's actual financial data.
  *
@@ -206,6 +231,7 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
         queryType: 'none',
         years: scope.mentionedYears,
         scope,
+        requestedCount,
       };
     }
   }
@@ -220,6 +246,7 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
   // ── Exact identifiers ──
   const exactDate = extractExactDate(msg);
   const exactAmount = extractExactAmount(msg);
+  const requestedCount = extractRequestedCount(msg);
 
   // ── Determine if this is about user data ──
   // Financial terms + possessive/first-person → user data
@@ -253,6 +280,7 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
       scope,
       exactAmount,
       exactDate,
+      requestedCount,
     };
   }
 
@@ -280,6 +308,7 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     scope,
     exactAmount,
     exactDate,
+    requestedCount,
   };
 }
 

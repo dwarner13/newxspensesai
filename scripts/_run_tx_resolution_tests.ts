@@ -776,7 +776,8 @@ test('T121 — lock is request-scoped (declared inside handler, not module-level
   const lockIdx = chat.indexOf('let txResolutionLockedThisTurn = false');
   const guardedIdx = chat.indexOf('async function guardedPersistTxResolution');
   // Both must exist and the guarded function must follow the lock declaration
-  return lockIdx > 0 && guardedIdx > lockIdx && (guardedIdx - lockIdx) < 500;
+  // P0 added txCandidatesForResponse between lock and guarded fn, widening gap
+  return lockIdx > 0 && guardedIdx > lockIdx && (guardedIdx - lockIdx) < 800;
 });
 
 test('T122 — existing select_transaction 1-based behavior preserved', () => {

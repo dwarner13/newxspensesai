@@ -19,6 +19,7 @@ import {
 import type { ChatMessage } from "@/hooks/usePrimeChat";
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
 import { ActionReceiptCard, parseActionReceipt } from "@/components/chat/ActionReceiptCard";
+import { TransactionCandidateListCard, parseTxCandidates } from "@/components/chat/TransactionCandidateListCard";
 import { TeamHandoffAnnouncement, SpecialistCompleteMessage, parseLifecycleMessage } from "@/components/chat/TeamHandoffAnnouncement";
 import { deriveEmployeeStops } from "@/components/chat/deriveEmployeeStops";
 import { ConversationHistoryDropdown, HistoryDropdownTrigger } from "@/components/chat/ConversationHistoryDropdown";
@@ -1013,18 +1014,23 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                     ) : (() => {
                       const metaAny = msg.meta as any;
                       const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult) || parseActionReceipt(metaAny?.actionReceipt);
-                      return actionReceipt ? <ActionReceiptCard receipt={actionReceipt} /> : null;
-                    })() || (
-                      <TypingMessage
-                        content={msg.content}
-                        messageId={msg.id}
-                        isStreaming={isThisStreaming}
-                        isTyped={typedIdsRef.current.has(msg.id)}
-                        onTyped={(id) => typedIdsRef.current.add(id)}
-                        charDelay={12}
-                        maxDuration={2800}
-                      />
-                    )}
+                      if (actionReceipt) return <ActionReceiptCard receipt={actionReceipt} />;
+                      const txCandidates = parseTxCandidates(metaAny);
+                      return (
+                        <>
+                          <TypingMessage
+                            content={msg.content}
+                            messageId={msg.id}
+                            isStreaming={isThisStreaming}
+                            isTyped={typedIdsRef.current.has(msg.id)}
+                            onTyped={(id) => typedIdsRef.current.add(id)}
+                            charDelay={12}
+                            maxDuration={2800}
+                          />
+                          {txCandidates && <TransactionCandidateListCard candidates={txCandidates} />}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               );

@@ -10559,6 +10559,19 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     // The lock resets automatically on the next request (new invocation scope).
     let txResolutionLockedThisTurn = false;
 
+    // ── P0: Authoritative candidate frame for deterministic transaction list ──
+    // Captured when grounding pre-execution or model tx_search persists candidates.
+    // Attached to the response so the frontend can render a deterministic numbered list.
+    let txCandidatesForResponse: Array<{
+      ordinal: number;
+      id: string;
+      merchant: string | null;
+      date: string | null;
+      amount: number | null;
+      category: string | null;
+      subcategory: string | null;
+    }> | null = null;
+
     /** Guarded candidate persistence — skips if lock is set, sets lock on success. */
     async function guardedPersistTxResolution(
       sb: any, sessionId: string, userId: string, result: any, source: string,
@@ -10570,6 +10583,25 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       await persistTxResolutionFromSearchResult(sb, sessionId, userId, result);
       txResolutionLockedThisTurn = true;
       console.log(`[Chat] TxResolution: candidates established (source=${source}), ownership locked for this request`);
+
+      // P0: Capture authoritative candidate frame for deterministic rendering.
+      // Uses the same rows that were persisted to tx_resolution — one truth source.
+      const rows = Array.isArray(result?.rows) ? result.rows : [];
+      if (rows.length > 0 && rows.length <= 25) {
+        txCandidatesForResponse = rows
+          .filter((r: any) => r?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(r.id).trim()))
+          .slice(0, 25)
+          .map((r: any, i: number) => ({
+            ordinal: i + 1,
+            id: String(r.id).trim(),
+            merchant: r.merchant_normalized ?? r.merchant ?? null,
+            date: r.date ?? null,
+            amount: typeof r.amount === 'number' ? r.amount : (typeof r.signed_amount === 'number' ? r.signed_amount : null),
+            category: r.category ?? null,
+            subcategory: r.subcategory ?? null,
+          }));
+        console.log(`[Chat] P0: captured ${txCandidatesForResponse.length} candidates for deterministic rendering`);
+      }
     }
 
     if (stream) {
@@ -11702,6 +11734,12 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         writeSSE({ type: 'text', content: assistantContent });
       }
 
+      // P0: Emit authoritative candidate frame for deterministic rendering (streaming)
+      if (txCandidatesForResponse && txCandidatesForResponse.length > 0) {
+        writeSSE({ type: 'tx_candidates', txCandidates: txCandidatesForResponse });
+        console.log(`[Chat] P0: emitted ${txCandidatesForResponse.length} txCandidates via SSE`);
+      }
+
       // Send completion signal after all post-generation rewrites
       const guardrailsMetadata = {
         status: guardrailResult?.ok ? 'active' : 'blocked',
@@ -11727,6 +11765,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
       // Save assistant message (will be redacted if needed) - non-blocking
       try {
+        const streamMsgMetadata: Record<string, any> = {};
+        if (request_id) streamMsgMetadata.request_id = request_id;
+        if (txCandidatesForResponse && txCandidatesForResponse.length > 0) {
+          streamMsgMetadata.txCandidates = txCandidatesForResponse;
+        }
         const messageData: any = {
           session_id: finalSessionId, // Keep for backward compatibility
           user_id: userId,
@@ -11734,7 +11777,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           content: assistantContent,
           tokens: completionTokens,
           thread_id: threadId, // CRITICAL: thread_id is always required
-          metadata: request_id ? { request_id } : undefined,
+          metadata: Object.keys(streamMsgMetadata).length > 0 ? streamMsgMetadata : undefined,
         };
         console.log(`[Chat] Inserting assistant message with thread_id: ${threadId}`);
         await sb.from('chat_messages').insert(messageData);
@@ -13157,6 +13200,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
       // Save assistant message - non-blocking
       try {
+        const assistantMsgMetadata: Record<string, any> = {};
+        if (request_id) assistantMsgMetadata.request_id = request_id;
+        if (txCandidatesForResponse && txCandidatesForResponse.length > 0) {
+          assistantMsgMetadata.txCandidates = txCandidatesForResponse;
+        }
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
           user_id: userId,
@@ -13164,7 +13212,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           content: assistantContent,
           tokens: completionTokens,
           thread_id: threadId, // CRITICAL: thread_id is always required
-          metadata: request_id ? { request_id } : undefined,
+          metadata: Object.keys(assistantMsgMetadata).length > 0 ? assistantMsgMetadata : undefined,
         });
         console.log(`[Chat] Inserting assistant message (non-streaming) with thread_id: ${threadId}`);
         
@@ -13299,6 +13347,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             guardrails: guardrailsStatusNonStream,
             ...(handoffMeta && { meta: { handoff: handoffMeta } }),
             ...(pendingConfirmationPayload && { pendingConfirmation: pendingConfirmationPayload }),
+            ...(txCandidatesForResponse && txCandidatesForResponse.length > 0 && { txCandidates: txCandidatesForResponse }),
           }),
         };
       } catch (nonStreamingError: any) {

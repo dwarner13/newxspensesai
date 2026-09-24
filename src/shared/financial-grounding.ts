@@ -192,11 +192,12 @@ export function buildPreExecutionPlan(
   if (classification.queryType === 'merchant' && classification.merchantHint) {
     const startDate = classification.exactDate || `${year}-01-01`;
     const endDate = classification.exactDate || `${year}-12-31`;
+    const defaultLimit = classification.exactDate ? 5 : 25;
     const args: Record<string, any> = {
       q: classification.merchantHint,
       startDate,
       endDate,
-      limit: classification.exactDate ? 5 : 25,
+      limit: classification.requestedCount ?? defaultLimit,
     };
     if (classification.exactAmount !== undefined) {
       args.minAmount = classification.exactAmount;
@@ -212,7 +213,7 @@ export function buildPreExecutionPlan(
 
   // ── Detail queries → tx_search with category + optional date/amount ──
   if (classification.queryType === 'detail') {
-    const args: Record<string, any> = { limit: 25 };
+    const args: Record<string, any> = { limit: classification.requestedCount ?? 25 };
     if (classification.resolvedCategory) {
       args.category = classification.resolvedCategory.category;
       if (classification.resolvedCategory.subcategory) {
@@ -372,6 +373,15 @@ export function buildEvidenceSystemMessage(
   if (toolName === 'tx_search') {
     lines.push('');
     lines.push('You already have verified transaction data above. Do NOT call tx_search for this query — the data is authoritative. You may call tx_search only if the user asks a DIFFERENT question requiring different search parameters.');
+
+    // ── Deterministic list directive ──
+    // When a transaction list is being rendered as a structured card,
+    // instruct the model NOT to produce its own numbered list.
+    const rows = toolResult?.rows || [];
+    if (Array.isArray(rows) && rows.length > 0 && rows.length <= 25) {
+      lines.push('');
+      lines.push('IMPORTANT: The transaction list above will be displayed to the user as a structured numbered card. Do NOT write your own numbered transaction list in your response. Instead, provide a brief conversational introduction (e.g., "Here are your last 3 7-Eleven transactions:") and any analysis or commentary. The numbered list is handled by the UI.');
+    }
   }
 
   return lines.join('\n');
