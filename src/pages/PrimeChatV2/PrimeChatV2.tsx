@@ -20,6 +20,8 @@ import type { ChatMessage } from "@/hooks/usePrimeChat";
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
 import { ActionReceiptCard, parseActionReceipt } from "@/components/chat/ActionReceiptCard";
 import { TeamHandoffAnnouncement, SpecialistCompleteMessage, parseLifecycleMessage } from "@/components/chat/TeamHandoffAnnouncement";
+import { deriveEmployeeStops } from "@/components/chat/deriveEmployeeStops";
+import { ConversationHistoryDropdown, HistoryDropdownTrigger } from "@/components/chat/ConversationHistoryDropdown";
 
 /* ── File upload helpers ── */
 
@@ -104,6 +106,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     isStreaming,
     clearMessages,
     resetThread,
+    activeEmployeeSlug,
     pendingConfirmation,
     confirmToolExecution,
     cancelToolExecution,
@@ -363,6 +366,30 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return true;
   });
 
+  // ── Employee history navigation (read-only, UI-only) ──
+  const [historyDropdownOpen, setHistoryDropdownOpen] = useState(false);
+  const [viewedStopIndex, setViewedStopIndex] = useState<number | null>(null);
+  const currentEmployeeSlug = activeEmployeeSlug || 'prime-boss';
+  const employeeStops = useMemo(
+    () => deriveEmployeeStops(chatMessages as any[], currentEmployeeSlug),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chatMessages.length, currentEmployeeSlug],
+  );
+  useEffect(() => { setViewedStopIndex(null); }, [chatMessages.length, currentEmployeeSlug]);
+  const handleSelectStop = useCallback((stopIndex: number) => {
+    setViewedStopIndex(stopIndex);
+    const stop = employeeStops[stopIndex];
+    if (!stop?.startMessageId) return;
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`msg-${stop.startMessageId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [employeeStops]);
+  const toggleHistoryDropdown = useCallback(() => {
+    setHistoryDropdownOpen(prev => !prev);
+  }, []);
+  const isMobileWidth = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   // ── Auto-scroll logic ──
   // Track the length of the last assistant message so we scroll during streaming too
   // (length changes as content streams in, not just when a new message appears).
@@ -593,9 +620,24 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: `0 0 24px ${THEME.accent}33`, fontSize: 17,
         }}>{"\u2655"}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 0.3 }}>Prime</div>
+        <div style={{ flex: 1, position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: 0.3 }}>Prime</span>
+            {employeeStops.length > 1 && (
+              <HistoryDropdownTrigger onClick={toggleHistoryDropdown} isOpen={historyDropdownOpen} />
+            )}
+          </div>
           <div style={{ fontSize: 10, color: THEME.textMuted }}>Your Financial Assistant</div>
+          {/* Desktop dropdown */}
+          {!isMobileWidth && (
+            <ConversationHistoryDropdown
+              stops={employeeStops}
+              isOpen={historyDropdownOpen}
+              onToggle={toggleHistoryDropdown}
+              onSelectStop={handleSelectStop}
+              isMobile={false}
+            />
+          )}
         </div>
         <div style={{
           padding: "3px 9px", borderRadius: 20,
@@ -641,6 +683,17 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           </button>
         )}
       </div>
+
+      {/* Mobile history panel — full-width below header */}
+      {isMobileWidth && historyDropdownOpen && (
+        <ConversationHistoryDropdown
+          stops={employeeStops}
+          isOpen={historyDropdownOpen}
+          onToggle={toggleHistoryDropdown}
+          onSelectStop={handleSelectStop}
+          isMobile={true}
+        />
+      )}
 
       {/* SCROLLABLE BODY */}
       <style>{`
@@ -898,16 +951,16 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                 const lifecycle = parseLifecycleMessage(msg.meta as Record<string, unknown>);
                 if (!lifecycle) return null;
                 if (lifecycle.type === 'employee_handoff') {
-                  return <div key={msg.id} style={{ marginBottom: 12 }}><TeamHandoffAnnouncement data={lifecycle} /></div>;
+                  return <div key={msg.id} id={`msg-${msg.id}`} style={{ marginBottom: 12 }}><TeamHandoffAnnouncement data={lifecycle} /></div>;
                 }
                 if (lifecycle.type === 'specialist_complete') {
-                  return <div key={msg.id} style={{ marginBottom: 12 }}><SpecialistCompleteMessage data={lifecycle} /></div>;
+                  return <div key={msg.id} id={`msg-${msg.id}`} style={{ marginBottom: 12 }}><SpecialistCompleteMessage data={lifecycle} /></div>;
                 }
                 return null;
               }
               if (msg.role === "user") {
                 return (
-                  <div key={msg.id} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                  <div key={msg.id} id={`msg-${msg.id}`} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
                     <div style={{
                       maxWidth: "80%", padding: "10px 14px", borderRadius: 14,
                       borderBottomRightRadius: 4,
@@ -941,7 +994,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               const agentForMsg: "Prime" | "Byte" | "Tag" | "Crystal" | "Goalie" =
                 (empKey && slugToAgent[empKey]) || 'Prime';
               return (
-                <div key={msg.id} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <div key={msg.id} id={`msg-${msg.id}`} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                   <AgentDot agent={agentForMsg} size={24} />
                   <div style={{
                     maxWidth: "85%", padding: "10px 14px", borderRadius: 14,
