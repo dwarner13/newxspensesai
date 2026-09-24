@@ -71,6 +71,8 @@ import {
   shouldShowEmployeeNames,
 } from './upload/progressTruth';
 import type { ChatHandoffPayload } from '../../types/chatHandoff';
+import { deriveEmployeeStops } from './deriveEmployeeStops';
+import { ConversationHistoryDropdown, HistoryDropdownTrigger } from './ConversationHistoryDropdown';
 
 // Quick prompts are now defined in EMPLOYEE_DISPLAY_CONFIG
 // Access via: displayConfig.chatQuickPrompts
@@ -256,6 +258,10 @@ export default function UnifiedAssistantChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const uploadedAttachmentKeysRef = useRef<Set<string>>(new Set());
   
+  // Employee history navigation (read-only, UI-only)
+  const [historyDropdownOpen, setHistoryDropdownOpen] = useState(false);
+  const [viewedStopIndex, setViewedStopIndex] = useState<number | null>(null);
+
   // CRITICAL: Track if user is near bottom for auto-scroll during streaming
   const [isNearBottomState, setIsNearBottomState] = useState(true);
   // PrimeSlideoutShell already reserves footer space in layout flow.
@@ -5792,6 +5798,36 @@ export default function UnifiedAssistantChat({
   const handoffFromName = handoff?.fromEmployeeName?.trim()
     || (handoff?.fromEmployeeSlug ? getEmployeeDisplay(handoff.fromEmployeeSlug).name : 'Unknown');
 
+  // Employee history stops — derived from lifecycle messages (read-only navigation)
+  const employeeStops = useMemo(
+    () => deriveEmployeeStops(burstDedupedMessages as any[], currentEmployeeSlug),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [burstDedupedMessages.length, lastMessageId, currentEmployeeSlug],
+  );
+
+  // Reset viewedStopIndex on new messages or employee change
+  useEffect(() => {
+    setViewedStopIndex(null);
+  }, [burstDedupedMessages.length, currentEmployeeSlug]);
+
+  const handleSelectStop = useCallback((stopIndex: number) => {
+    setViewedStopIndex(stopIndex);
+    const stop = employeeStops[stopIndex];
+    if (!stop?.startMessageId) return;
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`msg-${stop.startMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }, [employeeStops]);
+
+  const toggleHistoryDropdown = useCallback(() => {
+    setHistoryDropdownOpen(prev => !prev);
+  }, []);
+
+  const isMobileWidth = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   const latestPrimeUploadHandoffText = useMemo(() => {
     if (normalizedSlug !== 'prime-boss') return '';
     const newestFirst = [...burstDedupedMessages].reverse();
@@ -6692,15 +6728,20 @@ export default function UnifiedAssistantChat({
         {/* HEADER */}
         <header className={compact ? "sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-5 pt-4 pb-3 backdrop-blur-sm shrink-0" : "sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-5 pb-4 backdrop-blur-sm shrink-0"}>
           <div className="flex items-start justify-between gap-3">
-            <div className="flex-1">
+            <div className="flex-1 relative">
               <div className="flex items-center gap-3">
                 <span className={`inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br ${displayConfig.gradient} text-base shadow-lg`}>
                   <span className="text-lg">{displayConfig.emoji}</span>
                 </span>
                 <div>
-                  <h2 className="text-sm font-semibold tracking-[0.24em] text-slate-200 uppercase">
-                    {displayConfig.chatTitle}
-                  </h2>
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="text-sm font-semibold tracking-[0.24em] text-slate-200 uppercase">
+                      {displayConfig.displayName}
+                    </h2>
+                    {employeeStops.length > 1 && (
+                      <HistoryDropdownTrigger onClick={toggleHistoryDropdown} isOpen={historyDropdownOpen} />
+                    )}
+                  </div>
                   {displayConfig.chatSubtitle && (
                     <p className="mt-0.5 text-xs text-slate-400 leading-relaxed">
                       {displayConfig.chatSubtitle}
@@ -6708,12 +6749,32 @@ export default function UnifiedAssistantChat({
                   )}
                 </div>
               </div>
+              {/* Desktop dropdown */}
+              {!isMobileWidth && (
+                <ConversationHistoryDropdown
+                  stops={employeeStops}
+                  isOpen={historyDropdownOpen}
+                  onToggle={toggleHistoryDropdown}
+                  onSelectStop={handleSelectStop}
+                  isMobile={false}
+                />
+              )}
             </div>
             <div className="flex flex-col items-end gap-2">
               {statusBadge}
             </div>
           </div>
         </header>
+        {/* Mobile history panel — full-width below header */}
+        {isMobileWidth && historyDropdownOpen && (
+          <ConversationHistoryDropdown
+            stops={employeeStops}
+            isOpen={historyDropdownOpen}
+            onToggle={toggleHistoryDropdown}
+            onSelectStop={handleSelectStop}
+            isMobile={true}
+          />
+        )}
         
         {/* MESSAGES AREA - In inline mode, no nested scroll - flows with page scroll */}
         {/* CRITICAL: Remove overflow-y-auto in inline mode to prevent scroll trap */}
@@ -7303,10 +7364,10 @@ export default function UnifiedAssistantChat({
                         const lifecycleData = message.role === 'system' ? parseLifecycleMessage(metaAny) : null;
                         if (lifecycleData) {
                           if (lifecycleData.type === 'employee_handoff') {
-                            return <div key={message.id} className="mb-3"><TeamHandoffAnnouncement data={lifecycleData} /></div>;
+                            return <div key={message.id} id={`msg-${message.id}`} className="mb-3"><TeamHandoffAnnouncement data={lifecycleData} /></div>;
                           }
                           if (lifecycleData.type === 'specialist_complete') {
-                            return <div key={message.id} className="mb-3"><SpecialistCompleteMessage data={lifecycleData} /></div>;
+                            return <div key={message.id} id={`msg-${message.id}`} className="mb-3"><SpecialistCompleteMessage data={lifecycleData} /></div>;
                           }
                         }
 
@@ -7345,6 +7406,7 @@ export default function UnifiedAssistantChat({
                         return (
                           <React.Fragment key={message.id}>
                             <div
+                              id={`msg-${message.id}`}
                               className={`flex scroll-mt-24 ${
                                 message.role === 'user' ? 'justify-end' : 'justify-start'
                               }`}
