@@ -231,7 +231,7 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
         queryType: 'none',
         years: scope.mentionedYears,
         scope,
-        requestedCount,
+        requestedCount: extractRequestedCount(msg),
       };
     }
   }
