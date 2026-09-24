@@ -142,6 +142,7 @@ import {
 // Phase 1B.2: Server-enforced financial grounding (static imports — must not fail-open)
 import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint } from '../../src/shared/financial-query-classifier';
 import { detectCurrentTimeIntent, type CurrentTimeIntent } from '../../src/shared/detect-current-time-intent';
+import { detectCandidateFollowUp } from '../../src/shared/candidate-follow-up-detector';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -9616,12 +9617,25 @@ export const handler: Handler = async (event, context) => {
     // Phase 1D new-search vs follow-up: determine if the current message is a NEW
     // grounded financial search (which should replace candidates) vs a referential
     // follow-up (which should preserve them).
+    //
+    // P1: Candidate follow-up detector runs FIRST. If the message contains an
+    // identity-sensitive reference (ordinal, demonstrative) to existing candidates,
+    // preserve the frame regardless of what the grounding classifier thinks.
+    // This prevents "Change the third one to Gas & Fuel" from being misclassified
+    // as a new aggregate Gas & Fuel search.
     let isNewGroundedSearch = false;
+    let candidateFollowUp: ReturnType<typeof detectCandidateFollowUp> | null = null;
     if (hasExistingCandidates && isPrime) {
-      const earlyClassification = classifyFinancialQuery(masked);
-      isNewGroundedSearch = earlyClassification.requiresGrounding === true;
-      if (isNewGroundedSearch) {
-        console.log(`[Chat] Phase1D: new grounded search detected — will NOT preserve existing candidates`);
+      candidateFollowUp = detectCandidateFollowUp(masked, hasExistingCandidates);
+      if (candidateFollowUp.isFollowUp) {
+        isNewGroundedSearch = false;
+        console.log(`[Chat] P1: candidate follow-up detected (type=${candidateFollowUp.referenceType}${candidateFollowUp.ordinalNumber ? ` ordinal=${candidateFollowUp.ordinalNumber}` : ''}) — preserving existing ${existingTxResolution!.candidates.length} candidates`);
+      } else {
+        const earlyClassification = classifyFinancialQuery(masked);
+        isNewGroundedSearch = earlyClassification.requiresGrounding === true;
+        if (isNewGroundedSearch) {
+          console.log(`[Chat] Phase1D: new grounded search detected — will NOT preserve existing candidates`);
+        }
       }
     }
     const shouldPreserveCandidates = hasExistingCandidates && !isNewGroundedSearch;
