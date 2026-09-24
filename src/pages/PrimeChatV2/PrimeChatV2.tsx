@@ -239,7 +239,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       const mapped: ChatMessage[] = (rows ?? [])
         .filter((r: any) => (r.role === "user" || r.role === "assistant") && r.metadata?.hidden !== true)
         .reverse()
-        .map((r: any) => ({ id: r.id, role: r.role, content: r.content ?? "", createdAt: r.created_at }));
+        .map((r: any) => ({ id: r.id, role: r.role, content: r.content ?? "", createdAt: r.created_at, meta: r.metadata || undefined }));
       // Pre-seed typedIdsRef with all hydrated assistant messages so they
       // render immediately without typewriter animation (Bug 2 fix).
       for (const m of mapped) {

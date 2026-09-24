@@ -21,7 +21,8 @@ export interface TxCandidate {
 function formatDate(iso: string | null): string {
   if (!iso) return '';
   try {
-    const d = new Date(iso + 'T00:00:00');
+    const d = new Date(iso.includes('T') ? iso : iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   } catch {
     return iso;
