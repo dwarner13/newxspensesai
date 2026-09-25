@@ -1088,18 +1088,18 @@ test('T155: isNewGroundedSearch uses classifyFinancialQuery for early classifica
     /earlyClassification\.requiresGrounding\s*===\s*true/.test(chat);
 });
 
-// T156 — streaming forced tx_search gate uses shouldPreserveCandidates (not hasExistingCandidates)
+// T156 — streaming forced tx_search gate uses shouldPreserveCandidates + isHistoricalConversationRef (P2.3)
 test('T156: streaming forced tx_search gate uses !shouldPreserveCandidates', () => {
-  // Find the streaming forced tx_search block — it has forced_tx_search_ and no "as any"
-  const streamingBlock = chat.match(/!shouldPreserveCandidates\s*\)\s*\{[\s\S]*?forced_tx_search_[\s\S]*?\}\s*\} else if \(shouldPreserveCandidates && toolCalls\.length === 0/);
+  // P2.3 added !isHistoricalConversationRef guard alongside !shouldPreserveCandidates
+  const streamingBlock = chat.match(/!shouldPreserveCandidates[\s\S]*?!isHistoricalConversationRef\s*\)\s*\{[\s\S]*?forced_tx_search_[\s\S]*?\} else if \(isHistoricalConversationRef/);
   if (!streamingBlock) { console.error('  streaming forced tx_search block not found with shouldPreserveCandidates'); return false; }
   return true;
 });
 
-// T157 — non-streaming forced tx_search gate uses shouldPreserveCandidates
+// T157 — non-streaming forced tx_search gate uses shouldPreserveCandidates + isHistoricalConversationRef (P2.3)
 test('T157: non-streaming forced tx_search gate uses !shouldPreserveCandidates', () => {
-  // The non-streaming block has "as any" cast on toolCalls
-  const nonStreamBlock = chat.match(/!shouldPreserveCandidates\s*\)\s*\{[\s\S]*?forced_tx_search_[\s\S]*?as any[\s\S]*?\} else if \(shouldPreserveCandidates && toolCalls\.length === 0/);
+  // P2.3 added !isHistoricalConversationRef guard alongside !shouldPreserveCandidates
+  const nonStreamBlock = chat.match(/!shouldPreserveCandidates[\s\S]*?!isHistoricalConversationRef\s*\)\s*\{[\s\S]*?forced_tx_search_[\s\S]*?as any[\s\S]*?\} else if \(isHistoricalConversationRef/);
   if (!nonStreamBlock) { console.error('  non-streaming forced tx_search block not found with shouldPreserveCandidates'); return false; }
   return true;
 });

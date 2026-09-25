@@ -143,6 +143,7 @@ import {
 import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint } from '../../src/shared/financial-query-classifier';
 import { detectCurrentTimeIntent, type CurrentTimeIntent } from '../../src/shared/detect-current-time-intent';
 import { detectCandidateFollowUp } from '../../src/shared/candidate-follow-up-detector';
+import { detectHistoricalReference } from '../../src/shared/historical-reference-detector';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -9624,6 +9625,8 @@ export const handler: Handler = async (event, context) => {
     // This prevents "Change the third one to Gas & Fuel" from being misclassified
     // as a new aggregate Gas & Fuel search.
     let isNewGroundedSearch = false;
+    let isHistoricalConversationRef = false;
+    let isHistoricalInformational = false; // P2.3: true when historical + NOT continuation
     let candidateFollowUp: ReturnType<typeof detectCandidateFollowUp> | null = null;
     if (hasExistingCandidates && isPrime) {
       candidateFollowUp = detectCandidateFollowUp(masked, hasExistingCandidates);
@@ -9631,11 +9634,31 @@ export const handler: Handler = async (event, context) => {
         isNewGroundedSearch = false;
         console.log(`[Chat] P1: candidate follow-up detected (type=${candidateFollowUp.referenceType}${candidateFollowUp.ordinalNumber ? ` ordinal=${candidateFollowUp.ordinalNumber}` : ''}) — preserving existing ${existingTxResolution!.candidates.length} candidates`);
       } else {
-        const earlyClassification = classifyFinancialQuery(masked);
-        isNewGroundedSearch = earlyClassification.requiresGrounding === true;
-        if (isNewGroundedSearch) {
-          console.log(`[Chat] Phase1D: new grounded search detected — will NOT preserve existing candidates`);
+        // ── P2.3: Historical conversation reference ──
+        // Detect conversational back-references BEFORE the financial classifier.
+        // Historical questions must NOT trigger generic tx_search.
+        const histRef = detectHistoricalReference(masked);
+        if (histRef.isHistorical) {
+          isNewGroundedSearch = false;
+          isHistoricalConversationRef = true;
+          isHistoricalInformational = !histRef.continuationIntent;
+          console.log(`[Chat] P2.3: historical conversation reference detected (continuation=${histRef.continuationIntent}, informational=${isHistoricalInformational}) — preserving ${existingTxResolution!.candidates.length} candidates, suppressing search`);
+        } else {
+          const earlyClassification = classifyFinancialQuery(masked);
+          isNewGroundedSearch = earlyClassification.requiresGrounding === true;
+          if (isNewGroundedSearch) {
+            console.log(`[Chat] Phase1D: new grounded search detected — will NOT preserve existing candidates`);
+          }
         }
+      }
+    } else if (isPrime) {
+      // No existing candidates — still check for historical reference to suppress
+      // grounding search that would create an irrelevant candidate frame.
+      const histRef = detectHistoricalReference(masked);
+      if (histRef.isHistorical) {
+        isHistoricalConversationRef = true;
+        isHistoricalInformational = !histRef.continuationIntent;
+        console.log(`[Chat] P2.3: historical conversation reference detected (no existing candidates, continuation=${histRef.continuationIntent}, informational=${isHistoricalInformational}) — suppressing search`);
       }
     }
     const shouldPreserveCandidates = hasExistingCandidates && !isNewGroundedSearch;
@@ -9997,12 +10020,63 @@ PRIME FINANCIAL GROUNDING CONTRACT:
       // ── P2.2: Current-turn intent isolation ──
       // When Phase1D detects a new grounded search, tell the model to focus
       // on the current request and not resume stale actions from history.
-      if (isNewGroundedSearch) {
+      // P2.3: Do NOT fire when isHistoricalConversationRef — the user IS asking
+      // about history, so suppressing history references would be counterproductive.
+      if (isNewGroundedSearch && !isHistoricalConversationRef) {
         systemMessages.push({
           role: 'system',
           content: 'CURRENT-TURN INTENT: The user\'s current message is a new request. Focus on it. Do not resume or retry unfinished actions from previous turns unless the user explicitly asks to continue them (e.g. "try that again", "retry").',
         });
         console.log('[Chat] P2.2: injected current-turn isolation directive (new grounded search detected)');
+      }
+
+      // ── P2.3: Historical conversation reference directive + bounded thread retrieval ──
+      if (isHistoricalConversationRef && isPrime) {
+        // Part 4: Bounded same-thread retrieval — load recent cross-session
+        // messages when current session history is thin.
+        const currentSessionMsgCount = recentMessages.length;
+        if (currentSessionMsgCount < 10 && threadId) {
+          try {
+            const currentSessionIds = new Set(recentMessages.map((m: any) => m.id).filter(Boolean));
+            const { data: threadHistory } = await sb
+              .from('chat_messages')
+              .select('id, role, content, created_at')
+              .eq('thread_id', threadId)
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false })
+              .limit(20);
+
+            if (threadHistory && threadHistory.length > 0) {
+              // Filter out messages already in current session, then take up to 20
+              const supplementary = threadHistory
+                .filter((m: any) => !currentSessionIds.has(m.id))
+                .slice(0, 20);
+
+              if (supplementary.length > 0) {
+                // Inject in chronological order as prior conversation context
+                const chronological = [...supplementary].reverse();
+                const historyBlock = chronological
+                  .map((m: any) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+                  .join('\n\n');
+
+                systemMessages.push({
+                  role: 'system',
+                  content: `PRIOR CONVERSATION CONTEXT (from earlier in this thread):\n\n${historyBlock}`,
+                });
+                console.log(`[Chat] P2.3: injected ${supplementary.length} prior thread messages as historical context`);
+              }
+            }
+          } catch (e: any) {
+            console.warn('[Chat] P2.3: bounded thread retrieval failed (non-fatal):', e?.message);
+          }
+        }
+
+        // Part 5: Historical evidence directive
+        systemMessages.push({
+          role: 'system',
+          content: 'The user is asking about something discussed earlier in this conversation. Answer using the conversation history provided above. Do not run a transaction search to determine what was previously discussed. If the conversation history does not contain enough information to answer reliably, tell the user you cannot identify it from the available conversation and ask them to describe it (merchant name, amount, or date). Do not guess. This conversational reference does not authorize any mutation.',
+        });
+        console.log('[Chat] P2.3: injected historical evidence directive');
       }
 
       // Inject temporal context for ALL Prime requests (not gated on effectivePrimeContext).
@@ -10848,6 +10922,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       // Guardrail: enforce tx_search for transaction intents when model skips tools.
       // Phase 1D: Skip when existing candidates exist — the model has them in context
       // and can call select_transaction for follow-ups or tx_search for new queries.
+      // P2.3: Also skip when historical conversation reference — tx_search must not be
+      // used as evidence of what was previously discussed.
       if (
         toolsAllowedThisTurn &&
         toolCalls.length === 0 &&
@@ -10855,7 +10931,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         txSearchAvailable &&
         isTransactionQuestionForTxSearch(masked) &&
         toolModules['tx_search'] &&
-        !shouldPreserveCandidates
+        !shouldPreserveCandidates &&
+        !isHistoricalConversationRef
       ) {
         const forcedArgs: Record<string, any> = {
           limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -10875,6 +10952,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             assistantContent = 'I need to search your transactions first.';
           }
         }
+      } else if (isHistoricalConversationRef && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
+        console.log(`[Chat] P2.3: skipping forced tx_search (streaming) — historical conversation reference`);
       } else if (shouldPreserveCandidates && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
         console.log(`[Chat] Phase1D: skipping forced tx_search (streaming) — existing candidates preserved`);
       }
@@ -10918,6 +10997,21 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       writeSSE({ type: 'tool_call', tool: toolName, args });
                       writeSSE({ type: 'tool_result', tool: toolName, result: selResult });
                     }
+                    continue;
+                  }
+
+                  // ── P2.3: Block model-initiated tx_search on informational historical turns ──
+                  // Historical conversation questions must be answered from conversation
+                  // history, not from a transaction search. Continuation intents (e.g.
+                  // "continue where we left off") are allowed through — they may need
+                  // tx_search to re-locate a transaction before P2/P2.1 identity gates.
+                  if (toolName === 'tx_search' && isHistoricalInformational) {
+                    console.log(`[Chat] P2.3: blocked model-initiated tx_search (streaming) — historical informational reference`);
+                    toolResults.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify({ blocked: true, reason: 'Historical conversation questions must be answered from conversation history, not transaction search.' }),
+                    });
                     continue;
                   }
 
@@ -12051,7 +12145,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         // and CANNOT skip grounding.
         let financialEvidence: { grounded: boolean; toolName?: string; queryStatus?: string; fromContext?: boolean } = { grounded: false };
         let financialClassification: any = null;
-        if (isPrime && toolsAllowedThisTurn) {
+        // P2.3: Skip entire financial grounding for historical conversation references.
+        // Historical questions should be answered from conversation context, not DB lookups.
+        if (isPrime && toolsAllowedThisTurn && !isHistoricalConversationRef) {
           const lastUserMsg = String(messageTrimmed || masked || '');
           financialClassification = classifyFinancialQuery(lastUserMsg);
           console.log(`[FinancialGrounding] classifier=${financialClassification.requiresGrounding ? 'GROUNDED' : 'none'} queryType=${financialClassification.queryType} resolvedCategory=${JSON.stringify(financialClassification.resolvedCategory ?? null)} merchant=${financialClassification.merchantHint ?? 'none'} years=${JSON.stringify(financialClassification.years)}`);
@@ -12455,6 +12551,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             return Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0;
           } catch { return false; }
         })());
+        // P2.3: Also skip forced tx_search for historical conversation references.
         if (
           toolsAllowedThisTurn &&
           toolCalls.length === 0 &&
@@ -12464,7 +12561,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           toolModules['tx_search'] &&
           !taxSummaryGateStrippedTools &&
           !isCategoryChangeIntent(masked) &&
-          !shouldPreserveCandidates
+          !shouldPreserveCandidates &&
+          !isHistoricalConversationRef
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -12484,6 +12582,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               assistantContent = 'I need to search your transactions first.';
             }
           }
+        } else if (isHistoricalConversationRef && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
+          console.log(`[Chat] P2.3: skipping forced tx_search (non-streaming) — historical conversation reference`);
         } else if (shouldPreserveCandidates && toolCalls.length === 0 && isTransactionQuestionForTxSearch(masked)) {
           console.log(`[Chat] Phase1D: skipping forced tx_search (non-streaming) — existing candidates preserved`);
         }
@@ -12514,6 +12614,17 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 role: 'tool',
                 tool_call_id: toolCall.id,
                 content: JSON.stringify(selResult),
+              });
+              continue;
+            }
+
+            // ── P2.3: Block model-initiated tx_search on informational historical turns ──
+            if (toolName === 'tx_search' && isHistoricalInformational) {
+              console.log(`[Chat] P2.3: blocked model-initiated tx_search (non-streaming) — historical informational reference`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ blocked: true, reason: 'Historical conversation questions must be answered from conversation history, not transaction search.' }),
               });
               continue;
             }

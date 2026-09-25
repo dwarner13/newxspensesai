@@ -74,7 +74,7 @@ assert(allFallbackOccurrences === 0,
 
 console.log('\n── Fix 2: Current-Turn Isolation Directive ──');
 
-const isolationBlock = extractBlock(CHAT_SRC, 'P2.2: Current-turn intent isolation', 600);
+const isolationBlock = extractBlock(CHAT_SRC, 'P2.2: Current-turn intent isolation', 800);
 
 assert(isolationBlock.length > 0,
   'F2.1: P2.2 isolation block exists in chat.ts');
@@ -115,8 +115,9 @@ assert(p22Idx > 0 && temporalCtxIdx > 0 && p22Idx < temporalCtxIdx,
 
 // ── P2.2 does NOT fire when isNewGroundedSearch is false ──
 
-assert(isolationBlock.includes('if (isNewGroundedSearch)'),
-  'F2.11: directive only fires when isNewGroundedSearch is true');
+// P2.3 added !isHistoricalConversationRef guard: historical refs must NOT trigger P2.2.
+assert(isolationBlock.includes('if (isNewGroundedSearch') && isolationBlock.includes('!isHistoricalConversationRef'),
+  'F2.11: directive only fires when isNewGroundedSearch is true and NOT historical ref');
 
 // ════════════════════════════════════════════════════════════════════════════
 // LIVE REGRESSION: Exact scenario from audit
