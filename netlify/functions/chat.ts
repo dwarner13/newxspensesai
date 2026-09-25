@@ -144,6 +144,8 @@ import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint } f
 import { detectCurrentTimeIntent, type CurrentTimeIntent } from '../../src/shared/detect-current-time-intent';
 import { detectCandidateFollowUp } from '../../src/shared/candidate-follow-up-detector';
 import { detectHistoricalReference } from '../../src/shared/historical-reference-detector';
+// P3.0A: Shadow intent classifier (observational only — does not change runtime behavior)
+import { classifyPrimeIntent, type PrimeIntentClassification } from '../../src/shared/prime-intent-classifier';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -9662,6 +9664,35 @@ export const handler: Handler = async (event, context) => {
       }
     }
     const shouldPreserveCandidates = hasExistingCandidates && !isNewGroundedSearch;
+
+    // ── P3.0A: Shadow intent classification (observational only) ──
+    // Logs what the intent classifier WOULD assign without changing any behavior.
+    let shadowIntentResult: PrimeIntentClassification | null = null;
+    if (isPrime) {
+      try {
+        shadowIntentResult = classifyPrimeIntent(masked, {
+          candidateFollowUpDetected: !!(candidateFollowUp?.isFollowUp),
+          historicalReferenceDetected: isHistoricalConversationRef,
+        });
+        console.log(`[P3.0A Shadow Intent] ${JSON.stringify({
+          intent: shadowIntentResult.intent,
+          confidence: shadowIntentResult.confidence,
+          source: shadowIntentResult.source,
+          reason: shadowIntentResult.reason,
+          proposedEvidence: shadowIntentResult.proposedEvidence,
+          // Comparison with existing classifiers
+          existing: {
+            candidateFollowUp: candidateFollowUp?.isFollowUp ? candidateFollowUp.referenceType : null,
+            historicalRef: isHistoricalConversationRef,
+            isNewGroundedSearch,
+            shouldPreserveCandidates,
+          },
+        })}`);
+      } catch (e: any) {
+        // Shadow mode must NEVER break production flow
+        console.warn('[P3.0A Shadow Intent] classification failed (non-fatal):', e?.message);
+      }
+    }
 
     // PHASE 1 FIX (Apr 2026): Removed the `if (!(isPrimeBoss))` gate that was skipping
     // brain pack, DB prompt, AI fluency rule, and user context for Prime.
