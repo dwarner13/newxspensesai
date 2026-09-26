@@ -107,6 +107,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     isStreaming,
     clearMessages,
     resetThread,
+    resetActiveEmployee,
     activeEmployeeSlug,
     pendingConfirmation,
     confirmToolExecution,
@@ -465,6 +466,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     setSessionId(newId);
     clearMessages();
     resetThread();
+    resetActiveEmployee();
     setHistory([]);
     setHistoryChecked(false);
     setLastSession(null);

@@ -86,6 +86,9 @@ export interface UnifiedChatEngineReturn {
   /** Reset the active thread (New Chat) */
   resetThread: () => void;
 
+  /** Reset activeEmployeeSlug to undefined (New Chat ownership fix) */
+  resetActiveEmployee: () => void;
+
   /** Input value (for components that need it) */
   input: string;
   
@@ -274,6 +277,7 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
       cancelStream: () => {},
       clearMessages: () => {},
       resetThread: () => {},
+      resetActiveEmployee: () => {},
       input: '',
       setInput: () => {},
       pendingConfirmation: null,
@@ -348,6 +352,7 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
     cancelStream,
     clearMessages,
     resetThread: primeChat.resetThread,
+    resetActiveEmployee: primeChat.resetActiveEmployee,
     input: primeChat.input,
     setInput: primeChat.setInput,
     pendingConfirmation: primeChat.pendingConfirmation,

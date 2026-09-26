@@ -2428,6 +2428,7 @@ export function usePrimeChat(
     stop,
     clearMessages: () => setMessages([]), // Clear rendered bubbles (New Chat)
     resetThread, // Clear thread_id state + localStorage (New Chat zombie-session fix)
+    resetActiveEmployee: useCallback(() => setActiveEmployeeSlug(undefined), []), // Reset stale handoff slug (New Chat ownership fix)
     guardrailsStatus, // Guardrails status from SSE meta events
   };
 }

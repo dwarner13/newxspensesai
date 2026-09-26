@@ -1380,7 +1380,29 @@ function isUploadImportIntent(message: string, hasAttachments: boolean): boolean
   if (hasAttachments) return true;
   const text = String(message || '').trim().toLowerCase();
   if (!text) return false;
-  return /\b(upload|import|statement|bank statement|receipt|ocr|parse|document|file|ingest)\b/.test(text);
+
+  // ── Informational / question / status frame — never action intent ──
+  const isInformational =
+    /\b(?:how|where|can i|do i|does|did|was|help|support|why|status)\b/.test(text) ||
+    /\bwhat (?:file|format|type|kind|bank)\b/.test(text) ||
+    /\b(?:finish(?:ed)?|fail(?:ed)?|ready|done|missing|error|broken)\b/.test(text);
+
+  // ── Primary action verbs: upload / import / ingest ──
+  // Strong upload signal — no document noun required.
+  if (/\b(?:upload|import|ingest)(?:ing)?\b/.test(text) && !isInformational) {
+    return true;
+  }
+
+  // ── Secondary action verbs: process / add / parse / ocr ──
+  // Weaker signal — require a document noun for confidence.
+  const hasDocNoun = /\b(?:statement|bank statement|receipt|document|file|pdf|csv)\b/.test(text);
+  if (hasDocNoun && /\b(?:process|add|parse|ocr)\b/.test(text) && !isInformational) {
+    return true;
+  }
+
+  // Document nouns alone (statement, receipt, file, etc.) do NOT establish
+  // upload/import intent. They are references, not actions.
+  return false;
 }
 
 function isTransactionQuestionForTxSearch(message: string): boolean {
@@ -2106,10 +2128,33 @@ function mentionsStatementImportContext(message: string): boolean {
 
 function isStatementBreakdownIntent(message: string): boolean {
   const text = String(message || '').toLowerCase();
+
+  // ── Informational / product-help override ──
+  // When the message is about uploading, attaching, importing, or managing
+  // statement files rather than analyzing statement DATA, it is NOT a
+  // breakdown request — even if it also matches breakdown verbs like
+  // "show me" or "describe". The override requires BOTH:
+  //   1. A platform-action verb (upload, attach, import, etc.)
+  //   2. A product-help framing signal (how, where, can I, why won't, etc.)
+  //      OR the action verb IS the main verb of the sentence (not a
+  //      past-tense data reference like "what I uploaded")
+  const hasActionVerb = /\b(?:upload(?:ing)?|attach(?:ing)?|import(?:ing)?|delete|add(?:ing)?)\b/.test(text);
+  if (hasActionVerb) {
+    // Product-help framing: question words, capability checks, troubleshooting
+    const hasHelpFrame = /\b(?:how|where|can i|help|does|do i|support|looking to|i have|what is|why|what (?:file|format|type|banks?))\b/.test(text);
+    // Process/workflow topic: "upload process", "import process", etc.
+    const isProcessTopic = /\b(?:upload|import|attach)\s+(?:process|button|interface|feature|option|workflow|step|procedure)\b/.test(text);
+    if (hasHelpFrame || isProcessTopic) return false;
+  }
+
   const explicitStatementContext = mentionsStatementImportContext(text)
     || /\b(uploaded|uploaded statement|what i uploaded|which statement|that upload|that statement|my statement|my document|the file|the document|the statement|this document|this statement|my import|the import)\b/.test(text);
   const breakdownAsks = /\b(break\s*down|breakdown|what'?s on|what is on|summar(?:y|ize)|summarise|what did you find|findings|show me|list|totals?|categories?|tell me|what'?s in|analyz[e|is]|analys[e|is]|review|overview|explain|describe|walk me|give me)\b/.test(text);
-  const statementDetailAsks = /\b(due date|minimum payment|min payment|new balance|credit limit|available credit|account last[-\s]?4|last[-\s]?4|issuer|institution|card|visa|mastercard|credit card|bank statement|statement type|statement period|period start|period end)\b/.test(text);
+  // Statement metadata fields — asking about these implies the user wants
+  // to inspect statement-level data. "bank statement" removed: it is a
+  // document noun, not a metadata field, and causes false positives on
+  // product-help questions like "How do I upload a bank statement?".
+  const statementDetailAsks = /\b(due date|minimum payment|min payment|new balance|credit limit|available credit|account last[-\s]?4|last[-\s]?4|issuer|institution|card|visa|mastercard|credit card|statement type|statement period|period start|period end)\b/.test(text);
   // Bare month/time-range with no specific drill-down -> treat as a breakdown request.
   // "this month", "february", "last month" alone means the user wants the full summary.
   const bareMonthRequest = /^\s*(this month|last month|january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|sept|october|oct|november|nov|december|dec)\s*[.?!]?\s*$/i.test(text);
@@ -11233,13 +11278,13 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
               if ((!userForcedEmployee || allowHandoffFromForcedPrime) && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                 const lifecycleResult = await performHandoffLifecycle(result, 'streaming-initial');
                 if (lifecycleResult?.blocked) {
-                  // P2: transaction-specific Tag handoff blocked — feed error back to model
+                  // P2/P3.0B: handoff blocked — feed error back to model so it answers directly
                   toolResults.push({
                     role: 'tool',
                     tool_call_id: toolCall.id,
                     content: JSON.stringify({ error: lifecycleResult.blockError }),
                   });
-                  console.log(`[Chat] P2: handoff blocked — injecting tool error and continuing as Prime (streaming-initial)`);
+                  console.log(`[Chat] Handoff blocked — injecting tool error and continuing as Prime (streaming-initial)`);
                   continue;
                 } else if (lifecycleResult) {
                   finalEmployeeSlug = lifecycleResult.targetSlug;
@@ -12449,6 +12494,31 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               }
             }
           }
+          // ── P3.0B: Prime Conversation Ownership Guard ──
+          // Block informational handoffs for PRODUCT_HELP and FINANCIAL_EDUCATION
+          // intents. These are questions Prime can answer directly — transferring
+          // session ownership to a specialist (e.g. Custodian) permanently loses
+          // Prime's financial reasoning, grounding, and memory for the rest of
+          // the session.
+          //
+          // Scope: ONLY PRODUCT_HELP and FINANCIAL_EDUCATION with high/deterministic
+          // confidence. Does NOT block Tag mutations, SPECIALIST_ACTION, or any
+          // other intent lane.
+          if (
+            isPrime &&
+            !isTagTarget &&
+            shadowIntentResult &&
+            (shadowIntentResult.confidence === 'deterministic' || shadowIntentResult.confidence === 'high') &&
+            (shadowIntentResult.intent === 'product_help' || shadowIntentResult.intent === 'financial_education')
+          ) {
+            console.log(`[Chat] P3.0B: ownership guard BLOCKED handoff to ${targetSlug} (${sourceLabel}) — intent=${shadowIntentResult.intent}, confidence=${shadowIntentResult.confidence}. Prime will answer directly.`);
+            return {
+              success: false,
+              blocked: true,
+              blockError: `This is a ${shadowIntentResult.intent === 'product_help' ? 'product help' : 'financial education'} question that you (Prime) should answer directly. Do NOT hand off — answer the user's question yourself using your knowledge.`,
+            };
+          }
+
           const pluginMarker = encodePluginPayloadForHandoff(pluginPayload);
           const summaryForStorage = pluginMarker
             ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
@@ -12829,13 +12899,13 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               if ((!userForcedEmployee || allowHandoffFromForcedPrime) && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                 const lifecycleResult = await performHandoffLifecycle(result, 'non-streaming-initial');
                 if (lifecycleResult?.blocked) {
-                  // P2: transaction-specific Tag handoff blocked — feed error back to model
+                  // P2/P3.0B: handoff blocked — feed error back to model so it answers directly
                   toolResults.push({
                     role: 'tool',
                     tool_call_id: toolCall.id,
                     content: JSON.stringify({ error: lifecycleResult.blockError }),
                   });
-                  console.log(`[Chat] P2: handoff blocked — injecting tool error and continuing as Prime (non-streaming-initial)`);
+                  console.log(`[Chat] Handoff blocked — injecting tool error and continuing as Prime (non-streaming-initial)`);
                   continue;
                 } else if (lifecycleResult) {
                   finalEmployeeSlug = lifecycleResult.targetSlug;
@@ -13189,13 +13259,13 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   if (!userForcedEmployee || allowHandoffFromForcedPrimeLoop) {
                     const lifecycleResult = await performHandoffLifecycle(result, `non-streaming-tool-loop-r${toolRound}`);
                     if (lifecycleResult?.blocked) {
-                      // P2: transaction-specific Tag handoff blocked — feed error back to model
+                      // P2/P3.0B: handoff blocked — feed error back to model so it answers directly
                       currentToolResults.push({
                         role: 'tool',
                         tool_call_id: toolCall.id,
                         content: JSON.stringify({ error: lifecycleResult.blockError }),
                       });
-                      console.log(`[Chat] P2: handoff blocked — injecting tool error and continuing as Prime (tool-loop-r${toolRound})`);
+                      console.log(`[Chat] Handoff blocked — injecting tool error and continuing as Prime (tool-loop-r${toolRound})`);
                       continue;
                     } else if (lifecycleResult) {
                       finalEmployeeSlug = lifecycleResult.targetSlug;
