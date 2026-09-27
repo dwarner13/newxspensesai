@@ -146,6 +146,8 @@ import { detectCandidateFollowUp } from '../../src/shared/candidate-follow-up-de
 import { detectHistoricalReference } from '../../src/shared/historical-reference-detector';
 // P3.0A: Shadow intent classifier (observational only — does not change runtime behavior)
 import { classifyPrimeIntent, type PrimeIntentClassification } from '../../src/shared/prime-intent-classifier';
+// P3.1A: Runtime evidence contract (observational only — does not change runtime behavior)
+import { buildRuntimeEvidenceContract, buildEvidenceContractTelemetry, type PrimeRuntimeEvidenceContract } from '../../src/shared/prime-evidence-contract';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -9736,6 +9738,27 @@ export const handler: Handler = async (event, context) => {
       } catch (e: any) {
         // Shadow mode must NEVER break production flow
         console.warn('[P3.0A Shadow Intent] classification failed (non-fatal):', e?.message);
+      }
+    }
+
+    // ── P3.1A: Runtime Evidence Contract (observational only) ──
+    // Builds a structured evidence contract from P3.0A classification.
+    // Does NOT execute tools, query databases, or change behavior.
+    let runtimeEvidenceContract: PrimeRuntimeEvidenceContract | null = null;
+    if (isPrime && shadowIntentResult) {
+      try {
+        runtimeEvidenceContract = buildRuntimeEvidenceContract(shadowIntentResult, {
+          memoryLoaded: orchCtx.memory_used,
+          memoryFactCount: memoryFacts.length,
+          conversationHistoryLoaded: recentMessages.length > 0,
+          candidateIdentityAvailable: hasExistingCandidates,
+          pipelineSnapshotLoaded: orchCtx.pipeline_snapshot_loaded,
+        });
+        const telemetry = buildEvidenceContractTelemetry(runtimeEvidenceContract);
+        console.log(`[P3.1A Evidence] ${JSON.stringify(telemetry)}`);
+      } catch (e: any) {
+        // P3.1A must NEVER break production flow
+        console.warn('[P3.1A Evidence] contract build failed (non-fatal):', e?.message);
       }
     }
 
