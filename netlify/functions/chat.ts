@@ -148,6 +148,8 @@ import { detectHistoricalReference } from '../../src/shared/historical-reference
 import { classifyPrimeIntent, type PrimeIntentClassification } from '../../src/shared/prime-intent-classifier';
 // P3.1A: Runtime evidence contract (observational only — does not change runtime behavior)
 import { buildRuntimeEvidenceContract, buildEvidenceContractTelemetry, type PrimeRuntimeEvidenceContract } from '../../src/shared/prime-evidence-contract';
+// P3.1B: Evidence resolution plan (observational only — does not change runtime behavior)
+import { buildEvidencePlan, buildEvidencePlanTelemetry } from '../../src/shared/prime-evidence-resolver';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -9759,6 +9761,20 @@ export const handler: Handler = async (event, context) => {
       } catch (e: any) {
         // P3.1A must NEVER break production flow
         console.warn('[P3.1A Evidence] contract build failed (non-fatal):', e?.message);
+      }
+    }
+
+    // ── P3.1B: Evidence Resolution Plan (observational only) ──
+    // Builds a deterministic retrieval plan from P3.1A contract.
+    // Does NOT execute tools, query databases, or change behavior.
+    if (isPrime && runtimeEvidenceContract && shadowIntentResult) {
+      try {
+        const evidencePlan = buildEvidencePlan(runtimeEvidenceContract, shadowIntentResult);
+        const planTelemetry = buildEvidencePlanTelemetry(evidencePlan);
+        console.log(`[P3.1B Evidence Plan] ${JSON.stringify(planTelemetry)}`);
+      } catch (e: any) {
+        // P3.1B must NEVER break production flow
+        console.warn('[P3.1B Evidence Plan] build failed (non-fatal):', e?.message);
       }
     }
 
