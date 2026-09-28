@@ -650,6 +650,159 @@ export function shouldSuppressLegacyPreExec(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// EVIDENCE SHAPE — P3.1D deterministic evidence-shape classification
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type EvidenceShape =
+  | 'no_executable_evidence'
+  | 'single_period_aggregation'
+  | 'single_period_transactions'
+  | 'two_period_comparison'
+  | 'partial_comparison'
+  | 'successful_empty'
+  | 'all_failed'
+  | 'mixed';
+
+/**
+ * Classify the structural shape of P3.1C evidence results.
+ * Derived purely from result structure — no NLP, no user-message parsing.
+ */
+export function classifyEvidenceShape(result: PrimeEvidenceExecutionResult): EvidenceShape {
+  const resolved = result.results.filter(r => r.status === 'resolved');
+  const empty = result.results.filter(r => r.status === 'successful_empty');
+  const failed = result.results.filter(r => r.status === 'failed');
+  const skipped = result.results.filter(r => r.status === 'skipped');
+
+  const executableSteps = result.results.filter(
+    r => r.tool && (r.status === 'resolved' || r.status === 'successful_empty' || r.status === 'failed'),
+  );
+
+  if (executableSteps.length === 0) return 'no_executable_evidence';
+
+  // All executable steps failed or were skipped
+  if (resolved.length === 0 && empty.length === 0) return 'all_failed';
+
+  // All results are successful_empty (and none resolved with data)
+  if (resolved.length === 0 && empty.length > 0) return 'successful_empty';
+
+  // Check for two-period comparison (resolved result with periodA/periodB data)
+  const hasComparisonData = resolved.some(r => {
+    if (!r.data || typeof r.data !== 'object') return false;
+    const d = r.data as Record<string, unknown>;
+    return 'periodA' in d && 'periodB' in d;
+  });
+  if (hasComparisonData) return 'two_period_comparison';
+
+  // Check for partial comparison: multi_source evidence kind with some failed
+  const hasPartialComparison = result.results.some(r => r.evidenceKind === 'period_comparison') &&
+    failed.length > 0 && resolved.length > 0;
+  if (hasPartialComparison) return 'partial_comparison';
+
+  // Also partial if period_comparison has mixed resolved + failed individual period results
+  const periodCompResults = result.results.filter(r => r.evidenceKind === 'period_comparison');
+  if (periodCompResults.length >= 2) {
+    const pcResolved = periodCompResults.filter(r => r.status === 'resolved' || r.status === 'successful_empty');
+    const pcFailed = periodCompResults.filter(r => r.status === 'failed');
+    if (pcResolved.length > 0 && pcFailed.length > 0) return 'partial_comparison';
+  }
+
+  // If some executable steps resolved but others failed (different evidence kinds),
+  // this is a mixed result — not a clean single-period shape.
+  const failedExecutable = executableSteps.filter(r => r.status === 'failed');
+  if (failedExecutable.length > 0 && resolved.length > 0) return 'mixed';
+
+  // Single-period data (no failures)
+  const hasAggregation = resolved.some(r => r.tool === 'transaction_category_totals');
+  const hasTransactions = resolved.some(r => r.tool === 'tx_search');
+
+  if (hasAggregation && !hasTransactions) return 'single_period_aggregation';
+  if (hasTransactions && !hasAggregation) return 'single_period_transactions';
+
+  return 'mixed';
+}
+
+/**
+ * P3.1D — Build evidence-shape policy text for model context.
+ *
+ * Derives model constraints ONLY from the structural shape of verified evidence.
+ * No user-message parsing, no conclusion classifier, no regex reasoning.
+ *
+ * These are MODEL CONSTRAINTS — strong guidance that shapes model behavior.
+ * They are NOT hard programmatic enforcement.
+ */
+export function buildEvidenceShapePolicy(result: PrimeEvidenceExecutionResult): string | null {
+  const shape = classifyEvidenceShape(result);
+
+  switch (shape) {
+    case 'no_executable_evidence':
+      return null; // Non-financial query or no tools — no financial restrictions
+
+    case 'single_period_aggregation':
+      return (
+        'EVIDENCE SHAPE: Single-period category aggregation.\n' +
+        'You may report totals, category breakdowns, contributions, rankings, and calculations supported by this data.\n' +
+        'You must NOT claim any category "increased," "decreased," or changed without comparison data for another period.\n' +
+        'You must NOT describe trends without multiple comparable periods.'
+      );
+
+    case 'single_period_transactions':
+      return (
+        'EVIDENCE SHAPE: Single-period transaction data.\n' +
+        'You may report the transactions found, totals, and any patterns within this data.\n' +
+        'You must NOT claim any spending "increased," "decreased," or changed without comparison data for another period.\n' +
+        'You must NOT describe trends without multiple comparable periods.'
+      );
+
+    case 'two_period_comparison':
+      return (
+        'EVIDENCE SHAPE: Two-period comparison with verified data for both periods.\n' +
+        'You may compare the two periods, describe verified changes, and report which categories changed.'
+      );
+
+    case 'partial_comparison': {
+      const available = result.results.find(
+        r => (r.status === 'resolved' || r.status === 'successful_empty') && r.periodLabel,
+      );
+      const missing = result.results.find(
+        r => r.status === 'failed' && r.periodLabel,
+      );
+      const availLabel = available?.periodLabel || 'one period';
+      const missLabel = missing?.periodLabel || 'the other period';
+      return (
+        `EVIDENCE SHAPE: Partial comparison — data for ${availLabel} was retrieved, but ${missLabel} could not be retrieved.\n` +
+        `You may report what the available data (${availLabel}) shows.\n` +
+        `You must clearly state that data for ${missLabel} was unavailable, so the comparison cannot be completed.\n` +
+        'You must NOT state the requested comparison or change conclusion.'
+      );
+    }
+
+    case 'successful_empty':
+      return (
+        'EVIDENCE SHAPE: Query succeeded with zero matching results.\n' +
+        'This is verified — the database query completed and found no records.\n' +
+        'Say "I found no matching [X] transactions in the currently imported data for [period]."\n' +
+        'Do NOT automatically convert absence of records to "You spent $0 on [X]" — the imported data may not cover all accounts.'
+      );
+
+    case 'all_failed':
+      return (
+        'EVIDENCE SHAPE: All financial data retrieval failed.\n' +
+        'Explain naturally that the required financial data could not be retrieved.\n' +
+        'Do NOT state user-specific financial conclusions.\n' +
+        'Do NOT substitute general knowledge, memory, or inference for missing authoritative evidence.'
+      );
+
+    case 'mixed':
+      return (
+        'EVIDENCE SHAPE: Mixed evidence — some data retrieved, some not.\n' +
+        'Report ONLY what the successfully retrieved evidence shows.\n' +
+        'Do NOT invent, estimate, or infer values for missing data.\n' +
+        'You must NOT claim changes or trends without comparison data for multiple periods.'
+      );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MODEL CONTEXT INJECTION
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -657,7 +810,7 @@ export function shouldSuppressLegacyPreExec(
  * Build a compact structured evidence message for injection into the model context.
  *
  * Format is structured text — not raw JSON. The model needs human-readable evidence.
- * Includes sufficiency rule to prevent unsupported financial claims.
+ * Includes P3.1D evidence-shape policy and data provenance.
  */
 export function buildEvidenceContextMessage(
   executionResult: PrimeEvidenceExecutionResult,
@@ -674,7 +827,7 @@ export function buildEvidenceContextMessage(
       const dataStr = formatEvidenceData(result);
       sections.push(`${header}\n${dataStr}`);
     } else if (result.status === 'successful_empty') {
-      sections.push(`${header}\nNo matching records found. This is verified — the data does not exist.`);
+      sections.push(`${header}\nNo matching records found in the currently imported data. This is a verified empty result, not a retrieval failure.`);
     } else if (result.status === 'failed') {
       sections.push(`${header}\nData retrieval failed. Do not guess or estimate this value.`);
     } else if (result.status === 'skipped') {
@@ -682,7 +835,31 @@ export function buildEvidenceContextMessage(
     }
   }
 
-  // Sufficiency rule
+  // P3.1D: Evidence-shape policy (model constraints derived from evidence structure)
+  const shapePolicy = buildEvidenceShapePolicy(executionResult);
+  if (shapePolicy) {
+    sections.push(shapePolicy);
+  }
+
+  // P3.1D: Data provenance — prevent implying complete financial coverage
+  const hasAnyEvidence = executionResult.results.some(
+    r => r.status === 'resolved' || r.status === 'successful_empty',
+  );
+  if (hasAnyEvidence) {
+    sections.push(
+      'DATA PROVENANCE: These results reflect the transaction data currently imported into XspensesAI. ' +
+      'They may not include all bank accounts or all statements for the requested period.',
+    );
+  }
+
+  // P3.1D: Memory authority — verified evidence takes precedence
+  if (hasAnyEvidence) {
+    sections.push(
+      'EVIDENCE AUTHORITY: When verified financial evidence above conflicts with memory or conversation history, use the verified evidence.',
+    );
+  }
+
+  // Sufficiency rule (preserved from P3.1C, complements P3.1D shape policy)
   if (executionResult.overallSufficiency === 'partial') {
     sections.push(
       'EVIDENCE RULE: Some requested financial data is missing. ' +

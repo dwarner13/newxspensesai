@@ -159,9 +159,17 @@ import {
   buildEvidenceContextMessage,
   shouldSuppressLegacyPreExec,
   buildDedupKey,
+  classifyEvidenceShape,
   type PrimeEvidenceExecutionResult,
   type DedupCache,
 } from '../../src/shared/prime-evidence-executor';
+// P3.1D: Post-stream evidence violation detection (telemetry only)
+import {
+  detectEvidenceViolation,
+  buildEvidenceViolationTelemetry,
+  EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS,
+  type AccumulatedEvidenceMap,
+} from '../../src/shared/prime-evidence-validator';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -9866,14 +9874,30 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    // ── P3.1D: Request-scoped accumulated evidence ──
+    // Seeded from P3.1C; later successful read-tool results are added.
+    // Only tx_search and transaction_category_totals may enter — mutations NEVER.
+    const p31dAccumulatedEvidence: AccumulatedEvidenceMap = new Map();
+    if (p31cResult) {
+      for (const r of p31cResult.results) {
+        if (r.tool && EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(r.tool) &&
+            (r.status === 'resolved' || r.status === 'successful_empty')) {
+          const kind = r.tool === 'tx_search' ? 'transaction_data' : 'category_aggregation';
+          p31dAccumulatedEvidence.set(kind, { tool: r.tool, status: r.status, rowCount: r.rowCount ?? 0 });
+        }
+      }
+    }
+
     // ── P3.1C: Inject evidence context into model prompt (shared path) ──
     // Runs before the streaming/non-streaming branch so both paths see evidence.
+    // P3.1D evidence-shape policy and provenance are now included.
     if (isPrime && p31cResult && p31cResult.results.length > 0) {
       try {
         const evidenceCtxMsg = buildEvidenceContextMessage(p31cResult);
         if (evidenceCtxMsg) {
           systemMessages.push({ role: 'system', content: evidenceCtxMsg });
-          console.log(`[P3.1C] Evidence context injected (sufficiency=${p31cResult.overallSufficiency})`);
+          const shape = classifyEvidenceShape(p31cResult);
+          console.log(`[P3.1C] Evidence context injected (sufficiency=${p31cResult.overallSufficiency}, shape=${shape})`);
         }
       } catch (e: any) {
         console.warn('[P3.1C] Evidence context injection failed (non-fatal):', e?.message);
@@ -11424,6 +11448,12 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
                       guardedPersistTxResolution(sb, finalSessionId, userId, result, 'streaming').catch(e => console.warn('[Chat] TxResolution persist error (streaming):', e?.message));
                     }
+                    // P3.1D: Track successful read-tool results in accumulated evidence
+                    if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
+                      const kind = toolName === 'tx_search' ? 'transaction_data' : 'category_aggregation';
+                      const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
+                      p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rows.length === 0 ? 'successful_empty' : 'resolved', rowCount: rows.length });
+                    }
                     // Special handling for employee handoff (streaming)
                     // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
               const allowHandoffFromForcedPrime = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
@@ -12108,6 +12138,24 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       writeSSE(donePayload);
       if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
         console.log('[CHAT SSE OUT]', donePayload.type, 'thread_id:', threadId);
+      }
+
+      // ── P3.1D: Post-stream evidence violation detection (TELEMETRY ONLY) ──
+      // Does NOT modify, suppress, or replace the response — user already saw it.
+      if (isPrime && p31cResult && assistantContent) {
+        try {
+          const finalSufficiency = p31dAccumulatedEvidence.size > 0 && p31cResult.overallSufficiency === 'insufficient'
+            ? (Array.from(p31dAccumulatedEvidence.values()).some(e => e.status === 'resolved') ? 'partial' as const : p31cResult.overallSufficiency)
+            : p31cResult.overallSufficiency;
+          const shape = classifyEvidenceShape(p31cResult);
+          const violation = detectEvidenceViolation(assistantContent, finalSufficiency, shape);
+          if (violation.violated) {
+            const vTelemetry = buildEvidenceViolationTelemetry(violation);
+            console.log(`[P3.1D Detection] violation detected (streaming, telemetry only): ${JSON.stringify(vTelemetry)}`);
+          }
+        } catch (e: any) {
+          console.warn('[P3.1D Detection] failed (non-fatal):', e?.message);
+        }
       }
 
       // Calculate token usage (rough estimate)
@@ -13062,6 +13110,12 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
                 guardedPersistTxResolution(sb, finalSessionId, userId, result, 'non-streaming').catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):', e?.message));
               }
+              // P3.1D: Track successful read-tool results in accumulated evidence
+              if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
+                const kind = toolName === 'tx_search' ? 'transaction_data' : 'category_aggregation';
+                const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
+                p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rows.length === 0 ? 'successful_empty' : 'resolved', rowCount: rows.length });
+              }
               // Special handling for employee handoff (non-streaming)
               // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
               const allowHandoffFromForcedPrime = userForcedEmployee && (finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime');
@@ -13432,6 +13486,12 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
                   guardedPersistTxResolution(sb, finalSessionId, userId, result, 'tool-loop').catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):', e?.message));
                 }
+                // P3.1D: Track successful read-tool results in accumulated evidence (tool loop)
+                if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
+                  const kind = toolName === 'tx_search' ? 'transaction_data' : 'category_aggregation';
+                  const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
+                  p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rows.length === 0 ? 'successful_empty' : 'resolved', rowCount: rows.length });
+                }
 
                 // Handoff lifecycle (authoritative — same implementation as initial path)
                 if (toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
@@ -13662,6 +13722,24 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             assistantContent = "I found financial data for that request, but I wasn't able to produce a reliable summary from it. Could you try asking again?";
             console.warn('[FinancialGrounding] false-zero retry failed — returning grounded fallback');
           }
+        }
+      }
+
+      // ── P3.1D: Post-response evidence violation detection (TELEMETRY ONLY) ──
+      // Does NOT modify the response — detection only for monitoring.
+      if (isPrime && p31cResult && assistantContent) {
+        try {
+          const finalSufficiency = p31dAccumulatedEvidence.size > 0 && p31cResult.overallSufficiency === 'insufficient'
+            ? (Array.from(p31dAccumulatedEvidence.values()).some(e => e.status === 'resolved') ? 'partial' as const : p31cResult.overallSufficiency)
+            : p31cResult.overallSufficiency;
+          const shape = classifyEvidenceShape(p31cResult);
+          const violation = detectEvidenceViolation(assistantContent, finalSufficiency, shape);
+          if (violation.violated) {
+            const vTelemetry = buildEvidenceViolationTelemetry(violation);
+            console.log(`[P3.1D Detection] violation detected (non-streaming, telemetry only): ${JSON.stringify(vTelemetry)}`);
+          }
+        } catch (e: any) {
+          console.warn('[P3.1D Detection] failed (non-fatal):', e?.message);
         }
       }
 
