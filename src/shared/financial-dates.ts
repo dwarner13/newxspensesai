@@ -156,7 +156,7 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
 
-function buildMonthRange(year: number, month: number): DateRange {
+export function buildMonthRange(year: number, month: number): DateRange {
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextYear = month === 12 ? year + 1 : year;
   return {

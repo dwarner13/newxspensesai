@@ -28,6 +28,8 @@ import {
   type PrimeEvidenceRequirement,
   getEvidenceSource,
 } from './prime-evidence-contract';
+import type { PrimeTemporalScope } from './prime-temporal-scope';
+import { toInclusiveEndDate } from './prime-temporal-scope';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MUTATION BLOCKLIST — these tools MUST NEVER appear in an evidence plan
@@ -105,6 +107,7 @@ export function buildEvidencePlan(
   const steps: PrimeEvidencePlanStep[] = [];
   const unresolved: PrimeEvidenceUnresolved[] = [];
   const fc = classification.financialClassification;
+  const ts = contract.temporalScope;
 
   for (const req of contract.requirements) {
     if (req.status === 'available') {
@@ -113,7 +116,7 @@ export function buildEvidencePlan(
       unresolved.push({ evidenceKind: req.kind, reason: 'source_unavailable' });
     } else {
       // pending — attempt resolution
-      const result = resolvePending(req, fc);
+      const result = resolvePending(req, fc, ts);
       if (isStep(result)) {
         // Defense-in-depth: reject any mutation tool
         if (result.tool && MUTATION_TOOLS.has(result.tool)) {
@@ -157,14 +160,15 @@ function buildAvailableStep(req: PrimeEvidenceRequirement): PrimeEvidencePlanSte
 function resolvePending(
   req: PrimeEvidenceRequirement,
   fc?: FinancialQueryClassification,
+  ts?: PrimeTemporalScope,
 ): PrimeEvidencePlanStep | PrimeEvidenceUnresolved {
   switch (req.kind) {
     case 'transaction_data':
-      return resolveTransactionData(fc);
+      return resolveTransactionData(fc, ts);
     case 'category_aggregation':
-      return resolveCategoryAggregation(fc);
+      return resolveCategoryAggregation(fc, ts);
     case 'period_comparison':
-      return resolvePeriodComparison(fc);
+      return resolvePeriodComparison(fc, ts);
     case 'cash_flow':
       return { evidenceKind: 'cash_flow', reason: 'missing_capability' };
     case 'document_evidence':
@@ -226,10 +230,12 @@ function resolvePending(
  * Resolve transaction_data evidence.
  * Uses existing FinancialQueryClassification dimensions (merchantHint,
  * resolvedCategory, years, exactDate, exactAmount, requestedCount).
+ * When temporal scope is available and deterministic, includes date range.
  * Does NOT duplicate any extraction logic.
  */
 function resolveTransactionData(
   fc?: FinancialQueryClassification,
+  ts?: PrimeTemporalScope,
 ): PrimeEvidencePlanStep | PrimeEvidenceUnresolved {
   if (!fc || !fc.requiresGrounding) {
     return { evidenceKind: 'transaction_data', reason: 'missing_parameters' };
@@ -243,7 +249,13 @@ function resolveTransactionData(
       params.subcategory = fc.resolvedCategory.subcategory;
     }
   }
-  if (fc.years.length > 0) params.year = fc.years[0];
+  // Prefer deterministic temporal scope over bare year
+  if (ts?.primary && ts.primary.confidence === 'deterministic') {
+    params.startDate = ts.primary.from;
+    params.endDate = toInclusiveEndDate(ts.primary.to);
+  } else if (fc.years.length > 0) {
+    params.year = fc.years[0];
+  }
   if (fc.exactDate) params.exactDate = fc.exactDate;
   if (fc.exactAmount !== undefined) params.exactAmount = fc.exactAmount;
   if (fc.requestedCount !== undefined) params.limit = fc.requestedCount;
@@ -261,9 +273,11 @@ function resolveTransactionData(
 /**
  * Resolve category_aggregation evidence.
  * Can always be planned — tool accepts optional category/year filters.
+ * When temporal scope is available and deterministic, includes date range.
  */
 function resolveCategoryAggregation(
   fc?: FinancialQueryClassification,
+  ts?: PrimeTemporalScope,
 ): PrimeEvidencePlanStep {
   const params: Record<string, unknown> = {};
   if (fc?.resolvedCategory) {
@@ -272,7 +286,13 @@ function resolveCategoryAggregation(
       params.subcategory = fc.resolvedCategory.subcategory;
     }
   }
-  if (fc && fc.years.length > 0) params.year = fc.years[0];
+  // Prefer deterministic temporal scope over bare year
+  if (ts?.primary && ts.primary.confidence === 'deterministic') {
+    params.startDate = ts.primary.from;
+    params.endDate = toInclusiveEndDate(ts.primary.to);
+  } else if (fc && fc.years.length > 0) {
+    params.year = fc.years[0];
+  }
 
   return {
     evidenceKind: 'category_aggregation',
@@ -286,13 +306,36 @@ function resolveCategoryAggregation(
 
 /**
  * Resolve period_comparison evidence.
- * Requires two deterministic periods. If two explicit years are present
- * in the scope, produces a multi_source plan. Otherwise: ambiguous.
+ * Requires two deterministic periods. Uses temporal scope when available.
+ * If two explicit years or two temporal periods are present, produces a
+ * multi_source plan. Otherwise: ambiguous.
  */
 function resolvePeriodComparison(
   fc?: FinancialQueryClassification,
+  ts?: PrimeTemporalScope,
 ): PrimeEvidencePlanStep | PrimeEvidenceUnresolved {
-  // Two explicit years + comparison signal → deterministic multi-source
+  // P3.1A.1: Two deterministic temporal periods → multi-source
+  if (
+    ts?.primary && ts?.comparison &&
+    ts.primary.confidence === 'deterministic' &&
+    ts.comparison.confidence === 'deterministic'
+  ) {
+    return {
+      evidenceKind: 'period_comparison',
+      source: 'Comparison of two time periods (requires multiple tool calls)',
+      tool: 'transaction_category_totals',
+      mode: 'multi_source',
+      params: {
+        periodA_startDate: ts.primary.from,
+        periodA_endDate: toInclusiveEndDate(ts.primary.to),
+        periodB_startDate: ts.comparison.from,
+        periodB_endDate: toInclusiveEndDate(ts.comparison.to),
+      },
+      authoritative: true,
+    };
+  }
+
+  // Legacy: Two explicit years + comparison signal → deterministic multi-source
   if (fc?.scope?.isComparison && fc.years.length >= 2) {
     return {
       evidenceKind: 'period_comparison',

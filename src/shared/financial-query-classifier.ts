@@ -78,8 +78,9 @@ const CATEGORY_NOT_MERCHANT = new Set([
   'transfers', 'income', 'vehicle',
 ]);
 
-/** Month name → number mapping for date extraction. */
-const MONTH_MAP: Record<string, number> = {
+/** Month name → 1-indexed number mapping for date extraction.
+ *  Canonical source — imported by prime-temporal-scope.ts. */
+export const MONTH_MAP: Record<string, number> = {
   january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3,
   april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7,
   august: 8, aug: 8, september: 9, sep: 9, sept: 9,
@@ -165,7 +166,7 @@ function extractExactDate(msg: string): string | undefined {
   if (!month) return undefined;
   const day = parseInt(match[2], 10);
   const year = parseInt(match[3], 10);
-  if (year < 2020 || year > 2030) return undefined;
+  if (year < 2020 || year > 2039) return undefined;
   let maxDays = DAYS_IN_MONTH[month];
   if (month === 2 && !isLeapYear(year)) maxDays = 28;
   if (day < 1 || day > maxDays) return undefined;

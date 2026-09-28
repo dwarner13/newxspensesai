@@ -19,6 +19,7 @@ import {
   type IntentConfidence,
   type PrimeIntentClassification,
 } from './prime-intent-classifier';
+import type { PrimeTemporalScope } from './prime-temporal-scope';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EVIDENCE KIND — small stable vocabulary
@@ -57,6 +58,8 @@ export interface PrimeRuntimeEvidenceContract {
   confidence: IntentConfidence;
   requirements: PrimeEvidenceRequirement[];
   forbidden: string[];
+  /** Canonical temporal scope extracted from the user message (P3.1A.1). */
+  temporalScope?: PrimeTemporalScope;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,12 +280,15 @@ function refineFinancialEvidenceKinds(
  * 2. Uses financialClassification.queryType to refine ambiguous kinds
  * 3. Passively determines evidence status from already-loaded context
  * 4. Preserves forbidden labels unchanged
+ * 5. Attaches canonical temporal scope when provided (P3.1A.1)
+ * 6. Composes analysis evidence (period_comparison) for FINANCIAL_ANALYSIS
  *
  * Does NOT execute tools, query databases, or change behavior.
  */
 export function buildRuntimeEvidenceContract(
   classification: PrimeIntentClassification,
   ctx: EvidenceAvailabilityContext,
+  temporalScope?: PrimeTemporalScope,
 ): PrimeRuntimeEvidenceContract {
   const { intent, confidence, proposedEvidence, financialClassification } = classification;
 
@@ -334,11 +340,48 @@ export function buildRuntimeEvidenceContract(
     });
   }
 
+  // ── P3.1A.1: Analysis evidence composition ──
+  // For FINANCIAL_ANALYSIS with a comparison signal (explicit or implicit),
+  // ensure period_comparison is required even if P3.0A labels didn't produce it.
+  if (
+    intent === PrimeIntent.FINANCIAL_ANALYSIS &&
+    temporalScope?.comparison !== undefined
+  ) {
+    const alreadyHasComparison = requirements.some(r => r.kind === 'period_comparison');
+    if (!alreadyHasComparison) {
+      requirements.push({
+        kind: 'period_comparison',
+        required: true,
+        status: resolvePassiveStatus('period_comparison', ctx),
+      });
+    }
+  }
+
+  // For FINANCIAL_ANALYSIS with an implicit comparison signal but no explicit
+  // comparison period — still require period_comparison so downstream knows
+  // comparison evidence is needed (it will remain unresolved/ambiguous).
+  if (
+    intent === PrimeIntent.FINANCIAL_ANALYSIS &&
+    temporalScope?.primary !== undefined &&
+    temporalScope?.comparison === undefined &&
+    financialClassification?.scope?.isComparison
+  ) {
+    const alreadyHasComparison = requirements.some(r => r.kind === 'period_comparison');
+    if (!alreadyHasComparison) {
+      requirements.push({
+        kind: 'period_comparison',
+        required: true,
+        status: 'pending',
+      });
+    }
+  }
+
   return {
     intent,
     confidence,
     requirements,
     forbidden: proposedEvidence.forbidden,
+    temporalScope: temporalScope ?? undefined,
   };
 }
 

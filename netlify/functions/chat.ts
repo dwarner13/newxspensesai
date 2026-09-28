@@ -150,6 +150,8 @@ import { classifyPrimeIntent, type PrimeIntentClassification } from '../../src/s
 import { buildRuntimeEvidenceContract, buildEvidenceContractTelemetry, type PrimeRuntimeEvidenceContract } from '../../src/shared/prime-evidence-contract';
 // P3.1B: Evidence resolution plan (observational only — does not change runtime behavior)
 import { buildEvidencePlan, buildEvidencePlanTelemetry } from '../../src/shared/prime-evidence-resolver';
+// P3.1A.1: Canonical temporal scope (observational only — does not change runtime behavior)
+import { buildTemporalScope, buildTemporalScopeTelemetry } from '../../src/shared/prime-temporal-scope';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -9743,6 +9745,26 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    // ── P3.1A.1: Canonical Temporal Scope (observational only) ──
+    // Extracts deterministic temporal periods from the user message.
+    // Does NOT execute tools, query databases, or change behavior.
+    let temporalScope: ReturnType<typeof buildTemporalScope> = null;
+    if (isPrime && shadowIntentResult) {
+      try {
+        temporalScope = buildTemporalScope(
+          userMessage,
+          { timezone, referenceDate: new Date() },
+          shadowIntentResult.financialClassification?.years,
+        );
+        if (temporalScope) {
+          const tsTelemetry = buildTemporalScopeTelemetry(temporalScope);
+          console.log(`[P3.1A.1 Temporal] ${JSON.stringify(tsTelemetry)}`);
+        }
+      } catch (e: any) {
+        console.warn('[P3.1A.1 Temporal] scope build failed (non-fatal):', e?.message);
+      }
+    }
+
     // ── P3.1A: Runtime Evidence Contract (observational only) ──
     // Builds a structured evidence contract from P3.0A classification.
     // Does NOT execute tools, query databases, or change behavior.
@@ -9755,7 +9777,7 @@ export const handler: Handler = async (event, context) => {
           conversationHistoryLoaded: recentMessages.length > 0,
           candidateIdentityAvailable: hasExistingCandidates,
           pipelineSnapshotLoaded: orchCtx.pipeline_snapshot_loaded,
-        });
+        }, temporalScope ?? undefined);
         const telemetry = buildEvidenceContractTelemetry(runtimeEvidenceContract);
         console.log(`[P3.1A Evidence] ${JSON.stringify(telemetry)}`);
       } catch (e: any) {
