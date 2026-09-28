@@ -152,6 +152,16 @@ import { buildRuntimeEvidenceContract, buildEvidenceContractTelemetry, type Prim
 import { buildEvidencePlan, buildEvidencePlanTelemetry } from '../../src/shared/prime-evidence-resolver';
 // P3.1A.1: Canonical temporal scope (observational only — does not change runtime behavior)
 import { buildTemporalScope, buildTemporalScopeTelemetry } from '../../src/shared/prime-temporal-scope';
+// P3.1C: Controlled read-only evidence execution
+import {
+  executeEvidencePlan as executeEvidencePlanP31C,
+  buildEvidenceExecutionTelemetry,
+  buildEvidenceContextMessage,
+  shouldSuppressLegacyPreExec,
+  buildDedupKey,
+  type PrimeEvidenceExecutionResult,
+  type DedupCache,
+} from '../../src/shared/prime-evidence-executor';
 import {
   isAnswerInContext,
   buildPreExecutionPlan,
@@ -9789,14 +9799,84 @@ export const handler: Handler = async (event, context) => {
     // ── P3.1B: Evidence Resolution Plan (observational only) ──
     // Builds a deterministic retrieval plan from P3.1A contract.
     // Does NOT execute tools, query databases, or change behavior.
+    let evidencePlanForExecution: ReturnType<typeof buildEvidencePlan> | null = null;
     if (isPrime && runtimeEvidenceContract && shadowIntentResult) {
       try {
-        const evidencePlan = buildEvidencePlan(runtimeEvidenceContract, shadowIntentResult);
-        const planTelemetry = buildEvidencePlanTelemetry(evidencePlan);
+        evidencePlanForExecution = buildEvidencePlan(runtimeEvidenceContract, shadowIntentResult);
+        const planTelemetry = buildEvidencePlanTelemetry(evidencePlanForExecution);
         console.log(`[P3.1B Evidence Plan] ${JSON.stringify(planTelemetry)}`);
       } catch (e: any) {
         // P3.1B must NEVER break production flow
         console.warn('[P3.1B Evidence Plan] build failed (non-fatal):', e?.message);
+      }
+    }
+
+    // ── P3.1C: Controlled Read-Only Evidence Execution ──
+    // Executes eligible P3.1B plan steps using the narrow V1 allowlist.
+    // Only runs for Prime when a valid evidence plan exists.
+    // Results are injected into model context. Failures are non-fatal.
+    let p31cResult: PrimeEvidenceExecutionResult | null = null;
+    const p31cDedupCache: DedupCache = new Map();
+    if (isPrime && evidencePlanForExecution && toolsAllowedThisTurn) {
+      try {
+        const hasExecutableSteps = evidencePlanForExecution.steps.some(
+          s => (s.mode === 'tool' || s.mode === 'multi_source') && s.tool,
+        );
+        if (hasExecutableSteps) {
+          // Build executor that uses the verified JWT userId — never from plan params
+          const p31cExecutor = async (toolName: string, args: Record<string, unknown>) => {
+            const toolModule = toolModules[toolName];
+            if (!toolModule) throw new Error(`tool_not_found: ${toolName}`);
+            const toolContext: ToolContext = {
+              userId,
+              conversationId: finalSessionId,
+              sessionId: finalSessionId,
+              authHeader: authHeader || '',
+            };
+            return executeTool(toolModule, args, toolContext, {
+              employeeSlug: finalEmployeeSlug,
+              mode: 'propose-confirm',
+              autonomyLevel: 1,
+            });
+          };
+          p31cResult = await executeEvidencePlanP31C(
+            evidencePlanForExecution,
+            p31cExecutor,
+            p31cDedupCache,
+          );
+          const execTelemetry = buildEvidenceExecutionTelemetry(p31cResult);
+          console.log(`[P3.1C Evidence Execution] ${JSON.stringify(execTelemetry)}`);
+
+          // Capture authoritative transaction identity from P3.1C tx_search results
+          if (finalSessionId) {
+            for (const r of p31cResult.results) {
+              if (r.tool === 'tx_search' && (r.status === 'resolved' || r.status === 'successful_empty') && r.data) {
+                const txData = r.data as any;
+                if (txData.rows) {
+                  updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, { rows: txData.rows, queryStatus: txData.queryStatus });
+                  guardedPersistTxResolution(sb, finalSessionId, userId, { rows: txData.rows, queryStatus: txData.queryStatus }, 'p31c').catch(e => console.warn('[Chat] TxResolution persist error (p31c):', e?.message));
+                }
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        // P3.1C must NEVER break production flow
+        console.warn('[P3.1C Evidence Execution] failed (non-fatal):', e?.message);
+      }
+    }
+
+    // ── P3.1C: Inject evidence context into model prompt (shared path) ──
+    // Runs before the streaming/non-streaming branch so both paths see evidence.
+    if (isPrime && p31cResult && p31cResult.results.length > 0) {
+      try {
+        const evidenceCtxMsg = buildEvidenceContextMessage(p31cResult);
+        if (evidenceCtxMsg) {
+          systemMessages.push({ role: 'system', content: evidenceCtxMsg });
+          console.log(`[P3.1C] Evidence context injected (sufficiency=${p31cResult.overallSufficiency})`);
+        }
+      } catch (e: any) {
+        console.warn('[P3.1C] Evidence context injection failed (non-fatal):', e?.message);
       }
     }
 
@@ -11305,11 +11385,22 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     tool: toolName
                   });
 
-                  const result = await executeTool(toolModule, args, toolContext, {
-                    employeeSlug: finalEmployeeSlug,
-                    mode: 'propose-confirm',
-                    autonomyLevel: 1,
-                  });
+                  // ── P3.1C dedup: reuse cached result if same tool+args already executed ──
+                  let result: any;
+                  const streamCacheKey = (toolName === 'tx_search' || toolName === 'transaction_category_totals')
+                    ? buildDedupKey(toolName, args as Record<string, unknown>)
+                    : null;
+                  const streamCached = streamCacheKey ? p31cDedupCache.get(streamCacheKey) : undefined;
+                  if (streamCached) {
+                    result = streamCached.data;
+                    console.log(`[Chat] P3.1C dedup hit (streaming) for ${toolName} — returning cached result`);
+                  } else {
+                    result = await executeTool(toolModule, args, toolContext, {
+                      employeeSlug: finalEmployeeSlug,
+                      mode: 'propose-confirm',
+                      autonomyLevel: 1,
+                    });
+                  }
 
                   // Check if result has error field (from executeTool error handling)
                   if (result && typeof result === 'object' && 'error' in result) {
@@ -12303,6 +12394,12 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             } else {
               // Pre-execute the right tool
               const plan = buildPreExecutionPlan(financialClassification, contextYear);
+              // ── P3.1C gate: skip legacy pre-exec when P3.1C already provided equivalent evidence ──
+              const p31cSuppressed = plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false;
+              if (p31cSuppressed) {
+                console.log(`[FinancialGrounding] P3.1C gate: skipping legacy ${plan.toolName} pre-exec — evidence already resolved by P3.1C`);
+                financialEvidence = { grounded: true, toolName: plan.toolName as any, queryStatus: 'verified', fromContext: false };
+              }
               // ── Phase 1D gate: skip tx_search pre-exec when existing candidates exist ──
               // Existing candidates represent the user's conversational reference frame.
               // A grounding pre-exec tx_search would replace them before the model gets
@@ -12312,7 +12409,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               if (phase1dSuppressed) {
                 console.log(`[FinancialGrounding] Phase1D: skipping tx_search pre-exec — ${existingTxResolution!.candidates.length} existing candidates preserved for model selection`);
               }
-              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed) {
+              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed) {
                 console.log(`[FinancialGrounding] pre-executing tool=${plan.toolName} args=${JSON.stringify(plan.toolArgs)}`);
                 try {
                   const toolContext: ToolContext = {
@@ -12926,11 +13023,22 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               }
             }
 
-            const result = await executeTool(toolModule, args, toolContext, {
-              employeeSlug: finalEmployeeSlug,
-              mode: 'propose-confirm',
-              autonomyLevel: 1,
-            });
+            // ── P3.1C dedup: if this exact tool+args was already executed by P3.1C, reuse cached result ──
+            let result: any;
+            const p31cCacheKey = (toolName === 'tx_search' || toolName === 'transaction_category_totals')
+              ? buildDedupKey(toolName, args as Record<string, unknown>)
+              : null;
+            const p31cCached = p31cCacheKey ? p31cDedupCache.get(p31cCacheKey) : undefined;
+            if (p31cCached) {
+              result = p31cCached.data;
+              console.log(`[Chat] P3.1C dedup hit for ${toolName} — returning cached result`);
+            } else {
+              result = await executeTool(toolModule, args, toolContext, {
+                employeeSlug: finalEmployeeSlug,
+                mode: 'propose-confirm',
+                autonomyLevel: 1,
+              });
+            }
 
             // Check if result has error field (from executeTool error handling)
             if (result && typeof result === 'object' && 'error' in result) {
@@ -13299,11 +13407,22 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   sessionId: finalSessionId,
                   authHeader: authHeader || '',
                 };
-                const result = await executeTool(toolModule, args, toolContext, {
-                  employeeSlug: finalEmployeeSlug,
-                  mode: 'propose-confirm',
-                  autonomyLevel: 1,
-                });
+                // ── P3.1C dedup: reuse cached result if same tool+params already executed ──
+                let result: any;
+                const loopCacheKey = (toolName === 'tx_search' || toolName === 'transaction_category_totals')
+                  ? buildDedupKey(toolName, args as Record<string, unknown>)
+                  : null;
+                const loopCached = loopCacheKey ? p31cDedupCache.get(loopCacheKey) : undefined;
+                if (loopCached) {
+                  result = loopCached.data;
+                  console.log(`[Chat] P3.1C dedup hit (tool-loop) for ${toolName} — returning cached result`);
+                } else {
+                  result = await executeTool(toolModule, args, toolContext, {
+                    employeeSlug: finalEmployeeSlug,
+                    mode: 'propose-confirm',
+                    autonomyLevel: 1,
+                  });
+                }
 
                 // Track tx_search results + authoritative selection (non-streaming tool loop)
                 if (toolName === 'tx_search' && finalSessionId && result && typeof result === 'object' && !('error' in result)) {

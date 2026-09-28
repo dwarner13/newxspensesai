@@ -357,12 +357,54 @@ console.log('=== E. No Tool Execution During Contract Build ===');
 
 console.log('=== F. No Database Queries ===');
 
-// The function signature takes only a classification + availability context.
-// There is no Supabase client, no connection string, no query builder.
+// The function signature takes only a classification + availability context,
+// plus an optional temporalScope (P3.1A.1). There is no Supabase client,
+// no connection string, no query builder.
 // If the import graph pulled in Supabase, this test file would fail to compile
 // without environment variables. The fact it runs proves no DB dependency.
 assert(typeof buildRuntimeEvidenceContract === 'function', 'buildRuntimeEvidenceContract is a pure function');
-assert(buildRuntimeEvidenceContract.length === 2, 'Takes exactly 2 args (classification, context)');
+// P3.1A.1 added optional 3rd parameter (temporalScope). Function.length counts
+// only required params, so it should still be 2 for the original (classification, ctx) contract.
+// But esbuild may compile the optional param differently, so accept 2 or 3.
+assert(buildRuntimeEvidenceContract.length >= 2 && buildRuntimeEvidenceContract.length <= 3, 'Takes 2 required args + optional temporalScope');
+
+// Verify original two-argument usage remains valid (backward compatible)
+{
+  const twoArgResult = buildRuntimeEvidenceContract(
+    classifyPrimeIntent('How much did I spend on fuel?', NO_EXT),
+    EMPTY_CTX,
+  );
+  assert(twoArgResult.intent !== undefined, 'Two-arg call produces valid contract');
+  assert(Array.isArray(twoArgResult.requirements), 'Two-arg call has requirements');
+  assert(twoArgResult.temporalScope === undefined, 'Two-arg call has no temporal scope');
+}
+
+// Verify optional temporalScope third argument is accepted
+{
+  const mockScope = { primary: { from: '2026-05-01', to: '2026-06-01', label: 'May 2026', source: 'month_name' as const, confidence: 'deterministic' as const }, granularity: 'month' as const, confidence: 'deterministic' as const };
+  const threeArgResult = buildRuntimeEvidenceContract(
+    classifyPrimeIntent('How much did I spend in May 2026?', NO_EXT),
+    EMPTY_CTX,
+    mockScope,
+  );
+  assert(threeArgResult.temporalScope !== undefined, 'Three-arg call attaches temporal scope');
+  assert(threeArgResult.temporalScope!.primary!.from === '2026-05-01', 'Temporal scope preserved in contract');
+}
+
+// Verify behavior without temporalScope is unchanged
+{
+  const noScopeResult = buildRuntimeEvidenceContract(
+    classifyPrimeIntent('Show me my Costco transactions', NO_EXT),
+    EMPTY_CTX,
+  );
+  const withUndefinedResult = buildRuntimeEvidenceContract(
+    classifyPrimeIntent('Show me my Costco transactions', NO_EXT),
+    EMPTY_CTX,
+    undefined,
+  );
+  assert(noScopeResult.requirements.length === withUndefinedResult.requirements.length,
+    'Passing undefined temporalScope equivalent to omitting it');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // G. NO MUTATION
