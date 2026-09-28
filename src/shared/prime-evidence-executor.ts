@@ -34,6 +34,7 @@ export const EVIDENCE_READ_ALLOWLIST = new Set([
   'tx_search',
   'transaction_category_totals',
   'cash_flow_summary',
+  'merchant_totals',
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -287,6 +288,13 @@ async function executeSingleStep(
     const durationMs = Date.now() - stepStart;
     const { data, rowCount } = extractResultData(tool, rawResult);
 
+    // Detect truncation: if the tool returned queryStatus='partial',
+    // the underlying DB query was truncated and results are incomplete.
+    // Downgrade authoritative to false so evidence is never presented
+    // as definitive complete totals.
+    const dataObj = data && typeof data === 'object' ? data as Record<string, unknown> : null;
+    const isTruncated = dataObj?.queryStatus === 'partial';
+
     // Cache it
     cache.set(dedupKey, { data, rowCount });
 
@@ -294,8 +302,8 @@ async function executeSingleStep(
       result: {
         evidenceKind: step.evidenceKind,
         status: rowCount === 0 ? 'successful_empty' : 'resolved',
-        authoritative: step.authoritative,
-        source: step.source,
+        authoritative: isTruncated ? false : step.authoritative,
+        source: isTruncated ? step.source + ' (partial — query truncated)' : step.source,
         tool,
         data,
         rowCount,
@@ -478,7 +486,8 @@ function buildToolArgs(step: PrimeEvidencePlanStep): Record<string, unknown> {
   const args: Record<string, unknown> = {};
   // Copy only recognized tool parameters — never copy userId
   const allowed = ['q', 'category', 'subcategory', 'startDate', 'endDate',
-    'year', 'exactDate', 'exactAmount', 'limit', 'minAmount', 'maxAmount', 'type'];
+    'year', 'exactDate', 'exactAmount', 'limit', 'minAmount', 'maxAmount', 'type',
+    'merchant'];
   for (const key of allowed) {
     if (step.params[key] !== undefined) {
       args[key] = step.params[key];
@@ -527,6 +536,21 @@ function extractResultData(tool: string, rawResult: unknown): { data: unknown; r
         grandTotal: result.grandTotal ?? result.total,
       },
       rowCount: totals.length,
+    };
+  }
+
+  if (tool === 'merchant_totals') {
+    const merchants = Array.isArray(result.merchants) ? result.merchants : [];
+    const queryStatus = result.queryStatus ?? 'verified';
+    return {
+      data: {
+        merchants,
+        grandTotal: result.grandTotal,
+        transactionCount: result.transactionCount,
+        dateRange: result.dateRange,
+        queryStatus,
+      },
+      rowCount: merchants.length,
     };
   }
 
@@ -713,7 +737,7 @@ export function classifyEvidenceShape(result: PrimeEvidenceExecutionResult): Evi
   if (failedExecutable.length > 0 && resolved.length > 0) return 'mixed';
 
   // Single-period data (no failures)
-  const hasAggregation = resolved.some(r => r.tool === 'transaction_category_totals' || r.tool === 'cash_flow_summary');
+  const hasAggregation = resolved.some(r => r.tool === 'transaction_category_totals' || r.tool === 'cash_flow_summary' || r.tool === 'merchant_totals');
   const hasTransactions = resolved.some(r => r.tool === 'tx_search');
 
   if (hasAggregation && !hasTransactions) return 'single_period_aggregation';
@@ -910,6 +934,24 @@ function formatEvidenceData(result: PrimeEvidenceResult): string {
       if (t && typeof t === 'object') {
         const c = t as Record<string, unknown>;
         lines.push(`  ${c.category || c.name}: $${c.total ?? c.amount} (${c.count ?? '?'} txns)`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  if (result.tool === 'merchant_totals') {
+    const merchants = Array.isArray(data.merchants) ? data.merchants : [];
+    const isPartial = data.queryStatus === 'partial';
+    const lines = [`${merchants.length} merchant group(s)${isPartial ? ' (PARTIAL — data may be incomplete, do not present totals as definitive)' : ''}:`];
+    if (data.grandTotal !== undefined) lines.push(`Grand total: $${data.grandTotal} (${data.transactionCount} txns)${isPartial ? ' [partial]' : ''}`);
+    if (data.dateRange && typeof data.dateRange === 'object') {
+      const dr = data.dateRange as Record<string, unknown>;
+      lines.push(`Date range: ${dr.start} to ${dr.end}`);
+    }
+    for (const m of merchants) {
+      if (m && typeof m === 'object') {
+        const mg = m as Record<string, unknown>;
+        lines.push(`  ${mg.merchant}: $${mg.total} (${mg.count} txns, avg $${mg.average}, ${mg.firstSeen} to ${mg.lastSeen})`);
       }
     }
     return lines.join('\n');

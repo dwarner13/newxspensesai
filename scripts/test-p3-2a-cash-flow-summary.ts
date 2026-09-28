@@ -315,9 +315,9 @@ section('R. cash_flow_summary is P3.1C allowlisted');
   assert(EVIDENCE_READ_ALLOWLIST.has('transaction_category_totals'), 'transaction_category_totals still in allowlist');
 }
 
-section('S. No other tool accidentally added to P3.1C allowlist');
+section('S. No unintended tool added to P3.1C allowlist');
 {
-  assert(EVIDENCE_READ_ALLOWLIST.size === 3, `allowlist should have exactly 3 entries, got ${EVIDENCE_READ_ALLOWLIST.size}`);
+  assert(EVIDENCE_READ_ALLOWLIST.size === 4, `allowlist should have exactly 4 entries (tx_search, transaction_category_totals, cash_flow_summary, merchant_totals), got ${EVIDENCE_READ_ALLOWLIST.size}`);
 }
 
 section('T. Ambiguous temporal scope does not guess (architectural)');

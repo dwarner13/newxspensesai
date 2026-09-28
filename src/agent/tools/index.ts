@@ -30,6 +30,7 @@ import * as visionOcrLight from './impl/vision_ocr_light';
 import * as transactionsQuery from './impl/transactions_query';
 import * as transactionCategoryTotals from './impl/transaction_category_totals';
 import * as cashFlowSummary from './impl/cash_flow_summary';
+import * as merchantTotals from './impl/merchant_totals';
 import * as accountBalancesQuery from './impl/account_balances_query';
 import * as goalsQuery from './impl/goals_query';
 import * as createGoal from './impl/create_goal';
@@ -457,6 +458,17 @@ const toolModules: Map<string, ToolModule> = new Map([
     inputSchema: cashFlowSummary.inputSchema,
     outputSchema: cashFlowSummary.outputSchema,
     run: cashFlowSummary.execute,
+    meta: {
+      timeout: 15000,
+      rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['merchant_totals', {
+    id: 'merchant_totals',
+    description: 'Get spending totals grouped by merchant. Returns per-merchant totals, transaction counts, averages, and date ranges. Supports optional date range, merchant name filter, and category filter. Use when users ask about spending at specific merchants, top merchants, or merchant spending breakdowns.',
+    inputSchema: merchantTotals.inputSchema,
+    outputSchema: merchantTotals.outputSchema,
+    run: merchantTotals.execute,
     meta: {
       timeout: 15000,
       rateLimit: { perMinute: 30 },

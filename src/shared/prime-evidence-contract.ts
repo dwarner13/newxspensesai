@@ -28,6 +28,7 @@ import type { PrimeTemporalScope } from './prime-temporal-scope';
 export type PrimeEvidenceKind =
   | 'transaction_data'
   | 'category_aggregation'
+  | 'merchant_aggregation'
   | 'period_comparison'
   | 'cash_flow'
   | 'document_evidence'
@@ -81,6 +82,11 @@ const EVIDENCE_SOURCE_REGISTRY: Record<PrimeEvidenceKind, EvidenceSourceDescript
   category_aggregation: {
     tool: 'transaction_category_totals',
     description: 'Category spend totals aggregated from transactions',
+    authoritative: true,
+  },
+  merchant_aggregation: {
+    tool: 'merchant_totals',
+    description: 'Per-merchant spend totals aggregated from transactions',
     authoritative: true,
   },
   period_comparison: {
@@ -150,7 +156,7 @@ export function getEvidenceSource(kind: PrimeEvidenceKind): EvidenceSourceDescri
 
 const LABEL_TO_KINDS: Record<string, PrimeEvidenceKind[]> = {
   // Required labels
-  'authoritative_financial_data': ['transaction_data', 'category_aggregation'],
+  'authoritative_financial_data': ['transaction_data', 'category_aggregation', 'merchant_aggregation'],
   'verified_calculation_inputs': ['calculation_inputs'],
   'deterministic_calculator': ['calculation_inputs'],
   'document_import_evidence': ['document_evidence'],
@@ -162,6 +168,9 @@ const LABEL_TO_KINDS: Record<string, PrimeEvidenceKind[]> = {
 
   // Cash flow evidence
   'cash_flow_evidence': ['cash_flow'],
+
+  // Merchant evidence
+  'merchant_evidence': ['merchant_aggregation'],
 
   // Allowed labels
   'user_memory_facts': ['user_stated_fact'],
@@ -232,6 +241,7 @@ function resolvePassiveStatus(
     // Evidence kinds that require tool execution — always pending in P3.1A
     case 'transaction_data':
     case 'category_aggregation':
+    case 'merchant_aggregation':
     case 'period_comparison':
     case 'cash_flow':
     case 'goal_state':
@@ -252,21 +262,24 @@ function refineFinancialEvidenceKinds(
   kinds: PrimeEvidenceKind[],
   queryType: string | undefined,
 ): PrimeEvidenceKind[] {
-  // Only refine when the ambiguous pair is present
+  // Only refine when the ambiguous set is present
   const hasTransaction = kinds.includes('transaction_data');
   const hasAggregation = kinds.includes('category_aggregation');
-  if (!hasTransaction || !hasAggregation || !queryType) return kinds;
+  const hasMerchant = kinds.includes('merchant_aggregation');
+  if ((!hasTransaction && !hasAggregation && !hasMerchant) || !queryType) return kinds;
 
   switch (queryType) {
     case 'aggregate':
       // Aggregate queries are best served by category_aggregation
-      return kinds.filter(k => k !== 'transaction_data');
-    case 'detail':
+      return kinds.filter(k => k !== 'transaction_data' && k !== 'merchant_aggregation');
     case 'merchant':
-      // Detail/merchant queries need transaction rows
-      return kinds.filter(k => k !== 'category_aggregation');
+      // Merchant queries are best served by merchant_aggregation
+      return kinds.filter(k => k !== 'category_aggregation' && k !== 'transaction_data');
+    case 'detail':
+      // Detail queries need transaction rows
+      return kinds.filter(k => k !== 'category_aggregation' && k !== 'merchant_aggregation');
     default:
-      // Cannot disambiguate — keep both as pending
+      // Cannot disambiguate — keep all as pending
       return kinds;
   }
 }

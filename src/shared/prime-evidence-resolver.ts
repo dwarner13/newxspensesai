@@ -167,6 +167,8 @@ function resolvePending(
       return resolveTransactionData(fc, ts);
     case 'category_aggregation':
       return resolveCategoryAggregation(fc, ts);
+    case 'merchant_aggregation':
+      return resolveMerchantAggregation(fc, ts);
     case 'period_comparison':
       return resolvePeriodComparison(fc, ts);
     case 'cash_flow':
@@ -395,6 +397,44 @@ function resolvePeriodComparison(
 
   // Cannot deterministically establish comparison period
   return { evidenceKind: 'period_comparison', reason: 'ambiguous_request' };
+}
+
+/**
+ * P3.2B: Resolve merchant_aggregation evidence to merchant_totals tool.
+ * Uses merchantHint from FinancialQueryClassification as merchant filter.
+ * Supports temporal scope for date filtering.
+ */
+function resolveMerchantAggregation(
+  fc?: FinancialQueryClassification,
+  ts?: PrimeTemporalScope,
+): PrimeEvidencePlanStep | PrimeEvidenceUnresolved {
+  const params: Record<string, unknown> = {};
+
+  if (fc?.merchantHint) params.merchant = fc.merchantHint;
+  if (fc?.resolvedCategory) {
+    params.category = fc.resolvedCategory.category;
+  }
+
+  // Prefer deterministic temporal scope
+  if (ts?.primary && ts.primary.confidence === 'deterministic') {
+    params.startDate = ts.primary.from;
+    params.endDate = toInclusiveEndDate(ts.primary.to);
+  } else if (fc && fc.years.length > 0) {
+    const year = fc.years[0];
+    params.startDate = `${year}-01-01`;
+    params.endDate = `${year}-12-31`;
+  }
+
+  if (fc?.requestedCount !== undefined) params.limit = fc.requestedCount;
+
+  return {
+    evidenceKind: 'merchant_aggregation',
+    source: 'Per-merchant spend totals aggregated from transactions',
+    tool: 'merchant_totals',
+    mode: 'tool',
+    params: Object.keys(params).length > 0 ? params : undefined,
+    authoritative: true,
+  };
 }
 
 /**
