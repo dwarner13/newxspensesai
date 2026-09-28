@@ -6791,6 +6791,12 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime tax_summary tool enabled via runtime fallback');
           }
+          // P3.2A: Cash flow summary (read-only income/spending/net for a period)
+          if (!employeeTools.includes('cash_flow_summary')) {
+            employeeTools = [...employeeTools, 'cash_flow_summary'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime cash_flow_summary tool enabled via runtime fallback');
+          }
         }
         
         if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {
@@ -9876,13 +9882,13 @@ export const handler: Handler = async (event, context) => {
 
     // ── P3.1D: Request-scoped accumulated evidence ──
     // Seeded from P3.1C; later successful read-tool results are added.
-    // Only tx_search and transaction_category_totals may enter — mutations NEVER.
+    // Only tx_search, transaction_category_totals, cash_flow_summary may enter — mutations NEVER.
     const p31dAccumulatedEvidence: AccumulatedEvidenceMap = new Map();
     if (p31cResult) {
       for (const r of p31cResult.results) {
         if (r.tool && EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(r.tool) &&
             (r.status === 'resolved' || r.status === 'successful_empty')) {
-          const kind = r.tool === 'tx_search' ? 'transaction_data' : 'category_aggregation';
+          const kind = r.tool === 'tx_search' ? 'transaction_data' : r.tool === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
           p31dAccumulatedEvidence.set(kind, { tool: r.tool, status: r.status, rowCount: r.rowCount ?? 0 });
         }
       }
@@ -11450,9 +11456,10 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     }
                     // P3.1D: Track successful read-tool results in accumulated evidence
                     if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
-                      const kind = toolName === 'tx_search' ? 'transaction_data' : 'category_aggregation';
+                      const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
                       const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
-                      p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rows.length === 0 ? 'successful_empty' : 'resolved', rowCount: rows.length });
+                      const rowCount = toolName === 'cash_flow_summary' ? ((result as any)?.transactionCount ?? 0) : rows.length;
+                      p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rowCount === 0 ? 'successful_empty' : 'resolved', rowCount });
                     }
                     // Special handling for employee handoff (streaming)
                     // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
@@ -13112,9 +13119,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               }
               // P3.1D: Track successful read-tool results in accumulated evidence
               if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
-                const kind = toolName === 'tx_search' ? 'transaction_data' : 'category_aggregation';
+                const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
                 const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
-                p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rows.length === 0 ? 'successful_empty' : 'resolved', rowCount: rows.length });
+                const rowCount = toolName === 'cash_flow_summary' ? ((result as any)?.transactionCount ?? 0) : rows.length;
+                p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rowCount === 0 ? 'successful_empty' : 'resolved', rowCount });
               }
               // Special handling for employee handoff (non-streaming)
               // HANDOFF GUARD FIX (2026-04-23): Allow handoff when forced employee is Prime.
@@ -13488,9 +13496,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 }
                 // P3.1D: Track successful read-tool results in accumulated evidence (tool loop)
                 if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
-                  const kind = toolName === 'tx_search' ? 'transaction_data' : 'category_aggregation';
+                  const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
                   const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
-                  p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rows.length === 0 ? 'successful_empty' : 'resolved', rowCount: rows.length });
+                  const rowCount = toolName === 'cash_flow_summary' ? ((result as any)?.transactionCount ?? 0) : rows.length;
+                  p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rowCount === 0 ? 'successful_empty' : 'resolved', rowCount });
                 }
 
                 // Handoff lifecycle (authoritative — same implementation as initial path)

@@ -170,7 +170,7 @@ function resolvePending(
     case 'period_comparison':
       return resolvePeriodComparison(fc, ts);
     case 'cash_flow':
-      return { evidenceKind: 'cash_flow', reason: 'missing_capability' };
+      return resolveCashFlow(fc, ts);
     case 'document_evidence':
       return {
         evidenceKind: 'document_evidence',
@@ -302,6 +302,49 @@ function resolveCategoryAggregation(
     params: Object.keys(params).length > 0 ? params : undefined,
     authoritative: true,
   };
+}
+
+/**
+ * P3.2A: Resolve cash_flow evidence to cash_flow_summary tool.
+ * Requires deterministic temporal scope.
+ */
+function resolveCashFlow(
+  fc?: FinancialQueryClassification,
+  ts?: PrimeTemporalScope,
+): PrimeEvidencePlanStep | PrimeEvidenceUnresolved {
+  // Prefer deterministic temporal scope
+  if (ts?.primary && ts.primary.confidence === 'deterministic') {
+    return {
+      evidenceKind: 'cash_flow',
+      source: 'Income vs expense aggregation from transactions',
+      tool: 'cash_flow_summary',
+      mode: 'tool',
+      params: {
+        startDate: ts.primary.from,
+        endDate: toInclusiveEndDate(ts.primary.to),
+      },
+      authoritative: true,
+    };
+  }
+
+  // Bare year fallback
+  if (fc && fc.years.length > 0) {
+    const year = fc.years[0];
+    return {
+      evidenceKind: 'cash_flow',
+      source: 'Income vs expense aggregation from transactions',
+      tool: 'cash_flow_summary',
+      mode: 'tool',
+      params: {
+        startDate: `${year}-01-01`,
+        endDate: `${year}-12-31`,
+      },
+      authoritative: true,
+    };
+  }
+
+  // Cannot determine date range
+  return { evidenceKind: 'cash_flow', reason: 'ambiguous_request' };
 }
 
 /**

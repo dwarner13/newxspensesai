@@ -782,10 +782,11 @@ console.log('\n=== ADDITIONAL: Edge cases ===');
   );
   assert(v5.violated === false, 'EDGE-11: no_executable_evidence bypasses detection');
 
-  // Only eligible tools in accumulator set
-  assert(EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.size === 2, 'EDGE-12: exactly 2 eligible tools');
+  // Only eligible tools in accumulator set (P3.2A adds cash_flow_summary)
+  assert(EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.size === 3, 'EDGE-12: exactly 3 eligible tools');
   assert(EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has('tx_search'), 'EDGE-13: tx_search eligible');
   assert(EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has('transaction_category_totals'), 'EDGE-14: transaction_category_totals eligible');
+  assert(EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has('cash_flow_summary'), 'EDGE-15: cash_flow_summary eligible');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

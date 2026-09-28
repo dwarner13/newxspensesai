@@ -142,6 +142,20 @@ export function isNonSpendTransaction(tx: { category?: string | null; subcategor
 export const INCOME_MERCHANT_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
 
 /**
+ * CASH FLOW income check — used by financial-position.ts and cash_flow_summary.
+ *
+ * Checks type field ('income' or 'Credit') and category field ('income').
+ * The 'Credit' type represents credits/deposits on bank statements and is
+ * counted as income for cash flow purposes.
+ *
+ * Does NOT include merchant pattern heuristics (unlike isIncomeBroad).
+ * Does NOT check 'business income' category (that's covered by isNonSpendCategory).
+ */
+export function isIncomeCashFlow(tx: { type?: string | null; category?: string | null }): boolean {
+  return tx.type === 'income' || tx.type === 'Credit' || (tx.category || '').toLowerCase() === 'income';
+}
+
+/**
  * STRICT income check — used for Tax Section first-match-wins claiming.
  *
  * Only uses the `type` field which is set by commit-import and is the most

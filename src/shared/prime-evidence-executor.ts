@@ -33,6 +33,7 @@ import type {
 export const EVIDENCE_READ_ALLOWLIST = new Set([
   'tx_search',
   'transaction_category_totals',
+  'cash_flow_summary',
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -712,7 +713,7 @@ export function classifyEvidenceShape(result: PrimeEvidenceExecutionResult): Evi
   if (failedExecutable.length > 0 && resolved.length > 0) return 'mixed';
 
   // Single-period data (no failures)
-  const hasAggregation = resolved.some(r => r.tool === 'transaction_category_totals');
+  const hasAggregation = resolved.some(r => r.tool === 'transaction_category_totals' || r.tool === 'cash_flow_summary');
   const hasTransactions = resolved.some(r => r.tool === 'tx_search');
 
   if (hasAggregation && !hasTransactions) return 'single_period_aggregation';
@@ -911,6 +912,16 @@ function formatEvidenceData(result: PrimeEvidenceResult): string {
         lines.push(`  ${c.category || c.name}: $${c.total ?? c.amount} (${c.count ?? '?'} txns)`);
       }
     }
+    return lines.join('\n');
+  }
+
+  if (result.tool === 'cash_flow_summary') {
+    const lines = [`Cash flow (${data.startDate} to ${data.endDate}):`];
+    lines.push(`  Income: $${data.income} (${data.incomeTransactionCount} txns)`);
+    lines.push(`  Spending: $${data.spending} (${data.spendingTransactionCount} txns)`);
+    lines.push(`  Non-spend (transfers/payments): $${data.nonSpend} (${data.nonSpendTransactionCount} txns)`);
+    lines.push(`  Net cash flow: $${data.netCashFlow}`);
+    lines.push(`  Total transactions: ${data.transactionCount}`);
     return lines.join('\n');
   }
 

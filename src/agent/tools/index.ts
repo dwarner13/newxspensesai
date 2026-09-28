@@ -29,6 +29,7 @@ import * as analyticsExtractPatterns from './impl/analytics_extract_patterns';
 import * as visionOcrLight from './impl/vision_ocr_light';
 import * as transactionsQuery from './impl/transactions_query';
 import * as transactionCategoryTotals from './impl/transaction_category_totals';
+import * as cashFlowSummary from './impl/cash_flow_summary';
 import * as accountBalancesQuery from './impl/account_balances_query';
 import * as goalsQuery from './impl/goals_query';
 import * as createGoal from './impl/create_goal';
@@ -445,6 +446,17 @@ const toolModules: Map<string, ToolModule> = new Map([
     inputSchema: transactionCategoryTotals.inputSchema,
     outputSchema: transactionCategoryTotals.outputSchema,
     run: transactionCategoryTotals.execute,
+    meta: {
+      timeout: 15000,
+      rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['cash_flow_summary', {
+    id: 'cash_flow_summary',
+    description: 'Get income, spending, and net cash flow for a date range. Returns verified totals: income (credits/deposits), spending (excludes transfers, loan payments, investments), non-spend (transfers and internal payments), and netCashFlow (income minus spending). Use when users ask about cash flow, income vs spending, or money in vs money out for a period.',
+    inputSchema: cashFlowSummary.inputSchema,
+    outputSchema: cashFlowSummary.outputSchema,
+    run: cashFlowSummary.execute,
     meta: {
       timeout: 15000,
       rateLimit: { perMinute: 30 },

@@ -15,6 +15,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isNonSpendCategory, isIncomeCashFlow } from '../../../src/shared/financial-taxonomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -99,26 +100,9 @@ export interface FinancialPosition {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NON-SPEND CATEGORIES (canonical — matches financial-snapshot.ts)
+// CLASSIFICATION — imported from canonical financial-taxonomy.ts
+// isNonSpendCategory() and isIncomeCashFlow() are the single source of truth.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const NON_SPEND_CATEGORIES = new Set([
-  'transfers', 'transfer',
-  'loan payments', 'loan payment',
-  'credit card payments', 'credit card payment',
-  'investments', 'investment',
-  'debt payments', 'debt payment',
-  'income', 'business income',
-]);
-
-function isNonSpend(category: string | null): boolean {
-  if (!category) return false;
-  return NON_SPEND_CATEGORIES.has(category.trim().toLowerCase());
-}
-
-function isIncomeTx(tx: { type?: string | null; category?: string | null }): boolean {
-  return tx.type === 'income' || tx.type === 'Credit' || (tx.category || '').toLowerCase() === 'income';
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BUILDER
@@ -205,7 +189,7 @@ export async function buildFinancialPosition(
   };
 
   // ── Income ──
-  const incomeTxs = transactions.filter((t: any) => isIncomeTx(t));
+  const incomeTxs = transactions.filter((t: any) => isIncomeCashFlow(t));
   const currentMonthIncomeTxs = incomeTxs.filter((t: any) =>
     t.date && t.date >= monthStart && t.date < nextMonth
   );
@@ -238,7 +222,7 @@ export async function buildFinancialPosition(
 
   // ── Spending ──
   const spendTxs = transactions.filter((t: any) =>
-    !isIncomeTx(t) && !isNonSpend(t.category)
+    !isIncomeCashFlow(t) && !isNonSpendCategory(t.category)
   );
   const currentMonthSpendTxs = spendTxs.filter((t: any) =>
     t.date && t.date >= monthStart && t.date < nextMonth

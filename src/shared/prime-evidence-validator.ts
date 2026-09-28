@@ -31,6 +31,7 @@ import { classifyEvidenceShape, type EvidenceShape } from './prime-evidence-exec
 export const EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS = new Set([
   'tx_search',
   'transaction_category_totals',
+  'cash_flow_summary',
 ]);
 
 export interface AccumulatedEvidenceEntry {

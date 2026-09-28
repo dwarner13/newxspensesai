@@ -89,8 +89,8 @@ const EVIDENCE_SOURCE_REGISTRY: Record<PrimeEvidenceKind, EvidenceSourceDescript
     authoritative: true,
   },
   cash_flow: {
-    tool: null,
-    description: 'Income vs expense aggregation (no single tool yet)',
+    tool: 'cash_flow_summary',
+    description: 'Income vs expense aggregation for a date range',
     authoritative: true,
   },
   document_evidence: {
@@ -159,6 +159,9 @@ const LABEL_TO_KINDS: Record<string, PrimeEvidenceKind[]> = {
   'current_candidate_state': ['candidate_identity'],
   'conversation_history': ['conversation_context'],
   'product_knowledge': ['product_knowledge'],
+
+  // Cash flow evidence
+  'cash_flow_evidence': ['cash_flow'],
 
   // Allowed labels
   'user_memory_facts': ['user_stated_fact'],
