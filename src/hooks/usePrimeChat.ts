@@ -48,6 +48,44 @@ interface AssistantUpsertParams {
 
 const STREAM_IDLE_TIMEOUT_MS = 45_000;
 
+/** Result of parsing a non-streaming chat JSON response body. */
+export interface JsonResponseParseResult {
+  payload: any;
+  error: string | null;
+}
+
+/**
+ * Parse a non-streaming chat response, distinguishing empty body,
+ * invalid JSON, and body-read failures. Never silently swallows errors.
+ */
+export async function parseNonStreamingResponse(
+  res: Response,
+): Promise<JsonResponseParseResult> {
+  const contentType = res.headers.get('content-type')?.toLowerCase() || '';
+  try {
+    const rawText = await res.text();
+    if (!rawText || rawText.trim().length === 0) {
+      console.error(
+        `[usePrimeChat] Non-streaming response body is empty. status=${res.status} content-type=${contentType} content-length=${res.headers.get('content-length') ?? 'absent'}`,
+      );
+      return { payload: null, error: 'empty_body' };
+    }
+    try {
+      return { payload: JSON.parse(rawText), error: null };
+    } catch (parseErr: any) {
+      console.error(
+        `[usePrimeChat] JSON parse failed. status=${res.status} content-type=${contentType} bodyLen=${rawText.length} error=${parseErr?.message ?? 'unknown'}`,
+      );
+      return { payload: null, error: 'invalid_json' };
+    }
+  } catch (readErr: any) {
+    console.error(
+      `[usePrimeChat] Response body read failed. status=${res.status} content-type=${contentType} error=${readErr?.message ?? 'unknown'}`,
+    );
+    return { payload: null, error: 'body_read_failed' };
+  }
+}
+
 export interface ChatHeaders {
   guardrails?: string;
   piiMask?: string;
@@ -1619,7 +1657,28 @@ export function usePrimeChat(
 
         const contentType = res.headers.get('content-type')?.toLowerCase() || '';
         if (!contentType.includes('text/event-stream')) {
-          const payload = await res.json().catch(() => null);
+          // Parse JSON response with explicit error handling (never silently swallow failures).
+          const { payload, error: jsonParseError } = await parseNonStreamingResponse(res);
+
+          // If payload is null (body empty, invalid JSON, or read failure), show a
+          // recoverable message in the existing placeholder instead of leaving it blank.
+          if (!payload && jsonParseError) {
+            upsertAssistantMessage({
+              messageId,
+              requestId,
+              content: "I completed the request, but the response didn't reach the chat correctly. Please refresh to load the saved result.",
+              isStreaming: false,
+              employeeKey: employeeSlugToSend,
+            });
+            setIsStreaming(false);
+            streamingIdRef.current = null;
+            inFlightRef.current = false;
+            finalizedRequestIdsRef.current.add(requestId);
+            streamingMsgByRequestRef.current.delete(requestId);
+            textByRequestRef.current.delete(requestId);
+            return;
+          }
+
           // Capture backend-issued sessionId from JSON response body
           if (payload?.sessionId) {
             captureBackendSessionId(String(payload.sessionId), requestId);
@@ -1783,6 +1842,17 @@ export function usePrimeChat(
                 }]);
               }
             }
+          } else {
+            // Valid JSON payload but no usable assistant content — update the
+            // placeholder so the user never sees a permanently blank bubble.
+            console.warn(`[usePrimeChat] Non-streaming JSON response has no usable content. ok=${payload?.ok} employee=${payload?.employeeSlug ?? payload?.employee ?? 'unknown'} keys=[${Object.keys(payload || {}).join(',')}]`);
+            upsertAssistantMessage({
+              messageId,
+              requestId,
+              content: "I completed the request, but the response didn't reach the chat correctly. Please refresh to load the saved result.",
+              isStreaming: false,
+              employeeKey: payload?.employeeSlug || payload?.employee || employeeSlugToSend,
+            });
           }
           setIsStreaming(false);
           streamingIdRef.current = null;
