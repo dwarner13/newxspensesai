@@ -6860,6 +6860,12 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime cash_flow_summary tool enabled via runtime fallback');
           }
+          // P3.1C: Merchant totals (read-only aggregation, required for evidence execution)
+          if (!employeeTools.includes('merchant_totals')) {
+            employeeTools = [...employeeTools, 'merchant_totals'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime merchant_totals tool enabled via runtime fallback');
+          }
           // P3.2B2B: Merchant analysis refinement (read-only conversational refinement)
           if (!employeeTools.includes('merchant_analysis_refine')) {
             employeeTools = [...employeeTools, 'merchant_analysis_refine'];
@@ -9858,7 +9864,7 @@ export const handler: Handler = async (event, context) => {
     if (isPrime && shadowIntentResult) {
       try {
         temporalScope = buildTemporalScope(
-          userMessage,
+          masked,
           { timezone, referenceDate: new Date() },
           shadowIntentResult.financialClassification?.years,
         );
