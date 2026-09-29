@@ -10083,14 +10083,13 @@ export const handler: Handler = async (event, context) => {
     let b2cBridgeArgs: Record<string, any> | null = null;
     if (merchantAnalysisBridgeActive && existingMerchantAnalysis) {
       const mac = existingMerchantAnalysis;
-      const excludeDisplayNames: string[] = [];
-      if (mac.excludedGroups.length > 0) {
-        const activeGroupMap = new Map(mac.activeGroups.map(g => [g.groupingKey, g.displayName]));
-        for (const key of mac.excludedGroups) {
-          const name = activeGroupMap.get(key);
-          if (name) excludeDisplayNames.push(name);
-        }
-      }
+      // Use groupingKeys directly as exclusion patterns. groupingKeys are normalized
+      // merchant names (lowercase, stripped suffixes) from merchantGroupingKey().
+      // excludeMerchants uses NOT ILIKE (case-insensitive), so groupingKeys work
+      // directly without needing display name lookup from activeGroups.
+      const excludePatterns = mac.excludedGroups
+        .filter(k => typeof k === 'string' && k.trim().length > 0)
+        .map(k => k.trim());
       b2cBridgeArgs = {
         q: mac.merchantQuery,
         limit: 200,
@@ -10098,8 +10097,8 @@ export const handler: Handler = async (event, context) => {
       if (mac.temporalScope?.startDate) b2cBridgeArgs.startDate = mac.temporalScope.startDate;
       if (mac.temporalScope?.endDate) b2cBridgeArgs.endDate = mac.temporalScope.endDate;
       if (mac.categoryFilter) b2cBridgeArgs.category = mac.categoryFilter;
-      if (excludeDisplayNames.length > 0) b2cBridgeArgs.excludeMerchants = excludeDisplayNames;
-      console.log(`[Chat][B2C] merchant analysis bridge active — query="${mac.merchantQuery}", temporal=${mac.temporalScope ? mac.temporalScope.startDate + '/' + mac.temporalScope.endDate : 'none'}, category=${mac.categoryFilter || 'none'}, exclusions=${excludeDisplayNames.length} (${excludeDisplayNames.join(', ')})`);
+      if (excludePatterns.length > 0) b2cBridgeArgs.excludeMerchants = excludePatterns;
+      console.log(`[Chat][B2C] merchant analysis bridge active — query="${mac.merchantQuery}", temporal=${mac.temporalScope ? mac.temporalScope.startDate + '/' + mac.temporalScope.endDate : 'none'}, category=${mac.categoryFilter || 'none'}, exclusions=${excludePatterns.length} (${excludePatterns.join(', ')})`);
     }
 
     // ── P3.1C: Inject evidence context into model prompt (shared path) ──
@@ -11180,14 +11179,20 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     // the existing P0 candidate lifecycle.
     if (merchantAnalysisBridgeActive && b2cBridgeArgs && toolModules['tx_search'] && finalSessionId) {
       try {
-        const b2cResult = await toolModules['tx_search'].execute(b2cBridgeArgs, {
+        const b2cToolContext: ToolContext = {
           userId,
+          conversationId: finalSessionId,
+          sessionId: finalSessionId,
           authHeader: authHeader || '',
+        };
+        const b2cData = await executeTool(toolModules['tx_search'], b2cBridgeArgs, b2cToolContext, {
+          employeeSlug: finalEmployeeSlug,
+          mode: 'propose-confirm',
+          autonomyLevel: 1,
         });
-        const b2cData = b2cResult?.ok ? (b2cResult as any).value : null;
-        if (b2cData?.rows) {
+        if (b2cData && typeof b2cData === 'object' && !('error' in b2cData) && (b2cData as any).rows) {
           await guardedPersistTxResolution(sb, finalSessionId, userId, b2cData, 'B2C_merchant_bridge');
-          console.log(`[Chat][B2C] candidates established — ${Array.isArray(b2cData.rows) ? b2cData.rows.length : 0} rows, queryStatus=${b2cData.queryStatus || 'unknown'}`);
+          console.log(`[Chat][B2C] candidates established — ${Array.isArray((b2cData as any).rows) ? (b2cData as any).rows.length : 0} rows, queryStatus=${(b2cData as any).queryStatus || 'unknown'}`);
         } else {
           console.log('[Chat][B2C] tx_search returned no rows — no candidates established');
         }
@@ -12702,7 +12707,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         let financialClassification: any = null;
         // P2.3: Skip entire financial grounding for historical conversation references.
         // Historical questions should be answered from conversation context, not DB lookups.
-        if (isPrime && toolsAllowedThisTurn && !isHistoricalConversationRef) {
+        // P3.2B2C: Skip when merchant analysis bridge owns this turn. If B2C execution
+        // failed, the model can still use its own tool calls. Legacy grounding would
+        // misinterpret pronouns like "those" as merchant names.
+        if (isPrime && toolsAllowedThisTurn && !isHistoricalConversationRef && !merchantAnalysisBridgeActive) {
           const lastUserMsg = String(messageTrimmed || masked || '');
           financialClassification = classifyFinancialQuery(lastUserMsg);
           console.log(`[FinancialGrounding] classifier=${financialClassification.requiresGrounding ? 'GROUNDED' : 'none'} queryType=${financialClassification.queryType} resolvedCategory=${JSON.stringify(financialClassification.resolvedCategory ?? null)} merchant=${financialClassification.merchantHint ?? 'none'} years=${JSON.stringify(financialClassification.years)}`);
