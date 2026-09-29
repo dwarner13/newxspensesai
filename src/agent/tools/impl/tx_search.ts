@@ -16,6 +16,9 @@ export const inputSchema = z.object({
   uncategorizedOnly: z.boolean().optional(),
   includePending: z.boolean().optional(),
   limit: z.number().min(1).max(200).optional().default(25),
+  /** P3.2B2C: Merchant display names to exclude via NOT ILIKE at DB level.
+   *  Used internally by the merchant analysis bridge. Max 20. */
+  excludeMerchants: z.array(z.string()).max(20).optional(),
 });
 
 export const outputSchema = z.object({

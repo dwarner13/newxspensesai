@@ -34,6 +34,10 @@ type RequestBody = {
   uncategorizedOnly?: boolean;
   includePending?: boolean;
   limit?: number;
+  /** P3.2B2C: Merchant display names to exclude at DB level (NOT ILIKE).
+   *  Applied BEFORE limit so excluded rows never consume the row budget.
+   *  Max 20 entries. Used by the merchant analysis bridge only. */
+  excludeMerchants?: string[];
 };
 
 type TxRow = Record<string, any>;
@@ -265,6 +269,26 @@ export const handler: Handler = async (event) => {
 
     if (orClauses.length > 0) {
       query = query.or(orClauses.join(','));
+    }
+
+    // ── P3.2B2C: Merchant exclusion at DB level ──
+    // Applied BEFORE order/limit so excluded rows never consume the row budget.
+    // Restricted to merchant identity columns (merchant_name, merchant) only —
+    // description/memo are free-text and must NOT trigger merchant exclusion.
+    const rawExclude = Array.isArray(body.excludeMerchants) ? body.excludeMerchants : [];
+    const excludeMerchants = rawExclude
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .map(v => v.trim())
+      .slice(0, 20);
+    const merchantIdentityCols = textCols.filter(c => c === 'merchant_name' || c === 'merchant');
+    if (excludeMerchants.length > 0 && merchantIdentityCols.length > 0) {
+      for (const pattern of excludeMerchants) {
+        // Escape Supabase/PostgREST special characters in the ilike pattern
+        const safe = pattern.replace(/[%_\\]/g, c => `\\${c}`);
+        for (const col of merchantIdentityCols) {
+          query = query.not(col, 'ilike', `%${safe}%`);
+        }
+      }
     }
 
     query = (dateColumn ? query.order(dateColumn, { ascending: false }) : query.order('id', { ascending: false })).limit(limit);

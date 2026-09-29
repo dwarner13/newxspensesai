@@ -10054,6 +10054,54 @@ export const handler: Handler = async (event, context) => {
       console.log('[P3.3A] Merchant aggregation evidence-satisfied — suppressing redundant tx_search');
     }
 
+    // ── P3.2B2C: Merchant analysis → authoritative transaction bridge ──
+    // When a valid, complete MerchantAnalysisContext exists and the user asks
+    // for the transactions it represents ("show me those transactions"),
+    // construct a scoped tx_search with DB-level merchant exclusions.
+    // The bridge does NOT fire when:
+    //  - MAC is missing, expired, or incomplete (evidenceComplete !== true)
+    //  - the message is a new grounded search (isNewGroundedSearch)
+    //  - the message is a candidate follow-up to an existing frame
+    //  - the message is a pure merchant aggregation (handled by P3.3A)
+    //  - MAC has zero active groups
+    const B2C_BRIDGE_RE = /\b(?:show|list|display|find|pull up|get)\b.*\b(?:those|these)\b.*\b(?:transactions?|charges?|purchases?|payments?)\b/i;
+    const b2cMacReady = !!(
+      isPrime
+      && existingMerchantAnalysis
+      && isMerchantAnalysisContextValid(existingMerchantAnalysis)
+      && existingMerchantAnalysis.evidenceComplete
+      && existingMerchantAnalysis.activeGroups.length > 0
+    );
+    const b2cPhraseMatch = b2cMacReady && B2C_BRIDGE_RE.test(masked);
+    const merchantAnalysisBridgeActive = !!(
+      b2cPhraseMatch
+      && !shouldPreserveCandidates
+      && !merchantAggSatisfied
+    );
+    // Build and log B2C bridge args in shared path.
+    // Execution is deferred until after guardedPersistTxResolution is defined (line ~11144).
+    let b2cBridgeArgs: Record<string, any> | null = null;
+    if (merchantAnalysisBridgeActive && existingMerchantAnalysis) {
+      const mac = existingMerchantAnalysis;
+      const excludeDisplayNames: string[] = [];
+      if (mac.excludedGroups.length > 0) {
+        const activeGroupMap = new Map(mac.activeGroups.map(g => [g.groupingKey, g.displayName]));
+        for (const key of mac.excludedGroups) {
+          const name = activeGroupMap.get(key);
+          if (name) excludeDisplayNames.push(name);
+        }
+      }
+      b2cBridgeArgs = {
+        q: mac.merchantQuery,
+        limit: 200,
+      };
+      if (mac.temporalScope?.startDate) b2cBridgeArgs.startDate = mac.temporalScope.startDate;
+      if (mac.temporalScope?.endDate) b2cBridgeArgs.endDate = mac.temporalScope.endDate;
+      if (mac.categoryFilter) b2cBridgeArgs.category = mac.categoryFilter;
+      if (excludeDisplayNames.length > 0) b2cBridgeArgs.excludeMerchants = excludeDisplayNames;
+      console.log(`[Chat][B2C] merchant analysis bridge active — query="${mac.merchantQuery}", temporal=${mac.temporalScope ? mac.temporalScope.startDate + '/' + mac.temporalScope.endDate : 'none'}, category=${mac.categoryFilter || 'none'}, exclusions=${excludeDisplayNames.length} (${excludeDisplayNames.join(', ')})`);
+    }
+
     // ── P3.1C: Inject evidence context into model prompt (shared path) ──
     // Runs before the streaming/non-streaming branch so both paths see evidence.
     // P3.1D evidence-shape policy and provenance are now included.
@@ -11125,6 +11173,29 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       }
     }
 
+    // ── P3.2B2C: Execute merchant analysis bridge tx_search ──
+    // Runs after guardedPersistTxResolution is defined, before stream/non-stream split.
+    // Translates the current MerchantAnalysisContext into a scoped tx_search with
+    // DB-level merchant exclusions, then establishes authoritative candidates through
+    // the existing P0 candidate lifecycle.
+    if (merchantAnalysisBridgeActive && b2cBridgeArgs && toolModules['tx_search'] && finalSessionId) {
+      try {
+        const b2cResult = await toolModules['tx_search'].execute(b2cBridgeArgs, {
+          userId,
+          authHeader: authHeader || '',
+        });
+        const b2cData = b2cResult?.ok ? (b2cResult as any).value : null;
+        if (b2cData?.rows) {
+          await guardedPersistTxResolution(sb, finalSessionId, userId, b2cData, 'B2C_merchant_bridge');
+          console.log(`[Chat][B2C] candidates established — ${Array.isArray(b2cData.rows) ? b2cData.rows.length : 0} rows, queryStatus=${b2cData.queryStatus || 'unknown'}`);
+        } else {
+          console.log('[Chat][B2C] tx_search returned no rows — no candidates established');
+        }
+      } catch (e: any) {
+        console.warn('[Chat][B2C] bridge tx_search failed (non-fatal):', e?.message);
+      }
+    }
+
     if (stream) {
       setStage('model_streaming');
       // Streaming response (SSE) with tool support
@@ -11363,7 +11434,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         toolModules['tx_search'] &&
         !shouldPreserveCandidates &&
         !isHistoricalConversationRef &&
-        !merchantAggSatisfied
+        !merchantAggSatisfied &&
+        !merchantAnalysisBridgeActive
       ) {
         const forcedArgs: Record<string, any> = {
           limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -13069,6 +13141,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           } catch { return false; }
         })());
         // P2.3: Also skip forced tx_search for historical conversation references.
+        // P3.2B2C: Also skip when merchant analysis bridge already established candidates.
         if (
           toolsAllowedThisTurn &&
           toolCalls.length === 0 &&
@@ -13080,7 +13153,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           !isCategoryChangeIntent(masked) &&
           !shouldPreserveCandidates &&
           !isHistoricalConversationRef &&
-          !merchantAggSatisfied
+          !merchantAggSatisfied &&
+          !merchantAnalysisBridgeActive
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,
