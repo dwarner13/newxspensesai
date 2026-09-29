@@ -52,7 +52,7 @@ export interface UserQueryScope {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Detail-seeking patterns that always require tools. */
-const NEEDS_DETAIL_RE = /\b(which|vendor|merchant|where did|most (common|frequent|used)|top \w+|biggest (transaction|purchase)|list (my|the)|show me (my|the) (transactions|purchases|charges)|breakdown by (merchant|vendor|store)|when did|last time|transaction on|\bon [a-z]+ \d+)\b/i;
+const NEEDS_DETAIL_RE = /\b(which|vendor|merchant|where did|most (common|frequent|used)|top \w+|biggest (transaction|purchase)|list (my|the)|show me (my |the )?\w* ?(transactions|purchases|charges)|breakdown by (merchant|vendor|store)|when did|last time|transaction on|\bon [a-z]+ \d+)\b/i;
 
 /** Mutation patterns that always require tools (handoff, category change). */
 const MUTATION_RE = /\b(change|update|set|recategorize|re-categorize|categorize as|move|switch|make it|mark as|mark this|fix|rename|create rule|remember this|delete|remove)\b/i;

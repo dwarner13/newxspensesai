@@ -185,7 +185,7 @@ import {
   validateGroundedAnswer,
 } from '../../src/shared/financial-grounding';
 // Phase 1B.1: Tool-gate exact-scope sufficiency
-import { shouldRetainTools } from '../../src/shared/tool-gate';
+import { shouldRetainTools, analyzeQueryScope } from '../../src/shared/tool-gate';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
 
@@ -10030,6 +10030,30 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    // ── P3.3A: Merchant aggregation evidence-satisfied gate ──────────────
+    // When P3.1C has already resolved sufficient merchant_aggregation evidence
+    // for a pure merchant aggregation query (no detail/mutation/exact-amount/date),
+    // suppress redundant legacy tx_search and strip tx_search from model tools.
+    // This prevents a second model round-trip that adds ~6-10s latency.
+    const queryScope = isPrime ? analyzeQueryScope(masked) : null;
+    const shadowFC = shadowIntentResult?.financialClassification;
+    const merchantAggSatisfied = !!(
+      isPrime
+      && p31cResult?.overallSufficiency === 'sufficient'
+      && p31cResult.results.some(r =>
+        r.evidenceKind === 'merchant_aggregation'
+        && (r.status === 'resolved' || r.status === 'successful_empty')
+      )
+      && shadowFC?.queryType === 'merchant'
+      && !shadowFC?.exactAmount
+      && !shadowFC?.exactDate
+      && queryScope && !queryScope.needsDetail
+      && queryScope && !queryScope.isMutation
+    );
+    if (merchantAggSatisfied) {
+      console.log('[P3.3A] Merchant aggregation evidence-satisfied — suppressing redundant tx_search');
+    }
+
     // ── P3.1C: Inject evidence context into model prompt (shared path) ──
     // Runs before the streaming/non-streaming branch so both paths see evidence.
     // P3.1D evidence-shape policy and provenance are now included.
@@ -11169,7 +11193,15 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           if (!toolsAllowedThisTurn) {
             openaiTools = undefined;
           } else {
-          openaiTools = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+            // P3.3A: When merchant aggregation evidence is satisfied, strip tx_search
+            // from model tools so the model answers from injected evidence in one call.
+            const toolsForModel = merchantAggSatisfied
+              ? employeeTools.filter(t => t !== 'tx_search')
+              : employeeTools;
+            openaiTools = toolsForModel.length > 0 ? toOpenAIToolDefs(toolsForModel) : undefined;
+            if (merchantAggSatisfied) {
+              console.log('[P3.3A] tx_search stripped from streaming model tools');
+            }
           }
         } catch (toolError: any) {
           console.warn('[Chat] Failed to convert tools to OpenAI format (non-fatal):', toolError);
@@ -11330,7 +11362,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         isTransactionQuestionForTxSearch(masked) &&
         toolModules['tx_search'] &&
         !shouldPreserveCandidates &&
-        !isHistoricalConversationRef
+        !isHistoricalConversationRef &&
+        !merchantAggSatisfied
       ) {
         const forcedArgs: Record<string, any> = {
           limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -12551,12 +12584,19 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           if (!toolsAllowedThisTurn) {
             openaiTools = undefined;
           } else {
-            openaiTools = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+            // P3.3A: Strip tx_search in non-streaming path when merchant_aggregation satisfied
+            const toolsForModel = merchantAggSatisfied
+              ? employeeTools.filter(t => t !== 'tx_search')
+              : employeeTools;
+            openaiTools = toolsForModel.length > 0 ? toOpenAIToolDefs(toolsForModel) : undefined;
+            if (merchantAggSatisfied) {
+              console.log('[P3.3A] tx_search stripped from non-streaming model tools');
+            }
           }
         } catch (toolError: any) {
           console.warn('[Chat] Failed to convert tools to OpenAI format (non-fatal):', toolError);
         }
-        
+
         // PHASE 1B.1: Exact-scope tool gating for Prime financial read tools.
         // Only strip tools when authoritative context contains the EXACT answer.
         // A broader scope (section total) NEVER satisfies a narrower one (subcategory, merchant, different year).
@@ -12611,8 +12651,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               const plan = buildPreExecutionPlan(financialClassification, contextYear);
               // ── P3.1C gate: skip legacy pre-exec when P3.1C already provided equivalent evidence ──
               const p31cSuppressed = plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false;
-              if (p31cSuppressed) {
-                console.log(`[FinancialGrounding] P3.1C gate: skipping legacy ${plan.toolName} pre-exec — evidence already resolved by P3.1C`);
+              // ── P3.3A gate: skip legacy tx_search when merchant_aggregation evidence is sufficient ──
+              const merchantAggGate = merchantAggSatisfied && plan.toolName === 'tx_search';
+              if (p31cSuppressed || merchantAggGate) {
+                const gateLabel = p31cSuppressed ? 'P3.1C' : 'P3.3A merchant_aggregation';
+                console.log(`[FinancialGrounding] ${gateLabel} gate: skipping legacy ${plan.toolName} pre-exec — evidence already resolved`);
                 financialEvidence = { grounded: true, toolName: plan.toolName as any, queryStatus: 'verified', fromContext: false };
               }
               // ── Phase 1D gate: skip tx_search pre-exec when existing candidates exist ──
@@ -12624,7 +12667,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               if (phase1dSuppressed) {
                 console.log(`[FinancialGrounding] Phase1D: skipping tx_search pre-exec — ${existingTxResolution!.candidates.length} existing candidates preserved for model selection`);
               }
-              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed) {
+              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed && !merchantAggGate) {
                 console.log(`[FinancialGrounding] pre-executing tool=${plan.toolName} args=${JSON.stringify(plan.toolArgs)}`);
                 try {
                   const toolContext: ToolContext = {
@@ -13036,7 +13079,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           !taxSummaryGateStrippedTools &&
           !isCategoryChangeIntent(masked) &&
           !shouldPreserveCandidates &&
-          !isHistoricalConversationRef
+          !isHistoricalConversationRef &&
+          !merchantAggSatisfied
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,
