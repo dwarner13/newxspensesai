@@ -13,6 +13,10 @@ export const inputSchema = z.object({
   category: z.string().optional(),
   type: z.enum(['expense', 'income']).optional(),
   limit: z.number().min(1).max(50).optional(),
+  /** Deterministic groupingKeys to exclude from results.
+   *  Applied after JS grouping, before computing grandTotal/count.
+   *  Keys must match merchantGroupingKey() output exactly. */
+  excludeGroups: z.array(z.string()).max(20).optional(),
 });
 
 export const outputSchema = z.object({
@@ -145,6 +149,14 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
       if (date && (!group.firstSeen || date < group.firstSeen)) group.firstSeen = date;
       if (date && (!group.lastSeen || date > group.lastSeen)) group.lastSeen = date;
+    }
+
+    // Apply deterministic group exclusions before computing totals
+    if (input.excludeGroups && input.excludeGroups.length > 0) {
+      const excludeSet = new Set(input.excludeGroups);
+      for (const key of excludeSet) {
+        groups.delete(key);
+      }
     }
 
     // Build result array, sorted by total descending

@@ -465,6 +465,12 @@ function buildPeriodArgs(params: Record<string, unknown>, period: 'A' | 'B'): Re
   if (params.category) args.category = params.category;
   if (params.subcategory) args.subcategory = params.subcategory;
 
+  // P3.2B2A: Carry merchant + excludeGroups for merchant comparison
+  if (params.merchant) args.merchant = params.merchant;
+  if (Array.isArray(params.excludeGroups) && params.excludeGroups.length > 0) {
+    args.excludeGroups = params.excludeGroups;
+  }
+
   return args;
 }
 
@@ -487,7 +493,7 @@ function buildToolArgs(step: PrimeEvidencePlanStep): Record<string, unknown> {
   // Copy only recognized tool parameters — never copy userId
   const allowed = ['q', 'category', 'subcategory', 'startDate', 'endDate',
     'year', 'exactDate', 'exactAmount', 'limit', 'minAmount', 'maxAmount', 'type',
-    'merchant'];
+    'merchant', 'excludeGroups'];
   for (const key of allowed) {
     if (step.params[key] !== undefined) {
       args[key] = step.params[key];

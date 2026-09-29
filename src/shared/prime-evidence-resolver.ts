@@ -100,9 +100,19 @@ export interface PrimeEvidencePlan {
  *
  * Does NOT execute tools, query databases, or change behavior.
  */
+/**
+ * Optional merchant context for evidence plan building.
+ * P3.2B2A: Allows the plan to carry exclusions from session-persisted
+ * merchant analysis context into merchant_totals and comparison steps.
+ */
+export interface EvidencePlanMerchantContext {
+  excludeGroups?: string[];
+}
+
 export function buildEvidencePlan(
   contract: PrimeRuntimeEvidenceContract,
   classification: PrimeIntentClassification,
+  merchantCtx?: EvidencePlanMerchantContext,
 ): PrimeEvidencePlan {
   const steps: PrimeEvidencePlanStep[] = [];
   const unresolved: PrimeEvidenceUnresolved[] = [];
@@ -116,7 +126,7 @@ export function buildEvidencePlan(
       unresolved.push({ evidenceKind: req.kind, reason: 'source_unavailable' });
     } else {
       // pending — attempt resolution
-      const result = resolvePending(req, fc, ts);
+      const result = resolvePending(req, fc, ts, merchantCtx);
       if (isStep(result)) {
         // Defense-in-depth: reject any mutation tool
         if (result.tool && MUTATION_TOOLS.has(result.tool)) {
@@ -161,6 +171,7 @@ function resolvePending(
   req: PrimeEvidenceRequirement,
   fc?: FinancialQueryClassification,
   ts?: PrimeTemporalScope,
+  merchantCtx?: EvidencePlanMerchantContext,
 ): PrimeEvidencePlanStep | PrimeEvidenceUnresolved {
   switch (req.kind) {
     case 'transaction_data':
@@ -168,9 +179,9 @@ function resolvePending(
     case 'category_aggregation':
       return resolveCategoryAggregation(fc, ts);
     case 'merchant_aggregation':
-      return resolveMerchantAggregation(fc, ts);
+      return resolveMerchantAggregation(fc, ts, merchantCtx?.excludeGroups);
     case 'period_comparison':
-      return resolvePeriodComparison(fc, ts);
+      return resolvePeriodComparison(fc, ts, merchantCtx?.excludeGroups);
     case 'cash_flow':
       return resolveCashFlow(fc, ts);
     case 'document_evidence':
@@ -358,7 +369,24 @@ function resolveCashFlow(
 function resolvePeriodComparison(
   fc?: FinancialQueryClassification,
   ts?: PrimeTemporalScope,
+  excludeGroups?: string[],
 ): PrimeEvidencePlanStep | PrimeEvidenceUnresolved {
+  // P3.2B2A: Merchant comparison uses merchant_totals instead of category totals
+  const isMerchantComparison = fc?.queryType === 'merchant';
+  const tool = isMerchantComparison ? 'merchant_totals' : 'transaction_category_totals';
+  const source = isMerchantComparison
+    ? 'Merchant spend comparison across two periods (requires multiple tool calls)'
+    : 'Comparison of two time periods (requires multiple tool calls)';
+
+  // Build shared params for merchant context (carried through both periods)
+  const sharedParams: Record<string, unknown> = {};
+  if (isMerchantComparison && fc?.merchantHint) {
+    sharedParams.merchant = fc.merchantHint;
+  }
+  if (isMerchantComparison && excludeGroups && excludeGroups.length > 0) {
+    sharedParams.excludeGroups = excludeGroups;
+  }
+
   // P3.1A.1: Two deterministic temporal periods → multi-source
   if (
     ts?.primary && ts?.comparison &&
@@ -367,10 +395,11 @@ function resolvePeriodComparison(
   ) {
     return {
       evidenceKind: 'period_comparison',
-      source: 'Comparison of two time periods (requires multiple tool calls)',
-      tool: 'transaction_category_totals',
+      source,
+      tool,
       mode: 'multi_source',
       params: {
+        ...sharedParams,
         periodA_startDate: ts.primary.from,
         periodA_endDate: toInclusiveEndDate(ts.primary.to),
         periodB_startDate: ts.comparison.from,
@@ -384,10 +413,11 @@ function resolvePeriodComparison(
   if (fc?.scope?.isComparison && fc.years.length >= 2) {
     return {
       evidenceKind: 'period_comparison',
-      source: 'Comparison of two time periods (requires multiple tool calls)',
-      tool: 'transaction_category_totals',
+      source,
+      tool,
       mode: 'multi_source',
       params: {
+        ...sharedParams,
         periodA_year: fc.years[0],
         periodB_year: fc.years[1],
       },
@@ -403,10 +433,12 @@ function resolvePeriodComparison(
  * P3.2B: Resolve merchant_aggregation evidence to merchant_totals tool.
  * Uses merchantHint from FinancialQueryClassification as merchant filter.
  * Supports temporal scope for date filtering.
+ * P3.2B2A: Supports excludeGroups from merchant analysis context.
  */
 function resolveMerchantAggregation(
   fc?: FinancialQueryClassification,
   ts?: PrimeTemporalScope,
+  excludeGroups?: string[],
 ): PrimeEvidencePlanStep | PrimeEvidenceUnresolved {
   const params: Record<string, unknown> = {};
 
@@ -426,6 +458,11 @@ function resolveMerchantAggregation(
   }
 
   if (fc?.requestedCount !== undefined) params.limit = fc.requestedCount;
+
+  // P3.2B2A: Carry through validated exclude groups
+  if (excludeGroups && excludeGroups.length > 0) {
+    params.excludeGroups = excludeGroups;
+  }
 
   return {
     evidenceKind: 'merchant_aggregation',
