@@ -149,7 +149,15 @@ import { classifyPrimeIntent, type PrimeIntentClassification } from '../../src/s
 // P3.1A: Runtime evidence contract (observational only — does not change runtime behavior)
 import { buildRuntimeEvidenceContract, buildEvidenceContractTelemetry, type PrimeRuntimeEvidenceContract } from '../../src/shared/prime-evidence-contract';
 // P3.1B: Evidence resolution plan (observational only — does not change runtime behavior)
-import { buildEvidencePlan, buildEvidencePlanTelemetry } from '../../src/shared/prime-evidence-resolver';
+import { buildEvidencePlan, buildEvidencePlanTelemetry, type EvidencePlanMerchantContext } from '../../src/shared/prime-evidence-resolver';
+// P3.2B2B: Session-scoped merchant analysis context
+import {
+  type MerchantAnalysisContext,
+  isMerchantAnalysisContextValid,
+  validateExcludeGroups,
+  buildMerchantAnalysisContext,
+  formatMerchantAnalysisContext,
+} from '../../src/shared/merchant-analysis-context';
 // P3.1A.1: Canonical temporal scope (observational only — does not change runtime behavior)
 import { buildTemporalScope, buildTemporalScopeTelemetry } from '../../src/shared/prime-temporal-scope';
 // P3.1C: Controlled read-only evidence execution
@@ -1848,6 +1856,61 @@ async function writeTxResolution(
     return true;
   } catch (err: any) {
     console.warn('[Chat] writeTxResolution error:', err?.message);
+    return false;
+  }
+}
+
+// ── P3.2B2B: Merchant Analysis Context read/write ──
+// Same read-merge-write pattern as tx_resolution to preserve all context keys.
+
+async function readMerchantAnalysis(
+  sb: any, sessionId: string, userId: string,
+): Promise<MerchantAnalysisContext | null> {
+  if (!sessionId || !userId) return null;
+  try {
+    const { data, error } = await sb
+      .from('chat_sessions')
+      .select('context')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data?.context) return null;
+    const mac = data.context.merchant_analysis;
+    if (!isMerchantAnalysisContextValid(mac)) return null;
+    return mac as MerchantAnalysisContext;
+  } catch (err: any) {
+    console.warn('[Chat] readMerchantAnalysis error:', err?.message);
+    return null;
+  }
+}
+
+async function writeMerchantAnalysis(
+  sb: any, sessionId: string, userId: string, mac: MerchantAnalysisContext,
+): Promise<boolean> {
+  if (!sessionId || !userId) return false;
+  try {
+    const { data: existing } = await sb
+      .from('chat_sessions')
+      .select('context')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    const ctx = (existing?.context && typeof existing.context === 'object')
+      ? { ...existing.context }
+      : {};
+    ctx.merchant_analysis = mac;
+    const { error } = await sb
+      .from('chat_sessions')
+      .update({ context: ctx })
+      .eq('id', sessionId)
+      .eq('user_id', userId);
+    if (error) {
+      console.warn('[Chat] writeMerchantAnalysis error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.warn('[Chat] writeMerchantAnalysis error:', err?.message);
     return false;
   }
 }
@@ -6797,6 +6860,12 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime cash_flow_summary tool enabled via runtime fallback');
           }
+          // P3.2B2B: Merchant analysis refinement (read-only conversational refinement)
+          if (!employeeTools.includes('merchant_analysis_refine')) {
+            employeeTools = [...employeeTools, 'merchant_analysis_refine'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime merchant_analysis_refine tool enabled via runtime fallback');
+          }
         }
         
         if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {
@@ -9692,6 +9761,19 @@ export const handler: Handler = async (event, context) => {
     }
     const hasExistingCandidates = !!(existingTxResolution?.candidates?.length);
 
+    // ── P3.2B2B: Load merchant analysis context at request start ──
+    let existingMerchantAnalysis: MerchantAnalysisContext | null = null;
+    if (isPrime && finalSessionId) {
+      try {
+        existingMerchantAnalysis = await readMerchantAnalysis(sb, finalSessionId, userId);
+        if (existingMerchantAnalysis) {
+          console.log(`[Chat] P3.2B2B: existing merchant_analysis found — query="${existingMerchantAnalysis.merchantQuery}", ${existingMerchantAnalysis.activeGroups.length} groups, ${existingMerchantAnalysis.excludedGroups.length} excluded`);
+        }
+      } catch (e: any) {
+        console.warn('[Chat] P3.2B2B: readMerchantAnalysis failed (non-fatal):', e?.message);
+      }
+    }
+
     // Phase 1D new-search vs follow-up: determine if the current message is a NEW
     // grounded financial search (which should replace candidates) vs a referential
     // follow-up (which should preserve them).
@@ -9816,7 +9898,12 @@ export const handler: Handler = async (event, context) => {
     let evidencePlanForExecution: ReturnType<typeof buildEvidencePlan> | null = null;
     if (isPrime && runtimeEvidenceContract && shadowIntentResult) {
       try {
-        evidencePlanForExecution = buildEvidencePlan(runtimeEvidenceContract, shadowIntentResult);
+        // P3.2B2B: Thread validated excludeGroups from loaded merchant context
+        const merchantCtxForPlan: EvidencePlanMerchantContext | undefined =
+          existingMerchantAnalysis?.excludedGroups?.length
+            ? { excludeGroups: existingMerchantAnalysis.excludedGroups }
+            : undefined;
+        evidencePlanForExecution = buildEvidencePlan(runtimeEvidenceContract, shadowIntentResult, merchantCtxForPlan);
         const planTelemetry = buildEvidencePlanTelemetry(evidencePlanForExecution);
         console.log(`[P3.1B Evidence Plan] ${JSON.stringify(planTelemetry)}`);
       } catch (e: any) {
@@ -9868,7 +9955,50 @@ export const handler: Handler = async (event, context) => {
                 const txData = r.data as any;
                 if (txData.rows) {
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, { rows: txData.rows, queryStatus: txData.queryStatus });
-                  guardedPersistTxResolution(sb, finalSessionId, userId, { rows: txData.rows, queryStatus: txData.queryStatus }, 'p31c').catch(e => console.warn('[Chat] TxResolution persist error (p31c):', e?.message));
+                  // P3.2B2B FIX: await tx_resolution to serialize before merchant_analysis write
+                  await guardedPersistTxResolution(sb, finalSessionId, userId, { rows: txData.rows, queryStatus: txData.queryStatus }, 'p31c').catch(e => console.warn('[Chat] TxResolution persist error (p31c):', e?.message));
+                }
+              }
+            }
+
+            // P3.2B2B: Capture merchant_totals results and persist MerchantAnalysisContext
+            // Runs AFTER tx_resolution write completes to prevent JSONB lost-update.
+            const merchantHint = shadowIntentResult?.financialClassification?.merchantHint;
+            if (merchantHint) {
+              for (const r of p31cResult.results) {
+                if (r.tool === 'merchant_totals' && r.status === 'resolved' && r.data) {
+                  try {
+                    const mtData = r.data as any;
+                    const merchants: Array<{ merchant: string; groupingKey: string }> =
+                      Array.isArray(mtData.merchants) ? mtData.merchants : [];
+                    const evidenceComplete = mtData.queryStatus !== 'partial';
+
+                    // Detect new-merchant reset: if merchantHint differs from loaded context,
+                    // clear previous exclusions (new analysis scope).
+                    const isNewMerchant = existingMerchantAnalysis
+                      ? existingMerchantAnalysis.merchantQuery.toLowerCase() !== merchantHint.toLowerCase()
+                      : true;
+
+                    const mac = buildMerchantAnalysisContext(
+                      merchantHint,
+                      merchants,
+                      {
+                        excludedGroups: isNewMerchant ? [] : (existingMerchantAnalysis?.excludedGroups || []),
+                        temporalScope: temporalScope
+                          ? { startDate: temporalScope.startDate, endDate: temporalScope.endDate }
+                          : null,
+                        categoryFilter: shadowIntentResult?.financialClassification?.resolvedCategory ?? null,
+                        evidenceComplete,
+                      },
+                    );
+                    existingMerchantAnalysis = mac;
+                    // Awaited: next turn depends on persisted context
+                    await writeMerchantAnalysis(sb, finalSessionId, userId, mac);
+                    console.log(`[Chat] P3.2B2B: merchant_analysis persisted — query="${merchantHint}", ${merchants.length} groups, complete=${evidenceComplete}, newMerchant=${isNewMerchant}`);
+                  } catch (e: any) {
+                    console.warn('[Chat] P3.2B2B: merchant context build failed (non-fatal):', e?.message);
+                  }
+                  break; // Only process the first merchant_totals result
                 }
               }
             }
@@ -9907,6 +10037,21 @@ export const handler: Handler = async (event, context) => {
         }
       } catch (e: any) {
         console.warn('[P3.1C] Evidence context injection failed (non-fatal):', e?.message);
+      }
+    }
+
+    // ── P3.2B2B: Inject merchant analysis context into model prompt ──
+    // Provides active merchant groups, exclusions, and refinement instructions.
+    // Only injected when context is valid (within TTL) and a merchant query is active.
+    if (isPrime && existingMerchantAnalysis) {
+      try {
+        const macMsg = formatMerchantAnalysisContext(existingMerchantAnalysis);
+        if (macMsg) {
+          systemMessages.push({ role: 'system', content: macMsg });
+          console.log(`[Chat] P3.2B2B: merchant analysis context injected — query="${existingMerchantAnalysis.merchantQuery}", ${existingMerchantAnalysis.activeGroups.length} groups`);
+        }
+      } catch (e: any) {
+        console.warn('[Chat] P3.2B2B: merchant context injection failed (non-fatal):', e?.message);
       }
     }
 
@@ -11453,6 +11598,15 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                       updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
                       guardedPersistTxResolution(sb, finalSessionId, userId, result, 'streaming').catch(e => console.warn('[Chat] TxResolution persist error (streaming):', e?.message));
+                    }
+                    // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence
+                    if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
+                      const merchants = Array.isArray((result as any)?.merchants) ? (result as any).merchants : [];
+                      p31dAccumulatedEvidence.set('merchant_aggregation', {
+                        tool: 'merchant_analysis_refine',
+                        status: merchants.length === 0 ? 'successful_empty' : 'resolved',
+                        rowCount: merchants.length,
+                      });
                     }
                     // P3.1D: Track successful read-tool results in accumulated evidence
                     if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
@@ -13117,6 +13271,15 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
                 guardedPersistTxResolution(sb, finalSessionId, userId, result, 'non-streaming').catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):', e?.message));
               }
+              // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence (non-streaming)
+              if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
+                const merchants = Array.isArray((result as any)?.merchants) ? (result as any).merchants : [];
+                p31dAccumulatedEvidence.set('merchant_aggregation', {
+                  tool: 'merchant_analysis_refine',
+                  status: merchants.length === 0 ? 'successful_empty' : 'resolved',
+                  rowCount: merchants.length,
+                });
+              }
               // P3.1D: Track successful read-tool results in accumulated evidence
               if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
                 const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
@@ -13493,6 +13656,15 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
                   guardedPersistTxResolution(sb, finalSessionId, userId, result, 'tool-loop').catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):', e?.message));
+                }
+                // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence (tool-loop)
+                if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
+                  const merchants = Array.isArray((result as any)?.merchants) ? (result as any).merchants : [];
+                  p31dAccumulatedEvidence.set('merchant_aggregation', {
+                    tool: 'merchant_analysis_refine',
+                    status: merchants.length === 0 ? 'successful_empty' : 'resolved',
+                    rowCount: merchants.length,
+                  });
                 }
                 // P3.1D: Track successful read-tool results in accumulated evidence (tool loop)
                 if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {

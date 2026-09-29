@@ -175,11 +175,15 @@ export function formatMerchantAnalysisContext(
   }
 
   lines.push('');
-  lines.push('When the user refines this analysis (e.g., "take out gas", "only wholesale",');
-  lines.push('"now just May"), preserve the merchant query and adjust exclusions or');
-  lines.push('temporal scope accordingly. Use the groupingKey values above to identify');
-  lines.push('which group the user is referring to. Do NOT invent groupingKeys.');
-  lines.push('Totals must come from fresh merchant_totals evidence, not from this context.');
+  lines.push('REFINEMENT: Use the merchant_analysis_refine tool for follow-up operations:');
+  lines.push('- "take out gas" → merchant_analysis_refine({operation:"exclude", targets:["<groupingKey>"]})');
+  lines.push('- "only gas" → merchant_analysis_refine({operation:"only", targets:["<groupingKey>"]})');
+  lines.push('- "include gas again" → merchant_analysis_refine({operation:"include", targets:["<groupingKey>"]})');
+  lines.push('- "now just May" → merchant_analysis_refine({operation:"refresh", startDate:"2026-05-01", endDate:"2026-05-31"})');
+  lines.push('- "compare with April" → call merchant_analysis_refine for the current period,');
+  lines.push('  then call merchant_totals for the comparison period with the same merchant and excludeGroups.');
+  lines.push('Targets MUST be exact groupingKey values from the list above. Do NOT invent groupingKeys.');
+  lines.push('Totals must come from fresh tool evidence, not from this context.');
   lines.push('This context does NOT authorize any mutation.');
 
   return lines.join('\n');

@@ -60,6 +60,7 @@ import * as selectTransaction from './impl/select_transaction';
 import * as txUpdateCategory from './impl/tx_update_category';
 import * as summarizeImport from './impl/summarize_import';
 import * as byteRenameImport from './impl/byte_rename_import';
+import * as merchantAnalysisRefine from './impl/merchant_analysis_refine';
 import { OpenAIToolDef } from '../../server/ai/openai';
 
 export interface ToolModule {
@@ -225,6 +226,17 @@ const toolModules: Map<string, ToolModule> = new Map([
       mutates: true,
       timeout: 10000,
       rateLimit: { perMinute: 20 },
+    },
+  }],
+  ['merchant_analysis_refine', {
+    id: 'merchant_analysis_refine',
+    description: 'Refine an active merchant spending analysis. Use when the user wants to exclude, include, or focus on specific merchant groups (e.g. "take out gas", "only wholesale", "include gas again") or change the time period (e.g. "now just May"). Requires an active merchant analysis context from a previous merchant_totals query. Operations: exclude (remove groups), include (add groups back), only (keep only specified groups), refresh (re-run with new dates). Targets must be exact groupingKey values from the active context.',
+    inputSchema: merchantAnalysisRefine.inputSchema,
+    outputSchema: merchantAnalysisRefine.outputSchema,
+    run: merchantAnalysisRefine.execute,
+    meta: {
+      timeout: 15000,
+      rateLimit: { perMinute: 30 },
     },
   }],
   ['search_docs', {
