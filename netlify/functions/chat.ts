@@ -9865,7 +9865,7 @@ export const handler: Handler = async (event, context) => {
       try {
         temporalScope = buildTemporalScope(
           masked,
-          { timezone, referenceDate: new Date() },
+          { timezone: effectiveTimezone, referenceDate: new Date() },
           shadowIntentResult.financialClassification?.years,
         );
         if (temporalScope) {
