@@ -11201,6 +11201,41 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       }
     }
 
+    // ── P3.3B: B2C Candidate Satisfaction Gate ──
+    // After B2C bridge execution, determine if authoritative candidates are fully
+    // established for this request. This gate requires ALL of:
+    //   1. B2C bridge was activated (merchantAnalysisBridgeActive)
+    //   2. Candidates were successfully persisted (txResolutionLockedThisTurn)
+    //   3. P0 captured at least one candidate (txCandidatesForResponse)
+    // If ANY of these fail (B2C error, zero rows, persist failure), the gate
+    // remains false and tx_search stays available through the normal model path.
+    const b2cCandidatesSatisfied = !!(
+      merchantAnalysisBridgeActive
+      && txResolutionLockedThisTurn
+      && txCandidatesForResponse
+      && txCandidatesForResponse.length > 0
+    );
+
+    // ── P3.3B: Inject current-turn B2C candidates into model context ──
+    // When the B2C bridge has established authoritative candidates in THIS request,
+    // inject them into the model's messages so the model can answer directly without
+    // calling tx_search again. Uses the same format as Phase 1D for consistency.
+    if (b2cCandidatesSatisfied && txCandidatesForResponse) {
+      const cLines: string[] = ['ACTIVE TRANSACTION CANDIDATES (established by merchant bridge for this request):'];
+      for (const c of txCandidatesForResponse) {
+        const parts: string[] = [];
+        if (c.merchant) parts.push(c.merchant);
+        if (c.amount !== null && c.amount !== undefined) parts.push(`$${Math.abs(c.amount).toFixed(2)}`);
+        if (c.date) parts.push(c.date);
+        if (c.category) parts.push(c.category);
+        cLines.push(`[${c.ordinal}] ${parts.join(' | ')}`);
+      }
+      cLines.push('');
+      cLines.push(`${txCandidatesForResponse.length} transactions found. Present these results to the user. Do NOT call tx_search — these candidates are already established and authoritative for this request.`);
+      messages.push({ role: 'system', content: cLines.join('\n') });
+      console.log(`[P3.3B] Injected ${txCandidatesForResponse.length} B2C candidates into model context`);
+    }
+
     if (stream) {
       setStage('model_streaming');
       // Streaming response (SSE) with tool support
@@ -11269,14 +11304,19 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           if (!toolsAllowedThisTurn) {
             openaiTools = undefined;
           } else {
-            // P3.3A: When merchant aggregation evidence is satisfied, strip tx_search
-            // from model tools so the model answers from injected evidence in one call.
-            const toolsForModel = merchantAggSatisfied
+            // P3.3A/P3.3B: Strip tx_search from model tools when evidence is already
+            // sufficient — either merchant aggregation (P3.3A) or B2C authoritative
+            // candidates established in this request (P3.3B).
+            const stripTxSearch = merchantAggSatisfied || b2cCandidatesSatisfied;
+            const toolsForModel = stripTxSearch
               ? employeeTools.filter(t => t !== 'tx_search')
               : employeeTools;
             openaiTools = toolsForModel.length > 0 ? toOpenAIToolDefs(toolsForModel) : undefined;
             if (merchantAggSatisfied) {
               console.log('[P3.3A] tx_search stripped from streaming model tools');
+            }
+            if (b2cCandidatesSatisfied) {
+              console.log('[P3.3B] tx_search stripped from streaming model tools — B2C candidates satisfied');
             }
           }
         } catch (toolError: any) {
@@ -12661,13 +12701,18 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           if (!toolsAllowedThisTurn) {
             openaiTools = undefined;
           } else {
-            // P3.3A: Strip tx_search in non-streaming path when merchant_aggregation satisfied
-            const toolsForModel = merchantAggSatisfied
+            // P3.3A/P3.3B: Strip tx_search in non-streaming path when evidence is
+            // already sufficient — merchant aggregation (P3.3A) or B2C candidates (P3.3B).
+            const stripTxSearch = merchantAggSatisfied || b2cCandidatesSatisfied;
+            const toolsForModel = stripTxSearch
               ? employeeTools.filter(t => t !== 'tx_search')
               : employeeTools;
             openaiTools = toolsForModel.length > 0 ? toOpenAIToolDefs(toolsForModel) : undefined;
             if (merchantAggSatisfied) {
               console.log('[P3.3A] tx_search stripped from non-streaming model tools');
+            }
+            if (b2cCandidatesSatisfied) {
+              console.log('[P3.3B] tx_search stripped from non-streaming model tools — B2C candidates satisfied');
             }
           }
         } catch (toolError: any) {
