@@ -19,6 +19,14 @@ export const inputSchema = z.object({
   /** P3.2B2C: Merchant display names to exclude via NOT ILIKE at DB level.
    *  Used internally by the merchant analysis bridge. Max 20. */
   excludeMerchants: z.array(z.string()).max(20).optional(),
+  /** P3.3C: Semantic purpose — model declares why it is calling tx_search.
+   *  When transaction candidates already exist:
+   *  - 'new_candidate_scope': user wants DIFFERENT transactions (replaces frame)
+   *  - 'analytical_evidence': supporting data for analysis (preserves frame)
+   *  Code-initiated searches set this directly. */
+  purpose: z.enum(['new_candidate_scope', 'analytical_evidence'])
+    .describe('Required when transaction candidates already exist. Use new_candidate_scope when the user asks about DIFFERENT transactions than currently shown. Use analytical_evidence when fetching supporting data for analysis of current candidates.')
+    .optional(),
 });
 
 export const outputSchema = z.object({

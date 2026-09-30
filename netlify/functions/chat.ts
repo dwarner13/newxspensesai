@@ -9826,7 +9826,14 @@ export const handler: Handler = async (event, context) => {
         console.log(`[Chat] P2.3: historical conversation reference detected (no existing candidates, continuation=${histRef.continuationIntent}, informational=${isHistoricalInformational}) — suppressing search`);
       }
     }
-    const shouldPreserveCandidates = hasExistingCandidates && !isNewGroundedSearch;
+    // ── P3.3C: Conservative candidate preservation ──
+    // When valid existing candidates are present, ALWAYS preserve them.
+    // The model decides whether to search via voluntary tx_search call with the
+    // `purpose` semantic field. Forced tx_search is suppressed; the model has
+    // tx_search available in its tool set and Phase 1D injection provides
+    // candidate context. isNewGroundedSearch is retained for P3.0A shadow logging
+    // and P2.2 current-turn isolation only — it no longer gates preservation.
+    const shouldPreserveCandidates = hasExistingCandidates;
 
     // ── P3.0A: Shadow intent classification (observational only) ──
     // Logs what the intent classifier WOULD assign without changing any behavior.
@@ -9962,7 +9969,8 @@ export const handler: Handler = async (event, context) => {
                 if (txData.rows) {
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, { rows: txData.rows, queryStatus: txData.queryStatus });
                   // P3.2B2B FIX: await tx_resolution to serialize before merchant_analysis write
-                  await guardedPersistTxResolution(sb, finalSessionId, userId, { rows: txData.rows, queryStatus: txData.queryStatus }, 'p31c').catch(e => console.warn('[Chat] TxResolution persist error (p31c):', e?.message));
+                  // P3.3C: P3.1C is evidence retrieval — never candidate establishment
+                  await guardedPersistTxResolution(sb, finalSessionId, userId, { rows: txData.rows, queryStatus: txData.queryStatus }, 'p31c', 'analytical_evidence').catch(e => console.warn('[Chat] TxResolution persist error (p31c):', e?.message));
                 }
               }
             }
@@ -10457,7 +10465,7 @@ PRIME FINANCIAL GROUNDING CONTRACT:
       // language-level understanding of which transaction the user means.
       systemMessages.push({
         role: 'system',
-        content: 'TRANSACTION SELECTION PROTOCOL: After any tx_search returns results, those results become the active candidate set numbered [1], [2], [3], etc. When the user refers to a specific transaction from those results — by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination ("no, the other one") — you MUST call select_transaction({ candidateNumber }) to lock in the selection BEFORE you answer about that transaction. This is required even if you already know which transaction the user means from conversation history.',
+        content: 'TRANSACTION SELECTION PROTOCOL: After any tx_search returns results, those results become the active candidate set numbered [1], [2], [3], etc. When the user refers to a specific transaction from those results — by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination ("no, the other one") — you MUST call select_transaction({ candidateNumber }) to lock in the selection BEFORE you answer about that transaction. This is required even if you already know which transaction the user means from conversation history.\n\nWhen calling tx_search with active candidates: set purpose=\'new_candidate_scope\' if the user wants DIFFERENT transactions (different merchant, time period, or criteria). Set purpose=\'analytical_evidence\' if you need supporting data for analysis without replacing the current candidates. If the user\'s question can be answered from the current candidates, do NOT call tx_search.',
       });
 
       // ── Phase 1D: Inject existing candidate frame ──
@@ -10481,7 +10489,9 @@ PRIME FINANCIAL GROUNDING CONTRACT:
           cLines.push(`Currently selected: [${selIdx !== null && selIdx !== undefined ? selIdx + 1 : '?'}] (ID: ${existingTxResolution.selectedId})`);
         }
         cLines.push('');
-        cLines.push('These candidates are already loaded. If the user refers to one of these transactions, call select_transaction with the correct candidateNumber. Do NOT call tx_search to re-fetch these same transactions. Only call tx_search if the user asks for a genuinely DIFFERENT search (different merchant, different date range, different query).');
+        cLines.push('These candidates are already loaded. If the user refers to one of these transactions (by ordinal, attribute, superlative, or description), answer directly or call select_transaction — do NOT call tx_search.');
+        cLines.push('If the user asks about DIFFERENT transactions (different merchant, different time period, different criteria), call tx_search with purpose=\'new_candidate_scope\'.');
+        cLines.push('If you need supporting data for analysis while keeping these candidates active (e.g., comparison totals), call tx_search with purpose=\'analytical_evidence\'.');
         systemMessages.push({ role: 'system', content: cLines.join('\n') });
         console.log(`[Chat] Phase1D: injected ${existingTxResolution.candidates.length} existing candidates into prompt`);
       }
@@ -11140,17 +11150,42 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       subcategory: string | null;
     }> | null = null;
 
-    /** Guarded candidate persistence — skips if lock is set, sets lock on success. */
+    // ── P3.3C: Candidate Ownership Intent ──
+    // Typed intent that explicitly authorizes or blocks candidate frame replacement.
+    // 'candidate_establishment': tx_search result replaces the candidate frame
+    // 'analytical_evidence': tx_search result is used for analysis only — frame preserved
+    type CandidateOwnershipIntent = 'candidate_establishment' | 'analytical_evidence';
+
+    /**
+     * P3.3C: Resolve candidate ownership from model-declared purpose.
+     * Safe default: when purpose is missing/invalid AND candidates exist, preserve frame.
+     */
+    function resolveCandidateOwnership(
+      purpose: string | undefined,
+      hasExistingCandidatesNow: boolean,
+    ): CandidateOwnershipIntent {
+      if (!hasExistingCandidatesNow) return 'candidate_establishment';
+      if (purpose === 'new_candidate_scope') return 'candidate_establishment';
+      // Missing, invalid, or 'analytical_evidence' → preserve existing frame
+      return 'analytical_evidence';
+    }
+
+    /** Guarded candidate persistence — skips if lock is set OR intent is analytical. */
     async function guardedPersistTxResolution(
       sb: any, sessionId: string, userId: string, result: any, source: string,
+      intent: CandidateOwnershipIntent,
     ): Promise<void> {
       if (txResolutionLockedThisTurn) {
-        console.log(`[Chat] TxResolution: skipping candidate replacement (source=${source}) — candidates locked this turn`);
+        console.log(`[Chat] TxResolution: skipping candidate replacement (source=${source}, intent=${intent}) — candidates locked this turn`);
+        return;
+      }
+      if (intent === 'analytical_evidence') {
+        console.log(`[Chat] TxResolution: skipping candidate replacement (source=${source}) — analytical_evidence intent preserves existing frame`);
         return;
       }
       await persistTxResolutionFromSearchResult(sb, sessionId, userId, result);
       txResolutionLockedThisTurn = true;
-      console.log(`[Chat] TxResolution: candidates established (source=${source}), ownership locked for this request`);
+      console.log(`[Chat] TxResolution: candidates established (source=${source}, intent=${intent}), ownership locked for this request`);
 
       // P0: Capture authoritative candidate frame for deterministic rendering.
       // Uses the same rows that were persisted to tx_resolution — one truth source.
@@ -11191,7 +11226,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           autonomyLevel: 1,
         });
         if (b2cData && typeof b2cData === 'object' && !('error' in b2cData) && (b2cData as any).rows) {
-          await guardedPersistTxResolution(sb, finalSessionId, userId, b2cData, 'B2C_merchant_bridge');
+          // P3.3C: B2C bridge is always candidate_establishment — not dependent on model purpose
+          await guardedPersistTxResolution(sb, finalSessionId, userId, b2cData, 'B2C_merchant_bridge', 'candidate_establishment');
           console.log(`[Chat][B2C] candidates established — ${Array.isArray((b2cData as any).rows) ? (b2cData as any).rows.length : 0} rows, queryStatus=${(b2cData as any).queryStatus || 'unknown'}`);
         } else {
           console.log('[Chat][B2C] tx_search returned no rows — no candidates established');
@@ -11753,7 +11789,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                         .slice(0, 25);
                       if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                       updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
-                      guardedPersistTxResolution(sb, finalSessionId, userId, result, 'streaming').catch(e => console.warn('[Chat] TxResolution persist error (streaming):', e?.message));
+                      // P3.3C: Resolve ownership from model-declared purpose
+                      const streamingOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
+                      guardedPersistTxResolution(sb, finalSessionId, userId, result, 'streaming', streamingOwnership).catch(e => console.warn('[Chat] TxResolution persist error (streaming):', e?.message));
                     }
                     // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence
                     if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
@@ -12138,7 +12176,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
                     if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                     updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, tResult);
-                    guardedPersistTxResolution(sb, finalSessionId, userId, tResult, 'specialist').catch(e => console.warn('[Chat] TxResolution persist error (specialist):', e?.message));
+                    // P3.3C: Resolve ownership from model-declared purpose
+                    const specOwnership = resolveCandidateOwnership(tArgs?.purpose, hasExistingCandidates);
+                    guardedPersistTxResolution(sb, finalSessionId, userId, tResult, 'specialist', specOwnership).catch(e => console.warn('[Chat] TxResolution persist error (specialist):', e?.message));
                   }
 
                   // Send tool events to stream
@@ -12831,9 +12871,13 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     console.log(`[FinancialGrounding] evidence=tool tool=${plan.toolName} queryStatus=${qs}`);
 
                     // Capture authoritative transaction identity from FinancialGrounding tx_search
+                    // P3.3C: Grounding pre-exec is code-initiated — candidate_establishment when
+                    // no candidates exist (cold start), analytical_evidence when candidates exist
+                    // (though phase1dSuppressed should have blocked this path).
                     if (plan.toolName === 'tx_search' && finalSessionId) {
                       updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, preResult);
-                      guardedPersistTxResolution(sb, finalSessionId, userId, preResult, 'grounding').catch(e => console.warn('[Chat] TxResolution persist error (grounding):', e?.message));
+                      const groundingOwnership: CandidateOwnershipIntent = hasExistingCandidates ? 'analytical_evidence' : 'candidate_establishment';
+                      guardedPersistTxResolution(sb, finalSessionId, userId, preResult, 'grounding', groundingOwnership).catch(e => console.warn('[Chat] TxResolution persist error (grounding):', e?.message));
                     }
                   } else {
                     console.warn(`[FinancialGrounding] pre-execution returned error:`, preResult);
@@ -13446,7 +13490,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   .slice(0, 25);
                 if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                 updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
-                guardedPersistTxResolution(sb, finalSessionId, userId, result, 'non-streaming').catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):', e?.message));
+                // P3.3C: Resolve ownership from model-declared purpose
+                const nsOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
+                guardedPersistTxResolution(sb, finalSessionId, userId, result, 'non-streaming', nsOwnership).catch(e => console.warn('[Chat] TxResolution persist error (non-streaming):', e?.message));
               }
               // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence (non-streaming)
               if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
@@ -13832,7 +13878,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   const ids = rows.map((r: any) => String(r?.id || '').trim()).filter((id: string) => id.length > 0).slice(0, 25);
                   if (ids.length > 0) writeLastTxSearchIds(finalSessionId, ids);
                   updateAuthoritativeSelectedTxFromSearchResult(finalSessionId, result);
-                  guardedPersistTxResolution(sb, finalSessionId, userId, result, 'tool-loop').catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):', e?.message));
+                  // P3.3C: Resolve ownership from model-declared purpose
+                  const loopOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
+                  guardedPersistTxResolution(sb, finalSessionId, userId, result, 'tool-loop', loopOwnership).catch(e => console.warn('[Chat] TxResolution persist error (tool-loop):', e?.message));
                 }
                 // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence (tool-loop)
                 if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
