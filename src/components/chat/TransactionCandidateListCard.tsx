@@ -6,7 +6,18 @@
  *
  * This component owns identity-sensitive ordering. The model's prose does
  * not control which transaction is at which ordinal.
+ *
+ * Optional reveal (animateReveal): opacity + transform only, all rows mounted
+ * at once, so layout height is final immediately. Presentation only.
  */
+
+import { useState } from 'react';
+import {
+  CANDIDATE_REVEAL_CSS,
+  candidateCardRevealStyle,
+  candidateRowRevealStyle,
+  prefersReducedMotion,
+} from './transactionCandidateReveal';
 
 export interface TxCandidate {
   ordinal: number;
@@ -62,24 +73,32 @@ export function parseTxCandidates(
 
 export function TransactionCandidateListCard({
   candidates,
+  animateReveal = false,
 }: {
   candidates: TxCandidate[];
+  /** Live reveal only. Frozen at mount — later renders never restart or cancel it. */
+  animateReveal?: boolean;
 }) {
+  const [animate] = useState(() => animateReveal && !prefersReducedMotion());
   return (
     <div
       data-testid="tx-candidate-list-card"
+      {...(animate ? { 'data-tx-reveal': 'card' } : {})}
       style={{
         margin: '8px 0',
         padding: '10px 12px',
         borderRadius: 10,
         border: '1px solid rgba(148, 163, 184, 0.15)',
         background: 'rgba(148, 163, 184, 0.04)',
+        ...candidateCardRevealStyle(animate),
       }}
     >
-      {candidates.map((tx) => (
+      {animate && <style>{CANDIDATE_REVEAL_CSS}</style>}
+      {candidates.map((tx, index) => (
         <div
           key={tx.id}
           data-testid={`tx-candidate-${tx.ordinal}`}
+          {...(animate ? { 'data-tx-reveal': 'row' } : {})}
           style={{
             display: 'flex',
             alignItems: 'baseline',
@@ -88,6 +107,7 @@ export function TransactionCandidateListCard({
             borderBottom: tx.ordinal < candidates.length
               ? '1px solid rgba(148, 163, 184, 0.08)'
               : 'none',
+            ...candidateRowRevealStyle(animate, index, candidates.length),
           }}
         >
           <span

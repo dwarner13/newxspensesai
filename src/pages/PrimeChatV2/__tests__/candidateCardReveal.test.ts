@@ -108,6 +108,6 @@ describe('PrimeChatV2 wiring', () => {
 
   it('J. candidate metadata is passed through untouched', () => {
     expect(SRC).toContain('const txCandidates = parseTxCandidates(metaAny);');
-    expect(SRC).toContain('<TransactionCandidateListCard candidates={txCandidates} />');
+    expect(SRC).toMatch(/<TransactionCandidateListCard\s+candidates=\{txCandidates\}/);
   });
 });

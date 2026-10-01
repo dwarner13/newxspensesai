@@ -1112,7 +1112,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                           />
                           {/* Revealed only after the framing above has finished typing */}
                           {txCandidates && candidateCardVisible.get(msg.id) === true && (
-                            <TransactionCandidateListCard candidates={txCandidates} />
+                            <TransactionCandidateListCard
+                              candidates={txCandidates}
+                              // Live reveals animate; hydrated history (typed via ref only) does not.
+                              animateReveal={typedMessageIds.has(msg.id) || !typedIdsRef.current.has(msg.id)}
+                            />
                           )}
                         </>
                       );
