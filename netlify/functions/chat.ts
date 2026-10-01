@@ -150,6 +150,11 @@ import {
   withholdMerchantAggregationEvidence,
 } from '../../src/shared/merchant-hint-trust';
 import {
+  summarizeCandidateFrame,
+  formatCandidateFrameFacts,
+  RAW_TX_SEARCH_TOTALS_NOTE,
+} from '../../src/shared/candidate-frame-facts';
+import {
   resolveCandidateOwnership,
   createCandidateOwnershipGate,
   submitEvidenceTxSearchResults,
@@ -10501,7 +10506,7 @@ PRIME FINANCIAL GROUNDING CONTRACT:
       // language-level understanding of which transaction the user means.
       systemMessages.push({
         role: 'system',
-        content: 'TRANSACTION SELECTION PROTOCOL: After any tx_search returns results, those results become the active candidate set numbered [1], [2], [3], etc. When the user refers to a specific transaction from those results — by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination ("no, the other one") — you MUST call select_transaction({ candidateNumber }) to lock in the selection BEFORE you answer about that transaction. This is required even if you already know which transaction the user means from conversation history.\n\nWhen calling tx_search with active candidates: set purpose=\'new_candidate_scope\' if the user wants DIFFERENT transactions (different merchant, time period, or criteria). Set purpose=\'analytical_evidence\' if you need supporting data for analysis without replacing the current candidates. If the user\'s question can be answered from the current candidates, do NOT call tx_search.\n\nCANDIDATE DISPLAY: When a search establishes selectable candidates, the app renders them to the user as numbered transaction cards below your reply — the cards are the authoritative list and ordinals. Never reproduce that numbered list in prose; frame it in one or two sentences and answer the question.',
+        content: 'TRANSACTION SELECTION PROTOCOL: After any tx_search returns results, those results become the active candidate set numbered [1], [2], [3], etc. When the user refers to a specific transaction from those results — by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination ("no, the other one") — you MUST call select_transaction({ candidateNumber }) to lock in the selection BEFORE you answer about that transaction. This is required even if you already know which transaction the user means from conversation history.\n\nWhen calling tx_search with active candidates: set purpose=\'new_candidate_scope\' if the user wants DIFFERENT transactions (different merchant, time period, or criteria). Set purpose=\'analytical_evidence\' if you need supporting data for analysis without replacing the current candidates. If the user\'s question can be answered from the current candidates, do NOT call tx_search.\n\nCANDIDATE DISPLAY: When a search establishes selectable candidates, the app renders them to the user as numbered transaction cards below your reply — the cards are the authoritative list and ordinals. Never reproduce that numbered list in prose; frame it in one or two sentences and answer the question.\n\nUNRESOLVED REFERENCES: If the user refers to these/those transactions but no active candidate list or earlier result identifies which ones, ask which transactions they mean — do not search for or invent a set.',
       });
 
       // ── Phase 1D: Inject existing candidate frame ──
@@ -10524,6 +10529,12 @@ PRIME FINANCIAL GROUNDING CONTRACT:
         if (existingTxResolution.selectedId) {
           const selIdx = existingTxResolution.selectedIndex;
           cLines.push(`Currently selected: [${selIdx !== null && selIdx !== undefined ? selIdx + 1 : '?'}] (ID: ${existingTxResolution.selectedId})`);
+        }
+        // Stage 2: deterministic facts for exactly these visible Layer 2 candidates (read-only)
+        const phase1dFacts = summarizeCandidateFrame(visibleExisting);
+        if (phase1dFacts) {
+          cLines.push('');
+          cLines.push(formatCandidateFrameFacts(phase1dFacts));
         }
         cLines.push('');
         cLines.push('These candidates are already loaded. If the user refers to one of these transactions (by ordinal, attribute, superlative, or description), answer directly or call select_transaction — do NOT call tx_search.');
@@ -11254,6 +11265,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       // P3.3D: the cards own the rows and ordinals — Prime frames, never re-lists
       const b2cFrame = ownershipGate.visibleFrame;
       cLines.push(formatCandidateFrameNote({ shown: b2cCandidates.length, matched: b2cFrame?.matched ?? b2cCandidates.length }));
+      // Stage 2: deterministic facts for exactly the shown cards (never the matched-but-hidden rows)
+      const b2cFacts = summarizeCandidateFrame(b2cCandidates);
+      if (b2cFacts) cLines.push(formatCandidateFrameFacts(b2cFacts));
       messages.push({ role: 'system', content: cLines.join('\n') });
       console.log(`[P3.3B] Injected ${b2cCandidates.length} B2C candidates into model context`);
     }
@@ -11492,6 +11506,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       // and can call select_transaction for follow-ups or tx_search for new queries.
       // P2.3: Also skip when historical conversation reference — tx_search must not be
       // used as evidence of what was previously discussed.
+      // Stage 2: an untrusted lexical merchant hint ("these ten transactions") is not a referent —
+      // defer to the model instead of forcing an arbitrary recent-transactions frame.
       if (
         toolsAllowedThisTurn &&
         toolCalls.length === 0 &&
@@ -11502,7 +11518,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         !shouldPreserveCandidates &&
         !isHistoricalConversationRef &&
         !merchantAggSatisfied &&
-        !merchantAnalysisBridgeActive
+        !merchantAnalysisBridgeActive &&
+        !isUntrustedMerchantHint(shadowIntentResult?.financialClassification, merchantHintTrusted)
       ) {
         const forcedArgs: Record<string, any> = {
           limit: isUncategorizedIntent(masked) ? 50 : 25,
@@ -12869,6 +12886,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                       // P3.3D: the established visible frame is rendered as cards — frame, don't re-list
                       if (groundingOutcome === 'established' && ownershipGate.visibleFrame && ownershipGate.visibleFrame.shown > 0) {
                         messages.push({ role: 'system', content: formatCandidateFrameNote(ownershipGate.visibleFrame) });
+                        // Stage 2: deterministic facts for the shown cards; raw search totals are not authoritative
+                        const groundingFacts = summarizeCandidateFrame(ownershipGate.txCandidatesForResponse);
+                        if (groundingFacts) {
+                          messages.push({ role: 'system', content: `${formatCandidateFrameFacts(groundingFacts)}\n${RAW_TX_SEARCH_TOTALS_NOTE}` });
+                        }
                       }
                     }
                   } else {
@@ -13229,6 +13251,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         })());
         // P2.3: Also skip forced tx_search for historical conversation references.
         // P3.2B2C: Also skip when merchant analysis bridge already established candidates.
+        // Stage 2: same untrusted-merchant-hint gate as the streaming fallback.
         if (
           toolsAllowedThisTurn &&
           toolCalls.length === 0 &&
@@ -13241,7 +13264,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           !shouldPreserveCandidates &&
           !isHistoricalConversationRef &&
           !merchantAggSatisfied &&
-          !merchantAnalysisBridgeActive
+          !merchantAnalysisBridgeActive &&
+          !isUntrustedMerchantHint(shadowIntentResult?.financialClassification, merchantHintTrusted)
         ) {
           const forcedArgs: Record<string, any> = {
             limit: isUncategorizedIntent(masked) ? 50 : 25,

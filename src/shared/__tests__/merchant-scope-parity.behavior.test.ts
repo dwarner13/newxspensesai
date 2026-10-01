@@ -119,6 +119,7 @@ import { buildMerchantAnalysisContext, merchantTemporalScopeFromPlanSteps } from
 import { assessB2CBridgeResult, merchantCategoryScope } from '../merchant-scope-rows';
 import { resolveMerchantHintTrust } from '../merchant-hint-trust';
 import { classifyFinancialQuery } from '../financial-query-classifier';
+import { summarizeCandidateFrame } from '../candidate-frame-facts';
 import { execute as refineExecute } from '../../agent/tools/impl/merchant_analysis_refine';
 import { classifyPrimeIntent } from '../prime-intent-classifier';
 import { buildTemporalScope } from '../prime-temporal-scope';
@@ -747,5 +748,20 @@ describe('merchant-hint trust against real merchant_totals groups', () => {
     const mt = await runMerchantTotals({ merchant: fc.merchantHint });
     expect(mt.merchants.map(m => m.groupingKey)).toEqual(['tennis club']);
     expect(resolveMerchantHintTrust(fc, mt.merchants.map(m => m.groupingKey))).toBe(false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Semantic Stage 2 — deterministic facts from the REAL B2C-established frame
+// ═════════════════════════════════════════════════════════════════════════════
+describe('candidate-frame facts over the production B2C frame', () => {
+  it('10 shown Costco rows: $2,614.74 total, $261.47 average, #10 largest, #9 smallest — same in Layer 2 and cards', async () => {
+    const { gate, frame } = await establishB2CFrame();
+    const fromLayer2 = summarizeCandidateFrame(frame()!.candidates)!;
+    expect(fromLayer2.spending).toEqual({ count: 10, totalCents: 261474, averageCents: 26147 });
+    expect(fromLayer2.largest).toMatchObject({ ordinal: 10, id: MISSING_A, amountCents: 74433 });
+    expect(fromLayer2.smallest).toMatchObject({ ordinal: 9, id: MISSING_B, amountCents: 1834 });
+    expect(summarizeCandidateFrame(gate.txCandidatesForResponse)).toEqual(fromLayer2);
+    expect(frame()!.selectedId).toBeNull();
   });
 });

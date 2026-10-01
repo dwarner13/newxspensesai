@@ -17,6 +17,12 @@
  * Pure TypeScript. No Supabase, no Node-only APIs. Storage is injected.
  */
 
+import {
+  summarizeCandidateFrame,
+  formatCandidateFrameFacts,
+  RAW_TX_SEARCH_TOTALS_NOTE,
+} from './candidate-frame-facts';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -318,10 +324,12 @@ export function formatCandidateFrameNote(frame: Pick<VisibleCandidateFrame, 'sho
 
 /**
  * The tx_search result as the MODEL should see it.
- * - Established frame: rows = exactly the visible frame, plus the display note.
+ * - Established frame: rows = exactly the visible frame, plus the display note and
+ *   the canonical VERIFIED VISIBLE FRAME FACTS (Stage 2). Raw totals are kept but
+ *   labelled non-authoritative for the visible frame.
  * - Not established (analytical / locked / failed): rows are evidence only and
  *   explicitly not selectable candidates.
- * Totals and other aggregate fields are left untouched.
+ * Totals and other aggregate fields are left untouched (model view only).
  */
 export function presentTxSearchResultForModel(
   result: unknown,
@@ -330,15 +338,19 @@ export function presentTxSearchResultForModel(
 ): unknown {
   if (!result || typeof result !== 'object') return result;
   if (outcome === 'established' && frame) {
+    // Same rows and amounts as the rendered cards — one arithmetic path.
+    const facts = summarizeCandidateFrame(buildTxCandidatesForResponse({ rows: frame.rows }));
     return {
       ...result,
       rows: frame.rows,
+      totalsNote: RAW_TX_SEARCH_TOTALS_NOTE,
       candidateFrame: {
         selectable: true,
         shown: frame.shown,
         matched: frame.matched,
         partial: frame.partial,
         note: formatCandidateFrameNote(frame),
+        ...(facts ? { facts: formatCandidateFrameFacts(facts) } : {}),
       },
     };
   }
