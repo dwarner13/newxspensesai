@@ -49,6 +49,26 @@ function formatAmount(amount: number | null): string {
   return `$${abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/**
+ * Display-only category label. Never writes back to the transaction.
+ * - trims both values; empty / whitespace-only values are ignored
+ * - category and subcategory equal (case-insensitive) → category once
+ * - distinct values → "category › subcategory"
+ * - one value → that value (no leading separator)
+ * - neither → null (no category line)
+ */
+function formatCategoryPath(
+  category: string | null | undefined,
+  subcategory: string | null | undefined,
+): string | null {
+  const cat = typeof category === 'string' ? category.trim() : '';
+  const sub = typeof subcategory === 'string' ? subcategory.trim() : '';
+  if (cat && sub) {
+    return cat.toLowerCase() === sub.toLowerCase() ? cat : `${cat} \u203A ${sub}`;
+  }
+  return cat || sub || null;
+}
+
 export function parseTxCandidates(
   meta: Record<string, unknown> | undefined,
 ): TxCandidate[] | null {
@@ -94,7 +114,9 @@ export function TransactionCandidateListCard({
       }}
     >
       {animate && <style>{CANDIDATE_REVEAL_CSS}</style>}
-      {candidates.map((tx, index) => (
+      {candidates.map((tx, index) => {
+        const categoryPath = formatCategoryPath(tx.category, tx.subcategory);
+        return (
         <div
           key={tx.id}
           data-testid={`tx-candidate-${tx.ordinal}`}
@@ -114,7 +136,7 @@ export function TransactionCandidateListCard({
             style={{
               fontSize: 12,
               fontWeight: 700,
-              color: '#94a3b8',
+              color: '#9ba8bc',
               minWidth: 20,
               textAlign: 'right',
               flexShrink: 0,
@@ -125,7 +147,7 @@ export function TransactionCandidateListCard({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
               {tx.date && (
-                <span style={{ fontSize: 12, color: '#64748b', flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: '#9ba8bc', flexShrink: 0 }}>
                   {formatDate(tx.date)}
                 </span>
               )}
@@ -149,14 +171,15 @@ export function TransactionCandidateListCard({
                 </span>
               )}
             </div>
-            {(tx.category || tx.subcategory) && (
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
-                {tx.category}{tx.subcategory ? ` \u203A ${tx.subcategory}` : ''}
+            {categoryPath && (
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                {categoryPath}
               </div>
             )}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

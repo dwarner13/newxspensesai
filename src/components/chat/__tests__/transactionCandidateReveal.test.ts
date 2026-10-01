@@ -201,3 +201,97 @@ describe('PrimeChatV2 wiring', () => {
     expect(PRIME_SRC).toContain('if (candidateAnchorHoldRef.current) return; // candidate response anchored at its start');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Readability polish: category display + text colours (presentation only)
+// ─────────────────────────────────────────────────────────────────────────────
+/** The rendered category line for one row (formatCategoryPath via the real card), or null if absent. */
+function categoryLine(category: string | null, subcategory: string | null): string | null {
+  const out = renderToStaticMarkup(createElement(TransactionCandidateListCard, {
+    candidates: [{ ordinal: 1, id: '00000001-0000-4000-8000-000000000001', merchant: 'M', date: null, amount: 1, category, subcategory }],
+  }));
+  const m = out.match(/<div style="font-size:11px;[^"]*">([^<]*)<\/div>/);
+  return m ? m[1] : null;
+}
+
+describe('category line (display-only formatCategoryPath)', () => {
+  it('1–3. duplicate category/subcategory collapses to the trimmed category', () => {
+    expect(categoryLine('Groceries', 'Groceries')).toBe('Groceries');
+    expect(categoryLine('Groceries', 'groceries')).toBe('Groceries');
+    expect(categoryLine(' Groceries ', 'groceries ')).toBe('Groceries');
+  });
+
+  it('4–5. distinct values keep the hierarchy', () => {
+    expect(categoryLine('Restaurants', 'Dining')).toBe('Restaurants \u203A Dining');
+    expect(categoryLine('Transportation', 'Fuel')).toBe('Transportation \u203A Fuel');
+  });
+
+  it('6–7. a single value is shown trimmed, with no leading separator', () => {
+    expect(categoryLine(' Groceries ', null)).toBe('Groceries');
+    expect(categoryLine(null, ' Dining ')).toBe('Dining');
+    expect(categoryLine('', 'Dining')).toBe('Dining');
+  });
+
+  it('8–9. null / empty / whitespace-only → no category line', () => {
+    expect(categoryLine(null, null)).toBeNull();
+    expect(categoryLine('', '')).toBeNull();
+    expect(categoryLine('   ', ' \t ')).toBeNull();
+  });
+
+  it('never mutates the candidate', () => {
+    const tx: TxCandidate = { ordinal: 1, id: '00000001-0000-4000-8000-000000000001', merchant: 'M', date: null, amount: 1, category: ' Groceries ', subcategory: 'groceries ' };
+    const snapshot = JSON.stringify(tx);
+    renderToStaticMarkup(createElement(TransactionCandidateListCard, { candidates: [tx] }));
+    expect(JSON.stringify(tx)).toBe(snapshot);
+  });
+});
+
+describe('rendered card: category line and colours', () => {
+  const row = (o: Partial<TxCandidate>): TxCandidate => ({
+    ordinal: 1, id: '00000001-0000-4000-8000-000000000001', merchant: 'COSTCO',
+    date: '2025-10-10', amount: 249.15, category: null, subcategory: null, ...o,
+  });
+  const html = (list: TxCandidate[]) => renderToStaticMarkup(createElement(TransactionCandidateListCard, { candidates: list }));
+
+  it('10. a duplicate category is rendered once (no "Groceries › Groceries")', () => {
+    const out = html([row({ category: 'Groceries', subcategory: 'Groceries' })]);
+    expect(out).not.toContain('Groceries › Groceries');
+    expect(out).toContain('>Groceries</div>');
+  });
+
+  it('11. a distinct hierarchy is rendered', () => {
+    expect(html([row({ category: 'Restaurants', subcategory: 'Dining' })])).toContain('Restaurants › Dining');
+  });
+
+  it('subcategory-only renders without a leading separator; no category → no category line', () => {
+    expect(html([row({ category: null, subcategory: 'Dining' })])).toContain('>Dining</div>');
+    expect(html([row({ category: null, subcategory: 'Dining' })])).not.toContain('›');
+    expect(html([row({ category: '  ', subcategory: null })])).not.toContain('font-size:11px');
+  });
+
+  it('12–15. row order, ordinals, merchant and amount text are unchanged', () => {
+    const list = [
+      row({ ordinal: 1, id: '00000001-0000-4000-8000-000000000001', merchant: 'COSTCO WHOLESALE', amount: -190.27, category: 'Restaurants', subcategory: 'Dining' }),
+      row({ ordinal: 2, id: '00000002-0000-4000-8000-000000000002', merchant: 'COSTCO', amount: 415.23, category: 'Groceries', subcategory: 'Groceries' }),
+      row({ ordinal: 3, id: '00000003-0000-4000-8000-000000000003', merchant: 'COSTCO', amount: 249.15, category: 'Groceries', subcategory: 'Groceries' }),
+    ];
+    const out = html(list);
+    const ordinals = Array.from(out.matchAll(/data-testid="tx-candidate-(\d+)"/g), m => Number(m[1]));
+    expect(ordinals).toEqual([1, 2, 3]);
+    expect(out.indexOf('COSTCO WHOLESALE')).toBeLessThan(out.indexOf('$415.23'));
+    expect(out.indexOf('$415.23')).toBeLessThan(out.indexOf('$249.15'));
+    expect(out).toContain('>COSTCO WHOLESALE</span>');
+    expect(out).toContain('>$190.27</span>');
+    expect(out).toMatch(/>1<\/span>[\s\S]*>2<\/span>[\s\S]*>3<\/span>/);
+  });
+
+  it('16–20. text colours follow the hierarchy (merchant > amount > date/ordinal > category)', () => {
+    const out = html([row({ category: 'Restaurants', subcategory: 'Dining' })]);
+    expect(out).toContain('font-weight:700;color:#9ba8bc'); // ordinal
+    expect(out).toContain('font-size:12px;color:#9ba8bc'); // date
+    expect(out).toContain('font-size:11px;color:#94a3b8'); // category
+    expect(out).toContain('color:#e2e8f0'); // merchant
+    expect(out).toContain('color:#cbd5e1'); // amount
+    expect(out).not.toContain('#64748b');
+  });
+});
