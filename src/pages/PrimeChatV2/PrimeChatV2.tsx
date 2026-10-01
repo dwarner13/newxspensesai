@@ -20,6 +20,12 @@ import type { ChatMessage } from "@/hooks/usePrimeChat";
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
 import { ActionReceiptCard, parseActionReceipt } from "@/components/chat/ActionReceiptCard";
 import { TransactionCandidateListCard, parseTxCandidates } from "@/components/chat/TransactionCandidateListCard";
+import {
+  shouldRevealCandidateCard,
+  isCandidateCardRevealTransition,
+  shouldAnchorCandidateMessage,
+  messageStartScrollTop,
+} from "./candidateCardReveal";
 import { TeamHandoffAnnouncement, SpecialistCompleteMessage, parseLifecycleMessage } from "@/components/chat/TeamHandoffAnnouncement";
 import { deriveEmployeeStops } from "@/components/chat/deriveEmployeeStops";
 import { ConversationHistoryDropdown, HistoryDropdownTrigger } from "@/components/chat/ConversationHistoryDropdown";
@@ -283,6 +289,19 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const userScrolledUpRef = useRef(false);
   const dragCountRef = useRef(0);
   const typedIdsRef = useRef<Set<string>>(new Set());
+  // Candidate card reveal (presentation only). Mirrors typedIdsRef as STATE so a
+  // completed typewriter re-renders and reveals the transaction card.
+  const [typedMessageIds, setTypedMessageIds] = useState<ReadonlySet<string>>(() => new Set());
+  const cardVisibilityRef = useRef<Map<string, boolean>>(new Map());
+  // While true, a just-revealed candidate response is anchored at its start and the
+  // bottom-pinning observer stands down. Released by user scroll, send, or new message.
+  const candidateAnchorHoldRef = useRef(false);
+  // Our own anchor scroll must not be read as the user scrolling up.
+  const programmaticScrollRef = useRef(false);
+  const handleMessageTyped = useCallback((id: string) => {
+    typedIdsRef.current.add(id);
+    setTypedMessageIds(prev => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
 
   const summaryText = data.loading ? "" : buildSummaryText(data);
   const thoughtsText = data.loading ? "" : buildThoughtsText(data);
@@ -399,6 +418,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     ? String(chatMessages[chatMessages.length - 1]?.content || '').length
     : 0;
 
+  // A new message or upload ends any candidate anchor hold (runs before auto-scroll below).
+  useEffect(() => {
+    candidateAnchorHoldRef.current = false;
+  }, [chatMessages.length, uploadMessages.length]);
+
   // Auto-scroll on new content - but respect user scroll-up intent.
   // Using 'auto' instead of 'smooth' because smooth scroll can lag behind
   // rapid streaming updates, causing the viewport to miss the latest tokens.
@@ -427,6 +451,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     const el = scrollRef.current;
     if (!el || typeof MutationObserver === 'undefined') return;
     const scrollToBottom = () => {
+      if (candidateAnchorHoldRef.current) return; // candidate response anchored at its start
       const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
       if (nearBottom || !userScrolledUpRef.current) {
         el.scrollTop = el.scrollHeight;
@@ -441,6 +466,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // Clears userScrolledUpRef because sending a message = "I want to see the response."
   const forceScrollToBottom = useCallback(() => {
     userScrolledUpRef.current = false;
+    candidateAnchorHoldRef.current = false;
     // Double RAF to let the DOM settle after state changes (briefing collapse, new message)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -561,6 +587,55 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     const file = e.dataTransfer.files[0];
     if (file) await processFile(file);
   }, [processFile]);
+
+  // ── Candidate card reveal + one-time scroll anchor (presentation only) ──
+  const anchorCandidateMessage = useCallback((id: string) => {
+    // Double RAF: runs after the card mount and the MutationObserver bottom-pin.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = scrollRef.current;
+        const el = document.getElementById(`msg-${id}`);
+        if (!container || !el) return;
+        if (!shouldAnchorCandidateMessage({
+          messageHeight: el.offsetHeight,
+          viewportHeight: container.clientHeight,
+          userScrolledUp: userScrolledUpRef.current,
+        })) return;
+        const target = messageStartScrollTop({
+          messageTop: el.getBoundingClientRect().top,
+          containerTop: container.getBoundingClientRect().top,
+          currentScrollTop: container.scrollTop,
+        });
+        candidateAnchorHoldRef.current = true;
+        if (Math.abs(container.scrollTop - target) > 1) {
+          programmaticScrollRef.current = true;
+          container.scrollTop = target;
+        }
+      });
+    });
+  }, []);
+
+  const candidateLastMsgId = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].id : null;
+  const candidateCardVisible = new Map<string, boolean>();
+  for (const m of chatMessages) {
+    if (m.role !== 'assistant') continue;
+    if (!parseTxCandidates(m.meta as Parameters<typeof parseTxCandidates>[0])) continue;
+    candidateCardVisible.set(m.id, shouldRevealCandidateCard({
+      hasCandidates: true,
+      isStreaming: isStreaming && m.id === candidateLastMsgId,
+      isTyped: typedIdsRef.current.has(m.id) || typedMessageIds.has(m.id),
+      content: String(m.content || ''),
+    }));
+  }
+  const candidateVisibilityKey = Array.from(candidateCardVisible, ([id, v]) => `${id}:${v ? 1 : 0}`).join('|');
+  useEffect(() => {
+    for (const [id, visible] of candidateCardVisible) {
+      const previous = cardVisibilityRef.current.get(id);
+      cardVisibilityRef.current.set(id, visible);
+      if (isCandidateCardRevealTransition(previous, visible)) anchorCandidateMessage(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidateVisibilityKey]);
 
   if (data.loading) {
     return (
@@ -705,6 +780,12 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       `}</style>
       <div ref={scrollRef} onScroll={(e) => {
         const el = e.currentTarget;
+        if (programmaticScrollRef.current) {
+          // Candidate anchor scroll — not the user scrolling up.
+          programmaticScrollRef.current = false;
+          return;
+        }
+        candidateAnchorHoldRef.current = false;
         userScrolledUpRef.current = (el.scrollHeight - el.scrollTop - el.clientHeight) > 120;
       }} style={{ flex: 1, overflowY: "auto", padding: "18px 16px 16px", minHeight: 0 }}>
 
@@ -1025,11 +1106,14 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                             messageId={msg.id}
                             isStreaming={isThisStreaming}
                             isTyped={typedIdsRef.current.has(msg.id)}
-                            onTyped={(id) => typedIdsRef.current.add(id)}
+                            onTyped={handleMessageTyped}
                             charDelay={12}
                             maxDuration={2800}
                           />
-                          {txCandidates && <TransactionCandidateListCard candidates={txCandidates} />}
+                          {/* Revealed only after the framing above has finished typing */}
+                          {txCandidates && candidateCardVisible.get(msg.id) === true && (
+                            <TransactionCandidateListCard candidates={txCandidates} />
+                          )}
                         </>
                       );
                     })()}
