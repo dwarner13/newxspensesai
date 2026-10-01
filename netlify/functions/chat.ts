@@ -153,6 +153,9 @@ import {
   resolveTagHandoffIdentity,
   computeB2CBridgeActive,
   computeB2CCandidatesSatisfied,
+  formatCandidateFrameNote,
+  presentTxSearchResultForModel,
+  VISIBLE_CANDIDATE_FRAME_MAX,
   type CandidateOwnershipIntent,
   type OwnershipOutcome,
   type TxResolutionCandidate as SharedTxResolutionCandidate,
@@ -9928,6 +9931,15 @@ export const handler: Handler = async (event, context) => {
       log: (msg: string) => console.log(msg),
     });
 
+    // P3.3D: model-facing view of each tx_search result, keyed by result identity.
+    // The original result object stays untouched for evidence accounting (P3.1D etc.).
+    const txSearchModelViews = new WeakMap<object, unknown>();
+    const rememberTxSearchModelView = (result: unknown, view: unknown): void => {
+      if (result && typeof result === 'object') txSearchModelViews.set(result, view);
+    };
+    const txSearchModelView = (result: unknown): unknown =>
+      (result && typeof result === 'object' && txSearchModelViews.has(result)) ? txSearchModelViews.get(result) : result;
+
     // ── P3.1C: Controlled Read-Only Evidence Execution ──
     // Executes eligible P3.1B plan steps using the narrow V1 allowlist.
     // Only runs for Prime when a valid evidence plan exists.
@@ -10460,7 +10472,7 @@ PRIME FINANCIAL GROUNDING CONTRACT:
       // language-level understanding of which transaction the user means.
       systemMessages.push({
         role: 'system',
-        content: 'TRANSACTION SELECTION PROTOCOL: After any tx_search returns results, those results become the active candidate set numbered [1], [2], [3], etc. When the user refers to a specific transaction from those results — by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination ("no, the other one") — you MUST call select_transaction({ candidateNumber }) to lock in the selection BEFORE you answer about that transaction. This is required even if you already know which transaction the user means from conversation history.\n\nWhen calling tx_search with active candidates: set purpose=\'new_candidate_scope\' if the user wants DIFFERENT transactions (different merchant, time period, or criteria). Set purpose=\'analytical_evidence\' if you need supporting data for analysis without replacing the current candidates. If the user\'s question can be answered from the current candidates, do NOT call tx_search.',
+        content: 'TRANSACTION SELECTION PROTOCOL: After any tx_search returns results, those results become the active candidate set numbered [1], [2], [3], etc. When the user refers to a specific transaction from those results — by ordinal ("the second one"), by name ("the Costco gas one"), by attribute ("the largest one"), by conversational context ("the one we just talked about"), or by elimination ("no, the other one") — you MUST call select_transaction({ candidateNumber }) to lock in the selection BEFORE you answer about that transaction. This is required even if you already know which transaction the user means from conversation history.\n\nWhen calling tx_search with active candidates: set purpose=\'new_candidate_scope\' if the user wants DIFFERENT transactions (different merchant, time period, or criteria). Set purpose=\'analytical_evidence\' if you need supporting data for analysis without replacing the current candidates. If the user\'s question can be answered from the current candidates, do NOT call tx_search.\n\nCANDIDATE DISPLAY: When a search establishes selectable candidates, the app renders them to the user as numbered transaction cards below your reply — the cards are the authoritative list and ordinals. Never reproduce that numbered list in prose; frame it in one or two sentences and answer the question.',
       });
 
       // ── Phase 1D: Inject existing candidate frame ──
@@ -10470,8 +10482,9 @@ PRIME FINANCIAL GROUNDING CONTRACT:
       // for follow-ups, tx_search for genuinely new searches.
       if (hasExistingCandidates && existingTxResolution) {
         const cLines: string[] = ['ACTIVE TRANSACTION CANDIDATES (from your previous search):'];
-        for (let i = 0; i < existingTxResolution.candidates.length; i++) {
-          const c = existingTxResolution.candidates[i];
+        const visibleExisting = existingTxResolution.candidates.slice(0, VISIBLE_CANDIDATE_FRAME_MAX);
+        for (let i = 0; i < visibleExisting.length; i++) {
+          const c = visibleExisting[i];
           const parts: string[] = [];
           if (c.merchant) parts.push(c.merchant);
           if (c.amount !== null && c.amount !== undefined) parts.push(`$${Math.abs(c.amount).toFixed(2)}`);
@@ -11185,16 +11198,17 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     // inject them into the model's messages so the model can answer directly without
     // calling tx_search again. Uses the same format as Phase 1D for consistency.
     const b2cCandidates = ownershipGate.txCandidatesForResponse;
-    if (b2cCandidatesSatisfied && b2cCandidates) {
-      // P3.3C: B2C replaced the old frame — withdraw the stale Phase 1D listing so
-      // the model cannot number ordinals against frame A while the DB holds frame B.
-      if (phase1dCandidateMessage) {
-        const staleIdx = messages.indexOf(phase1dCandidateMessage as any);
-        if (staleIdx >= 0) {
-          messages.splice(staleIdx, 1);
-          console.log('[P3.3B] Withdrew stale Phase1D candidate frame — replaced by B2C frame');
-        }
+    // P3.3C/P3.3D: B2C replaced the old frame — withdraw the stale Phase 1D listing so
+    // the model cannot number ordinals against frame A while the DB holds frame B.
+    // Applies to ANY B2C establishment (including >25 matches and empty results).
+    if (b2cOutcome === 'established' && phase1dCandidateMessage) {
+      const staleIdx = messages.indexOf(phase1dCandidateMessage as any);
+      if (staleIdx >= 0) {
+        messages.splice(staleIdx, 1);
+        console.log('[P3.3B] Withdrew stale Phase1D candidate frame — replaced by B2C frame');
       }
+    }
+    if (b2cCandidatesSatisfied && b2cCandidates) {
       const cLines: string[] = ['ACTIVE TRANSACTION CANDIDATES (established by merchant bridge for this request):'];
       for (const c of b2cCandidates) {
         const parts: string[] = [];
@@ -11207,7 +11221,10 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
       cLines.push('');
       cLines.push(b2cCompleteness
         ? formatB2CCompletenessInstruction(b2cCompleteness)
-        : `${b2cCandidates.length} transactions found. Present these results to the user. Do NOT call tx_search — these candidates are already established and authoritative for this request.`);
+        : `${b2cCandidates.length} transactions found. Do NOT call tx_search — these candidates are already established and authoritative for this request.`);
+      // P3.3D: the cards own the rows and ordinals — Prime frames, never re-lists
+      const b2cFrame = ownershipGate.visibleFrame;
+      cLines.push(formatCandidateFrameNote({ shown: b2cCandidates.length, matched: b2cFrame?.matched ?? b2cCandidates.length }));
       messages.push({ role: 'system', content: cLines.join('\n') });
       console.log(`[P3.3B] Injected ${b2cCandidates.length} B2C candidates into model context`);
     }
@@ -11726,7 +11743,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                       // lock and persisted frame are settled before the next tool call runs.
                       const streamingOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
-                      await ownershipGate.submitSearchResult(result, 'streaming', streamingOwnership).catch(e => console.warn('[Chat] TxResolution submit error (streaming):', e?.message));
+                      const streamingOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'streaming', streamingOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (streaming):', e?.message); return null; });
+                      // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
+                      rememberTxSearchModelView(result, presentTxSearchResultForModel(result, streamingOwnershipOutcome, ownershipGate.visibleFrame));
                     }
                     // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence
                     if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
@@ -11818,7 +11837,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     toolResults.push({
                       role: 'tool',
                       tool_call_id: toolCall.id,
-                      content: JSON.stringify(result),
+                      content: JSON.stringify(txSearchModelView(result)),
                     });
                     
                     console.log(`[Chat] Tool ${toolName} executed successfully`);
@@ -12111,7 +12130,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                     // lock and persisted frame are settled before the next tool call runs.
                     const specOwnership = resolveCandidateOwnership(tArgs?.purpose, hasExistingCandidates);
-                    await ownershipGate.submitSearchResult(tResult, 'specialist', specOwnership).catch(e => console.warn('[Chat] TxResolution submit error (specialist):', e?.message));
+                    const specOwnershipOutcome = await ownershipGate.submitSearchResult(tResult, 'specialist', specOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (specialist):', e?.message); return null; });
+                    // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
+                    rememberTxSearchModelView(tResult, presentTxSearchResultForModel(tResult, specOwnershipOutcome, ownershipGate.visibleFrame));
                   }
 
                   // Send tool events to stream
@@ -12125,7 +12146,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   } catch { displayRes = String(tResult).substring(0, 500); }
                   writeSSE({ type: 'tool_result', tool: tn, result: displayRes });
 
-                  specToolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(tResult) });
+                  specToolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(txSearchModelView(tResult)) });
                 } catch (err: any) {
                   console.error(`[Chat] Specialist tool loop error for ${tn}:`, err.message);
                   specToolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ error: err.message || 'Tool execution failed' }) });
@@ -12809,7 +12830,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // (though phase1dSuppressed should have blocked this path).
                     if (plan.toolName === 'tx_search' && finalSessionId) {
                       const groundingOwnership: CandidateOwnershipIntent = hasExistingCandidates ? 'analytical_evidence' : 'candidate_establishment';
-                      await ownershipGate.submitSearchResult(preResult, 'grounding', groundingOwnership).catch(e => console.warn('[Chat] TxResolution submit error (grounding):', e?.message));
+                      const groundingOutcome = await ownershipGate.submitSearchResult(preResult, 'grounding', groundingOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (grounding):', e?.message); return null; });
+                      // P3.3D: the established visible frame is rendered as cards — frame, don't re-list
+                      if (groundingOutcome === 'established' && ownershipGate.visibleFrame && ownershipGate.visibleFrame.shown > 0) {
+                        messages.push({ role: 'system', content: formatCandidateFrameNote(ownershipGate.visibleFrame) });
+                      }
                     }
                   } else {
                     console.warn(`[FinancialGrounding] pre-execution returned error:`, preResult);
@@ -13417,7 +13442,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                 // lock and persisted frame are settled before the next tool call runs.
                 const nsOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
-                await ownershipGate.submitSearchResult(result, 'non-streaming', nsOwnership).catch(e => console.warn('[Chat] TxResolution submit error (non-streaming):', e?.message));
+                const nsOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'non-streaming', nsOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (non-streaming):', e?.message); return null; });
+                // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
+                rememberTxSearchModelView(result, presentTxSearchResultForModel(result, nsOwnershipOutcome, ownershipGate.visibleFrame));
               }
               // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence (non-streaming)
               if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
@@ -13468,7 +13495,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               toolResults.push({
                 role: 'tool',
                 tool_call_id: toolCall.id,
-                content: JSON.stringify(result),
+                content: JSON.stringify(txSearchModelView(result)),
               });
               
               console.log(`[Chat] Tool ${toolName} executed successfully`);
@@ -13803,7 +13830,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                   // lock and persisted frame are settled before the next tool call runs.
                   const loopOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
-                  await ownershipGate.submitSearchResult(result, 'tool-loop', loopOwnership).catch(e => console.warn('[Chat] TxResolution submit error (tool-loop):', e?.message));
+                  const loopOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'tool-loop', loopOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (tool-loop):', e?.message); return null; });
+                  // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
+                  rememberTxSearchModelView(result, presentTxSearchResultForModel(result, loopOwnershipOutcome, ownershipGate.visibleFrame));
                 }
                 // P3.2B2B: Track merchant_analysis_refine as merchant_aggregation evidence (tool-loop)
                 if (toolName === 'merchant_analysis_refine' && result && typeof result === 'object' && (result as any).status === 'success') {
@@ -13856,7 +13885,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 currentToolResults.push({
                   role: 'tool',
                   tool_call_id: toolCall.id,
-                  content: JSON.stringify(result),
+                  content: JSON.stringify(txSearchModelView(result)),
                 });
                 console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=tool_exec_r${toolRound}_end tool=${toolName} durationMs=${Date.now() - _tToolExecStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
               } catch (error: any) {

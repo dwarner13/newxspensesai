@@ -145,8 +145,9 @@ test('T15 — persist extracts candidates from result.rows (via shared builder)'
 test('T16 — persist validates UUID format before including candidate', () =>
   fnBody(own, 'export function buildTxResolutionFromSearchResult', 1200).includes('UUID_RE.test'));
 
-test('T17 — persist caps candidates at tx_search max (200)', () =>
-  own.includes('TX_RESOLUTION_MAX_CANDIDATES = 200')
+test('T17 — persist caps candidates at the visible frame (25, P3.3D)', () =>
+  own.includes('export const VISIBLE_CANDIDATE_FRAME_MAX = 25;')
+  && own.includes('export const TX_RESOLUTION_MAX_CANDIDATES = VISIBLE_CANDIDATE_FRAME_MAX;')
   && fnBody(own, 'export function buildTxResolutionFromSearchResult', 1200).includes('.slice(0, TX_RESOLUTION_MAX_CANDIDATES)'));
 
 test('T18 — persist stores only id, merchant, amount, date, category per candidate', () => {
@@ -225,9 +226,9 @@ test('T33 — select_transaction candidateNumber is integer with min 1', () => {
   return selectTx.includes('.int()') && selectTx.includes('.min(1)');
 });
 
-test('T34 — select_transaction candidateNumber has max 200 (matches tx_search)', () => {
+test('T34 — select_transaction candidateNumber max = visible frame (P3.3D)', () => {
   const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
-  return selectTx.includes('.max(200)');
+  return selectTx.includes('.max(VISIBLE_CANDIDATE_FRAME_MAX)');
 });
 
 test('T35 — select_transaction has no UUID/transactionId in inputSchema', () => {
@@ -266,8 +267,11 @@ test('T40 — handleSelectTransaction rejects candidateNumber < 1', () => {
   return fnBody.includes('candidateNumber < 1');
 });
 
-test('T41 — handleSelectTransaction rejects out-of-range candidateNumber', () =>
-  fnBody(own, 'export function selectCandidateFromFrame', 1200).includes('index >= txr.candidates.length'));
+test('T41 — handleSelectTransaction rejects out-of-range candidateNumber (bounded by visible frame)', () => {
+  const f = fnBody(own, 'export function selectCandidateFromFrame', 1400);
+  return f.includes('const selectable = Math.min(txr.candidates.length, VISIBLE_CANDIDATE_FRAME_MAX);')
+    && f.includes('if (index >= selectable)');
+});
 
 test('T42 — handleSelectTransaction rejects when no candidates', () => {
   const fnStart = chat.indexOf('async function handleSelectTransaction');
@@ -493,26 +497,27 @@ test('T75 — failed persistence logs warning', () => {
 
 // ── Fix 2: Candidate cap matches tx_search max ──
 
-test('T76 — candidate cap = 200 in persist builder', () =>
-  own.includes('TX_RESOLUTION_MAX_CANDIDATES = 200'));
+test('T76 — candidate cap = visible frame in persist builder (P3.3D)', () =>
+  own.includes('export const TX_RESOLUTION_MAX_CANDIDATES = VISIBLE_CANDIDATE_FRAME_MAX;'));
 
-test('T77 — select_transaction schema max matches tx_search max (200)', () => {
+test('T77 — select_transaction schema max matches the persisted frame cap (P3.3D)', () => {
   const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
-  return selectTx.includes('.max(200)');
+  return selectTx.includes('.max(VISIBLE_CANDIDATE_FRAME_MAX)')
+    && own.includes('export const TX_RESOLUTION_MAX_CANDIDATES = VISIBLE_CANDIDATE_FRAME_MAX;');
 });
 
 test('T78 — candidateNumber 30 would select candidates[29] (1-based)', () =>
   fnBody(own, 'export function selectCandidateFromFrame', 1200).includes('const index = candidateNumber - 1'));
 
-test('T79 — candidateNumber at max (200) would select candidates[199]', () => {
+test('T79 — candidateNumber at max (25) would select candidates[24]', () => {
   const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
-  return selectTx.includes('.max(200)') && own.includes('const index = candidateNumber - 1');
+  return selectTx.includes('.max(VISIBLE_CANDIDATE_FRAME_MAX)') && own.includes('const index = candidateNumber - 1');
 });
 
-test('T80 — candidateNumber above max (201) rejected by schema validation', () => {
+test('T80 — candidateNumber above the visible frame (26) rejected by schema and by the frame bound', () => {
   const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
-  // .max(200) means 201 fails zod validation before reaching handleSelectTransaction
-  return selectTx.includes('.max(200)');
+  return selectTx.includes('.max(VISIBLE_CANDIDATE_FRAME_MAX)')
+    && fnBody(own, 'export function selectCandidateFromFrame', 1400).includes('if (index >= selectable)');
 });
 
 test('T81 — UUID is derived server-side from persisted candidates (not args)', () => {
@@ -524,9 +529,11 @@ test('T81 — UUID is derived server-side from persisted candidates (not args)',
     && !fn.includes('args.transactionId');
 });
 
-test('T82 — candidate cap and schema max are aligned (both 200)', () => {
+test('T82 — candidate cap, card cap and schema max are aligned (all = visible frame)', () => {
   const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
-  return selectTx.includes('.max(200)') && own.includes('TX_RESOLUTION_MAX_CANDIDATES = 200');
+  return selectTx.includes('.max(VISIBLE_CANDIDATE_FRAME_MAX)')
+    && own.includes('export const TX_RESOLUTION_MAX_CANDIDATES = VISIBLE_CANDIDATE_FRAME_MAX;')
+    && own.includes('export const TX_CANDIDATES_FOR_RESPONSE_MAX = VISIBLE_CANDIDATE_FRAME_MAX;');
 });
 
 // ── Phase 1B: select_transaction tool description covers all reference types ──
@@ -648,17 +655,21 @@ test('T106 — ownership gate defined in shared module', () =>
   own.includes('export function createCandidateOwnershipGate'));
 
 test('T107 — gate checks lock before persisting', () => {
-  const g = fnBody(own, 'export function createCandidateOwnershipGate', 2500);
+  const g = fnBody(own, 'export function createCandidateOwnershipGate', 3000);
   return g.includes('if (locked)') && g.includes('skipping candidate replacement')
-    && g.indexOf('if (locked)') < g.indexOf('await deps.persistLayer2(result)');
+    && g.indexOf('if (locked)') < g.indexOf('await deps.persistLayer2(frameResult)');
 });
 
 test('T108 — gate sets lock on establishment', () =>
   fnBody(own, 'export function createCandidateOwnershipGate', 2500).includes('locked = true; // claim before any await'));
 
-test('T109 — gate delegates Layer 2 to persistTxResolutionFromSearchResult', () =>
-  fnBody(own, 'export function createCandidateOwnershipGate', 2500).includes('await deps.persistLayer2(result)')
-  && chat.includes('persistLayer2: (result: any) => persistTxResolutionFromSearchResult('));
+test('T109 — gate delegates Layer 2 (visible frame only) to persistTxResolutionFromSearchResult', () => {
+  const g = fnBody(own, 'export function createCandidateOwnershipGate', 3000);
+  return g.includes('const visible = buildVisibleCandidateFrame(result);')
+    && g.includes('rows: visible.rows')
+    && g.includes('await deps.persistLayer2(frameResult)')
+    && chat.includes('persistLayer2: (result: any) => persistTxResolutionFromSearchResult(');
+});
 
 test('T110 — gate submission accepts source parameter for logging', () =>
   own.includes('submitSearchResult(result: unknown, source: string, intent: CandidateOwnershipIntent)'));
@@ -709,24 +720,23 @@ test('T117 — lock only set on selResult.selected (failed selection does not lo
 });
 
 test('T118 — lock CLAIMED before persist is awaited; failed persist keeps lock, emits nothing (P3.3C race repair)', () => {
-  // Replaces the pre-P3.3C "lock after persist" rule: claiming first means two
-  // establishment attempts in one response cannot both pass the lock check.
-  const g = fnBody(own, 'export function createCandidateOwnershipGate', 2500);
+  // Claiming first means two establishment attempts in one response cannot both pass the lock check.
+  const g = fnBody(own, 'export function createCandidateOwnershipGate', 3000);
   const lockIdx = g.indexOf('locked = true; // claim before any await');
-  const persistIdx = g.indexOf('await deps.persistLayer2(result)');
+  const persistIdx = g.indexOf('await deps.persistLayer2(frameResult)');
   const failIdx = g.indexOf("return 'persist_failed'");
-  const layer1Idx = g.indexOf('deps.applyLayer1(result)');
+  const layer1Idx = g.indexOf('deps.applyLayer1(frameResult)');
   return lockIdx > 0 && persistIdx > lockIdx && failIdx > persistIdx && layer1Idx > failIdx;
 });
 
 test('T119 — analytical tx_search still executes but touches NO identity (P3.3C)', () => {
-  // Pre-P3.3C, Layer 1 was written for every search. Now the analytical branch
-  // returns before persistLayer2/applyLayer1, and Layer 1 is reachable only via the gate.
-  const g = fnBody(own, 'export function createCandidateOwnershipGate', 2500);
+  // The analytical branch returns before the visible frame is built, persisted or applied to Layer 1.
+  const g = fnBody(own, 'export function createCandidateOwnershipGate', 3000);
   const analyticalIdx = g.indexOf("return 'skipped_analytical'");
   return analyticalIdx > 0
-    && analyticalIdx < g.indexOf('await deps.persistLayer2(result)')
-    && analyticalIdx < g.indexOf('deps.applyLayer1(result)')
+    && analyticalIdx < g.indexOf('buildVisibleCandidateFrame(result)')
+    && analyticalIdx < g.indexOf('await deps.persistLayer2(frameResult)')
+    && analyticalIdx < g.indexOf('deps.applyLayer1(frameResult)')
     && (chat.match(/updateAuthoritativeSelectedTxFromSearchResult\(/g) || []).length === 2;
 });
 
@@ -744,7 +754,7 @@ test('T121 — lock is request-scoped (gate created inside handler, not module-l
 
 test('T122 — existing select_transaction 1-based behavior preserved', () => {
   const selectTx = fs.readFileSync(SELECT_TX_PATH, 'utf8');
-  return selectTx.includes('.min(1)') && selectTx.includes('.max(200)');
+  return selectTx.includes('.min(1)') && selectTx.includes('.max(VISIBLE_CANDIDATE_FRAME_MAX)');
 });
 
 // ── Phase 1D: Preserve candidate frame across follow-up references ──
@@ -1283,8 +1293,8 @@ test('T181: Layer 1 written ONLY for candidate_establishment (via gate), never p
   // P3.3C: replaced "called in all tx_search paths". Analytical/retry paths must not reach Layer 1.
   const callCount = (chat.match(/updateAuthoritativeSelectedTxFromSearchResult\(finalSessionId/g) || []).length;
   if (callCount !== 1) { console.error(`  ${callCount} direct calls, expected exactly 1 (gate deps)`); return false; }
-  const g = fnBody(own, 'export function createCandidateOwnershipGate', 2500);
-  return g.indexOf("if (intent !== 'candidate_establishment')") < g.indexOf('deps.applyLayer1(result)');
+  const g = fnBody(own, 'export function createCandidateOwnershipGate', 3000);
+  return g.indexOf("if (intent !== 'candidate_establishment')") < g.indexOf('deps.applyLayer1(frameResult)');
 });
 
 // ── Part 6: Fail-closed structural tests ──

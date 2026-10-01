@@ -661,3 +661,69 @@ describe('Chat parity wiring (assessB2CBridgeResult)', () => {
     expect(CHAT_SRC).toContain('formatB2CCompletenessInstruction(b2cCompleteness)');
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// P3.3D — B2C visible frame (>25) and canonical display
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('P3.3D — B2C visible frame', () => {
+  /** 20 extra non-gas Costco rows → 30 non-gas matches in total. */
+  function seedThirtyNonGas() {
+    for (let i = 1; i <= 20; i++) {
+      db.rows.push({
+        id: `eeeeeeee-0000-4000-8000-${String(i).padStart(12, '0')}`, user_id: U,
+        posted_at: null, date: `2024-0${(i % 9) + 1}-1${i % 10}`,
+        merchant_name: 'COSTCO', merchant: null, description: null,
+        amount: 10 + i, type: 'expense', category: 'Groceries', subcategory: null, import_id: null, document_id: null,
+      });
+    }
+  }
+
+  async function establishB2C() {
+    const mt = await runMerchantTotals({ merchant: 'Costco', excludeGroups: ['costco gas'] });
+    const res = await runTxSearch(buildMerchantBridgeArgs(liveContext(mt.evidence ?? null)));
+    let frame: TxResolutionContext | null = null;
+    const gate = createCandidateOwnershipGate({
+      persistLayer2: async (result: unknown) => { frame = buildTxResolutionFromSearchResult(result, 1); return true; },
+      applyLayer1: () => {},
+      clearLayer1: () => {},
+    });
+    const outcome = await gate.submitSearchResult(res, 'B2C_merchant_bridge', 'candidate_establishment');
+    return { mt, res, gate, outcome, frame: () => frame };
+  }
+
+  it('>25 matches: Layer 2 = cards = first 25 in validated order; P3.3B satisfied; PARTIAL 25 of 30', async () => {
+    seedThirtyNonGas();
+    const { mt, res, gate, outcome, frame } = await establishB2C();
+    expect(mt.transactionCount).toBe(30);
+    expect(res.meta.merchantScope?.matchedCount).toBe(30);
+    expect(outcome).toBe('established');
+    const cards = gate.txCandidatesForResponse!;
+    expect(cards).toHaveLength(25);
+    expect(frame()!.candidates.map(c => c.id)).toEqual(cards.map(c => c.id));
+    // the validated Costco rows keep their positions at the top of the frame
+    expect(cards.slice(0, 10).map(c => c.id)).toEqual(EXPECTED_ORDER);
+    expect(gate.visibleFrame).toMatchObject({ shown: 25, matched: 30, partial: true });
+    // P3.3B now injects (cards exist) → stale Phase 1D withdrawn + current frame injected
+    expect(computeB2CCandidatesSatisfied({ bridgeActive: true, outcome, txCandidatesForResponse: cards })).toBe(true);
+    const c = assessB2CBridgeResult({ expected: mt.evidence, payload: res, cardCount: cards.length });
+    expect(c.complete).toBe(false);
+    expect(formatB2CCompletenessInstruction(c)).toContain('PARTIAL RESULT: showing 25 of 30 matching transactions.');
+    // ordinal 26 cannot reach a hidden row
+    expect(selectCandidateFromFrame(frame(), 25).ok).toBe(true);
+    expect(selectCandidateFromFrame(frame(), 26).ok).toBe(false);
+  });
+
+  it('<=25 (validated Costco 10): complete wording, no "Present these results", cards own the rows', async () => {
+    const { mt, res, gate, frame } = await establishB2C();
+    const cards = gate.txCandidatesForResponse!;
+    expect(cards.map(c => c.id)).toEqual(EXPECTED_ORDER);
+    expect(frame()!.candidates.map(c => c.id)).toEqual(EXPECTED_ORDER);
+    expect(gate.visibleFrame).toMatchObject({ shown: 10, matched: 10, partial: false });
+    const text = formatB2CCompletenessInstruction(assessB2CBridgeResult({ expected: mt.evidence, payload: res, cardCount: cards.length }));
+    expect(text).toContain('10 transactions found');
+    expect(text).not.toContain('Present these results');
+    const third = selectCandidateFromFrame(frame(), 3);
+    expect(third.ok && third.candidate.id).toBe(COSTCO_3);
+  });
+});

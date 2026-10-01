@@ -75,21 +75,22 @@ async function simulateCandidateLifecycle(ops: Array<{
 // Test fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
+// P3.3D: fixtures use verified-shape UUIDs — only valid ids can enter the visible frame.
 const COSTCO_CANDIDATES = [
-  { id: 'uuid-1', merchant: 'COSTCO WHOLESALE' },
-  { id: 'uuid-2', merchant: 'COSTCO' },
-  { id: 'uuid-3', merchant: 'COSTCO' },
-  { id: 'uuid-4', merchant: 'COSTCO' },
-  { id: 'uuid-5', merchant: 'COSTCO' },
-  { id: 'uuid-6', merchant: 'COSTCO' },
-  { id: 'uuid-7', merchant: 'COSTCO' },
-  { id: 'uuid-8', merchant: 'COSTCO' },
+  { id: 'c0c0c0c0-0000-4000-8000-000000000001', merchant: 'COSTCO WHOLESALE' },
+  { id: 'c0c0c0c0-0000-4000-8000-000000000002', merchant: 'COSTCO' },
+  { id: 'c0c0c0c0-0000-4000-8000-000000000003', merchant: 'COSTCO' },
+  { id: 'c0c0c0c0-0000-4000-8000-000000000004', merchant: 'COSTCO' },
+  { id: 'c0c0c0c0-0000-4000-8000-000000000005', merchant: 'COSTCO' },
+  { id: 'c0c0c0c0-0000-4000-8000-000000000006', merchant: 'COSTCO' },
+  { id: 'c0c0c0c0-0000-4000-8000-000000000007', merchant: 'COSTCO' },
+  { id: 'c0c0c0c0-0000-4000-8000-000000000008', merchant: 'COSTCO' },
 ];
 
 const WALMART_CANDIDATES = [
-  { id: 'wm-1', merchant: 'WALMART' },
-  { id: 'wm-2', merchant: 'WALMART' },
-  { id: 'wm-3', merchant: 'WALMART SUPERCENTER' },
+  { id: 'babababa-0000-4000-8000-000000000001', merchant: 'WALMART' },
+  { id: 'babababa-0000-4000-8000-000000000002', merchant: 'WALMART' },
+  { id: 'babababa-0000-4000-8000-000000000003', merchant: 'WALMART SUPERCENTER' },
 ];
 
 const PRIME_TOOLS = [
@@ -369,7 +370,7 @@ describe('P3.3C-I: Mutation safety (analytical evidence does not corrupt identit
     // Candidate #3 (0-indexed: 2) should still be Costco, not Walmart
     expect(result.finalCandidates).not.toBeNull();
     expect(result.finalCandidates![2].merchant).toBe('COSTCO');
-    expect(result.finalCandidates![2].id).toBe('uuid-3');
+    expect(result.finalCandidates![2].id).toBe('c0c0c0c0-0000-4000-8000-000000000003');
   });
 
   it('candidate_establishment lock prevents any subsequent replacement', async () => {
@@ -390,13 +391,13 @@ describe('P3.3C-I: Mutation safety (analytical evidence does not corrupt identit
       { source: 'initial', intent: 'candidate_establishment', rows: COSTCO_CANDIDATES },
       { source: 'analytical', intent: 'analytical_evidence', rows: WALMART_CANDIDATES },
     ]);
-    // Ordinal #3 should resolve to COSTCO uuid-3
+    // Ordinal #3 should resolve to COSTCO candidate #3
     const candidate3 = result.finalCandidates![2];
-    expect(candidate3.id).toBe('uuid-3');
+    expect(candidate3.id).toBe('c0c0c0c0-0000-4000-8000-000000000003');
     expect(candidate3.merchant).toBe('COSTCO');
     // NOT Walmart
     expect(candidate3.merchant).not.toBe('WALMART');
-    expect(candidate3.id).not.toBe('wm-3');
+    expect(candidate3.id).not.toBe('babababa-0000-4000-8000-000000000003');
   });
 });
 
@@ -419,7 +420,7 @@ describe('P3.3C-J: New frame then selection', () => {
     ]);
     expect(request2.finalCandidates).toEqual(WALMART_CANDIDATES);
     expect(request2.finalCandidates![2].merchant).toBe('WALMART SUPERCENTER');
-    expect(request2.finalCandidates![2].id).toBe('wm-3');
+    expect(request2.finalCandidates![2].id).toBe('babababa-0000-4000-8000-000000000003');
   });
 });
 

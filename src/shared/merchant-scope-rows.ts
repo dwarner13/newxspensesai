@@ -299,7 +299,7 @@ export function assessB2CBridgeResult(input: {
  */
 export function formatB2CCompletenessInstruction(c: B2CCompleteness): string {
   if (c.complete) {
-    return `${c.shown} transactions found. These are exactly the transactions in the merchant analysis you just summarized. Present these results to the user. Do NOT call tx_search — these candidates are already established and authoritative for this request.`;
+    return `${c.shown} transactions found. These are exactly the transactions in the merchant analysis you just summarized. Do NOT call tx_search — these candidates are already established and authoritative for this request.`;
   }
   const lines: string[] = [];
   if (c.parity === 'mismatch' && c.expectedCount !== null) {

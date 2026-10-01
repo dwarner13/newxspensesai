@@ -211,7 +211,8 @@ describe('D. new_candidate_scope establishes verified frame B', () => {
     await modelTxSearch(gate, hasExistingCandidates, 'new_candidate_scope', [{ id: 'model-made-up-id', merchant: 'X' }]);
     expect(s.state.layer2!.candidates).toEqual([]);
     expect(s.state.layer1).toBeNull();
-    expect(gate.txCandidatesForResponse).toEqual([]);
+    // P3.3D: no valid rows → no cards at all
+    expect(gate.txCandidatesForResponse).toBeNull();
   });
 });
 

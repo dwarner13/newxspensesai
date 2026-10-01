@@ -72,11 +72,19 @@ export type OwnershipOutcome =
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Cap matches tx_search schema max (200) so Prime and tx_resolution see the same set. */
-export const TX_RESOLUTION_MAX_CANDIDATES = 200;
+/**
+ * P3.3D visible-frame invariant: the authoritative selectable candidate frame is
+ * EXACTLY the transactions the user is shown as numbered structured cards.
+ * Searches may match more; only the first VISIBLE_CANDIDATE_FRAME_MAX rows (in the
+ * search's own deterministic order) are persisted, rendered and ordinal-selectable.
+ */
+export const VISIBLE_CANDIDATE_FRAME_MAX = 25;
 
-/** Deterministic candidate cards are only rendered for frames of this size or smaller. */
-export const TX_CANDIDATES_FOR_RESPONSE_MAX = 25;
+/** Layer 2 candidate cap — equal to the visible frame (never more than the user sees). */
+export const TX_RESOLUTION_MAX_CANDIDATES = VISIBLE_CANDIDATE_FRAME_MAX;
+
+/** Structured candidate cards — the same visible frame. */
+export const TX_CANDIDATES_FOR_RESPONSE_MAX = VISIBLE_CANDIDATE_FRAME_MAX;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OWNERSHIP RESOLUTION
@@ -155,16 +163,37 @@ export function computeLayer1Update(result: unknown): Layer1Update {
   return { kind: 'clear', reason: rows.length > 1 ? 'ambiguous' : 'empty' };
 }
 
+export interface VisibleCandidateFrame {
+  /** The visible, selectable rows — first N valid rows in the search's own order. */
+  rows: TxSearchRow[];
+  shown: number;
+  /** Total matches known for the search (>= shown). */
+  matched: number;
+  partial: boolean;
+}
+
 /**
- * Build the deterministic candidate cards for the response.
- * Returns null when there are no rows or more than TX_CANDIDATES_FOR_RESPONSE_MAX.
+ * Build the visible candidate frame from a verified tx_search result.
+ * Keeps the search's deterministic order; never reorders.
+ * `matched` uses merchant-scope matchedCount when the search reports it.
+ */
+export function buildVisibleCandidateFrame(result: unknown): VisibleCandidateFrame {
+  const valid = rowsOf(result).filter(hasValidId);
+  const reported = Number((result as { meta?: { merchantScope?: { matchedCount?: unknown } } } | null | undefined)
+    ?.meta?.merchantScope?.matchedCount);
+  const rows = valid.slice(0, VISIBLE_CANDIDATE_FRAME_MAX);
+  const matched = Math.max(valid.length, Number.isFinite(reported) ? reported : 0);
+  return { rows, shown: rows.length, matched, partial: matched > rows.length };
+}
+
+/**
+ * Build the deterministic candidate cards for the response from the visible frame.
+ * Returns null when there are no valid rows.
  */
 export function buildTxCandidatesForResponse(result: unknown): TxCandidateForResponse[] | null {
-  const rows = rowsOf(result);
-  if (rows.length === 0 || rows.length > TX_CANDIDATES_FOR_RESPONSE_MAX) return null;
+  const { rows } = buildVisibleCandidateFrame(result);
+  if (rows.length === 0) return null;
   return rows
-    .filter(hasValidId)
-    .slice(0, TX_CANDIDATES_FOR_RESPONSE_MAX)
     .map((r, i: number) => ({
       ordinal: i + 1,
       id: String(r.id).trim(),
@@ -197,6 +226,8 @@ export interface CandidateOwnershipGate {
   lockForSelection(): void;
   isLocked(): boolean;
   readonly txCandidatesForResponse: TxCandidateForResponse[] | null;
+  /** The visible frame established this request (shown/matched), or null. */
+  readonly visibleFrame: VisibleCandidateFrame | null;
 }
 
 /**
@@ -210,6 +241,7 @@ export interface CandidateOwnershipGate {
 export function createCandidateOwnershipGate(deps: CandidateOwnershipDeps): CandidateOwnershipGate {
   let locked = false;
   let txCandidates: TxCandidateForResponse[] | null = null;
+  let frame: VisibleCandidateFrame | null = null;
   const log = deps.log ?? (() => {});
 
   return {
@@ -223,9 +255,12 @@ export function createCandidateOwnershipGate(deps: CandidateOwnershipDeps): Cand
         return 'skipped_analytical';
       }
       locked = true; // claim before any await
+      // P3.3D: persist / Layer 1 / cards all use the SAME visible frame (first N rows).
+      const visible = buildVisibleCandidateFrame(result);
+      const frameResult = { ...((result && typeof result === 'object') ? result : {}), rows: visible.rows };
       let persisted = false;
       try {
-        persisted = await deps.persistLayer2(result);
+        persisted = await deps.persistLayer2(frameResult);
       } catch (e) {
         log(`[Chat] TxResolution: persist threw (source=${source}): ${(e as Error)?.message}`);
         persisted = false;
@@ -237,11 +272,12 @@ export function createCandidateOwnershipGate(deps: CandidateOwnershipDeps): Cand
         log(`[Chat] TxResolution: persist FAILED (source=${source}) — Layer 1 cleared, no candidates emitted, ownership remains locked`);
         return 'persist_failed';
       }
-      deps.applyLayer1(result);
-      const cards = buildTxCandidatesForResponse(result);
+      deps.applyLayer1(frameResult);
+      frame = visible;
+      const cards = buildTxCandidatesForResponse(frameResult);
       if (cards) {
         txCandidates = cards;
-        log(`[Chat] P0: captured ${cards.length} candidates for deterministic rendering`);
+        log(`[Chat] P0: captured ${cards.length} candidates for deterministic rendering (matched=${visible.matched})`);
       }
       log(`[Chat] TxResolution: candidates established (source=${source}, intent=${intent}), ownership locked for this request`);
       return 'established';
@@ -254,6 +290,63 @@ export function createCandidateOwnershipGate(deps: CandidateOwnershipDeps): Cand
     },
     get txCandidatesForResponse() {
       return txCandidates;
+    },
+    get visibleFrame() {
+      return frame;
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CANONICAL DISPLAY (P3.3D)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Instruction for Prime whenever a visible frame is rendered as structured cards.
+ * The cards own the transaction rows and ordinals; Prime only frames them.
+ */
+export function formatCandidateFrameNote(frame: Pick<VisibleCandidateFrame, 'shown' | 'matched'>): string {
+  const lines = [
+    `DISPLAY: The app shows these ${frame.shown} transactions to the user as numbered transaction cards directly below your reply. The cards are the authoritative list and ordinals.`,
+    'Do NOT reproduce the list in your reply (no per-transaction merchant/date/amount lines or numbered rows). Give one or two sentences of framing — what they are, how many, and the total when known — then answer any question the user asked.',
+  ];
+  if (frame.matched > frame.shown) {
+    lines.push(`PARTIAL: ${frame.matched} transactions matched, but only the first ${frame.shown} are shown and selectable. Say so plainly and suggest narrowing the request to find the others. Do not describe, number or refer to transactions beyond #${frame.shown}.`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * The tx_search result as the MODEL should see it.
+ * - Established frame: rows = exactly the visible frame, plus the display note.
+ * - Not established (analytical / locked / failed): rows are evidence only and
+ *   explicitly not selectable candidates.
+ * Totals and other aggregate fields are left untouched.
+ */
+export function presentTxSearchResultForModel(
+  result: unknown,
+  outcome: OwnershipOutcome | null | undefined,
+  frame: VisibleCandidateFrame | null,
+): unknown {
+  if (!result || typeof result !== 'object') return result;
+  if (outcome === 'established' && frame) {
+    return {
+      ...result,
+      rows: frame.rows,
+      candidateFrame: {
+        selectable: true,
+        shown: frame.shown,
+        matched: frame.matched,
+        partial: frame.partial,
+        note: formatCandidateFrameNote(frame),
+      },
+    };
+  }
+  return {
+    ...result,
+    candidateFrame: {
+      selectable: false,
+      note: 'Evidence only: these rows are NOT numbered selectable candidates and are not shown to the user as cards. Do not number them as candidates or invite the user to pick one by position.',
     },
   };
 }
@@ -294,10 +387,12 @@ export function selectCandidateFromFrame(txr: TxResolutionContext | null, candid
     return { ok: false, error: 'No transaction search results available. Run a transaction search first.' };
   }
   const index = candidateNumber - 1;
-  if (index >= txr.candidates.length) {
+  // P3.3D: only the visible frame is selectable (also bounds frames persisted before P3.3D)
+  const selectable = Math.min(txr.candidates.length, VISIBLE_CANDIDATE_FRAME_MAX);
+  if (index >= selectable) {
     return {
       ok: false,
-      error: `candidateNumber ${candidateNumber} is out of range. There are ${txr.candidates.length} candidate(s) available.`,
+      error: `candidateNumber ${candidateNumber} is out of range. There are ${selectable} candidate(s) available.`,
     };
   }
   const candidate = txr.candidates[index];

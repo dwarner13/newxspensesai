@@ -1,12 +1,15 @@
 import { z } from 'zod';
+import { VISIBLE_CANDIDATE_FRAME_MAX } from '../../../shared/tx-candidate-ownership';
 
 export const inputSchema = z.object({
   candidateNumber: z
     .number()
     .int()
     .min(1)
-    .max(200)
-    .describe('Position of the transaction in the current search results (1 = first, 2 = second, etc.)'),
+    // P3.3D: only the visible candidate frame (numbered cards) is selectable.
+    // The authoritative bound is enforced against the persisted frame in chat.ts.
+    .max(VISIBLE_CANDIDATE_FRAME_MAX)
+    .describe('Position of the transaction in the current numbered candidate list shown on the transaction cards (1 = first, 2 = second, etc.)'),
 });
 
 export const outputSchema = z.object({
