@@ -27,6 +27,8 @@ function assert(id: string, condition: boolean, detail = '') {
 
 // ─── Import production modules ──────────────────────────────────────────────
 
+import { buildMerchantBridgeArgs } from '../src/shared/merchant-scope-rows';
+
 import {
   type MerchantAnalysisContext,
   isMerchantAnalysisContextValid,
@@ -77,26 +79,33 @@ function simulateBridgeDetection(
   return { bridgeActive: true, reason: 'bridge_active' };
 }
 
-// ─── B2C Args Translation (mirrors chat.ts) ─────────────────────────────────
+// ─── B2C Args Translation (PRODUCTION: buildMerchantBridgeArgs) ─────────────
+// P3.2B2C parity repair: the bridge requests the shared merchant-scope row set.
+// Exclusions are exact normalized group keys applied in shared code (null-safe),
+// not raw SQL NOT ILIKE substrings. This adapter flattens the production args.
 
 function simulateBridgeArgs(mac: MerchantAnalysisContext): {
-  q: string;
+  q?: string;
   limit: number;
   startDate?: string;
   endDate?: string;
   category?: string;
-  excludeMerchants?: string[];
+  excludeGroups?: string[];
+  includeGroups?: string[];
+  raw: Record<string, unknown>;
 } {
-  // Use groupingKeys directly as exclusion patterns (matches chat.ts fix B).
-  const excludePatterns = mac.excludedGroups
-    .filter(k => typeof k === 'string' && k.trim().length > 0)
-    .map(k => k.trim());
-  const args: Record<string, any> = { q: mac.merchantQuery, limit: 200 };
-  if (mac.temporalScope?.startDate) args.startDate = mac.temporalScope.startDate;
-  if (mac.temporalScope?.endDate) args.endDate = mac.temporalScope.endDate;
-  if (mac.categoryFilter) args.category = mac.categoryFilter;
-  if (excludePatterns.length > 0) args.excludeMerchants = excludePatterns;
-  return args;
+  const a = buildMerchantBridgeArgs(mac);
+  const sc = a.merchantScope;
+  return {
+    q: sc.merchantQuery,
+    limit: a.limit,
+    startDate: sc.startDate,
+    endDate: sc.endDate,
+    category: sc.category,
+    excludeGroups: sc.excludeGroups,
+    includeGroups: sc.includeGroups,
+    raw: a as unknown as Record<string, unknown>,
+  };
 }
 
 // ─── Test MAC fixtures ──────────────────────────────────────────────────────
@@ -282,33 +291,33 @@ console.log('\n=== SECTION C: Exclusion Translation ===');
 {
   const mac = makeMAC({ excludedGroups: ['costco_gas'] });
   const args = simulateBridgeArgs(mac);
-  assert('C-1', args.excludeMerchants?.length === 1 && args.excludeMerchants[0] === 'costco_gas',
-    `excludeMerchants=${JSON.stringify(args.excludeMerchants)}`);
+  assert('C-1', args.excludeGroups?.length === 1 && args.excludeGroups[0] === 'costco_gas',
+    `excludeGroups=${JSON.stringify(args.excludeGroups)}`);
 }
 
 // C-2: all valid groupingKeys in excludedGroups pass through (no activeGroups lookup)
 {
   const mac = makeMAC({ excludedGroups: ['costco_gas', 'invented_group'] });
   const args = simulateBridgeArgs(mac);
-  assert('C-2', args.excludeMerchants?.length === 2,
-    `excludeMerchants=${JSON.stringify(args.excludeMerchants)} (both are valid non-empty strings)`);
+  assert('C-2', args.excludeGroups?.length === 2,
+    `excludeGroups=${JSON.stringify(args.excludeGroups)} (both are valid non-empty strings)`);
 }
 
-// C-3: no excludedGroups → no excludeMerchants in args
+// C-3: no excludedGroups → no excludeGroups in args
 {
   const mac = makeMAC({ excludedGroups: [] });
   const args = simulateBridgeArgs(mac);
-  assert('C-3', args.excludeMerchants === undefined,
-    `excludeMerchants=${JSON.stringify(args.excludeMerchants)}`);
+  assert('C-3', args.excludeGroups === undefined,
+    `excludeGroups=${JSON.stringify(args.excludeGroups)}`);
 }
 
 // C-4: multiple exclusions
 {
   const mac = makeMAC({ excludedGroups: ['costco_gas', 'costco_wholesale'] });
   const args = simulateBridgeArgs(mac);
-  assert('C-4', args.excludeMerchants?.length === 2,
-    `excludeMerchants=${JSON.stringify(args.excludeMerchants)}`);
-  assert('C-4b', args.excludeMerchants?.includes('costco_gas') && args.excludeMerchants?.includes('costco_wholesale'),
+  assert('C-4', args.excludeGroups?.length === 2,
+    `excludeGroups=${JSON.stringify(args.excludeGroups)}`);
+  assert('C-4b', args.excludeGroups?.includes('costco_gas') && args.excludeGroups?.includes('costco_wholesale'),
     'must include both groupingKeys');
 }
 
@@ -316,8 +325,8 @@ console.log('\n=== SECTION C: Exclusion Translation ===');
 {
   const mac = makeMAC({ excludedGroups: ['costco', 'costco_wholesale', 'costco_gas'] });
   const args = simulateBridgeArgs(mac);
-  assert('C-5', args.excludeMerchants?.length === 3,
-    `excludeMerchants=${JSON.stringify(args.excludeMerchants)}`);
+  assert('C-5', args.excludeGroups?.length === 3,
+    `excludeGroups=${JSON.stringify(args.excludeGroups)}`);
 }
 
 // ─── SECTION D: Temporal Scope ──────────────────────────────────────────────
@@ -347,8 +356,8 @@ console.log('\n=== SECTION D: Temporal Scope ===');
     temporalScope: { startDate: '2026-05-01', endDate: '2026-05-31' },
   });
   const args = simulateBridgeArgs(mac);
-  assert('D-3', args.excludeMerchants?.length === 1 && args.startDate === '2026-05-01' && args.endDate === '2026-05-31',
-    `both filters applied: excludeMerchants=${JSON.stringify(args.excludeMerchants)}, dates=${args.startDate}/${args.endDate}`);
+  assert('D-3', args.excludeGroups?.length === 1 && args.startDate === '2026-05-01' && args.endDate === '2026-05-31',
+    `both filters applied: excludeGroups=${JSON.stringify(args.excludeGroups)}, dates=${args.startDate}/${args.endDate}`);
 }
 
 // ─── SECTION E: Category Filter ─────────────────────────────────────────────
@@ -378,8 +387,8 @@ console.log('\n=== SECTION E: Category Filter ===');
     categoryFilter: 'Groceries',
   });
   const args = simulateBridgeArgs(mac);
-  assert('E-3', args.excludeMerchants?.length === 1 && args.category === 'Groceries',
-    `excludeMerchants + category`);
+  assert('E-3', args.excludeGroups?.length === 1 && args.category === 'Groceries',
+    `excludeGroups + category`);
 }
 
 // ─── SECTION F: Base Args ───────────────────────────────────────────────────
@@ -398,6 +407,14 @@ console.log('\n=== SECTION F: Base Args ===');
   const mac = makeMAC();
   const args = simulateBridgeArgs(mac);
   assert('F-2', args.limit === 200, `limit=${args.limit}`);
+}
+
+// F-3: active (non-excluded) groups become the include set — same groups merchant_totals reported
+{
+  const mac = makeMAC({ excludedGroups: ['costco_wholesale'] });
+  const args = simulateBridgeArgs(mac);
+  assert('F-3', JSON.stringify(args.includeGroups) === JSON.stringify(['costco']),
+    `includeGroups=${JSON.stringify(args.includeGroups)}`);
 }
 
 // ─── SECTION G: tx_search excludeMerchants Parameter ────────────────────────
@@ -618,8 +635,8 @@ console.log('\n=== SECTION K: Multi-Filter Stacking ===');
   assert('K-1b', args.q === 'Costco', `q=${args.q}`);
   assert('K-1c', args.startDate === '2026-05-01', `startDate=${args.startDate}`);
   assert('K-1d', args.endDate === '2026-05-31', `endDate=${args.endDate}`);
-  assert('K-1e', args.excludeMerchants?.length === 1 && args.excludeMerchants[0] === 'costco_gas',
-    `excludeMerchants=${JSON.stringify(args.excludeMerchants)}`);
+  assert('K-1e', args.excludeGroups?.length === 1 && args.excludeGroups[0] === 'costco_gas',
+    `excludeGroups=${JSON.stringify(args.excludeGroups)}`);
 }
 
 // K-2: All three filters (exclusion + temporal + category)
@@ -630,7 +647,7 @@ console.log('\n=== SECTION K: Multi-Filter Stacking ===');
     categoryFilter: 'Groceries',
   });
   const args = simulateBridgeArgs(mac);
-  assert('K-2a', args.excludeMerchants?.length === 1, 'exclusion');
+  assert('K-2a', args.excludeGroups?.length === 1, 'exclusion');
   assert('K-2b', args.startDate === '2026-05-01' && args.endDate === '2026-05-31', 'temporal');
   assert('K-2c', args.category === 'Groceries', 'category');
 }
@@ -749,24 +766,24 @@ console.log('\n=== SECTION O: P3.3A Non-Interference ===');
 console.log('\n=== SECTION P: Adversarial Exclusion Case ===');
 
 // P-1: The 250-gas / 30-wholesale scenario
-// Bridge must use limit=200 AND excludeMerchants (DB-level NOT ILIKE)
-// so excluded gas rows never consume the row budget
+// Bridge must use limit=200 AND exact group-key exclusion applied in shared code
+// BEFORE the result limit, so excluded gas rows never consume the row budget
 {
   const mac = makeMAC({ excludedGroups: ['costco_gas'] });
   const args = simulateBridgeArgs(mac);
   assert('P-1a', args.limit === 200, `limit=${args.limit}`);
-  assert('P-1b', args.excludeMerchants?.length === 1, `exclusions=${args.excludeMerchants?.length}`);
-  assert('P-1c', args.excludeMerchants?.[0] === 'costco_gas', `excluded=${args.excludeMerchants?.[0]}`);
-  // With DB-level NOT ILIKE, the 250 gas rows are excluded BEFORE LIMIT
-  // so the 30 wholesale rows are returned correctly
-  assert('P-1d', true, 'DB-level exclusion prevents truncation corruption (verified by tx-search.ts code review)');
+  assert('P-1b', args.excludeGroups?.length === 1, `exclusions=${args.excludeGroups?.length}`);
+  assert('P-1c', args.excludeGroups?.[0] === 'costco_gas', `excluded=${args.excludeGroups?.[0]}`);
+  // Exclusion happens in applyMerchantScope before slice(limit) (see behavioral parity test)
+  assert('P-1d', !('excludeMerchants' in args.raw) && !('q' in args.raw),
+    'bridge uses merchantScope (no raw NOT ILIKE excludeMerchants, no generic q)');
 }
 
 // P-2: No exclusions → full broad search (no NOT ILIKE clauses)
 {
   const mac = makeMAC({ excludedGroups: [] });
   const args = simulateBridgeArgs(mac);
-  assert('P-2', !args.excludeMerchants, 'no exclusions → no NOT ILIKE');
+  assert('P-2', !args.excludeGroups, 'no exclusions → no group exclusion');
 }
 
 // ─── SUMMARY ────────────────────────────────────────────────────────────────

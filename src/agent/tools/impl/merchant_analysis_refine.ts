@@ -9,6 +9,7 @@ import {
   MAX_EXCLUDED_GROUPS,
 } from '../../../shared/merchant-analysis-context';
 import { execute as executeMerchantTotals } from './merchant_totals';
+import { merchantCategoryScope } from '../../../shared/merchant-scope-rows';
 
 export const id = 'merchant_analysis_refine';
 
@@ -181,6 +182,9 @@ export async function execute(
         merchant: mac.merchantQuery,
         startDate,
         endDate,
+        // P3.2B2C parity: evidence must use the same scope the context records.
+        // Older contexts may hold a non-string categoryFilter → passed as undefined.
+        category: merchantCategoryScope(mac.categoryFilter),
         excludeGroups: newExcluded.length > 0 ? newExcluded : undefined,
       },
       { userId },
@@ -204,6 +208,7 @@ export async function execute(
           : mac.temporalScope,
         categoryFilter: mac.categoryFilter,
         evidenceComplete: mtData.queryStatus !== 'partial',
+        evidence: mtData.evidence ?? null,
       },
     );
 

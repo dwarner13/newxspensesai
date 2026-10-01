@@ -19,6 +19,17 @@ export const inputSchema = z.object({
   /** P3.2B2C: Merchant display names to exclude via NOT ILIKE at DB level.
    *  Used internally by the merchant analysis bridge. Max 20. */
   excludeMerchants: z.array(z.string()).max(20).optional(),
+  /** P3.2B2C parity: merchant-analysis scope mode (internal — used by the merchant
+   *  analysis bridge). Returns the same row set merchant_totals aggregates. */
+  merchantScope: z.object({
+    merchantQuery: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    category: z.string().optional(),
+    type: z.enum(['expense', 'income']).optional(),
+    includeGroups: z.array(z.string()).max(50).optional(),
+    excludeGroups: z.array(z.string()).max(50).optional(),
+  }).optional(),
   /** P3.3C: Semantic purpose — model declares why it is calling tx_search.
    *  When transaction candidates already exist:
    *  - 'new_candidate_scope': user wants DIFFERENT transactions (replaces frame)

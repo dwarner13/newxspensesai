@@ -555,6 +555,8 @@ function extractResultData(tool: string, rawResult: unknown): { data: unknown; r
         transactionCount: result.transactionCount,
         dateRange: result.dateRange,
         queryStatus,
+        // P3.2B2C parity: carried to MerchantAnalysisContext (not rendered into the prompt)
+        evidence: result.evidence,
       },
       rowCount: merchants.length,
     };

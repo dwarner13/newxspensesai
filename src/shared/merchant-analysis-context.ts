@@ -67,6 +67,11 @@ export interface MerchantAnalysisContext {
 
   /** ISO timestamp of last update. Used for TTL enforcement. */
   updatedAt: string;
+
+  /** P3.2B2C parity: fingerprint of the exact rows behind the last merchant
+   *  total (count, |amount| total, id-set hash). Scope verification only —
+   *  never a source of transaction identity. Absent on older contexts. */
+  evidence?: { count: number; total: number; idsHash: string } | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +127,7 @@ export function buildMerchantAnalysisContext(
     temporalScope?: { startDate: string; endDate: string } | null;
     categoryFilter?: string | null;
     evidenceComplete: boolean;
+    evidence?: { count: number; total: number; idsHash: string } | null;
   },
 ): MerchantAnalysisContext {
   return {
@@ -134,7 +140,25 @@ export function buildMerchantAnalysisContext(
     categoryFilter: opts.categoryFilter || null,
     evidenceComplete: opts.evidenceComplete,
     updatedAt: new Date().toISOString(),
+    evidence: opts.evidence ?? null,
   };
+}
+
+/**
+ * P3.2B2C parity: the temporal scope of a merchant analysis is the date range the
+ * EXECUTED merchant_totals evidence-plan step actually ran with (the executor copies
+ * step.params.startDate/endDate verbatim into the tool args). Returns null when no
+ * single-call merchant_totals step carries a complete startDate/endDate pair.
+ */
+export function merchantTemporalScopeFromPlanSteps(
+  steps: ReadonlyArray<{ tool?: string; mode?: string; params?: Record<string, unknown> }> | null | undefined,
+): { startDate: string; endDate: string } | null {
+  const step = (steps || []).find(s => s.tool === 'merchant_totals' && s.mode === 'tool');
+  const startDate = step?.params?.startDate;
+  const endDate = step?.params?.endDate;
+  return typeof startDate === 'string' && startDate && typeof endDate === 'string' && endDate
+    ? { startDate, endDate }
+    : null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

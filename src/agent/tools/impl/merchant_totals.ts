@@ -1,8 +1,13 @@
 import { z } from 'zod';
 import { Result, Ok, Err } from '../../../types/result';
 import { getSupabaseServerClient } from '../../../server/db';
-import { isNonSpendCategory } from '../../../shared/financial-taxonomy';
-import { merchantGroupingKey } from '../../../../netlify/functions/_shared/merchantNormalize';
+import {
+  fetchMerchantScopeRows,
+  applyMerchantScope,
+  merchantEvidenceFingerprint,
+  MERCHANT_SCOPE_ROW_FETCH_LIMIT,
+  type MerchantScopeClient,
+} from '../../../shared/merchant-scope-rows';
 
 export const id = 'merchant_totals';
 
@@ -33,6 +38,12 @@ export const outputSchema = z.object({
   transactionCount: z.number(),
   dateRange: z.object({ start: z.string(), end: z.string() }),
   queryStatus: z.enum(['verified', 'verified_zero', 'partial', 'query_error']),
+  /** P3.2B2C parity: fingerprint of the exact rows behind grandTotal/transactionCount. */
+  evidence: z.object({
+    count: z.number(),
+    total: z.number(),
+    idsHash: z.string(),
+  }).optional(),
 });
 
 export type Input = z.infer<typeof inputSchema>;
@@ -47,7 +58,7 @@ const MAX_LIMIT = 50;
  * as potentially truncated and queryStatus is set to 'partial'.
  * This prevents silently returning incomplete merchant totals.
  */
-export const ROW_FETCH_LIMIT = 5000;
+export const ROW_FETCH_LIMIT = MERCHANT_SCOPE_ROW_FETCH_LIMIT;
 
 /**
  * P3.2B — Merchant Totals
@@ -61,6 +72,9 @@ export const ROW_FETCH_LIMIT = 5000;
  *
  * Non-spend categories are excluded by default (transfers, loan
  * payments, investments) — same canonical semantics as cash_flow_summary.
+ *
+ * Row-set semantics (fetch, non-spend, group keys, exclusions) are shared with
+ * the B2C bridge via src/shared/merchant-scope-rows.ts.
  */
 export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
   try {
@@ -68,27 +82,16 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
     const supabase = getSupabaseServerClient();
     const limit = Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
 
-    let query = supabase
-      .from('transactions')
-      .select('merchant_name, merchant, amount, date, category, type')
-      .eq('user_id', userId);
+    const fetched = await fetchMerchantScopeRows(supabase as unknown as MerchantScopeClient, userId, {
+      merchantQuery: input.merchant,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      category: input.category,
+      type: input.type,
+    });
 
-    if (input.startDate) query = query.gte('date', input.startDate);
-    if (input.endDate) query = query.lte('date', input.endDate);
-    if (input.merchant) {
-      query = query.or(
-        `merchant_name.ilike.%${input.merchant}%,merchant.ilike.%${input.merchant}%`,
-      );
-    }
-    if (input.category) query = query.eq('category', input.category);
-    if (input.type) query = query.eq('type', input.type);
-
-    query = query.limit(ROW_FETCH_LIMIT);
-
-    const { data: transactions, error } = await query;
-
-    if (error) {
-      console.error('[merchant_totals] Query error:', error);
+    if (fetched.error) {
+      console.error('[merchant_totals] Query error:', fetched.error);
       return Ok({
         merchants: [],
         grandTotal: 0,
@@ -98,8 +101,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       });
     }
 
-    const txns = transactions || [];
-    const truncated = txns.length >= ROW_FETCH_LIMIT;
+    const txns = fetched.rows;
+    const truncated = fetched.truncated;
 
     if (txns.length === 0) {
       return Ok({
@@ -111,10 +114,13 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       });
     }
 
-    // Filter out non-spend categories (unless explicitly filtering by type/category)
-    const filtered = (!input.type && !input.category)
-      ? txns.filter(t => !isNonSpendCategory(t.category))
-      : txns;
+    // Shared scope semantics: non-spend filter (unless type/category explicit),
+    // merchantGroupingKey(merchant_name || merchant), exact group exclusions.
+    const scoped = applyMerchantScope(txns, {
+      category: input.category,
+      type: input.type,
+      excludeGroups: input.excludeGroups,
+    });
 
     // Group by merchantGroupingKey
     const groups = new Map<string, {
@@ -125,9 +131,9 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       lastSeen: string;
     }>();
 
-    for (const t of filtered) {
+    for (const t of scoped) {
       const rawMerchant = t.merchant_name || t.merchant || 'Unknown';
-      const key = merchantGroupingKey(rawMerchant);
+      const key = t.groupKey;
       const amount = Math.abs(t.amount || 0);
       const date = t.date || '';
 
@@ -149,14 +155,6 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
       if (date && (!group.firstSeen || date < group.firstSeen)) group.firstSeen = date;
       if (date && (!group.lastSeen || date > group.lastSeen)) group.lastSeen = date;
-    }
-
-    // Apply deterministic group exclusions before computing totals
-    if (input.excludeGroups && input.excludeGroups.length > 0) {
-      const excludeSet = new Set(input.excludeGroups);
-      for (const key of excludeSet) {
-        groups.delete(key);
-      }
     }
 
     // Build result array, sorted by total descending
@@ -183,6 +181,10 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
     const grandTotal = merchantResults.reduce((sum, m) => sum + m.total, 0);
     const transactionCount = merchantResults.reduce((sum, m) => sum + m.count, 0);
 
+    // Evidence fingerprint over exactly the rows behind grandTotal/transactionCount
+    const reportedKeys = new Set(merchantResults.map(m => m.groupingKey));
+    const evidence = merchantEvidenceFingerprint(scoped.filter(t => reportedKeys.has(t.groupKey)));
+
     // Effective date range from actual data
     let earliestDate = '';
     let latestDate = '';
@@ -200,6 +202,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         end: input.endDate || latestDate,
       },
       queryStatus: truncated ? 'partial' as const : 'verified' as const,
+      evidence,
     });
   } catch (error) {
     console.error('[merchant_totals] Error:', error);

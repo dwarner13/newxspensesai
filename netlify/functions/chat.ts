@@ -158,6 +158,12 @@ import {
   type TxResolutionCandidate as SharedTxResolutionCandidate,
   type TxResolutionContext as SharedTxResolutionContext,
 } from '../../src/shared/tx-candidate-ownership';
+import {
+  buildMerchantBridgeArgs,
+  assessB2CBridgeResult,
+  formatB2CCompletenessInstruction,
+  type B2CCompleteness,
+} from '../../src/shared/merchant-scope-rows';
 import { detectHistoricalReference } from '../../src/shared/historical-reference-detector';
 // P3.0A: Shadow intent classifier (observational only — does not change runtime behavior)
 import { classifyPrimeIntent, type PrimeIntentClassification } from '../../src/shared/prime-intent-classifier';
@@ -172,6 +178,7 @@ import {
   validateExcludeGroups,
   buildMerchantAnalysisContext,
   formatMerchantAnalysisContext,
+  merchantTemporalScopeFromPlanSteps,
 } from '../../src/shared/merchant-analysis-context';
 // P3.1A.1: Canonical temporal scope (observational only — does not change runtime behavior)
 import { buildTemporalScope, buildTemporalScopeTelemetry } from '../../src/shared/prime-temporal-scope';
@@ -9988,11 +9995,13 @@ export const handler: Handler = async (event, context) => {
                       merchants,
                       {
                         excludedGroups: isNewMerchant ? [] : (existingMerchantAnalysis?.excludedGroups || []),
-                        temporalScope: temporalScope
-                          ? { startDate: temporalScope.startDate, endDate: temporalScope.endDate }
-                          : null,
-                        categoryFilter: shadowIntentResult?.financialClassification?.resolvedCategory ?? null,
+                        // P3.2B2C parity: the dates the EXECUTED merchant_totals step ran with
+                        // (the temporal-scope object has no startDate/endDate fields).
+                        temporalScope: merchantTemporalScopeFromPlanSteps(evidencePlanForExecution?.steps),
+                        // P3.2B2C parity: store the same category string merchant_totals was given
+                        categoryFilter: shadowIntentResult?.financialClassification?.resolvedCategory?.category ?? null,
                         evidenceComplete,
+                        evidence: mtData.evidence ?? null,
                       },
                     );
                     existingMerchantAnalysis = mac;
@@ -10087,23 +10096,12 @@ export const handler: Handler = async (event, context) => {
     // Execution is deferred until the stream/non-stream split (after prompt assembly).
     let b2cBridgeArgs: Record<string, any> | null = null;
     if (merchantAnalysisBridgeActive && existingMerchantAnalysis) {
-      const mac = existingMerchantAnalysis;
-      // Use groupingKeys directly as exclusion patterns. groupingKeys are normalized
-      // merchant names (lowercase, stripped suffixes) from merchantGroupingKey().
-      // excludeMerchants uses NOT ILIKE (case-insensitive), so groupingKeys work
-      // directly without needing display name lookup from activeGroups.
-      const excludePatterns = mac.excludedGroups
-        .filter(k => typeof k === 'string' && k.trim().length > 0)
-        .map(k => k.trim());
-      b2cBridgeArgs = {
-        q: mac.merchantQuery,
-        limit: 200,
-      };
-      if (mac.temporalScope?.startDate) b2cBridgeArgs.startDate = mac.temporalScope.startDate;
-      if (mac.temporalScope?.endDate) b2cBridgeArgs.endDate = mac.temporalScope.endDate;
-      if (mac.categoryFilter) b2cBridgeArgs.category = mac.categoryFilter;
-      if (excludePatterns.length > 0) b2cBridgeArgs.excludeMerchants = excludePatterns;
-      console.log(`[Chat][B2C] merchant analysis bridge active — query="${mac.merchantQuery}", temporal=${mac.temporalScope ? mac.temporalScope.startDate + '/' + mac.temporalScope.endDate : 'none'}, category=${mac.categoryFilter || 'none'}, exclusions=${excludePatterns.length} (${excludePatterns.join(', ')})`);
+      // P3.2B2C parity: request the SAME merchant row set merchant_totals aggregated
+      // (shared merchant-scope semantics: exact group keys, `date`, non-spend filter).
+      // The context supplies scope only — identity comes from the verified rows.
+      b2cBridgeArgs = buildMerchantBridgeArgs(existingMerchantAnalysis);
+      const sc = b2cBridgeArgs.merchantScope;
+      console.log(`[Chat][B2C] merchant analysis bridge active — query="${sc.merchantQuery}", temporal=${sc.startDate || sc.endDate ? `${sc.startDate || ''}/${sc.endDate || ''}` : 'none'}, category=${sc.category || 'none'}, include=${(sc.includeGroups || []).join(', ') || 'all'}, exclude=${(sc.excludeGroups || []).join(', ') || 'none'}`);
     }
 
     // ── P3.1C: Inject evidence context into model prompt (shared path) ──
@@ -11133,6 +11131,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     // DB-level merchant exclusions, then establishes authoritative candidates through
     // the request-scoped ownership gate (P0 candidate lifecycle).
     let b2cOutcome: OwnershipOutcome | null = null;
+    let b2cCompleteness: B2CCompleteness | null = null;
     if (merchantAnalysisBridgeActive && b2cBridgeArgs && toolModules['tx_search'] && finalSessionId) {
       try {
         const b2cToolContext: ToolContext = {
@@ -11150,6 +11149,14 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
           // P3.3C: B2C bridge is always candidate_establishment — its own authority,
           // not dependent on model purpose. It may replace an older frame.
           b2cOutcome = await ownershipGate.submitSearchResult(b2cData, 'B2C_merchant_bridge', 'candidate_establishment');
+          // P3.2B2C parity: compare verified retrieval with the analysed evidence. Fails safe —
+          // anything but a verified complete match must not be presented as the full set.
+          b2cCompleteness = assessB2CBridgeResult({
+            expected: existingMerchantAnalysis?.evidence ?? null,
+            payload: b2cData,
+            cardCount: ownershipGate.txCandidatesForResponse?.length ?? 0,
+          });
+          console.log(`[Chat][B2C] parity=${b2cCompleteness.parity} complete=${b2cCompleteness.complete} shown=${b2cCompleteness.shown} matched=${b2cCompleteness.matched} expected=${b2cCompleteness.expectedCount ?? 'n/a'}`);
           console.log(`[Chat][B2C] outcome=${b2cOutcome} — ${Array.isArray((b2cData as any).rows) ? (b2cData as any).rows.length : 0} rows, queryStatus=${(b2cData as any).queryStatus || 'unknown'}`);
         } else {
           console.log('[Chat][B2C] tx_search returned no rows — no candidates established');
@@ -11198,7 +11205,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         cLines.push(`[${c.ordinal}] ${parts.join(' | ')}`);
       }
       cLines.push('');
-      cLines.push(`${b2cCandidates.length} transactions found. Present these results to the user. Do NOT call tx_search — these candidates are already established and authoritative for this request.`);
+      cLines.push(b2cCompleteness
+        ? formatB2CCompletenessInstruction(b2cCompleteness)
+        : `${b2cCandidates.length} transactions found. Present these results to the user. Do NOT call tx_search — these candidates are already established and authoritative for this request.`);
       messages.push({ role: 'system', content: cLines.join('\n') });
       console.log(`[P3.3B] Injected ${b2cCandidates.length} B2C candidates into model context`);
     }

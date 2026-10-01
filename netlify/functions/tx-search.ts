@@ -3,6 +3,13 @@ import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { normalizeMerchantName, merchantKey } from './_shared/merchantNormalize.js';
 import { resolveCategoryOrPassthrough } from '../../src/shared/financial-taxonomy';
+import {
+  fetchMerchantScopeRows,
+  applyMerchantScope,
+  merchantEvidenceFingerprint,
+  type MerchantScope,
+  type MerchantScopeClient,
+} from '../../src/shared/merchant-scope-rows';
 
 // Categories that are internal money movement, NOT real spending. Excluded from
 // totals.spending so Prime doesn't report "Transfers" as the #1 expense.
@@ -38,7 +45,32 @@ type RequestBody = {
    *  Applied BEFORE limit so excluded rows never consume the row budget.
    *  Max 20 entries. Used by the merchant analysis bridge only. */
   excludeMerchants?: string[];
+  /** P3.2B2C parity: merchant-analysis scope mode. When present, rows are the
+   *  SAME row set merchant_totals aggregates (shared merchant-scope semantics:
+   *  `date` column, non-spend filter, exact group-key include/exclude), ordered
+   *  date DESC, id DESC. Generic filters (q, excludeMerchants, amounts, pending)
+   *  are not combined with this mode. */
+  merchantScope?: MerchantScope;
 };
+
+function readMerchantScope(raw: unknown): MerchantScope | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined);
+  const keys = (v: unknown) => (Array.isArray(v)
+    ? v.filter((k): k is string => typeof k === 'string' && k.trim().length > 0).map(k => k.trim()).slice(0, 50)
+    : undefined);
+  const type = r.type === 'expense' || r.type === 'income' ? r.type : undefined;
+  return {
+    merchantQuery: str(r.merchantQuery),
+    startDate: str(r.startDate),
+    endDate: str(r.endDate),
+    category: str(r.category),
+    type,
+    includeGroups: keys(r.includeGroups),
+    excludeGroups: keys(r.excludeGroups),
+  };
+}
 
 type TxRow = Record<string, any>;
 
@@ -222,6 +254,35 @@ export const handler: Handler = async (event) => {
       .filter(Boolean)
       .join(',');
 
+    // ── P3.2B2C parity: merchant-analysis scope mode ──
+    const merchantScope = readMerchantScope(body.merchantScope);
+    let merchantScopeMeta: Record<string, unknown> | null = null;
+    let rowsData: TxRow[] | null = null;
+
+    if (merchantScope) {
+      const extraColumns = [
+        hasImportId ? 'import_id' : null,
+        hasDocumentId ? 'document_id' : null,
+        textCols.includes('description') ? 'description' : null,
+        hasSubcategory ? 'subcategory' : null,
+      ].filter((c): c is string => !!c);
+      const fetched = await fetchMerchantScopeRows(sb as unknown as MerchantScopeClient, userId, merchantScope, extraColumns);
+      if (fetched.error) throw new Error(fetched.error);
+      const scoped = applyMerchantScope(fetched.rows, merchantScope);
+      rowsData = scoped.slice(0, limit).map((r) => {
+        const row: TxRow = { ...r };
+        delete row.groupKey;
+        return row;
+      });
+      merchantScopeMeta = {
+        matchedCount: scoped.length,
+        returnedCount: rowsData.length,
+        truncated: fetched.truncated || scoped.length > rowsData.length,
+        fingerprint: merchantEvidenceFingerprint(scoped),
+        scope: merchantScope,
+      };
+    }
+
     let query = sb.from('transactions').select(selectFields).eq('user_id', userId);
     const orClauses: string[] = [];
 
@@ -293,8 +354,11 @@ export const handler: Handler = async (event) => {
 
     query = (dateColumn ? query.order(dateColumn, { ascending: false }) : query.order('id', { ascending: false })).limit(limit);
 
-    const { data: rowsData, error: rowsError } = await query;
-    if (rowsError) throw rowsError;
+    if (!rowsData) {
+      const { data: genericRows, error: rowsError } = await query;
+      if (rowsError) throw rowsError;
+      rowsData = (genericRows || []) as TxRow[];
+    }
 
     const rows = (rowsData || []).map((row: TxRow) => {
       const merchantRaw = row.merchant_name || row.merchant || null;
@@ -365,7 +429,7 @@ export const handler: Handler = async (event) => {
     }
 
     let pendingRows: TxRow[] = [];
-    if (includePending) {
+    if (includePending && !merchantScope) {
       const hasPendingImportId = await detectColumn(sb, 'transactions_staging', userId, 'import_id', columnCache);
       const hasPendingDataJson = await detectColumn(sb, 'transactions_staging', userId, 'data_json', columnCache);
       if (hasPendingImportId && hasPendingDataJson) {
@@ -452,6 +516,7 @@ export const handler: Handler = async (event) => {
             textCols,
             hasSubcategory,
           },
+          ...(merchantScopeMeta && { merchantScope: merchantScopeMeta }),
         },
       }),
     };
