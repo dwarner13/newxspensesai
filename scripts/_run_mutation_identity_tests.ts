@@ -48,6 +48,13 @@ const CHAT_SRC = readFileSync(
   'utf-8',
 );
 
+// P3.3C repair: Layer 1 decision + handoff precedence live in the shared module chat.ts imports
+const OWN_SRC = readFileSync(
+  join(__dirname_local, '..', 'src', 'shared', 'tx-candidate-ownership.ts'),
+  'utf-8',
+);
+const LAYER1_PURE = extractBlock(OWN_SRC, 'export function computeLayer1Update(', 700);
+
 const DRAWER_SRC = readFileSync(
   join(__dirname_local, '..', 'src', 'components', 'transactions', 'TransactionInsightDrawer.tsx'),
   'utf-8',
@@ -171,7 +178,8 @@ test('8: blocked gate returns error tool result, not confirmation', () => {
 
 test('9: verified_zero clears authoritative selection (0 rows)', () => {
   const updateFn = extractBlock(CHAT_SRC, 'function updateAuthoritativeSelectedTxFromSearchResult(', 1000);
-  assert(updateFn.includes('rows.length === 1'), 'only exactly 1 row establishes authoritative');
+  assert(updateFn.includes('computeLayer1Update(result)'), 'uses shared Layer 1 decision');
+  assert(LAYER1_PURE.includes('rows.length === 1'), 'only exactly 1 row establishes authoritative');
   assert(updateFn.includes('clearAuthoritativeSelectedTx(sessionId)'), 'clears on non-1 rows');
 });
 
@@ -196,7 +204,7 @@ test('11: stale UUID from previous request cannot survive 0-result search', () =
   // 0 results path
   assert(updateFn.includes('clearAuthoritativeSelectedTx(sessionId)'), 'clears on 0 results');
   // >1 results path
-  assert(updateFn.includes('rows.length > 1'), 'checks for ambiguous >1 results');
+  assert(LAYER1_PURE.includes("rows.length > 1 ? 'ambiguous' : 'empty'"), 'checks for ambiguous >1 results');
 });
 
 // ---------------------------------------------------------------------------
@@ -205,7 +213,7 @@ test('11: stale UUID from previous request cannot survive 0-result search', () =
 
 test('12: ambiguous result clears authoritative selection', () => {
   const updateFn = extractBlock(CHAT_SRC, 'function updateAuthoritativeSelectedTxFromSearchResult(', 1000);
-  assert(updateFn.includes("rows.length > 1"), 'detects ambiguous results');
+  assert(LAYER1_PURE.includes("rows.length > 1 ? 'ambiguous' : 'empty'"), 'detects ambiguous results');
   assert(updateFn.includes('clearAuthoritativeSelectedTx(sessionId)'), 'clears for ambiguous');
 });
 
@@ -214,8 +222,7 @@ test('12: ambiguous result clears authoritative selection', () => {
 // ---------------------------------------------------------------------------
 
 test('13: single result with missing id clears authoritative', () => {
-  const updateFn = extractBlock(CHAT_SRC, 'function updateAuthoritativeSelectedTxFromSearchResult(', 800);
-  assert(updateFn.includes("rows[0]?.id"), 'checks for id existence');
+  assert(LAYER1_PURE.includes("rows[0]?.id"), 'checks for id existence');
 });
 
 // ---------------------------------------------------------------------------
@@ -233,10 +240,11 @@ test('14: malformed UUID in single result clears authoritative', () => {
 // ---------------------------------------------------------------------------
 
 test('15: authoritative UUID enables plugin handoff and binding', () => {
-  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 2000);
+  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 5000);
   assert(autoPromote.includes("handoffType = 'plugin'"), 'auto-promotes to plugin');
-  assert(autoPromote.includes('authTx.id'), 'injects authoritative UUID');
-  assert(autoPromote.includes("_source: 'authoritative_selected_tx'"), 'tags source');
+  assert(autoPromote.includes('id: tx.id'), 'injects authoritative UUID');
+  assert(autoPromote.includes('_source: handoffIdentity.source'), 'tags source');
+  assert(OWN_SRC.includes("source: 'authoritative_selected_tx'"), 'Layer 1 source marker defined');
 });
 
 // ---------------------------------------------------------------------------
@@ -408,8 +416,9 @@ test('32: request_employee_handoff is not gated', () => {
 
 test('33: exactly 1 row with valid UUID establishes authoritative', () => {
   const updateFn = extractBlock(CHAT_SRC, 'function updateAuthoritativeSelectedTxFromSearchResult(', 800);
-  assert(updateFn.includes('rows.length === 1 && rows[0]?.id'), 'checks exactly 1 row with id');
-  assert(updateFn.includes('writeAuthoritativeSelectedTx(sessionId, rows[0])'), 'writes to cache');
+  assert(LAYER1_PURE.includes('rows.length === 1 && rows[0]?.id'), 'checks exactly 1 row with id');
+  assert(LAYER1_PURE.includes("{ kind: 'set', id, row: rows[0] }"), 'sets from the single row');
+  assert(updateFn.includes('writeAuthoritativeSelectedTx(sessionId, update.row)'), 'writes to cache');
   assert(updateFn.includes('Authoritative selected transaction established'), 'logs establishment');
 });
 
@@ -435,12 +444,12 @@ test('34: challenge message does not bypass gate (tool-level defense)', () => {
 // ---------------------------------------------------------------------------
 
 test('35: auto-promotion injects exact UUID, not description/amount', () => {
-  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 1800);
-  assert(autoPromote.includes('id: authTx.id'), 'injects exact UUID');
+  const autoPromote = extractBlock(CHAT_SRC, 'Auto-promote standard', 5000);
+  assert(autoPromote.includes('id: tx.id'), 'injects exact UUID');
   // Also carries description, amount, date for context — but id is the authoritative identity
-  assert(autoPromote.includes('description: authTx.description'), 'carries description');
-  assert(autoPromote.includes('amount: authTx.amount'), 'carries amount');
-  assert(autoPromote.includes('date: authTx.date'), 'carries date');
+  assert(autoPromote.includes('description: tx.description'), 'carries description');
+  assert(autoPromote.includes('amount: tx.amount'), 'carries amount');
+  assert(autoPromote.includes('date: tx.date'), 'carries date');
 });
 
 // ---------------------------------------------------------------------------
@@ -456,8 +465,9 @@ test('36: promoteLayer2SelectedTx exists and feeds performHandoffLifecycle', () 
 test('37: Layer 2 promotion enters same plugin_payload path as Layer 1', () => {
   const lifecycle = extractBlock(CHAT_SRC, 'async function performHandoffLifecycle', 5000);
   // Both Layer 1 and Layer 2 set handoffType = 'plugin' and pluginPayload
-  assert(lifecycle.includes("_source: 'authoritative_selected_tx'"), 'Layer 1 source marker');
-  assert(lifecycle.includes("_source: 'layer2_selected_tx'"), 'Layer 2 source marker');
+  assert(lifecycle.includes('_source: handoffIdentity.source'), 'single payload path for both layers');
+  assert(OWN_SRC.includes("source: 'authoritative_selected_tx'"), 'Layer 1 source marker');
+  assert(OWN_SRC.includes("source: 'layer2_selected_tx'"), 'Layer 2 source marker');
   // Both use same downstream: bindAuthoritativeTxIdentity reads plugin_payload.transaction.id
   const bindFn = extractBlock(CHAT_SRC, 'function bindAuthoritativeTxIdentity', 800);
   assert(bindFn.includes('plugin_payload?.transaction?.id'), 'bind reads plugin_payload.transaction.id');
@@ -495,7 +505,7 @@ test('41: Layer 2 does not bypass buildVerifiedConfirmationSummary', () => {
 
 test('42: stale Layer 1 structurally prevented — multi-result search clears cache', () => {
   const updateFn = extractBlock(CHAT_SRC, 'function updateAuthoritativeSelectedTxFromSearchResult', 800);
-  assert(updateFn.includes('rows.length === 1'), 'only 1-row establishes Layer 1');
+  assert(LAYER1_PURE.includes('rows.length === 1'), 'only 1-row establishes Layer 1');
   assert(updateFn.includes('clearAuthoritativeSelectedTx'), 'clears on 0 or >1 rows');
   // handleSelectTransaction must NOT write to Layer 1
   const selectFn = extractBlock(CHAT_SRC, 'async function handleSelectTransaction', 1500);
@@ -503,13 +513,18 @@ test('42: stale Layer 1 structurally prevented — multi-result search clears ca
   assert(!selectFn.includes('authoritativeSelectedTxCache'), 'select_transaction does not touch Layer 1 cache');
 });
 
-test('43: Layer 1 precedence — checked before Layer 2 in performHandoffLifecycle', () => {
-  const lifecycle = extractBlock(CHAT_SRC, 'async function performHandoffLifecycle', 5000);
+test('43: P3.3C precedence — verified Layer 2 selection wins over Layer 1', () => {
+  const lifecycle = extractBlock(CHAT_SRC, 'async function performHandoffLifecycle', 6000);
   const l1Idx = lifecycle.indexOf('readAuthoritativeSelectedTx(finalSessionId)');
   const l2Idx = lifecycle.indexOf('promoteLayer2SelectedTx');
   assert(l1Idx > 0, 'Layer 1 check exists');
   assert(l2Idx > 0, 'Layer 2 check exists');
-  assert(l1Idx < l2Idx, 'Layer 1 checked before Layer 2');
+  assert(l2Idx < l1Idx, 'Layer 2 consulted before Layer 1');
+  const helper = extractBlock(OWN_SRC, 'export function resolveTagHandoffIdentity', 1200);
+  assert(helper.indexOf('if (input.layer2Selected)') >= 0
+    && helper.indexOf('if (input.layer2Selected)') < helper.indexOf("source: 'authoritative_selected_tx'"),
+    'shared helper returns Layer 2 before considering Layer 1');
+  assert(helper.includes('frame.includes(l1.id)'), 'Layer 1 fallback must be a member of the current frame');
 });
 
 test('44: no-select regression — null selectedId produces no promotion', () => {

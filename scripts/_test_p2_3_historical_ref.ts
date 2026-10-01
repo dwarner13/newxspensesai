@@ -277,10 +277,13 @@ assert(CHAT_SRC.includes('!isHistoricalConversationRef) {') &&
 
 console.log('\n── Section 9: tx_resolution Preservation ──');
 
-// shouldPreserveCandidates = hasExistingCandidates && !isNewGroundedSearch
-// When P2.3 fires: isNewGroundedSearch = false → shouldPreserveCandidates = true (if candidates exist)
-assert(CHAT_SRC.includes('const shouldPreserveCandidates = hasExistingCandidates && !isNewGroundedSearch'),
-  'S9.1: shouldPreserveCandidates formula unchanged');
+// P3.3C: shouldPreserveCandidates = hasExistingCandidates (any valid frame is preserved).
+// When P2.3 fires: isNewGroundedSearch = false → frame preserved AND the B2C bridge
+// (the only path allowed to replace an old frame) cannot fire either.
+assert(CHAT_SRC.includes('const shouldPreserveCandidates = hasExistingCandidates;')
+  && CHAT_SRC.includes('const merchantAnalysisBridgeActive = computeB2CBridgeActive({')
+  && /isNewGroundedSearch,\s*\n\s*\}\);/.test(CHAT_SRC),
+  'S9.1: shouldPreserveCandidates preserves any frame; B2C replacement requires isNewGroundedSearch');
 
 // Verify: historical ref → isNewGroundedSearch=false → shouldPreserveCandidates=true when candidates exist
 {
