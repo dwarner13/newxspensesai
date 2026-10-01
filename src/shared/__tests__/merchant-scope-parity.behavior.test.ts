@@ -117,6 +117,8 @@ import {
 } from '../merchant-scope-rows';
 import { buildMerchantAnalysisContext, merchantTemporalScopeFromPlanSteps } from '../merchant-analysis-context';
 import { assessB2CBridgeResult, merchantCategoryScope } from '../merchant-scope-rows';
+import { resolveMerchantHintTrust } from '../merchant-hint-trust';
+import { classifyFinancialQuery } from '../financial-query-classifier';
 import { execute as refineExecute } from '../../agent/tools/impl/merchant_analysis_refine';
 import { classifyPrimeIntent } from '../prime-intent-classifier';
 import { buildTemporalScope } from '../prime-temporal-scope';
@@ -725,5 +727,25 @@ describe('P3.3D — B2C visible frame', () => {
     expect(text).not.toContain('Present these results');
     const third = selectCandidateFromFrame(frame(), 3);
     expect(third.ok && third.candidate.id).toBe(COSTCO_3);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Semantic Stage 1 — merchant-hint trust grounded by the REAL merchant_totals
+// ═════════════════════════════════════════════════════════════════════════════
+describe('merchant-hint trust against real merchant_totals groups', () => {
+  it('"Show me Costco purchases." grounds against the real Costco groups', async () => {
+    const fc = classifyFinancialQuery('Show me Costco purchases.');
+    expect(fc.merchantHintSource).toBe('noun_suffix');
+    const mt = await runMerchantTotals({ merchant: fc.merchantHint });
+    expect(resolveMerchantHintTrust(fc, mt.merchants.map(m => m.groupingKey))).toBe(true);
+  });
+
+  it('"these ten transactions": ILIKE finds TENNIS CLUB, but "ten" is not grounded', async () => {
+    db.rows.push({ id: 'ffffffff-0000-4000-8000-000000000001', user_id: U, posted_at: null, date: '2025-03-03', merchant_name: 'TENNIS CLUB', merchant: 'TENNIS CLUB', description: null, amount: 80, type: 'expense', category: 'Recreation', subcategory: null, import_id: null, document_id: null });
+    const fc = classifyFinancialQuery("What's the total of these ten transactions?");
+    const mt = await runMerchantTotals({ merchant: fc.merchantHint });
+    expect(mt.merchants.map(m => m.groupingKey)).toEqual(['tennis club']);
+    expect(resolveMerchantHintTrust(fc, mt.merchants.map(m => m.groupingKey))).toBe(false);
   });
 });

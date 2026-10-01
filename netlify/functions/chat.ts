@@ -144,6 +144,12 @@ import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint } f
 import { detectCurrentTimeIntent, type CurrentTimeIntent } from '../../src/shared/detect-current-time-intent';
 import { detectCandidateFollowUp } from '../../src/shared/candidate-follow-up-detector';
 import {
+  resolveMerchantHintTrust,
+  isUntrustedMerchantHint,
+  merchantGroupKeysFromEvidence,
+  withholdMerchantAggregationEvidence,
+} from '../../src/shared/merchant-hint-trust';
+import {
   resolveCandidateOwnership,
   createCandidateOwnershipGate,
   submitEvidenceTxSearchResults,
@@ -9946,6 +9952,14 @@ export const handler: Handler = async (event, context) => {
     // Results are injected into model context. Failures are non-fatal.
     let p31cResult: PrimeEvidenceExecutionResult | null = null;
     const p31cDedupCache: DedupCache = new Map();
+    // ── Semantic Stage 1: merchant-hint trust (single derived state) ──
+    // Extraction is not trust. Preposition hints ("at Costco") stay trusted; noun-suffix
+    // hints ("Costco transactions", "these ten transactions") are trusted only when
+    // grounded against real merchant group keys from P3.1C merchant_totals evidence.
+    // Untrusted hints never persist merchant context, satisfy P3.3A, inject merchant
+    // evidence, or drive grounding pre-exec. They never affect transaction identity.
+    let merchantGroundingKeys: string[] | null = null;
+    let merchantHintTrusted = resolveMerchantHintTrust(shadowIntentResult?.financialClassification, null);
     if (isPrime && evidencePlanForExecution && toolsAllowedThisTurn) {
       try {
         const hasExecutableSteps = evidencePlanForExecution.steps.some(
@@ -9976,6 +9990,12 @@ export const handler: Handler = async (event, context) => {
           const execTelemetry = buildEvidenceExecutionTelemetry(p31cResult);
           console.log(`[P3.1C Evidence Execution] ${JSON.stringify(execTelemetry)}`);
 
+          merchantGroundingKeys = merchantGroupKeysFromEvidence(p31cResult.results);
+          merchantHintTrusted = resolveMerchantHintTrust(shadowIntentResult?.financialClassification, merchantGroundingKeys);
+          if (shadowIntentResult?.financialClassification?.merchantHint) {
+            console.log(`[Chat] Merchant hint trust: source=${shadowIntentResult.financialClassification.merchantHintSource ?? 'unknown'} trusted=${merchantHintTrusted} groups=${merchantGroundingKeys.length}`);
+          }
+
           // P3.3C: P3.1C tx_search results are analytical evidence — they remain
           // available to the model via p31cResult but never touch Layer 1, Layer 2,
           // txCandidatesForResponse, or the ownership lock.
@@ -9987,7 +10007,8 @@ export const handler: Handler = async (event, context) => {
             // P3.2B2B: Capture merchant_totals results and persist MerchantAnalysisContext
             // Runs AFTER tx_resolution write completes to prevent JSONB lost-update.
             const merchantHint = shadowIntentResult?.financialClassification?.merchantHint;
-            if (merchantHint) {
+            // Semantic Stage 1: an untrusted lexical hint never creates or overwrites merchant context
+            if (merchantHint && merchantHintTrusted) {
               for (const r of p31cResult.results) {
                 if (r.tool === 'merchant_totals' && r.status === 'resolved' && r.data) {
                   try {
@@ -10035,6 +10056,13 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    // Semantic Stage 1: merchant_totals evidence for an untrusted hint is never presented
+    // as authoritative merchant aggregation (and so cannot satisfy P3.3A below).
+    if (p31cResult && isUntrustedMerchantHint(shadowIntentResult?.financialClassification, merchantHintTrusted)) {
+      p31cResult = withholdMerchantAggregationEvidence(p31cResult, evidencePlanForExecution);
+      console.log(`[Chat] Merchant hint trust: withheld merchant evidence for untrusted hint "${shadowIntentResult?.financialClassification?.merchantHint}" (remaining results=${p31cResult?.results.length ?? 0})`);
+    }
+
     // ── P3.1D: Request-scoped accumulated evidence ──
     // Seeded from P3.1C; later successful read-tool results are added.
     // Only tx_search, transaction_category_totals, cash_flow_summary may enter — mutations NEVER.
@@ -10058,6 +10086,7 @@ export const handler: Handler = async (event, context) => {
     const shadowFC = shadowIntentResult?.financialClassification;
     const merchantAggSatisfied = !!(
       isPrime
+      && merchantHintTrusted
       && p31cResult?.overallSufficiency === 'sufficient'
       && p31cResult.results.some(r =>
         r.evidenceKind === 'merchant_aggregation'
@@ -12786,7 +12815,13 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               if (phase1dSuppressed) {
                 console.log(`[FinancialGrounding] Phase1D: skipping tx_search pre-exec — ${existingTxResolution!.candidates.length} existing candidates preserved for model selection`);
               }
-              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed && !merchantAggGate) {
+              // Semantic Stage 1: same trust rule, same grounding keys — an untrusted lexical
+              // merchant hint never drives a merchant pre-exec (and so never establishes candidates).
+              const untrustedMerchantPreExec = isUntrustedMerchantHint(financialClassification, resolveMerchantHintTrust(financialClassification, merchantGroundingKeys));
+              if (untrustedMerchantPreExec) {
+                console.log(`[FinancialGrounding] skipping pre-exec — untrusted merchant hint "${financialClassification.merchantHint}"`);
+              }
+              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed && !merchantAggGate && !untrustedMerchantPreExec) {
                 console.log(`[FinancialGrounding] pre-executing tool=${plan.toolName} args=${JSON.stringify(plan.toolArgs)}`);
                 try {
                   const toolContext: ToolContext = {
@@ -14000,7 +14035,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           try {
             const contextYear = new Date().getFullYear();
             const plan = buildPreExecutionPlan(financialClassification, contextYear);
-            if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName]) {
+            const untrustedMerchantRetry = isUntrustedMerchantHint(financialClassification, resolveMerchantHintTrust(financialClassification, merchantGroundingKeys));
+            if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry) {
               const toolCtx: ToolContext = {
                 userId,
                 conversationId: finalSessionId,

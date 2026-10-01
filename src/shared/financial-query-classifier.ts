@@ -23,6 +23,9 @@ export type FinancialQueryType =
   | 'merchant'     // "how much at Costco?" → use tx_search with q
   | 'none';        // general education, not about user's data
 
+/** Which extraction pattern produced a merchant hint. */
+export type MerchantHintSource = 'preposition' | 'noun_suffix';
+
 export interface FinancialQueryClassification {
   /** Is this a factual query about the user's actual financial data? */
   requiresGrounding: boolean;
@@ -30,8 +33,14 @@ export interface FinancialQueryClassification {
   queryType: FinancialQueryType;
   /** Resolved category scope (if a category term was found) */
   resolvedCategory?: { category: string; subcategory?: string; section?: string };
-  /** Merchant hint extracted from message */
+  /** Merchant hint extracted from message (lexical — see merchantHintSource) */
   merchantHint?: string;
+  /**
+   * Where the merchant hint came from. 'preposition' ("at Costco") is trusted
+   * as today; 'noun_suffix' ("Costco transactions") is only a lexical candidate
+   * and must be grounded against real merchant data before it is trusted.
+   */
+  merchantHintSource?: MerchantHintSource;
   /** Years mentioned */
   years: number[];
   /** The analyzed scope from tool-gate */
@@ -100,6 +109,14 @@ function isLeapYear(y: number): boolean { return (y % 4 === 0 && y % 100 !== 0) 
  * Do not duplicate this logic — import and call this function instead.
  */
 export function extractMerchantHint(msg: string): string | undefined {
+  return extractMerchantHintWithSource(msg)?.hint;
+}
+
+/**
+ * Same extraction as extractMerchantHint, plus which pattern produced the hint.
+ * Extraction is NOT trust: noun-suffix hints are lexical candidates only.
+ */
+export function extractMerchantHintWithSource(msg: string): { hint: string; source: MerchantHintSource } | undefined {
   // Primary: preposition + word (e.g., "from Costco", "at Walmart")
   // NOTE: Bare "to" is excluded — it causes false positives on conversational
   // phrases like "talk to if", "go to for". Compound forms (paid to, sent to)
@@ -111,7 +128,7 @@ export function extractMerchantHint(msg: string): string | undefined {
     if (!MONTH_NAMES.has(candidate.toLowerCase())) {
       const cleaned = candidate.replace(/\s+(in|for|on|during|from|to|this|last)\s.*$/i, '').trim();
       if (cleaned && !CATEGORY_NOT_MERCHANT.has(cleaned.toLowerCase())) {
-        return cleaned;
+        return { hint: cleaned, source: 'preposition' };
       }
     }
   }
@@ -131,7 +148,7 @@ export function extractMerchantHint(msg: string): string | undefined {
       'did', 'does', 'do', 'is', 'was', 'were',
     ]);
     if (!CATEGORY_NOT_MERCHANT.has(lower) && !MONTH_NAMES.has(lower) && !NON_MERCHANT_WORDS.has(lower)) {
-      return candidate;
+      return { hint: candidate, source: 'noun_suffix' };
     }
   }
 
@@ -241,8 +258,10 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
   const categoryTerm = extractCategoryTerm(lower);
   const resolved = categoryTerm ? resolveCategory(categoryTerm) ?? undefined : undefined;
 
-  // ── Merchant extraction ──
-  const merchantHint = extractMerchantHint(msg);
+  // ── Merchant extraction (lexical; trust is decided downstream) ──
+  const merchantExtraction = extractMerchantHintWithSource(msg);
+  const merchantHint = merchantExtraction?.hint;
+  const merchantHintSource = merchantExtraction?.source;
 
   // ── Exact identifiers ──
   const exactDate = extractExactDate(msg);
@@ -277,6 +296,7 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
       queryType: 'none',
       resolvedCategory: resolved,
       merchantHint,
+      merchantHintSource,
       years: scope.mentionedYears,
       scope,
       exactAmount,
@@ -305,6 +325,7 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     queryType,
     resolvedCategory: resolved,
     merchantHint,
+    merchantHintSource,
     years: scope.mentionedYears,
     scope,
     exactAmount,
