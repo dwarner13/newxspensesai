@@ -930,7 +930,37 @@ export function shouldSuppressLegacyPreExec(
   executionResult: PrimeEvidenceExecutionResult | null,
   legacyToolName: string,
 ): boolean {
-  if (!executionResult) return false;
+  const relevant = relevantP31CResults(executionResult, legacyToolName);
+  return relevant.some(r => r.status === 'resolved' || r.status === 'successful_empty');
+}
+
+/**
+ * V1-A CP4.1: the legacy FinancialGrounding query status that P3.1C's ACTUAL result
+ * PROVES. Stricter than suppression (which only asks "may legacy evidence replace it?"):
+ *   authoritative resolved                                 → 'verified'
+ *   successful_empty proven complete (see isProvenEmpty)   → 'verified_zero'
+ *   partial / non-authoritative / classification-incomplete empty,
+ *   failed / skipped / unavailable / not run               → null (nothing proven)
+ */
+export function legacyQueryStatusFromP31C(
+  executionResult: PrimeEvidenceExecutionResult | null,
+  legacyToolName: string,
+): 'verified' | 'verified_zero' | null {
+  const relevant = relevantP31CResults(executionResult, legacyToolName);
+  const resolved = relevant.filter(r => r.status === 'resolved');
+  // Rows were found: a zero is disproven, but only authoritative rows verify the data.
+  if (resolved.length > 0) return resolved.some(r => r.authoritative) ? 'verified' : null;
+  const empty = relevant.filter(r => r.status === 'successful_empty');
+  if (empty.length > 0 && empty.every(isProvenEmpty)) return 'verified_zero';
+  return null;
+}
+
+/** Relevant P3.1C results for a legacy tool (shared evidence-kind mapping). */
+function relevantP31CResults(
+  executionResult: PrimeEvidenceExecutionResult | null,
+  legacyToolName: string,
+): PrimeEvidenceResult[] {
+  if (!executionResult) return [];
 
   // Map legacy tool names to P3.1C evidence kinds
   const legacyToKinds: Record<string, PrimeEvidenceKind[]> = {
@@ -941,18 +971,21 @@ export function shouldSuppressLegacyPreExec(
   };
 
   const relevantKinds = legacyToKinds[legacyToolName];
-  if (!relevantKinds) return false;
+  if (!relevantKinds) return [];
+  return executionResult.results.filter(r => relevantKinds.includes(r.evidenceKind));
+}
 
-  // Check if P3.1C has successfully resolved ALL relevant evidence kinds
-  for (const kind of relevantKinds) {
-    const kindResults = executionResult.results.filter(r => r.evidenceKind === kind);
-    const hasResolved = kindResults.some(
-      r => r.status === 'resolved' || r.status === 'successful_empty',
-    );
-    if (hasResolved) return true;
-  }
-
-  return false;
+/**
+ * V1-A CP4.1: an empty result proves zero only when it is authoritative, not partial /
+ * truncated, and its classification is not explicitly incomplete (existing signals only).
+ */
+function isProvenEmpty(r: PrimeEvidenceResult): boolean {
+  if (r.authoritative !== true || isPartialEvidence(r.data)) return false;
+  const completeness = r.data && typeof r.data === 'object'
+    ? (r.data as Record<string, unknown>).completeness
+    : undefined;
+  return !(completeness && typeof completeness === 'object'
+    && (completeness as Record<string, unknown>).classificationComplete === false);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

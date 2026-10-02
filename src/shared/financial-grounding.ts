@@ -59,8 +59,7 @@ export interface PreExecutionPlan {
 const FALSE_ZERO_PATTERNS = [
   /no recorded (expense|transaction|spending|charge|purchase|payment)/i,
   /no .*(expense|transaction|spending|charge|purchase|payment)s? (found|recorded|in|for|during)/i,
-  /\$0(\.00)?\b/,
-  /zero (expense|transaction|spending|charge|purchase|payment)/i,
+  /zero (expense|transaction|spending|charge|purchase|payment|income)/i,
   /none found/i,
   /no transactions (found|matching|recorded|in|for)/i,
   /didn'?t (find|have|see|record|show) any/i,
@@ -79,12 +78,26 @@ function legacyGroundingApplies(classification: FinancialQueryClassification): b
   return classification.requiresGrounding && !isUnsupportedFinancialSubject(classification);
 }
 
+/** Dollar amounts in prose ("$4,250", "$0.00", "-$0.50" → 0.50; a sign never makes zero). */
+const DOLLAR_AMOUNT_RE = /\$\s?(\d[\d,]*(?:\.\d+)?)/g;
+
+/**
+ * V1-A CP4.1: amount-based zero claim — at least one dollar amount, and EVERY amount is
+ * exactly zero. A $0 component beside a non-zero amount ("Transfers were $0.00") or an
+ * amount like $0.50 is not an overall zero claim. (Known limit: "$0 in May vs $4,250
+ * last month" is not flagged — no metric extraction here.)
+ */
+function assertsOnlyZeroAmounts(response: string): boolean {
+  const amounts = [...response.matchAll(DOLLAR_AMOUNT_RE)].map(m => Number(m[1].replace(/,/g, '')));
+  return amounts.length > 0 && amounts.every(a => a === 0);
+}
+
 /**
  * Detect if a response asserts a zero/none claim about the user's financial data.
  */
 export function detectsFalseZero(response: string): boolean {
   if (!response) return false;
-  return FALSE_ZERO_PATTERNS.some(pattern => pattern.test(response));
+  return assertsOnlyZeroAmounts(response) || FALSE_ZERO_PATTERNS.some(pattern => pattern.test(response));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

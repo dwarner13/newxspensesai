@@ -202,6 +202,7 @@ import {
   buildEvidenceExecutionTelemetry,
   buildEvidenceContextMessage,
   shouldSuppressLegacyPreExec,
+  legacyQueryStatusFromP31C,
   buildDedupKey,
   classifyEvidenceShape,
   type PrimeEvidenceExecutionResult,
@@ -12829,7 +12830,13 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               if (p31cSuppressed || merchantAggGate) {
                 const gateLabel = p31cSuppressed ? 'P3.1C' : 'P3.3A merchant_aggregation';
                 console.log(`[FinancialGrounding] ${gateLabel} gate: skipping legacy ${plan.toolName} pre-exec — evidence already resolved`);
-                financialEvidence = { grounded: true, toolName: plan.toolName as any, queryStatus: 'verified', fromContext: false };
+                // V1-A CP4.1: P3.1C's actual result decides what is proven (verified / verified_zero).
+                // Suppressed-but-unproven evidence (partial, non-authoritative, classification-incomplete)
+                // claims no verified status. Only the P3.3A merchant gate keeps 'verified'.
+                const gateQueryStatus = p31cSuppressed ? legacyQueryStatusFromP31C(p31cResult, plan.toolName!) : 'verified';
+                financialEvidence = gateQueryStatus
+                  ? { grounded: true, toolName: plan.toolName as any, queryStatus: gateQueryStatus, fromContext: false }
+                  : { grounded: false };
               }
               // ── Phase 1D gate: skip tx_search pre-exec when existing candidates exist ──
               // Existing candidates represent the user's conversational reference frame.
@@ -14064,11 +14071,18 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
           // One bounded retry: force tool execution and re-prompt
           let retrySucceeded = false;
+          let retryBlockedByP31C = false;
           try {
             const contextYear = new Date().getFullYear();
             const plan = buildPreExecutionPlan(financialClassification, contextYear);
             const untrustedMerchantRetry = isUntrustedMerchantHint(financialClassification, resolveMerchantHintTrust(financialClassification, merchantGroundingKeys));
-            if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry) {
+            // V1-A CP4.1: scoped P3.1C evidence (resolved or empty, proven or not) is never replaced by a legacy retry tool
+            const p31cRetrySuppressed = plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false;
+            if (p31cRetrySuppressed) {
+              retryBlockedByP31C = true;
+              console.log(`[FinancialGrounding] P3.1C gate: skipping legacy ${plan.toolName} false-zero retry — scoped P3.1C evidence owns this request`);
+            }
+            if (!p31cRetrySuppressed && plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry) {
               const toolCtx: ToolContext = {
                 userId,
                 conversationId: finalSessionId,
@@ -14141,7 +14155,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
           // If retry also failed or was rejected, return an honest fallback instead of the false zero
           if (!retrySucceeded) {
-            assistantContent = "I found financial data for that request, but I wasn't able to produce a reliable summary from it. Could you try asking again?";
+            // V1-A CP4.1: scoped P3.1C evidence owned this request but proved neither data nor zero
+            assistantContent = retryBlockedByP31C && !financialEvidence.grounded
+              ? "I wasn't able to confirm a reliable result for that period from your imported data, so I can't give you a total right now. Could you try asking again?"
+              : "I found financial data for that request, but I wasn't able to produce a reliable summary from it. Could you try asking again?";
             console.warn('[FinancialGrounding] false-zero retry failed — returning grounded fallback');
           }
         }
