@@ -194,6 +194,211 @@ export function isIncomeBroad(tx: ClassifiableTransaction): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CASH-FLOW CLASSIFICATION (Prime V1-A CP2)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// One deterministic rule for authoritative aggregates:
+//   - TYPE decides direction (inflow / outflow). Sign NEVER decides direction.
+//   - CATEGORY, then SUBCATEGORY, decide purpose within that direction. Neither
+//     ever flips direction.
+//   - Money is |amount| in integer cents. Invalid amounts are excluded, never $0.
+//   - Disagreements between type, category and sign are surfaced as conflicts,
+//     not silently corrected.
+// Refunds/reversals cannot be identified from current data (no refund type,
+// `direction` is null, sign is unreliable) — they are NOT detected here.
+
+export type CashFlowDirection = 'inflow' | 'outflow' | 'unclassified';
+
+export type CashFlowPurpose =
+  /** Inflow that is not a transfer. */
+  | 'income'
+  /** Ordinary consumption outflow. */
+  | 'spending'
+  | 'transfer_in'
+  | 'transfer_out'
+  /** Outflow to debt / loan / credit-card payment. */
+  | 'debt_payment'
+  /** Outflow to savings / investments (incl. TFSA/RRSP) — internal money movement. */
+  | 'savings_investment'
+  /** Other canonical non-spend outflow (e.g. ATM withdrawal, points redemption). */
+  | 'other_non_spend'
+  /** Outflow whose category contradicts its type (e.g. expense + "Income"). */
+  | 'classification_conflict'
+  | 'unclassified';
+
+export type CashFlowConflict =
+  /** Outflow (by type) carrying an income category, e.g. expense + "Income". */
+  | 'income_category_on_outflow'
+  /** Inflow (by type) carrying a debt / savings / other non-spend category or subcategory. */
+  | 'non_spend_category_on_inflow'
+  /** Inflow (by type) with a negative stored amount — possible reversal, not inferred. */
+  | 'negative_inflow';
+
+export type CashFlowExclusion = 'unclassified_type' | 'missing_amount';
+
+export interface CashFlowClassification {
+  direction: CashFlowDirection;
+  purpose: CashFlowPurpose;
+  /** |amount| in integer cents; null when excluded. */
+  amountCents: number | null;
+  /** Why the row cannot contribute to money totals (null = it can). */
+  excluded: CashFlowExclusion | null;
+  conflicts: CashFlowConflict[];
+}
+
+/**
+ * Types with an established, unambiguous direction (compared case-insensitively).
+ * 'Credit'/'Debit' are deliberately NOT here: commit-import documents that
+ * credit-card statements label purchases as 'Credit', so it is not a reliable
+ * inflow signal. Such rows are 'unclassified' and counted, never guessed.
+ */
+const CASH_FLOW_INFLOW_TYPES: ReadonlySet<string> = new Set(['income']);
+const CASH_FLOW_OUTFLOW_TYPES: ReadonlySet<string> = new Set(['expense', 'purchase']);
+
+export type NonSpendPurpose =
+  | 'transfer'
+  | 'debt_payment'
+  | 'savings_investment'
+  | 'other_non_spend'
+  | 'income_category';
+
+/**
+ * Purpose of every canonical NON_SPEND_CATEGORIES entry (same list, no second
+ * taxonomy — a test asserts the key sets are identical).
+ */
+export const NON_SPEND_CATEGORY_PURPOSE: Readonly<Record<string, NonSpendPurpose>> = {
+  'transfers': 'transfer',
+  'transfer': 'transfer',
+  'loan payments': 'debt_payment',
+  'loan payment': 'debt_payment',
+  'credit card payments': 'debt_payment',
+  'credit card payment': 'debt_payment',
+  'debt payments': 'debt_payment',
+  'debt payment': 'debt_payment',
+  'investments': 'savings_investment',
+  'investment': 'savings_investment',
+  'savings': 'savings_investment',
+  'income': 'income_category',
+  'business income': 'income_category',
+};
+
+/**
+ * Purpose of every canonical NON_SPEND_SUBCATEGORIES entry (same list — a test
+ * asserts the key sets are identical).
+ */
+export const NON_SPEND_SUBCATEGORY_PURPOSE: Readonly<Record<string, Exclude<NonSpendPurpose, 'income_category'>>> = {
+  'car loan': 'debt_payment',
+  'loan payment': 'debt_payment',
+  'loan payments': 'debt_payment',
+  'credit card payment': 'debt_payment',
+  'credit card payments': 'debt_payment',
+  'credit card': 'debt_payment',
+  'debt payment': 'debt_payment',
+  'debt payments': 'debt_payment',
+  'transfer': 'transfer',
+  'transfers': 'transfer',
+  'e-transfer': 'transfer',
+  'investment': 'savings_investment',
+  'investments': 'savings_investment',
+  'tfsa': 'savings_investment',
+  'rrsp': 'savings_investment',
+  'atm withdrawal': 'other_non_spend',
+  'points redemption': 'other_non_spend',
+};
+
+/**
+ * Canonical income categories (CANONICAL_CATEGORIES 'Income', 'Business Income',
+ * 'Employment Income'). Used ONLY to detect the income-category-on-outflow
+ * conflict — never to set direction.
+ */
+export const INCOME_CATEGORIES: ReadonlySet<string> = new Set(['income', 'business income', 'employment income']);
+
+/** Direction from `type` alone. */
+export function cashFlowDirectionForType(type: string | null | undefined): CashFlowDirection {
+  const t = (type || '').trim().toLowerCase();
+  if (CASH_FLOW_INFLOW_TYPES.has(t)) return 'inflow';
+  if (CASH_FLOW_OUTFLOW_TYPES.has(t)) return 'outflow';
+  return 'unclassified';
+}
+
+/** Parse a stored amount; null for missing / non-numeric / non-finite values. */
+export function parseTransactionAmount(amount: unknown): number | null {
+  const n = typeof amount === 'number' ? amount
+    : typeof amount === 'string' && amount.trim() !== '' ? Number(amount)
+      : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+/** |amount| → integer cents (null when the amount is invalid). */
+export function amountToCents(amount: unknown): number | null {
+  const n = parseTransactionAmount(amount);
+  return n === null ? null : Math.round(Math.abs(n) * 100);
+}
+
+const OUTFLOW_PURPOSE: Readonly<Record<Exclude<NonSpendPurpose, 'income_category'>, CashFlowPurpose>> = {
+  transfer: 'transfer_out',
+  debt_payment: 'debt_payment',
+  savings_investment: 'savings_investment',
+  other_non_spend: 'other_non_spend',
+};
+
+/**
+ * Classify one transaction for authoritative aggregates.
+ * Pure and deterministic: no DB, no model, no natural-language parsing.
+ *
+ * Purpose precedence (within the type-decided direction):
+ *   outflow: income category → classification_conflict; else category purpose;
+ *            else subcategory purpose; else spending.
+ *   inflow:  transfer category or subcategory → transfer_in; else income.
+ */
+export function classifyCashFlow(tx: {
+  type?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  amount?: unknown;
+}): CashFlowClassification {
+  const direction = cashFlowDirectionForType(tx.type);
+  if (direction === 'unclassified') {
+    return { direction, purpose: 'unclassified', amountCents: null, excluded: 'unclassified_type', conflicts: [] };
+  }
+
+  const parsed = parseTransactionAmount(tx.amount);
+  const conflicts: CashFlowConflict[] = [];
+  const category = (tx.category || '').trim().toLowerCase();
+  const subcategory = (tx.subcategory || '').trim().toLowerCase();
+  const categoryPurpose = NON_SPEND_CATEGORY_PURPOSE[category];
+  const subcategoryPurpose = NON_SPEND_SUBCATEGORY_PURPOSE[subcategory];
+
+  let purpose: CashFlowPurpose;
+  if (direction === 'inflow') {
+    if (categoryPurpose === 'transfer' || (!categoryPurpose && subcategoryPurpose === 'transfer')) {
+      purpose = 'transfer_in';
+    } else {
+      purpose = 'income';
+      const nonSpend = categoryPurpose ?? subcategoryPurpose;
+      if (nonSpend && nonSpend !== 'income_category') {
+        conflicts.push('non_spend_category_on_inflow');
+      }
+    }
+    if (parsed !== null && parsed < 0) conflicts.push('negative_inflow');
+  } else if (INCOME_CATEGORIES.has(category)) {
+    purpose = 'classification_conflict';
+    conflicts.push('income_category_on_outflow');
+  } else if (categoryPurpose && categoryPurpose !== 'income_category') {
+    purpose = OUTFLOW_PURPOSE[categoryPurpose];
+  } else if (subcategoryPurpose) {
+    purpose = OUTFLOW_PURPOSE[subcategoryPurpose];
+  } else {
+    purpose = 'spending';
+  }
+
+  if (parsed === null) {
+    return { direction, purpose, amountCents: null, excluded: 'missing_amount', conflicts };
+  }
+  return { direction, purpose, amountCents: Math.round(Math.abs(parsed) * 100), excluded: null, conflicts };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY / SUBCATEGORY TAXONOMY
 // ─────────────────────────────────────────────────────────────────────────────
 
