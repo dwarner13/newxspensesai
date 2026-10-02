@@ -327,6 +327,63 @@ type OrchCtx = {
   timings: OrchestrationTimings;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// V1-A CP4.3 — PRE-MODEL TIMING INSTRUMENTATION (observability only)
+// ─────────────────────────────────────────────────────────────────────────────
+// Whitelisted keys: the payload can only ever contain these names and numbers.
+const STAGE_TIMING_STAGE_KEYS: readonly OrchStage[] = [
+  'ingress', 'guardrails', 'routing', 'deterministic_brains', 'memory',
+  'model_config', 'model_streaming', 'model_non_streaming', 'respond',
+];
+const STAGE_TIMING_OP_KEYS = [
+  'auth', 'rate_limit', 'guardrail_config', 'input_guardrails', 'employee_profile', 'employee_key',
+  'ensure_thread', 'session', 'memory', 'history', 'financial_snapshot', 'profile', 'p31c',
+  'financial_position', 'user_message_insert', 'model_config_lookup',
+] as const;
+const STAGE_TIMING_MARK_KEYS = ['memory_start', 'memory_end', 'context_assembly_end', 'prime_openai_start'] as const;
+
+export type StageTimingPayload = {
+  stages: Partial<Record<OrchStage, number>>;
+  ops: Partial<Record<(typeof STAGE_TIMING_OP_KEYS)[number], number>>;
+  marks: Partial<Record<(typeof STAGE_TIMING_MARK_KEYS)[number], number>>;
+  total?: number;
+};
+
+const validTimingMs = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+
+/**
+ * V1-A CP4.3: safe timing payload (approved keys + finite non-negative ms only).
+ * The currently open stage's elapsed time (now − stage_started_at) is added to a COPY;
+ * the input timings are never mutated. Missing or invalid values are omitted, never zero-filled.
+ */
+export function buildStageTimingPayload(input: {
+  timings: { request_started_at: number; stage_started_at: number; stage_durations_ms: Partial<Record<string, number>> };
+  openStage?: string | null;
+  ops?: Record<string, unknown>;
+  marks?: Record<string, unknown>;
+  now: number;
+}): StageTimingPayload {
+  const { timings, openStage, ops = {}, marks = {}, now } = input;
+  const payload: StageTimingPayload = { stages: {}, ops: {}, marks: {} };
+  const openElapsed = now - timings.stage_started_at;
+  for (const key of STAGE_TIMING_STAGE_KEYS) {
+    const completed = timings.stage_durations_ms[key];
+    const open = key === openStage && validTimingMs(openElapsed) ? openElapsed : undefined;
+    if (validTimingMs(completed) || open !== undefined) {
+      payload.stages[key] = (validTimingMs(completed) ? completed : 0) + (open ?? 0);
+    }
+  }
+  for (const key of STAGE_TIMING_OP_KEYS) {
+    if (validTimingMs(ops[key])) payload.ops[key] = ops[key] as number;
+  }
+  for (const key of STAGE_TIMING_MARK_KEYS) {
+    if (validTimingMs(marks[key])) payload.marks[key] = marks[key] as number;
+  }
+  const total = now - timings.request_started_at;
+  if (validTimingMs(total)) payload.total = total;
+  return payload;
+}
+
 type PipelineSnapshot = {
   ts: string;
   doc_ids?: string[];
@@ -6012,6 +6069,7 @@ export const handler: Handler = async (event, context) => {
   // CRITICAL: Request timing instrumentation
   const requestStartTime = Date.now();
   const timingLogs: Record<string, number> = {};
+  const timingMarks: Record<string, number> = {}; // V1-A CP4.3: elapsed-from-start milestones
   const orchCtx: OrchCtx = {
     requestId,
     threadId: null,
@@ -6068,6 +6126,19 @@ export const handler: Handler = async (event, context) => {
     console.log(
       `[Chat][ORCH_SUMMARY] requestId=${summaryCtx.requestId} threadId=${summaryCtx.threadId || 'null'} sessionId=${summaryCtx.sessionId || 'null'} employee=${summaryCtx.employee || 'null'} stage=${summaryCtx.stage || 'null'} deterministic_path=${summaryCtx.deterministic_path || 'model'} fallback_used=${summaryCtx.fallback_used ? 'true' : 'false'} success=${success ? 'true' : 'false'} tag_saved=${summaryCtx.tag_saved ? 'true' : 'false'} pipeline_snapshot_loaded=${summaryCtx.pipeline_snapshot_loaded ? 'true' : 'false'} pipeline_snapshot_saved=${summaryCtx.pipeline_snapshot_saved ? 'true' : 'false'} reuse_path=${summaryCtx.reuse_path || 'none'} recurring_detected=${summaryCtx.recurring_detected ? 'true' : 'false'} recurring_count=${Number(summaryCtx.recurring_count || 0)} payoff_engine_used=${summaryCtx.payoff_engine_used ? 'true' : 'false'} loan_type=${summaryCtx.loan_type || 'unknown'} help_fast_lane_used=${summaryCtx.help_fast_lane_used ? 'true' : 'false'} help_fast_lane_intent=${summaryCtx.help_fast_lane_intent || 'none'} memory_used=${summaryCtx.memory_used ? 'true' : 'false'} memory_skip_reason=${summaryCtx.memory_skip_reason || 'none'} employee_profile_cache_hit=${summaryCtx.employee_profile_cache_hit === true ? 'true' : 'false'} openai_timeout=${summaryCtx.openai_timeout ? 'true' : 'false'} openai_timeout_ms=${Number(summaryCtx.timeout_ms || 0)} openai_timeout_label=${summaryCtx.timeout_label || 'none'}`
     );
+    // V1-A CP4.3: one safe timing line (names + ms only); never affects the request.
+    try {
+      const timingPayload = buildStageTimingPayload({
+        timings: orchCtx.timings,
+        openStage: orchCtx.stage,
+        ops: { ...timingLogs, history: timingLogs.messages },
+        marks: timingMarks,
+        now: Date.now(),
+      });
+      console.log(`[ChatTiming][STAGES] request=${String(summaryCtx.requestId || '').slice(0, 12)} employee=${summaryCtx.employee || 'null'} path=${summaryCtx.deterministic_path || 'model'} success=${success ? 'true' : 'false'} ${JSON.stringify(timingPayload)}`);
+    } catch {
+      // telemetry only
+    }
   };
   
   try {
@@ -6427,10 +6498,12 @@ export const handler: Handler = async (event, context) => {
     // ========================================================================
     let isRateLimited = false;
     try {
+      const _tRateLimit = Date.now(); // V1-A CP4.3
       const rateLimitModule = await import('./_shared/rate-limit.js');
       if (rateLimitModule.assertWithinRateLimit) {
         await rateLimitModule.assertWithinRateLimit(userId, 20); // 20 requests per minute
       }
+      timingLogs.rate_limit = Date.now() - _tRateLimit;
     } catch (rateLimitError: any) {
       if (rateLimitError.statusCode === 429) {
         // Rate limit exceeded - return proper 429 response
@@ -6533,7 +6606,9 @@ export const handler: Handler = async (event, context) => {
     let guardrailConfig: any = null;
     try {
       // Use top-level import from guardrails-unified.js (no dynamic import needed)
+      const _tGuardrailConfig = Date.now(); // V1-A CP4.3
       guardrailConfig = await getGuardrailConfig(userId);
+      timingLogs.guardrail_config = Date.now() - _tGuardrailConfig;
       preset = guardrailConfig.preset || 'balanced';
     } catch (error) {
       console.warn('[Chat] Failed to get guardrail config, using default preset:', error);
@@ -6569,9 +6644,11 @@ export const handler: Handler = async (event, context) => {
       };
 
       if (!isGreetingAllowlisted) {
+        const _tInputGuardrails = Date.now(); // V1-A CP4.3
         guardrailResult = await runInputGuardrails(guardrailContext, {
           messages: [{ role: 'user', content: userText }],
         }, guardrailConfig || undefined);
+        timingLogs.input_guardrails = Date.now() - _tInputGuardrails;
       }
 
       if (!guardrailResult.ok) {
@@ -6794,7 +6871,9 @@ export const handler: Handler = async (event, context) => {
     // Defensive employee profile loading - don't crash if profile missing
     // If profile is missing, continue without tools/system prompt (router's persona will be used)
     try {
+      const _tEmployeeProfile = Date.now(); // V1-A CP4.3
       const employeeProfile = await getEmployeeProfileCached(sb, finalEmployeeSlug, orchCtx);
+      timingLogs.employee_profile = Date.now() - _tEmployeeProfile;
       if (employeeProfile.tools_allowed && Array.isArray(employeeProfile.tools_allowed) && employeeProfile.tools_allowed.length > 0) {
         employeeTools = employeeProfile.tools_allowed;
         toolModules = pickTools(employeeTools);
@@ -6910,8 +6989,10 @@ export const handler: Handler = async (event, context) => {
     // Resolve employee_key from slug using registry
     let employeeKey: string;
     try {
+      const _tEmployeeKey = Date.now(); // V1-A CP4.3
       const { getEmployeeKeyFromSlug } = await import('./_shared/employeeRegistryBackend.js');
       employeeKey = await getEmployeeKeyFromSlug(sb, finalEmployeeSlug);
+      timingLogs.employee_key = Date.now() - _tEmployeeKey;
     } catch (error) {
       console.warn('[Chat] Failed to resolve employee_key from registry, using fallback:', error);
       // Fallback: extract from slug (first part before hyphen)
@@ -6922,7 +7003,9 @@ export const handler: Handler = async (event, context) => {
     // If request includes threadId, upsert that thread; otherwise create/find one
     let threadId: string;
     try {
+      const _tEnsureThread = Date.now(); // V1-A CP4.3
       threadId = await ensureThread(sb, userId, employeeKey, requestThreadId);
+      timingLogs.ensure_thread = Date.now() - _tEnsureThread;
       orchCtx.threadId = threadId;
       console.log(`[Chat] ✅ Thread ID: ${threadId} for user ${userId.substring(0, 8)}... employee ${employeeKey}`);
       
@@ -9352,6 +9435,7 @@ export const handler: Handler = async (event, context) => {
     setStage('memory');
     const _tMemoryStart = Date.now();
     console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=memory_start elapsedMs=${_tMemoryStart - requestStartTime} remainingMs=${60000 - (_tMemoryStart - requestStartTime)}`);
+    timingMarks.memory_start = _tMemoryStart - requestStartTime; // V1-A CP4.3
     // ========================================================================
     // 6. MEMORY RETRIEVAL
     // ========================================================================
@@ -9490,6 +9574,7 @@ export const handler: Handler = async (event, context) => {
     }
 
     console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=memory_end durationMs=${Date.now() - _tMemoryStart} elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
+    timingMarks.memory_end = Date.now() - requestStartTime; // V1-A CP4.3
     // ========================================================================
     // 7. GET RECENT MESSAGES (session-scoped when available, thread fallback)
     // ========================================================================
@@ -9652,7 +9737,9 @@ export const handler: Handler = async (event, context) => {
     const snapshotThinBeforeHydration = isPrimeSnapshotThin(effectivePrimeContext);
     if (isPrimeEmployeeForHydration && primeIntent.isBreakdownReport && snapshotThinBeforeHydration) {
       try {
+        const _tFinancialSnapshot = Date.now(); // V1-A CP4.3
         const hydrated = await buildFinancialSnapshot(sb, userId, userProfile?.timezone || effectivePrimeContext?.timezone || null);
+        timingLogs.financial_snapshot = Date.now() - _tFinancialSnapshot;
         // PHASE 2.1 FIX (Apr 2026): Preserve all frontend-supplied fields (taxSummary, totalIncome,
         // teamActivitySummary, categorySummary, etc.) via spread. Previously this block REPLACED
         // effectivePrimeContext with a narrow snapshot object, wiping everything PrimeChatV2 sent.
@@ -10003,6 +10090,7 @@ export const handler: Handler = async (event, context) => {
             p31cExecutor,
             p31cDedupCache,
           );
+          timingLogs.p31c = p31cResult.totalDurationMs; // V1-A CP4.3: P3.1C's own measurement
           const execTelemetry = buildEvidenceExecutionTelemetry(p31cResult);
           console.log(`[P3.1C Evidence Execution] ${JSON.stringify(execTelemetry)}`);
 
@@ -10352,6 +10440,7 @@ export const handler: Handler = async (event, context) => {
         financialPositionText = fmtFP(fpResult);
         financialPositionMissing = fpResult.missingAreas || [];
         primeContextMessage += '\n' + financialPositionText + '\n';
+        timingLogs.financial_position = Date.now() - _tFpStart; // V1-A CP4.3
         console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=financial_position_end durationMs=${Date.now() - _tFpStart} elapsedMs=${Date.now() - requestStartTime} chars=${financialPositionText.length} missing=[${financialPositionMissing.join(', ')}]`);
       } catch (fpErr: any) {
         console.warn('[Chat] Financial Position build failed (non-fatal, continuing with legacy context):', fpErr?.message);
@@ -10955,6 +11044,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
 
     // ========================================================================
     console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=context_assembly_end elapsedMs=${Date.now() - requestStartTime} remainingMs=${60000 - (Date.now() - requestStartTime)}`);
+    timingMarks.context_assembly_end = Date.now() - requestStartTime; // V1-A CP4.3
     // 8.5. RESOLVE MODEL CONFIGURATION (before dev logging and API calls)
     // ========================================================================
     setStage('model_config');
@@ -10962,7 +11052,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     // CRITICAL: modelConfig must ALWAYS be defined - never throw ReferenceError
     let modelConfig: { model: string; temperature: number; maxTokens: number };
     try {
+      const _tModelConfigLookup = Date.now(); // V1-A CP4.3
       modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
+      timingLogs.model_config_lookup = Date.now() - _tModelConfigLookup;
       // Verify config is valid
       if (!modelConfig || !modelConfig.model || typeof modelConfig.temperature !== 'number' || typeof modelConfig.maxTokens !== 'number') {
         throw new Error('Invalid model config returned');
@@ -11169,7 +11261,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         metadata: (client_message_id || safeHidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(safeHidden ? { hidden: true } : {}) } : undefined,
       };
       console.log(`[Chat] Inserting user message with thread_id: ${threadId}`);
+      const _tUserMessageInsert = Date.now(); // V1-A CP4.3
       await sb.from('chat_messages').insert(messageData);
+      timingLogs.user_message_insert = Date.now() - _tUserMessageInsert;
       
       // Log AI activity event (non-blocking, uses RLS with auth.uid())
       const authToken = event.headers?.authorization || event.headers?.Authorization || '';
@@ -12966,6 +13060,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
         const nonStreamAbortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
         const _tPrimeStart = Date.now();
+        timingMarks.prime_openai_start = _tPrimeStart - requestStartTime; // V1-A CP4.3
         console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=prime_openai_start model=${modelConfig.model} employee=${finalEmployeeSlug} elapsedMs=${_tPrimeStart - requestStartTime} remainingMs=${60000 - (_tPrimeStart - requestStartTime)} timeoutMs=${resolveOpenAiTimeoutMs()}`);
         let completion = await withTimeout(
           openai.chat.completions.create(buildModelCallParams(modelConfig, messages, {
