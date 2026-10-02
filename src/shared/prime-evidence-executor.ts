@@ -286,14 +286,31 @@ async function executeSingleStep(
   try {
     const rawResult = await withStepTimeout(executor(tool, args), PER_TOOL_TIMEOUT_MS);
     const durationMs = Date.now() - stepStart;
+
+    // CP1: a tool/query failure is never empty or $0 evidence (and is never cached).
+    const failure = detectToolFailure(rawResult);
+    if (failure) {
+      return {
+        result: {
+          evidenceKind: step.evidenceKind,
+          status: 'failed',
+          authoritative: step.authoritative,
+          source: step.source,
+          tool,
+          durationMs,
+          error: failure,
+        },
+        dedupHit: false,
+      };
+    }
+
     const { data, rowCount } = extractResultData(tool, rawResult);
 
     // Detect truncation: if the tool returned queryStatus='partial',
     // the underlying DB query was truncated and results are incomplete.
     // Downgrade authoritative to false so evidence is never presented
     // as definitive complete totals.
-    const dataObj = data && typeof data === 'object' ? data as Record<string, unknown> : null;
-    const isTruncated = dataObj?.queryStatus === 'partial';
+    const isTruncated = isPartialEvidence(data);
 
     // Cache it
     cache.set(dedupKey, { data, rowCount });
@@ -364,7 +381,7 @@ async function executeMultiSource(
     results.push({
       evidenceKind: step.evidenceKind,
       status: 'resolved',
-      authoritative: step.authoritative,
+      authoritative: step.authoritative && resultA.result.authoritative && resultB.result.authoritative,
       source: step.source,
       tool,
       data: {
@@ -415,14 +432,35 @@ async function executeOnePeriod(
   try {
     const rawResult = await withStepTimeout(executor(tool, args), PER_TOOL_TIMEOUT_MS);
     const durationMs = Date.now() - stepStart;
+
+    // CP1: a tool/query failure is never empty or $0 evidence (and is never cached).
+    const failure = detectToolFailure(rawResult);
+    if (failure) {
+      return {
+        result: {
+          evidenceKind: step.evidenceKind,
+          status: 'failed',
+          authoritative: step.authoritative,
+          source: step.source,
+          tool,
+          durationMs,
+          error: failure,
+          periodLabel: label,
+        },
+        dedupHit: false,
+      };
+    }
+
     const { data, rowCount } = extractResultData(tool, rawResult);
+    // CP1: preserve an explicit 'partial' (truncated) marker — never authoritative.
+    const isTruncated = isPartialEvidence(data);
     cache.set(dedupKey, { data, rowCount });
     return {
       result: {
         evidenceKind: step.evidenceKind,
         status: rowCount === 0 ? 'successful_empty' : 'resolved',
-        authoritative: step.authoritative,
-        source: step.source,
+        authoritative: isTruncated ? false : step.authoritative,
+        source: isTruncated ? step.source + ' (partial — query truncated)' : step.source,
         tool,
         data,
         rowCount,
@@ -528,18 +566,24 @@ function extractResultData(tool: string, rawResult: unknown): { data: unknown; r
   }
 
   if (tool === 'transaction_category_totals') {
-    // Category totals may have various shapes — handle both array and object
-    const totals = Array.isArray(result.totals) ? result.totals :
-      Array.isArray(result.categories) ? result.categories :
-        Array.isArray(result.data) ? result.data : [];
+    // CP1: the real tool output is `categoryTotals: [{ category, totalAmount,
+    // transactionCount, avgAmount }]`; legacy `totals | categories | data` shapes
+    // remain accepted. Entries are normalized to integer cents at this boundary.
+    const raw = Array.isArray(result.categoryTotals) ? result.categoryTotals :
+      Array.isArray(result.totals) ? result.totals :
+        Array.isArray(result.categories) ? result.categories :
+          Array.isArray(result.data) ? result.data : [];
+    const { totals, malformedCount } = normalizeCategoryTotals(raw);
     const capped = totals.slice(0, MAX_CATEGORY_TOTALS_IN_CONTEXT);
     return {
       data: {
         totals: capped,
         totalCount: totals.length,
         capped: totals.length > MAX_CATEGORY_TOTALS_IN_CONTEXT,
+        malformedCount,
         summary: result.summary,
-        grandTotal: result.grandTotal ?? result.total,
+        grandTotalCents: toCents(result.grandTotal ?? result.total),
+        ...(result.queryStatus !== undefined ? { queryStatus: result.queryStatus } : {}),
       },
       rowCount: totals.length,
     };
@@ -563,6 +607,102 @@ function extractResultData(tool: string, rawResult: unknown): { data: unknown; r
   }
 
   return { data: result, rowCount: 1 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CP1 — EVIDENCE CONTRACT HONESTY
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Category-total evidence as normalized at the executor boundary. */
+export interface NormalizedCategoryTotal {
+  category: string;
+  /** Integer cents (from the tool's totalAmount / legacy total|amount). */
+  totalCents: number;
+  /** Transaction count, or null when the tool did not supply a valid one. */
+  count: number | null;
+}
+
+/** Dollars -> integer cents; null for anything that is not a finite number. */
+export function toCents(value: unknown): number | null {
+  const n = typeof value === 'number' ? value
+    : typeof value === 'string' && value.trim() !== '' ? Number(value)
+      : NaN;
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+
+/** Integer cents -> "1,234.56" (amount formatting only, no currency conversion). */
+export function formatCentsAmount(cents: number): string {
+  const sign = cents < 0 ? '-' : '';
+  return sign + (Math.abs(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * Normalize category-total entries (real `categoryTotals` or legacy shapes).
+ * Entries without a finite total are dropped and counted — never NaN/undefined facts.
+ */
+export function normalizeCategoryTotals(
+  entries: unknown[],
+): { totals: NormalizedCategoryTotal[]; malformedCount: number } {
+  const totals: NormalizedCategoryTotal[] = [];
+  let malformedCount = 0;
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') { malformedCount++; continue; }
+    const e = entry as Record<string, unknown>;
+    const totalCents = toCents(e.totalAmount ?? e.total ?? e.amount);
+    if (totalCents === null) { malformedCount++; continue; }
+    const name = e.category ?? e.name;
+    const rawCount = Number(e.transactionCount ?? e.count);
+    totals.push({
+      category: typeof name === 'string' && name.trim() !== '' ? name : 'Uncategorized',
+      totalCents,
+      count: Number.isInteger(rawCount) && rawCount >= 0 ? rawCount : null,
+    });
+  }
+  return { totals, malformedCount };
+}
+
+/**
+ * A tool/query failure must never read as successful empty or $0 evidence.
+ * executeTool() reports Err/timeouts/invalid output as `{ error }`; tools report
+ * a failed DB query as `queryStatus: 'query_error'`.
+ */
+export function detectToolFailure(rawResult: unknown): string | null {
+  if (!rawResult || typeof rawResult !== 'object') return null;
+  const r = rawResult as Record<string, unknown>;
+  if (r.error !== undefined && r.error !== null && r.error !== false) {
+    return typeof r.error === 'string' && r.error ? r.error : 'tool_error';
+  }
+  if (r.queryStatus === 'query_error') return 'query_error';
+  return null;
+}
+
+/** Explicit truncation marker from the tool — evidence is not complete. */
+function isPartialEvidence(data: unknown): boolean {
+  return !!data && typeof data === 'object' && (data as Record<string, unknown>).queryStatus === 'partial';
+}
+
+/** All-category raw total: never presented as authoritative ordinary spending. */
+const RAW_CATEGORY_GRAND_TOTAL_LABEL =
+  'All-category raw total (may include income, transfers and other non-spend categories — NOT a spending total)';
+
+function formatCategoryTotalLines(data: Record<string, unknown>, indent: string): string[] {
+  const lines: string[] = [];
+  const totals = Array.isArray(data.totals) ? data.totals as NormalizedCategoryTotal[] : [];
+  if (typeof data.grandTotalCents === 'number') {
+    lines.push(`${indent}${RAW_CATEGORY_GRAND_TOTAL_LABEL}: $${formatCentsAmount(data.grandTotalCents)}`);
+  }
+  for (const t of totals) {
+    if (!t || typeof t.totalCents !== 'number') continue;
+    const count = typeof t.count === 'number' ? ` (${t.count} txns)` : '';
+    lines.push(`${indent}${t.category}: $${formatCentsAmount(t.totalCents)}${count}`);
+  }
+  if (typeof data.malformedCount === 'number' && data.malformedCount > 0) {
+    lines.push(`${indent}(${data.malformedCount} malformed category ${data.malformedCount === 1 ? 'entry' : 'entries'} omitted)`);
+  }
+  if (data.queryStatus === 'partial') {
+    lines.push(`${indent}PARTIAL — query truncated; do not present these totals as complete.`);
+  }
+  return lines;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -937,13 +1077,7 @@ function formatEvidenceData(result: PrimeEvidenceResult): string {
       return formatComparisonData(data);
     }
     const lines = [`${totalCount} category total(s)${data.capped ? ` (showing ${totals.length})` : ''}:`];
-    if (data.grandTotal !== undefined) lines.push(`Grand total: $${data.grandTotal}`);
-    for (const t of totals) {
-      if (t && typeof t === 'object') {
-        const c = t as Record<string, unknown>;
-        lines.push(`  ${c.category || c.name}: $${c.total ?? c.amount} (${c.count ?? '?'} txns)`);
-      }
-    }
+    lines.push(...formatCategoryTotalLines(data, '  '));
     return lines.join('\n');
   }
 
@@ -991,14 +1125,7 @@ function formatComparisonData(data: Record<string, unknown>): string {
     if (!period) continue;
     const label = period.label || periodKey;
     lines.push(`${label}:`);
-    const totals = Array.isArray(period.totals) ? period.totals : [];
-    if (period.grandTotal !== undefined) lines.push(`  Grand total: $${period.grandTotal}`);
-    for (const t of totals) {
-      if (t && typeof t === 'object') {
-        const c = t as Record<string, unknown>;
-        lines.push(`  ${c.category || c.name}: $${c.total ?? c.amount} (${c.count ?? '?'} txns)`);
-      }
-    }
+    lines.push(...formatCategoryTotalLines(period, '  '));
   }
   return lines.join('\n');
 }
