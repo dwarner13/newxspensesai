@@ -212,6 +212,7 @@ import {
   detectEvidenceViolation,
   buildEvidenceViolationTelemetry,
   EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS,
+  countEvidenceRows,
   type AccumulatedEvidenceMap,
 } from '../../src/shared/prime-evidence-validator';
 import {
@@ -11610,7 +11611,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   }
 
                   // Authoritative date normalization for financial query tools
-                  if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
+                  if ((toolName === 'tx_search' || toolName === 'transaction_category_totals' || toolName === 'cash_flow_summary') && authoritativeRanges.length > 0) {
                     const norm = normalizeToolDateArgs(args, authoritativeRanges);
                     if (norm.corrected) {
                       args.startDate = norm.startDate;
@@ -11812,8 +11813,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                     // P3.1D: Track successful read-tool results in accumulated evidence
                     if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
                       const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
-                      const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
-                      const rowCount = toolName === 'cash_flow_summary' ? ((result as any)?.transactionCount ?? 0) : rows.length;
+                      const rowCount = countEvidenceRows(toolName, result); // V1-A CP4: shared shape-aware count
                       p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rowCount === 0 ? 'successful_empty' : 'resolved', rowCount });
                     }
                     // Special handling for employee handoff (streaming)
@@ -12099,7 +12099,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   }
 
                   // Date normalization
-                  if ((tn === 'tx_search' || tn === 'transaction_category_totals') && authoritativeRanges.length > 0) {
+                  if ((tn === 'tx_search' || tn === 'transaction_category_totals' || tn === 'cash_flow_summary') && authoritativeRanges.length > 0) {
                     const norm = normalizeToolDateArgs(tArgs, authoritativeRanges);
                     if (norm.corrected) {
                       tArgs.startDate = norm.startDate;
@@ -13343,7 +13343,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             }
 
             // Authoritative date normalization for financial query tools
-            if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
+            if ((toolName === 'tx_search' || toolName === 'transaction_category_totals' || toolName === 'cash_flow_summary') && authoritativeRanges.length > 0) {
               const norm = normalizeToolDateArgs(args, authoritativeRanges);
               if (norm.corrected) {
                 args.startDate = norm.startDate;
@@ -13527,8 +13527,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               // P3.1D: Track successful read-tool results in accumulated evidence
               if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
                 const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
-                const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
-                const rowCount = toolName === 'cash_flow_summary' ? ((result as any)?.transactionCount ?? 0) : rows.length;
+                const rowCount = countEvidenceRows(toolName, result); // V1-A CP4: shared shape-aware count
                 p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rowCount === 0 ? 'successful_empty' : 'resolved', rowCount });
               }
               // Special handling for employee handoff (non-streaming)
@@ -13785,7 +13784,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 }
 
                 // Authoritative date normalization for financial query tools (tool loop)
-                if ((toolName === 'tx_search' || toolName === 'transaction_category_totals') && authoritativeRanges.length > 0) {
+                if ((toolName === 'tx_search' || toolName === 'transaction_category_totals' || toolName === 'cash_flow_summary') && authoritativeRanges.length > 0) {
                   const norm = normalizeToolDateArgs(args, authoritativeRanges);
                   if (norm.corrected) {
                     args.startDate = norm.startDate;
@@ -13915,8 +13914,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // P3.1D: Track successful read-tool results in accumulated evidence (tool loop)
                 if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
                   const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
-                  const rows = Array.isArray((result as any)?.rows) ? (result as any).rows : Array.isArray((result as any)?.totals) ? (result as any).totals : [];
-                  const rowCount = toolName === 'cash_flow_summary' ? ((result as any)?.transactionCount ?? 0) : rows.length;
+                  const rowCount = countEvidenceRows(toolName, result); // V1-A CP4: shared shape-aware count
                   p31dAccumulatedEvidence.set(kind, { tool: toolName, status: rowCount === 0 ? 'successful_empty' : 'resolved', rowCount });
                 }
 

@@ -21,7 +21,7 @@ import {
   type PrimeIntent,
   type PrimeIntentClassification,
 } from './prime-intent-classifier';
-import type { FinancialQueryClassification } from './financial-query-classifier';
+import { subjectForCategory, type FinancialQueryClassification } from './financial-query-classifier';
 import {
   type PrimeEvidenceKind,
   type PrimeRuntimeEvidenceContract,
@@ -29,7 +29,7 @@ import {
   getEvidenceSource,
 } from './prime-evidence-contract';
 import type { PrimeTemporalScope } from './prime-temporal-scope';
-import { toInclusiveEndDate } from './prime-temporal-scope';
+import { toInclusiveEndDate, aggregateInclusiveEnd } from './prime-temporal-scope';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MUTATION BLOCKLIST — these tools MUST NEVER appear in an evidence plan
@@ -299,10 +299,15 @@ function resolveCategoryAggregation(
       params.subcategory = fc.resolvedCategory.subcategory;
     }
   }
+  // V1-A CP4: a spending question about an ordinary category asks for outflow only.
+  if (fc?.subject === 'spending' && fc.resolvedCategory && !subjectForCategory(fc.resolvedCategory.category)) {
+    params.type = 'expense';
+  }
   // Prefer deterministic temporal scope over bare year
   if (ts?.primary && ts.primary.confidence === 'deterministic') {
     params.startDate = ts.primary.from;
-    params.endDate = toInclusiveEndDate(ts.primary.to);
+    // V1-A CP4: current periods are fetched through the as-of date (period-to-date).
+    params.endDate = aggregateInclusiveEnd(ts.primary);
   } else if (fc && fc.years.length > 0) {
     params.year = fc.years[0];
   }
@@ -334,7 +339,8 @@ function resolveCashFlow(
       mode: 'tool',
       params: {
         startDate: ts.primary.from,
-        endDate: toInclusiveEndDate(ts.primary.to),
+        // V1-A CP4: current periods are fetched through the as-of date (period-to-date).
+        endDate: aggregateInclusiveEnd(ts.primary),
       },
       authoritative: true,
     };
@@ -401,9 +407,10 @@ function resolvePeriodComparison(
       params: {
         ...sharedParams,
         periodA_startDate: ts.primary.from,
-        periodA_endDate: toInclusiveEndDate(ts.primary.to),
+        // V1-A CP4: aggregate comparisons use period-to-date ends; merchant dates unchanged.
+        periodA_endDate: isMerchantComparison ? toInclusiveEndDate(ts.primary.to) : aggregateInclusiveEnd(ts.primary),
         periodB_startDate: ts.comparison.from,
-        periodB_endDate: toInclusiveEndDate(ts.comparison.to),
+        periodB_endDate: isMerchantComparison ? toInclusiveEndDate(ts.comparison.to) : aggregateInclusiveEnd(ts.comparison),
       },
       authoritative: true,
     };

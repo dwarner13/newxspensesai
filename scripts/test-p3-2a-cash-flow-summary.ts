@@ -11,7 +11,8 @@ import { EVIDENCE_READ_ALLOWLIST, classifyEvidenceShape } from '../src/shared/pr
 import type { PrimeEvidenceExecutionResult, PrimeEvidenceResult } from '../src/shared/prime-evidence-executor';
 import { EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS } from '../src/shared/prime-evidence-validator';
 import { getEvidenceSource } from '../src/shared/prime-evidence-contract';
-import { isNonSpendCategory, isIncomeCashFlow } from '../src/shared/financial-taxonomy';
+import { isNonSpendCategory, isIncomeCashFlow, classifyCashFlow } from '../src/shared/financial-taxonomy';
+import { buildPeriodAggregate } from '../src/shared/period-aggregate';
 
 // ── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -31,38 +32,24 @@ function section(name: string) {
   console.log(`\n=== ${name} ===`);
 }
 
-// ── Cash Flow Classification — uses canonical functions from financial-taxonomy.ts ──
+// ── V1-A CP4 cleanup ──
+// This file previously carried a LOCAL copy of the OLD cash-flow rules
+// (isIncomeCashFlow: type 'Credit' and category 'Income' = income;
+// netCashFlow = income − spending; float buckets). cash_flow_summary no longer
+// uses those rules, so those sections gave false confidence. The money-semantics
+// sections below now exercise the REAL CP2 foundation (buildPeriodAggregate /
+// classifyCashFlow) that the production tool uses; authoritative tool coverage
+// lives in src/shared/__tests__/period-aggregate-cp2.test.ts and
+// aggregate-tools-cp3.test.ts.
 
-// Simulate the cash flow classification for a set of transactions
-// This exercises the SAME canonical functions used by the production tool
-function classifyCashFlow(txns: Array<{ amount: number; type?: string | null; category?: string | null }>) {
-  let income = 0, spending = 0, nonSpend = 0;
-  let incomeCount = 0, spendingCount = 0, nonSpendCount = 0;
+type CashFlowRowInput = { amount: unknown; type?: string | null; category?: string | null; subcategory?: string | null };
 
-  for (const t of txns) {
-    const amount = Math.abs(t.amount || 0);
-    if (isIncomeCashFlow(t)) {
-      income += amount;
-      incomeCount++;
-    } else if (isNonSpendCategory(t.category)) {
-      nonSpend += amount;
-      nonSpendCount++;
-    } else {
-      spending += amount;
-      spendingCount++;
-    }
-  }
-
-  return {
-    income: Math.round(income * 100) / 100,
-    spending: Math.round(spending * 100) / 100,
-    nonSpend: Math.round(nonSpend * 100) / 100,
-    netCashFlow: Math.round((income - spending) * 100) / 100,
-    transactionCount: txns.length,
-    incomeTransactionCount: incomeCount,
-    spendingTransactionCount: spendingCount,
-    nonSpendTransactionCount: nonSpendCount,
-  };
+/** Run rows through the production aggregate (complete fetch, one in-period date). */
+function realCashFlow(rows: CashFlowRowInput[]) {
+  return buildPeriodAggregate(
+    rows.map((r, i) => ({ id: `r${i}`, date: '2026-05-15', ...r })),
+    { fetch: { complete: true, truncated: false, rowsFetched: rows.length } },
+  );
 }
 
 // Mock evidence result helpers
@@ -159,114 +146,91 @@ section('A. May 2026 temporal scope');
   assert(input.endDate === '2026-05-31', 'May end date correct');
 }
 
-section('B. Income totals correctly');
+section('B. Income totals correctly (real aggregate)');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 5000, type: 'income', category: 'Income' },
     { amount: 3000, type: 'income', category: 'Business Income' },
     { amount: 100, type: 'expense', category: 'Food & Dining' },
   ]);
-  assert(result.income === 8000, `income should be 8000, got ${result.income}`);
-  assert(result.incomeTransactionCount === 2, `income count should be 2, got ${result.incomeTransactionCount}`);
+  assert(a.cents.income === 800000, `income should be 800000 cents, got ${a.cents.income}`);
+  assert(a.counts.income === 2, `income count should be 2, got ${a.counts.income}`);
 }
 
-section('C. Spending totals correctly');
+section('C. Spending totals correctly (real aggregate)');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 100, type: 'expense', category: 'Food & Dining' },
-    { amount: 200, type: 'expense', category: 'Transportation' },
+    { amount: 200, type: 'Purchase', category: 'Transportation' },
     { amount: 50, type: 'expense', category: 'Entertainment' },
   ]);
-  assert(result.spending === 350, `spending should be 350, got ${result.spending}`);
-  assert(result.spendingTransactionCount === 3, `spending count should be 3, got ${result.spendingTransactionCount}`);
+  assert(a.cents.spending === 35000, `spending should be 35000 cents, got ${a.cents.spending}`);
+  assert(a.counts.spending === 3, `spending count should be 3, got ${a.counts.spending}`);
 }
 
-section('D. Non-spend excluded from spending');
+section('D–E. Transfers excluded from spending (own bucket)');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 100, type: 'expense', category: 'Food & Dining' },
     { amount: 500, type: 'expense', category: 'Transfer' },
     { amount: 200, type: 'expense', category: 'Transfers' },
   ]);
-  assert(result.spending === 100, `spending should be 100 (excluding transfers), got ${result.spending}`);
-  assert(result.nonSpend === 700, `nonSpend should be 700, got ${result.nonSpend}`);
+  assert(a.cents.spending === 10000, `spending should exclude transfers, got ${a.cents.spending}`);
+  assert(a.cents.transferOut === 70000, `transfers out should be 70000 cents, got ${a.cents.transferOut}`);
 }
 
-section('E. Transfer excluded from spending');
+section('F–G. Credit-card / loan / debt payments are debt payments, not spending');
 {
-  const result = classifyCashFlow([
-    { amount: 1000, type: 'expense', category: 'Transfer' },
-  ]);
-  assert(result.spending === 0, `transfer should not be spending, got spending=${result.spending}`);
-  assert(result.nonSpend === 1000, `transfer should be nonSpend, got ${result.nonSpend}`);
-}
-
-section('F. Credit card payment excluded from spending');
-{
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 2000, type: 'expense', category: 'Credit Card Payment' },
-    { amount: 1500, type: 'expense', category: 'Credit Card Payments' },
-  ]);
-  assert(result.spending === 0, `CC payments should not be spending, got ${result.spending}`);
-  assert(result.nonSpend === 3500, `CC payments should be nonSpend, got ${result.nonSpend}`);
-}
-
-section('G. Loan/debt payment excluded from spending');
-{
-  const result = classifyCashFlow([
     { amount: 800, type: 'expense', category: 'Loan Payment' },
-    { amount: 400, type: 'expense', category: 'Loan Payments' },
-    { amount: 300, type: 'expense', category: 'Debt Payment' },
     { amount: 200, type: 'expense', category: 'Debt Payments' },
   ]);
-  assert(result.spending === 0, `loan/debt payments should not be spending, got ${result.spending}`);
-  assert(result.nonSpend === 1700, `loan/debt payments should be nonSpend, got ${result.nonSpend}`);
+  assert(a.cents.spending === 0, `debt payments should not be spending, got ${a.cents.spending}`);
+  assert(a.cents.debtPayments === 300000, `debt payments should be 300000 cents, got ${a.cents.debtPayments}`);
 }
 
-section('H. Investment transfer excluded from spending');
+section('H. Investments are savings/investment movement, not spending');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 1000, type: 'expense', category: 'Investment' },
     { amount: 500, type: 'expense', category: 'Investments' },
   ]);
-  assert(result.spending === 0, `investments should not be spending, got ${result.spending}`);
-  assert(result.nonSpend === 1500, `investments should be nonSpend, got ${result.nonSpend}`);
+  assert(a.cents.spending === 0, `investments should not be spending, got ${a.cents.spending}`);
+  assert(a.cents.savingsInvestment === 150000, `savings/investment should be 150000 cents, got ${a.cents.savingsInvestment}`);
 }
 
-section('I. netCashFlow = income - spending');
+section('I. Two explicit nets (no bare netCashFlow semantics)');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 5000, type: 'income', category: 'Income' },
     { amount: 3200, type: 'expense', category: 'Food & Dining' },
     { amount: 500, type: 'expense', category: 'Transfer' },
   ]);
-  assert(result.netCashFlow === 1800, `netCashFlow should be 1800 (5000-3200), got ${result.netCashFlow}`);
-  // Non-spend should NOT affect netCashFlow
-  assert(result.nonSpend === 500, `nonSpend should be 500, got ${result.nonSpend}`);
+  assert(a.cents.rawNetCashMovement === 130000, `raw net = 5000 − (3200 + 500), got ${a.cents.rawNetCashMovement}`);
+  assert(a.cents.netExcludingInternalMovements === 180000, `net excluding internal movements = 5000 − 3200, got ${a.cents.netExcludingInternalMovements}`);
 }
 
 section('J. Transaction counts correct');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 5000, type: 'income', category: 'Income' },
     { amount: 100, type: 'expense', category: 'Food' },
     { amount: 200, type: 'expense', category: 'Gas' },
     { amount: 500, type: 'expense', category: 'Transfer' },
   ]);
-  assert(result.transactionCount === 4, `total count should be 4, got ${result.transactionCount}`);
-  assert(result.incomeTransactionCount === 1, `income count should be 1, got ${result.incomeTransactionCount}`);
-  assert(result.spendingTransactionCount === 2, `spending count should be 2, got ${result.spendingTransactionCount}`);
-  assert(result.nonSpendTransactionCount === 1, `nonSpend count should be 1, got ${result.nonSpendTransactionCount}`);
+  assert(a.counts.included === 4, `included count should be 4, got ${a.counts.included}`);
+  assert(a.counts.income === 1, `income count should be 1, got ${a.counts.income}`);
+  assert(a.counts.spending === 2, `spending count should be 2, got ${a.counts.spending}`);
+  assert(a.counts.transferOut === 1, `transfer-out count should be 1, got ${a.counts.transferOut}`);
 }
 
 section('K. Verified empty period handled safely');
 {
-  const result = classifyCashFlow([]);
-  assert(result.income === 0, 'empty period income is 0');
-  assert(result.spending === 0, 'empty period spending is 0');
-  assert(result.nonSpend === 0, 'empty period nonSpend is 0');
-  assert(result.netCashFlow === 0, 'empty period netCashFlow is 0');
-  assert(result.transactionCount === 0, 'empty period count is 0');
+  const a = realCashFlow([]);
+  assert(a.cents.income === 0 && a.cents.spending === 0 && a.cents.totalOutflow === 0, 'empty period totals are 0');
+  assert(a.counts.included === 0, 'empty period count is 0');
+  assert(a.completeness.authoritative === true, 'complete empty fetch is an authoritative zero');
 }
 
 section('L. DB failure remains failure, not zero (architectural)');
@@ -373,45 +337,33 @@ section('Z. Zero additional OpenAI calls');
   assert(true, 'cash_flow_summary is a single DB query — no model call');
 }
 
-section('AA. Income via type=Credit recognized');
+section('AA. type=Credit is unclassified (never guessed as income)');
 {
-  const result = classifyCashFlow([
-    { amount: 500, type: 'Credit', category: null },
-  ]);
-  assert(result.income === 500, `Credit type should be income, got income=${result.income}`);
-  assert(result.spending === 0, `Credit type should not be spending, got spending=${result.spending}`);
+  const a = realCashFlow([{ amount: 500, type: 'Credit', category: null }]);
+  assert(a.cents.income === 0 && a.cents.spending === 0, `Credit must not enter income or spending, got income=${a.cents.income}`);
+  assert(a.completeness.excluded.unclassifiedType === 1 && a.completeness.unclassifiedCents === 50000, 'Credit is excluded and disclosed');
 }
 
-section('AB. Income via category=Income recognized');
+section('AB. Category "Income" never sets direction (null type → unclassified)');
 {
-  const result = classifyCashFlow([
-    { amount: 300, type: null, category: 'Income' },
-  ]);
-  assert(result.income === 300, `category=Income should be income, got income=${result.income}`);
+  const a = realCashFlow([{ amount: 300, type: null, category: 'Income' }]);
+  assert(a.cents.income === 0, `category alone must not make income, got ${a.cents.income}`);
+  assert(a.completeness.classificationComplete === false, 'classification incomplete is disclosed');
 }
 
-section('AC. Business Income is non-spend (not spending)');
+section('AC. expense + Business Income → classification conflict, not spending or income');
 {
-  // Business Income is in NON_SPEND_CATEGORIES
-  const result = classifyCashFlow([
-    { amount: 1000, type: 'expense', category: 'Business Income' },
-  ]);
-  assert(result.spending === 0, `Business Income should not be spending, got ${result.spending}`);
-  // Note: isIncomeTx only checks lowercase 'income', not 'business income'
-  // So this will be classified as nonSpend via isNonSpend
-  assert(result.nonSpend === 1000 || result.income === 1000,
-    `Business Income should be nonSpend or income, got nonSpend=${result.nonSpend}, income=${result.income}`);
+  const a = realCashFlow([{ amount: 1000, type: 'expense', category: 'Business Income' }]);
+  assert(a.cents.spending === 0 && a.cents.income === 0, 'conflict is neither spending nor income');
+  assert(a.cents.classificationConflict === 100000, `conflict bucket should be 100000 cents, got ${a.cents.classificationConflict}`);
 }
 
-section('AD. Refund/credit behavior matches canonical');
+section('AD. Refunds are not inferred');
 {
-  // A refund that appears as type='Credit' is counted as income.
-  // This matches financial-position.ts behavior.
-  const result = classifyCashFlow([
-    { amount: 50, type: 'Credit', category: 'Food & Dining' },
-  ]);
-  assert(result.income === 50, `Credit-type refund counted as income (canonical behavior), got ${result.income}`);
-  // Documented limitation: refunds not reliably distinguishable from income
+  // A Credit-typed "refund" is unclassified, never counted as income; no refund bucket exists.
+  const a = realCashFlow([{ amount: 50, type: 'Credit', category: 'Food & Dining' }]);
+  assert(a.cents.income === 0, `Credit refund must not be income, got ${a.cents.income}`);
+  assert(!('refunds' in a.cents), 'no refund bucket is invented');
 }
 
 section('AE. Evidence contract: cash_flow has tool');
@@ -467,29 +419,32 @@ section('AK. Evidence shape: cash_flow resolved + failed tx → mixed');
   assert(shape === 'mixed', `cash_flow + failed tx shape should be mixed, got ${shape}`);
 }
 
-section('AL. Uncategorized transaction is spending (not nonSpend)');
+section('AL. Uncategorized expense is spending; null type is unclassified');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 75, type: 'expense', category: null },
     { amount: 25, type: null, category: null },
   ]);
-  assert(result.spending === 100, `uncategorized should be spending, got ${result.spending}`);
-  assert(result.nonSpend === 0, `uncategorized should not be nonSpend, got ${result.nonSpend}`);
+  assert(a.cents.spending === 7500, `uncategorized expense should be spending, got ${a.cents.spending}`);
+  assert(a.completeness.excluded.unclassifiedType === 1, 'null type is unclassified, not spending');
 }
 
-section('AM. Case insensitive non-spend matching');
+section('AM. Case-insensitive non-spend matching');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: 100, type: 'expense', category: 'TRANSFER' },
     { amount: 200, type: 'expense', category: 'Loan Payment' },
     { amount: 300, type: 'expense', category: 'INVESTMENTS' },
   ]);
-  assert(result.spending === 0, `case-insensitive non-spend should work, got spending=${result.spending}`);
-  assert(result.nonSpend === 600, `all should be nonSpend, got ${result.nonSpend}`);
+  assert(a.cents.spending === 0, `case-insensitive non-spend should work, got spending=${a.cents.spending}`);
+  assert(a.cents.transferOut + a.cents.debtPayments + a.cents.savingsInvestment === 60000, 'all three are non-spending buckets');
 }
 
 section('AN. Canonical functions imported from financial-taxonomy.ts');
 {
+  // V1-A CP4 note: isIncomeCashFlow is still the canonical rule for
+  // financial-position.ts; cash_flow_summary now uses classifyCashFlow (CP2).
+  assert(typeof classifyCashFlow === 'function', 'classifyCashFlow (production cash-flow classifier) is exported');
   // Verify isIncomeCashFlow and isNonSpendCategory are the actual canonical exports
   assert(typeof isIncomeCashFlow === 'function', 'isIncomeCashFlow is a function');
   assert(typeof isNonSpendCategory === 'function', 'isNonSpendCategory is a function');
@@ -506,14 +461,15 @@ section('AN. Canonical functions imported from financial-taxonomy.ts');
   assert(isNonSpendCategory(null) === false, 'isNonSpendCategory handles null');
 }
 
-section('AO. Amounts use Math.abs');
+section('AO. Amounts use |amount|; sign never decides direction');
 {
-  const result = classifyCashFlow([
+  const a = realCashFlow([
     { amount: -100, type: 'expense', category: 'Food' },
     { amount: -50, type: 'income', category: 'Income' },
   ]);
-  assert(result.spending === 100, `negative amount abs should give 100, got ${result.spending}`);
-  assert(result.income === 50, `negative income abs should give 50, got ${result.income}`);
+  assert(a.cents.spending === 10000, `negative expense is still spending by magnitude, got ${a.cents.spending}`);
+  assert(a.cents.income === 5000, `negative income stays inflow by magnitude, got ${a.cents.income}`);
+  assert(a.completeness.conflicts.negative_inflow === 1, 'negative inflow is flagged, not netted');
 }
 
 section('AP. Savings category is non-spend');

@@ -47,6 +47,12 @@ export interface PrimeTemporalPeriod {
   source: TemporalPeriodSource;
   /** Whether the period boundaries are deterministic or ambiguous */
   confidence: TemporalConfidence;
+  /**
+   * V1-A CP4: present when the CALENDAR period [from, to) contains the user's
+   * current date — the inclusive date the period is evaluated through
+   * (period-to-date). Historical periods never carry it.
+   */
+  asOf?: string;
 }
 
 export interface PrimeTemporalScope {
@@ -106,9 +112,8 @@ export function extractMonthReference(message: string): MonthReference | null {
 
 /** Relative period expressions we recognize, including safe synonyms. */
 const RELATIVE_PERIOD_PATTERNS: Array<{ regex: RegExp; canonical: string }> = [
-  { regex: /\blast\s+30\s+days?\b/, canonical: 'last 30 days' },
-  { regex: /\bpast\s+30\s+days?\b/, canonical: 'last 30 days' },
-  { regex: /\blast\s+7\s+days?\b/, canonical: 'last 7 days' },
+  { regex: /\b(?:this|current)\s+quarter\b/, canonical: 'this quarter' },
+  { regex: /\b(?:last|previous|prior)\s+quarter\b/, canonical: 'last quarter' },
   { regex: /\bprevious\s+month\b/, canonical: 'last month' },
   { regex: /\blast\s+month\b/, canonical: 'last month' },
   { regex: /\blast\s+week\b/, canonical: 'last week' },
@@ -125,15 +130,28 @@ const RELATIVE_PERIOD_PATTERNS: Array<{ regex: RegExp; canonical: string }> = [
  * Returns canonical labels that resolveRelativeDateRange() accepts.
  * Includes safe synonyms: "previous month" → "last month", "past 30 days" → "last 30 days".
  */
+/**
+ * V1-A CP4: numeric rolling periods — "last|past|previous|prior N days|weeks|months".
+ * Numeric N only (no number-word parsing). Canonical: "last N days|weeks|months".
+ */
+const ROLLING_PERIOD_RE = /\b(?:last|past|previous|prior)\s+(\d{1,3})\s+(day|week|month)s?\b/g;
+
 function detectRelativePeriodsExtended(message: string): string[] {
   const lower = message.toLowerCase();
-  const periods: string[] = [];
+  // V1-A CP4: collect with their position so multiple periods keep MESSAGE order.
+  const found: Array<{ index: number; canonical: string }> = [];
   for (const { regex, canonical } of RELATIVE_PERIOD_PATTERNS) {
-    if (regex.test(lower)) {
-      if (!periods.includes(canonical)) {
-        periods.push(canonical);
-      }
-    }
+    const index = lower.search(regex);
+    if (index >= 0) found.push({ index, canonical });
+  }
+  for (const m of lower.matchAll(ROLLING_PERIOD_RE)) {
+    const n = parseInt(m[1], 10);
+    if (n >= 1 && n <= 366) found.push({ index: m.index ?? 0, canonical: `last ${n} ${m[2]}s` });
+  }
+  found.sort((a, b) => a.index - b.index);
+  const periods: string[] = [];
+  for (const f of found) {
+    if (!periods.includes(f.canonical)) periods.push(f.canonical);
   }
   return periods;
 }
@@ -202,6 +220,21 @@ function extractTwoPeriods(message: string): TwoPeriodExtraction | null {
     }
   }
 
+  // V1-A CP4: month vs month with optional years ("September vs August",
+  // "compare Sep with Aug 2025") — only when a comparison signal is present;
+  // missing years use the bare-month policy (caller resolves).
+  if (detectComparisonSignal(message).isComparison) {
+    const monthRe = new RegExp(`\\b(${MONTH_NAMES_PATTERN})\\b(?:\\s+(\\d{4})\\b)?`, 'g');
+    const refs: MonthReference[] = [];
+    for (const m of lower.matchAll(monthRe)) {
+      const month = MONTH_MAP[m[1]];
+      const year = m[2] ? parseInt(m[2], 10) : undefined;
+      if (!month || (year !== undefined && (year < 2020 || year > 2039))) continue;
+      if (!refs.some(r => r.month === month && r.year === year)) refs.push(year ? { month, year } : { month });
+    }
+    if (refs.length === 2) return { periodA: refs[0], periodB: refs[1] };
+  }
+
   // Pattern: year vs year
   const yearVsYear = lower.match(
     /\b(\d{4})\s+(?:vs\.?|versus|compared (?:to|with))\s+(\d{4})\b/
@@ -261,11 +294,13 @@ export interface TemporalScopeContext {
  * Build a canonical temporal scope from a user message.
  *
  * Extraction priority:
+ * 0. Explicit date range ("Sep 1 to Sep 15", ISO) → primary, deterministic (V1-A CP4)
  * 1. Two explicit periods (comparison) → primary + comparison
- * 2. Relative period ("last month", "this year") → primary
+ * 2. Relative period ("last month", "this quarter", "last 3 months") → primary (message order)
  * 3. Month+year ("May 2026") → primary, deterministic
- * 4. Bare month ("May") → primary, AMBIGUOUS
+ * 4. Bare month ("May") → most recent non-future occurrence, deterministic (V1-A CP4)
  * 5. Explicit year only (from financialClassification) → primary, deterministic
+ * Periods containing today carry `asOf` (period-to-date).
  *
  * Does NOT execute tools, query databases, or call models.
  */
@@ -274,13 +309,35 @@ export function buildTemporalScope(
   ctx: TemporalScopeContext,
   mentionedYears?: number[],
 ): PrimeTemporalScope | null {
+  const scope = buildTemporalScopeInner(message, ctx, mentionedYears);
+  if (!scope) return null;
+  // V1-A CP4: current periods carry an explicit as-of date (period-to-date).
+  const today = localToday(ctx);
+  return {
+    ...scope,
+    ...(scope.primary ? { primary: applyAsOf(scope.primary, today) } : {}),
+    ...(scope.comparison ? { comparison: applyAsOf(scope.comparison, today) } : {}),
+  };
+}
+
+function buildTemporalScopeInner(
+  message: string,
+  ctx: TemporalScopeContext,
+  mentionedYears?: number[],
+): PrimeTemporalScope | null {
   const compSignal = detectComparisonSignal(message);
+
+  // ── 0. Explicit date range (V1-A CP4) — most specific expression wins ──
+  const range = extractDateRange(message, ctx);
+  if (range) {
+    return { primary: range, granularity: 'range', confidence: 'deterministic' };
+  }
 
   // ── 1. Two explicit periods ──
   const twoPeriods = extractTwoPeriods(message);
   if (twoPeriods) {
-    const periodA = resolvePeriodRef(twoPeriods.periodA);
-    const periodB = resolvePeriodRef(twoPeriods.periodB);
+    const periodA = resolvePeriodRef(twoPeriods.periodA, ctx);
+    const periodB = resolvePeriodRef(twoPeriods.periodB, ctx);
     if (periodA && periodB) {
       return {
         primary: periodA,
@@ -341,22 +398,21 @@ export function buildTemporalScope(
 
       return scope;
     } else {
-      // Bare month without year → AMBIGUOUS
-      // Use context year as candidate but mark ambiguous
-      const parts = getLocalDateParts(ctx.timezone, ctx.referenceDate);
-      const candidateYear = parts.year;
-      const range = buildMonthRange(candidateYear, monthRef.month);
+      // V1-A CP4 bare-month policy: the most recent occurrence of that month
+      // that is not entirely in the future (the current month counts).
+      const year = bareMonthYear(monthRef.month, ctx);
+      const range = buildMonthRange(year, monthRef.month);
       const primary: PrimeTemporalPeriod = {
         from: range.start,
         to: range.end,
-        label: `${monthName(monthRef.month)} ${candidateYear}`,
+        label: `${monthName(monthRef.month)} ${year}`,
         source: 'month_name',
-        confidence: 'ambiguous',
+        confidence: 'deterministic',
       };
       return {
         primary,
         granularity: 'month',
-        confidence: 'ambiguous',
+        confidence: 'deterministic',
       };
     }
   }
@@ -402,14 +458,16 @@ export function buildTemporalScope(
 
 function resolvePeriodRef(
   ref: MonthReference | { year: number },
+  ctx: TemporalScopeContext,
 ): PrimeTemporalPeriod | null {
   if (isMonthRef(ref)) {
-    if (!ref.year) return null;
-    const range = buildMonthRange(ref.year, ref.month);
+    // V1-A CP4: a bare month uses the bare-month policy.
+    const year = ref.year ?? bareMonthYear(ref.month, ctx);
+    const range = buildMonthRange(year, ref.month);
     return {
       from: range.start,
       to: range.end,
-      label: `${monthName(ref.month)} ${ref.year}`,
+      label: `${monthName(ref.month)} ${year}`,
       source: 'month_name',
       confidence: 'deterministic',
     };
@@ -501,15 +559,145 @@ function resolveRelativePeriod(
       const to = fmtYMD(to_d.getFullYear(), to_d.getMonth() + 1, to_d.getDate());
       return { from, to, label: 'last 30 days', source: 'relative_period', confidence: 'deterministic' };
     }
+    case 'this quarter':
+    case 'last quarter': {
+      // V1-A CP4: calendar quarters (Q1 = Jan–Mar). No fiscal-quarter assumptions.
+      const q = Math.floor((parts.month - 1) / 3);
+      const startQ = expression === 'this quarter' ? q : q - 1;
+      const start = new Date(parts.year, startQ * 3, 1);
+      const end = new Date(parts.year, startQ * 3 + 3, 1);
+      const from = fmtYMD(start.getFullYear(), start.getMonth() + 1, 1);
+      const to = fmtYMD(end.getFullYear(), end.getMonth() + 1, 1);
+      return { from, to, label: expression, source: 'relative_period', confidence: 'deterministic' };
+    }
+  }
+  // V1-A CP4: "last N days|weeks|months" — rolling window ending today (inclusive).
+  const rolling = expression.match(/^last (\d+) (day|week|month)s$/);
+  if (rolling) {
+    const n = parseInt(rolling[1], 10);
+    const unit = rolling[2];
+    const start = unit === 'month'
+      ? new Date(parts.year, parts.month - 1 - n, parts.day + 1)
+      : new Date(parts.year, parts.month - 1, parts.day - (unit === 'week' ? n * 7 : n) + 1);
+    const end = new Date(parts.year, parts.month - 1, parts.day + 1);
+    return {
+      from: fmtYMD(start.getFullYear(), start.getMonth() + 1, start.getDate()),
+      to: fmtYMD(end.getFullYear(), end.getMonth() + 1, end.getDate()),
+      label: expression,
+      source: 'relative_period',
+      confidence: 'deterministic',
+    };
   }
   return null;
 }
 
 function inferGranularity(expression: string): TemporalGranularity {
   if (expression === 'today' || expression === 'yesterday') return 'day';
+  if (/^last \d+ /.test(expression) || expression.includes('quarter')) return 'range';
   if (expression.includes('month')) return 'month';
   if (expression.includes('year')) return 'year';
   return 'range';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// V1-A CP4 — bare months, as-of, explicit date ranges
+// ─────────────────────────────────────────────────────────────────────────────
+
+const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+const ymd = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+/** The user's local calendar date (YYYY-MM-DD). */
+function localToday(ctx: TemporalScopeContext): string {
+  const p = getLocalDateParts(ctx.timezone, ctx.referenceDate);
+  return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
+}
+
+/** Bare-month policy: most recent occurrence not entirely in the future. */
+function bareMonthYear(month: number, ctx: TemporalScopeContext): number {
+  const p = getLocalDateParts(ctx.timezone, ctx.referenceDate);
+  return month <= p.month ? p.year : p.year - 1;
+}
+
+/** Attach asOf when the calendar period [from, to) contains today. */
+function applyAsOf(period: PrimeTemporalPeriod, today: string): PrimeTemporalPeriod {
+  if (period.from <= today && today < period.to) return { ...period, asOf: today };
+  return period;
+}
+
+/**
+ * Inclusive end date for aggregate retrieval: the calendar end, clamped to
+ * the as-of date for current periods. Single place for this rule.
+ */
+export function aggregateInclusiveEnd(period: PrimeTemporalPeriod): string {
+  const calendarEnd = toInclusiveEndDate(period.to);
+  return period.asOf && period.asOf < calendarEnd ? period.asOf : calendarEnd;
+}
+
+function validDate(y: number, m: number, d: number): Date | null {
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d ? dt : null;
+}
+
+const RANGE_SEPARATOR = '(to|through|thru|until|till|and|-|–|—)';
+const MONTH_DAY_RANGE_RE = new RegExp(
+  `\\b(between\\s+)?(${MONTH_NAMES_PATTERN})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\s*${RANGE_SEPARATOR}\\s*(?:(${MONTH_NAMES_PATTERN})\\.?\\s+)?(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`,
+);
+const ISO_RANGE_RE = new RegExp(
+  `\\b(between\\s+)?(\\d{4})-(\\d{2})-(\\d{2})\\s*${RANGE_SEPARATOR}\\s*(\\d{4})-(\\d{2})-(\\d{2})\\b`,
+);
+
+/**
+ * V1-A CP4: explicit date-range grammar (not sentence patterns):
+ *   Month D[, YYYY] (to|through|thru|until|till|-|–|—) [Month] D[, YYYY]
+ *   between Month D[, YYYY] and [Month] D[, YYYY]
+ *   YYYY-MM-DD (to|through|-|–|—) YYYY-MM-DD
+ * Year inference: explicit year wins; otherwise the start month uses the
+ * bare-month policy, and an end month earlier than the start month crosses
+ * into the next calendar year. Returns null for invalid/backwards ranges.
+ */
+export function extractDateRange(message: string, ctx: TemporalScopeContext): PrimeTemporalPeriod | null {
+  const lower = message.toLowerCase();
+  let start: Date | null = null;
+  let end: Date | null = null;
+
+  const iso = lower.match(ISO_RANGE_RE);
+  if (iso && (iso[5] !== 'and' || iso[1])) {
+    start = validDate(+iso[2], +iso[3], +iso[4]);
+    end = validDate(+iso[6], +iso[7], +iso[8]);
+  } else {
+    const m = lower.match(MONTH_DAY_RANGE_RE);
+    if (!m || (m[5] === 'and' && !m[1])) return null;
+    const sm = MONTH_MAP[m[2]];
+    const em = m[6] ? MONTH_MAP[m[6]] : sm;
+    if (!sm || !em) return null;
+    const sd = parseInt(m[3], 10);
+    const ed = parseInt(m[7], 10);
+    const explicitSy = m[4] ? parseInt(m[4], 10) : undefined;
+    const explicitEy = m[8] ? parseInt(m[8], 10) : undefined;
+    let sy: number;
+    let ey: number;
+    if (explicitSy !== undefined && explicitEy !== undefined) {
+      sy = explicitSy; ey = explicitEy;
+    } else if (explicitSy !== undefined) {
+      sy = explicitSy; ey = em < sm ? sy + 1 : sy;
+    } else if (explicitEy !== undefined) {
+      ey = explicitEy; sy = em < sm ? ey - 1 : ey;
+    } else {
+      sy = bareMonthYear(sm, ctx); ey = em < sm ? sy + 1 : sy;
+    }
+    if (sy < 2000 || sy > 2099 || ey < 2000 || ey > 2099) return null;
+    start = validDate(sy, sm, sd);
+    end = validDate(ey, em, ed);
+  }
+  if (!start || !end || end < start) return null;
+  const exclusiveEnd = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+  return {
+    from: ymd(start),
+    to: ymd(exclusiveEnd),
+    label: `${ymd(start)} to ${ymd(end)}`,
+    source: 'explicit_date',
+    confidence: 'deterministic',
+  };
 }
 
 const MONTH_DISPLAY: Record<number, string> = {

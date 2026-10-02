@@ -324,8 +324,13 @@ console.log('\n=== Section I: Ambiguous bare month does not execute ===');
 {
   const ts = buildTemporalScope('How much did I spend in May', { timezone: 'America/Edmonton', referenceDate: new Date('2026-09-15') });
   assert(ts !== null, 'I-1: temporal scope extracted for bare "May"');
-  assert(ts!.confidence === 'ambiguous', 'I-2: bare May is ambiguous');
-  assert(ts!.primary?.confidence === 'ambiguous', 'I-3: primary period is ambiguous');
+  // V1-A CP4 deliberate change — OLD: a bare month was 'ambiguous' (no dates were
+  // planned, so period questions fell back to undated 25-row searches). NEW: the
+  // deterministic bare-month policy resolves it to the most recent occurrence that
+  // is not entirely in the future. WHY: an unresolved month silently dropped the
+  // period; the policy is deterministic and the label states the year.
+  assert(ts!.confidence === 'deterministic', 'I-2: bare May resolved by the deterministic policy');
+  assert(ts!.primary?.from === '2026-05-01' && ts!.primary?.to === '2026-06-01', 'I-3: bare May → May 2026 (most recent, not future)');
 
   // P3.1B should NOT inject date params for ambiguous scope
   const classification = classifyPrimeIntent('How much did I spend in May', NO_EXTERNAL);

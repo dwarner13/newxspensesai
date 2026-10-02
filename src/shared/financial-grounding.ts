@@ -17,6 +17,7 @@
 import { type QueryResultStatus } from './financial-taxonomy';
 import {
   classifyFinancialQuery,
+  isUnsupportedFinancialSubject,
   type FinancialQueryClassification,
   type FinancialQueryType,
 } from './financial-query-classifier';
@@ -70,6 +71,15 @@ const FALSE_ZERO_PATTERNS = [
 ];
 
 /**
+ * V1-A CP4: legacy grounding applies only to questions with a supported subject.
+ * An explicitly unsupported subject (refunds) gets no context claim, no pre-run,
+ * no false-zero retry — unrelated tax_summary data must not stand in for it.
+ */
+function legacyGroundingApplies(classification: FinancialQueryClassification): boolean {
+  return classification.requiresGrounding && !isUnsupportedFinancialSubject(classification);
+}
+
+/**
  * Detect if a response asserts a zero/none claim about the user's financial data.
  */
 export function detectsFalseZero(response: string): boolean {
@@ -90,7 +100,7 @@ export function isAnswerInContext(
   taxSummary: TaxSummaryContext[],
   contextYear: number,
 ): FinancialEvidence | null {
-  if (!classification.requiresGrounding) return null;
+  if (!legacyGroundingApplies(classification)) return null;
   if (!taxSummary || taxSummary.length === 0) return null;
 
   // Merchant queries can't be answered from tax summary
@@ -160,7 +170,7 @@ export function buildPreExecutionPlan(
   classification: FinancialQueryClassification,
   contextYear: number,
 ): PreExecutionPlan {
-  if (!classification.requiresGrounding) {
+  if (!legacyGroundingApplies(classification)) {
     return { shouldPreExecute: false, classification };
   }
 
@@ -262,8 +272,8 @@ export function validateGroundedAnswer(
   evidence: FinancialEvidence,
   classification: FinancialQueryClassification,
 ): string | null {
-  // Non-financial queries don't need validation
-  if (!classification.requiresGrounding) return null;
+  // Non-financial queries (and unsupported subjects) don't need validation
+  if (!legacyGroundingApplies(classification)) return null;
 
   // If we have evidence and it's grounded, check for false-zero
   if (evidence.grounded) {

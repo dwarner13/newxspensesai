@@ -118,13 +118,18 @@ console.log('=== A. May 2026 → canonical month range ===');
 // B. May without year → ambiguous
 // ─────────────────────────────────────────────────────────────────────────────
 
-console.log('=== B. Bare May → ambiguous ===');
+console.log('=== B. Bare May → bare-month policy (V1-A CP4) ===');
 
 {
+  // V1-A CP4 deliberate change — OLD: a bare month was 'ambiguous' (no dates were
+  // planned, so period questions fell back to undated 25-row searches). NEW: the
+  // deterministic bare-month policy resolves it to the most recent occurrence that
+  // is not entirely in the future. WHY: an unresolved month silently dropped the
+  // period; the policy is deterministic and the label states the year.
   const scope = buildTemporalScope('How much did I spend in May?', CTX);
   assert(scope !== null, 'B1: scope exists');
-  assertEqual(scope?.primary?.confidence, 'ambiguous', 'B2: confidence is ambiguous');
-  assertEqual(scope?.confidence, 'ambiguous', 'B3: overall confidence is ambiguous');
+  assertEqual(scope?.primary?.confidence, 'deterministic', 'B2: bare month resolved by the deterministic policy');
+  assertEqual(scope?.confidence, 'deterministic', 'B3: overall confidence is deterministic');
   assertEqual(scope?.primary?.from, '2026-05-01', 'B4: candidate from uses context year');
   assertEqual(scope?.primary?.to, '2026-06-01', 'B5: candidate to uses context year');
   assertEqual(scope?.granularity, 'month', 'B6: granularity is month');
@@ -590,8 +595,10 @@ console.log('=== AB. P3.1B comparison consumption ===');
 console.log('=== AC. Ambiguous scope → no guessed dates in plan ===');
 
 {
+  // V1-A CP4: bare months are no longer ambiguous (deterministic bare-month policy);
+  // AC2 below still guarantees dates are only planned from a deterministic scope.
   const scope = buildTemporalScope('How much in May?', CTX);
-  assert(scope?.confidence === 'ambiguous', 'AC1: scope is ambiguous');
+  assert(scope?.confidence === 'deterministic', 'AC1: bare month resolved deterministically (no guessing)');
 
   // When ambiguous, the resolver should NOT use scope dates
   const classification = classifyPrimeIntent('How much did I spend in May?', NO_EXTERNAL);

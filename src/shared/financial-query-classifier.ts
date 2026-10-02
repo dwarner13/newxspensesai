@@ -26,6 +26,29 @@ export type FinancialQueryType =
 /** Which extraction pattern produced a merchant hint. */
 export type MerchantHintSource = 'preposition' | 'noun_suffix';
 
+/**
+ * V1-A CP4 — WHAT the financial question is about (bounded vocabulary; see
+ * SUBJECT grammar below). Absent when no high-confidence subject is present.
+ */
+export type FinancialSubject =
+  | 'spending'
+  | 'income'
+  | 'inflow'
+  | 'outflow'
+  | 'cash_flow'
+  | 'transfer'
+  | 'debt'
+  | 'savings'
+  | 'refund';
+
+/**
+ * V1-A CP4 — request shape. A period answers WHEN, never LIST vs AGGREGATE.
+ *   list      — the user asks for actual transactions / items
+ *   aggregate — the user asks for a financial quantity or summary
+ *   unknown   — no confident structural signal (no pre-run plan is fabricated)
+ */
+export type FinancialRequestShape = 'aggregate' | 'list' | 'unknown';
+
 export interface FinancialQueryClassification {
   /** Is this a factual query about the user's actual financial data? */
   requiresGrounding: boolean;
@@ -51,6 +74,12 @@ export interface FinancialQueryClassification {
   exactDate?: string;
   /** Explicit result count requested by user (e.g., "last 3" → 3). Capped at 25. */
   requestedCount?: number;
+  /** V1-A CP4: financial subject (bounded grammar), when confidently present. */
+  subject?: FinancialSubject;
+  /** V1-A CP4: aggregate vs list (period words never decide this). */
+  requestShape?: FinancialRequestShape;
+  /** V1-A CP4: the user asked for a category breakdown / per-category summary. */
+  wantsBreakdown?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,7 +93,10 @@ const USER_DATA_PATTERNS = /\b(how much did i|what did i spend|my .*(expenses?|s
 const AGGREGATE_PATTERNS = /\b(how much|total|altogether|in total|sum|all of|overall|full year|year to date|ytd|all .*(in|for|during) \d{4}|spend(ing)? on|expense[ds]? (on|for|in)|what .* my .* expense)\b/i;
 
 /** Patterns that indicate detail / transaction-list questions. */
-const DETAIL_PATTERNS = /\b(show me|list|which|when did|last time|transaction(s)? (on|from|in|at)|breakdown|detail|itemize|each|every|individual|specific|particular|march|april|january|february|may|june|july|august|september|october|november|december|last month|this month)\b/i;
+// V1-A CP4: period words (month names, "this/last month") and "breakdown" were
+// removed — a period answers WHEN, not LIST vs AGGREGATE; a breakdown is an
+// aggregate. Remaining terms are genuine detail/list signals.
+const DETAIL_PATTERNS = /\b(show me|list|which|when did|last time|transaction(s)? (on|from|in|at)|detail|itemize|each|every|individual|specific|particular)\b/i;
 
 /** Patterns that are definitely NOT about user data — general education. */
 const EDUCATION_PATTERNS = /^(what is a?n?|what does|what are|explain|define|tell me about|how (should|do|does|would|could) (i|you|one|someone)|what'?s the (difference|meaning|definition)|is it (better|good|bad|wise))/i;
@@ -89,6 +121,83 @@ const CATEGORY_NOT_MERCHANT = new Set([
 
 /** Month name → 1-indexed number mapping for date extraction.
  *  Canonical source — imported by prime-temporal-scope.ts. */
+// ─────────────────────────────────────────────────────────────────────────────
+// V1-A CP4 — SUBJECT / REQUEST-SHAPE GRAMMAR (bounded; no sentence patterns)
+// ─────────────────────────────────────────────────────────────────────────────
+// Canonical subject categories: these financial categories describe WHAT the
+// money is (income, transfers, debt, savings), not an ordinary spend filter.
+const SUBJECT_CATEGORY: Readonly<Record<string, FinancialSubject>> = {
+  'income': 'income',
+  'business income': 'income',
+  'employment income': 'income',
+  'transfers': 'transfer',
+  'debt payments': 'debt',
+  'savings': 'savings',
+  'investments': 'savings',
+};
+
+/** Canonical category that is a financial SUBJECT rather than a spend filter. */
+export function subjectForCategory(category: string | null | undefined): FinancialSubject | undefined {
+  return category ? SUBJECT_CATEGORY[category.trim().toLowerCase()] : undefined;
+}
+
+// Bounded subject vocabulary (high-confidence structural terms only). Anything
+// outside it is left to Prime's own interpretation and tool choice.
+const SUBJECT_TERMS: ReadonlyArray<[FinancialSubject, RegExp]> = [
+  ['refund', /\b(refunds?|refunded|reimburse(?:d|ment|ments)?)\b/],
+  ['cash_flow', /\b(cash ?flows?|net (?:movement|cash(?: movement)?|flow))\b/],
+  ['inflow', /\b((?:came|come|coming|comes) in(?:to)?|money in(?:to)?|inflows?)\b/],
+  ['outflow', /\b((?:went|go|going|goes) out|money out|outflows?)\b/],
+  ['income', /\b(income|earn|earned|earnings|(?:did|do) i (?:make|earn))\b/],
+  ['debt', /\b(debts?)\b/],
+  ['transfer', /\b(transfer(?:s|red|ring)?)\b/],
+  ['savings', /\b(savings|invest(?:ed|ing|ment|ments)?)\b/],
+  ['spending', /\b(spend|spent|spending|expenses?|expenditures?)\b/],
+];
+
+/** Subject: refund/cash-flow terms, then in+out together, then canonical category, then terms. */
+export function extractFinancialSubject(lower: string, resolvedCategory?: string): FinancialSubject | undefined {
+  const hits = new Set(SUBJECT_TERMS.filter(([, re]) => re.test(lower)).map(([subj]) => subj));
+  if (hits.has('refund')) return 'refund';
+  if (hits.has('cash_flow') || (hits.has('inflow') && hits.has('outflow'))) return 'cash_flow';
+  if (hits.has('inflow')) return 'inflow';
+  if (hits.has('outflow')) return 'outflow';
+  const fromCategory = subjectForCategory(resolvedCategory);
+  if (fromCategory) return fromCategory;
+  for (const subj of ['income', 'debt', 'transfer', 'savings', 'spending'] as const) {
+    if (hits.has(subj)) return subj;
+  }
+  return undefined;
+}
+
+// Subjects with no authoritative evidence yet (refund/reversal semantics are not modelled).
+const UNSUPPORTED_SUBJECTS: ReadonlySet<FinancialSubject> = new Set<FinancialSubject>(['refund']);
+
+/**
+ * V1-A CP4: the question's subject has no authoritative evidence — no CP4 plan and
+ * no legacy FinancialGrounding evidence may stand in for it (Prime discloses the limit).
+ */
+export function isUnsupportedFinancialSubject(fc: { subject?: FinancialSubject } | null | undefined): boolean {
+  return !!fc?.subject && UNSUPPORTED_SUBJECTS.has(fc.subject);
+}
+
+/** Quantity / summary signals (aggregate shape). */
+const AGGREGATE_SIGNAL_RE = /\b(how much|total|totals|totaled|sum|altogether|overall|average|avg|net|ytd|year to date|so far|breakdown|categor(?:y|ies))\b|\bbreak\w*\s+(?:\w+\s+){0,3}down\b/;
+/** Breakdown signal (per-category summary). */
+const BREAKDOWN_RE = /\b(breakdown|by categor(?:y|ies)|categories)\b|\bbreak\w*\s+(?:\w+\s+){0,3}down\b/;
+/** Transaction nouns that can be the OBJECT of a list request. */
+const LIST_NOUN_RE = /\b(transactions?|charges?|purchases?|payments?)\b/;
+/** Listing verbs (only a list request when a transaction noun is present). */
+const LIST_VERB_RE = /\b(show|list|itemi[sz]e|display|view|see|pull up|find|search|look up)\b/;
+/** Other structural list signals. */
+const LIST_OTHER_RE = /\b(which|what) (?:\w+ )?(transactions?|charges?|purchases?|payments?)\b|\b(each|every|individual|itemi[sz]ed)\b|\bwhen did\b|\blast time\b/;
+/** Period expression present (WHEN only; never decides list vs aggregate). */
+const PERIOD_HINT_RE = /\b(today|yesterday|(?:this|last|past|previous|prior|current)\s+(?:week|month|quarter|year|\d{1,3}\s+(?:days?|weeks?|months?))|ytd|year to date|so far|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|\d{4}-\d{2}-\d{2})\b/;
+/** First-person / possessive reference to the user's own data. */
+const PERSONAL_REF_RE = /\b(my|i|me|mine|we|our|us)\b/;
+/** Range separator right after an exact date ("Sep 1, 2026 to …") — part of a range, not an identifier. */
+const RANGE_CONTINUATION_RE = /^\s*(to|through|thru|until|till|and|-|–|—)\s/;
+
 export const MONTH_MAP: Record<string, number> = {
   january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3,
   april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7,
@@ -264,7 +373,9 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
   const merchantHintSource = merchantExtraction?.source;
 
   // ── Exact identifiers ──
-  const exactDate = extractExactDate(msg);
+  const rawExactDate = extractExactDate(msg);
+  // V1-A CP4: a date that starts a range ("Sep 1, 2026 to Sep 15") is a period, not an identifier.
+  const exactDate = rawExactDate && !startsDateRange(msg) ? rawExactDate : undefined;
   const exactAmount = extractExactAmount(msg);
   const requestedCount = extractRequestedCount(msg);
 
@@ -278,6 +389,22 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
   const hasStrongIdentifier = exactAmount !== undefined || exactDate !== undefined;
   // Financial noun + BOTH exact date and exact amount → clearly a specific transaction query
   const hasExactTransactionRef = hasFinancialNoun && exactAmount !== undefined && exactDate !== undefined;
+
+  // ── V1-A CP4: subject × request shape (bounded grammar) ──
+  const subject = extractFinancialSubject(lower, resolved?.category);
+  const wantsBreakdown = BREAKDOWN_RE.test(lower);
+  const hasPersonalRef = PERSONAL_REF_RE.test(lower);
+  const hasPeriod = PERIOD_HINT_RE.test(lower) || scope.mentionedYears.length > 0;
+  const isListRequest =
+    hasStrongIdentifier ||
+    requestedCount !== undefined ||
+    (LIST_VERB_RE.test(lower) && LIST_NOUN_RE.test(lower)) ||
+    LIST_OTHER_RE.test(lower);
+  const requestShape: FinancialRequestShape = isListRequest
+    ? 'list'
+    : (AGGREGATE_SIGNAL_RE.test(lower) || AGGREGATE_PATTERNS.test(lower) || subject !== undefined || wantsBreakdown)
+      ? 'aggregate'
+      : 'unknown';
   const isUserDataQuery =
     USER_DATA_PATTERNS.test(lower) ||
     (FINANCIAL_CATEGORY_TERMS.test(lower) && /\b(my|i|me|mine)\b/i.test(lower)) ||
@@ -288,7 +415,15 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     (hasTransactionLookup && hasStrongIdentifier) ||
     (merchantHint && hasStrongIdentifier) ||
     hasExactTransactionRef ||
-    (merchantHint && hasFinancialNoun);
+    (merchantHint && hasFinancialNoun) ||
+    // V1-A CP4 composition: a financial subject, breakdown or category scoped by
+    // the user's own data or a period — never an aggregate-looking word alone.
+    // A category names goods/services (it also has a general-world reading), so
+    // category + period needs a financial request shape too ("Grocery prices in
+    // September" has none and stays with Prime's own interpretation).
+    (subject !== undefined && (hasPersonalRef || hasPeriod)) ||
+    (wantsBreakdown && (hasPersonalRef || hasPeriod)) ||
+    (resolved !== undefined && hasPeriod && requestShape !== 'unknown');
 
   if (!isUserDataQuery) {
     return {
@@ -302,20 +437,25 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
       exactAmount,
       exactDate,
       requestedCount,
+      subject,
+      requestShape,
+      wantsBreakdown,
     };
   }
 
   // ── Determine query type ──
-  // Strong explicit identifiers (exact date/amount) favor detail lookup,
-  // but a real merchant hint still gets merchant queryType.
+  // V1-A CP4: request shape decides list vs aggregate; period words never do.
+  // A real merchant hint still gets merchant queryType (merchant architecture owns it).
   let queryType: FinancialQueryType;
-
   if (merchantHint) {
+    // Merchant architecture owns merchant questions (Stage 1 trust applies downstream).
     queryType = 'merchant';
+  } else if (requestShape === 'list') {
+    queryType = 'detail';
+  } else if (requestShape === 'aggregate') {
+    queryType = 'aggregate';
   } else if (hasStrongIdentifier || scope.needsDetail || DETAIL_PATTERNS.test(lower)) {
     queryType = 'detail';
-  } else if (AGGREGATE_PATTERNS.test(lower) || resolved) {
-    queryType = 'aggregate';
   } else {
     queryType = 'aggregate';
   }
@@ -331,7 +471,19 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     exactAmount,
     exactDate,
     requestedCount,
+    subject,
+    requestShape,
+    wantsBreakdown,
   };
+}
+
+/** V1-A CP4: does the first exact calendar date in the message start a date range? */
+function startsDateRange(msg: string): boolean {
+  const m = msg.match(
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?,?\s*\d{4}\b/i,
+  );
+  if (!m || m.index === undefined) return false;
+  return RANGE_CONTINUATION_RE.test(msg.slice(m.index + m[0].length).toLowerCase());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -35,6 +35,26 @@ export const EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS = new Set([
   'merchant_totals',
 ]);
 
+/**
+ * V1-A CP4: deterministic row count for a read-tool result (telemetry /
+ * accumulated-evidence accounting only — never transaction identity).
+ *   cash_flow_summary            → transactionCount (rows that contributed)
+ *   transaction_category_totals  → categoryTotals (or legacy totals) entries
+ *   tx_search                    → rows
+ */
+export function countEvidenceRows(tool: string, result: unknown): number {
+  if (!result || typeof result !== 'object') return 0;
+  const r = result as Record<string, unknown>;
+  if (tool === 'cash_flow_summary') {
+    return typeof r.transactionCount === 'number' && Number.isFinite(r.transactionCount) ? r.transactionCount : 0;
+  }
+  for (const key of ['rows', 'categoryTotals', 'totals']) {
+    const value = r[key];
+    if (Array.isArray(value)) return value.length;
+  }
+  return 0;
+}
+
 export interface AccumulatedEvidenceEntry {
   tool: string;
   status: 'resolved' | 'successful_empty';

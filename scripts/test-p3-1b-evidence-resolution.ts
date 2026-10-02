@@ -618,15 +618,14 @@ console.log('=== S. Conceptual test cases ===');
   assert(txStepA?.authoritative === true, 'S-A: tx_search is authoritative');
 
   // S-B: "Where did most of my money go last month?"
-  const { plan: pB, classification: cB } = fullPipeline('Where did most of my money go last month?');
-  // This triggers financial grounding (contains "my" + "last month")
-  const hasBFinancial = pB.steps.some(s =>
-    s.tool === 'tx_search' || s.tool === 'transaction_category_totals',
-  );
-  assert(
-    hasBFinancial || pB.unresolved.length > 0,
-    'S-B: financial evidence addressed (tool planned or unresolved)',
-  );
+  // V1-A CP4 deliberate change — OLD: accepted a tx_search plan ("last month" forced
+  // queryType=detail → a 25-row sample) as "addressed". NEW: the bounded grammar has
+  // no confident request shape here, so NO pre-run plan is fabricated and Prime
+  // interprets the question itself. WHY: a 25-row sample cannot answer an aggregate
+  // question, and guessing the evidence is worse than letting Prime choose.
+  const { plan: pB } = fullPipeline('Where did most of my money go last month?');
+  const hasBSampleList = pB.steps.some(s => s.tool === 'tx_search');
+  assert(!hasBSampleList, 'S-B: no 25-row tx_search sample fabricated for an aggregate-style question');
 
   // S-C: "Why was May so expensive?"
   // This message may or may not trigger financial classification

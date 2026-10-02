@@ -20,6 +20,7 @@ import {
   type PrimeIntentClassification,
 } from './prime-intent-classifier';
 import type { PrimeTemporalScope } from './prime-temporal-scope';
+import { subjectForCategory, isUnsupportedFinancialSubject, type FinancialQueryClassification } from './financial-query-classifier';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EVIDENCE KIND — small stable vocabulary
@@ -258,15 +259,56 @@ function resolvePassiveStatus(
 // an attached financialClassification, the queryType can narrow the ambiguous
 // 'authoritative_financial_data' label into a more specific evidence kind.
 
+/** V1-A CP4: subjects answered by the period cash-flow aggregate. */
+const CASH_FLOW_SUBJECTS = new Set(['spending', 'income', 'inflow', 'outflow', 'cash_flow', 'transfer', 'debt', 'savings']);
+
+/**
+ * V1-A CP4: compose subject × request shape × scope into the EXISTING evidence
+ * kinds. Returns null when the shape-based rules do not apply, so the legacy
+ * queryType refinement below decides (unchanged).
+ */
+function refineBySemanticShape(
+  kinds: PrimeEvidenceKind[],
+  fc: FinancialQueryClassification,
+): PrimeEvidenceKind[] | null {
+  const FINANCIAL: PrimeEvidenceKind[] = ['transaction_data', 'category_aggregation', 'merchant_aggregation'];
+  const others = kinds.filter(k => !FINANCIAL.includes(k));
+  const withKind = (k: PrimeEvidenceKind) => [...others, k];
+
+  // Merchant architecture owns merchant questions (legacy refinement below).
+  if (fc.queryType === 'merchant') return null;
+  // No authoritative refund classification exists — never plan aggregate evidence
+  // that could be presented as refund totals.
+  if (isUnsupportedFinancialSubject(fc)) return others;
+  if (fc.requestShape === 'list') return withKind('transaction_data');
+  if (fc.requestShape === 'aggregate') {
+    const category = fc.resolvedCategory?.category;
+    const ordinaryCategory = !!category && !subjectForCategory(category);
+    if (fc.wantsBreakdown || ordinaryCategory) return withKind('category_aggregation');
+    if (fc.subject && CASH_FLOW_SUBJECTS.has(fc.subject)) return withKind('cash_flow');
+    return null;
+  }
+  // Unknown shape with no category / identifier scope: no confident pre-run plan;
+  // Prime interprets the question and chooses the authoritative tools itself.
+  if (fc.requestShape === 'unknown' && !fc.resolvedCategory && fc.exactAmount === undefined && fc.exactDate === undefined) {
+    return others;
+  }
+  return null;
+}
+
 function refineFinancialEvidenceKinds(
   kinds: PrimeEvidenceKind[],
-  queryType: string | undefined,
+  fc: FinancialQueryClassification,
 ): PrimeEvidenceKind[] {
   // Only refine when the ambiguous set is present
   const hasTransaction = kinds.includes('transaction_data');
   const hasAggregation = kinds.includes('category_aggregation');
   const hasMerchant = kinds.includes('merchant_aggregation');
+  const queryType = fc.queryType;
   if ((!hasTransaction && !hasAggregation && !hasMerchant) || !queryType) return kinds;
+
+  const semantic = refineBySemanticShape(kinds, fc);
+  if (semantic) return semantic;
 
   switch (queryType) {
     case 'aggregate':
@@ -320,7 +362,7 @@ export function buildRuntimeEvidenceContract(
   if (financialClassification?.queryType) {
     requiredKinds = refineFinancialEvidenceKinds(
       requiredKinds,
-      financialClassification.queryType,
+      financialClassification,
     );
   }
 

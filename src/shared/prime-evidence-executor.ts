@@ -935,7 +935,9 @@ export function shouldSuppressLegacyPreExec(
   // Map legacy tool names to P3.1C evidence kinds
   const legacyToKinds: Record<string, PrimeEvidenceKind[]> = {
     tx_search: ['transaction_data'],
-    tax_summary: ['category_aggregation', 'transaction_data'],
+    // V1-A CP4: authoritative period cash-flow evidence also replaces the legacy
+    // whole-year tax_summary pre-run (never both).
+    tax_summary: ['category_aggregation', 'transaction_data', 'cash_flow'],
   };
 
   const relevantKinds = legacyToKinds[legacyToolName];
