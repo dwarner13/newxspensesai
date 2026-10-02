@@ -94,6 +94,24 @@ export interface PrimeEvidenceResult {
   error?: string;
   /** Period label for comparison results */
   periodLabel?: string;
+  /** V1-A CP4.2: the exact scope the tool was executed with (from the step's tool args). */
+  scope?: EvidenceScope;
+}
+
+/** V1-A CP4.2: execution scope of a single-step result (inclusive dates, or a year). */
+export interface EvidenceScope {
+  startDate?: string;
+  endDate?: string;
+  year?: number;
+}
+
+/** The scope carried by the executed tool args (never parsed from prose). */
+function evidenceScopeFromArgs(args: Record<string, unknown>): EvidenceScope {
+  const scope: EvidenceScope = {};
+  if (typeof args.startDate === 'string') scope.startDate = args.startDate;
+  if (typeof args.endDate === 'string') scope.endDate = args.endDate;
+  if (typeof args.year === 'number') scope.year = args.year;
+  return scope;
 }
 
 export interface PrimeEvidenceExecutionResult {
@@ -296,6 +314,7 @@ async function executeSingleStep(
         data: cached.data,
         rowCount: cached.rowCount,
         durationMs: 0,
+        scope: evidenceScopeFromArgs(args),
       },
       dedupHit: true,
     };
@@ -359,6 +378,7 @@ async function executeSingleStep(
         data,
         rowCount,
         durationMs,
+        scope: evidenceScopeFromArgs(args),
       },
       dedupHit: false,
     };
@@ -980,12 +1000,104 @@ function relevantP31CResults(
  * truncated, and its classification is not explicitly incomplete (existing signals only).
  */
 function isProvenEmpty(r: PrimeEvidenceResult): boolean {
+  return isProvenComplete(r);
+}
+
+/** V1-A CP4.1/CP4.2: authoritative, not partial / truncated, classification not explicitly incomplete. */
+function isProvenComplete(r: PrimeEvidenceResult): boolean {
   if (r.authoritative !== true || isPartialEvidence(r.data)) return false;
   const completeness = r.data && typeof r.data === 'object'
     ? (r.data as Record<string, unknown>).completeness
     : undefined;
   return !(completeness && typeof completeness === 'object'
     && (completeness as Record<string, unknown>).classificationComplete === false);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// V1-A CP4.2 — AGGREGATE EVIDENCE REUSE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Aggregate evidence kinds CP4.2 may reuse, and the ONLY tool each one owns. */
+export const AGGREGATE_EVIDENCE_TOOLS = {
+  cash_flow: 'cash_flow_summary',
+  category_aggregation: 'transaction_category_totals',
+} as const;
+
+export type ReusableAggregateKind = keyof typeof AGGREGATE_EVIDENCE_TOOLS;
+
+/**
+ * V1-A CP4.2: which aggregate evidence kinds P3.1C has completely and authoritatively
+ * satisfied for THIS request, so the model explains that evidence instead of re-running
+ * the same tool. Built only from existing signals: the evidence plan and execution
+ * result, overall sufficiency, CP4.1 proven-complete semantics, the temporal scope, the
+ * financial request shape and the tool-gate query scope.
+ *
+ * Returns [] (nothing reusable) unless EVERY condition holds:
+ *  - P3.1C overall sufficiency is 'sufficient' and the plan has no unresolved requirement;
+ *  - the request is a non-merchant aggregate request (requestShape 'aggregate');
+ *  - no comparison signal (temporal comparison period, classifier or query scope);
+ *  - no detail / mutation signal in the query scope;
+ *  - every executable plan step is a single-period aggregate step owned by CP4.2;
+ *  - each such step has a result for the same tool and exact same scope, resolved or
+ *    successful_empty, authoritative, not partial, classification not incomplete.
+ */
+export function satisfiedAggregateEvidenceKinds(input: {
+  plan: PrimeEvidencePlan | null | undefined;
+  result: PrimeEvidenceExecutionResult | null | undefined;
+  financialClassification?: { queryType?: string; requestShape?: string; scope?: { isComparison?: boolean } } | null;
+  temporalScope?: { comparison?: unknown } | null;
+  queryScope?: { needsDetail?: boolean; isMutation?: boolean; isComparison?: boolean } | null;
+}): ReusableAggregateKind[] {
+  const { plan, result, financialClassification: fc, temporalScope: ts, queryScope: qs } = input;
+  if (!plan || !result || !fc) return [];
+  if (result.overallSufficiency !== 'sufficient' || plan.unresolved.length > 0) return [];
+  if (fc.requestShape !== 'aggregate' || fc.queryType === 'merchant') return [];
+  if (ts?.comparison || fc.scope?.isComparison || qs?.isComparison) return [];
+  if (qs?.needsDetail || qs?.isMutation) return [];
+
+  const executable = plan.steps.filter(s => (s.mode === 'tool' || s.mode === 'multi_source') && s.tool);
+  if (executable.length === 0) return [];
+
+  const satisfied = new Set<ReusableAggregateKind>();
+  for (const step of executable) {
+    const kind = step.evidenceKind as ReusableAggregateKind;
+    if (step.mode !== 'tool' || !(kind in AGGREGATE_EVIDENCE_TOOLS) || step.tool !== AGGREGATE_EVIDENCE_TOOLS[kind]) {
+      return []; // the request needs evidence CP4.2 does not own
+    }
+    const want = evidenceScopeFromArgs(buildToolArgs(step));
+    const match = result.results.find(r =>
+      r.evidenceKind === kind && r.tool === step.tool && sameEvidenceScope(r.scope, want));
+    if (!match || (match.status !== 'resolved' && match.status !== 'successful_empty') || !isProvenComplete(match)) {
+      return [];
+    }
+    satisfied.add(kind);
+  }
+  return [...satisfied];
+}
+
+function sameEvidenceScope(a: EvidenceScope | undefined, b: EvidenceScope): boolean {
+  if (!a) return false;
+  return a.startDate === b.startDate && a.endDate === b.endDate && a.year === b.year;
+}
+
+/**
+ * V1-A CP4.2: model-loop reuse of an EXACT P3.1C call (same tool, same args).
+ * tx_search / transaction_category_totals: existing behaviour (unchanged).
+ * cash_flow_summary: reused only when the cached evidence is not partial.
+ */
+export function lookupP31CCachedResult(
+  cache: DedupCache,
+  toolName: string,
+  args: Record<string, unknown>,
+): { data: unknown; rowCount: number } | undefined {
+  if (toolName === 'tx_search' || toolName === 'transaction_category_totals') {
+    return cache.get(buildDedupKey(toolName, args));
+  }
+  if (toolName === 'cash_flow_summary') {
+    const entry = cache.get(buildDedupKey(toolName, args));
+    return entry && !isPartialEvidence(entry.data) ? entry : undefined;
+  }
+  return undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1151,6 +1263,16 @@ export function buildEvidenceShapePolicy(result: PrimeEvidenceExecutionResult): 
  * Format is structured text — not raw JSON. The model needs human-readable evidence.
  * Includes P3.1D evidence-shape policy and data provenance.
  */
+/** V1-A CP4.2: aggregate evidence states the exact scope it covers (from execution args). */
+function formatAggregateScope(result: PrimeEvidenceResult): string {
+  if (!(result.evidenceKind in AGGREGATE_EVIDENCE_TOOLS) || !result.scope) return '';
+  const { startDate, endDate, year } = result.scope;
+  if (startDate && endDate) return ` tool=${result.tool} period=${startDate} through ${endDate}`;
+  if (typeof year === 'number') return ` tool=${result.tool} year=${year}`;
+  if (!startDate && !endDate) return ` tool=${result.tool} period=all imported history`;
+  return ` tool=${result.tool}`;
+}
+
 export function buildEvidenceContextMessage(
   executionResult: PrimeEvidenceExecutionResult,
 ): string | null {
@@ -1161,7 +1283,7 @@ export function buildEvidenceContextMessage(
   sections.push(`EVIDENCE SUMMARY (sufficiency: ${executionResult.overallSufficiency})`);
 
   for (const result of executionResult.results) {
-    const header = `[${result.evidenceKind}] status=${result.status} authoritative=${result.authoritative}`;
+    const header = `[${result.evidenceKind}] status=${result.status} authoritative=${result.authoritative}${formatAggregateScope(result)}`;
     if (result.status === 'resolved' && result.data) {
       const dataStr = formatEvidenceData(result);
       sections.push(`${header}\n${dataStr}`);

@@ -203,7 +203,9 @@ import {
   buildEvidenceContextMessage,
   shouldSuppressLegacyPreExec,
   legacyQueryStatusFromP31C,
-  buildDedupKey,
+  satisfiedAggregateEvidenceKinds,
+  lookupP31CCachedResult,
+  AGGREGATE_EVIDENCE_TOOLS,
   classifyEvidenceShape,
   type PrimeEvidenceExecutionResult,
   type DedupCache,
@@ -10116,6 +10118,25 @@ export const handler: Handler = async (event, context) => {
       console.log('[P3.3A] Merchant aggregation evidence-satisfied — suppressing redundant tx_search');
     }
 
+    // ── V1-A CP4.2: aggregate evidence reuse ──
+    // When P3.1C has completely and authoritatively satisfied the exact aggregate evidence
+    // this request needs, the model explains that evidence instead of re-running the same
+    // aggregate tool. Removes ONLY the satisfied aggregate tool(s); nothing else changes.
+    const satisfiedAggregateTools = new Set<string>(
+      isPrime
+        ? satisfiedAggregateEvidenceKinds({
+            plan: evidencePlanForExecution,
+            result: p31cResult,
+            financialClassification: shadowFC,
+            temporalScope,
+            queryScope,
+          }).map(kind => AGGREGATE_EVIDENCE_TOOLS[kind])
+        : [],
+    );
+    if (satisfiedAggregateTools.size > 0) {
+      console.log(`[CP4.2] Aggregate evidence satisfied by P3.1C — not exposing ${[...satisfiedAggregateTools].join(', ')} to the model`);
+    }
+
     // ── P3.2B2C: Merchant analysis → authoritative transaction bridge ──
     // When a valid, complete MerchantAnalysisContext exists and the user asks
     // for the transactions it represents ("show me those transactions"),
@@ -11353,9 +11374,10 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             // sufficient — either merchant aggregation (P3.3A) or B2C authoritative
             // candidates established in this request (P3.3B).
             const stripTxSearch = merchantAggSatisfied || b2cCandidatesSatisfied;
-            const toolsForModel = stripTxSearch
+            const toolsForModel = (stripTxSearch
               ? employeeTools.filter(t => t !== 'tx_search')
-              : employeeTools;
+              : employeeTools
+            ).filter(t => !satisfiedAggregateTools.has(t)); // V1-A CP4.2
             openaiTools = toolsForModel.length > 0 ? toOpenAIToolDefs(toolsForModel) : undefined;
             if (merchantAggSatisfied) {
               console.log('[P3.3A] tx_search stripped from streaming model tools');
@@ -11766,10 +11788,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
 
                   // ── P3.1C dedup: reuse cached result if same tool+args already executed ──
                   let result: any;
-                  const streamCacheKey = (toolName === 'tx_search' || toolName === 'transaction_category_totals')
-                    ? buildDedupKey(toolName, args as Record<string, unknown>)
-                    : null;
-                  const streamCached = streamCacheKey ? p31cDedupCache.get(streamCacheKey) : undefined;
+                  const streamCached = lookupP31CCachedResult(p31cDedupCache, toolName, args as Record<string, unknown>); // V1-A CP4.2: + exact cash_flow_summary
                   if (streamCached) {
                     result = streamCached.data;
                     console.log(`[Chat] P3.1C dedup hit (streaming) for ${toolName} — returning cached result`);
@@ -12753,9 +12772,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             // P3.3A/P3.3B: Strip tx_search in non-streaming path when evidence is
             // already sufficient — merchant aggregation (P3.3A) or B2C candidates (P3.3B).
             const stripTxSearch = merchantAggSatisfied || b2cCandidatesSatisfied;
-            const toolsForModel = stripTxSearch
+            const toolsForModel = (stripTxSearch
               ? employeeTools.filter(t => t !== 'tx_search')
-              : employeeTools;
+              : employeeTools
+            ).filter(t => !satisfiedAggregateTools.has(t)); // V1-A CP4.2
             openaiTools = toolsForModel.length > 0 ? toOpenAIToolDefs(toolsForModel) : undefined;
             if (merchantAggSatisfied) {
               console.log('[P3.3A] tx_search stripped from non-streaming model tools');
@@ -13486,10 +13506,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
             // ── P3.1C dedup: if this exact tool+args was already executed by P3.1C, reuse cached result ──
             let result: any;
-            const p31cCacheKey = (toolName === 'tx_search' || toolName === 'transaction_category_totals')
-              ? buildDedupKey(toolName, args as Record<string, unknown>)
-              : null;
-            const p31cCached = p31cCacheKey ? p31cDedupCache.get(p31cCacheKey) : undefined;
+            const p31cCached = lookupP31CCachedResult(p31cDedupCache, toolName, args as Record<string, unknown>); // V1-A CP4.2: + exact cash_flow_summary
             if (p31cCached) {
               result = p31cCached.data;
               console.log(`[Chat] P3.1C dedup hit for ${toolName} — returning cached result`);
@@ -13884,10 +13901,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 };
                 // ── P3.1C dedup: reuse cached result if same tool+params already executed ──
                 let result: any;
-                const loopCacheKey = (toolName === 'tx_search' || toolName === 'transaction_category_totals')
-                  ? buildDedupKey(toolName, args as Record<string, unknown>)
-                  : null;
-                const loopCached = loopCacheKey ? p31cDedupCache.get(loopCacheKey) : undefined;
+                const loopCached = lookupP31CCachedResult(p31cDedupCache, toolName, args as Record<string, unknown>); // V1-A CP4.2: + exact cash_flow_summary
                 if (loopCached) {
                   result = loopCached.data;
                   console.log(`[Chat] P3.1C dedup hit (tool-loop) for ${toolName} — returning cached result`);
