@@ -13,7 +13,9 @@
  * classifyCashFlow in financial-taxonomy.ts.
  */
 
+import { z } from 'zod';
 import {
+  amountToCents,
   classifyCashFlow,
   type CashFlowConflict,
   type CashFlowDirection,
@@ -45,6 +47,9 @@ export interface AggregateCategoryTotal {
   purpose: Exclude<CashFlowPurpose, 'unclassified'>;
   totalCents: number;
   count: number;
+  /** Earliest / latest `date` among the rows in this entry. */
+  firstDate: string;
+  lastDate: string;
 }
 
 export interface PeriodAggregate {
@@ -60,7 +65,7 @@ export interface PeriodAggregate {
     debtPayments: number;
     /** Outflow to savings / investments (incl. TFSA/RRSP) — internal money movement. */
     savingsInvestment: number;
-    /** Other canonical non-spend outflow (e.g. ATM withdrawal, points redemption). */
+    /** Other canonical non-spend outflow (reserved; no canonical entry maps here today). */
     otherNonSpend: number;
     /** Outflow whose category contradicts its type (e.g. expense + "Income"). */
     classificationConflict: number;
@@ -99,8 +104,16 @@ export interface PeriodAggregate {
     /** Fetch exhausted the range (propagated). */
     complete: boolean;
     truncated: boolean;
-    /** Safe to present as an authoritative period total. */
+    /** Safe to present as an authoritative period total (data completeness). */
     authoritative: boolean;
+    /**
+     * Classification completeness (separate from data completeness): false when
+     * any in-period row could not contribute because its type is unsupported or
+     * its amount is missing/invalid — the money totals then do not cover it.
+     */
+    classificationComplete: boolean;
+    /** Known |amount| (cents) of in-period rows with an unsupported type. */
+    unclassifiedCents: number;
     rowsFetched: number;
     /**
      * Rows SUPPLIED to the builder that could not contribute. A date-range
@@ -118,6 +131,65 @@ export interface PeriodAggregate {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tool-output helpers (shared by cash_flow_summary and transaction_category_totals)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Integer cents → dollars, for tool JSON only (aggregation stays in cents). */
+export function centsToDollars(cents: number): number {
+  return cents / 100;
+}
+
+export type AggregateQueryStatus = 'verified' | 'verified_zero' | 'partial';
+
+/** partial = data incomplete; verified_zero = complete and nothing contributed. */
+export function aggregateQueryStatus(agg: PeriodAggregate, includedCount = agg.counts.included): AggregateQueryStatus {
+  if (!agg.completeness.complete || agg.completeness.truncated) return 'partial';
+  return includedCount === 0 ? 'verified_zero' : 'verified';
+}
+
+export const completenessOutputSchema = z.object({
+  /** The requested range was fully fetched. */
+  dataComplete: z.boolean(),
+  truncated: z.boolean(),
+  /** Data completeness: safe to present the totals as complete for the period. */
+  authoritative: z.boolean(),
+  /** Classification completeness: false when some rows could not be classified. */
+  classificationComplete: z.boolean(),
+  rowsFetched: z.number(),
+  excluded: z.object({
+    missingAmount: z.number(),
+    missingDate: z.number(),
+    outOfPeriod: z.number(),
+    unclassifiedType: z.number(),
+  }),
+  /** Known magnitude of unsupported-type rows (in no bucket). */
+  unclassifiedCents: z.number(),
+  unclassifiedAmount: z.number(),
+  conflicts: z.object({
+    income_category_on_outflow: z.number(),
+    non_spend_category_on_inflow: z.number(),
+    negative_inflow: z.number(),
+  }),
+});
+
+export type CompletenessOutput = z.infer<typeof completenessOutputSchema>;
+
+export function toCompletenessOutput(agg: PeriodAggregate): CompletenessOutput {
+  const c = agg.completeness;
+  return {
+    dataComplete: c.complete,
+    truncated: c.truncated,
+    authoritative: c.authoritative,
+    classificationComplete: c.classificationComplete,
+    rowsFetched: c.rowsFetched,
+    excluded: { ...c.excluded },
+    unclassifiedCents: c.unclassifiedCents,
+    unclassifiedAmount: centsToDollars(c.unclassifiedCents),
+    conflicts: { ...c.conflicts },
+  };
+}
 
 type Bucket = Exclude<CashFlowPurpose, 'unclassified'>;
 const BUCKET_KEY: Record<Bucket, keyof PeriodAggregate['counts'] & keyof PeriodAggregate['cents']> = {
@@ -146,6 +218,7 @@ export function buildPeriodAggregate(
     debtPayments: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
   };
   const excluded = { missingAmount: 0, missingDate: 0, outOfPeriod: 0, unclassifiedType: 0 };
+  let unclassifiedCents = 0;
   const conflicts: Record<CashFlowConflict, number> = {
     income_category_on_outflow: 0,
     non_spend_category_on_inflow: 0,
@@ -162,6 +235,8 @@ export function buildPeriodAggregate(
     for (const conflict of c.conflicts) conflicts[conflict]++;
     if (c.excluded === 'unclassified_type' || c.direction === 'unclassified' || c.purpose === 'unclassified') {
       excluded.unclassifiedType++;
+      // Magnitude is known even though direction is not; never counted in any bucket.
+      unclassifiedCents += amountToCents(row.amount) ?? 0;
       continue;
     }
     if (c.excluded === 'missing_amount' || c.amountCents === null) { excluded.missingAmount++; continue; }
@@ -178,8 +253,12 @@ export function buildPeriodAggregate(
     if (entry) {
       entry.totalCents += amount;
       entry.count++;
+      if (date < entry.firstDate) entry.firstDate = date;
+      if (date > entry.lastDate) entry.lastDate = date;
     } else {
-      categoryMap.set(mapKey, { category, direction: c.direction, purpose: c.purpose, totalCents: amount, count: 1 });
+      categoryMap.set(mapKey, {
+        category, direction: c.direction, purpose: c.purpose, totalCents: amount, count: 1, firstDate: date, lastDate: date,
+      });
     }
   }
 
@@ -207,6 +286,8 @@ export function buildPeriodAggregate(
       complete,
       truncated: opts.fetch.truncated,
       authoritative: complete,
+      classificationComplete: excluded.unclassifiedType === 0 && excluded.missingAmount === 0,
+      unclassifiedCents,
       rowsFetched: opts.fetch.rowsFetched,
       excluded,
       conflicts,

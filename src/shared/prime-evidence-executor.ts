@@ -45,6 +45,25 @@ export const MAX_EVIDENCE_TOOL_CALLS = 5;
 export const PER_TOOL_TIMEOUT_MS = 3_000;
 export const TOTAL_EVIDENCE_BUDGET_MS = 8_000;
 
+/**
+ * V1-A CP3: the two authoritative aggregate tools page through a whole date
+ * range, so they get a longer step timeout. Every other tool keeps
+ * PER_TOOL_TIMEOUT_MS. An override is always bounded by what remains of
+ * TOTAL_EVIDENCE_BUDGET_MS.
+ */
+export const PER_TOOL_TIMEOUT_OVERRIDES_MS: Readonly<Record<string, number>> = {
+  cash_flow_summary: 8_000,
+  transaction_category_totals: 8_000,
+};
+
+/** Step timeout for a tool: default 3s, or the override capped by the remaining total budget. */
+export function stepTimeoutMs(tool: string, budgetStart: number, now: number = Date.now()): number {
+  const override = PER_TOOL_TIMEOUT_OVERRIDES_MS[tool];
+  if (override === undefined) return PER_TOOL_TIMEOUT_MS;
+  const remaining = TOTAL_EVIDENCE_BUDGET_MS - (now - budgetStart);
+  return Math.max(0, Math.min(override, remaining));
+}
+
 /** Max transaction rows passed to model context */
 export const MAX_TX_ROWS_IN_CONTEXT = 25;
 /** Max category total entries passed to model context */
@@ -283,8 +302,23 @@ async function executeSingleStep(
   }
 
   const stepStart = Date.now();
+  const timeoutMs = stepTimeoutMs(tool, budgetStart, stepStart);
+  if (timeoutMs <= 0) {
+    return {
+      result: {
+        evidenceKind: step.evidenceKind,
+        status: 'failed',
+        authoritative: step.authoritative,
+        source: step.source,
+        tool,
+        durationMs: 0,
+        error: 'total_budget_exceeded',
+      },
+      dedupHit: false,
+    };
+  }
   try {
-    const rawResult = await withStepTimeout(executor(tool, args), PER_TOOL_TIMEOUT_MS);
+    const rawResult = await withStepTimeout(executor(tool, args), timeoutMs);
     const durationMs = Date.now() - stepStart;
 
     // CP1: a tool/query failure is never empty or $0 evidence (and is never cached).
@@ -429,8 +463,24 @@ async function executeOnePeriod(
   }
 
   const stepStart = Date.now();
+  const timeoutMs = stepTimeoutMs(tool, budgetStart, stepStart);
+  if (timeoutMs <= 0) {
+    return {
+      result: {
+        evidenceKind: step.evidenceKind,
+        status: 'failed',
+        authoritative: step.authoritative,
+        source: step.source,
+        tool,
+        durationMs: 0,
+        error: 'total_budget_exceeded',
+        periodLabel: label,
+      },
+      dedupHit: false,
+    };
+  }
   try {
-    const rawResult = await withStepTimeout(executor(tool, args), PER_TOOL_TIMEOUT_MS);
+    const rawResult = await withStepTimeout(executor(tool, args), timeoutMs);
     const durationMs = Date.now() - stepStart;
 
     // CP1: a tool/query failure is never empty or $0 evidence (and is never cached).
@@ -584,9 +634,20 @@ function extractResultData(tool: string, rawResult: unknown): { data: unknown; r
         summary: result.summary,
         grandTotalCents: toCents(result.grandTotal ?? result.total),
         ...(result.queryStatus !== undefined ? { queryStatus: result.queryStatus } : {}),
+        // V1-A CP3: authoritative purpose totals + completeness, when the tool provides them
+        ...(result.totalsByPurpose && typeof result.totalsByPurpose === 'object' ? { totalsByPurpose: result.totalsByPurpose } : {}),
+        ...(result.completeness && typeof result.completeness === 'object' ? { completeness: result.completeness } : {}),
+        ...(typeof result.categoryFilter === 'string' ? { categoryFilter: result.categoryFilter } : {}),
       },
       rowCount: totals.length,
     };
+  }
+
+  if (tool === 'cash_flow_summary') {
+    // V1-A CP3: emptiness is the number of transactions that contributed, not "1 result object".
+    const included = typeof result.transactionCount === 'number' && Number.isFinite(result.transactionCount)
+      ? result.transactionCount : 1;
+    return { data: result, rowCount: included };
   }
 
   if (tool === 'merchant_totals') {
@@ -616,10 +677,13 @@ function extractResultData(tool: string, rawResult: unknown): { data: unknown; r
 /** Category-total evidence as normalized at the executor boundary. */
 export interface NormalizedCategoryTotal {
   category: string;
-  /** Integer cents (from the tool's totalAmount / legacy total|amount). */
+  /** Integer cents (the tool's totalCents, else totalAmount / legacy total|amount). */
   totalCents: number;
   /** Transaction count, or null when the tool did not supply a valid one. */
   count: number | null;
+  /** V1-A CP3: classified direction / purpose, when the tool provides them. */
+  direction?: string;
+  purpose?: string;
 }
 
 /** Dollars -> integer cents; null for anything that is not a finite number. */
@@ -648,7 +712,7 @@ export function normalizeCategoryTotals(
   for (const entry of entries) {
     if (!entry || typeof entry !== 'object') { malformedCount++; continue; }
     const e = entry as Record<string, unknown>;
-    const totalCents = toCents(e.totalAmount ?? e.total ?? e.amount);
+    const totalCents = Number.isInteger(e.totalCents) ? e.totalCents as number : toCents(e.totalAmount ?? e.total ?? e.amount);
     if (totalCents === null) { malformedCount++; continue; }
     const name = e.category ?? e.name;
     const rawCount = Number(e.transactionCount ?? e.count);
@@ -656,6 +720,8 @@ export function normalizeCategoryTotals(
       category: typeof name === 'string' && name.trim() !== '' ? name : 'Uncategorized',
       totalCents,
       count: Number.isInteger(rawCount) && rawCount >= 0 ? rawCount : null,
+      ...(typeof e.direction === 'string' ? { direction: e.direction } : {}),
+      ...(typeof e.purpose === 'string' ? { purpose: e.purpose } : {}),
     });
   }
   return { totals, malformedCount };
@@ -685,17 +751,82 @@ function isPartialEvidence(data: unknown): boolean {
 const RAW_CATEGORY_GRAND_TOTAL_LABEL =
   'All-category raw total (may include income, transfers and other non-spend categories — NOT a spending total)';
 
+/** Model-facing names for the classified purposes (V1-A CP3). */
+const PURPOSE_LABEL: Readonly<Record<string, string>> = {
+  income: 'Income (excluding transfers in)',
+  spending: 'Ordinary spending',
+  transfer_in: 'Transfers in',
+  transfer_out: 'Transfers out',
+  debt_payment: 'Debt payments',
+  savings_investment: 'Savings/investment movement',
+  other_non_spend: 'Other non-spend outflow',
+  classification_conflict: 'Classification-conflict outflow',
+};
+
+const finiteNumber = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/**
+ * V1-A CP3: deterministic completeness / classification disclosure shared by
+ * both aggregate tools. Returns no lines for a legacy result without metadata.
+ */
+export function formatAggregateDisclosures(completeness: unknown, indent: string): string[] {
+  if (!completeness || typeof completeness !== 'object') return [];
+  const c = completeness as Record<string, unknown>;
+  const excluded = (c.excluded && typeof c.excluded === 'object' ? c.excluded : {}) as Record<string, unknown>;
+  const conflicts = (c.conflicts && typeof c.conflicts === 'object' ? c.conflicts : {}) as Record<string, unknown>;
+  const lines: string[] = [];
+  if (c.dataComplete === false || c.truncated === true) {
+    lines.push(`${indent}PARTIAL — the date range was not fully retrieved; these totals are incomplete and must NOT be presented as complete.`);
+  }
+  const unclassified = finiteNumber(excluded.unclassifiedType) ?? 0;
+  if (unclassified > 0) {
+    const cents = finiteNumber(c.unclassifiedCents) ?? 0;
+    lines.push(`${indent}${unclassified} transaction${unclassified === 1 ? '' : 's'} totalling $${formatCentsAmount(cents)} could not be classified (unsupported transaction type) and ${unclassified === 1 ? 'is' : 'are'} excluded from all financial totals.`);
+  }
+  const missingAmount = finiteNumber(excluded.missingAmount) ?? 0;
+  if (missingAmount > 0) {
+    lines.push(`${indent}${missingAmount} transaction${missingAmount === 1 ? ' has' : 's have'} a missing or invalid amount; ${missingAmount === 1 ? 'its' : 'their'} monetary value is unknown and excluded from the totals.`);
+  }
+  const incomeOnOutflow = finiteNumber(conflicts.income_category_on_outflow) ?? 0;
+  if (incomeOnOutflow > 0) {
+    lines.push(`${indent}${incomeOnOutflow} outflow${incomeOnOutflow === 1 ? '' : 's'} carry an income category (classification conflict); reported separately, not as income or spending.`);
+  }
+  const nonSpendOnInflow = finiteNumber(conflicts.non_spend_category_on_inflow) ?? 0;
+  if (nonSpendOnInflow > 0) {
+    lines.push(`${indent}${nonSpendOnInflow} inflow${nonSpendOnInflow === 1 ? '' : 's'} carry a savings/investment/debt category; counted as income but flagged as possibly not earned income.`);
+  }
+  const negativeInflow = finiteNumber(conflicts.negative_inflow) ?? 0;
+  if (negativeInflow > 0) {
+    lines.push(`${indent}${negativeInflow} income transaction${negativeInflow === 1 ? '' : 's'} had a negative stored amount (counted by magnitude; reversals are not identified).`);
+  }
+  return lines;
+}
+
 function formatCategoryTotalLines(data: Record<string, unknown>, indent: string): string[] {
   const lines: string[] = [];
   const totals = Array.isArray(data.totals) ? data.totals as NormalizedCategoryTotal[] : [];
+  if (typeof data.categoryFilter === 'string') {
+    lines.push(`${indent}Category filter: ${data.categoryFilter}`);
+  }
   if (typeof data.grandTotalCents === 'number') {
     lines.push(`${indent}${RAW_CATEGORY_GRAND_TOTAL_LABEL}: $${formatCentsAmount(data.grandTotalCents)}`);
+  }
+  if (data.totalsByPurpose && typeof data.totalsByPurpose === 'object') {
+    for (const [purpose, v] of Object.entries(data.totalsByPurpose as Record<string, unknown>)) {
+      const bucket = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+      const cents = finiteNumber(bucket.totalCents);
+      const count = finiteNumber(bucket.count);
+      if (cents === null || !count) continue;
+      lines.push(`${indent}${PURPOSE_LABEL[purpose] ?? purpose}: $${formatCentsAmount(cents)} (${count} txns)`);
+    }
   }
   for (const t of totals) {
     if (!t || typeof t.totalCents !== 'number') continue;
     const count = typeof t.count === 'number' ? ` (${t.count} txns)` : '';
-    lines.push(`${indent}${t.category}: $${formatCentsAmount(t.totalCents)}${count}`);
+    const purpose = typeof t.purpose === 'string' ? ` [${PURPOSE_LABEL[t.purpose] ?? t.purpose}]` : '';
+    lines.push(`${indent}${t.category}${purpose}: $${formatCentsAmount(t.totalCents)}${count}`);
   }
+  lines.push(...formatAggregateDisclosures(data.completeness, indent));
   if (typeof data.malformedCount === 'number' && data.malformedCount > 0) {
     lines.push(`${indent}(${data.malformedCount} malformed category ${data.malformedCount === 1 ? 'entry' : 'entries'} omitted)`);
   }
@@ -1100,13 +1231,7 @@ function formatEvidenceData(result: PrimeEvidenceResult): string {
   }
 
   if (result.tool === 'cash_flow_summary') {
-    const lines = [`Cash flow (${data.startDate} to ${data.endDate}):`];
-    lines.push(`  Income: $${data.income} (${data.incomeTransactionCount} txns)`);
-    lines.push(`  Spending: $${data.spending} (${data.spendingTransactionCount} txns)`);
-    lines.push(`  Non-spend (transfers/payments): $${data.nonSpend} (${data.nonSpendTransactionCount} txns)`);
-    lines.push(`  Net cash flow: $${data.netCashFlow}`);
-    lines.push(`  Total transactions: ${data.transactionCount}`);
-    return lines.join('\n');
+    return formatCashFlowData(data);
   }
 
   // Comparison data at the top level
@@ -1116,6 +1241,65 @@ function formatEvidenceData(result: PrimeEvidenceResult): string {
 
   // Generic
   return JSON.stringify(data, null, 2).slice(0, 500);
+}
+
+/**
+ * V1-A CP3: deterministic cash-flow evidence. Every figure comes from the tool's
+ * integer-cent aggregate; the model explains, it does not calculate.
+ */
+function formatCashFlowData(data: Record<string, unknown>): string {
+  const cents = (data.cents && typeof data.cents === 'object' ? data.cents : null) as Record<string, unknown> | null;
+  const lines = [`Cash flow (${data.startDate} to ${data.endDate}):`];
+  if (!cents) {
+    // Legacy result shape (no authoritative aggregate): report only what it states.
+    const legacy: Array<[string, unknown, unknown]> = [
+      ['Income', data.income, data.incomeTransactionCount],
+      ['Spending', data.spending, data.spendingTransactionCount],
+      ['Non-spend (transfers/payments)', data.nonSpend, data.nonSpendTransactionCount],
+    ];
+    for (const [label, amount, count] of legacy) {
+      const c = toCents(amount);
+      if (c === null) continue;
+      lines.push(`  ${label}: $${formatCentsAmount(c)}${finiteNumber(count) !== null ? ` (${count} txns)` : ''}`);
+    }
+    if (finiteNumber(data.transactionCount) !== null) lines.push(`  Transactions: ${data.transactionCount}`);
+    return lines.join('\n');
+  }
+
+  const countByPurpose: Record<string, number> = {};
+  if (Array.isArray(data.categories)) {
+    for (const e of data.categories as Array<Record<string, unknown>>) {
+      const p = typeof e?.purpose === 'string' ? e.purpose : null;
+      const n = finiteNumber(e?.count);
+      if (p && n !== null) countByPurpose[p] = (countByPurpose[p] ?? 0) + n;
+    }
+  }
+  const bucket = (label: string, key: string, purpose: string) => {
+    const v = finiteNumber(cents[key]);
+    if (v === null) return;
+    const n = countByPurpose[purpose];
+    lines.push(`  ${label}: $${formatCentsAmount(v)}${n !== undefined ? ` (${n} txns)` : ''}`);
+  };
+  bucket(PURPOSE_LABEL.spending, 'spending', 'spending');
+  bucket(PURPOSE_LABEL.income, 'income', 'income');
+  bucket(PURPOSE_LABEL.debt_payment, 'debtPayments', 'debt_payment');
+  bucket(PURPOSE_LABEL.transfer_in, 'transferIn', 'transfer_in');
+  bucket(PURPOSE_LABEL.transfer_out, 'transferOut', 'transfer_out');
+  bucket(PURPOSE_LABEL.savings_investment, 'savingsInvestment', 'savings_investment');
+  bucket(PURPOSE_LABEL.other_non_spend, 'otherNonSpend', 'other_non_spend');
+  bucket(PURPOSE_LABEL.classification_conflict, 'classificationConflict', 'classification_conflict');
+  const total = (label: string, key: string) => {
+    const v = finiteNumber(cents[key]);
+    if (v !== null) lines.push(`  ${label}: $${formatCentsAmount(v)}`);
+  };
+  total('Total inflow', 'totalInflow');
+  total('Total outflow', 'totalOutflow');
+  total('Raw net cash movement (all classified inflow − all classified outflow, incl. transfers and savings/investment)', 'rawNetCashMovement');
+  total('Net excluding internal movements (income − ordinary spending, debt payments, other non-spend and conflicts; transfers and savings/investment excluded)', 'netExcludingInternalMovements');
+  if (finiteNumber(data.transactionCount) !== null) lines.push(`  Transactions included: ${data.transactionCount}`);
+  lines.push('  Refunds/reversals are not identified in this data and are not netted.');
+  lines.push(...formatAggregateDisclosures(data.completeness, '  '));
+  return lines.join('\n');
 }
 
 function formatComparisonData(data: Record<string, unknown>): string {

@@ -455,7 +455,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['transaction_category_totals', {
     id: 'transaction_category_totals',
-    description: 'Get transaction totals grouped by category. Use this when Finley needs category-level spending summaries for forecasts or pattern analysis.',
+    description: 'Authoritative, deterministic category totals for the COMPLETE requested date range (inclusive startDate/endDate; omit both for all history). Every transaction in the range is fetched and classified: transaction type decides direction (inflow/outflow), category/subcategory decide purpose (spending, income, transfers, debt payments, savings/investment, classification conflicts). Each entry carries direction and purpose; the same category can appear twice with different purposes. Optional `category` filters to one canonical category (case-insensitive); `type` filters by direction (expense = all outflows including Purchase, income = inflows). Use totalsByPurpose for spending/income figures — grandTotal is only the raw sum of the returned entries and is NOT ordinary spending. Check queryStatus and completeness before presenting totals as complete.',
     inputSchema: transactionCategoryTotals.inputSchema,
     outputSchema: transactionCategoryTotals.outputSchema,
     run: transactionCategoryTotals.execute,
@@ -466,7 +466,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['cash_flow_summary', {
     id: 'cash_flow_summary',
-    description: 'Get income, spending, and net cash flow for a date range. Returns verified totals: income (credits/deposits), spending (excludes transfers, loan payments, investments), non-spend (transfers and internal payments), and netCashFlow (income minus spending). Use when users ask about cash flow, income vs spending, or money in vs money out for a period.',
+    description: 'Authoritative, deterministic period-level cash-flow facts for an inclusive startDate–endDate range. Every transaction in the range is fetched and classified: transaction type decides direction, category/subcategory decide purpose; amount sign never decides direction. Returns ordinary spending, income (excluding transfers in), debt payments, transfers in/out, savings/investment movement, classification-conflict outflow, total inflow/outflow, and two explicitly named nets: rawNetCashMovement (all classified inflow minus all classified outflow) and netExcludingInternalMovements (transfers and savings/investment excluded). netCashFlow is a compatibility alias of netExcludingInternalMovements; nonSpend is a compatibility sum of all non-spending outflow buckets. Refunds/reversals are not identified. Use when users ask about spending, income, cash flow, or money in vs money out for a period; check queryStatus and completeness (partial data, unclassified transactions) before presenting totals.',
     inputSchema: cashFlowSummary.inputSchema,
     outputSchema: cashFlowSummary.outputSchema,
     run: cashFlowSummary.execute,

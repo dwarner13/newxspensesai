@@ -220,7 +220,7 @@ export type CashFlowPurpose =
   | 'debt_payment'
   /** Outflow to savings / investments (incl. TFSA/RRSP) — internal money movement. */
   | 'savings_investment'
-  /** Other canonical non-spend outflow (e.g. ATM withdrawal, points redemption). */
+  /** Other canonical non-spend outflow (reserved; no canonical entry maps here today). */
   | 'other_non_spend'
   /** Outflow whose category contradicts its type (e.g. expense + "Income"). */
   | 'classification_conflict'
@@ -302,8 +302,9 @@ export const NON_SPEND_SUBCATEGORY_PURPOSE: Readonly<Record<string, Exclude<NonS
   'investments': 'savings_investment',
   'tfsa': 'savings_investment',
   'rrsp': 'savings_investment',
-  'atm withdrawal': 'other_non_spend',
-  'points redemption': 'other_non_spend',
+  // Canonically subcategories of Transfers (CANONICAL_SUBCATEGORIES.Transfers).
+  'atm withdrawal': 'transfer',
+  'points redemption': 'transfer',
 };
 
 /**

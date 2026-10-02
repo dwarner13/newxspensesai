@@ -57,7 +57,11 @@ describe('classifyCashFlow — type decides direction, category/subcategory deci
     ['expense', 100, 'Banking', 'RRSP', 'outflow', 'savings_investment', 10000, []],
     ['expense', 100, 'Other', 'E-Transfer', 'outflow', 'transfer_out', 10000, []],
     ['expense', 100, 'Transportation', 'Car Loan', 'outflow', 'debt_payment', 10000, []],
-    ['Purchase', 100, 'Banking', 'ATM Withdrawal', 'outflow', 'other_non_spend', 10000, []],
+    // CP3 canonical correction: ATM Withdrawal / Points Redemption are Transfers subcategories
+    ['Purchase', 100, 'Banking', 'ATM Withdrawal', 'outflow', 'transfer_out', 10000, []],
+    ['expense', 100, 'Other', 'Points Redemption', 'outflow', 'transfer_out', 10000, []],
+    ['income', 100, 'Other', 'Points Redemption', 'inflow', 'transfer_in', 10000, []],
+    ['income', 100, 'Other', 'ATM Withdrawal', 'inflow', 'transfer_in', 10000, []],
     ['income', 100, 'Other', 'E-Transfer', 'inflow', 'transfer_in', 10000, []],
     ['income', 100, 'Other', 'Transfer', 'inflow', 'transfer_in', 10000, []],
     ['income', 100, 'Other', 'TFSA', 'inflow', 'income', 10000, ['non_spend_category_on_inflow']],
@@ -162,15 +166,15 @@ describe('buildPeriodAggregate', () => {
       income: 302500,                 // 3000 (Employment Income inflow) + |−25| (negative inflow, unchanged rule)
       spending: 20100,                // 120.55 + 80.45 + 0
       transferIn: 57000,              // 500 Transfers + 70 E-Transfer subcategory
-      transferOut: 40000,
+      transferOut: 44000,             // 400 Transfers + 40 ATM Withdrawal subcategory (canonically a transfer)
       debtPayments: 31000,            // 250 Debt Payments + 60 Car Loan subcategory
       savingsInvestment: 30000,       // 100 Savings + 200 TFSA subcategory
-      otherNonSpend: 4000,            // 40 ATM Withdrawal subcategory
+      otherNonSpend: 0,               // reserved; no canonical entry maps here
       classificationConflict: 4510,   // 10.10 Income + 30 Business Income + 5 Employment Income (outflows)
       totalInflow: 359500,
-      totalOutflow: 129610,           // 20100 + 40000 + 31000 + 30000 + 4000 + 4510
+      totalOutflow: 129610,           // 20100 + 44000 + 31000 + 30000 + 0 + 4510
       rawNetCashMovement: 229890,     // 359500 − 129610
-      netExcludingInternalMovements: 242890, // 302500 − (20100 + 31000 + 4000 + 4510)
+      netExcludingInternalMovements: 246890, // 302500 − (20100 + 31000 + 0 + 4510)
     });
   });
 
@@ -200,8 +204,8 @@ describe('buildPeriodAggregate', () => {
     expect(c.totalInflow).toBe(c.income + c.transferIn);
     expect(c.totalOutflow).toBe(c.spending + c.transferOut + c.debtPayments + c.savingsInvestment + c.otherNonSpend + c.classificationConflict);
     expect(agg.counts).toEqual({
-      included: 16, income: 2, spending: 3, transferIn: 2, transferOut: 1,
-      debtPayments: 2, savingsInvestment: 2, otherNonSpend: 1, classificationConflict: 3,
+      included: 16, income: 2, spending: 3, transferIn: 2, transferOut: 2,
+      debtPayments: 2, savingsInvestment: 2, otherNonSpend: 0, classificationConflict: 3,
     });
   });
 
@@ -216,7 +220,7 @@ describe('buildPeriodAggregate', () => {
     expect(byPurpose('other_non_spend')).toBe(agg.cents.otherNonSpend);
     expect(byPurpose('classification_conflict')).toBe(agg.cents.classificationConflict);
     expect(agg.categories.reduce((s, x) => s + x.count, 0)).toBe(agg.counts.included);
-    expect(agg.categories.find(x => x.category === 'Groceries')).toEqual({ category: 'Groceries', direction: 'outflow', purpose: 'spending', totalCents: 20100, count: 2 });
+    expect(agg.categories.find(x => x.category === 'Groceries')).toEqual({ category: 'Groceries', direction: 'outflow', purpose: 'spending', totalCents: 20100, count: 2, firstDate: '2026-09-03', lastDate: '2026-09-04' });
   });
 
   it('same category string with different purposes is never merged into spending', () => {
