@@ -30,27 +30,24 @@ export async function ensureThread(
     throw new Error('userId and employeeKey are required');
   }
   
-  // If threadId is provided, upsert that specific thread
+  // If threadId is provided, use it ONLY when it belongs to this user.
+  // A client-supplied threadId is a hint, not authorization: a thread owned by
+  // another user is never upserted, re-owned, or returned. Otherwise fall
+  // through to this user's own thread (find or create) below.
   if (threadId) {
-    const { data: upserted, error: upsertError } = await sb
+    const { data: owned, error: ownedError } = await sb
       .from('chat_threads')
-      .upsert({
-        id: threadId,
-        user_id: userId,
-        employee_key: employeeKey,
-        assistant_key: employeeKey, // CRITICAL: assistant_key must never be null
-        ...(title ? { title } : {}),
-      }, {
-        onConflict: 'id',
-      })
       .select('id')
-      .single();
-    
-    if (upsertError || !upserted?.id) {
-      throw new Error(`Failed to upsert thread: ${upsertError?.message || 'Unknown error'}`);
+      .eq('id', threadId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!ownedError && owned?.id) {
+      if (title) {
+        await sb.from('chat_threads').update({ title }).eq('id', threadId).eq('user_id', userId);
+      }
+      return owned.id as string;
     }
-    
-    return upserted.id as string;
   }
   
   {  // chat_threads has UNIQUE(user_id, assistant_key): exactly ONE thread per user+assistant, so always resume it. Conversation freshness is handled at the session/message-load layer, NOT by creating threads.

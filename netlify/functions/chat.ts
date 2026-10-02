@@ -6953,8 +6953,10 @@ export const handler: Handler = async (event, context) => {
       const sessionStartTime = Date.now();
       const sessionResult = await ensureSession(sb, userId, sessionId, finalEmployeeSlug);
       timingLogs.session = Date.now() - sessionStartTime;
-      // ensureSession returns { sessionId: string, employee_slug: string }
-      finalSessionId = sessionResult?.sessionId ?? normalizeSessionId(sessionId) ?? null;
+      // ensureSession returns { sessionId: string, employee_slug: string } — always a
+      // session owned by userId (or freshly minted). Never fall back to the raw
+      // client-supplied sessionId: possession of a session UUID is not authorization.
+      finalSessionId = sessionResult?.sessionId ?? null;
       // Use employee_slug from session if available (handles handoff scenarios)
       // CRITICAL: Only allow session employee to override if employee was NOT explicitly requested
       // This prevents sticky handoff - /dashboard/prime-chat must always show Prime
@@ -6975,7 +6977,8 @@ export const handler: Handler = async (event, context) => {
               await sb
                 .from('chat_sessions')
                 .update({ employee_slug: finalEmployeeSlug })
-                .eq('id', finalSessionId);
+                .eq('id', finalSessionId)
+                .eq('user_id', userId);
               console.log(`[Chat] Updated session ${finalSessionId} to match requested employee ${finalEmployeeSlug}`);
             } catch (error: any) {
               console.warn('[Chat] Failed to update session employee (non-fatal):', error);
@@ -6988,7 +6991,8 @@ export const handler: Handler = async (event, context) => {
               await sb
                 .from('chat_sessions')
                 .update({ employee_slug: 'prime-boss' })
-                .eq('id', finalSessionId);
+                .eq('id', finalSessionId)
+                .eq('user_id', userId);
               console.log(`[Chat] Updated session ${finalSessionId} to prime-boss (route-forced)`);
             } catch (error: any) {
               console.warn('[Chat] Failed to update session to prime-boss (non-fatal):', error);
@@ -7006,8 +7010,8 @@ export const handler: Handler = async (event, context) => {
       }
     } catch (error: any) {
       console.error('[Chat] Session creation failed:', error);
-      // Use a fallback session ID if database fails
-      const fallbackId = normalizeSessionId(sessionId) ?? `session-${userId}-${Date.now()}`;
+      // Use a fallback session ID if database fails — never the unverified client sessionId
+      const fallbackId = `session-${userId}-${Date.now()}`;
       finalSessionId = typeof fallbackId === 'string' ? fallbackId : null;
     }
     orchCtx.sessionId = finalSessionId;
@@ -9356,6 +9360,7 @@ export const handler: Handler = async (event, context) => {
           .from('chat_sessions')
           .select('context')
           .eq('id', normalizedSessionIdForCheck)
+          .eq('user_id', userId)
           .maybeSingle();
         
         if (sessionData?.context && typeof sessionData.context === 'object' && 'workspace' in sessionData.context) {
@@ -9509,6 +9514,7 @@ export const handler: Handler = async (event, context) => {
           .from('chat_messages')
           .select('id, role, content, created_at')
           .eq('session_id', normalizedSessionIdForMessages)
+          .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(messageLimit);
 
@@ -9541,6 +9547,7 @@ export const handler: Handler = async (event, context) => {
             .from('chat_messages')
             .select('id, role, content, created_at')
             .eq('thread_id', threadId)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(messageLimit);
 
@@ -9561,7 +9568,7 @@ export const handler: Handler = async (event, context) => {
       // FINAL FALLBACK: getRecentMessages by session_id (token-based loading)
       if (recentMessages.length === 0 && normalizedSessionIdForMessages && historyLoadMode === 'none') {
         const tokenLimit = isPrimeFastLane ? 800 : (isFastPath ? 1000 : 4000);
-        recentMessages = await getRecentMessages(sb, normalizedSessionIdForMessages, tokenLimit);
+        recentMessages = await getRecentMessages(sb, normalizedSessionIdForMessages, userId, tokenLimit);
         if (recentMessages.length > 0) {
           historyLoadMode = 'legacy';
           console.log(`[Chat] ✅ Loaded ${recentMessages.length} messages via getRecentMessages (legacy token-based)`);
@@ -12630,6 +12637,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               .from('chat_messages')
               .select('role, content, created_at')
               .eq('session_id', finalSessionId)
+              .eq('user_id', userId)
               .order('created_at', { ascending: true });
 
             if (!allMessages || allMessages.length === 0) {
@@ -13135,6 +13143,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               .from('chat_messages')
               .select('role, content, created_at')
               .eq('session_id', finalSessionId)
+              .eq('user_id', userId)
               .order('created_at', { ascending: false })
               .limit(10);
             if (messagesData) recentMsgs = messagesData.reverse();
@@ -13171,7 +13180,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             await sb
               .from('chat_sessions')
               .update({ employee_slug: targetSlug })
-              .eq('id', finalSessionId);
+              .eq('id', finalSessionId)
+              .eq('user_id', userId);
             console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug} (${sourceLabel})`);
           } catch (error: any) {
             console.warn(`[Chat] Failed to update session employee_slug (${sourceLabel}):`, error);
@@ -14231,6 +14241,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             .from('chat_messages')
             .select('role, content, created_at')
             .eq('session_id', finalSessionId)
+            .eq('user_id', userId)
             .order('created_at', { ascending: true });
 
           if (!allMessages || allMessages.length === 0) {

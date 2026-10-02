@@ -41,9 +41,17 @@ function getDbUserIdForUuidColumn(userId: string): string {
 
 /**
  * Ensure a session exists, creating one if needed
+ *
+ * SECURITY INVARIANT: the returned sessionId is ALWAYS a chat_sessions row owned
+ * by this user (id = sessionId AND user_id = user), or a freshly created one.
+ * A caller-supplied sessionId is a hint, not authorization: if it belongs to
+ * another user it is never returned, read, or updated — a fresh session is
+ * minted instead. A duplicate-key insert error is NOT treated as "our race"
+ * unless ownership is re-proven by id + user_id.
+ *
  * @param sb - Supabase client (with service role)
  * @param userId - User ID (can be UUID or anonymous string)
- * @param sessionId - Optional existing session ID
+ * @param sessionId - Optional existing session ID (untrusted client hint)
  * @param employeeSlug - Employee handling this session (used only for new sessions)
  * @returns Object with sessionId and employee_slug (from session, or provided slug for new sessions)
  */
@@ -56,41 +64,84 @@ export async function ensureSession(
   // For anonymous users, check if user_id column is UUID type
   // If it's UUID type, use a demo UUID to avoid type errors
   // If it's TEXT type, use the original string
-  const dbUserId = shouldUseTextUserId(userId) 
+  const dbUserId = shouldUseTextUserId(userId)
     ? (isValidUuid(userId) ? userId : getDbUserIdForUuidColumn(userId))
     : userId;
-  
-  // If session ID provided, verify it exists
-  if (sessionId) {
-    const { data, error } = await sb
-      .from('chat_sessions')
-      .select('id, employee_slug')
-      .eq('id', sessionId)
-      .eq('user_id', dbUserId)
-      .maybeSingle();
 
-    if (!error && data) {
+  // Only a well-formed UUID can name a session; anything else is ignored.
+  const requestedId = isValidUuid(sessionId) ? sessionId! : undefined;
+  const allowAnonFallback = shouldUseTextUserId(userId);
+
+  if (requestedId) {
+    const owned = await findOwnedSession(sb, requestedId, dbUserId);
+    if (owned) {
       // Session exists - return it WITH its employee_slug (this is the canonical value after handoff)
-      // For shared sessions, we preserve the original employee_slug to avoid conflicts 
-      // when multiple employees share the same sessionId
-      const effectiveSlug = data.employee_slug || employeeSlug;
-      console.log(`[Session] ✅ Found existing session ${sessionId} for user ${dbUserId} (employee: ${effectiveSlug})`);
-      return { sessionId, employee_slug: effectiveSlug };
+      const effectiveSlug = owned.employee_slug || employeeSlug;
+      console.log(`[Session] ✅ Found existing session ${requestedId} for user ${dbUserId} (employee: ${effectiveSlug})`);
+      return { sessionId: requestedId, employee_slug: effectiveSlug };
     }
 
-    // Session not found - create new one WITH the provided sessionId
-    if (error) {
-      console.warn(`[Session] ⚠️ Session lookup error for ${sessionId}:`, error.message);
-    } else {
-      console.log(`[Session] 📝 Session ${sessionId} not found for user ${dbUserId}, creating new session with provided ID`);
+    // Not owned by this user. Try to create it with the requested ID (supports
+    // client-generated New Chat IDs). If the ID already exists, ownership decides.
+    const created = await insertSession(sb, requestedId, dbUserId, employeeSlug, allowAnonFallback);
+    if (created === 'created') {
+      console.log(`[Session] 📝 Created session ${requestedId} for user ${dbUserId}`);
+      return { sessionId: requestedId, employee_slug: employeeSlug };
     }
+    if (created === 'duplicate') {
+      const raced = await findOwnedSession(sb, requestedId, dbUserId);
+      if (raced) {
+        console.log(`[Session] Session ${requestedId} already exists for this user (race condition), returning it`);
+        return { sessionId: requestedId, employee_slug: raced.employee_slug || employeeSlug };
+      }
+      console.warn(`[Session] ⚠️ Requested session ID is not owned by user ${dbUserId} — minting a fresh session`);
+    }
+    // 'failed', anonymous fallback, or foreign duplicate: fall through to a fresh server-generated ID
   }
 
-  // Create new session (use provided sessionId if available, otherwise generate new)
-  // Try with token_count first, fall back without it if column doesn't exist
-  const newSessionId = sessionId || crypto.randomUUID();
-  let insertData: any = {
-    id: newSessionId, // Use provided sessionId or generated UUID
+  const freshId = crypto.randomUUID();
+  const created = await insertSession(sb, freshId, dbUserId, employeeSlug, allowAnonFallback);
+  if (created === 'created' || created === 'anon_fallback') {
+    console.log(`[Session] ✅ Created session ${freshId} for user ${dbUserId}, employee ${employeeSlug}`);
+    return { sessionId: freshId, employee_slug: employeeSlug };
+  }
+  throw new Error('Failed to create chat session');
+}
+
+/**
+ * Look up a session by id AND owner. Never returns another user's session.
+ */
+async function findOwnedSession(
+  sb: SupabaseClient,
+  sessionId: string,
+  dbUserId: string
+): Promise<{ employee_slug: string | null } | null> {
+  const { data, error } = await sb
+    .from('chat_sessions')
+    .select('id, employee_slug')
+    .eq('id', sessionId)
+    .eq('user_id', dbUserId)
+    .maybeSingle();
+  if (error) {
+    console.warn(`[Session] ⚠️ Session lookup error for ${sessionId}:`, error.message);
+    return null;
+  }
+  return data ? { employee_slug: data.employee_slug ?? null } : null;
+}
+
+/**
+ * Insert a session row owned by dbUserId.
+ * 'duplicate' means the ID exists — the caller must re-prove ownership.
+ */
+async function insertSession(
+  sb: SupabaseClient,
+  id: string,
+  dbUserId: string,
+  employeeSlug: string,
+  allowAnonFallback: boolean
+): Promise<'created' | 'duplicate' | 'anon_fallback' | 'failed'> {
+  const insertData: Record<string, unknown> = {
+    id,
     user_id: dbUserId,
     employee_slug: employeeSlug,
     title: 'New Chat',
@@ -98,105 +149,45 @@ export async function ensureSession(
     message_count: 0,
   };
 
-  let { data, error } = await sb
+  // Try with token_count first, fall back without it if column doesn't exist
+  let { error } = await sb
     .from('chat_sessions')
-    .insert({
-      ...insertData,
-      token_count: 0,
-    })
+    .insert({ ...insertData, token_count: 0 })
     .select('id')
     .single();
 
-  // If token_count column doesn't exist, retry without it
   if (error && error.code === 'PGRST204' && error.message?.includes('token_count')) {
     console.warn('[Session] token_count column not found, creating session without it');
-    const retryResult = await sb
+    ({ error } = await sb
       .from('chat_sessions')
       .insert(insertData)
       .select('id')
-      .single();
-    
-    if (retryResult.error) {
-      // If foreign key constraint error, try casting user_id to TEXT
-      if (retryResult.error.code === '23503' && shouldUseTextUserId(userId)) {
-        console.warn('[Session] Foreign key constraint error, user_id may need to be TEXT type');
-        // If the column is UUID type but we're passing TEXT, we need to handle this differently
-        // For now, return the sessionId we tried to use (don't generate new one)
-        console.warn(`[Session] Using fallback session ID: ${newSessionId}`);
-        return { sessionId: newSessionId, employee_slug: employeeSlug };
-      }
-      // If duplicate key error (session already exists), return the existing sessionId
-      if (retryResult.error.code === '23505' && sessionId) {
-        console.log(`[Session] Session ${sessionId} already exists (race condition), returning it`);
-        // Try to fetch the existing session's employee_slug
-        const { data: existingSession } = await sb
-          .from('chat_sessions')
-          .select('employee_slug')
-          .eq('id', sessionId)
-          .maybeSingle();
-        return { sessionId, employee_slug: existingSession?.employee_slug || employeeSlug };
-      }
-      console.error('[Session] Error creating session:', retryResult.error);
-      throw new Error('Failed to create chat session');
-    }
-    
-    return retryResult.data!.id || newSessionId;
+      .single());
   }
 
+  if (!error) return 'created';
+  if (error.code === '23505') return 'duplicate';
   // Handle foreign key constraint error for anonymous users
-  if (error && error.code === '23503' && shouldUseTextUserId(userId)) {
-    console.warn('[Session] Foreign key constraint error for anonymous user, using fallback session');
-    console.warn(`[Session] Using fallback session ID: ${newSessionId}`);
-    return { sessionId: newSessionId, employee_slug: employeeSlug };
+  if (error.code === '23503' && allowAnonFallback) {
+    console.warn(`[Session] Foreign key constraint error for anonymous user, using fallback session ID: ${id}`);
+    return 'anon_fallback';
   }
-
-  // Handle duplicate key error (session already exists - race condition)
-  if (error && error.code === '23505' && sessionId) {
-    console.log(`[Session] Session ${sessionId} already exists (race condition), returning it`);
-    // Try to fetch the existing session's employee_slug
-    const { data: existingSession } = await sb
-      .from('chat_sessions')
-      .select('employee_slug')
-      .eq('id', sessionId)
-      .maybeSingle();
-    return { sessionId, employee_slug: existingSession?.employee_slug || employeeSlug };
-  }
-
-  if (error) {
-    console.error('[Session] Error creating session:', error);
-    throw new Error('Failed to create chat session');
-  }
-
-  if (!data) {
-    // If no data returned but we have a sessionId, return it anyway
-    if (sessionId) {
-      console.warn(`[Session] ⚠️ No data returned from insert but sessionId provided, returning ${sessionId} (session may exist from race condition)`);
-      // Try to fetch the existing session's employee_slug
-      const { data: existingSession } = await sb
-        .from('chat_sessions')
-        .select('employee_slug')
-        .eq('id', sessionId)
-        .maybeSingle();
-      return { sessionId, employee_slug: existingSession?.employee_slug || employeeSlug };
-    }
-    throw new Error('Failed to create chat session: no data returned');
-  }
-
-  const returnedSessionId = data.id || newSessionId;
-  console.log(`[Session] ✅ Created/found session ${returnedSessionId} for user ${dbUserId}, employee ${employeeSlug}`);
-  return { sessionId: returnedSessionId, employee_slug: employeeSlug };
+  console.error('[Session] Error creating session:', error);
+  return 'failed';
 }
 
 /**
  * Get recent messages for a session with token budget management
  * @param sb - Supabase client
  * @param sessionId - Session ID
+ * @param userId - Owner of the session; messages are read only for this user
  * @param maxTokens - Maximum tokens to include (default: 4000)
  * @returns Array of recent messages that fit within token budget
  */
 export async function getRecentMessages(
   sb: SupabaseClient,
   sessionId: string,
+  userId: string,
   maxTokens: number = 4000,
   maxMessages: number = 50  // Byte v2: Allow caller to specify max messages (Byte gets 100)
 ) {
@@ -204,6 +195,7 @@ export async function getRecentMessages(
     .from('chat_messages')
     .select('role, content, tokens, created_at')
     .eq('session_id', sessionId)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(maxMessages); // Byte v2: Configurable message limit (Byte gets 100, others get 50)
 
