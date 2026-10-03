@@ -170,7 +170,9 @@ describe('CP4.3 chat.ts wiring (structural)', () => {
   it('19–20. the CP4.3 diff is purely additive: no existing line (setStage, awaits, returns) changed or moved', () => {
     let diff = '';
     try {
-      diff = execSync('git diff -U0 HEAD -- netlify/functions/chat.ts', { cwd: path.resolve(__dirname, '../../..'), encoding: 'utf8' });
+      // Pinned to CP4.3's own commit (7b5981b → 8487842). Comparing against HEAD would
+      // flag any LATER uncommitted chat.ts change (e.g. R1) as if it were CP4.3's diff.
+      diff = execSync('git diff -U0 7b5981b2c9501bf4ffbbaf2de39a1883ba65bdbc 84878420dca3f925fbf90a08385b90072562ba24 -- netlify/functions/chat.ts', { cwd: path.resolve(__dirname, '../../..'), encoding: 'utf8' });
     } catch {
       return; // git unavailable in this environment — the other structural checks still apply
     }

@@ -181,6 +181,13 @@ import {
 import { detectHistoricalReference } from '../../src/shared/historical-reference-detector';
 // P3.0A: Shadow intent classifier (observational only — does not change runtime behavior)
 import { classifyPrimeIntent, type PrimeIntentClassification } from '../../src/shared/prime-intent-classifier';
+import {
+  interpretShadowSemantics,
+  buildShadowLogPayload,
+  SHADOW_RESPONSE_FORMAT,
+  type ShadowOutcome,
+  type LegacyStructure,
+} from '../../src/shared/prime-shadow-semantics';
 // P3.1A: Runtime evidence contract (observational only — does not change runtime behavior)
 import { buildRuntimeEvidenceContract, buildEvidenceContractTelemetry, type PrimeRuntimeEvidenceContract } from '../../src/shared/prime-evidence-contract';
 // P3.1B: Evidence resolution plan (observational only — does not change runtime behavior)
@@ -9955,6 +9962,55 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    // ── V1 R1: SHADOW semantic interpretation (OBSERVATIONAL ONLY — ZERO AUTHORITY) ──
+    // Kill switch: off unless PRIME_SHADOW_SEMANTICS is truthy. When off: no model call, no
+    // telemetry. When on: one small JSON-mode call runs CONCURRENTLY with the live pipeline
+    // and is collected (bounded wait) just before the non-streaming response; its result
+    // never routes, plans, executes, strips tools, touches identity or changes the answer.
+    // Input: the masked message + up to 4 previous USER messages — no data, totals or memory.
+    let r1ShadowRun: { promise: Promise<ShadowOutcome>; abort: AbortController; model: string } | null = null;
+    let r1ShadowSkipReason: string | null = null;
+    if (isPrime && flagEnabled(process.env.PRIME_SHADOW_SEMANTICS)) {
+      try {
+        const r1RemainingMs = 60000 - (Date.now() - requestStartTime);
+        if (!openai) {
+          r1ShadowSkipReason = 'no_model_client';
+        } else if (r1RemainingMs < 20000) {
+          r1ShadowSkipReason = 'insufficient_budget';
+        } else {
+          // gpt-4o by default: R1 evaluation measured gpt-4o-mini at 17/25 vs gpt-4o 24/25 (see eval script)
+          const r1Model = process.env.PRIME_SHADOW_SEMANTICS_MODEL || 'gpt-4o';
+          const r1Abort = new AbortController();
+          const r1PriorUserMessages = recentMessages
+            .filter((m: { role?: unknown; content?: unknown }) => m?.role === 'user' && typeof m?.content === 'string')
+            .map((m: { content?: unknown }) => m.content as string);
+          r1ShadowRun = {
+            model: r1Model,
+            abort: r1Abort,
+            promise: interpretShadowSemantics({
+              message: masked,
+              priorUserMessages: r1PriorUserMessages,
+              timeoutMs: Math.min(8000, r1RemainingMs - 15000),
+              abort: r1Abort,
+              callModel: async (r1Messages, signal) => {
+                const r1Completion = await openai!.chat.completions.create({
+                  model: r1Model,
+                  response_format: SHADOW_RESPONSE_FORMAT,
+                  temperature: 0,
+                  max_tokens: 700,
+                  messages: r1Messages,
+                }, { signal });
+                return r1Completion.choices[0]?.message?.content || '';
+              },
+            }),
+          };
+        }
+      } catch {
+        r1ShadowSkipReason = 'start_failed';
+        r1ShadowRun = null;
+      }
+    }
+
     // ── P3.1A.1: Canonical Temporal Scope (observational only) ──
     // Extracts deterministic temporal periods from the user message.
     // Does NOT execute tools, query databases, or change behavior.
@@ -14329,6 +14385,41 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       } catch (error: any) {
         console.warn('[Chat] Failed to save assistant message:', error);
         // Continue even if save fails
+      }
+
+      // V1 R1: collect the shadow interpretation (bounded wait; telemetry only; never throws)
+      if (r1ShadowRun || r1ShadowSkipReason) {
+        try {
+          const r1Legacy: LegacyStructure | null = shadowIntentResult?.financialClassification
+            ? {
+                queryType: shadowIntentResult.financialClassification.queryType,
+                requestShape: shadowIntentResult.financialClassification.requestShape,
+                hasMerchantScope: !!shadowIntentResult.financialClassification.merchantHint,
+                merchantHintTrusted,
+                hasCategoryScope: !!shadowIntentResult.financialClassification.resolvedCategory,
+                hasPeriod: !!temporalScope?.primary,
+                requiresGrounding: shadowIntentResult.financialClassification.requiresGrounding,
+              }
+            : null;
+          if (r1ShadowRun) {
+            let r1WaitTimer: ReturnType<typeof setTimeout> | undefined;
+            const r1Settled = await Promise.race([
+              r1ShadowRun.promise,
+              new Promise<null>(resolve => { r1WaitTimer = setTimeout(() => resolve(null), 1000); }),
+            ]);
+            if (r1WaitTimer) clearTimeout(r1WaitTimer);
+            if (r1Settled) {
+              console.log(`[PrimeShadow][R1] request=${requestId.slice(0,12)} ${JSON.stringify(buildShadowLogPayload(r1Settled, r1Legacy, r1ShadowRun.model))}`);
+            } else {
+              r1ShadowRun.abort.abort();
+              console.log(`[PrimeShadow][R1] request=${requestId.slice(0,12)} ${JSON.stringify({ r1: 1, model: r1ShadowRun.model, skipped: 'not_ready' })}`);
+            }
+          } else {
+            console.log(`[PrimeShadow][R1] request=${requestId.slice(0,12)} ${JSON.stringify({ r1: 1, skipped: r1ShadowSkipReason })}`);
+          }
+        } catch {
+          // telemetry only — never affects the response
+        }
       }
 
       // Log usage metrics (non-blocking)
