@@ -1,5 +1,6 @@
 /**
- * PRIME REASONING V1 — R0 contract tests.
+ * PRIME REASONING V1 — R0 contract tests (migrated to FinancialRequest V2 in R0.1:
+ * `measure` → `measures[]`, `rank` → list + order + limit, `net_movement` → `net`).
  *
  * These tests prove the CONTRACTS can represent broad capability families, reject
  * malformed input, and never imply authority. They do NOT test language
@@ -14,8 +15,8 @@ import {
   parseFinancialRequest,
   requiresIdentityVerification,
   hasBlockingAmbiguity,
-  type FinancialRequestV1,
-  type FinancialRequestV1Input,
+  type FinancialRequestV2,
+  type FinancialRequestV2Input,
 } from '../prime-financial-request';
 import {
   UI_CONTEXT_MAX_BYTES,
@@ -35,51 +36,51 @@ const base = { version: FINANCIAL_REQUEST_VERSION, authority: 'semantic_claim' }
 const user = 'user_message' as const;
 
 /** Golden contracts: what each capability family means, composed from the same dimensions. */
-const MATRIX: Array<{ id: string; question: string; contract: FinancialRequestV1Input }> = [
+const MATRIX: Array<{ id: string; question: string; contract: FinancialRequestV2Input }> = [
   { id: '01-restaurant-spending-last-month', question: 'How much did I spend on restaurants last month?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'],
       subjects: [{ kind: 'subcategory', value: 'restaurants', categoryHint: 'Food & Dining', source: user }],
       period: { kind: 'previous', unit: 'month' } } },
   { id: '02-costco-last-year', question: 'How much did I spend at Costco last year?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'],
       subjects: [{ kind: 'merchant', value: 'Costco', source: user }], period: { kind: 'previous', unit: 'year' } } },
   { id: '03-distinct-restaurants', question: 'How many different restaurants did I eat at?',
-    contract: { ...base, domain: 'transactions', operation: 'count_distinct', distinctBy: 'merchant', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'count_distinct', distinctBy: 'merchant', measures: ['spending'],
       subjects: [{ kind: 'subcategory', value: 'restaurants', categoryHint: 'Food & Dining', source: user }] } },
   { id: '04-ambiguous-restaurant-count', question: 'How many restaurants have I eaten at?',
-    contract: { ...base, domain: 'transactions', operation: 'count_distinct', distinctBy: 'merchant', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'count_distinct', distinctBy: 'merchant', measures: ['spending'],
       subjects: [{ kind: 'subcategory', value: 'restaurants', categoryHint: 'Food & Dining', source: user }],
       ambiguities: [{ dimension: 'operation', resolution: 'present_both', interpretations: [
         { id: 'visits', summary: 'number of restaurant transactions (visits)', operation: 'count' },
         { id: 'distinct', summary: 'number of different restaurants', operation: 'count_distinct', distinctBy: 'merchant' },
       ] }] } },
   { id: '05-last-three-months', question: 'How much did I spend on restaurants in the last three months?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'],
       subjects: [{ kind: 'subcategory', value: 'restaurants', source: user }], period: { kind: 'rolling', count: 3, unit: 'month' } } },
   { id: '06-month-vs-previous', question: 'How does this month compare with last month?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'],
       period: { kind: 'current', unit: 'month' }, comparison: { kind: 'previous_equivalent' } } },
   { id: '07-income', question: 'How much income did I have?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'income' } },
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['income'] } },
   { id: '08-cash-flow', question: 'What came in and went out last month?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'net_movement', period: { kind: 'previous', unit: 'month' } } },
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['inflow', 'outflow'], period: { kind: 'previous', unit: 'month' } } },
   { id: '09-transfers', question: 'How much did I transfer?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'transfers' } },
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['transfers'] } },
   { id: '10-debt-payments', question: 'How much did I pay toward debt?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'debt_payment' } },
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['debt_payment'] } },
   { id: '11-savings', question: 'How much did I move into savings?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'savings_investment' } },
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['savings_investment'] } },
   { id: '12-transaction-list', question: 'Show me my Costco transactions.',
-    contract: { ...base, domain: 'transactions', operation: 'list', measure: 'transactions',
+    contract: { ...base, domain: 'transactions', operation: 'list', measures: ['transactions'],
       subjects: [{ kind: 'merchant', value: 'Costco', source: user }], presentation: { detail: 'standard', format: 'list' } } },
   { id: '13-biggest-restaurant', question: 'What was my biggest restaurant purchase?',
-    contract: { ...base, domain: 'transactions', operation: 'rank', rank: { order: 'largest', limit: 1 }, measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'list', order: { by: 'amount', direction: 'desc' }, limit: 1, measures: ['spending'],
       subjects: [{ kind: 'subcategory', value: 'restaurants', source: user }] } },
   { id: '14-average-costco', question: 'What was my average Costco transaction?',
-    contract: { ...base, domain: 'transactions', operation: 'average', measure: 'transactions',
+    contract: { ...base, domain: 'transactions', operation: 'average', measures: ['transactions'],
       subjects: [{ kind: 'merchant', value: 'Costco', source: user }] } },
   { id: '15-restaurant-trend', question: 'Is my restaurant spending going up?',
-    contract: { ...base, domain: 'transactions', operation: 'trend', measure: 'spending', grouping: 'month',
+    contract: { ...base, domain: 'transactions', operation: 'trend', measures: ['spending'], grouping: 'month',
       subjects: [{ kind: 'subcategory', value: 'restaurants', source: user }], period: { kind: 'rolling', count: 6, unit: 'month' } } },
   { id: '16-follow-up-last-year', question: 'What about last year?',
     contract: { ...base, domain: 'transactions', operation: 'total', mode: 'refine_previous',
@@ -98,31 +99,31 @@ const MATRIX: Array<{ id: string; question: string; contract: FinancialRequestV1
     contract: { ...base, domain: 'general', operation: 'none', capability: { status: 'unknown', concept: 'credit score' } } },
   // further families — same dimensions, different values
   { id: 'fuel', question: 'How much did I spend on fuel this year?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'],
       subjects: [{ kind: 'subcategory', value: 'fuel', categoryHint: 'Transportation', source: user }], period: { kind: 'current', unit: 'year' } } },
   { id: 'groceries', question: 'How much did I spend on groceries in September?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'],
       subjects: [{ kind: 'category', value: 'groceries', categoryHint: 'Groceries', source: user }], period: { kind: 'calendar_month', month: 9 } } },
   { id: 'eating-out-concept', question: 'How often did I eat out in September?',
-    contract: { ...base, domain: 'transactions', operation: 'count', measure: 'spending',
+    contract: { ...base, domain: 'transactions', operation: 'count', measures: ['spending'],
       subjects: [{ kind: 'concept', value: 'eating out', source: user }], period: { kind: 'calendar_month', month: 9 } } },
   { id: 'costco-excluded-breakdown', question: 'Break down my spending by category, excluding Costco.',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending', grouping: 'category',
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'], grouping: 'category',
       subjects: [{ kind: 'merchant', value: 'Costco', exclude: true, source: user }] } },
   { id: 'ui-view-category', question: 'Compare this with the previous three months.',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending', reference: { kind: 'ui_view' },
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'], reference: { kind: 'ui_view' },
       period: { kind: 'from_reference' }, comparison: { kind: 'preceding', count: 3, unit: 'month' } } },
   { id: 'goals', question: 'Show me my goals.',
     contract: { ...base, domain: 'goals', operation: 'list' } },
   { id: 'explicit-range', question: 'What did I spend from Sep 1 to Sep 15, 2026?',
-    contract: { ...base, domain: 'transactions', operation: 'total', measure: 'spending', period: { kind: 'range', start: '2026-09-01', end: '2026-09-15' } } },
+    contract: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'], period: { kind: 'range', start: '2026-09-01', end: '2026-09-15' } } },
 ];
 
 describe('R0 capability matrix — every family is representable', () => {
   it.each(MATRIX.map(m => [m.id, m]))('%s', (_id, m) => {
     const r = parseFinancialRequest(m.contract);
     if (!r.ok) throw new Error(`${m.id}: ${r.errors.join('; ')}`);
-    expect(r.value.version).toBe(1);
+    expect(r.value.version).toBe(FINANCIAL_REQUEST_VERSION);
     expect(r.value.authority).toBe('semantic_claim');
   });
 
@@ -154,7 +155,7 @@ describe('R0 capability matrix — every family is representable', () => {
   });
 
   it('defaults are explicit: reference none, standalone, supported, no ambiguity', () => {
-    const r = parseFinancialRequest({ ...base, domain: 'transactions', operation: 'total', measure: 'income' });
+    const r = parseFinancialRequest({ ...base, domain: 'transactions', operation: 'total', measures: ['income'] });
     if (!r.ok) throw new Error('unexpected');
     expect(r.value).toMatchObject({ reference: { kind: 'none' }, mode: 'standalone', capability: { status: 'supported' }, ambiguities: [], subjects: [] });
   });
@@ -170,7 +171,7 @@ describe('R0 capability matrix — every family is representable', () => {
 });
 
 describe('R0 semantics are not authority', () => {
-  const get = (id: string): FinancialRequestV1 => {
+  const get = (id: string): FinancialRequestV2 => {
     const r = parseFinancialRequest(MATRIX.find(m => m.id === id)!.contract);
     if (!r.ok) throw new Error(r.errors.join(';'));
     return r.value;
@@ -224,19 +225,20 @@ describe('R0 semantics are not authority', () => {
   it('unsupported refunds are named honestly with no invented measure', () => {
     const r = get('20-unsupported-refunds');
     expect(r.capability).toEqual({ status: 'unsupported', concept: 'refunds', reason: 'no_authoritative_semantics' });
-    expect(r.measure).toBeUndefined();
-    expect(parseFinancialRequest({ ...MATRIX[0].contract, measure: 'refunds' }).ok).toBe(false);
+    expect(r.measures).toBeUndefined();
+    expect(parseFinancialRequest({ ...MATRIX[0].contract, measures: ['refunds'] }).ok).toBe(false);
   });
 });
 
 describe('R0 malformed FinancialRequest rejection', () => {
   const ok = MATRIX[0].contract;
   it.each([
-    ['unknown version', { ...ok, version: 2 }],
+    ['unknown version', { ...ok, version: 3 }],
+    ['retired version 1', { ...ok, version: 1 }],
     ['missing version', Object.fromEntries(Object.entries(ok).filter(([k]) => k !== 'version'))],
     ['unknown operation', { ...ok, operation: 'how_much_restaurants_last_month' }],
     ['unknown domain', { ...ok, domain: 'crypto' }],
-    ['unknown measure', { ...ok, measure: 'vibes' }],
+    ['unknown measure', { ...ok, measures: ['vibes'] }],
     ['month 13', { ...ok, period: { kind: 'calendar_month', month: 13 } }],
     ['rolling zero', { ...ok, period: { kind: 'rolling', count: 0, unit: 'month' } }],
     ['bad unit', { ...ok, period: { kind: 'rolling', count: 3, unit: 'fortnight' } }],
@@ -244,8 +246,8 @@ describe('R0 malformed FinancialRequest rejection', () => {
     ['backwards range', { ...ok, period: { kind: 'range', start: '2026-09-30', end: '2026-09-01' } }],
     ['unknown period kind', { ...ok, period: { kind: 'lately' } }],
     ['count_distinct without distinctBy', { ...ok, operation: 'count_distinct' }],
-    ['rank without rank', { ...ok, operation: 'rank' }],
-    ['rank limit above frame', { ...ok, operation: 'rank', rank: { order: 'largest', limit: 26 } }],
+    ['retired rank operation', { ...ok, operation: 'rank' }],
+    ['list limit above frame', { ...ok, operation: 'list', order: { by: 'amount', direction: 'desc' }, limit: 26 }],
     ['ordinal above frame', { ...ok, reference: { kind: 'candidate_frame', ordinal: 26 } }],
     ['comparison without period', { ...ok, period: undefined, comparison: { kind: 'previous_equivalent' } }],
     ['from_reference without a reference', { ...ok, period: { kind: 'from_reference' } }],

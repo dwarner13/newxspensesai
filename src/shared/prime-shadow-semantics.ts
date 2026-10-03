@@ -2,7 +2,7 @@
  * PRIME REASONING V1 — R1: SHADOW semantic interpretation (ZERO AUTHORITY).
  *
  * A model reads the user's message (plus a few previous USER messages for references)
- * and proposes a FinancialRequest V1 (R0 contract). The result is VALIDATED with the R0
+ * and proposes a FinancialRequest (R0 contract, version 2 since R0.1). The result is VALIDATED with the R0
  * schema, summarized WITHOUT any raw values, compared structurally with the legacy
  * classifier, and logged. Nothing here routes, plans or executes evidence, removes tools,
  * touches identity or mutations, or changes Prime's answer. Legacy stays authoritative.
@@ -23,9 +23,14 @@ import {
   GROUPINGS,
   DISTINCT_BY,
   PERIOD_UNITS,
+  ORDER_BY,
+  ORDER_DIRECTIONS,
+  MAX_LIST_LIMIT,
+  MAX_MEASURES,
+  FINANCIAL_REQUEST_VERSION,
   parseFinancialRequest,
-  FinancialRequestV1Schema,
-  type FinancialRequestV1,
+  FinancialRequestV2Schema,
+  type FinancialRequestV2,
 } from './prime-financial-request';
 import { CANONICAL_CATEGORIES } from './financial-taxonomy';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -45,32 +50,32 @@ const list = (xs: readonly string[]) => xs.join(' | ');
 
 export const SHADOW_SEMANTICS_SYSTEM_PROMPT = [
   'You interpret what a user of a personal-finance app MEANS. You do not answer the question.',
-  'Return ONE JSON object that is a FinancialRequest V1. Output JSON only.',
+  `Return ONE JSON object that is a FinancialRequest version ${FINANCIAL_REQUEST_VERSION}. Output JSON only.`,
   '',
   'Authority: your output is a semantic claim only. Never include amounts, totals, balances, transaction IDs, dates from data, or anything about whether data exists. Deterministic systems verify everything later.',
   '',
   'Fields:',
-  '- version: 1; authority: "semantic_claim"',
+  `- version: ${FINANCIAL_REQUEST_VERSION}; authority: "semantic_claim"`,
   `- domain: ${list(FINANCIAL_DOMAINS)} ("product" = questions about the app itself; "general" = not about the user's finances or the app)`,
   `- operation: ${list(FINANCIAL_OPERATIONS)} (comparison is NOT an operation — use "comparison")`,
-  `- measure (optional): ${list(FINANCIAL_MEASURES)}`,
+  `- measures (optional array, 1-${MAX_MEASURES}, unique, in the order the user asked): ${list(FINANCIAL_MEASURES)}. "net" is a concept only — never define how it is computed; include it only when the user asks for net.`,
   `- subjects (optional array): { kind: ${list(SUBJECT_KINDS)}, value: the words that name it (≤80 chars), categoryHint?: one of [${CANONICAL_CATEGORIES.join(', ')}], exclude?: true, source: "user_message" | "previous_request" | "conversation" }. Use "merchant" only for a business name, "concept" for an idea like "eating out".`,
   `- period (optional, semantic — never compute dates): { kind: "current"|"previous", unit } | { kind: "rolling", count, unit } | { kind: "calendar_month", month: 1-12, year? } | { kind: "calendar_year", year } | { kind: "year_to_date", year? } | { kind: "range", start: "YYYY-MM-DD", end } | { kind: "all_time" } | { kind: "from_reference" }. unit: ${list(PERIOD_UNITS)}`,
-  '- comparison (optional, needs period): { kind: "previous_equivalent" } | { kind: "preceding", count, unit } | { kind: "period", period }',
+  '- comparison (optional, needs period): { kind: "previous_equivalent" } (the equal-length period right before) | { kind: "preceding", count, unit } (the N units right before) | { kind: "offset", count, unit } (the same-shaped period shifted back by count × unit) | { kind: "period", period }',
   `- grouping (optional): ${list(GROUPINGS)}; distinctBy (required for count_distinct): ${list(DISTINCT_BY)}`,
-  '- rank (required for rank): { order: "largest"|"smallest", limit: 1-25 }',
+  `- order (optional, only with operation "list"): { by: ${list(ORDER_BY)}, direction: ${list(ORDER_DIRECTIONS)} }; limit (optional, 1-${MAX_LIST_LIMIT}, requires order). Superlatives and top-N requests are list + order + limit.`,
   '- reference (default {kind:"none"}): previous_request | candidate_frame {ordinal 1-25} | candidate_frame_all | ui_selection | ui_view | conversation_entity {value}',
   '- mode: "standalone" | "refine_previous" (refine_previous = a follow-up changing only what the user said; requires reference previous_request)',
   '- presentation (optional): { detail: "brief"|"standard"|"detailed", format?: "prose"|"list"|"table" }',
-  '- ambiguities (≤3): { dimension: operation|measure|subject|period|reference|distinct_by, interpretations: 2-4 × { id: snake_case, summary, operation?, distinctBy?, measure? }, resolution: "ask"|"assume_disclosed"|"present_both", assumed?: id }. Record genuine ambiguity instead of guessing.',
+  '- ambiguities (≤3): { dimension: operation|measure|subject|period|reference|distinct_by|order, interpretations: 2-4 × { id: snake_case, summary, operation?, distinctBy?, measures?, order?, reference? }, resolution: "ask"|"assume_disclosed"|"present_both", assumed?: id }. Record genuine ambiguity instead of guessing.',
   '- action (optional, only for requested changes): { kind: "mutation_proposal", mutation: change_category|change_subcategory|rename_merchant|create_rule, target: a reference, value } with operation "none".',
   '- capability (default supported): { status: "unsupported", concept, reason: no_authoritative_semantics|no_data_source|not_implemented } | { status: "unknown", concept }. Refunds are unsupported (no_authoritative_semantics). Use these instead of inventing meaning.',
   '',
   'Omit optional keys that do not apply; add no other keys; never output placeholder values.',
   '',
   'Rules:',
-  '- subjects is always an ARRAY and every subject has "source". reference, period, comparison, rank, action and action.target are OBJECTS.',
-  '- operation is only one of the operation values. A comparison goes in "comparison" (operation stays what is being compared, e.g. total); net or in/out money goes in "measure".',
+  '- subjects and measures are always ARRAYS and every subject has "source". reference, period, comparison, order, action and action.target are OBJECTS.',
+  '- operation is only one of the operation values. A comparison goes in "comparison" (operation stays what is being compared, e.g. total); money kinds (including in/out and net) go in "measures".',
   '- "merchant" is a specific named business. A TYPE of business or spending is category / subcategory / concept, never merchant.',
   '- Relative time words use relative kinds (current, previous, rolling). Put a year number only when the user states one; never guess today\'s date.',
   '- An item the user picks by its position in a list they were shown is {"kind":"candidate_frame","ordinal":N}; for a change, that is action.target.',
@@ -85,12 +90,12 @@ export const SHADOW_SEMANTICS_SYSTEM_PROMPT = [
 export const SHADOW_RESPONSE_FORMAT = {
   type: 'json_schema' as const,
   json_schema: {
-    name: 'financial_request_v1',
+    name: `financial_request_v${FINANCIAL_REQUEST_VERSION}`,
     strict: false,
     // called through a plain function type: zodToJsonSchema's generics instantiate the
     // deeply refined R0 type and hit TS2589; the runtime conversion is unchanged.
     schema: (zodToJsonSchema as unknown as (schema: unknown, opts: Record<string, unknown>) => Record<string, unknown>)(
-      FinancialRequestV1Schema, { $refStrategy: 'none', target: 'jsonSchema7' },
+      FinancialRequestV2Schema, { $refStrategy: 'none', target: 'jsonSchema7' },
     ),
   },
 };
@@ -120,7 +125,7 @@ export type ShadowFailureCode =
   | 'timeout' | 'model_error' | 'empty_output' | 'invalid_json' | 'invalid_schema' | 'aborted';
 
 export type ShadowOutcome =
-  | { status: 'valid'; request: FinancialRequestV1; durationMs: number }
+  | { status: 'valid'; request: FinancialRequestV2; durationMs: number }
   | { status: 'invalid'; failureCode: ShadowFailureCode; durationMs: number; schemaIssueCount?: number };
 
 /** Injected model call: returns the raw text content. Must honour the abort signal. */
@@ -179,13 +184,13 @@ export async function interpretShadowSemantics(input: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ShadowSummary {
-  contractVersion: 1;
+  contractVersion: typeof FINANCIAL_REQUEST_VERSION;
   valid: boolean;
   failureCode?: ShadowFailureCode;
   schemaIssueCount?: number;
   domain?: string;
   operation?: string;
-  measure?: string;
+  measures?: string[];
   subjectKinds?: string[];
   subjectCount?: number;
   excludedSubjectCount?: number;
@@ -195,7 +200,10 @@ export interface ShadowSummary {
   comparisonKind?: string;
   grouping?: string;
   distinctBy?: string;
-  rankOrder?: string;
+  orderBy?: string;
+  orderDirection?: string;
+  /** a bounded integer 1..25 (structural, not personal) */
+  limit?: number;
   referenceKind?: string;
   mode?: string;
   ambiguityCount?: number;
@@ -211,7 +219,7 @@ export interface ShadowSummary {
 export function summarizeShadowOutcome(outcome: ShadowOutcome): ShadowSummary {
   if (outcome.status !== 'valid') {
     return {
-      contractVersion: 1, valid: false, failureCode: outcome.failureCode, durationMs: outcome.durationMs,
+      contractVersion: FINANCIAL_REQUEST_VERSION, valid: false, failureCode: outcome.failureCode, durationMs: outcome.durationMs,
       ...(outcome.schemaIssueCount !== undefined ? { schemaIssueCount: outcome.schemaIssueCount } : {}),
     };
   }
@@ -219,11 +227,11 @@ export function summarizeShadowOutcome(outcome: ShadowOutcome): ShadowSummary {
   const period = r.period as { kind: string; unit?: string } | undefined;
   const capability = r.capability as { status: string; reason?: string };
   return {
-    contractVersion: 1,
+    contractVersion: FINANCIAL_REQUEST_VERSION,
     valid: true,
     domain: r.domain,
     operation: r.operation,
-    ...(r.measure ? { measure: r.measure } : {}),
+    ...(r.measures ? { measures: [...r.measures] } : {}),
     subjectKinds: [...new Set(r.subjects.map(s => s.kind))].sort(),
     subjectCount: r.subjects.length,
     excludedSubjectCount: r.subjects.filter(s => s.exclude).length,
@@ -232,7 +240,8 @@ export function summarizeShadowOutcome(outcome: ShadowOutcome): ShadowSummary {
     ...(r.comparison ? { comparisonKind: r.comparison.kind } : {}),
     ...(r.grouping ? { grouping: r.grouping } : {}),
     ...(r.distinctBy ? { distinctBy: r.distinctBy } : {}),
-    ...(r.rank ? { rankOrder: r.rank.order } : {}),
+    ...(r.order ? { orderBy: r.order.by, orderDirection: r.order.direction } : {}),
+    ...(r.limit !== undefined ? { limit: r.limit } : {}),
     referenceKind: r.reference.kind,
     mode: r.mode,
     ambiguityCount: r.ambiguities.length,

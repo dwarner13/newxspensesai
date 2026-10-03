@@ -19,7 +19,7 @@ import {
   SHADOW_RESPONSE_FORMAT,
   type ShadowModelCall,
 } from '../src/shared/prime-shadow-semantics';
-import type { FinancialRequestV1 } from '../src/shared/prime-financial-request';
+import type { FinancialRequestV2 } from '../src/shared/prime-financial-request';
 
 // Load .env manually (repo convention — no dotenv dependency; see serve-functions-local.ts)
 function loadEnv(envPath: string) {
@@ -38,17 +38,20 @@ function loadEnv(envPath: string) {
 }
 loadEnv(path.resolve(process.cwd(), '.env'));
 
-type Check = (r: FinancialRequestV1) => string | null; // null = pass, string = failure reason
+type Check = (r: FinancialRequestV2) => string | null; // null = pass, string = failure reason
 type Case = { family: string; message: string; prior?: string[]; checks: Check[] };
 
-const has = (r: FinancialRequestV1, kind: string) => r.subjects.some(s => s.kind === kind && !s.exclude);
+const has = (r: FinancialRequestV2, kind: string) => r.subjects.some(s => s.kind === kind && !s.exclude);
 const noMerchant: Check = r => (has(r, 'merchant') ? 'unexpected merchant subject' : null);
 const merchant: Check = r => (has(r, 'merchant') ? null : 'missing merchant subject');
 const categoryLike: Check = r => (has(r, 'category') || has(r, 'subcategory') || has(r, 'concept') ? null : 'missing category/concept subject');
 const rolling = (count: number, unit: string): Check => r =>
   r.period?.kind === 'rolling' && r.period.count === count && r.period.unit === unit ? null : `expected rolling ${count} ${unit}, got ${JSON.stringify(r.period ?? null)}`;
 const op = (...ops: string[]): Check => r => (ops.includes(r.operation) ? null : `operation ${r.operation} not in ${ops.join('|')}`);
-const measure = (...ms: string[]): Check => r => (r.measure && ms.includes(r.measure) ? null : `measure ${r.measure ?? 'none'} not in ${ms.join('|')}`);
+const measure = (...ms: string[]): Check => r => (r.measures && r.measures.some(m => ms.includes(m)) ? null : `measures ${JSON.stringify(r.measures ?? null)} lack any of ${ms.join('|')}`);
+const ordered = (by: string, direction: string, limit?: number): Check => r =>
+  r.order?.by === by && r.order.direction === direction && (limit === undefined || r.limit === limit)
+    ? null : `expected order ${by} ${direction}${limit !== undefined ? ` limit ${limit}` : ''}, got ${JSON.stringify({ order: r.order ?? null, limit: r.limit ?? null })}`;
 const domain = (...ds: string[]): Check => r => (ds.includes(r.domain) ? null : `domain ${r.domain} not in ${ds.join('|')}`);
 const periodKind = (...ks: string[]): Check => r => (r.period && ks.includes(r.period.kind) ? null : `period ${r.period?.kind ?? 'none'} not in ${ks.join('|')}`);
 const noPeriodFromCount: Check = r => (r.period?.kind === 'rolling' && r.period.count === 5 ? 'a count became a period' : null);
@@ -69,8 +72,8 @@ const CASES: Case[] = [
   { family: 'costco-last-year', message: 'How much did I spend at Costco last year?', checks: [merchant, op('total'), measure('spending'), periodKind('previous', 'calendar_year')] },
   { family: 'costco-last-year', message: 'What did Costco cost me in the previous year?', checks: [merchant, op('total'), periodKind('previous', 'calendar_year')] },
   // 3
-  { family: 'last-five-costco', message: 'Show me my last five Costco transactions.', checks: [merchant, op('list', 'rank'), noPeriodFromCount] },
-  { family: 'last-five-costco', message: 'List my 5 most recent Costco purchases', checks: [merchant, op('list', 'rank'), noPeriodFromCount] },
+  { family: 'last-five-costco', message: 'Show me my last five Costco transactions.', checks: [merchant, op('list'), ordered('date', 'desc', 5), noPeriodFromCount] },
+  { family: 'last-five-costco', message: 'List my 5 most recent Costco purchases', checks: [merchant, op('list'), ordered('date', 'desc', 5), noPeriodFromCount] },
   // 4
   { family: 'gas-3m', message: 'How much did I spend on gas in the last three months?', checks: [noMerchant, categoryLike, rolling(3, 'month'), op('total'), measure('spending')] },
   { family: 'gas-3m', message: 'What has fuel cost me over the past 3 months?', checks: [noMerchant, categoryLike, rolling(3, 'month'), op('total')] },
@@ -80,7 +83,7 @@ const CASES: Case[] = [
   { family: 'september', message: 'How much did I spend in September?', checks: [op('total'), measure('spending'), periodKind('calendar_month'), noMerchant] },
   { family: 'september', message: "What's my September spending?", checks: [op('total'), measure('spending'), periodKind('calendar_month')] },
   // 7
-  { family: 'in-and-out', message: 'What came in and went out last month?', checks: [periodKind('previous'), measure('net_movement', 'inflow', 'outflow')] },
+  { family: 'in-and-out', message: 'What came in and went out last month?', checks: [periodKind('previous'), measure('inflow', 'outflow', 'net')] },
   // 8
   { family: 'month-compare', message: 'How does this month compare with last month?', checks: [comparison] },
   { family: 'month-compare', message: 'Am I spending more this month than the previous one?', checks: [comparison] },
@@ -97,7 +100,7 @@ const CASES: Case[] = [
   // 13
   { family: 'product', message: 'How secure are my transactions through the app?', checks: [domain('product')] },
   // extra families
-  { family: 'biggest', message: 'What was my largest restaurant purchase?', checks: [op('rank'), categoryLike, noMerchant] },
+  { family: 'biggest', message: 'What was my largest restaurant purchase?', checks: [op('list'), ordered('amount', 'desc', 1), categoryLike, noMerchant] },
   { family: 'refunds', message: 'How much did I get back in refunds?', checks: [r => (r.capability.status === 'unsupported' ? null : 'refunds should be unsupported')] },
 ];
 

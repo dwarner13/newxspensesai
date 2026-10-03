@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   SHADOW_SEMANTICS_SYSTEM_PROMPT,
+  SHADOW_RESPONSE_FORMAT,
   SHADOW_MAX_PRIOR_USER_MESSAGES,
   SHADOW_MAX_MESSAGE_CHARS,
   buildShadowSemanticsMessages,
@@ -22,10 +23,10 @@ import {
   type ShadowModelCall,
   type LegacyStructure,
 } from '../prime-shadow-semantics';
-import { FINANCIAL_OPERATIONS, FINANCIAL_MEASURES, FINANCIAL_DOMAINS } from '../prime-financial-request';
+import { FINANCIAL_OPERATIONS, FINANCIAL_MEASURES, FINANCIAL_DOMAINS, FINANCIAL_REQUEST_VERSION } from '../prime-financial-request';
 
 const reply = (obj: unknown): ShadowModelCall => async () => JSON.stringify(obj);
-const base = { version: 1, authority: 'semantic_claim' } as const;
+const base = { version: FINANCIAL_REQUEST_VERSION, authority: 'semantic_claim' } as const;
 const run = (callModel: ShadowModelCall, message = 'q', timeoutMs = 2000) =>
   interpretShadowSemantics({ callModel, message, timeoutMs });
 
@@ -34,25 +35,24 @@ const run = (callModel: ShadowModelCall, message = 'q', timeoutMs = 2000) =>
  * These prove representability + containment, not model understanding.
  */
 const SPECIMENS: Record<string, unknown> = {
-  restaurants_3m: { ...base, domain: 'transactions', operation: 'count_distinct', distinctBy: 'merchant', measure: 'spending',
+  restaurants_3m: { ...base, domain: 'transactions', operation: 'count_distinct', distinctBy: 'merchant', measures: ['spending'],
     subjects: [{ kind: 'subcategory', value: 'restaurants', categoryHint: 'Food & Dining', source: 'user_message' }],
     period: { kind: 'rolling', count: 3, unit: 'month' },
     ambiguities: [{ dimension: 'operation', resolution: 'present_both', interpretations: [
       { id: 'visits', summary: 'restaurant transactions (visits)', operation: 'count' },
       { id: 'distinct', summary: 'different restaurants', operation: 'count_distinct', distinctBy: 'merchant' }] }] },
-  costco_last_year: { ...base, domain: 'transactions', operation: 'total', measure: 'spending',
+  costco_last_year: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'],
     subjects: [{ kind: 'merchant', value: 'Costco', source: 'user_message' }], period: { kind: 'previous', unit: 'year' } },
-  last_five_costco: { ...base, domain: 'transactions', operation: 'list', measure: 'transactions',
+  last_five_costco: { ...base, domain: 'transactions', operation: 'list', measures: ['transactions'], order: { by: 'date', direction: 'desc' }, limit: 5,
     subjects: [{ kind: 'merchant', value: 'Costco', source: 'user_message' }], presentation: { detail: 'standard', format: 'list' } },
-  gas_3m: { ...base, domain: 'transactions', operation: 'total', measure: 'spending',
+  gas_3m: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'],
     subjects: [{ kind: 'subcategory', value: 'gas', categoryHint: 'Transportation', source: 'user_message' }], period: { kind: 'rolling', count: 3, unit: 'month' } },
-  fuel_sales_rep: { ...base, domain: 'transactions', operation: 'average', measure: 'spending',
-    subjects: [{ kind: 'subcategory', value: 'fuel', categoryHint: 'Transportation', source: 'user_message' }],
-    capability: { status: 'unsupported', concept: 'occupation benchmark', reason: 'no_data_source' } },
-  september: { ...base, domain: 'transactions', operation: 'total', measure: 'spending', period: { kind: 'calendar_month', month: 9 } },
-  in_and_out: { ...base, domain: 'transactions', operation: 'total', measure: 'net_movement', period: { kind: 'previous', unit: 'month' } },
-  month_vs_month: { ...base, domain: 'transactions', operation: 'total', measure: 'spending', period: { kind: 'current', unit: 'month' }, comparison: { kind: 'previous_equivalent' } },
-  why_restaurants_higher: { ...base, domain: 'transactions', operation: 'explain', measure: 'spending',
+  fuel_sales_rep: { ...base, domain: 'transactions', operation: 'average', measures: ['spending'],
+    subjects: [{ kind: 'subcategory', value: 'fuel', categoryHint: 'Transportation', source: 'user_message' }] },
+  september: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'], period: { kind: 'calendar_month', month: 9 } },
+  in_and_out: { ...base, domain: 'transactions', operation: 'total', measures: ['inflow', 'outflow'], period: { kind: 'previous', unit: 'month' } },
+  month_vs_month: { ...base, domain: 'transactions', operation: 'total', measures: ['spending'], period: { kind: 'current', unit: 'month' }, comparison: { kind: 'previous_equivalent' } },
+  why_restaurants_higher: { ...base, domain: 'transactions', operation: 'explain', measures: ['spending'],
     subjects: [{ kind: 'subcategory', value: 'restaurants', source: 'user_message' }], period: { kind: 'current', unit: 'month' }, comparison: { kind: 'previous_equivalent' } },
   what_about_last_year: { ...base, domain: 'transactions', operation: 'total', mode: 'refine_previous', reference: { kind: 'previous_request' }, period: { kind: 'previous', unit: 'year' } },
   change_third: { ...base, domain: 'transactions', operation: 'none',
@@ -82,6 +82,42 @@ describe('R1 prompt — contract dimensions, not question patterns', () => {
   });
 });
 
+describe('R1 adapted to FinancialRequest V2', () => {
+  it('the prompt carries the V2 vocabulary and no retired rank / singular measure', () => {
+    for (const v of ['measures', 'order', 'limit', '"offset"', 'net', `version ${FINANCIAL_REQUEST_VERSION}`]) {
+      expect(SHADOW_SEMANTICS_SYSTEM_PROMPT).toContain(v);
+    }
+    expect(SHADOW_SEMANTICS_SYSTEM_PROMPT).not.toMatch(/\brank\b/);
+    expect(SHADOW_SEMANTICS_SYSTEM_PROMPT).not.toContain('net_movement');
+    expect(SHADOW_SEMANTICS_SYSTEM_PROMPT).not.toMatch(/- measure \(/);
+  });
+  it('the structured-output schema is generated from the V2 contract', () => {
+    expect(SHADOW_RESPONSE_FORMAT.json_schema.name).toBe('financial_request_v2');
+    const json = JSON.stringify(SHADOW_RESPONSE_FORMAT.json_schema.schema);
+    expect(json).toContain('"measures"');
+    expect(json).toContain('"order"');
+    expect(json).toContain('"offset"');
+    expect(json).not.toContain('net_movement');
+  });
+  it('summary exposes V2 structure (measures, order, limit) and still no values', async () => {
+    const s = summarizeShadowOutcome(await run(reply(SPECIMENS.last_five_costco)));
+    expect(s).toMatchObject({ contractVersion: 2, valid: true, operation: 'list', measures: ['transactions'], orderBy: 'date', orderDirection: 'desc', limit: 5, subjectKinds: ['merchant'] });
+    expect(JSON.stringify(s)).not.toContain('Costco');
+    const inOut = summarizeShadowOutcome(await run(reply(SPECIMENS.in_and_out)));
+    expect(inOut.measures).toEqual(['inflow', 'outflow']);
+  });
+  it('a model emitting retired V1 shapes is recorded invalid, never repaired', async () => {
+    for (const v1 of [
+      { ...base, domain: 'transactions', operation: 'rank', rank: { order: 'largest', limit: 1 } },
+      { ...base, domain: 'transactions', operation: 'total', measure: 'spending' },
+      { ...base, domain: 'transactions', operation: 'total', measures: ['net_movement'] },
+      { ...base, version: 1, domain: 'transactions', operation: 'total', measures: ['spending'] },
+    ]) {
+      expect(await run(reply(v1))).toMatchObject({ status: 'invalid', failureCode: 'invalid_schema' });
+    }
+  });
+});
+
 describe('R1 inputs are bounded and data-free', () => {
   it('only previous USER messages (≤4, clipped) plus the current message — no assistant replies', () => {
     const prior = ['a', 'b', 'c', 'd', 'e', 'x'.repeat(SHADOW_MAX_MESSAGE_CHARS + 50)];
@@ -100,7 +136,7 @@ describe('R1 inputs are bounded and data-free', () => {
 });
 
 describe('R1 interpretation — R0 validation, fail-open', () => {
-  it('every acceptance specimen interpretation validates against FinancialRequest V1', async () => {
+  it('every acceptance specimen interpretation validates against FinancialRequest V2', async () => {
     for (const [id, obj] of Object.entries(SPECIMENS)) {
       const o = await run(reply(obj));
       if (o.status !== 'valid') throw new Error(`${id}: ${o.failureCode}`);
@@ -147,7 +183,7 @@ describe('R1 privacy-safe summary', () => {
   });
   it('restaurant specimen summary: count_distinct, subcategory subject, rolling month, operation ambiguity', async () => {
     const s = summarizeShadowOutcome(await run(reply(SPECIMENS.restaurants_3m)));
-    expect(s).toMatchObject({ valid: true, domain: 'transactions', operation: 'count_distinct', distinctBy: 'merchant',
+    expect(s).toMatchObject({ contractVersion: 2, valid: true, domain: 'transactions', operation: 'count_distinct', distinctBy: 'merchant', measures: ['spending'],
       subjectKinds: ['subcategory'], subjectCount: 1, hasCategoryHint: true, periodKind: 'rolling', periodUnit: 'month',
       ambiguityCount: 1, ambiguityDimensions: ['operation'], ambiguityResolutions: ['present_both'], referenceKind: 'none',
       capabilityStatus: 'supported' });
