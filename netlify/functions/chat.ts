@@ -71,6 +71,8 @@ import {
 } from './_shared/memory.js';
 import { ensureSession, getRecentMessages } from './_shared/session.js';
 import { ensureThread } from './_shared/ensureThread.js';
+// C1-S: Prime never accepts a client-supplied system prompt (server-owned instructions)
+import { resolveSystemPromptOverride } from './_shared/systemPromptOverridePolicy.js';
 import { buildResponseHeaders } from './_shared/headers.js';
 import { getEmployeeModelConfig } from './_shared/employeeModelConfig.js';
 import { buildFinancialSnapshot } from './_shared/financial-snapshot.js';
@@ -10866,9 +10868,15 @@ CUSTODIAN CONTEXT (Account Security & Settings):
     }
     
     // 6. Employee-specific system prompt (from database or routing)
-    if (customSystemPrompt) {
+    // C1-S: a client-supplied prompt is accepted only for specialists, decided with the FINAL
+    // employee slug. Prime always uses its server-owned instructions (the branches below).
+    const promptOverrideDecision = resolveSystemPromptOverride(finalEmployeeSlug, customSystemPrompt);
+    if (!promptOverrideDecision.accepted && promptOverrideDecision.reason !== 'absent') {
+      console.log(`[Chat] systemPromptOverride ignored: reason=${promptOverrideDecision.reason} employee=${finalEmployeeSlug}`);
+    }
+    if (promptOverrideDecision.accepted) {
       // Use custom system prompt (includes category context, transaction context, etc.)
-      systemMessages.push({ role: 'system', content: customSystemPrompt });
+      systemMessages.push({ role: 'system', content: promptOverrideDecision.prompt });
       if (memoryContext) {
         systemMessages.push({ role: 'system', content: memoryContext });
       }
