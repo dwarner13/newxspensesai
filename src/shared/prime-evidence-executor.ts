@@ -595,7 +595,8 @@ function buildPeriodLabel(params: Record<string, unknown>, period: 'A' | 'B'): s
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildToolArgs(step: PrimeEvidencePlanStep): Record<string, unknown> {
-  if (!step.params) return {};
+  // P2-B2: an authoritative transaction list also asks for the exact total match count.
+  if (!step.params) return step.tool === 'tx_search' ? { includeTotalCount: true } : {};
 
   const args: Record<string, unknown> = {};
   // Copy only recognized tool parameters — never copy userId
@@ -607,6 +608,7 @@ function buildToolArgs(step: PrimeEvidencePlanStep): Record<string, unknown> {
       args[key] = step.params[key];
     }
   }
+  if (step.tool === 'tx_search') args.includeTotalCount = true;
   return args;
 }
 
@@ -624,10 +626,13 @@ function extractResultData(tool: string, rawResult: unknown): { data: unknown; r
   if (tool === 'tx_search') {
     const rows = Array.isArray(result.rows) ? result.rows : [];
     const capped = rows.slice(0, MAX_TX_ROWS_IN_CONTEXT);
+    // P2-B2: exact DB match count when tx-search provided one (never inferred from rows).
+    const reportedMatched = Number((result.meta as { matchedCount?: unknown } | undefined)?.matchedCount);
     return {
       data: {
         rows: capped,
         totalCount: rows.length,
+        ...(Number.isFinite(reportedMatched) && reportedMatched >= rows.length ? { matchedCount: reportedMatched } : {}),
         queryStatus: result.queryStatus ?? 'verified',
         capped: rows.length > MAX_TX_ROWS_IN_CONTEXT,
       },
@@ -1345,8 +1350,12 @@ function formatEvidenceData(result: PrimeEvidenceResult): string {
 
   if (result.tool === 'tx_search') {
     const rows = Array.isArray(data.rows) ? data.rows : [];
-    const totalCount = data.totalCount ?? rows.length;
-    const lines = [`${totalCount} transaction(s) found${data.capped ? ` (showing ${rows.length})` : ''}:`];
+    const returned = Number(data.totalCount ?? rows.length);
+    const matched = typeof data.matchedCount === 'number' ? data.matchedCount : null;
+    // P2-B2: distinguish the exact total that matched from the rows returned/shown.
+    const lines = [matched !== null
+      ? `Showing ${rows.length} of ${matched} matching transaction(s)${matched > rows.length ? ' — say so plainly (e.g. "Showing ' + rows.length + ' of ' + matched + ' transactions")' : ''}:`
+      : `${returned} transaction(s) returned (total matching count not available — do not present this as the total)${data.capped ? ` (showing ${rows.length})` : ''}:`];
     for (const row of rows) {
       if (row && typeof row === 'object') {
         const r = row as Record<string, unknown>;

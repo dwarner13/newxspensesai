@@ -132,9 +132,14 @@ export function resolveModelSearchOwnership(input: {
   purpose: unknown;
   hasExistingCandidates: boolean;
   aggregateEvidenceSatisfied: boolean;
+  /** P2-B: the authoritative P3.1C list search already answered this explicit list request. */
+  authoritativeListAnswered?: boolean;
   args: unknown;
 }): CandidateOwnershipIntent {
   const base = resolveCandidateOwnership(input.purpose, input.hasExistingCandidates);
+  // P2-B: the authoritative list owns the cards for this request (or proved the period empty);
+  // a model-initiated search may inform the answer but never replaces or invents the list.
+  if (base === 'candidate_establishment' && input.authoritativeListAnswered) return 'analytical_evidence';
   if (base === 'candidate_establishment' && input.aggregateEvidenceSatisfied && isUndatedTxSearch(input.args)) {
     return 'analytical_evidence';
   }
@@ -215,8 +220,9 @@ export interface VisibleCandidateFrame {
  */
 export function buildVisibleCandidateFrame(result: unknown): VisibleCandidateFrame {
   const valid = rowsOf(result).filter(hasValidId);
-  const reported = Number((result as { meta?: { merchantScope?: { matchedCount?: unknown } } } | null | undefined)
-    ?.meta?.merchantScope?.matchedCount);
+  const meta = (result as { meta?: { matchedCount?: unknown; merchantScope?: { matchedCount?: unknown } } } | null | undefined)?.meta;
+  // Exact match counts only (merchant scope, or tx-search's P2-B2 matchedCount) — never inferred.
+  const reported = Number(meta?.merchantScope?.matchedCount ?? meta?.matchedCount);
   const rows = valid.slice(0, VISIBLE_CANDIDATE_FRAME_MAX);
   const matched = Math.max(valid.length, Number.isFinite(reported) ? reported : 0);
   return { rows, shown: rows.length, matched, partial: matched > rows.length };
@@ -400,14 +406,27 @@ export function presentTxSearchResultForModel(
 export async function submitEvidenceTxSearchResults(
   results: Array<{ tool: string; status: string; data?: unknown }>,
   gate: CandidateOwnershipGate,
+  opts: { establishFrame?: boolean } = {},
 ): Promise<OwnershipOutcome[]> {
   const outcomes: OwnershipOutcome[] = [];
+  let establishUsed = false;
   for (const r of results) {
     if (r.tool !== 'tx_search') continue;
     if (r.status !== 'resolved' && r.status !== 'successful_empty') continue;
-    const data = r.data as { rows?: unknown; queryStatus?: unknown } | null | undefined;
+    const data = r.data as { rows?: unknown; queryStatus?: unknown; matchedCount?: unknown } | null | undefined;
     if (!data?.rows) continue;
-    outcomes.push(await gate.submitSearchResult({ rows: data.rows, queryStatus: data.queryStatus }, 'p31c', 'analytical_evidence'));
+    const rowCount = Array.isArray(data.rows) ? data.rows.length : 0;
+    // P2-B: for an EXPLICIT list request, the first non-empty authoritative (period/filter-scoped)
+    // result establishes the visible frame through the gate (code-initiated, like the merchant
+    // bridge). Empty results never establish — an empty period shows no cards.
+    const establish = !!opts.establishFrame && !establishUsed && rowCount > 0;
+    if (establish) establishUsed = true;
+    const submitted = {
+      rows: data.rows,
+      queryStatus: data.queryStatus,
+      ...(typeof data.matchedCount === 'number' ? { meta: { matchedCount: data.matchedCount } } : {}),
+    };
+    outcomes.push(await gate.submitSearchResult(submitted, establish ? 'p31c_list' : 'p31c', establish ? 'candidate_establishment' : 'analytical_evidence'));
   }
   return outcomes;
 }

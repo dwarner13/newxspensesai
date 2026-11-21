@@ -504,12 +504,15 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     setHistory([]);
     setHistoryChecked(false);
     setLastSession(null);
-    setLastSessionChecked(false);
-    setShowBriefing(false);
+    // P2-A: a new chat shows the existing welcome/briefing immediately. lastSessionChecked used
+    // to be reset to false here, but the effect that sets it only re-runs on userId changes, so
+    // the welcome area stayed blank. Jump straight to the final briefing step (no 10s replay).
+    setLastSessionChecked(true);
+    setShowBriefing(true);
     setPromptsUsed(false);
     setBriefingCollapsed(false);
-    setRevealStep(0);
-    revealStarted.current = false;
+    setRevealStep(8);
+    revealStarted.current = true;
     setUploadMessages([]);
     typedIdsRef.current.clear();
     userScrolledUpRef.current = false;
@@ -915,6 +918,30 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
+        ) : !data.loading && data.transactionCount === 0 ? (
+          /* ── P2-A: no-data welcome (step-1 greeting style). The briefing cascade only reveals
+             when there is data, so a new account used to see an empty area here. ── */
+          <div style={{ display: "flex", gap: 10, marginBottom: 4, animation: 'primeReveal 0.4s ease forwards' }}>
+            <AgentDot agent="Prime" size={28} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
+                <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text, lineHeight: 1.5 }}>
+                Hi{firstName ? ` ${firstName}` : ""} — I&apos;m Prime. Import a statement and I&apos;ll show you where your money goes.
+              </div>
+              {!promptsUsed && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                  {["What can you help me with?", "How do I import a statement?"].map((q) => (
+                    <button key={q} onClick={() => handleSend(q)} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500, background: THEME.surface, border: `1px solid ${THEME.border}`, color: THEME.text, cursor: "pointer" }}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           /* ── Full briefing (sequential reveal) ── */
           <>

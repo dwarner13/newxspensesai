@@ -41,6 +41,9 @@ type RequestBody = {
   uncategorizedOnly?: boolean;
   includePending?: boolean;
   limit?: number;
+  /** P2-B2: also return the exact number of matching rows (same filters, ignores limit) as
+   *  meta.matchedCount. Opt-in: one COUNT on the same query. Generic path only. */
+  includeTotalCount?: boolean;
   /** P3.2B2C: Merchant display names to exclude at DB level (NOT ILIKE).
    *  Applied BEFORE limit so excluded rows never consume the row budget.
    *  Max 20 entries. Used by the merchant analysis bridge only. */
@@ -285,7 +288,9 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    let query = sb.from('transactions').select(selectFields).eq('user_id', userId);
+    const includeTotalCount = parseBool(body.includeTotalCount);
+    let query = sb.from('transactions').select(selectFields, includeTotalCount ? { count: 'exact' } : undefined).eq('user_id', userId);
+    let matchedCount: number | null = null;
     const orClauses: string[] = [];
 
     if (importId && hasImportId) {
@@ -361,9 +366,11 @@ export const handler: Handler = async (event) => {
       : query.order('id', { ascending: false })).limit(limit);
 
     if (!rowsData) {
-      const { data: genericRows, error: rowsError } = await query;
+      const { data: genericRows, error: rowsError, count: exactCount } = await query;
       if (rowsError) throw rowsError;
       rowsData = (genericRows || []) as TxRow[];
+      // P2-B2: authoritative DB count with the same filters; never inferred from rows.length.
+      if (includeTotalCount && typeof exactCount === "number" && Number.isFinite(exactCount)) matchedCount = exactCount;
     }
 
     const rows = (rowsData || []).map((row: TxRow) => {
@@ -523,6 +530,7 @@ export const handler: Handler = async (event) => {
             hasSubcategory,
           },
           ...(merchantScopeMeta && { merchantScope: merchantScopeMeta }),
+          ...(matchedCount !== null && { matchedCount, returnedCount: rows.length }),
         },
       }),
     };

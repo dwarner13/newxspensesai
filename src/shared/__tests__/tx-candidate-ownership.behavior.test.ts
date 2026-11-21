@@ -452,8 +452,9 @@ describe('K. P3.1C evidence path', () => {
       while (p && p !== block) p = p.parent;
       expect(p).toBe(block);
     }
-    // P3.1C submits through the gate with the shared analytical helper
-    expect(CHAT_SRC).toContain('await submitEvidenceTxSearchResults(p31cResult.results, ownershipGate)');
+    // P3.1C submits through the gate with the shared helper (P2-B: explicit list requests may
+    // establish the frame from the authoritative result; everything else stays analytical)
+    expect(CHAT_SRC).toContain('await submitEvidenceTxSearchResults(p31cResult.results, ownershipGate, { establishFrame: p31cExplicitListRequest })');
     expect(CHAT_SRC).not.toContain('let txResolutionLockedThisTurn');
   });
 });

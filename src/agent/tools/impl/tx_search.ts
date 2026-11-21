@@ -16,6 +16,9 @@ export const inputSchema = z.object({
   uncategorizedOnly: z.boolean().optional(),
   includePending: z.boolean().optional(),
   limit: z.number().min(1).max(200).optional().default(25),
+  /** P2-B2: return the exact number of matching transactions (meta.matchedCount), separate from rows shown. */
+  includeTotalCount: z.boolean().optional()
+    .describe('Set true to also get the exact total number of matching transactions (not just the rows returned).'),
   /** P3.2B2C: Merchant display names to exclude via NOT ILIKE at DB level.
    *  Used internally by the merchant analysis bridge. Max 20. */
   excludeMerchants: z.array(z.string()).max(20).optional(),
