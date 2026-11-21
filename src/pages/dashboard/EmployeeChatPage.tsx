@@ -6,6 +6,7 @@ import { usePrimeChat, ChatMessage } from '../../hooks/usePrimeChat';
 import HeaderStrip from '../../components/HeaderStrip';
 import SystemStatus from '../../components/SystemStatus';
 import { getSupabase } from '../../lib/supabase';
+import { primeSessionStorageKey } from '../../lib/primeChatSession';
 import { useSmartImport } from '../../hooks/useSmartImport';
 
 // Demo user ID constant (matches AuthContext)
@@ -587,7 +588,9 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
   const safeSessionId = useMemo(() => {
     const userId = safeUserId || DEMO_USER_ID;
     const employeeId = normalizedEmployeeId || 'prime';
-    const storageKey = `chat_session_${userId}_${employeeId}`;
+    // C2-B: Prime uses the same selected-conversation key as the Prime panel (one session
+    // selection for full page and panel). Other employees keep their existing keys.
+    const storageKey = employeeId === 'prime' ? primeSessionStorageKey(userId) : `chat_session_${userId}_${employeeId}`;
     
     try {
       const stored = localStorage.getItem(storageKey);

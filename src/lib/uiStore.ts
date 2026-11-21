@@ -2,6 +2,8 @@ import { atom } from 'jotai';
 
 // Global UI state atoms
 export const isPrimeBriefingOpenAtom = atom(false);
+/** C2-B: a Prime conversation requested by the launcher (e.g. Chat History); consumed by PrimeChatV2. */
+export const primeRequestedSessionIdAtom = atom<string | null>(null);
 export const isUploadModalOpenAtom = atom(false);
 export const isMobileMenuOpenAtom = atom(false);
 export const isNotificationsOpenAtom = atom(false);

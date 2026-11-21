@@ -7,6 +7,9 @@ import { TaxDeductionsCard } from "./TaxDeductionsCard";
 import { QuickActionChips } from "./QuickActionChips";
 import { PrimeChatInput } from "./PrimeChatInput";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAtom } from "jotai";
+import { primeRequestedSessionIdAtom } from "@/lib/uiStore";
+import { primeSessionStorageKey, storePrimeSessionId, verifyOwnedPrimeSession, type SessionOwnershipClient } from "@/lib/primeChatSession";
 import { getSupabase } from "@/lib/supabase";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { TypingMessage } from "@/components/chat/TypingMessage";
@@ -105,7 +108,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const { firstName, userId, session } = useAuth();
 
   const [sessionId, setSessionId] = useState<string | undefined>(
-    () => (userId ? localStorage.getItem(`chat_session_${userId}_prime-boss`) ?? undefined : undefined)
+    () => (userId ? localStorage.getItem(primeSessionStorageKey(userId)) ?? undefined : undefined)
   );
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [historyChecked, setHistoryChecked] = useState(false);
@@ -493,7 +496,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const handleNewChat = useCallback(() => {
     if (!userId) return;
     const newId = crypto.randomUUID();
-    localStorage.setItem(`chat_session_${userId}_prime-boss`, newId);
+    localStorage.setItem(primeSessionStorageKey(userId), newId);
     setSessionId(newId);
     clearMessages();
     resetThread();
@@ -511,6 +514,45 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     typedIdsRef.current.clear();
     userScrolledUpRef.current = false;
   }, [userId]);
+
+  // ── C2-B: open a specific Prime conversation requested by the launcher (e.g. Chat History) ──
+  // The request takes precedence over the stored default, but only after the signed-in user is
+  // shown to own the session (the server's ensureSession also rejects foreign IDs). On success
+  // it becomes the stored selection, so a refresh restores it. Same reset steps as New chat.
+  const [requestedSessionId, setRequestedSessionId] = useAtom(primeRequestedSessionIdAtom);
+  const sessionSwitchInFlightRef = useRef<string | null>(null);
+  useEffect(() => {
+    const target = requestedSessionId;
+    if (!target || !userId) return;
+    if (sessionSwitchInFlightRef.current === target) return;
+    if (target === sessionId) {
+      setRequestedSessionId(null);
+      return;
+    }
+    sessionSwitchInFlightRef.current = target;
+    (async () => {
+      try {
+        const owned = await verifyOwnedPrimeSession(getSupabase() as unknown as SessionOwnershipClient, userId, target);
+        if (!owned) {
+          console.warn('[PrimeChatV2] requested conversation is not available for this user — keeping the current conversation');
+          return;
+        }
+        storePrimeSessionId(userId, target);
+        setSessionId(target);
+        clearMessages();
+        resetThread();
+        resetActiveEmployee();
+        setHistory([]);
+        setHistoryChecked(false);
+        setUploadMessages([]);
+        typedIdsRef.current.clear();
+        userScrolledUpRef.current = false;
+      } finally {
+        sessionSwitchInFlightRef.current = null;
+        setRequestedSessionId(null);
+      }
+    })();
+  }, [requestedSessionId, userId, sessionId, setRequestedSessionId, clearMessages, resetThread, resetActiveEmployee]);
 
   // ── Process file through the import pipeline ──
   const processFile = useCallback(async (file: File) => {

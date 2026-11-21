@@ -14,7 +14,8 @@ import MobileMenuDrawer from "../components/ui/MobileMenuDrawer";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
 import UnifiedAssistantChat from "../components/chat/UnifiedAssistantChat";
-import { useUnifiedChatLauncher } from "../hooks/useUnifiedChatLauncher";
+import { useUnifiedChatLauncher, closeUnifiedChat } from "../hooks/useUnifiedChatLauncher";
+import { resolvePrimeLaunch } from "../lib/primeChatSession";
 import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
 // ActivityFeedSidebar removed - activity timeline lives in DashboardHomeV2
 // DesktopChatSideBar removed - agents accessed via Prime briefing panel
@@ -25,8 +26,8 @@ import { AccountCenterPanel } from "../components/settings/AccountCenterPanel";
 import { PrimeToolsPanel } from "../components/prime/PrimeToolsPanel";
 import { PrimeBriefingPanel } from "../pages/PrimeChatV2/PrimeBriefingPanel";
 import { UploadModal } from "../components/upload/UploadModal";
-import { useAtom } from "jotai";
-import { isPrimeBriefingOpenAtom } from "../lib/uiStore";
+import { useAtom, useSetAtom } from "jotai";
+import { isPrimeBriefingOpenAtom, primeRequestedSessionIdAtom } from "../lib/uiStore";
 import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
 // Legacy onboarding removed - UnifiedOnboardingFlow is the ONLY authority
 import { useAuth } from "../contexts/AuthContext";
@@ -558,6 +559,26 @@ export default function DashboardLayout() {
       }
     } catch { /* noop */ }
   }, [location.pathname, setIsPrimeBriefingOpen]);
+
+  // C2-B: every "open Prime" launcher request opens the ACTIVE Prime panel (PrimeChatV2).
+  // The old renderer of launcher state (UnifiedAssistantChat) is no longer mounted, so
+  // Prime launches previously opened nothing. A requested conversation is handed to
+  // PrimeChatV2, which verifies ownership before switching. The request is consumed so it
+  // fires once. Specialist launches are not handled here (unchanged).
+  // Declared after the route-change effect so a launch in the same render wins.
+  const setPrimeRequestedSessionId = useSetAtom(primeRequestedSessionIdAtom);
+  useEffect(() => {
+    const decision = resolvePrimeLaunch({
+      isOpen: isChatOpen,
+      initialEmployeeSlug: chatOptions.initialEmployeeSlug,
+      conversationId: chatOptions.conversationId,
+      activeEmployeeSlug,
+    });
+    if (!decision.handle) return;
+    if (decision.requestedSessionId) setPrimeRequestedSessionId(decision.requestedSessionId);
+    setIsPrimeBriefingOpen(true);
+    closeUnifiedChat();
+  }, [isChatOpen, chatOptions.initialEmployeeSlug, chatOptions.conversationId, activeEmployeeSlug, setIsPrimeBriefingOpen, setPrimeRequestedSessionId]);
 
   // Auto-open Prime briefing once per session (mirrors Tag autopen pattern).
   useEffect(() => {

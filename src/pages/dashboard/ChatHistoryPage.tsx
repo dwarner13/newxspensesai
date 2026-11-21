@@ -7,6 +7,8 @@ import { getEmployeeInfo } from '../../utils/employeeUtils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { useChatSessions } from '../../hooks/useChatSessions';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { isPrimeSlug } from '../../lib/primeChatSession';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 
 type ChatThread = {
@@ -66,6 +68,7 @@ const OLDER_LIMIT = 15;
 export default function ChatHistoryPage() {
   const navigate = useNavigate();
   const { userId } = useAuth();
+  const { openChat } = useUnifiedChatLauncher();
   const { sessions, isLoading, error } = useChatSessions({
     limit: 60,
     perEmployee: 60,
@@ -217,6 +220,13 @@ export default function ChatHistoryPage() {
   };
 
   const handleOpenThread = (thread: ChatThread) => {
+    // C2-B: Prime conversations open in the active Prime panel with this exact session
+    // (ownership is verified before it is used). The old /dashboard/prime-chat?threadId=
+    // link redirected to /dashboard and dropped the selection.
+    if (isPrimeSlug(thread.employeeSlug)) {
+      openChat({ initialEmployeeSlug: 'prime-boss', conversationId: thread.threadId });
+      return;
+    }
     const params = new URLSearchParams({
       threadId: thread.threadId,
       employeeSlug: thread.employeeSlug,
