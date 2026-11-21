@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import * as XLSX from "xlsx";
+import { authenticateUser, claimedUserIdMatches, verifyOwnership, type OwnershipClient } from "./_shared/internalJobAuth.js";
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
@@ -305,20 +306,39 @@ export const handler: Handler = async (event) => {
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, x-user-id",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-user-id",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers, body: "" };
   if (event.httpMethod !== "POST") return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
 
-  try {
-    const userId = event.headers["x-user-id"];
-    if (!userId) return { statusCode: 401, headers, body: JSON.stringify({ error: "Missing x-user-id header" }) };
+  // P0-C2a: identity comes only from the verified Supabase JWT, checked before the file is parsed
+  // or any paid AI classification runs. x-user-id / body userId must match if present.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
+  const userId = authn.principal.userId;
 
+  try {
     const body = JSON.parse(event.body || "{}");
+    const claimedHeaderUserId = event.headers["x-user-id"] || event.headers["X-User-Id"];
+    if (!claimedUserIdMatches(claimedHeaderUserId, userId) || !claimedUserIdMatches(body?.userId, userId)) {
+      console.warn("[process-spreadsheet] stage=auth_denied", { code: "identity_mismatch" });
+      return { statusCode: 403, headers, body: JSON.stringify({ error: "Forbidden" }) };
+    }
     const { file_base64, filename, document_id } = body;
     if (!file_base64 || !filename) return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing file_base64 or filename" }) };
+
+    // A linked document must belong to the verified user (before any paid AI call or write).
+    if (document_id) {
+      const owned = await verifyOwnership(supabase as unknown as OwnershipClient, authn.principal, { documentId: String(document_id) });
+      if (!owned.ok) {
+        console.warn("[process-spreadsheet] stage=auth_denied", { code: owned.code });
+        return owned.status === 500
+          ? { statusCode: 503, headers, body: JSON.stringify({ error: "processing_unavailable", retryable: true }) }
+          : { statusCode: 403, headers, body: JSON.stringify({ error: "Forbidden" }) };
+      }
+    }
 
     // 1. Parse
     const workbook = parseFileBuffer(file_base64, filename);
@@ -358,10 +378,10 @@ export const handler: Handler = async (event) => {
       }),
     };
   } catch (err: unknown) {
-    console.error("[process-spreadsheet] Error:", err);
+    console.error("[process-spreadsheet] Error:", err instanceof Error ? err.name : "Error");
     return {
       statusCode: 500, headers,
-      body: JSON.stringify({ error: err instanceof Error ? err.message : "Internal server error" }),
+      body: JSON.stringify({ error: "Internal server error" }),
     };
   }
 };

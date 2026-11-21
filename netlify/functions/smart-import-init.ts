@@ -1,6 +1,37 @@
 import { Handler } from '@netlify/functions';
 import { createHash, randomUUID } from 'crypto';
 import { admin } from './_shared/upload.js';
+import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
+
+const MAX_FILE_NAME_LENGTH = 180;
+
+/**
+ * P0-C2a: reduce a client-supplied file name to a safe single path segment.
+ * Strips control characters and any directory part (both / and \), removes leading dots
+ * (".", "..", hidden files), replaces characters that are unsafe in storage keys, and caps the
+ * length while keeping the extension. Returns '' when nothing usable is left.
+ */
+export function sanitizeUploadFileName(raw: unknown): string {
+  let name = [...String(raw ?? '')]
+    .filter((ch) => {
+      const code = ch.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('');
+  name = name.split(/[\\/]/).pop() || '';
+  name = name.replace(/^\.+/, '').replace(/[<>:"|?*]/g, '_').trim();
+  if (name.length > MAX_FILE_NAME_LENGTH) {
+    const ext = name.match(/\.[A-Za-z0-9]{1,10}$/)?.[0] || '';
+    name = name.slice(0, MAX_FILE_NAME_LENGTH - ext.length) + ext;
+  }
+  return name;
+}
+
+/** A storage path is usable only if it lives inside the verified user's own folder. */
+function isOwnedStoragePath(storagePath: string | null | undefined, userId: string): boolean {
+  const p = String(storagePath || '');
+  return p.startsWith(`${userId}/`) && !p.split('/').includes('..');
+}
 
 type ExistingDoc = {
   id: string;
@@ -234,29 +265,39 @@ export const handler: Handler = async (event) => {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
+  // P0-C2a: identity comes only from the verified Supabase JWT; checked before any database or
+  // storage access. A client-supplied userId must match if present.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+  const userId = authn.principal.userId;
+
   try {
     const body = JSON.parse(event.body || '{}');
+    if (!claimedUserIdMatches(body?.userId, userId)) {
+      console.warn('[smart-import-init] stage=auth_denied', { code: 'identity_mismatch' });
+      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+    }
     const {
-      userId,
-      fileName,
       fileSize,
       mimeType,
       mime,
       lastModified,
       source,
     } = body;
-    
-    if (!userId || !fileName) {
-      console.error('[smart-import-init] Missing required fields:', { userId: !!userId, fileName: !!fileName });
-      return { 
-        statusCode: 400, 
-        body: JSON.stringify({ 
+    const fileName = sanitizeUploadFileName(body?.fileName);
+
+    if (!fileName) {
+      console.error('[smart-import-init] Missing required fields:', { fileName: false });
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
           error: 'Missing required fields',
           missing: {
-            userId: !userId,
-            fileName: !fileName,
+            fileName: true,
           },
-        }) 
+        })
       };
     }
 
@@ -281,7 +322,8 @@ export const handler: Handler = async (event) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!existingDocError) {
+    // Only reuse a document whose storage path is inside this user's folder.
+    if (!existingDocError && existingDocData && isOwnedStoragePath(existingDocData.storage_path, userId)) {
       existingByUploadHash = existingDocData;
     }
 
@@ -387,7 +429,7 @@ export const handler: Handler = async (event) => {
           }
         }
       }
-      if (racedDoc?.id && (!insertedDoc || insertError)) {
+      if (racedDoc?.id && (!insertedDoc || insertError) && isOwnedStoragePath(racedDoc.storage_path, userId)) {
         console.log('[smart-import-init] doc_row_reused', {
           docId: racedDoc.id,
           sourcePath: 'smart-import-init:race_reuse',
@@ -450,10 +492,10 @@ export const handler: Handler = async (event) => {
       )
     };
   } catch (e: any) {
-    console.error('[smart-import-init] Error:', e);
-    return { 
-      statusCode: 500, 
-      body: JSON.stringify({ error: e.message }) 
+    console.error('[smart-import-init] Error:', e?.name || 'Error');
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'init_failed' })
     };
   }
 };

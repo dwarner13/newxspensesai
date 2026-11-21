@@ -34,13 +34,18 @@ export async function pollRunningOcrJob(
   userId: string,
   docId: string,
   attempts = 5,
-  intervalMs = 1200
+  intervalMs = 1200,
+  authToken?: string
 ): Promise<{ status: 'done' | 'running' | 'error'; error?: string }> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    // ocr-job-status verifies the Supabase JWT and document ownership (P0-C2a).
     const statusRes = await fetch('/.netlify/functions/ocr-job-status', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
       body: JSON.stringify({ userId, docIds: [docId] }),
     });
     if (!statusRes.ok) continue;

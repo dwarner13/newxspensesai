@@ -183,9 +183,14 @@ async function fileToBase64(file: File): Promise<string> {
 
 async function handleSpreadsheetUpload(file: File, userId: string, authToken?: string, fileHash?: string): Promise<{ success: boolean; import_id?: string; byte_message?: string; transaction_count?: number; error?: string }> {
   const base64 = await fileToBase64(file);
+  // process-spreadsheet verifies the Supabase JWT (P0-C2a); x-user-id is only a must-match hint.
   const response = await fetch("/.netlify/functions/process-spreadsheet", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-user-id": userId },
+    headers: {
+      "Content-Type": "application/json",
+      "x-user-id": userId,
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    },
     body: JSON.stringify({ file_base64: base64, filename: file.name, file_hash: fileHash }),
   });
   const data = await response.json();

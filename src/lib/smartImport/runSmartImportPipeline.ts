@@ -108,10 +108,10 @@ function toTerminalOcrUserMessage(payload: any, item?: any): string {
  * These are definitive answers, not outages: the pipeline must stop and must NOT retry through
  * the legacy init/finalize path.
  *
- * Transient failures (5xx, network errors) still fall back to the legacy path for now. Security
- * note: that path calls smart-import-init / smart-import-finalize, which do not yet verify the
- * caller (P0-C). Forcing a router 5xx gains an attacker nothing they could not already do by
- * calling those functions directly, but the fallback should be removed once they are secured.
+ * Transient failures (5xx, network errors) still fall back to the legacy path for now. As of
+ * P0-C1b/C2a the legacy functions (smart-import-init, smart-import-finalize, ocr-job-status,
+ * smart-import-sync, commit-import) all verify the caller's JWT and ownership, so the fallback
+ * no longer bypasses authorization; it is kept only for availability and can be removed later.
  */
 export class RouterAccessError extends Error {
   readonly status: number;
@@ -509,9 +509,10 @@ async function initializePipeline(input: SmartImportPipelineInput): Promise<{ in
   const source = input.source || 'upload';
   const fileSize = input.fileSize ?? input.file?.size ?? (input.base64 ? Math.floor((input.base64.length * 3) / 4) : 0);
   const lastModified = input.lastModified ?? input.file?.lastModified ?? 0;
+  // smart-import-init verifies the user's JWT (P0-C2a).
   const initRes = await fetch('/.netlify/functions/smart-import-init', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders(input) },
     body: JSON.stringify({
       userId: input.userId,
       fileName: input.fileName,
@@ -552,7 +553,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
       hasExtractedData: Boolean(init?.hasExtractedData),
     });
     if (init?.ocrJobStatus === 'running') {
-      const polled = await pollRunningOcrJob(input.userId, docId);
+      const polled = await pollRunningOcrJob(input.userId, docId, 5, 1200, input.authToken);
       if (polled.status === 'error') {
         throw new Error(polled.error || 'OCR job failed');
       }

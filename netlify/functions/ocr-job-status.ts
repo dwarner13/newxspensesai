@@ -1,5 +1,8 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/upload.js';
+import { authenticateUser, claimedUserIdMatches, verifyOwnership, type OwnershipClient } from './_shared/internalJobAuth.js';
+
+const MAX_DOC_IDS = 50;
 
 const OCR_LOCK_STALE_MS = Number(process.env.OCR_LOCK_STALE_MS || 10 * 60 * 1000);
 
@@ -26,14 +29,41 @@ export const handler: Handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ ok: false, error: 'Method not allowed' }) };
   }
 
+  // P0-C2a: identity comes only from the verified Supabase JWT, before any database access.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
+  }
+  const userId = authn.principal.userId;
+
   try {
     const body = JSON.parse(event.body || '{}');
-    const { userId, docIds } = body;
-    if (!userId || !Array.isArray(docIds) || docIds.length === 0) {
-      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Missing userId/docIds' }) };
+    if (!claimedUserIdMatches(body?.userId, userId)) {
+      console.warn('[ocr-job-status] stage=auth_denied', { code: 'identity_mismatch' });
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+    }
+    const { docIds } = body;
+    if (
+      !Array.isArray(docIds) ||
+      docIds.length === 0 ||
+      docIds.length > MAX_DOC_IDS ||
+      !docIds.every((d: unknown) => typeof d === 'string')
+    ) {
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Missing or invalid docIds' }) };
     }
 
     const sb = admin();
+    // Every requested document must belong to the verified user (ownerless rows fail closed);
+    // a cross-user or unknown id is rejected rather than silently omitted.
+    for (const docId of docIds as string[]) {
+      const owned = await verifyOwnership(sb as unknown as OwnershipClient, authn.principal, { documentId: docId });
+      if (!owned.ok) {
+        console.warn('[ocr-job-status] stage=auth_denied', { code: owned.code });
+        return owned.status === 500
+          ? { statusCode: 503, headers, body: JSON.stringify({ ok: false, retryable: true, error: 'processing_unavailable' }) }
+          : { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+      }
+    }
     let { data: docs, error: docsError } = await sb
       .from('user_documents')
       .select('id, status, ocr_status, content_hash, extracted_data, ocr_engine, ocr_completed_at, updated_at')
@@ -53,7 +83,7 @@ export const handler: Handler = async (event) => {
     }
 
     if (docsError) {
-      return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: docsError.message }) };
+      return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: 'status_lookup_failed' }) };
     }
 
     const hashes = (docs || []).map((d: any) => d.content_hash).filter(Boolean);
@@ -74,7 +104,7 @@ export const handler: Handler = async (event) => {
         const message = String(jobsError.message || '');
         const missingOcrJobs = message.includes("public.ocr_jobs") || message.includes('relation "ocr_jobs"');
         if (!missingOcrJobs) {
-          return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: jobsError.message }) };
+          return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: 'status_lookup_failed' }) };
         }
       } else {
         jobs = jobsRows || [];
@@ -152,7 +182,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ ok: false, error: error?.message || 'Unexpected error' }),
+      body: JSON.stringify({ ok: false, error: 'Unexpected error' }),
     };
   }
 };
