@@ -143,6 +143,15 @@ import {
 } from './_shared/toolConfirmation.js';
 // Phase 1B.2: Server-enforced financial grounding (static imports — must not fail-open)
 import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint } from '../../src/shared/financial-query-classifier';
+// C2-C / M1a: financial follow-up memory (shadow only — observational, never changes plans or answers)
+import {
+  buildLastFinancialRequest,
+  validateLastFinancialRequest,
+  detectFinancialFollowUp,
+  proposeFollowUp,
+  buildFollowUpLog,
+  type LastFinancialRequest,
+} from '../../src/shared/prime-financial-followup';
 import { detectCurrentTimeIntent, type CurrentTimeIntent } from '../../src/shared/detect-current-time-intent';
 import { detectCandidateFollowUp } from '../../src/shared/candidate-follow-up-detector';
 import {
@@ -1977,6 +1986,52 @@ async function readMerchantAnalysis(
   } catch (err: any) {
     console.warn('[Chat] readMerchantAnalysis error:', err?.message);
     return null;
+  }
+}
+
+/** C2-C / M1a: raw last_financial_request (validated by the caller; scoped by id AND user_id). */
+async function readLastFinancialRequestRaw(sb: SupabaseClient, sessionId: string, userId: string): Promise<unknown> {
+  if (!sessionId || !userId) return null;
+  try {
+    const { data, error } = await sb
+      .from('chat_sessions')
+      .select('context')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data?.context) return null;
+    return (data.context as { last_financial_request?: unknown }).last_financial_request ?? null;
+  } catch (err: unknown) {
+    console.warn('[Chat] readLastFinancialRequest error:', (err as Error)?.message);
+    return null;
+  }
+}
+
+/** C2-C / M1a: read-merge-write of last_financial_request (same pattern as merchant_analysis). */
+async function writeLastFinancialRequest(sb: SupabaseClient, sessionId: string, userId: string, value: LastFinancialRequest): Promise<boolean> {
+  if (!sessionId || !userId) return false;
+  try {
+    const { data: existing } = await sb
+      .from('chat_sessions')
+      .select('context')
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    const ctx = (existing?.context && typeof existing.context === 'object') ? { ...existing.context } : {};
+    ctx.last_financial_request = value;
+    const { error } = await sb
+      .from('chat_sessions')
+      .update({ context: ctx })
+      .eq('id', sessionId)
+      .eq('user_id', userId);
+    if (error) {
+      console.warn('[Chat] writeLastFinancialRequest error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err: unknown) {
+    console.warn('[Chat] writeLastFinancialRequest error:', (err as Error)?.message);
+    return false;
   }
 }
 
@@ -9871,6 +9926,12 @@ export const handler: Handler = async (event, context) => {
     const hasExistingCandidates = !!(existingTxResolution?.candidates?.length);
 
     // ── P3.2B2B: Load merchant analysis context at request start ──
+    // C2-C / M1a (shadow): previous verified financial request scope for follow-up interpretation.
+    const m1aShadowEnabled = isPrime && flagEnabled(process.env.PRIME_SHADOW_SEMANTICS);
+    let m1aPrevRaw: unknown = null;
+    if (m1aShadowEnabled && finalSessionId) {
+      m1aPrevRaw = await readLastFinancialRequestRaw(sb, finalSessionId, userId);
+    }
     let existingMerchantAnalysis: MerchantAnalysisContext | null = null;
     if (isPrime && finalSessionId) {
       try {
@@ -10236,6 +10297,40 @@ export const handler: Handler = async (event, context) => {
     if (p31cResult && isUntrustedMerchantHint(shadowIntentResult?.financialClassification, merchantHintTrusted)) {
       p31cResult = withholdMerchantAggregationEvidence(p31cResult, evidencePlanForExecution);
       console.log(`[Chat] Merchant hint trust: withheld merchant evidence for untrusted hint "${shadowIntentResult?.financialClassification?.merchantHint}" (remaining results=${p31cResult?.results.length ?? 0})`);
+    }
+
+    // ── C2-C / M1a: financial follow-up memory (SHADOW — observational only) ──
+    // Detects a follow-up, validates the previous verified scope (expiry + owner tag), proposes a
+    // deterministic interpretation and LOGS ONLY status codes/flags. It never changes the plan,
+    // the evidence or the answer. The new scope is written only from successful authoritative
+    // P3.1C evidence (after untrusted merchant evidence was withheld above) — never from the
+    // briefing, the model or prompt context. Kill switch: PRIME_SHADOW_SEMANTICS.
+    if (m1aShadowEnabled) {
+      try {
+        const m1aMessageFc = classifyFinancialQuery(String(masked || ''));
+        const m1aKind = detectFinancialFollowUp({ message: String(masked || ''), financialClassification: m1aMessageFc, temporalScope });
+        const m1aProposal = proposeFollowUp({
+          kind: m1aKind,
+          context: validateLastFinancialRequest(m1aPrevRaw, userId, Date.now()),
+          financialClassification: m1aMessageFc,
+          temporalScope,
+          hasCandidateFrame: hasExistingCandidates,
+        });
+        let m1aWrote = false;
+        const m1aNext = finalSessionId ? buildLastFinancialRequest({
+          userId,
+          financialClassification: shadowIntentResult?.financialClassification,
+          temporalScope,
+          evidence: p31cResult,
+          merchantHintTrusted,
+          excludedGroups: existingMerchantAnalysis?.excludedGroups,
+          now: Date.now(),
+        }) : null;
+        if (m1aNext && finalSessionId) m1aWrote = await writeLastFinancialRequest(sb, finalSessionId, userId, m1aNext);
+        console.log(`[PrimeMemory][M1a] request=${requestId.slice(0,12)} ${JSON.stringify(buildFollowUpLog(m1aProposal, m1aWrote))}`);
+      } catch {
+        // shadow only — never affects the response
+      }
     }
 
     // ── P3.1D: Request-scoped accumulated evidence ──
