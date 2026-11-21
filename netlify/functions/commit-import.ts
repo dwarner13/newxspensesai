@@ -28,6 +28,8 @@ import { categorizeTransactionWithLearning } from './_shared/categorize.js';
 import { detectAndUpsertRecurringObligations, type RecurringCandidate } from './_shared/recurringDetection.js';
 import { queueUpcomingPaymentNotifications } from './_shared/chimeNotifications.js';
 import { getFirstMoney } from './_shared/money.js';
+import { authenticateUser, claimedUserIdMatches, JOB_TOKEN_HEADER } from './_shared/internalJobAuth.js';
+import { getInternalBaseUrl, InternalBaseUrlError } from './_shared/internalBaseUrl.js';
 
 const STAGED_ROWS_WAIT_MS = 12000;
 const STAGED_ROWS_POLL_MS = 750;
@@ -273,16 +275,8 @@ async function loadCommittedRowsForBreakdown(
       });
       return [];
     }
-    const fallback = await sb
-      .from('transactions')
-      .select(selectClause)
-      .eq('import_id', importId);
-    if (!fallback.error) {
-      return Array.isArray(fallback.data) ? fallback.data : [];
-    }
-    if (!isMissingColumnError(fallback.error)) {
-      return [];
-    }
+    // P0-C1c: no unscoped fallback (it read transactions by import_id alone). A missing
+    // column just moves on to the next, narrower projection — still scoped to the user.
   }
   return [];
 }
@@ -480,10 +474,10 @@ async function buildStatementBreakdown(args: {
       // Get filename from document row or import row
       let fileName = '';
       try {
-        const { data: impRow } = await sb.from('imports').select('file_url').eq('id', importId).maybeSingle();
+        const { data: impRow } = await sb.from('imports').select('file_url').eq('id', importId).eq('user_id', userIdText).maybeSingle();
         fileName = String(impRow?.file_url || '').toLowerCase();
         if (!fileName) {
-          const { data: docNameRow } = await sb.from('user_documents').select('original_name').eq('id', documentId).maybeSingle();
+          const { data: docNameRow } = await sb.from('user_documents').select('original_name').eq('id', documentId).eq('user_id', userIdText).maybeSingle();
           fileName = String(docNameRow?.original_name || '').toLowerCase();
         }
       } catch {} 
@@ -681,10 +675,13 @@ async function reconcileAgainstPrintedTotals(
     const selectAttempts = ['extracted_data', 'id'];
     let doc: any = null;
     for (const clause of selectAttempts) {
+      // P0-C1c: never read a document by id alone; fail closed when the owner is unknown.
+      if (!userIdText) break;
       const { data, error } = await sb
         .from('user_documents')
         .select(clause)
         .eq('id', documentId)
+        .eq('user_id', userIdText)
         .maybeSingle();
       if (!error) {
         doc = data || null;
@@ -922,15 +919,9 @@ async function sleep(ms: number): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/** Same-deploy origin for the batch self-call (P0-C1c). Throws InternalBaseUrlError (→ 503). */
 function getNetlifyBaseUrl(): string {
-  const envUrl =
-    process.env.URL ||
-    process.env.DEPLOY_PRIME_URL ||
-    process.env.DEPLOY_URL ||
-    process.env.NETLIFY_URL;
-  if (envUrl) return String(envUrl).replace(/\/$/, '');
-  const port = process.env.NETLIFY_LOCAL_PORT || process.env.PORT || '8888';
-  return `http://localhost:${port}`;
+  return getInternalBaseUrl();
 }
 
 function isMissingColumnError(error: any): boolean {
@@ -1032,13 +1023,31 @@ export const handler: Handler = async (event, context) => {
         )
       : [];
 
-    // SECURITY: Get userId from header, not from client body
-    // This prevents users from importing other users' staging data
-    const userId = event.headers['x-user-id'] || event.headers['X-User-Id'];
+    // SECURITY (P0-C1c): committing transactions requires the user's verified Supabase JWT.
+    // - Internal job tokens never authorize a commit (no job scope covers commits).
+    // - x-user-id and body userId are not proof of identity; if present they must match.
+    // All later queries are scoped to this verified user id, so another user's or an ownerless
+    // import is simply not found (404) and nothing is modified.
+    const hasJobToken = Object.entries(event.headers || {}).some(
+      ([k, v]) => k.toLowerCase() === JOB_TOKEN_HEADER && Boolean(v)
+    );
+    if (hasJobToken) {
+      console.warn('[CommitImport] stage=auth_denied', { code: 'job_token_not_allowed' });
+      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
+    }
+    const authn = await authenticateUser(event);
+    if (!authn.ok) {
+      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
+    }
+    const userIdText = authn.principal.userId;
+    const claimedHeaderUserId = event.headers['x-user-id'] || event.headers['X-User-Id'];
+    if (!claimedUserIdMatches(claimedHeaderUserId, userIdText) || !claimedUserIdMatches(body?.userId, userIdText)) {
+      console.warn('[CommitImport] stage=auth_denied', { code: 'identity_mismatch' });
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+    }
     const traceId = event.headers['x-trace-id'] || event.headers['X-Trace-Id'] || `trace_${Date.now()}`;
-    const userIdText = String(userId || '');
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userIdText);
-    
+    const inboundAuthorization = String(event.headers.authorization || event.headers.Authorization || '');
+
     if (!importIdSingle && importIds.length === 0) {
       return {
         statusCode: 400,
@@ -1047,25 +1056,19 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    if (!userId) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ ok: false, error: 'Unauthorized: Missing x-user-id header' }),
-      };
-    }
-    if (!isUuid) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ ok: false, error: 'Unauthorized: Invalid x-user-id format' }),
-      };
-    }
-
     // Batch mode: reuse the proven single-import path with internal HTTP calls.
-    // This keeps the diff minimal and preserves single-import behavior.
+    // Each self-call carries the caller's own verified JWT to this same deploy, so every
+    // import in the batch is committed (or rejected) under the same verified identity.
     if (!importIdSingle && importIds.length > 0) {
-      const base = getNetlifyBaseUrl();
+      let base: string;
+      try {
+        base = getNetlifyBaseUrl();
+      } catch (e) {
+        if (e instanceof InternalBaseUrlError) {
+          return { statusCode: 503, headers, body: JSON.stringify({ ok: false, retryable: true, error: 'processing_unavailable' }) };
+        }
+        throw e;
+      }
       const committed: Array<{ importId: string; transactionCount: number }> = [];
       const failed: Array<{ importId: string; error: string }> = [];
       for (const id of importIds) {
@@ -1074,6 +1077,7 @@ export const handler: Handler = async (event, context) => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              authorization: inboundAuthorization,
               'x-user-id': userIdText,
             },
             body: JSON.stringify({ importId: id }),
@@ -1250,7 +1254,8 @@ export const handler: Handler = async (event, context) => {
         await sb
           .from('imports')
           .update({ document_id: documentId })
-          .eq('id', importId);
+          .eq('id', importId)
+          .eq('user_id', userIdText);
       } else {
         // Create user_documents record if it doesn't exist
         const { data: newDoc, error: docError } = await sb
@@ -1274,7 +1279,8 @@ export const handler: Handler = async (event, context) => {
           await sb
             .from('imports')
             .update({ document_id: documentId })
-            .eq('id', importId);
+            .eq('id', importId)
+            .eq('user_id', userIdText);
         }
       }
     }

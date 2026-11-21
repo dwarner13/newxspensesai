@@ -25,6 +25,7 @@ console.log('[smart-import-sync] MODULE LOADED', new Date().toISOString());
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { getInternalBaseUrl } from './_shared/internalBaseUrl.js';
+import { authenticateUser, claimedUserIdMatches, verifyOwnership, type OwnershipClient } from './_shared/internalJobAuth.js';
 
 export type SmartImportSyncResult = {
   docIds: string[];
@@ -297,6 +298,7 @@ async function waitForOcrReadyOrMetrics(
       .from('user_documents')
       .select('*')
       .eq('id', docId)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) {
@@ -729,6 +731,7 @@ async function ensureNormalized(
         .from('user_documents')
         .select(selectClause)
         .eq('id', documentId)
+        .eq('user_id', userId)
         .maybeSingle();
       if (!error) {
         docRow = data;
@@ -865,30 +868,13 @@ async function buildDebugResponse(
 
   const debugItems: any[] = [];
   for (const docId of docIds) {
-    let { data: docData } = await sb
+    // P0-C1c: user-scoped only (the id-only "debug" fallback that bypassed user_id was removed).
+    const { data: docData } = await sb
       .from('user_documents')
       .select('*')
       .eq('id', docId)
       .eq('user_id', userId)
       .maybeSingle();
-    const needsIdFallback = !docData || !docData.storage_path;
-    if (needsIdFallback) {
-      const { data: docDataById } = await sb
-        .from('user_documents')
-        .select('*')
-        .eq('id', docId)
-        .maybeSingle();
-      if (docDataById) {
-        docData = docDataById;
-        if (OCR_DEBUG_ENABLED) {
-          console.warn('[smart-import-sync] Debug doc lookup bypassed user_id filter', {
-            docId,
-            userId,
-            docUserId: docDataById.user_id,
-          });
-        }
-      }
-    }
 
     const { data: importRecord } = await sb
       .from('imports')
@@ -975,9 +961,20 @@ export const handler: Handler = async (event) => {
   }
 
   try {
+    // P0-C1c: identity comes only from the verified Supabase JWT, checked before any database
+    // read, normalization or commit. A client-supplied userId must match if present.
+    const authn = await authenticateUser(event);
+    if (!authn.ok) {
+      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
+    }
     const body = JSON.parse(event.body || '{}');
-    const { userId, docIds, includeAllAccounts } = body;
-    // Forwarded unchanged to normalize-transactions, which verifies it (P0-C1b).
+    if (!claimedUserIdMatches(body?.userId, authn.principal.userId)) {
+      console.warn('[smart-import-sync] stage=auth_denied', { code: 'identity_mismatch' });
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+    }
+    const userId = authn.principal.userId;
+    const { docIds, includeAllAccounts } = body;
+    // The caller's verified JWT, forwarded to normalize-transactions, commit-import and Tag.
     const inboundAuthorization = String(event.headers?.authorization || event.headers?.Authorization || '') || undefined;
     const requestImportRunId = String(body?.importRunId || body?.requestId || '').trim();
     const autoCommit = true;
@@ -1001,6 +998,20 @@ export const handler: Handler = async (event) => {
     }
 
     const sb = admin();
+    // P0-C1c: every requested document must belong to the verified user (ownerless rows fail
+    // closed) before anything is read, normalized or committed.
+    if (docIds.length > 50 || !docIds.every((d: unknown) => typeof d === 'string')) {
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Invalid docIds' }) };
+    }
+    for (const requestedDocId of docIds as string[]) {
+      const owned = await verifyOwnership(sb as unknown as OwnershipClient, authn.principal, { documentId: requestedDocId });
+      if (!owned.ok) {
+        console.warn('[smart-import-sync] stage=auth_denied', { code: owned.code });
+        return owned.status === 500
+          ? { statusCode: 503, headers, body: JSON.stringify({ ok: false, retryable: true, error: 'processing_unavailable' }) }
+          : { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+      }
+    }
     // P0-C1b: same-deploy origin for normalize-transactions / commit-import (fail closed). NETLIFY_URL
     // pointed at the published deploy, so deploy previews would call different code with the user JWT.
     let netlifyUrl: string;
@@ -1034,20 +1045,13 @@ export const handler: Handler = async (event) => {
     for (const docId of docIds) {
       // Doc-level hard gate: if OCR already marked this document failed/rejected,
       // short-circuit immediately even when no import exists yet.
-      let { data: sourceDoc } = await sb
+      // P0-C1c: user-scoped only (ownership verified at entry; no id-only fallback).
+      const { data: sourceDoc } = await sb
         .from('user_documents')
         .select('status, ocr_status, metadata')
         .eq('id', String(docId))
         .eq('user_id', userId)
         .maybeSingle();
-      if (!sourceDoc) {
-        const { data: sourceDocFallback } = await sb
-          .from('user_documents')
-          .select('status, ocr_status, metadata')
-          .eq('id', String(docId))
-          .maybeSingle();
-        sourceDoc = sourceDocFallback || null;
-      }
       const docStatusPre = String(sourceDoc?.status || '').toLowerCase();
       const docOcrStatusPre = String(sourceDoc?.ocr_status || '').toLowerCase();
       const docImportRunId = String(
@@ -1272,6 +1276,7 @@ export const handler: Handler = async (event) => {
             .from('user_documents')
             .select('ocr_text')
             .eq('id', docId)
+            .eq('user_id', userId)
             .maybeSingle();
           console.log('[smart-import-sync] normalize_entry', {
             incomingDocId: String(docId),
@@ -1444,21 +1449,14 @@ export const handler: Handler = async (event) => {
       // Hard safety gate: never auto-commit when the source document is already
       // marked failed/rejected by OCR. This prevents "not ready" statements from
       // being treated as ready due to stale parsed/import state.
-      let { data: sourceDoc } = await sb
+      // P0-C1c: user-scoped only. The id-only "schema/tenant" fallback was removed; document
+      // ownership is enforced through user_documents.user_id.
+      const { data: sourceDoc } = await sb
         .from('user_documents')
         .select('status, ocr_status, metadata, updated_at')
         .eq('id', String(importRecord.document_id))
         .eq('user_id', userId)
         .maybeSingle();
-      // Schema/tenant fallback: some environments do not expose user_id on user_documents.
-      if (!sourceDoc) {
-        const { data: sourceDocFallback } = await sb
-          .from('user_documents')
-          .select('status, ocr_status, metadata, updated_at')
-          .eq('id', String(importRecord.document_id))
-          .maybeSingle();
-        sourceDoc = sourceDocFallback || null;
-      }
       const docStatus = String(sourceDoc?.status || '').toLowerCase();
       const docOcrStatus = String(sourceDoc?.ocr_status || '').toLowerCase();
       const metadataErrorText = String(
@@ -1678,6 +1676,8 @@ export const handler: Handler = async (event) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            // P0-C1c: commit-import verifies this JWT; x-user-id is only a must-match hint.
+            ...(inboundAuthorization ? { authorization: inboundAuthorization } : {}),
             'x-user-id': userId,
             'x-trace-id': traceId,
           },
@@ -1711,8 +1711,8 @@ export const handler: Handler = async (event) => {
     // ??? TAG AUTO-CATEGORIZE: Fire-and-forget after commit
     // Catches any rows commit-import missed — rule + vendor-memory, no AI
     if (committedImportIds.length > 0) {
-      const netlifyUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'http://localhost:8888';
-      const authToken = event.headers.authorization || event.headers['x-authorization'] || '';
+      // P0-C1c: same-deploy origin (outer netlifyUrl) and the caller's verified JWT.
+      const authToken = inboundAuthorization || '';
       fetch(`${netlifyUrl}/.netlify/functions/tag-categorize-committed`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'authorization': authToken },
@@ -1727,7 +1727,7 @@ export const handler: Handler = async (event) => {
     // Only emit once per import run (idempotency via importRunId)
     try {
       const { logByteImportCompleted, generateImportRunId } = await import('./_shared/byteActivityEvents');
-      const authToken = event.headers.authorization || event.headers['x-authorization'] || '';
+      const authToken = inboundAuthorization || '';
       
       // Generate import run ID from first docId (or use requestId if available)
       const requestId = body.requestId;
@@ -1738,6 +1738,7 @@ export const handler: Handler = async (event) => {
         .from('user_documents')
         .select('created_at')
         .eq('id', docIds[0])
+        .eq('user_id', userId)
         .single();
       
       const durationMs = firstDoc?.created_at
@@ -1748,7 +1749,8 @@ export const handler: Handler = async (event) => {
       const { data: docs } = await sb
         .from('user_documents')
         .select('id, mime_type, status')
-        .in('id', docIds);
+        .in('id', docIds)
+        .eq('user_id', userId);
       
       const pages = docs?.filter(d => d.mime_type === 'application/pdf').length || 0;
       
@@ -1888,30 +1890,13 @@ export const handler: Handler = async (event) => {
     if (OCR_DEBUG_ENABLED) {
       const debugItems: any[] = [];
       for (const docId of docIds) {
-        let { data: docData } = await sb
+        // P0-C1c: user-scoped only (the id-only "debug" fallback that bypassed user_id was removed).
+        const { data: docData } = await sb
           .from('user_documents')
           .select('*')
           .eq('id', docId)
           .eq('user_id', userId)
           .maybeSingle();
-        const needsIdFallback = !docData || !docData.storage_path;
-        if (needsIdFallback) {
-          const { data: docDataById } = await sb
-            .from('user_documents')
-            .select('*')
-            .eq('id', docId)
-            .maybeSingle();
-          if (docDataById) {
-            docData = docDataById;
-            if (OCR_DEBUG_ENABLED) {
-              console.warn('[smart-import-sync] Debug doc lookup bypassed user_id filter', {
-                docId,
-                userId,
-                docUserId: docDataById.user_id,
-              });
-            }
-          }
-        }
 
         const { data: importRecord } = await sb
           .from('imports')
