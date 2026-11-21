@@ -87,6 +87,27 @@ export const SHADOW_SEMANTICS_SYSTEM_PROMPT = [
  * Non-strict: it guides the model's shape; the R0 zod validation remains the only gate
  * (refinements such as count_distinct → distinctBy are enforced there).
  */
+/**
+ * R2b: the MODEL-FACING schema never offers a `transaction_id` reference. Transaction ids
+ * come only from trusted context (UI / Layer 2), never from the model. V2 itself still
+ * accepts that reference kind for trusted callers, so the contract stays compatible; the
+ * shadow path rejects it (see `containsModelTransactionId`).
+ */
+function withoutTransactionIdReference(node: unknown): unknown {
+  if (Array.isArray(node)) {
+    return node
+      .filter(n => !((n as { properties?: { kind?: { const?: unknown; enum?: unknown[] } } })?.properties?.kind?.const === 'transaction_id'
+        || (n as { properties?: { kind?: { enum?: unknown[] } } })?.properties?.kind?.enum?.includes('transaction_id')))
+      .map(withoutTransactionIdReference);
+  }
+  if (node && typeof node === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(node)) out[k] = withoutTransactionIdReference(v);
+    return out;
+  }
+  return node;
+}
+
 export const SHADOW_RESPONSE_FORMAT = {
   type: 'json_schema' as const,
   json_schema: {
@@ -94,11 +115,36 @@ export const SHADOW_RESPONSE_FORMAT = {
     strict: false,
     // called through a plain function type: zodToJsonSchema's generics instantiate the
     // deeply refined R0 type and hit TS2589; the runtime conversion is unchanged.
-    schema: (zodToJsonSchema as unknown as (schema: unknown, opts: Record<string, unknown>) => Record<string, unknown>)(
+    schema: withoutTransactionIdReference((zodToJsonSchema as unknown as (schema: unknown, opts: Record<string, unknown>) => Record<string, unknown>)(
       FinancialRequestV2Schema, { $refStrategy: 'none', target: 'jsonSchema7' },
-    ),
+    )) as Record<string, unknown>,
   },
 };
+
+/** True when a model-produced request carries a transaction id anywhere (never allowed from the model). */
+export function containsModelTransactionId(req: FinancialRequestV2): boolean {
+  const refs = [req.reference, req.action?.target, ...req.ambiguities.map(a => a.interpretations.map(i => i.reference))]
+    .flat()
+    .filter(Boolean) as Array<{ kind: string }>;
+  return refs.some(r => r.kind === 'transaction_id');
+}
+
+/**
+ * R2b: previous USER messages for shadow context, EXCLUDING the current message.
+ * History may already contain the current turn (client retry, cached or pre-persisted
+ * history); trailing copies equal to the current message are dropped.
+ */
+export function selectPriorUserMessages(
+  history: ReadonlyArray<{ role?: unknown; content?: unknown }> | null | undefined,
+  currentMessage: string,
+): string[] {
+  const prior = (history ?? [])
+    .filter(m => m?.role === 'user' && typeof m?.content === 'string')
+    .map(m => m.content as string);
+  const current = String(currentMessage ?? '').trim();
+  while (prior.length > 0 && prior[prior.length - 1].trim() === current) prior.pop();
+  return prior;
+}
 
 export type ShadowChatMessage = { role: 'system' | 'user'; content: string };
 
@@ -122,7 +168,9 @@ export function buildShadowSemanticsMessages(message: string, priorUserMessages:
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ShadowFailureCode =
-  | 'timeout' | 'model_error' | 'empty_output' | 'invalid_json' | 'invalid_schema' | 'aborted';
+  | 'timeout' | 'model_error' | 'empty_output' | 'invalid_json' | 'invalid_schema' | 'aborted'
+  /** R2b: the model emitted a transaction id (ids come only from trusted context). */
+  | 'model_transaction_id';
 
 export type ShadowOutcome =
   | { status: 'valid'; request: FinancialRequestV2; durationMs: number }
@@ -166,9 +214,13 @@ export async function interpretShadowSemantics(input: {
       return { status: 'invalid', failureCode: 'invalid_json', durationMs: elapsed() };
     }
     const result = parseFinancialRequest(parsed);
-    return result.ok
-      ? { status: 'valid', request: result.value, durationMs: elapsed() }
-      : { status: 'invalid', failureCode: 'invalid_schema', durationMs: elapsed(), schemaIssueCount: result.errors.length };
+    if (!result.ok) {
+      return { status: 'invalid', failureCode: 'invalid_schema', durationMs: elapsed(), schemaIssueCount: result.errors.length };
+    }
+    if (containsModelTransactionId(result.value)) {
+      return { status: 'invalid', failureCode: 'model_transaction_id', durationMs: elapsed() };
+    }
+    return { status: 'valid', request: result.value, durationMs: elapsed() };
   } catch (err: unknown) {
     const code = (err as { shadowCode?: ShadowFailureCode })?.shadowCode
       ?? (controller.signal.aborted ? 'aborted' : 'model_error');

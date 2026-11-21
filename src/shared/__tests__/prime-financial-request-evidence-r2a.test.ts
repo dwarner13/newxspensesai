@@ -408,6 +408,7 @@ describe('no fabricated amounts, identities or evidence', () => {
     };
     walk(path.join(root, 'src'));
     walk(path.join(root, 'netlify/functions'));
-    expect(importers.map(p => path.relative(root, p).replace(/\\/g, '/'))).toEqual([]);
+    // R2b: the only importer is the observational shadow-plan comparison (never executed).
+    expect(importers.map(p => path.relative(root, p).replace(/\\/g, '/'))).toEqual(['src/shared/prime-shadow-plan-comparison.ts']);
   });
 });

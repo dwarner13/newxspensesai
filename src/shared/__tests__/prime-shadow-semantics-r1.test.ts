@@ -232,7 +232,9 @@ describe('R1 chat.ts wiring — zero authority (structural)', () => {
   });
   it('the shadow result is used ONLY for logging', () => {
     const uses = chat.match(/r1Settled\b/g) ?? [];
-    expect(uses.length).toBe(3); // declaration, the readiness check, the log argument — nothing else
+    // declaration, the readiness check, the R1 log argument, the R2b (observational) comparison — nothing else
+    expect(uses.length).toBe(4);
+    expect(chat).toContain('runShadowPlanComparison(r1Settled, {');
     expect(chat).not.toMatch(/r1Settled\.(request|status)/);
     expect(chat.match(/r1ShadowRun\.promise/g)?.length).toBe(1);
   });
@@ -247,6 +249,7 @@ describe('R1 chat.ts wiring — zero authority (structural)', () => {
   });
   it('the shadow input is the masked message plus previous user messages only', () => {
     expect(chat).toContain('message: masked,');
-    expect(chat).toContain(".filter((m: { role?: unknown; content?: unknown }) => m?.role === 'user' && typeof m?.content === 'string')");
+    // R2b: previous USER messages only, with the current message excluded
+    expect(chat).toContain('const r1PriorUserMessages = selectPriorUserMessages(recentMessages, masked);');
   });
 });

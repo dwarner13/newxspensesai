@@ -185,9 +185,12 @@ import {
   interpretShadowSemantics,
   buildShadowLogPayload,
   SHADOW_RESPONSE_FORMAT,
+  selectPriorUserMessages,
   type ShadowOutcome,
   type LegacyStructure,
 } from '../../src/shared/prime-shadow-semantics';
+// V1 R2b: shadow evidence-plan comparison (observational only — never executed)
+import { runShadowPlanComparison } from '../../src/shared/prime-shadow-plan-comparison';
 // P3.1A: Runtime evidence contract (observational only — does not change runtime behavior)
 import { buildRuntimeEvidenceContract, buildEvidenceContractTelemetry, type PrimeRuntimeEvidenceContract } from '../../src/shared/prime-evidence-contract';
 // P3.1B: Evidence resolution plan (observational only — does not change runtime behavior)
@@ -9968,7 +9971,7 @@ export const handler: Handler = async (event, context) => {
     // and is collected (bounded wait) just before the non-streaming response; its result
     // never routes, plans, executes, strips tools, touches identity or changes the answer.
     // Input: the masked message + up to 4 previous USER messages — no data, totals or memory.
-    let r1ShadowRun: { promise: Promise<ShadowOutcome>; abort: AbortController; model: string } | null = null;
+    let r1ShadowRun: { promise: Promise<ShadowOutcome>; abort: AbortController; model: string; referenceDate: Date } | null = null;
     let r1ShadowSkipReason: string | null = null;
     if (isPrime && flagEnabled(process.env.PRIME_SHADOW_SEMANTICS)) {
       try {
@@ -9981,12 +9984,12 @@ export const handler: Handler = async (event, context) => {
           // gpt-4o by default: R1 evaluation measured gpt-4o-mini at 17/25 vs gpt-4o 24/25 (see eval script)
           const r1Model = process.env.PRIME_SHADOW_SEMANTICS_MODEL || 'gpt-4o';
           const r1Abort = new AbortController();
-          const r1PriorUserMessages = recentMessages
-            .filter((m: { role?: unknown; content?: unknown }) => m?.role === 'user' && typeof m?.content === 'string')
-            .map((m: { content?: unknown }) => m.content as string);
+          // R2b: previous USER messages only, excluding the current message.
+          const r1PriorUserMessages = selectPriorUserMessages(recentMessages, masked);
           r1ShadowRun = {
             model: r1Model,
             abort: r1Abort,
+            referenceDate: new Date(),
             promise: interpretShadowSemantics({
               message: masked,
               priorUserMessages: r1PriorUserMessages,
@@ -14410,6 +14413,26 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             if (r1WaitTimer) clearTimeout(r1WaitTimer);
             if (r1Settled) {
               console.log(`[PrimeShadow][R1] request=${requestId.slice(0,12)} ${JSON.stringify(buildShadowLogPayload(r1Settled, r1Legacy, r1ShadowRun.model))}`);
+              // V1 R2b: build the shadow plan (never executed) and compare with the live plan.
+              // Pure and value-free; it cannot change the evidence, identity or this response.
+              const r2bComparison = runShadowPlanComparison(r1Settled, {
+                intent: shadowIntentResult,
+                plan: evidencePlanForExecution,
+                merchantHintTrusted,
+              }, {
+                temporal: { timezone: effectiveTimezone, referenceDate: r1ShadowRun.referenceDate },
+                availability: {
+                  memoryLoaded: orchCtx.memory_used,
+                  memoryFactCount: memoryFacts.length,
+                  conversationHistoryLoaded: recentMessages.length > 0,
+                  candidateIdentityAvailable: hasExistingCandidates,
+                  pipelineSnapshotLoaded: orchCtx.pipeline_snapshot_loaded,
+                },
+                merchantCtx: existingMerchantAnalysis?.excludedGroups?.length
+                  ? { excludeGroups: existingMerchantAnalysis.excludedGroups }
+                  : undefined,
+              });
+              console.log(`[PrimeShadow][R2b] request=${requestId.slice(0,12)} ${JSON.stringify(r2bComparison)}`);
             } else {
               r1ShadowRun.abort.abort();
               console.log(`[PrimeShadow][R1] request=${requestId.slice(0,12)} ${JSON.stringify({ r1: 1, model: r1ShadowRun.model, skipped: 'not_ready' })}`);

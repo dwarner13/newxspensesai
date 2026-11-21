@@ -101,7 +101,15 @@ export const MAX_LIST_LIMIT = VISIBLE_CANDIDATE_FRAME_MAX;
 
 /** Bounded text for semantic values (a claim, e.g. "restaurants" — not a validated entity). */
 const SemanticText = z.string().trim().min(1).max(80);
-const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
+/** A real calendar date (R2b: "2026-02-30" / "2026-13-01" are rejected, not just mis-shaped strings). */
+function isCalendarDate(s: string): boolean {
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+const IsoDate = z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD')
+  .refine(isCalendarDate, 'expected a real calendar date');
 const Year = z.number().int().min(1990).max(2100);
 const Source = z.enum(SEMANTIC_SOURCES);
 
