@@ -111,6 +111,36 @@ export function resolveCandidateOwnership(
   return 'analytical_evidence';
 }
 
+/** True when tx_search args carry no date bound (neither startDate nor endDate). */
+export function isUndatedTxSearch(args: unknown): boolean {
+  const a = (args && typeof args === 'object') ? args as { startDate?: unknown; endDate?: unknown } : {};
+  const has = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
+  return !has(a.startDate) && !has(a.endDate);
+}
+
+/**
+ * P1: ownership for a MODEL-initiated tx_search.
+ *
+ * When the authoritative P3.1C plan has already answered this request's financial TOTAL
+ * (CP4.2 `satisfiedAggregateEvidenceKinds` non-empty — aggregate request shape only, never a
+ * list/detail/merchant/comparison/mutation request), an UNDATED model search is background
+ * evidence: it still runs and the model still sees it, but it never establishes the candidate
+ * frame or renders cards (it would show rows unrelated to the answered period).
+ * Every other case is exactly `resolveCandidateOwnership`.
+ */
+export function resolveModelSearchOwnership(input: {
+  purpose: unknown;
+  hasExistingCandidates: boolean;
+  aggregateEvidenceSatisfied: boolean;
+  args: unknown;
+}): CandidateOwnershipIntent {
+  const base = resolveCandidateOwnership(input.purpose, input.hasExistingCandidates);
+  if (base === 'candidate_establishment' && input.aggregateEvidenceSatisfied && isUndatedTxSearch(input.args)) {
+    return 'analytical_evidence';
+  }
+  return base;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PURE BUILDERS (used by chat.ts persistence and Layer 1 writers)
 // ─────────────────────────────────────────────────────────────────────────────

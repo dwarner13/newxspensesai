@@ -281,9 +281,12 @@ describe('D–I. shared merchant-scope semantics', () => {
     expect(res.rows.every(r => r.date === '2025-04-16')).toBe(true);
     const mt = await runMerchantTotals({ merchant: 'Costco', startDate: '2025-04-01', endDate: '2025-04-30', excludeGroups: ['costco gas'] });
     expect(mt.transactionCount).toBe(2);
-    // Contrast: the generic posted_at path cannot see them for the same window.
+    // P1 (2026-11-21): the generic path now filters on the canonical `date` too, so it sees the
+    // same NULL-posted_at rows for this window. (It previously filtered on posted_at and returned
+    // none — the defect behind unrelated cards on staging.)
     const generic = await runTxSearch({ q: 'Costco', startDate: '2025-04-01', endDate: '2025-04-30', limit: 200 });
-    expect(generic.rows).toHaveLength(0);
+    expect(generic.rows.map(r => r.id).sort()).toEqual(expect.arrayContaining([MISSING_A, MISSING_B].sort()));
+    expect(generic.rows.every(r => r.date! >= '2025-04-01' && r.date! <= '2025-04-30')).toBe(true);
   });
 
   it('I. merchant_totals and B2C agree on non-spend categories', async () => {

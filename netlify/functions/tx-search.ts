@@ -126,7 +126,7 @@ async function detectColumn(
 }
 
 function pickDateValue(row: TxRow): string | null {
-  const raw = row.posted_at || row.date || row.occurred_at || null;
+  const raw = row.date || row.posted_at || row.occurred_at || null;
   return raw ? String(raw) : null;
 }
 
@@ -219,7 +219,9 @@ export const handler: Handler = async (event) => {
     const hasImportId = await detectColumn(sb, 'transactions', userId, 'import_id', columnCache);
     const hasDocumentId = await detectColumn(sb, 'transactions', userId, 'document_id', columnCache);
 
-    const candidateDateCols = ['posted_at', 'date', 'occurred_at'] as const;
+    // P1: `date` is the canonical transaction date (the authoritative aggregate tools filter
+    // and group on it). posted_at/occurred_at are fallbacks only for schemas without `date`.
+    const candidateDateCols = ['date', 'posted_at', 'occurred_at'] as const;
     let dateColumn: string | null = null;
     for (const col of candidateDateCols) {
       if (await detectColumn(sb, 'transactions', userId, col, columnCache)) {
@@ -352,7 +354,11 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    query = (dateColumn ? query.order(dateColumn, { ascending: false }) : query.order('id', { ascending: false })).limit(limit);
+    // P1: newest first with missing dates LAST (Postgres DESC defaults to NULLS FIRST, which
+    // surfaced undated legacy rows ahead of real recent transactions); id breaks ties.
+    query = (dateColumn
+      ? query.order(dateColumn, { ascending: false, nullsFirst: false }).order('id', { ascending: false })
+      : query.order('id', { ascending: false })).limit(limit);
 
     if (!rowsData) {
       const { data: genericRows, error: rowsError } = await query;

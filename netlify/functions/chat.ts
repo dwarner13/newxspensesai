@@ -157,7 +157,7 @@ import {
   RAW_TX_SEARCH_TOTALS_NOTE,
 } from '../../src/shared/candidate-frame-facts';
 import {
-  resolveCandidateOwnership,
+  resolveModelSearchOwnership,
   createCandidateOwnershipGate,
   submitEvidenceTxSearchResults,
   buildTxResolutionFromSearchResult,
@@ -11977,7 +11977,8 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       // P3.3C: ownership from model-declared purpose. Only candidate_establishment
                       // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                       // lock and persisted frame are settled before the next tool call runs.
-                      const streamingOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
+                      // P1: undated model search after an answered total = background evidence (no cards/frame)
+                      const streamingOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, args });
                       const streamingOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'streaming', streamingOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (streaming):', e?.message); return null; });
                       // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                       rememberTxSearchModelView(result, presentTxSearchResultForModel(result, streamingOwnershipOutcome, ownershipGate.visibleFrame));
@@ -12363,7 +12364,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // P3.3C: ownership from model-declared purpose. Only candidate_establishment
                     // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                     // lock and persisted frame are settled before the next tool call runs.
-                    const specOwnership = resolveCandidateOwnership(tArgs?.purpose, hasExistingCandidates);
+                    // P1: undated model search after an answered total = background evidence (no cards/frame)
+                    const specOwnership = resolveModelSearchOwnership({ purpose: tArgs?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, args: tArgs });
                     const specOwnershipOutcome = await ownershipGate.submitSearchResult(tResult, 'specialist', specOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (specialist):', e?.message); return null; });
                     // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                     rememberTxSearchModelView(tResult, presentTxSearchResultForModel(tResult, specOwnershipOutcome, ownershipGate.visibleFrame));
@@ -13696,7 +13698,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // P3.3C: ownership from model-declared purpose. Only candidate_establishment
                 // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                 // lock and persisted frame are settled before the next tool call runs.
-                const nsOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
+                // P1: undated model search after an answered total = background evidence (no cards/frame)
+                const nsOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, args });
                 const nsOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'non-streaming', nsOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (non-streaming):', e?.message); return null; });
                 // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                 rememberTxSearchModelView(result, presentTxSearchResultForModel(result, nsOwnershipOutcome, ownershipGate.visibleFrame));
@@ -14080,7 +14083,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // P3.3C: ownership from model-declared purpose. Only candidate_establishment
                   // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                   // lock and persisted frame are settled before the next tool call runs.
-                  const loopOwnership = resolveCandidateOwnership(args?.purpose, hasExistingCandidates);
+                  // P1: undated model search after an answered total = background evidence (no cards/frame)
+                  const loopOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, args });
                   const loopOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'tool-loop', loopOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (tool-loop):', e?.message); return null; });
                   // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                   rememberTxSearchModelView(result, presentTxSearchResultForModel(result, loopOwnershipOutcome, ownershipGate.visibleFrame));
