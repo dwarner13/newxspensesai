@@ -1,6 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
+import { verifyAuth } from "./_shared/verifyAuth.js";
 
 /**
  * PRIME ROUTER (MVP) - orchestration endpoint
@@ -221,7 +222,9 @@ async function stagingHasMissingTag(importId: string) {
   return (data?.length || 0) > 0;
 }
 
-async function getImportContext(importId: string): Promise<{ userId: string | null; documentId: string | null }> {
+async function getImportContext(
+  importId: string
+): Promise<{ found: boolean; userId: string | null; documentId: string | null }> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("imports")
@@ -230,9 +233,31 @@ async function getImportContext(importId: string): Promise<{ userId: string | nu
     .maybeSingle();
   if (error) throw error;
   return {
+    found: Boolean(data),
     userId: data?.user_id ?? null,
     documentId: data?.document_id ?? null,
   };
+}
+
+/**
+ * Ownership check for a set of imports. Every id must exist and belong to userId
+ * (ownerless rows fail closed). Runs before any lock, tag, sync or summary side effect.
+ */
+async function checkImportOwnership(
+  importIds: string[],
+  userId: string
+): Promise<{ missing: string[]; foreign: string[] }> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("imports")
+    .select("id, user_id")
+    .in("id", importIds);
+  if (error) throw error;
+  const rows = (Array.isArray(data) ? data : []) as Array<{ id: unknown; user_id: unknown }>;
+  const ownerById = new Map(rows.map((r) => [String(r.id), r.user_id ? String(r.user_id) : null]));
+  const missing = importIds.filter((id) => !ownerById.has(id));
+  const foreign = importIds.filter((id) => ownerById.has(id) && ownerById.get(id) !== userId);
+  return { missing, foreign };
 }
 
 async function getImportTerminalOcrState(importId: string): Promise<{
@@ -430,6 +455,13 @@ function parseCountFromSummary(content: string, pattern: RegExp): number | null 
 
 export const handler: Handler = async (event) => {
   try {
+    // Identity comes only from the verified Supabase JWT. A submitted userId (multipart
+    // field or JSON body) is never proof of identity. callFn forwards this same
+    // Authorization header to downstream functions.
+    const auth = await verifyAuth(event);
+    if (!auth.userId) return json(401, { ok: false, error: "Unauthorized" });
+    const authUserId = auth.userId;
+
     const method = event.httpMethod || "GET";
 
     // mode can come from:
@@ -465,7 +497,12 @@ export const handler: Handler = async (event) => {
         ? Buffer.from(event.body || "", "base64")
         : Buffer.from(event.body || "", "latin1");
       const rawBodyText = rawBody.toString("utf8");
-      const userId = extractMultipartField(rawBodyText, "userId");
+      const submittedUserId = extractMultipartField(rawBodyText, "userId");
+      if (submittedUserId && submittedUserId !== authUserId) {
+        console.warn("[prime-router] stage=upload_identity_mismatch");
+        return json(403, { ok: false, error: "Forbidden" });
+      }
+      const userId = authUserId;
       const fileName = extractMultipartFilename(rawBodyText);
       const source = extractMultipartField(rawBodyText, "source") || "upload";
       const requestId = extractMultipartField(rawBodyText, "requestId");
@@ -480,12 +517,12 @@ export const handler: Handler = async (event) => {
       // Generate a stable trace_id for this upload run so all pipeline stages share it.
       const traceId = requestId || randomUUID();
 
-      if (!userId || !fileName) {
+      if (!fileName) {
         return json(400, {
           ok: false,
           step: "multipart-parse",
-          error: "Missing userId or filename in multipart payload",
-          details: { hasUserId: Boolean(userId), hasFileName: Boolean(fileName) },
+          error: "Missing filename in multipart payload",
+          details: { hasFileName: false },
         });
       }
 
@@ -536,8 +573,6 @@ export const handler: Handler = async (event) => {
         }
         if ((filePart.mimeType || "").toLowerCase() === "application/pdf" || String(fileName).toLowerCase().endsWith(".pdf")) {
           console.log("[upload-pdf-debug] router_received_pdf", {
-            userId,
-            fileName,
             mimeType: filePart.mimeType || "application/octet-stream",
             ...probePdfBytes(filePart.fileBuffer),
           });
@@ -621,16 +656,22 @@ export const handler: Handler = async (event) => {
       const statusImportRunId = String(body?.importRunId || body?.requestId || `status-${importId || Date.now()}`);
       const waitForOcrMs = Number.isFinite(Number(body?.waitForOcrMs)) ? Math.max(5000, Math.min(90000, Number(body?.waitForOcrMs))) : 60000;
       const pollForOcrMs = Number.isFinite(Number(body?.pollForOcrMs)) ? Math.max(200, Math.min(2000, Number(body?.pollForOcrMs))) : 500;
-      const autoCommit = body?.autoCommit !== false;
+      // Committing transactions requires an explicit opt-in. Previously a missing flag meant commit.
+      const autoCommit = body?.autoCommit === true;
       if (!importId) return json(400, { ok: false, error: "status mode requires importId" });
       const ctx = await getImportContext(String(importId));
-      if (!ctx.userId || !ctx.documentId) {
+      if (!ctx.found) return json(404, { ok: false, error: "Import not found" });
+      if (!ctx.userId || ctx.userId !== authUserId) {
+        console.warn("[prime-router] stage=status_ownership_denied");
+        return json(403, { ok: false, error: "Forbidden" });
+      }
+      if (!ctx.documentId) {
         return json(200, {
           ok: true,
           mode: "status",
           importId,
           status: "running",
-          details: { ok: false, reason: "missing_import_context", userId: ctx.userId, documentId: ctx.documentId },
+          details: { ok: false, reason: "missing_import_context" },
         });
       }
 
@@ -752,7 +793,6 @@ export const handler: Handler = async (event) => {
         console.warn('[prime-router] stale OCR lock detected, re-kicking smart-import-ocr', {
           importId,
           documentId: ctx.documentId,
-          userId: ctx.userId,
         });
         const retryRes = await callFn(event, "smart-import-ocr-background", {
           method: "POST",
@@ -805,6 +845,20 @@ export const handler: Handler = async (event) => {
 
       if (!isComplete) {
         return json(200, { ok: true, mode: "status", importId, status: "running", details: statusRes.data });
+      }
+
+      // smart-import-sync always commits ready imports (it ignores the autoCommit flag it is sent),
+      // so the only way to honour "do not commit" here is to not call sync/finalize at all.
+      if (!autoCommit) {
+        return json(200, {
+          ok: true,
+          mode: "status",
+          importId,
+          status: "ocr_complete",
+          committed: false,
+          reason: "auto_commit_not_requested",
+          ocrStatus: statusRes.data,
+        });
       }
 
       const syncRes = await callFn(event, "smart-import-sync", {
@@ -920,6 +974,13 @@ export const handler: Handler = async (event) => {
         )
       );
       if (!importIds.length) return json(400, { ok: false, error: "summary mode requires importId or importIds[]" });
+      // Every import must belong to the caller before any lock write, Tag run or summary call.
+      const ownership = await checkImportOwnership(importIds, authUserId);
+      if (ownership.missing.length > 0) return json(404, { ok: false, error: "Import not found" });
+      if (ownership.foreign.length > 0) {
+        console.warn("[prime-router] stage=summary_ownership_denied", { count: ownership.foreign.length });
+        return json(403, { ok: false, error: "Forbidden" });
+      }
       const importId = importIds[0];
       const lockTokensByImport = new Map<string, string>();
       try {
@@ -1122,6 +1183,8 @@ export const handler: Handler = async (event) => {
 
     return json(400, { ok: false, error: "Unknown mode" });
   } catch (e: any) {
-    return json(500, { ok: false, error: e?.message || "prime-router failed" });
+    // Never echo raw error text to the client; it can carry DB/query details.
+    console.error("[prime-router] unhandled error", e?.name || "Error");
+    return json(500, { ok: false, error: "prime-router failed" });
   }
 };

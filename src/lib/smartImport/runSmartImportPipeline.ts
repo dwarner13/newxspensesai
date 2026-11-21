@@ -1,4 +1,5 @@
 import { safeToSkipUpload, logReuseDecision, pollRunningOcrJob } from '../upload/safeToSkipUpload';
+import { getSupabase } from '@/lib/supabase';
 
 export type SmartImportPipelineInput = {
   userId: string;
@@ -777,12 +778,28 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
   };
 }
 
-export function runSmartImportPipeline(input: SmartImportPipelineInput): Promise<SmartImportPipelineResult> {
-  const preInitKey = buildPreInitPipelineKey(input);
+/**
+ * prime-router requires a Supabase JWT. Callers that do not pass authToken
+ * (e.g. uploadWithProgress) get the current session's access token.
+ */
+async function withSessionAuthToken(input: SmartImportPipelineInput): Promise<SmartImportPipelineInput> {
+  if (input.authToken) return input;
+  try {
+    const { data } = (await getSupabase()?.auth.getSession()) ?? { data: null };
+    const token = data?.session?.access_token;
+    return token ? { ...input, authToken: token } : input;
+  } catch {
+    return input;
+  }
+}
+
+export function runSmartImportPipeline(rawInput: SmartImportPipelineInput): Promise<SmartImportPipelineResult> {
+  const preInitKey = buildPreInitPipelineKey(rawInput);
   const existing = inFlightPipelines.get(preInitKey);
   if (existing) return existing;
   const promise = (async () => {
     let activeKey = preInitKey;
+    const input = await withSessionAuthToken(rawInput);
     try {
       // Canonical upload route: Prime Router mode A/B orchestration.
       // Falls back to legacy init/upload/finalize path if router is unavailable.
