@@ -4,6 +4,7 @@ import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 import { maskPII as maskPiiFallback } from './_shared/pii.js';
 import { runLLMAdvisorSummary } from './_shared/primeSummarizer.js';
+import { verifyAuth } from './_shared/verifyAuth.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -306,7 +307,11 @@ async function resolveBreakdownMetaForSummary(
 
   let docData: any = buildDocFallbackFromImport(importData);
   if (importData?.document_id) {
-    const loaded = await loadDocumentDataForSummary(sb, String(importData.document_id));
+    const loaded = await loadDocumentDataForSummary(
+      sb,
+      String(importData.document_id),
+      String(importData?.user_id || '')
+    );
     docData = {
       ...(docData || {}),
       ...(loaded || {}),
@@ -1370,7 +1375,8 @@ function isMissingColumnError(err: unknown): boolean {
   );
 }
 
-async function loadDocumentDataForSummary(sb: any, documentId: string): Promise<any | null> {
+async function loadDocumentDataForSummary(sb: any, documentId: string, userId: string): Promise<any | null> {
+  if (!userId) return null;
   // Tiered SELECT so a missing column never silently returns null.
   // Each tier drops optional columns that may not yet exist in the schema cache.
   const selectAttempts = [
@@ -1387,6 +1393,7 @@ async function loadDocumentDataForSummary(sb: any, documentId: string): Promise<
         .from(table)
         .select(projection)
         .eq('id', documentId)
+        .eq('user_id', userId)
         .maybeSingle();
       if (!error) return data ?? null;
       // Only retry with a narrower projection if the failure is a missing column.
@@ -1474,6 +1481,17 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  // Identity comes only from the verified Supabase JWT. Any userId in the body is ignored.
+  const auth = await verifyAuth(event);
+  if (!auth.userId) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ ok: false, error: 'Unauthorized' }),
+    };
+  }
+  const userId = auth.userId;
+
   try {
     const body = JSON.parse(event.body || '{}');
     let importId = body.importId as string | undefined;
@@ -1486,6 +1504,7 @@ export const handler: Handler = async (event) => {
         .from('imports')
         .select('id')
         .eq('document_id', docId)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -1520,6 +1539,17 @@ export const handler: Handler = async (event) => {
         statusCode: 200,
         headers,
         body: JSON.stringify({ ok: true, summary }),
+      };
+    }
+
+    // Ownership gate: the import must belong to the authenticated user. This runs before
+    // any lock state, transactions, documents or summaries are read. Rows with no owner fail closed.
+    if (String(importData.user_id || '') !== userId) {
+      console.warn('[prime-summary] stage=ownership_denied');
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ ok: false, error: 'Forbidden' }),
       };
     }
 
@@ -1596,6 +1626,7 @@ export const handler: Handler = async (event) => {
         .from('imports')
         .select('id')
         .eq('document_id', importData.document_id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -1611,7 +1642,7 @@ export const handler: Handler = async (event) => {
     const transactionCount = transactions.length;
     let statementDocData: any = null;
     if (importData.document_id) {
-      const docData = await loadDocumentDataForSummary(sb, importData.document_id);
+      const docData = await loadDocumentDataForSummary(sb, importData.document_id, userId);
       statementDocData = docData;
     }
     const resolvedMeta = persistedBreakdown
@@ -1859,11 +1890,13 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ ok: true, summary }),
     };
   } catch (error: any) {
+    // Never echo raw error text to the client; it can carry DB/query details.
+    console.error('[prime-summary] unhandled error', error?.name || 'Error');
     const rawFallbackSummary = formatOcrSummaryMarkdown({
       transactions: [],
       transactionCount: 0,
       needsReviewCount: 0,
-      extraIssues: [String(error?.message || 'Summary generation failed')],
+      extraIssues: ['Summary generation failed'],
     });
     const fallbackSummary = await sanitizeSummaryForOutput(rawFallbackSummary, null);
     const transactionsForLog: Array<{ amount: number }> = [];

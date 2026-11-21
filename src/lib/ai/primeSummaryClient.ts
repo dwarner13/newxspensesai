@@ -1,3 +1,5 @@
+import { getSupabase } from '@/lib/supabase';
+
 type PrimeSummaryPayload = {
   importId?: string;
   importIds?: string[];
@@ -39,6 +41,24 @@ function normalizePayload(payload: PrimeSummaryPayload): PrimeSummaryPayload {
   };
 }
 
+/**
+ * prime-summary requires a Supabase JWT. Use the caller's Authorization header when given,
+ * otherwise attach the current session's access token.
+ */
+async function resolveAuthHeaders(provided?: Record<string, string>): Promise<Record<string, string>> {
+  const headers = { ...(provided || {}) };
+  const hasAuth = Object.keys(headers).some((k) => k.toLowerCase() === 'authorization');
+  if (hasAuth) return headers;
+  try {
+    const { data } = (await getSupabase()?.auth.getSession()) ?? { data: null };
+    const token = data?.session?.access_token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch {
+    // No session available; the server will answer 401.
+  }
+  return headers;
+}
+
 function buildRequestKey(payload: PrimeSummaryPayload): string {
   const normalized = normalizePayload(payload);
   return JSON.stringify(normalized);
@@ -64,11 +84,12 @@ export async function fetchPrimeSummarySingleFlight(
 
   const request = (async (): Promise<PrimeSummaryResult> => {
     try {
+      const authHeaders = await resolveAuthHeaders(options?.headers);
       const response = await fetch('/.netlify/functions/prime-summary', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(options?.headers || {}),
+          ...authHeaders,
         },
         body: JSON.stringify(normalizedPayload),
       });
