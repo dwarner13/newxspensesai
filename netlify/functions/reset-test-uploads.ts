@@ -1,8 +1,19 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/upload.js';
+import { verifyAuth } from './_shared/verifyAuth.js';
 
 const BUCKET = 'docs';
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Development-only destructive endpoint. Fail closed: it is enabled ONLY under Netlify Dev
+ * (NETLIFY_DEV=true) or when ALLOW_TEST_RESET=1 is explicitly set, and is always disabled
+ * when Netlify reports the production context. ALLOW_TEST_RESET must never be set in production.
+ */
+export function isResetEndpointEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (String(env.CONTEXT || '').toLowerCase() === 'production') return false;
+  if (String(env.NODE_ENV || '').toLowerCase() === 'production' && env.NETLIFY_DEV !== 'true') return false;
+  return env.NETLIFY_DEV === 'true' || env.ALLOW_TEST_RESET === '1';
+}
 
 type FailedItem = {
   documentId: string;
@@ -18,6 +29,11 @@ export const handler: Handler = async (event) => {
     'Cache-Control': 'no-store',
   };
 
+  // Disabled environments behave as if the endpoint does not exist (no auth probing, no DB access).
+  if (!isResetEndpointEnabled()) {
+    return { statusCode: 404, headers, body: JSON.stringify({ ok: false, error: 'Not found' }) };
+  }
+
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
@@ -30,23 +46,19 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  // Identity comes only from the verified Supabase JWT; the caller can only reset their own data.
+  const auth = await verifyAuth(event);
+  if (!auth.userId) {
+    return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
+  }
+  const claimedUserId = String(event.headers?.['x-user-id'] || event.headers?.['X-User-Id'] || '').trim();
+  if (claimedUserId && claimedUserId !== auth.userId) {
+    console.warn('[reset-test-uploads] stage=identity_mismatch');
+    return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+  }
+  const userId = auth.userId;
+
   try {
-    const userIdRaw = event.headers['x-user-id'] || event.headers['X-User-Id'] || '';
-    const userId = String(userIdRaw || '').trim();
-    if (!userId) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ ok: false, error: 'Unauthorized: Missing x-user-id header' }),
-      };
-    }
-    if (!UUID_REGEX.test(userId)) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ ok: false, error: 'Unauthorized: Invalid x-user-id format' }),
-      };
-    }
 
     const body = JSON.parse(event.body || '{}');
     const confirm = String(body?.confirm || '');
@@ -76,7 +88,7 @@ export const handler: Handler = async (event) => {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ ok: false, error: docsError.message || 'Failed to load user documents' }),
+        body: JSON.stringify({ ok: false, error: 'Failed to load user documents' }),
       };
     }
 
@@ -205,7 +217,7 @@ export const handler: Handler = async (event) => {
       headers,
       body: JSON.stringify({
         ok: false,
-        error: String(err?.message || 'Unexpected error'),
+        error: 'Unexpected error',
       }),
     };
   }

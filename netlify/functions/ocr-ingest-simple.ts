@@ -31,6 +31,7 @@ import type { Handler } from '@netlify/functions';
 import OpenAI from 'openai';
 import { corsHeaders, jsonResponse } from './_shared/http.js';
 import { withRateLimit, getPresetOptions } from './_shared/rate-limit-v2.js';
+import { verifyAuth } from './_shared/verifyAuth.js';
 
 // ── Vision helper ────────────────────────────────────────────────────────────
 
@@ -139,6 +140,15 @@ const rawHandler: Handler = async (event) => {
     });
   }
 
+  // Paid OpenAI calls require a verified Supabase user (before any config or input is inspected).
+  const auth = await verifyAuth(event);
+  if (!auth.userId) {
+    return jsonResponse(401, {
+      ok: false,
+      error: { code: 'UNAUTHORIZED', message: 'Unauthorized' },
+    });
+  }
+
   // API key guard
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -168,10 +178,8 @@ const rawHandler: Handler = async (event) => {
     }
   } catch (parseErr: any) {
     // body stays {} - log so we can see what failed
-    console.error('[ocr-ingest-simple] body parse failed:',
-      parseErr?.message,
-      '| first 80 chars of raw body:',
-      String(event.body ?? '').slice(0, 80));
+    // Do not log body content: it can contain receipt/statement text.
+    console.error('[ocr-ingest-simple] body parse failed:', parseErr?.name || 'Error');
   }
 
   // Debug - helps diagnose body-parsing failures without logging full content
@@ -227,12 +235,12 @@ const rawHandler: Handler = async (event) => {
       receipt,
     });
   } catch (err: any) {
-    console.error('[ocr-ingest-simple] OpenAI error:', err?.message ?? err);
+    console.error('[ocr-ingest-simple] OpenAI error:', err?.name || 'Error');
     return jsonResponse(500, {
       ok: false,
       error: {
         code: 'OPENAI_ERROR',
-        message: err?.message ?? 'OpenAI API call failed.',
+        message: 'OpenAI API call failed.',
       },
     });
   }
