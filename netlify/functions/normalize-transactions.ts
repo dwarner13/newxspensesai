@@ -10,6 +10,7 @@
 import type { Handler } from '@netlify/functions';
 import { createHash } from 'crypto';
 import { admin } from './_shared/supabase.js';
+import { authorizeUserOrJobRequest, claimedUserIdMatches, type OwnershipClient } from './_shared/internalJobAuth.js';
 import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 import { parseInvoiceLike, parseReceiptLike } from './_shared/ocr_parsers.js';
 import { safeTextMetrics } from './_shared/textHash.js';
@@ -1902,14 +1903,18 @@ export const handler: Handler = async (event, context) => {
     const base = existing && typeof existing === 'object' ? (existing as Record<string, any>) : {};
     return { ...base, ...patch };
   };
+  // Set only after authorization succeeds; error stamping is limited to the verified owner's document.
+  let authorizedUserId: string | null = null;
+  let authorizedDocumentId: string | null = null;
   const stampNormalizeError = async (docId: string, code: string, message: string): Promise<void> => {
-    if (!docId) return;
+    if (!docId || !authorizedUserId || docId !== authorizedDocumentId) return;
     try {
       const sb = admin();
       const { data: row } = await sb
         .from('user_documents')
         .select('metadata')
         .eq('id', docId)
+        .eq('user_id', authorizedUserId)
         .maybeSingle();
       const metadata = mergeMetadata(row?.metadata, {
         normalize_error: {
@@ -1922,7 +1927,8 @@ export const handler: Handler = async (event, context) => {
       await sb
         .from('user_documents')
         .update({ metadata, updated_at: new Date().toISOString() })
-        .eq('id', docId);
+        .eq('id', docId)
+        .eq('user_id', authorizedUserId);
     } catch {
       // Best effort only; never block API response.
     }
@@ -1938,7 +1944,29 @@ export const handler: Handler = async (event, context) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { userId, documentId, importRunId, includeAllAccounts, ocrText, ocrTextHash, ocrTextLength } = body;
+
+    // P0-C1b: a body userId is never proof of identity. Accept either
+    //  - a normalize.run job token (from smart-import-ocr-background / smart-import-parse-csv), or
+    //  - the user's Supabase JWT forwarded by smart-import-sync, with document ownership verified.
+    // Identity and document then come only from the verified proof.
+    const authz = await authorizeUserOrJobRequest(event, admin() as unknown as OwnershipClient, {
+      audience: 'normalize-transactions',
+      scope: 'normalize.run',
+      requestedDocumentId: body?.documentId,
+    });
+    if (!authz.ok) {
+      return authz.status === 500
+        ? respondError(503, 'processing_unavailable', 'Processing is temporarily unavailable. Please retry.', { retryable: true })
+        : respondError(authz.status, authz.status === 401 ? 'unauthorized' : 'forbidden', authz.status === 401 ? 'Unauthorized' : 'Forbidden');
+    }
+    if (!claimedUserIdMatches(body?.userId, authz.proof.userId)) {
+      return respondError(403, 'forbidden', 'Forbidden');
+    }
+    authorizedUserId = authz.proof.userId;
+    authorizedDocumentId = authz.proof.documentId;
+    const userId = authz.proof.userId;
+    const documentId = authz.proof.documentId;
+    const { importRunId, includeAllAccounts, ocrText, ocrTextHash, ocrTextLength } = body;
     const isNetlifyDev = process.env.NETLIFY_DEV === 'true';
 
     if (!userId || !documentId) {
@@ -2068,21 +2096,12 @@ export const handler: Handler = async (event, context) => {
       documentId: result.documentId || documentId,
     });
   } catch (error: any) {
-    console.error('[normalize-transactions] Unexpected error:', error);
-    try {
-      const parsed = JSON.parse(event?.body || '{}');
-      const failedDocumentId = parsed?.documentId;
-      if (failedDocumentId) {
-        await stampNormalizeError(
-          failedDocumentId,
-          'internal_server_error',
-          error?.message || 'Unknown error'
-        );
-      }
-    } catch {
-      // ignore parse failures
+    console.error('[normalize-transactions] Unexpected error:', error?.name || 'Error');
+    // Only the authorized document can be stamped (stampNormalizeError enforces this).
+    if (authorizedDocumentId) {
+      await stampNormalizeError(authorizedDocumentId, 'internal_server_error', 'Normalization failed');
     }
-    return respondError(500, 'internal_server_error', error?.message || 'Unknown error');
+    return respondError(500, 'internal_server_error', 'Normalization failed');
   }
 };
 

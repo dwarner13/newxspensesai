@@ -24,6 +24,7 @@ console.log('[smart-import-sync] MODULE LOADED', new Date().toISOString());
 
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
+import { getInternalBaseUrl } from './_shared/internalBaseUrl.js';
 
 export type SmartImportSyncResult = {
   docIds: string[];
@@ -661,7 +662,7 @@ async function ensureNormalized(
   documentId: string,
   userId: string,
   netlifyUrl: string,
-  payload?: { ocrText?: string; ocrTextHash?: string | null; ocrTextLength?: number | null; traceId?: string }
+  payload?: { ocrText?: string; ocrTextHash?: string | null; ocrTextLength?: number | null; traceId?: string; authorization?: string }
 ): Promise<{ ok: boolean; importId?: string; processing?: boolean; reason?: string }> {
   if (!documentId || !UUID_V4_RE.test(String(documentId))) {
     console.warn('[smart-import-sync] Skipping normalize-transactions due to invalid documentId', {
@@ -790,9 +791,10 @@ async function ensureNormalized(
       headers: {
         'Content-Type': 'application/json',
         ...(payload?.traceId ? { 'x-trace-id': payload.traceId } : {}),
+        // P0-C1b: normalize-transactions verifies this user JWT + document ownership itself.
+        ...(payload?.authorization ? { authorization: payload.authorization } : {}),
       },
       body: JSON.stringify({
-        userId,
         documentId,
         ocrText: typeof payload?.ocrText === 'string' ? payload?.ocrText : undefined,
         ocrTextHash: payload?.ocrTextHash || undefined,
@@ -975,6 +977,8 @@ export const handler: Handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
     const { userId, docIds, includeAllAccounts } = body;
+    // Forwarded unchanged to normalize-transactions, which verifies it (P0-C1b).
+    const inboundAuthorization = String(event.headers?.authorization || event.headers?.Authorization || '') || undefined;
     const requestImportRunId = String(body?.importRunId || body?.requestId || '').trim();
     const autoCommit = true;
     const traceId: string = body?.traceId || event.headers['x-trace-id'] || event.headers['X-Trace-Id'] || `trace_${Date.now()}`;
@@ -997,7 +1001,18 @@ export const handler: Handler = async (event) => {
     }
 
     const sb = admin();
-    const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
+    // P0-C1b: same-deploy origin for normalize-transactions / commit-import (fail closed). NETLIFY_URL
+    // pointed at the published deploy, so deploy previews would call different code with the user JWT.
+    let netlifyUrl: string;
+    try {
+      netlifyUrl = getInternalBaseUrl();
+    } catch {
+      return {
+        statusCode: 503,
+        headers,
+        body: JSON.stringify({ ok: false, retryable: true, error: 'processing_unavailable' }),
+      };
+    }
     
     console.log('[smart-import-sync] Starting sync', { userId: userId.substring(0, 8) + '...', docIds, importRunId: requestImportRunId || null });
     if (syncDebug) {
@@ -1270,6 +1285,7 @@ export const handler: Handler = async (event) => {
             ocrTextHash: waitResult.textHash,
             ocrTextLength: waitResult.len,
             traceId,
+            authorization: inboundAuthorization,
           });
           if (normalized.processing) {
             anyNormalizeProcessing = true;
@@ -1537,7 +1553,7 @@ export const handler: Handler = async (event) => {
       }
 
       // Ensure normalized
-      const normalized = await ensureNormalized(sb, importRecord.document_id, userId, netlifyUrl, { traceId });
+      const normalized = await ensureNormalized(sb, importRecord.document_id, userId, netlifyUrl, { traceId, authorization: inboundAuthorization });
       if (normalized.processing) {
         anyNormalizeProcessing = true;
         continue;

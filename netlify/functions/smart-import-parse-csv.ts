@@ -9,6 +9,8 @@
 
 import { Handler } from '@netlify/functions';
 import { admin, markDocStatus } from './_shared/upload.js';
+import { authorizeJobRequest, claimedUserIdMatches, type OwnershipClient } from './_shared/internalJobAuth.js';
+import { dispatchNormalize } from './_shared/normalizeHandoff.js';
 
 const BUCKET = 'docs';
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -133,25 +135,42 @@ function parseCsv(text: string): Array<{
 
 export const handler: Handler = async (event) => {
   try {
-    const { userId, docId, key, csvText } = JSON.parse(event.body || '{}');
-    
-    if (!userId || !docId) {
-      return { 
-        statusCode: 400, 
-        body: JSON.stringify({ error: 'Missing required fields' }) 
-      };
+    const sb = admin();
+
+    // Internal-only: requires a csv.parse job token issued by smart-import-finalize for an
+    // authenticated, ownership-verified document. Identity and document come from the token only.
+    const authz = await authorizeJobRequest(event, sb as unknown as OwnershipClient, {
+      audience: 'smart-import-parse-csv',
+      scope: 'csv.parse',
+    });
+    if (!authz.ok) {
+      return { statusCode: authz.status, body: JSON.stringify({ error: authz.status === 500 ? 'Processing unavailable' : 'Unauthorized' }) };
     }
 
-    const sb = admin();
+    const body = JSON.parse(event.body || '{}');
+    if ((body.docId && String(body.docId) !== authz.proof.documentId) || !claimedUserIdMatches(body.userId, authz.proof.userId)) {
+      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+    }
+    const userId = authz.proof.userId;
+    const docId = authz.proof.documentId;
+    const { csvText } = body;
 
     // Parse CSV (input is already redacted by guardrails)
     let text = String(csvText || '');
-    if (!text && key) {
-      const { data: file, error: downloadErr } = await sb.storage
-        .from(BUCKET)
-        .download(key);
+    if (!text) {
+      // Only ever read the owned document's own file. A caller-supplied storage key is ignored.
+      const { data: ownedDoc } = await sb
+        .from('user_documents')
+        .select('storage_path')
+        .eq('id', docId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const key = String(ownedDoc?.storage_path || '');
+      const { data: file, error: downloadErr } = key
+        ? await sb.storage.from(BUCKET).download(key)
+        : { data: null, error: { message: 'no_storage_path' } };
       if (downloadErr || !file) {
-        console.error('[CSV Parser] Failed to download file:', downloadErr);
+        console.error('[CSV Parser] Failed to download file');
         await markDocStatus(docId, 'rejected', 'Failed to load statement file');
         return { 
           statusCode: 404, 
@@ -197,21 +216,28 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Queue for normalization -> transactions table (fire and forget)
-    const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
-    if (!docId || !UUID_V4_RE.test(String(docId))) {
+    // Queue for normalization -> staging only (fire and forget). Authorised with a fresh
+    // normalize.run job token for the same user + document; nothing here commits transactions.
+    if (!UUID_V4_RE.test(String(docId))) {
       console.warn('[smart-import-parse-csv] Skipping normalize-transactions due to invalid documentId', { docId });
     } else {
-      fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, documentId: docId, ocrText: text }),
-      }).catch((err) => {
-        console.error('[smart-import-parse-csv] Error calling normalize-transactions:', err);
+      const handoff = await dispatchNormalize(sb as unknown as OwnershipClient, authz.principal, docId, { ocrText: text }, {
+        src: 'smart-import-parse-csv',
+      });
+      if (!handoff.ok) {
+        // Clear, retryable state instead of a silent "ready" with nothing staged.
+        await markDocStatus(docId, 'needs_review', 'normalize_unavailable_retry');
+        return {
+          statusCode: 503,
+          body: JSON.stringify({ ok: false, retryable: true, error: 'processing_unavailable' }),
+        };
+      }
+      handoff.dispatched.catch(() => {
+        console.error('[smart-import-parse-csv] Error calling normalize-transactions');
         // Don't fail parsing if normalization fails - it can be retried later
       });
     }
-    
+
     await markDocStatus(docId, 'ready', null);
 
     return { 
@@ -223,10 +249,10 @@ export const handler: Handler = async (event) => {
     };
     
   } catch (e: any) {
-    console.error('[Smart Import Parse CSV Error]', e);
-    return { 
-      statusCode: 500, 
-      body: JSON.stringify({ error: e.message }) 
+    console.error('[Smart Import Parse CSV Error]', e?.name || 'Error');
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'parse_failed' })
     };
   }
 };

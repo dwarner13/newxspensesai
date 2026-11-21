@@ -11,6 +11,8 @@
 import { Handler } from '@netlify/functions';
 import { createHash } from 'crypto';
 import { admin, markDocStatus } from './_shared/upload.js';
+import { authorizeJobRequest, claimedUserIdMatches, type OwnershipClient } from './_shared/internalJobAuth.js';
+import { dispatchNormalize } from './_shared/normalizeHandoff.js';
 // Phase 2.2: Use unified guardrails API (single source of truth)
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 import { maskPII as maskPiiFallback } from './_shared/pii.js';
@@ -2187,15 +2189,32 @@ export const handler: Handler = async (event, context) => {
     const includeCleanedTextDebug =
       process.env.NODE_ENV !== 'production' &&
       (process.env.OCR_DEBUG_INCLUDE_CLEANED_TEXT === '1' || body?.debugIncludeCleanedText === true);
-    const { userId, docId, threadId } = body;
+    // P0-C1b: internal-only. Requires an ocr.run job token issued by smart-import-finalize or
+    // prime-router after verifying the user's JWT and document ownership. Identity, document and
+    // retry permission come ONLY from the token (re-checked against the database here); body
+    // userId / docId / isRetry / explicitRecovery are never trusted. Denials do no work, no paid
+    // OCR/LLM calls and no writes (the background caller already received 202).
+    const jobAuth = await authorizeJobRequest(event, admin() as unknown as OwnershipClient, {
+      audience: 'smart-import-ocr-background',
+      scope: 'ocr.run',
+    });
+    if (!jobAuth.ok) {
+      console.warn('[smart-import-ocr] job authorization denied', { code: jobAuth.code, traceId });
+      return { statusCode: jobAuth.status, body: JSON.stringify({ ok: false, error: 'Unauthorized', traceId }) };
+    }
+    if ((body?.docId && String(body.docId) !== jobAuth.proof.documentId) || !claimedUserIdMatches(body?.userId, jobAuth.proof.userId)) {
+      console.warn('[smart-import-ocr] job authorization denied', { code: 'binding', traceId });
+      return { statusCode: 403, body: JSON.stringify({ ok: false, error: 'Forbidden', traceId }) };
+    }
+    const userId = jobAuth.proof.userId;
+    const docId = jobAuth.proof.documentId;
     const expectedSize = body.expectedSize ? Number(body.expectedSize) : undefined;
     const importRunId = body.importRunId || body.requestId;
     const caller = String(body?.caller || body?.source || 'unknown');
-    const isRetry = body?.isRetry === true || body?.retry === true;
-    const isExplicitRecovery =
-      body?.explicitRecovery === true ||
-      isRetry ||
-      String(importRunId || '').startsWith('stale-retry-');
+    // Forced reprocessing only when an explicit user retry (or router stale-lock recovery) was
+    // signed into the token.
+    const isRetry = jobAuth.proof.retryAllowed;
+    const isExplicitRecovery = isRetry;
     const logPrefix = `[OCR][${traceId}]`;
     const isOrphanInvocation = !importRunId;
 
@@ -2236,11 +2255,12 @@ export const handler: Handler = async (event, context) => {
 
     const sb = admin();
 
-    // Load document record
+    // Load document record (scoped to the token's verified owner)
     const { data: doc, error } = await sb
       .from('user_documents')
       .select('*')
       .eq('id', docId)
+      .eq('user_id', userId)
       .single();
     
     if (error || !doc) {
@@ -2284,11 +2304,8 @@ export const handler: Handler = async (event, context) => {
         }),
       };
     }
-    const docUserId = doc.user_id;
-    const effectiveUserId = docUserId || userId;
-    if (docUserId && userId && docUserId !== userId) {
-      console.warn('[OCR] user_id mismatch; using doc.user_id', { docId, docUserId, requestUserId: userId });
-    }
+    // Ownership was verified from the signed token; there is no fallback to doc.user_id.
+    const effectiveUserId = userId;
 
     const existingTextLength =
       Number(doc?.ocr_text_length) ||
@@ -3118,7 +3135,7 @@ export const handler: Handler = async (event, context) => {
             !rawStreamAccepted &&
             readableIslandsLen >= 320 &&
             hasTransactionLikeSignal(readableIslands);
-          console.log('[OCR RESCUE DEBUG] raw_rescue_preview', rawStreamText.slice(0, 300));
+          console.log('[OCR RESCUE DEBUG] raw_rescue_length', rawStreamText.length);
           console.log('[OCR RESCUE DEBUG] readability_score', rescueReadability.score);
           console.log('[OCR RESCUE DEBUG] accepted_rescue_text', rawStreamAccepted);
           if (compatRescueAccepted) {
@@ -3445,7 +3462,7 @@ export const handler: Handler = async (event, context) => {
       console.warn('[OCR] unusable_ocr_text_detected', {
         docId,
         provider: ocrProvider || null,
-        preview: String(ocrText || '').slice(0, 220),
+        textLength: String(ocrText || '').length,
         phase: 'pre_extracted_gate',
       });
       if (visionPromise) {
@@ -3657,7 +3674,7 @@ export const handler: Handler = async (event, context) => {
       console.warn('[OCR] unusable_ocr_text_detected', {
         docId,
         provider: ocrProvider || null,
-        preview: sanitizedText.slice(0, 220),
+        textLength: sanitizedText.length,
       });
       await finalizeTerminalOcrFailure(sb, {
         ocrJobId,
@@ -3944,7 +3961,6 @@ export const handler: Handler = async (event, context) => {
 
     // Byte Speed Mode v2: Return immediately, queue normalization in background
     // Fire normalization asynchronously - don't wait
-    const netlifyUrl = process.env.NETLIFY_URL || process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
     const OCR_DEBUG_ENABLED = process.env.OCR_DEBUG === '1' || process.env.OCR_DEBUG === 'true';
     if (OCR_DEBUG_ENABLED) {
       console.log('[smart-import-ocr] Queuing normalize-transactions', {
@@ -3992,72 +4008,37 @@ export const handler: Handler = async (event, context) => {
           importRunId: importRunId || null,
           textLength: textMetrics.length ?? 0,
         });
-        const rescuedPreview = String(rescuedTextForHandoff || '').slice(0, 300);
-        const transientPreview = String(sanitizedText || '').slice(0, 300);
-        console.log('[OCR HANDOFF DEBUG] rescued_text_preview', rescuedPreview);
-        console.log('[OCR HANDOFF DEBUG] transient_text_preview', transientPreview);
-        console.log('[OCR HANDOFF DEBUG] same_text:', rescuedTextForHandoff ? rescuedTextForHandoff === sanitizedText : false);
-        console.log('[OCR HANDOFF DEBUG] handoff_source', handoffSource);
-        await fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-trace-id': traceId,
-          },
-          body: JSON.stringify({
-            userId: effectiveUserId,
-            documentId: docId,
+        // Handoff metadata only — never log OCR text (statement contents).
+        console.log('[OCR HANDOFF] handoff', {
+          source: handoffSource,
+          usedRescuedText: Boolean(rescuedTextForHandoff) && rescuedTextForHandoff === sanitizedText,
+          textLength: textMetrics.length ?? 0,
+        });
+        // P0-C1b: normalize with a fresh normalize.run job token for this same user + document.
+        // Normalization only STAGES rows. This background job no longer approves or commits the
+        // import (that previously happened here via the service-role key): committing stays a
+        // user-authenticated step — smart-import-sync today, explicit user approval in C3.
+        const handoff = await dispatchNormalize(
+          sb as unknown as OwnershipClient,
+          jobAuth.principal,
+          docId,
+          {
             ocrText: sanitizedText,
             ocrTextHash: textMetrics.hash || null,
             ocrTextLength: textMetrics.length ?? 0,
-          }),
-        }).then(async () => {
-          console.log("[smart-import-ocr] normalize done, polling for staged rows...");
-          const sb = admin();
-          const { data: imp } = await sb.from("imports").select("id").eq("document_id", docId).eq("user_id", effectiveUserId).order("created_at", { ascending: false }).limit(1).maybeSingle();
-          if (!imp?.id) { console.warn("[smart-import-ocr] no import found for docId:", docId); return; }
-          // Poll for staging rows (normalize takes ~30s internally)
-          let stagedCount = 0;
-          for (let attempt = 0; attempt < 20; attempt++) {
-            await new Promise(r => setTimeout(r, 3000));
-            const { count } = await sb.from("transactions_staging").select("*", { count: "exact", head: true }).eq("import_id", imp.id);
-            stagedCount = count || 0;
-            console.log(`[smart-import-ocr] poll ${attempt + 1}/20: ${stagedCount} staged rows`);
-            if (stagedCount > 0) break;
-          }
-          if (stagedCount === 0) { console.warn("[smart-import-ocr] no staged rows after 60s, giving up"); return; }
-          console.log("[smart-import-ocr] found", stagedCount, "staged rows, committing import:", imp.id);
-          // Step 1: approve-import directly via DB (avoids JWT auth requirement)
-          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-          const now = new Date().toISOString();
-          const { error: approveError } = await sb
-            .from('imports')
-            .update({ approved_at: now, updated_at: now })
-            .eq('id', imp.id)
-            .eq('user_id', effectiveUserId)
-            .eq('status', 'parsed');
-          if (approveError) {
-            console.error("[smart-import-ocr] approve via DB failed:", approveError.message);
-          } else {
-            console.log("[smart-import-ocr] approve via DB succeeded for import:", imp.id);
-          }
-          // Step 2: commit-import
-          const commitUrl = `${netlifyUrl}/.netlify/functions/commit-import`;
+          },
+          { src: 'smart-import-ocr-background', traceId }
+        );
+        if (!handoff.ok) {
+          console.error('[smart-import-ocr] normalize handoff unavailable', { code: handoff.code, traceId });
+        } else {
           try {
-            const commitResp = await fetch(commitUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-user-id": effectiveUserId, "Authorization": `Bearer ${serviceKey}` },
-              body: JSON.stringify({ importId: imp.id, userId: effectiveUserId }),
-            });
-            if (!commitResp.ok) {
-              console.error("[smart-import-ocr] commit-import failed:", await commitResp.text());
-            } else {
-              console.log("[smart-import-ocr] commit-import succeeded for import:", imp.id);
-            }
-          } catch (commitErr: any) {
-            console.error("[smart-import-ocr] commit-import call threw:", commitErr?.message);
+            const res = await handoff.dispatched;
+            if (!res.ok) console.error('[smart-import-ocr] normalize-transactions returned', { status: res.status, traceId });
+          } catch {
+            console.error('[smart-import-ocr] normalize-transactions call failed', { traceId });
           }
-        });
+        }
       }
     }
     const cleanedTextForDebug = includeCleanedTextDebug ? sanitizedText : undefined;
@@ -4106,23 +4087,8 @@ export const handler: Handler = async (event, context) => {
       // Don't block response - logging failures are non-fatal
     });
 
-    // 🚫 Do NOT auto-send chat messages for upload status.
-    const AUTO_CHAT_ON_UPLOAD_COMPLETE = false;
-    if (AUTO_CHAT_ON_UPLOAD_COMPLETE) {
-      fetch(`${netlifyUrl}/.netlify/functions/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-        },
-        body: JSON.stringify({
-          message: `✅ OCR complete for "${doc.original_name}"!\n\nExtracted ${guardrailResult.text.length.toLocaleString()} characters. ${guardrailResult.signals?.pii ? '🔒 PII detected and redacted. ' : ''}Ready to review?`,
-          employeeSlug: 'byte-docs',
-          userId: userId,
-          threadId: threadId || null  // Use Prime's thread if available
-        })
-      }).catch(err => console.error('[OCR] Failed to announce to Byte:', err));
-    }
+    // 🚫 Do NOT auto-send chat messages for upload status. (The disabled auto-chat block that
+    // called chat with the service-role key as a Bearer token was removed in P0-C1b.)
 
     // Return immediately - Byte can chat while OCR processes
     ocrSucceeded = true;

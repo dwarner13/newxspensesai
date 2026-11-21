@@ -1,7 +1,16 @@
 import type { Handler } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
-import { verifyAuth } from "./_shared/verifyAuth.js";
+import {
+  authenticateUser,
+  isJobAuthConfigured,
+  issueJobToken,
+  jobTokenHeaders,
+  verifyOwnership,
+  type JobPrincipal,
+  type OwnershipClient,
+} from "./_shared/internalJobAuth.js";
+import { buildInternalFunctionUrl, getInternalBaseUrl, InternalBaseUrlError } from "./_shared/internalBaseUrl.js";
 
 /**
  * PRIME ROUTER (MVP) - orchestration endpoint
@@ -32,14 +41,15 @@ function json(statusCode: number, body: any) {
   };
 }
 
-function getBaseUrl(event: any) {
-  // Prefer Netlify env in deploy
-  const prod = process.env.URL || process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL;
-  if (prod) return prod.replace(/\/$/, "");
-
-  // Local dev fallback (npx netlify dev)
-  const port = process.env.NETLIFY_LOCAL_PORT || process.env.PORT || "8888";
-  return `http://localhost:${port}`;
+/**
+ * Same-deploy origin for downstream calls that forward the user's JWT (P0-C1b).
+ * Uses the shared fail-closed helper: DEPLOY_URL, then URL only in the production context,
+ * then localhost under Netlify Dev. Previously `URL` came first, which made deploy previews
+ * call the published deploy's functions (different code) with the user's token.
+ * Throws InternalBaseUrlError when unavailable; the handler maps that to a retryable 503.
+ */
+function getBaseUrl(_event: unknown) {
+  return getInternalBaseUrl();
 }
 
 function getInboundAuthorization(event: any): string | null {
@@ -453,14 +463,74 @@ function parseCountFromSummary(content: string, pattern: RegExp): number | null 
   return Number.isFinite(n) ? n : null;
 }
 
+/** True when background OCR jobs can be authorised and sent to this same deploy (fail closed). */
+function ocrDispatchReady(): boolean {
+  if (!isJobAuthConfigured()) return false;
+  try {
+    getInternalBaseUrl();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+type OcrJobResult =
+  | { ok: boolean; status: number; data: unknown }
+  | { unavailable: true; code: string };
+
+/**
+ * Start background OCR for a document the authenticated caller owns (P0-C1b).
+ * Re-checks ownership, then sends a document-scoped ocr.run job token — never the user's JWT —
+ * to this deploy's smart-import-ocr-background. Identity and retry travel only in the token.
+ */
+async function startOcrJob(
+  principal: JobPrincipal,
+  documentId: string,
+  body: Record<string, unknown>,
+  opts: { retry: boolean; timeoutMs?: number }
+): Promise<OcrJobResult> {
+  const owned = await verifyOwnership(getSupabaseAdmin() as unknown as OwnershipClient, principal, { documentId });
+  if (!owned.ok) return { unavailable: true, code: owned.code };
+  let url: string;
+  let token: string;
+  try {
+    token = issueJobToken(owned.proof, { scope: "ocr.run", src: "prime-router", retry: opts.retry });
+    url = buildInternalFunctionUrl("smart-import-ocr-background");
+  } catch {
+    return { unavailable: true, code: "not_configured" };
+  }
+  const controller = opts.timeoutMs ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), opts.timeoutMs) : null;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...jobTokenHeaders(token) },
+      body: JSON.stringify({ ...body, docId: documentId }),
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+    const text = await res.text();
+    let data: unknown = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    return { ok: res.ok, status: res.status, data };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export const handler: Handler = async (event) => {
   try {
     // Identity comes only from the verified Supabase JWT. A submitted userId (multipart
     // field or JSON body) is never proof of identity. callFn forwards this same
-    // Authorization header to downstream functions.
-    const auth = await verifyAuth(event);
-    if (!auth.userId) return json(401, { ok: false, error: "Unauthorized" });
-    const authUserId = auth.userId;
+    // Authorization header to user-facing downstream functions; background OCR gets a
+    // document-scoped job token instead (startOcrJob).
+    const authn = await authenticateUser(event);
+    if (!authn.ok) return json(401, { ok: false, error: "Unauthorized" });
+    const principal = authn.principal;
+    const authUserId = principal.userId;
 
     const method = event.httpMethod || "GET";
 
@@ -524,6 +594,13 @@ export const handler: Handler = async (event) => {
           error: "Missing filename in multipart payload",
           details: { hasFileName: false },
         });
+      }
+
+      // Fail closed BEFORE creating records if background OCR cannot be authorised or cannot
+      // reach this same deploy (e.g. signing secret or DEPLOY_URL missing in a deploy preview).
+      if (!ocrDispatchReady()) {
+        console.warn("[prime-router] stage=ocr_dispatch_unavailable");
+        return json(503, { ok: false, step: "ocr-dispatch", retryable: true, error: "processing_unavailable" });
       }
 
       // 1) init (keep minimal to avoid breaking existing contract)
@@ -601,23 +678,31 @@ export const handler: Handler = async (event) => {
       // 3) OCR kickoff (idempotent inside pipeline)
       let ocrRes: { ok: boolean; status: number; data: any };
       try {
-        ocrRes = await callFn(event, "smart-import-ocr-background", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            userId,
-            docId: documentId,
+        const started = await startOcrJob(
+          principal,
+          String(documentId),
+          {
             importRunId: requestId || `upload-${documentId}-${Date.now()}`,
             importId: importId || undefined,
             traceId,
             source: 'prime-router',
             caller: 'prime-router:upload',
-            isRetry: false,
-            explicitRecovery: false,
-          }),
+          },
           // Keep upload path responsive; OCR continues through status polling.
-          timeoutMs: 6000,
-        });
+          { retry: false, timeoutMs: 6000 }
+        );
+        if ("unavailable" in started) {
+          console.warn("[prime-router] stage=ocr_dispatch_unavailable", { code: started.code });
+          return json(503, {
+            ok: false,
+            step: "ocr-dispatch",
+            retryable: true,
+            importId,
+            documentId,
+            error: "processing_unavailable",
+          });
+        }
+        ocrRes = started;
       } catch (e: any) {
         const timedOut = String(e?.name || "").toLowerCase() === "aborterror";
         ocrRes = {
@@ -797,19 +882,22 @@ export const handler: Handler = async (event) => {
           importId,
           documentId: ctx.documentId,
         });
-        const retryRes = await callFn(event, "smart-import-ocr-background", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            userId: ctx.userId,
-            docId: ctx.documentId,
+        // Server-determined recovery for the verified owner's own document: retry is signed into
+        // the job token (the receiver ignores body retry flags).
+        const started = await startOcrJob(
+          principal,
+          String(ctx.documentId),
+          {
             importRunId: `stale-retry-${importId}-${Date.now()}`,
             source: 'prime-router',
             caller: 'prime-router:stale-lock-retry',
-            isRetry: true,
-            explicitRecovery: true,
-          }),
-        });
+          },
+          { retry: true }
+        );
+        const retryRes =
+          "unavailable" in started
+            ? { ok: false, data: { error: "processing_unavailable", code: started.code } }
+            : started;
         return json(200, {
           ok: true,
           mode: "status",
@@ -1186,6 +1274,12 @@ export const handler: Handler = async (event) => {
 
     return json(400, { ok: false, error: "Unknown mode" });
   } catch (e: any) {
+    if (e instanceof InternalBaseUrlError) {
+      // Same-deploy URL unavailable (e.g. DEPLOY_URL missing in a deploy preview): fail closed,
+      // clearly and retryably, instead of calling a different deploy.
+      console.warn("[prime-router] stage=internal_base_url_unavailable");
+      return json(503, { ok: false, retryable: true, error: "processing_unavailable" });
+    }
     // Never echo raw error text to the client; it can carry DB/query details.
     console.error("[prime-router] unhandled error", e?.name || "Error");
     return json(500, { ok: false, error: "prime-router failed" });

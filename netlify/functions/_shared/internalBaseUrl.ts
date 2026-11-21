@@ -7,11 +7,14 @@
  *
  * Precedence:
  *   1. DEPLOY_URL — this exact deploy, so callers and receivers run the same code version and
- *      deploy previews do not call production functions.
- *   2. URL        — the site's main URL.
+ *      deploy previews do not call the published deploy.
+ *   2. URL        — the site's main URL, ONLY when CONTEXT === 'production'. In deploy-preview,
+ *      branch-deploy, or an unknown/missing context there is no fallback: a missing DEPLOY_URL
+ *      fails closed rather than sending work (and credentials) to a different deploy.
  *   3. Netlify Dev only (NETLIFY_DEV=true): http://localhost:<NETLIFY_LOCAL_PORT|PORT|8888>.
  * Anything else fails closed (throws). NETLIFY_URL is intentionally not consulted: it is not a
- * Netlify-provided variable and its production value is unverified.
+ * Netlify-provided variable (on xspensesai-staging it is a manual value pointing at the
+ * published deploy, which is wrong for deploy previews).
  *
  * Accepted values: https origins with no credentials, path, query or fragment; plain http only
  * for localhost / 127.0.0.1 under Netlify Dev.
@@ -51,9 +54,11 @@ function normalizeOrigin(raw: string | undefined, allowLocalHttp: boolean): stri
 
 export function getInternalBaseUrl(env: Env = process.env): string {
   const isNetlifyDev = env.NETLIFY_DEV === 'true';
-  for (const candidate of [env.DEPLOY_URL, env.URL]) {
-    const origin = normalizeOrigin(candidate, isNetlifyDev);
-    if (origin) return origin;
+  const deployOrigin = normalizeOrigin(env.DEPLOY_URL, isNetlifyDev);
+  if (deployOrigin) return deployOrigin;
+  if (String(env.CONTEXT || '').toLowerCase() === 'production') {
+    const siteOrigin = normalizeOrigin(env.URL, isNetlifyDev);
+    if (siteOrigin) return siteOrigin;
   }
   if (isNetlifyDev) {
     const port = String(env.NETLIFY_LOCAL_PORT || env.PORT || '8888').trim();

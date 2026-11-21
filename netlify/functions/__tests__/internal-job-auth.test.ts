@@ -456,6 +456,42 @@ describe('delegation from a job token cannot widen access', () => {
   });
 });
 
+// ── user-JWT or job-token receivers (normalize-transactions) ─────────────────
+
+describe('authorizeUserOrJobRequest', () => {
+  const { authorizeUserOrJobRequest } = lib;
+  const exp = (requestedDocumentId?: unknown) => ({ ...NORMALIZE, requestedDocumentId });
+
+  it('valid job token → proof from the token; a different requested document → 403 binding', async () => {
+    const token = issueJobToken(await userProof(), { scope: 'normalize.run', src: 'x', env: ENV, now: NOW });
+    expect(await authorizeUserOrJobRequest({ headers: { [JOB_TOKEN_HEADER]: token } }, sb, exp(undefined)))
+      .toMatchObject({ ok: true, via: 'job_token', proof: { userId: USER_A, documentId: DOC_A } });
+    expect(await authorizeUserOrJobRequest({ headers: { [JOB_TOKEN_HEADER]: token } }, sb, exp(DOC_A2)))
+      .toMatchObject({ ok: false, status: 403, code: 'binding' });
+  });
+
+  it('an invalid job token is rejected even when a valid JWT is also present (no silent fallback)', async () => {
+    const r = await authorizeUserOrJobRequest(
+      { headers: { [JOB_TOKEN_HEADER]: 'v1.bad.token', authorization: `Bearer ${TOKEN_A}` } },
+      sb,
+      exp(DOC_A)
+    );
+    expect(r).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it('user JWT + owned document → proof; + another user\'s document → 403; no document → 401', async () => {
+    const h = { headers: { authorization: `Bearer ${TOKEN_A}` } };
+    expect(await authorizeUserOrJobRequest(h, sb, exp(DOC_A))).toMatchObject({ ok: true, via: 'user_jwt', proof: { userId: USER_A } });
+    expect(await authorizeUserOrJobRequest(h, sb, exp(DOC_B))).toMatchObject({ ok: false, status: 403 });
+    expect(await authorizeUserOrJobRequest(h, sb, exp(undefined))).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it('no credentials → 401 with no database lookups', async () => {
+    expect(await authorizeUserOrJobRequest({ headers: {} }, sb, exp(DOC_A))).toMatchObject({ ok: false, status: 401 });
+    expect(lookups).toHaveLength(0);
+  });
+});
+
 // ── logging hygiene ──────────────────────────────────────────────────────────
 
 describe('logging', () => {
@@ -480,10 +516,27 @@ describe('logging', () => {
 describe('getInternalBaseUrl / buildInternalFunctionUrl', () => {
   const { getInternalBaseUrl, buildInternalFunctionUrl, InternalBaseUrlError } = urls;
 
-  it('prefers DEPLOY_URL, then URL; normalises to an origin', () => {
+  it('prefers DEPLOY_URL; falls back to URL only in the production context; normalises to an origin', () => {
     expect(getInternalBaseUrl({ DEPLOY_URL: 'https://abc--site.netlify.app/', URL: 'https://site.example' }))
       .toBe('https://abc--site.netlify.app');
-    expect(getInternalBaseUrl({ URL: 'https://site.example' })).toBe('https://site.example');
+    expect(getInternalBaseUrl({ CONTEXT: 'production', URL: 'https://site.example' })).toBe('https://site.example');
+  });
+
+  it.each([
+    ['deploy-preview', { CONTEXT: 'deploy-preview', URL: 'https://site.example' }],
+    ['branch-deploy', { CONTEXT: 'branch-deploy', URL: 'https://site.example' }],
+    ['unknown / missing context', { URL: 'https://site.example' }],
+  ])('%s without DEPLOY_URL never falls back to the main URL (fails closed)', (_l, env) => {
+    expect(() => getInternalBaseUrl(env)).toThrow(InternalBaseUrlError);
+  });
+
+  it('a deploy preview with DEPLOY_URL targets that deploy, not the published site', () => {
+    expect(getInternalBaseUrl({
+      CONTEXT: 'deploy-preview',
+      DEPLOY_URL: 'https://deploy-preview-7--xspensesai-staging.netlify.app',
+      URL: 'https://xspensesai-staging.netlify.app',
+      NETLIFY_URL: 'https://xspensesai-staging.netlify.app',
+    })).toBe('https://deploy-preview-7--xspensesai-staging.netlify.app');
   });
 
   it('ignores NETLIFY_URL and never reads request data', () => {
@@ -500,22 +553,24 @@ describe('getInternalBaseUrl / buildInternalFunctionUrl', () => {
   });
 
   it.each([
-    ['plain http outside dev', { URL: 'http://site.example' }],
-    ['http localhost outside dev', { URL: 'http://localhost:8888' }],
-    ['credentials in URL', { URL: 'https://user:pass@site.example' }],
-    ['path', { URL: 'https://site.example/evil' }],
-    ['query', { URL: 'https://site.example?x=1' }],
-    ['not a URL', { URL: 'site.example' }],
-    ['javascript scheme', { URL: 'javascript:alert(1)' }],
+    ['plain http outside dev', { CONTEXT: 'production', URL: 'http://site.example' }],
+    ['http localhost outside dev', { CONTEXT: 'production', URL: 'http://localhost:8888' }],
+    ['credentials in URL', { CONTEXT: 'production', URL: 'https://user:pass@site.example' }],
+    ['path', { CONTEXT: 'production', URL: 'https://site.example/evil' }],
+    ['query', { CONTEXT: 'production', URL: 'https://site.example?x=1' }],
+    ['not a URL', { CONTEXT: 'production', URL: 'site.example' }],
+    ['javascript scheme', { CONTEXT: 'production', URL: 'javascript:alert(1)' }],
+    ['bad DEPLOY_URL', { DEPLOY_URL: 'http://deploy.example' }],
   ])('rejects %s', (_l, env) => {
     expect(() => getInternalBaseUrl(env)).toThrow(InternalBaseUrlError);
   });
 
   it('builds function URLs only for valid function names', () => {
-    expect(buildInternalFunctionUrl('normalize-transactions', { URL: 'https://site.example' }))
+    const env = { DEPLOY_URL: 'https://site.example' };
+    expect(buildInternalFunctionUrl('normalize-transactions', env))
       .toBe('https://site.example/.netlify/functions/normalize-transactions');
     for (const bad of ['../chat', 'Normalize', 'a/b', '', 'x?y=1']) {
-      expect(() => buildInternalFunctionUrl(bad, { URL: 'https://site.example' })).toThrow();
+      expect(() => buildInternalFunctionUrl(bad, env)).toThrow();
     }
   });
 });

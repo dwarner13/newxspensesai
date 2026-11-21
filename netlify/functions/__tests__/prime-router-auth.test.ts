@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose rows for an in-memory Supabase stand-in
 type Row = Record<string, any>;
 type DbCall = { table: string; op: string; filters: Array<[string, unknown]> };
-type FnCall = { fn: string; method: string; headers: Record<string, string>; body: Row | null };
+type FnCall = { fn: string; url: string; method: string; headers: Record<string, string>; body: Row | null };
 
 const OWNER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_ID = '22222222-2222-4222-8222-222222222222';
@@ -27,6 +27,8 @@ const OWNER_DOC = 'dddddddd-0000-4000-8000-000000000001';
 const NEW_IMPORT = 'cccccccc-0000-4000-8000-000000000001';
 const NEW_DOC = 'eeeeeeee-0000-4000-8000-000000000001';
 const SECRET_FILE = 'Jane-Doe-RBC-Visa-Statement.pdf';
+const SIGNING_SECRET = 'test-signing-secret-0123456789abcdef-router';
+const DEPLOY_ORIGIN = 'https://deploy-abc--app.test';
 
 const tokens: Record<string, string> = { [OWNER_TOKEN]: OWNER_ID, [OTHER_TOKEN]: OTHER_ID };
 let db: Record<string, Row[]> = {};
@@ -49,7 +51,11 @@ function seed() {
       { id: 'st-1', import_id: OWNER_IMPORT, tag_status: 'categorized' },
       { id: 'st-2', import_id: OTHER_IMPORT, tag_status: 'categorized' },
     ],
-    user_documents: [{ id: OWNER_DOC, user_id: OWNER_ID, original_name: SECRET_FILE, ocr_status: 'ready' }],
+    user_documents: [
+      { id: OWNER_DOC, user_id: OWNER_ID, original_name: SECRET_FILE, ocr_status: 'ready' },
+      // Row smart-import-init (stubbed) would create for the owner's new upload.
+      { id: NEW_DOC, user_id: OWNER_ID, original_name: SECRET_FILE, ocr_status: 'queued' },
+    ],
   };
 }
 
@@ -127,7 +133,7 @@ const fakeFetch = vi.fn(async (url: string, init: RequestInit = {}) => {
   if (typeof init.body === 'string') {
     try { body = JSON.parse(init.body); } catch { body = null; }
   }
-  fnCalls.push({ fn, method: String(init.method || 'GET'), headers, body });
+  fnCalls.push({ fn, url: String(url), method: String(init.method || 'GET'), headers, body });
   switch (fn) {
     case 'smart-import-init':
       return respond({ importId: NEW_IMPORT, documentId: NEW_DOC, uploadUrl: 'https://storage.test/signed-put' });
@@ -153,6 +159,8 @@ const fakeFetch = vi.fn(async (url: string, init: RequestInit = {}) => {
 });
 
 const { handler } = await import('../prime-router');
+const { verifyJobToken, JOB_TOKEN_HEADER } = await import('../_shared/internalJobAuth');
+const OCR_JOB = { audience: 'smart-import-ocr-background' as const, scope: 'ocr.run' as const };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Netlify response shape
 async function call(event: Row): Promise<{ statusCode: number; body: string; json: any }> {
@@ -204,6 +212,9 @@ beforeEach(() => {
   process.env.URL = 'https://app.test';
   process.env.SUPABASE_URL = 'https://supabase.test';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role';
+  process.env.INTERNAL_JOB_SIGNING_SECRET = SIGNING_SECRET;
+  process.env.DEPLOY_URL = DEPLOY_ORIGIN;
+  delete process.env.CONTEXT;
   fakeFetch.mockClear();
   vi.stubGlobal('fetch', fakeFetch);
   logSpies = (['log', 'warn', 'error', 'info'] as const).map((m) =>
@@ -214,6 +225,9 @@ beforeEach(() => {
 afterEach(() => {
   logSpies.forEach((s) => s.mockRestore());
   vi.unstubAllGlobals();
+  delete process.env.INTERNAL_JOB_SIGNING_SECRET;
+  delete process.env.DEPLOY_URL;
+  delete process.env.CONTEXT;
 });
 
 describe('prime-router — authentication (all modes)', () => {
@@ -249,17 +263,40 @@ describe('prime-router — authentication (all modes)', () => {
 });
 
 describe('prime-router — upload', () => {
-  it('authorized upload uses the token identity and forwards the token downstream', async () => {
+  it('authorized upload: init gets the user JWT; background OCR gets a document-scoped job token at this deploy', async () => {
     const res = await call(uploadEvent({ token: OWNER_TOKEN, userId: OWNER_ID }));
     expect(res.statusCode).toBe(200);
     expect(res.json).toMatchObject({ ok: true, mode: 'upload', importId: NEW_IMPORT, documentId: NEW_DOC });
     const init = fnCalls.find((c) => c.fn === 'smart-import-init')!;
     expect(init.body?.userId).toBe(OWNER_ID);
     expect(init.headers.authorization).toBe(`Bearer ${OWNER_TOKEN}`);
+    expect(init.url).toBe(`${DEPLOY_ORIGIN}/.netlify/functions/smart-import-init`);
     const ocr = fnCalls.find((c) => c.fn === 'smart-import-ocr-background')!;
-    expect(ocr.body?.userId).toBe(OWNER_ID);
-    expect(ocr.headers.authorization).toBe(`Bearer ${OWNER_TOKEN}`);
+    expect(ocr.url).toBe(`${DEPLOY_ORIGIN}/.netlify/functions/smart-import-ocr-background`);
+    expect(ocr.headers.authorization).toBeUndefined();
+    expect(ocr.body).not.toHaveProperty('userId');
+    expect(ocr.body).not.toHaveProperty('isRetry');
+    expect(ocr.body).not.toHaveProperty('explicitRecovery');
+    const v = verifyJobToken(ocr.headers[JOB_TOKEN_HEADER], OCR_JOB);
+    expect(v).toMatchObject({ ok: true, claims: { sub: OWNER_ID, doc: NEW_DOC, scope: 'ocr.run', retry: false, src: 'prime-router' } });
     expect(fnNames()).toContain('external:https://storage.test/signed-put');
+  });
+
+  it('job signing not configured → 503 retryable before any record is created', async () => {
+    delete process.env.INTERNAL_JOB_SIGNING_SECRET;
+    const res = await call(uploadEvent({ token: OWNER_TOKEN }));
+    expect(res.statusCode).toBe(503);
+    expect(res.json).toMatchObject({ ok: false, retryable: true, error: 'processing_unavailable' });
+    expect(fnCalls).toHaveLength(0);
+  });
+
+  it('deploy preview without DEPLOY_URL → 503; never falls back to the published site URL', async () => {
+    delete process.env.DEPLOY_URL;
+    process.env.CONTEXT = 'deploy-preview';
+    const res = await call(uploadEvent({ token: OWNER_TOKEN }));
+    expect(res.statusCode).toBe(503);
+    expect(fnCalls).toHaveLength(0);
+    expect(fnCalls.some((c) => c.url.startsWith('https://app.test'))).toBe(false);
   });
 
   it('a multipart userId that differs from the token → 403, nothing initialised or uploaded', async () => {
@@ -448,6 +485,62 @@ describe('prime-router — status reliability (R0 traceId scope)', () => {
     ocrStatusOverride = { ok: true, status: 'error', items: [{ status: 'error', error_code: 'malformed_pdf' }] };
     await statusCall();
     expect(loggedText()).toContain('run-123');
+  });
+});
+
+describe('prime-router — same-deploy downstream calls (C1b)', () => {
+  it('status polling forwards the user JWT only to this deploy (DEPLOY_URL), not the published site URL', async () => {
+    process.env.URL = 'https://published.example';
+    await call(jsonEvent({ mode: 'status', importId: OWNER_IMPORT, autoCommit: true }, OWNER_TOKEN));
+    const st = fnCalls.find((c) => c.fn === 'ocr-job-status')!;
+    expect(st.url).toBe(`${DEPLOY_ORIGIN}/.netlify/functions/ocr-job-status`);
+    expect(fnCalls.some((c) => c.url.startsWith('https://published.example'))).toBe(false);
+  });
+
+  it('deploy preview without DEPLOY_URL → status returns 503 retryable and calls nothing', async () => {
+    delete process.env.DEPLOY_URL;
+    process.env.CONTEXT = 'deploy-preview';
+    process.env.URL = 'https://published.example';
+    const res = await call(jsonEvent({ mode: 'status', importId: OWNER_IMPORT, autoCommit: true }, OWNER_TOKEN));
+    expect(res.statusCode).toBe(503);
+    expect(res.json).toEqual({ ok: false, retryable: true, error: 'processing_unavailable' });
+    expect(fnCalls).toHaveLength(0);
+  });
+
+  it('summary in a deploy preview without DEPLOY_URL → 503 and its processing lock is released', async () => {
+    delete process.env.DEPLOY_URL;
+    process.env.CONTEXT = 'deploy-preview';
+    db.transactions_staging[0].tag_status = null;
+    const res = await call(jsonEvent({ mode: 'summary', importId: OWNER_IMPORT }, OWNER_TOKEN));
+    expect(res.statusCode).toBe(503);
+    expect(fnCalls).toHaveLength(0);
+    expect(db.imports.find((r) => r.id === OWNER_IMPORT)?.metadata?.processing_lock).toBeUndefined();
+  });
+});
+
+describe('prime-router — stale-lock OCR recovery (C1b)', () => {
+  beforeEach(() => {
+    db.user_documents.find((d) => d.id === OWNER_DOC)!.ocr_status = 'processing';
+    ocrStatusOverride = { ok: true, status: 'running', items: [{ status: 'recovering_stale_lock' }] };
+  });
+
+  it("re-kicks OCR for the owner's document with a retry-signed job token, never the user JWT", async () => {
+    const res = await call(jsonEvent({ mode: 'status', importId: OWNER_IMPORT, autoCommit: true }, OWNER_TOKEN));
+    expect(res.statusCode).toBe(200);
+    expect(res.json.details.recoveryKickoff).toBe('triggered');
+    const ocr = fnCalls.find((c) => c.fn === 'smart-import-ocr-background')!;
+    expect(ocr.url).toBe(`${DEPLOY_ORIGIN}/.netlify/functions/smart-import-ocr-background`);
+    expect(ocr.headers.authorization).toBeUndefined();
+    expect(ocr.body).not.toHaveProperty('isRetry');
+    expect(verifyJobToken(ocr.headers[JOB_TOKEN_HEADER], OCR_JOB))
+      .toMatchObject({ ok: true, claims: { sub: OWNER_ID, doc: OWNER_DOC, retry: true } });
+  });
+
+  it('job signing unavailable → recovery reported as failed and nothing is sent', async () => {
+    delete process.env.INTERNAL_JOB_SIGNING_SECRET;
+    const res = await call(jsonEvent({ mode: 'status', importId: OWNER_IMPORT, autoCommit: true }, OWNER_TOKEN));
+    expect(res.json.details.recoveryKickoff).toBe('failed');
+    expect(fnNames()).not.toContain('smart-import-ocr-background');
   });
 });
 

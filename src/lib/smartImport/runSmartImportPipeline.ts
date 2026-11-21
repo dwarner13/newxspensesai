@@ -653,9 +653,10 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
   }
   input.onProgress?.(70);
 
+  // smart-import-finalize verifies the user's JWT and document ownership (P0-C1b).
   const finalizeRes = await fetch('/.netlify/functions/smart-import-finalize', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders(input) },
     body: JSON.stringify({
       userId: input.userId,
       docId,
@@ -849,7 +850,10 @@ export function runSmartImportPipeline(rawInput: SmartImportPipelineInput): Prom
           msg.includes('ocr_unusable') ||
           msg.includes('ocr_failed_retry') ||
           msg.includes('ocr_timed_out_retry') ||
-          msg.includes('upload rejected');
+          msg.includes('upload rejected') ||
+          // Background job auth / same-deploy dispatch unavailable (P0-C1b): the legacy path
+          // depends on the same configuration, so falling back would fail the same way.
+          msg.includes('processing_unavailable');
         if (terminalRouterFailure) {
           throw routerErr;
         }

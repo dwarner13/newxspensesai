@@ -43,7 +43,10 @@ const fakeFetch = vi.fn(async (url: string, init: RequestInit = {}) => {
       if (code !== 200) return respond({ ok: false, error: 'x' }, code);
       return respond({ ok: true, mode: 'status', status: 'complete', sync: { transactionCount: 4 } });
     }
-    if (uploadStatus !== 200) return respond({ ok: false, error: 'Unauthorized' }, uploadStatus);
+    if (uploadStatus !== 200) {
+      const error = uploadStatus === 503 ? 'processing_unavailable' : 'Unauthorized';
+      return respond({ ok: false, error }, uploadStatus);
+    }
     return respond({ ok: true, mode: 'upload', importId: 'imp-1', documentId: 'doc-1' });
   }
   // Legacy path: fail fast so the test ends once we know it was entered.
@@ -97,6 +100,13 @@ describe('upload: router access failures do not fall back to the legacy path', (
     uploadStatus = 401;
     const err = await runSmartImportPipeline(input(`msg-${seq}`)).catch((e) => e);
     expect(String(err.message)).toMatch(/sign in again/i);
+  });
+
+  it('router upload 503 processing_unavailable (C1b job dispatch unavailable) → stops, no legacy fallback', async () => {
+    uploadStatus = 503;
+    const err = await runSmartImportPipeline(input(`up-503-${seq}`)).catch((e) => e);
+    expect(String(err?.message)).toMatch(/processing_unavailable/);
+    expect(fnNames()).toEqual(['prime-router']);
   });
 
   it('router upload 500 still falls back to the legacy path (unchanged)', async () => {

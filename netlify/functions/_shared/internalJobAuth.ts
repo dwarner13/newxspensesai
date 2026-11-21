@@ -443,6 +443,45 @@ export async function authorizeJobRequest(
   return { ok: true, principal: authn.principal, claims: authn.claims, proof: owned.proof };
 }
 
+function hasHeader(event: { headers?: Record<string, string | undefined> }, name: string): boolean {
+  return Object.entries(event.headers || {}).some(([k, v]) => k.toLowerCase() === name && Boolean(v));
+}
+
+/**
+ * For receivers reachable both from internal jobs and from a synchronous user-authenticated
+ * caller that forwards the user's JWT (normalize-transactions ← smart-import-sync).
+ *
+ * - If a job token is present it MUST be valid (no silent fallback to the JWT); the request's
+ *   documentId, if given, must equal the token's bound document.
+ * - Otherwise the Supabase JWT must be valid and the user must own `requestedDocumentId`.
+ * - Neither → 401. A conflicting body userId is the caller's job to reject via
+ *   `claimedUserIdMatches(body.userId, proof.userId)`.
+ */
+export async function authorizeUserOrJobRequest(
+  event: { headers?: Record<string, string | undefined> },
+  sb: OwnershipClient,
+  expected: { audience: JobAudience; scope: JobScope; requestedDocumentId?: unknown; env?: Env; now?: number }
+): Promise<{ ok: true; proof: OwnershipProof; via: 'job_token' | 'user_jwt' } | JobAuthFailure> {
+  const requested =
+    expected.requestedDocumentId === undefined || expected.requestedDocumentId === null || expected.requestedDocumentId === ''
+      ? undefined
+      : String(expected.requestedDocumentId);
+
+  if (hasHeader(event, JOB_TOKEN_HEADER)) {
+    const job = await authorizeJobRequest(event, sb, expected);
+    if (!job.ok) return job;
+    if (requested !== undefined && requested !== job.proof.documentId) return deny(403, 'binding', expected.audience);
+    return { ok: true, proof: job.proof, via: 'job_token' };
+  }
+
+  if (requested === undefined) return deny(401, 'unauthenticated', expected.audience);
+  const user = await authenticateUser(event);
+  if (!user.ok) return user;
+  const owned = await verifyOwnership(sb, user.principal, { documentId: requested });
+  if (!owned.ok) return owned;
+  return { ok: true, proof: owned.proof, via: 'user_jwt' };
+}
+
 /**
  * Reject a client-supplied identity that disagrees with the verified one. Returns true when the
  * claimed value is absent or matches. Never use the claimed value as identity.

@@ -2,8 +2,40 @@ import { Handler } from '@netlify/functions';
 import { admin, markDocStatus } from './_shared/upload.js';
 // Phase 2.2: Use unified guardrails API (single source of truth)
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
+import {
+  authenticateUser,
+  claimedUserIdMatches,
+  issueJobToken,
+  jobTokenHeaders,
+  verifyOwnership,
+  type OwnershipClient,
+  type OwnershipProof,
+} from './_shared/internalJobAuth.js';
+import { buildInternalFunctionUrl } from './_shared/internalBaseUrl.js';
 
 const BUCKET = 'docs';
+
+const json = (statusCode: number, body: unknown) => ({ statusCode, body: JSON.stringify(body) });
+
+/** Retryable "try again shortly" response used when a job cannot be authorised/dispatched. */
+const processingUnavailable = () =>
+  json(503, { ok: false, retryable: true, error: 'processing_unavailable', message: 'Processing is temporarily unavailable. Please retry.' });
+
+/** Issue a job token and resolve this deploy's URL for `fn`, or null (fail closed). */
+function prepareJob(
+  proof: OwnershipProof,
+  scope: 'ocr.run' | 'csv.parse',
+  fn: 'smart-import-ocr-background' | 'smart-import-parse-csv',
+  retry: boolean
+): { url: string; token: string } | null {
+  try {
+    const token = issueJobToken(proof, { scope, src: 'smart-import-finalize', retry });
+    return { url: buildInternalFunctionUrl(fn), token };
+  } catch {
+    console.warn('[smart-import-finalize] job dispatch unavailable', { code: 'not_configured', scope });
+    return null;
+  }
+}
 
 function isImageOrPdf(mime: string) {
   return /^image\//.test(mime) || mime === 'application/pdf';
@@ -22,15 +54,29 @@ export const handler: Handler = async (event, context) => {
   
     try {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+
+    // Identity comes only from the verified Supabase JWT; a body userId is never proof of identity.
+    const authn = await authenticateUser(event);
+    if (!authn.ok) return json(401, { ok: false, error: 'Unauthorized' });
+    const userId = authn.principal.userId;
+
     const body = JSON.parse(event.body || '{}');
-    const { userId, docId, expectedSize, retry } = body;
+    const { docId, expectedSize, retry } = body;
+    if (!claimedUserIdMatches(body.userId, userId)) return json(403, { ok: false, error: 'Forbidden' });
     const traceIdHeader = event.headers?.['x-trace-id'] || event.headers?.['X-Trace-Id'] || null;
-    if (!userId || !docId) return { statusCode: 400, body: 'Missing userId/docId' };
+    if (!docId) return { statusCode: 400, body: 'Missing docId' };
 
     const sb = admin();
 
-    const { data: doc, error } = await sb.from('user_documents').select('*').eq('id', docId).single();
+    // Ownership gate before any storage access, status change or job dispatch.
+    const owned = await verifyOwnership(sb as unknown as OwnershipClient, authn.principal, { documentId: String(docId) });
+    if (!owned.ok) {
+      return owned.status === 500 ? processingUnavailable() : json(403, { ok: false, error: 'Forbidden' });
+    }
+
+    const { data: doc, error } = await sb.from('user_documents').select('*').eq('id', docId).eq('user_id', userId).single();
     if (error || !doc) return { statusCode: 404, body: 'doc not found' };
+    // retry comes from this user-authenticated request (an explicit user action), never from a job.
     const explicitRetry = retry === true;
 
     // ⚡ UPLOAD COMPLETENESS CONTRACT: Verify file exists and size matches before processing
@@ -101,8 +147,6 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
-
     // Route 1: Images/PDFs -> OCR (guardrails run in OCR function)
     if (isImageOrPdf(doc.mime_type)) {
       const docStatus = String(doc?.status || '').toLowerCase();
@@ -130,24 +174,27 @@ export const handler: Handler = async (event, context) => {
           }),
         };
       }
+      // Authorise the background OCR job BEFORE changing state, so a dispatch failure leaves the
+      // document untouched and the caller gets a clear retryable error.
+      const job = prepareJob(owned.proof, 'ocr.run', 'smart-import-ocr-background', explicitRetry);
+      if (!job) return processingUnavailable();
       // Mark processing immediately to avoid stale "ready" reuse while OCR is being retriggered.
       await markDocStatus(docId, 'ocr_processing', 'ocr_retriggered');
-      // Trigger OCR processing after successful upload
-      fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr-background`, {
+      // Trigger OCR processing after successful upload. Identity, document and retry travel only
+      // in the signed job token; the body carries no userId or retry flags.
+      fetch(job.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...jobTokenHeaders(job.token),
           ...(traceIdHeader ? { 'x-trace-id': String(traceIdHeader) } : {}),
         },
         body: JSON.stringify({
           docId: docId,
-          userId: userId,
           importRunId: explicitRetry ? `retry-${docId}-${Date.now()}` : `finalize-${docId}-${Date.now()}`,
           traceId: traceIdHeader ? String(traceIdHeader) : `finalize-trace-${Date.now()}`,
           source: 'smart-import-finalize',
           caller: 'smart-import-finalize',
-          isRetry: explicitRetry,
-          explicitRecovery: explicitRetry,
         })
       }).catch(err => {
         console.error('[smart-import-finalize] Failed to trigger OCR:', err);
@@ -170,13 +217,14 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Byte Speed Mode v2: Return immediately, process in background
-      const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
-      
+      const job = prepareJob(owned.proof, 'csv.parse', 'smart-import-parse-csv', false);
+      if (!job) return processingUnavailable();
+
       // Fire and forget - don't wait for parsing to complete
-      fetch(`${netlifyUrl}/.netlify/functions/smart-import-parse-csv`, {
+      fetch(job.url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, docId, csvText: result.text }),
+        headers: { 'Content-Type': 'application/json', ...jobTokenHeaders(job.token) },
+        body: JSON.stringify({ docId, csvText: result.text }),
       }).catch((error) => {
         console.error('[smart-import-finalize] Background Parse CSV call error:', error);
       });
@@ -199,6 +247,7 @@ export const handler: Handler = async (event, context) => {
       }),
     };
   } catch (e: any) {
-    return { statusCode: 500, body: e.message };
+    console.error('[smart-import-finalize] unhandled error', e?.name || 'Error');
+    return json(500, { ok: false, error: 'finalize_failed' });
   }
 };
