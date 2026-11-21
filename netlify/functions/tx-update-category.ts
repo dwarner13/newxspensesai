@@ -1,6 +1,7 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { getInternalBaseUrl } from './_shared/internalBaseUrl.js';
 
 type RequestBody = {
   id?: string;
@@ -57,7 +58,14 @@ async function tryVendorLearning(args: {
   if (!vendor) return { applied: false, vendor: null };
   const learningPayload = buildVendorLearningPayload(vendor, category, subcategory);
 
-  const baseUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || 'http://localhost:8888';
+  // P0-C2c: same-deploy origin for the JWT-forwarding learning calls. If it cannot be
+  // established, skip learning (the category change itself has already succeeded).
+  let baseUrl: string;
+  try {
+    baseUrl = getInternalBaseUrl();
+  } catch {
+    return { applied: false, vendor };
+  }
 
   // Prefer tag-learn first.
   try {

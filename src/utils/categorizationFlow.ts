@@ -4,6 +4,7 @@
  */
 
 import type { ProcessedDocumentContext, NormalizedTransaction } from '../../types/processedDocument';
+import { getSupabase } from '@/lib/supabase';
 
 export interface VendorCategorizationState {
   vendor: string;
@@ -78,10 +79,14 @@ export async function updateVendorCategory(
   transactionIds: string[]
 ): Promise<{ success: boolean; updatedCount: number; message: string }> {
   try {
+    // update-vendor-category verifies the Supabase JWT and transaction ownership (P0-C2c).
+    const { data: sessionData } = (await getSupabase()?.auth.getSession()) ?? { data: null };
+    const accessToken = sessionData?.session?.access_token;
     const response = await fetch('/.netlify/functions/update-vendor-category', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify({
         userId,

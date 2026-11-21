@@ -6,6 +6,9 @@
 import type { Handler } from '@netlify/functions';
 import { serverSupabase } from './_shared/supabase.js';
 import { safeLog } from './_shared/safeLog.js';
+import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
+
+const MAX_TRANSACTION_IDS = 500;
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -15,19 +18,62 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  try {
-    const { userId, documentId, vendor, category, transactionIds } = JSON.parse(event.body || '{}');
+  // P0-C2c: identity comes only from the verified Supabase JWT, before any read or write.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+  const userId = authn.principal.userId;
 
-    if (!userId || !vendor || !category) {
+  try {
+    const body = JSON.parse(event.body || '{}');
+    const claimedHeaderUserId = event.headers?.['x-user-id'] || event.headers?.['X-User-Id'];
+    if (!claimedUserIdMatches(claimedHeaderUserId, userId) || !claimedUserIdMatches(body?.userId, userId)) {
+      safeLog('updateVendorCategory.authDenied', { code: 'identity_mismatch' });
+      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+    }
+    const { documentId, vendor, category, transactionIds } = body;
+
+    if (!vendor || !category) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing required fields: userId, vendor, category' }),
+        body: JSON.stringify({ error: 'Missing required fields: vendor, category' }),
       };
+    }
+    if (
+      transactionIds !== undefined &&
+      (!Array.isArray(transactionIds) ||
+        transactionIds.length > MAX_TRANSACTION_IDS ||
+        !transactionIds.every((id: unknown) => typeof id === 'string' && id.length > 0))
+    ) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid transactionIds' }) };
     }
 
     safeLog('updateVendorCategory.start', { userId, vendor, category, documentId, transactionCount: transactionIds?.length });
 
     const supabase = serverSupabase();
+
+    // Every requested transaction must belong to the verified user before anything is written;
+    // a single foreign or unknown id rejects the whole request (no partial cross-user effects).
+    if (Array.isArray(transactionIds) && transactionIds.length > 0) {
+      const uniqueIds = Array.from(new Set(transactionIds as string[]));
+      const { data: ownedRows, error: ownedError } = await supabase
+        .from('transactions')
+        .select('id')
+        .in('id', uniqueIds)
+        .eq('user_id', userId);
+      if (ownedError) {
+        const msg = String(ownedError.message || '').toLowerCase();
+        const tableMissing = msg.includes('transactions') && (msg.includes('schema cache') || msg.includes('relation'));
+        if (!tableMissing) {
+          safeLog('updateVendorCategory.ownershipLookupFailed', { userId });
+          return { statusCode: 503, body: JSON.stringify({ error: 'processing_unavailable', retryable: true }) };
+        }
+      } else if ((ownedRows || []).length !== uniqueIds.length) {
+        safeLog('updateVendorCategory.authDenied', { code: 'not_owned' });
+        return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+      }
+    }
 
     // Update transactions in the document
     let updatedCount = 0;
@@ -108,10 +154,10 @@ export const handler: Handler = async (event) => {
       }),
     };
   } catch (error: any) {
-    safeLog('updateVendorCategory.error', { error: error.message });
+    safeLog('updateVendorCategory.error', { error: error?.message });
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message || 'Failed to update vendor category' }),
+      body: JSON.stringify({ error: 'Failed to update vendor category' }),
     };
   }
 };

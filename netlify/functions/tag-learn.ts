@@ -10,6 +10,31 @@ import { serverSupabase } from './_shared/supabase.js';
 import { safeLog } from './_shared/safeLog.js';
 // AI Fluency: Event logging
 import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
+import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+/**
+ * P0-C2c: the corrected transaction must belong to the verified user, in either the committed
+ * transactions table or staging (tx-update-category passes ids from both). Fails closed.
+ */
+async function transactionBelongsToUser(
+  supabase: ReturnType<typeof serverSupabase>,
+  userId: string,
+  transactionId: string
+): Promise<boolean | 'error'> {
+  for (const table of ['transactions', 'transactions_staging']) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('id')
+      .eq('id', transactionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) return 'error';
+    if (data?.id) return true;
+  }
+  return false;
+}
 
 function normalizeVendorKey(input: string): string {
   return input
@@ -131,13 +156,25 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  // P0-C2c: identity comes only from the verified Supabase JWT, before any read or write.
+  // x-user-id and body userId are never proof of identity; if present they must match.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, headers: JSON_HEADERS, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
   try {
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { userId, transactionId, merchant, description, oldCategory, newCategory } = body;
+    const claimedHeaderUserId = event.headers?.['x-user-id'] || event.headers?.['X-User-Id'];
+    if (!claimedUserIdMatches(claimedHeaderUserId, authn.principal.userId) || !claimedUserIdMatches(body?.userId, authn.principal.userId)) {
+      safeLog('tag-learn.authDenied', { code: 'identity_mismatch' });
+      return { statusCode: 403, headers: JSON_HEADERS, body: JSON.stringify({ error: 'Forbidden' }) };
+    }
+    const { transactionId, merchant, description, oldCategory, newCategory } = body;
 
     // Validate required fields
-    if (!userId || !transactionId || !oldCategory || !newCategory) {
+    if (!transactionId || !oldCategory || !newCategory) {
       return {
         statusCode: 400,
         headers: {
@@ -145,13 +182,23 @@ export const handler: Handler = async (event) => {
         },
         body: JSON.stringify({
           error: 'Missing required fields',
-          required: ['userId', 'transactionId', 'oldCategory', 'newCategory'],
+          required: ['transactionId', 'oldCategory', 'newCategory'],
         }),
       };
     }
 
-    // Get user_id from headers if not in body (for consistency with other endpoints)
-    const userIdFromHeader = event.headers['x-user-id'] || userId;
+    // Verified identity only (name kept to minimise churn below).
+    const userIdFromHeader = authn.principal.userId;
+
+    // The corrected transaction must belong to this user before any feedback, memory or
+    // retroactive staging update is written.
+    const owned = await transactionBelongsToUser(serverSupabase(), userIdFromHeader, String(transactionId));
+    if (owned !== true) {
+      safeLog('tag-learn.authDenied', { code: owned === 'error' ? 'lookup_failed' : 'not_owned' });
+      return owned === 'error'
+        ? { statusCode: 503, headers: JSON_HEADERS, body: JSON.stringify({ error: 'processing_unavailable', retryable: true }) }
+        : { statusCode: 404, headers: JSON_HEADERS, body: JSON.stringify({ error: 'Transaction not found' }) };
+    }
 
     safeLog('tag-learn.start', {
       userId: userIdFromHeader,
@@ -187,7 +234,6 @@ export const handler: Handler = async (event) => {
         },
         body: JSON.stringify({
           error: 'Failed to save feedback',
-          message: error.message,
         }),
       };
     }
@@ -329,7 +375,6 @@ export const handler: Handler = async (event) => {
       },
       body: JSON.stringify({
         error: 'Internal server error',
-        message: error.message || 'An unexpected error occurred',
       }),
     };
   }

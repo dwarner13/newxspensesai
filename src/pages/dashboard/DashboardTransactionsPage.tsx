@@ -56,12 +56,16 @@ const queueCategoryFeedbackForTag = async (
   });
 
   try {
+    // tag-learn verifies the Supabase JWT (P0-C2c); x-user-id is only a must-match hint.
+    const { data: sessionData } = (await supabase?.auth.getSession()) ?? { data: null };
+    const accessToken = sessionData?.session?.access_token;
     // Send feedback to backend Tag learning endpoint
     const response = await fetch('/.netlify/functions/tag-learn', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-user-id': userId,
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify({
         userId: userId,
