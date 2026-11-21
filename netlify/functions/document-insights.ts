@@ -15,13 +15,15 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { buildContextInjection, injectContextIntoMessages } from './_shared/contextInjection.js';
 import OpenAI from 'openai';
+import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface DocumentInsightsRequest {
-  userId: string;
+  /** Optional; ignored as identity (must match the verified JWT user if present). */
+  userId?: string;
   docId: string;
   question?: string; // For Q&A mode
   insightMode?: 'period_summary' | 'qa'; // Default: 'qa'
@@ -60,7 +62,7 @@ export const handler: Handler = async (event, context) => {
   // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
   };
@@ -83,18 +85,30 @@ export const handler: Handler = async (event, context) => {
     };
   }
 
+  // P0-C2b: identity comes only from the verified Supabase JWT, checked before any document,
+  // OCR text or transaction is read and before any LLM call (and before revealing server config).
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' } as DocumentInsightsResponse) };
+  }
+
   try {
     // Parse request body
     const body = JSON.parse(event.body || '{}') as DocumentInsightsRequest;
-    const { userId, docId, question, insightMode = 'qa' } = body;
+    if (!claimedUserIdMatches(body?.userId, authn.principal.userId)) {
+      console.warn('[DocumentInsights] stage=auth_denied', { code: 'identity_mismatch' });
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden' } as DocumentInsightsResponse) };
+    }
+    const userId = authn.principal.userId;
+    const { docId, question, insightMode = 'qa' } = body;
 
     // Validate required fields
-    if (!userId || !docId) {
+    if (!docId) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
-          error: 'Missing required fields: userId and docId are required' 
+        body: JSON.stringify({
+          error: 'Missing required field: docId'
         } as DocumentInsightsResponse),
       };
     }
@@ -522,15 +536,13 @@ Generate only the answer text. Write naturally, like you're explaining to a frie
       body: JSON.stringify(response),
     };
   } catch (error) {
-    console.error('[DocumentInsights] Error:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
+    console.error('[DocumentInsights] Error:', error instanceof Error ? error.name : 'Error');
+
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: errorMessage,
+      body: JSON.stringify({
+        error: 'insights_failed',
         answer: 'I had trouble reaching the AI for this document. Your OCR text is saved. Please try again or check your API key on the server.'
       } as DocumentInsightsResponse),
     };

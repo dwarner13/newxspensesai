@@ -11,6 +11,7 @@ import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 import OpenAI from 'openai';
 import { safeTextMetrics } from './_shared/textHash.js';
 import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
+import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
 
 export const handler: Handler = async (event, context) => {
   console.log("[FUNC=byte-ocr-parse] handler start");
@@ -43,13 +44,23 @@ export const handler: Handler = async (event, context) => {
     };
   }
 
+  // P0-C2b: identity comes only from the verified Supabase JWT, checked before any database read
+  // or paid AI call. There is no 'default-user' fallback and no adopting an import's owner.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
+  }
+  const verifiedUserId = authn.principal.userId;
+
   try {
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { 
-      importId, 
-      userId = 'default-user', 
-      preview = false,
+    if (!claimedUserIdMatches(body?.userId, verifiedUserId)) {
+      console.warn('[byte-ocr-parse] stage=auth_denied', { code: 'identity_mismatch' });
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+    }
+    const {
+      importId,
       text,
       ocrText,
       filename
@@ -59,8 +70,8 @@ export const handler: Handler = async (event, context) => {
       (process.env.OCR_DEBUG_INCLUDE_CLEANED_TEXT === '1' || body?.debugIncludeCleanedText === true);
 
     let ocrTextToParse: string | null = null;
-    let effectiveUserId = userId;
-    let effectiveImportId = importId;
+    const effectiveUserId = verifiedUserId;
+    const effectiveImportId = importId;
     let effectiveFilename = filename;
 
     // Option 1: Direct OCR text input
@@ -73,21 +84,23 @@ export const handler: Handler = async (event, context) => {
 
       // Fetch import record to get OCR text
       // Try common field names for OCR text
+      // Scoped to the verified user: another user's or an ownerless import is simply not found,
+      // so no OCR text is read and no paid AI parsing runs.
       const { data: importRecord, error: fetchError } = await supabase
         .from('imports')
         .select('ocr_text, extracted_text, text_content, user_id, document_id')
         .eq('id', importId)
+        .eq('user_id', verifiedUserId)
         .single();
 
       if (fetchError || !importRecord) {
-        console.error('[byte-ocr-parse] Failed to fetch import:', fetchError);
+        console.warn('[byte-ocr-parse] import not found or not owned');
         return {
           statusCode: 404,
           headers,
           body: JSON.stringify({
             ok: false,
             error: 'Import not found',
-            details: fetchError?.message,
           }),
         };
       }
@@ -98,17 +111,13 @@ export const handler: Handler = async (event, context) => {
                       importRecord.text_content ||
                       '';
 
-      // Use the userId from the import record if available
-      if (importRecord.user_id) {
-        effectiveUserId = importRecord.user_id;
-      }
-
-      // Try to resolve original filename from user_documents
+      // Try to resolve original filename from user_documents (scoped to the verified user)
       if (importRecord.document_id) {
         const { data: docRecord } = await supabase
           .from('user_documents')
           .select('original_name')
           .eq('id', importRecord.document_id)
+          .eq('user_id', verifiedUserId)
           .maybeSingle();
         if (docRecord?.original_name) {
           effectiveFilename = docRecord.original_name;
@@ -199,15 +208,13 @@ export const handler: Handler = async (event, context) => {
     };
 
   } catch (error: any) {
-    console.error('[byte-ocr-parse] Error:', error);
+    console.error('[byte-ocr-parse] Error:', error?.name || 'Error');
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         ok: false,
         error: 'Internal server error',
-        message: error?.message || 'Unknown error',
-        stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined,
       }),
     };
   }

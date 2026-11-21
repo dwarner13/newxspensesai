@@ -1,6 +1,7 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { claimedUserIdMatches, JOB_TOKEN_HEADER } from './_shared/internalJobAuth.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -31,12 +32,25 @@ export const handler: Handler = async (event) => {
   }
 
   try {
+    // Approval gates commits, so like commit-import it never accepts an internal job token.
+    const hasJobToken = Object.entries(event.headers || {}).some(
+      ([k, v]) => k.toLowerCase() === JOB_TOKEN_HEADER && Boolean(v)
+    );
+    if (hasJobToken) {
+      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
+    }
     const auth = await verifyAuth(event);
     if (auth.error || !auth.userId) {
-      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: auth.error || 'Unauthorized' }) };
+      // P0-C2b: generic message; never echo the token verifier's error text.
+      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
     }
     const userId = String(auth.userId);
     const body = JSON.parse(event.body || '{}');
+    const claimedHeaderUserId = event.headers?.['x-user-id'] || event.headers?.['X-User-Id'];
+    if (!claimedUserIdMatches(claimedHeaderUserId, userId) || !claimedUserIdMatches(body?.userId, userId)) {
+      console.warn('[APPROVAL] stage=auth_denied', { code: 'identity_mismatch' });
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+    }
     const importIds = normalizeImportIds(body);
     if (importIds.length === 0) {
       return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Missing importId/importIds' }) };
@@ -55,7 +69,8 @@ export const handler: Handler = async (event) => {
         .maybeSingle();
 
       if (importError || !importRow) {
-        skipped.push({ importId, reason: importError?.message || 'not_found_or_not_owned' });
+        // No database error text in responses.
+        skipped.push({ importId, reason: importError ? 'lookup_failed' : 'not_found_or_not_owned' });
         continue;
       }
 
@@ -79,7 +94,7 @@ export const handler: Handler = async (event) => {
         .eq('status', 'parsed');
 
       if (updateError) {
-        skipped.push({ importId, reason: updateError.message || 'approval_update_failed' });
+        skipped.push({ importId, reason: 'approval_update_failed' });
         continue;
       }
 
@@ -98,11 +113,11 @@ export const handler: Handler = async (event) => {
       }),
     };
   } catch (error: any) {
-    console.error('[APPROVAL] approve-import unexpected error', error);
+    console.error('[APPROVAL] approve-import unexpected error', error?.name || 'Error');
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ ok: false, error: error?.message || 'internal_error' }),
+      body: JSON.stringify({ ok: false, error: 'internal_error' }),
     };
   }
 };

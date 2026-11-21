@@ -14,7 +14,7 @@ vi.mock('@/lib/supabase', () => ({
   }),
 }));
 
-const { runSmartImportPipeline, RouterAccessError } = await import('../runSmartImportPipeline');
+const { runSmartImportPipeline, RouterAccessError, RouterUnavailableError } = await import('../runSmartImportPipeline');
 
 type Call = { fn: string; body: unknown; headers: Record<string, string> };
 let calls: Call[] = [];
@@ -109,11 +109,48 @@ describe('upload: router access failures do not fall back to the legacy path', (
     expect(fnNames()).toEqual(['prime-router']);
   });
 
-  it('router upload 500 still falls back to the legacy path (unchanged)', async () => {
-    uploadStatus = 500;
-    await runSmartImportPipeline(input(`up-500-${seq}`)).catch(() => undefined);
-    expect(fnNames()[0]).toBe('prime-router');
-    expect(fnNames()).toContain('smart-import-init');
+  it.each([500, 502, 504])('router upload %i → retryable RouterUnavailableError; no silent legacy fallback (C2b)', async (code) => {
+    uploadStatus = code;
+    const err = await runSmartImportPipeline(input(`up-${code}-${seq}`)).catch((e) => e);
+    expect(err).toBeInstanceOf(RouterUnavailableError);
+    expect(err.retryable).toBe(true);
+    expect(String(err.message)).toMatch(/try again/i);
+    expect(fnNames()).toEqual(['prime-router']);
+    expect(fnNames()).not.toContain('smart-import-init');
+    expect(fnNames()).not.toContain('smart-import-finalize');
+  });
+
+  it('a network error reaching the router → RouterUnavailableError; no legacy fallback', async () => {
+    const original = fakeFetch.getMockImplementation()!;
+    fakeFetch.mockImplementationOnce(async (url: string) => {
+      calls.push({ fn: 'prime-router', body: null, headers: {} });
+      if (String(url).includes('prime-router')) throw new TypeError('Failed to fetch');
+      return original(url);
+    });
+    const err = await runSmartImportPipeline(input(`net-${seq}`)).catch((e) => e);
+    expect(err).toBeInstanceOf(RouterUnavailableError);
+    expect(fnNames()).not.toContain('smart-import-init');
+  });
+
+  it('a router 200 missing documentId → RouterUnavailableError; no legacy fallback', async () => {
+    fakeFetch.mockImplementationOnce(async (url: string, init: RequestInit = {}) => {
+      calls.push({ fn: 'prime-router', body: null, headers: (init.headers as Record<string, string>) || {} });
+      return respond({ ok: true, mode: 'upload' });
+    });
+    const err = await runSmartImportPipeline(input(`nodoc-${seq}`)).catch((e) => e);
+    expect(err).toBeInstanceOf(RouterUnavailableError);
+    expect(fnNames()).not.toContain('smart-import-init');
+  });
+
+  it('base64 input (unsupported by the router) still uses the direct path, with the JWT', async () => {
+    const err = await runSmartImportPipeline({
+      userId: 'user-1', base64: 'JVBERg==', fileName: `b64-${seq}.pdf`, mimeType: 'application/pdf', fileSize: 4, lastModified: 1, authToken: 'explicit-token',
+    }).catch((e) => e);
+    // The fake init fails fast; what matters is that the direct path was taken, authenticated.
+    expect(fnNames()).not.toContain('prime-router');
+    const init = calls.find((c) => c.fn === 'smart-import-init')!;
+    expect(init.headers.authorization).toBe('Bearer explicit-token');
+    expect(err).toBeInstanceOf(Error);
   });
 });
 

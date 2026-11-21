@@ -105,13 +105,7 @@ function toTerminalOcrUserMessage(payload: any, item?: any): string {
 
 /**
  * prime-router refused the caller (401/403) or the import no longer exists (404 while polling).
- * These are definitive answers, not outages: the pipeline must stop and must NOT retry through
- * the legacy init/finalize path.
- *
- * Transient failures (5xx, network errors) still fall back to the legacy path for now. As of
- * P0-C1b/C2a the legacy functions (smart-import-init, smart-import-finalize, ocr-job-status,
- * smart-import-sync, commit-import) all verify the caller's JWT and ownership, so the fallback
- * no longer bypasses authorization; it is kept only for availability and can be removed later.
+ * These are definitive answers, not outages: the pipeline must stop.
  */
 export class RouterAccessError extends Error {
   readonly status: number;
@@ -125,6 +119,23 @@ export class RouterAccessError extends Error {
     );
     this.name = 'RouterAccessError';
     this.status = status;
+  }
+}
+
+/**
+ * prime-router failed transiently (5xx, network error, malformed response) for a file upload.
+ *
+ * P0-C2b: there is no longer a silent fallback to the legacy init/upload/finalize path. That
+ * fallback could create a duplicate document when the router had already created one before
+ * failing (e.g. a gateway timeout), and it masked router outages. The error is surfaced as
+ * retryable; every caller shows it, and BulkUploadPage / useUploadQueue offer a retry.
+ * (Base64 callers, which the router does not support, still use the direct path.)
+ */
+export class RouterUnavailableError extends Error {
+  readonly retryable = true;
+  constructor() {
+    super('We could not process this upload right now. Please try again in a moment.');
+    this.name = 'RouterUnavailableError';
   }
 }
 
@@ -834,8 +845,8 @@ export function runSmartImportPipeline(rawInput: SmartImportPipelineInput): Prom
     let activeKey = preInitKey;
     const input = await withSessionAuthToken(rawInput);
     try {
-      // Canonical upload route: Prime Router mode A/B orchestration.
-      // Falls back to legacy init/upload/finalize path if router is unavailable.
+      // Canonical upload route: Prime Router mode A/B orchestration. File uploads never fall back
+      // to the legacy path; only base64 input (unsupported by the router) uses it.
       try {
         const routed = await runViaPrimeRouter(input);
         if (routed) return routed;
@@ -858,7 +869,10 @@ export function runSmartImportPipeline(rawInput: SmartImportPipelineInput): Prom
         if (terminalRouterFailure) {
           throw routerErr;
         }
-        console.warn('[runSmartImportPipeline] prime-router path failed, falling back to legacy path:', routerErr);
+        // P0-C2b: surface a retryable error instead of silently re-running the upload through
+        // the legacy path (which could duplicate a document the router already created).
+        console.warn('[runSmartImportPipeline] prime-router path failed; surfacing a retryable error');
+        throw new RouterUnavailableError();
       }
 
       const { init, fileSize } = await initializePipeline(input);

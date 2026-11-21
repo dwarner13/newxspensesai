@@ -1090,7 +1090,7 @@ export const handler: Handler = async (event, context) => {
             failed.push({ importId: id, error: String(payload?.error || payload?.message || `status_${res.status}`) });
           }
         } catch (error: any) {
-          failed.push({ importId: id, error: String(error?.message || 'batch_commit_failed') });
+          failed.push({ importId: id, error: 'batch_commit_failed' });
         }
       }
 
@@ -1170,7 +1170,7 @@ export const handler: Handler = async (event, context) => {
         body: JSON.stringify({ 
           ok: false, 
           error: 'db_error',
-          message: `Failed to fetch import: ${importError.message}` 
+          message: 'Failed to fetch import',
         }),
       };
     }
@@ -1366,7 +1366,7 @@ export const handler: Handler = async (event, context) => {
         body: JSON.stringify({ 
           ok: false, 
           error: 'db_error',
-          message: `Failed to fetch staged transactions: ${stagingError.message}` 
+          message: 'Failed to fetch staged transactions',
         }),
       };
     }
@@ -1627,7 +1627,7 @@ export const handler: Handler = async (event, context) => {
             ok: false,
             success: false,
             error: 'db_error',
-            message: `Failed to insert transactions: ${insertError.message}` 
+            message: 'Failed to insert transactions',
           }),
         };
       }
@@ -1965,7 +1965,7 @@ export const handler: Handler = async (event, context) => {
       body: JSON.stringify({
         ok: false,
         error: 'internal_error',
-        message: error?.message || 'Unknown error',
+        message: 'Unexpected error',
       }),
     };
   }
