@@ -103,6 +103,31 @@ function toTerminalOcrUserMessage(payload: any, item?: any): string {
   return String(payload?.error || payload?.primeMessage || firstItem?.error || 'OCR processing failed');
 }
 
+/**
+ * prime-router refused the caller (401/403) or the import no longer exists (404 while polling).
+ * These are definitive answers, not outages: the pipeline must stop and must NOT retry through
+ * the legacy init/finalize path.
+ *
+ * Transient failures (5xx, network errors) still fall back to the legacy path for now. Security
+ * note: that path calls smart-import-init / smart-import-finalize, which do not yet verify the
+ * caller (P0-C). Forcing a router 5xx gains an attacker nothing they could not already do by
+ * calling those functions directly, but the fallback should be removed once they are secured.
+ */
+export class RouterAccessError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(
+      status === 401
+        ? 'Your session has expired. Please sign in again and retry the upload.'
+        : status === 403
+          ? 'You do not have access to this import.'
+          : 'This import could not be found.'
+    );
+    this.name = 'RouterAccessError';
+    this.status = status;
+  }
+}
+
 const inFlightPipelines = new Map<string, Promise<SmartImportPipelineResult>>();
 
 function buildPreInitPipelineKey(input: SmartImportPipelineInput): string {
@@ -201,6 +226,9 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
     headers: getAuthHeaders(input),
     body: formData,
   });
+  if (uploadRes.status === 401 || uploadRes.status === 403) {
+    throw new RouterAccessError(uploadRes.status);
+  }
   const uploadPayload = await uploadRes.json().catch(() => ({}));
   if (!uploadRes.ok) {
     const msg = uploadPayload?.error || uploadPayload?.step || `prime-router upload failed (${uploadRes.status})`;
@@ -372,6 +400,9 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
         importRunId: input.requestId || `router-status-${importId}-${Date.now()}`,
       }),
     });
+    if (statusRes.status === 401 || statusRes.status === 403 || statusRes.status === 404) {
+      throw new RouterAccessError(statusRes.status);
+    }
     if (statusRes.ok) {
       const statusPayload = await statusRes.json().catch(() => ({}));
       if (statusPayload?.terminal === true) {
@@ -807,6 +838,9 @@ export function runSmartImportPipeline(rawInput: SmartImportPipelineInput): Prom
         const routed = await runViaPrimeRouter(input);
         if (routed) return routed;
       } catch (routerErr) {
+        if (routerErr instanceof RouterAccessError) {
+          throw routerErr;
+        }
         const msg = String((routerErr as any)?.message || routerErr || '').toLowerCase();
         const terminalRouterFailure =
           msg.includes('unusable_ocr_text') ||

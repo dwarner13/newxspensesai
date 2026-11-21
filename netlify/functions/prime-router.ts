@@ -654,6 +654,9 @@ export const handler: Handler = async (event) => {
     if (mode === "status") {
       const importId = body.importId || event.queryStringParameters?.importId;
       const statusImportRunId = String(body?.importRunId || body?.requestId || `status-${importId || Date.now()}`);
+      // Status-mode traceId (the upload-mode one is block-scoped). Without this the terminal/error
+      // branches below threw ReferenceError -> 500, hiding terminal OCR results from the client.
+      const traceId = String(body?.traceId || statusImportRunId);
       const waitForOcrMs = Number.isFinite(Number(body?.waitForOcrMs)) ? Math.max(5000, Math.min(90000, Number(body?.waitForOcrMs))) : 60000;
       const pollForOcrMs = Number.isFinite(Number(body?.pollForOcrMs)) ? Math.max(200, Math.min(2000, Number(body?.pollForOcrMs))) : 500;
       // Committing transactions requires an explicit opt-in. Previously a missing flag meant commit.

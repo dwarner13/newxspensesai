@@ -34,6 +34,8 @@ let dbCalls: DbCall[] = [];
 let fnCalls: FnCall[] = [];
 let ocrState: 'running' | 'done' = 'running';
 let throwOnImports: Error | null = null;
+let ocrStatusOverride: Row | null = null;
+let syncOverride: Row | null = null;
 
 function seed() {
   db = {
@@ -132,10 +134,12 @@ const fakeFetch = vi.fn(async (url: string, init: RequestInit = {}) => {
     case 'smart-import-ocr-background':
       return respond({ ok: true, queued: true });
     case 'ocr-job-status':
+      if (ocrStatusOverride) return respond(ocrStatusOverride);
       return respond(ocrState === 'done'
         ? { ok: true, status: 'done', items: [{ status: 'done' }] }
         : { ok: true, status: 'running', items: [{ status: 'running' }] });
     case 'smart-import-sync':
+      if (syncOverride) return respond(syncOverride);
       return respond({ ok: true, importIds: [OWNER_IMPORT], transactionCount: 3 });
     case 'smart-import-finalize':
       return respond({ ok: true });
@@ -195,6 +199,8 @@ beforeEach(() => {
   fnCalls = [];
   ocrState = 'running';
   throwOnImports = null;
+  ocrStatusOverride = null;
+  syncOverride = null;
   process.env.URL = 'https://app.test';
   process.env.SUPABASE_URL = 'https://supabase.test';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role';
@@ -394,6 +400,54 @@ describe('prime-router — summary', () => {
     const sum = fnCalls.find((c) => c.fn === 'prime-summary')!;
     expect(sum.body?.importId).toBe(OWNER_IMPORT);
     expect(sum.headers.authorization).toBe(`Bearer ${OWNER_TOKEN}`);
+  });
+});
+
+describe('prime-router — status reliability (R0 traceId scope)', () => {
+  const statusCall = () =>
+    call(jsonEvent({ mode: 'status', importId: OWNER_IMPORT, autoCommit: true, importRunId: 'run-123' }, OWNER_TOKEN));
+  const noReferenceErrorLogged = () => expect(loggedText()).not.toMatch(/ReferenceError|traceId is not defined/);
+
+  it('terminal malformed-PDF OCR → 200 terminal (was a 500 ReferenceError)', async () => {
+    ocrStatusOverride = { ok: true, status: 'error', items: [{ status: 'error', error_code: 'malformed_pdf', error: 'invalid pdf structure' }] };
+    const res = await statusCall();
+    expect(res.statusCode).toBe(200);
+    expect(res.json).toMatchObject({ status: 'error', terminal: true, retryable: false, error_code: 'malformed_pdf' });
+    expect(fnNames()).not.toContain('smart-import-sync');
+    noReferenceErrorLogged();
+  });
+
+  it('non-terminal OCR item error → 200 status:error', async () => {
+    ocrStatusOverride = { ok: true, status: 'error', items: [{ status: 'failed', error: 'provider hiccup' }] };
+    const res = await statusCall();
+    expect(res.statusCode).toBe(200);
+    expect(res.json.status).toBe('error');
+    noReferenceErrorLogged();
+  });
+
+  it('sync ocr_unusable → 200 terminal unusable_ocr_text', async () => {
+    ocrState = 'done';
+    syncOverride = { ok: false, state: 'ocr_unusable' };
+    const res = await statusCall();
+    expect(res.statusCode).toBe(200);
+    expect(res.json).toMatchObject({ terminal: true, state: 'ocr_unusable', error_code: 'unusable_ocr_text' });
+    expect(fnNames()).not.toContain('smart-import-finalize');
+    noReferenceErrorLogged();
+  });
+
+  it('sync ocr_rejected → 200 terminal malformed_pdf', async () => {
+    ocrState = 'done';
+    syncOverride = { ok: false, state: 'ocr_rejected' };
+    const res = await statusCall();
+    expect(res.statusCode).toBe(200);
+    expect(res.json).toMatchObject({ terminal: true, state: 'ocr_rejected', error_code: 'malformed_pdf' });
+    noReferenceErrorLogged();
+  });
+
+  it('logs the status run id as traceId on the terminal path', async () => {
+    ocrStatusOverride = { ok: true, status: 'error', items: [{ status: 'error', error_code: 'malformed_pdf' }] };
+    await statusCall();
+    expect(loggedText()).toContain('run-123');
   });
 });
 
