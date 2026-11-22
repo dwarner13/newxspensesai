@@ -5,11 +5,14 @@
  * upserts them into the recurring_obligations table.
  * 
  * POST /.netlify/functions/sync-recurring-obligations
- * Body: { userId?: string } (optional, can also come from headers)
+ * Auth (S0 Batch 2): requires `Authorization: Bearer <Supabase access token>`. The customer
+ * identity comes ONLY from that verified token. An `x-user-id` header or body `userId`, if sent,
+ * must match it (403 otherwise) and is never used as identity.
  */
 
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
+import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
 import { detectRecurringPatternsForUser } from '../../src/services/recurringDetection.js';
 import type { Transaction } from '../../src/types/database.types.js';
 import { logActivityEvent } from './_shared/activity-logger.js';
@@ -18,7 +21,7 @@ export const handler: Handler = async (event, context) => {
   // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, x-user-id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-user-id',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
   };
@@ -37,28 +40,30 @@ export const handler: Handler = async (event, context) => {
     };
   }
 
+  // S0 Batch 2: identity comes only from the verified Supabase JWT, before any data access.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+  const userId = authn.principal.userId;
+
   try {
-    // Get userId from body or headers
-    let userId: string | undefined;
-    
+    // x-user-id and body userId are never proof of identity; if present they must match.
+    let body: Record<string, unknown> = {};
     if (event.body) {
-      const body = JSON.parse(event.body);
-      userId = body.userId;
+      try {
+        body = JSON.parse(event.body);
+      } catch {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+      }
     }
-    
-    if (!userId) {
-      userId = event.headers['x-user-id'] || event.headers['X-User-Id'];
-    }
-
-    if (!userId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'userId is required' }),
-      };
+    const claimedHeaderUserId = event.headers?.['x-user-id'] || event.headers?.['X-User-Id'];
+    if (!claimedUserIdMatches(claimedHeaderUserId, userId) || !claimedUserIdMatches(body?.userId, userId)) {
+      console.warn('[Sync Recurring] authDenied: identity_mismatch');
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden' }) };
     }
 
-    console.log(`[Sync Recurring] Starting sync for user: ${String(userId).slice(0, 8)}...`);
+    console.log('[Sync Recurring] Starting sync');
 
     const supabase = admin();
 
@@ -91,7 +96,6 @@ export const handler: Handler = async (event, context) => {
         headers,
         body: JSON.stringify({
           status: 'ok',
-          userId,
           transactionsAnalyzed: 0,
           patternsDetected: 0,
           obligationsUpserted: 0,
@@ -141,7 +145,8 @@ export const handler: Handler = async (event, context) => {
               last_seen_date: pattern.last_seen_date,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', existing.id);
+            .eq('id', existing.id)
+            .eq('user_id', userId); // defense in depth: never touch another customer's row
 
           if (updateError) throw updateError;
         } else {
@@ -173,7 +178,7 @@ export const handler: Handler = async (event, context) => {
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         errors.push(`Failed to upsert ${pattern.merchant_name}: ${errorMsg}`);
-        console.error(`[Sync Recurring] Error upserting ${pattern.merchant_name}:`, err);
+        console.error('[Sync Recurring] Error upserting an obligation:', errorMsg); // no merchant names in logs
       }
     }
 
@@ -204,7 +209,6 @@ export const handler: Handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         status: 'ok',
-        userId,
         transactionsAnalyzed,
         patternsDetected: patterns.length,
         obligationsUpserted,
@@ -293,7 +297,8 @@ async function deactivateStaleObligations(supabase: any, userId: string): Promis
     await supabase
       .from('recurring_obligations')
       .update({ is_active: false })
-      .in('id', toDeactivate);
+      .in('id', toDeactivate)
+      .eq('user_id', userId); // defense in depth
 
     console.log(`[Sync Recurring] Deactivated ${toDeactivate.length} stale obligations`);
   }

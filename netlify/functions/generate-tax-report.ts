@@ -1,5 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { admin } from "./_shared/supabase.js";
+import { authenticateUser, claimedUserIdMatches } from "./_shared/internalJobAuth.js";
 // PDF generation — dynamic imports keep cold-start fast
 // Requires: pnpm add @sparticuz/chromium-min puppeteer-core
 
@@ -7,11 +8,14 @@ import { admin } from "./_shared/supabase.js";
    POST /.netlify/functions/generate-tax-report
    Generates a clean 3-page HTML tax summary for accountant review.
    Returns Content-Type: text/html (user prints to PDF).
+   Auth (S0 Batch 2): requires `Authorization: Bearer <Supabase access token>`.
+   The customer identity comes ONLY from that verified token; an `x-user-id`
+   header or body `userId`, if sent, must match it (403 otherwise).
    ────────────────────────────────────────────────────────────── */
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-user-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -465,13 +469,30 @@ export const handler: Handler = async (event) => {
     return { statusCode: 405, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, error: "Method not allowed" }) };
   }
 
+  // S0 Batch 2: identity comes only from the verified Supabase JWT, before any data access.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, error: "Unauthorized" }) };
+  }
+  const userId = authn.principal.userId;
+
   try {
-    const userId = event.headers["x-user-id"] || event.headers["X-User-Id"];
-    if (!userId) {
-      return { statusCode: 401, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, error: "Missing x-user-id header" }) };
+    let body: ReturnType<typeof JSON.parse>; // same type JSON.parse returned before this change
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      return { statusCode: 400, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, error: "Invalid JSON body" }) };
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return { statusCode: 400, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, error: "Invalid JSON body" }) };
+    }
+    // x-user-id and body userId are never proof of identity; if present they must match.
+    const claimedHeaderUserId = event.headers?.["x-user-id"] || event.headers?.["X-User-Id"];
+    if (!claimedUserIdMatches(claimedHeaderUserId, userId) || !claimedUserIdMatches(body?.userId, userId)) {
+      console.warn("[generate-tax-report] authDenied: identity_mismatch");
+      return { statusCode: 403, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, error: "Forbidden" }) };
     }
 
-    const body = JSON.parse(event.body || "{}");
     const year: number = body.year || new Date().getFullYear() - 1;
     const vehicleCfgInput = body.vehicle_config || {};
 
@@ -594,7 +615,7 @@ export const handler: Handler = async (event) => {
       body: html,
     };
   } catch (err: any) {
-    console.error("[generate-tax-report] Error:", err);
+    console.error("[generate-tax-report] Error:", err?.message || "unknown"); // message only, no row data
     return {
       statusCode: 500,
       headers: { ...CORS, "Content-Type": "application/json" },

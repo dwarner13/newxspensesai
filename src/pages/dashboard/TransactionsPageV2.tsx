@@ -393,9 +393,14 @@ export default function TransactionsPageV2() {
       if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      // S0 Batch 2: tag-explain requires the verified session token, read at call time.
+      // No token means no request (x-user-id alone is not identity).
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) return;
       const res = await fetch(`/.netlify/functions/tag-explain`, {
         method: `POST`,
-        headers: { 'content-type': 'application/json', 'x-user-id': user.id },
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${accessToken}`, 'x-user-id': user.id },
         body: JSON.stringify({ transactionId: tx.id }),
       });
       if (res.ok) setTagInsight(await res.json());

@@ -437,9 +437,15 @@ export default function TaxWorkspacePage() {
     if (!userId) return;
     setExportingReport(true);
     try {
+      // S0 Batch 2: the report endpoint requires the verified session token, read at call time
+      // (fresh after resume). No token means no request; x-user-id alone is not identity.
+      const sb = getSupabase();
+      const { data: { session } } = sb ? await sb.auth.getSession() : { data: { session: null } };
+      const accessToken = session?.access_token;
+      if (!accessToken) throw new Error("Not signed in. Please sign in again to export the report.");
       const res = await fetch("/.netlify/functions/generate-tax-report", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}`, "x-user-id": userId },
         body: JSON.stringify({
           year,
           format: "pdf",

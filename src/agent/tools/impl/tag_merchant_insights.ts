@@ -23,10 +23,16 @@ export type Output = z.infer<typeof outputSchema>;
  * Shows how the user has categorized this merchant in the past,
  * including the most common category and total number of corrections.
  */
-export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
+export async function execute(input: Input, ctx: { userId: string; authHeader?: string }): Promise<Result<Output>> {
   try {
     const { merchant } = input;
     const { userId } = ctx;
+    // S0 Batch 2: the endpoint requires the caller's verified Supabase token. Forward the
+    // request's Authorization header; without it, fail cleanly (x-user-id alone is not identity).
+    const authHeader = typeof ctx.authHeader === 'string' && /^Bearer\s+\S+/i.test(ctx.authHeader) ? ctx.authHeader : '';
+    if (!authHeader) {
+      return Err(new Error('Not authenticated. Cannot call Tag merchant insights endpoint.'));
+    }
 
     // Determine base URL (dev vs production)
     const baseUrl = process.env.NETLIFY_DEV === 'true' 
@@ -42,7 +48,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-user-id': userId,
+        Authorization: authHeader,
+        'x-user-id': userId, // must match the token; never used as identity
       },
       body: JSON.stringify({
         merchant,
