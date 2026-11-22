@@ -1,6 +1,7 @@
 // src/client/pdf/pdfService.ts
 import { configurePdfWorker, pdfjsLib } from './pdfWorkerConfig';
 import { extractPdfTextSafe } from './extractText';
+import { getSupabase } from '@/lib/supabase';
 
 // Ensure worker is configured
 configurePdfWorker();
@@ -72,11 +73,19 @@ export class PdfService {
   
   private static async serverSideExtraction(file: File): Promise<PdfProcessResult> {
     const base64 = await this.fileToBase64(file);
-    
+
+    // C2-A2: parse-pdf requires a signed-in user.
+    const sb = getSupabase();
+    const { data: { session } } = sb ? await sb.auth.getSession() : { data: { session: null } };
+    if (!session?.access_token) {
+      throw new Error('Sign in required for server-side PDF extraction');
+    }
+
     const response = await fetch('/.netlify/functions/parse-pdf', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({ base64 })
     });

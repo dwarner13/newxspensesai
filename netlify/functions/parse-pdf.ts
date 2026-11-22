@@ -1,96 +1,82 @@
 // netlify/functions/parse-pdf.ts
-import type { Handler } from '@netlify/functions';
+//
+// Simple text extraction for PDFs that have a text layer.
+//
+// C2-A2 hardening:
+//  - Requires a valid Supabase JWT. Before C2-A2 the endpoint had no auth and allowed any origin.
+//  - Rate limited per VERIFIED user id.
+//  - Accepts only real PDFs (magic bytes), capped at MAX_INLINE_UPLOAD_BYTES.
+//  - Errors are generic: no exception messages or stack traces are returned, and PDF contents
+//    are never logged.
+import type { Handler, HandlerEvent } from '@netlify/functions';
+import { corsHeaders, jsonResponse, parseJson } from './_shared/http.js';
+import { withRateLimit, getPresetOptions } from './_shared/rate-limit-v2.js';
+import { verifyAuth } from './_shared/verifyAuth.js';
+import { decodeBase64Upload, isUploadRejection } from './_shared/uploadFileValidation.js';
 
-// Simple text extraction for PDFs with text layer
+const VERIFIED_USER_KEY = '__c2a2VerifiedUserId';
+
 const extractTextFromPdfBuffer = (buffer: Buffer): string => {
   const text = buffer.toString('latin1');
-  
+
   // Look for text content in PDF streams
   const textMatches = text.match(/\(([^)]+)\)/g);
   if (!textMatches) {
     return '';
   }
-  
+
   // Extract text from matches and clean up
   const extractedText = textMatches
     .map(match => match.slice(1, -1)) // Remove parentheses
-    .filter(str => str.length > 0 && !/^[\s\d\-\.]+$/.test(str)) // Filter out numbers and whitespace
+    .filter(str => str.length > 0 && !/^[\s\d\-.]+$/.test(str)) // Filter out numbers and whitespace
     .join(' ')
     .replace(/\\n/g, ' ')
     .replace(/\\r/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-    
+
   return extractedText;
 };
 
-export const handler: Handler = async (event) => {
-  // Add CORS headers
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
-
-  // Handle preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
+const parseHandler = async (event: HandlerEvent) => {
   try {
-    const body = JSON.parse(event.body || '{}');
-    
-    if (!body.file && !body.base64) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'No file data provided' })
-      };
+    const body = parseJson(event);
+    const decoded = decodeBase64Upload(body.file ?? body.base64, { allowed: ['application/pdf'] });
+    if (isUploadRejection(decoded)) {
+      return jsonResponse(decoded.status, { success: false, error: decoded.message, code: decoded.code });
     }
 
-    // Handle base64 encoded file
-    const base64Data = body.file || body.base64;
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    // Validate PDF header
-    const pdfHeader = buffer.slice(0, 5).toString();
-    if (!pdfHeader.includes('%PDF')) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Invalid PDF file' })
-      };
-    }
-
-           const extractedText = extractTextFromPdfBuffer(buffer);
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        text: extractedText,
-        length: extractedText.length
-      })
-    };
-  } catch (error) {
-    console.error('Function error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({
-        error: 'Failed to process PDF',
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      })
-    };
+    const extractedText = extractTextFromPdfBuffer(decoded.buffer);
+    return jsonResponse(200, {
+      success: true,
+      text: extractedText,
+      length: extractedText.length,
+    });
+  } catch (error: unknown) {
+    console.error('[parse-pdf] extraction failed', { name: error instanceof Error ? error.name : 'Error' });
+    return jsonResponse(500, { success: false, error: 'Failed to process PDF' });
   }
+};
+
+const rateLimitedParse = withRateLimit(parseHandler, {
+  key: 'parse-pdf',
+  ...getPresetOptions('normal'),
+  // Only ever invoked after verifyAuth, so the verified id is always present.
+  keyFn: (event: Record<string, unknown>) => `user:${String(event?.[VERIFIED_USER_KEY] || 'unverified')}`,
+});
+
+export const handler: Handler = async (event, context) => {
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: corsHeaders, body: '' };
+  }
+  if (event.httpMethod !== 'POST') {
+    return jsonResponse(405, { success: false, error: 'Method not allowed' });
+  }
+
+  const auth = await verifyAuth(event);
+  if (auth.error || !auth.userId) {
+    return jsonResponse(401, { success: false, error: 'Unauthorized' });
+  }
+
+  return rateLimitedParse({ ...event, [VERIFIED_USER_KEY]: auth.userId }, context);
 };

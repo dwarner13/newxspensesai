@@ -1167,7 +1167,7 @@ function repairTransposedBalance(lines: string[]): string[] {
       i + 1 < lines.length &&
       pureAmountRegex.test(lines[i + 1])
     ) {
-      console.log(`[BMO PreProc] Repairing transposed balance: lifting "${lines[i + 1].trim()}" above "${line.trim()}"`);
+      console.log(`[BMO PreProc] Repairing transposed balance at line ${i + 1}`); // C2-A2: no statement text in logs
       result.push(lines[i + 1]); // displaced balance -> close prior transaction
       result.push(line);          // then the date
       i += 1;                     // skip the consumed amount line

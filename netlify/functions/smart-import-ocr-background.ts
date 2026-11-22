@@ -16,6 +16,7 @@ import { dispatchNormalize } from './_shared/normalizeHandoff.js';
 // Phase 2.2: Use unified guardrails API (single source of truth)
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 import { maskPII as maskPiiFallback } from './_shared/pii.js';
+import { maskRescuedOcrText } from './_shared/ocrRescueMasking.js';
 import { safeTextMetrics } from './_shared/textHash.js';
 import { callGoogleVisionOnImage, callGoogleVisionOnPdf } from './_shared/vision/googleVisionClient.js';
 // AI Fluency: Event logging
@@ -3666,8 +3667,24 @@ export const handler: Handler = async (event, context) => {
 
     let sanitizedText = sanitizeOcrText(guardrailResult.text);
     if (isLikelyCorruptedText(sanitizedText) && rescuedTextForHandoff && isLikelyReadableText(rescuedTextForHandoff)) {
-      sanitizedText = sanitizeOcrText(rescuedTextForHandoff);
-      handoffSource = `${handoffSource}:rescued_text_override`;
+      // C2-A2: rescued text never went through guardrails - mask it with the same policy first.
+      const maskedRescue = await maskRescuedOcrText(rescuedTextForHandoff, {
+        runGuard: (t) => runGuardrailsForText(t, effectiveUserId, 'ingestion_ocr'),
+        fallbackMask: (t) => maskPiiFallback(t, 'last4'),
+      });
+      if (maskedRescue) {
+        sanitizedText = sanitizeOcrText(maskedRescue.text);
+        if (maskedRescue.piiTypes.length > 0) {
+          guardrailResult.signals = {
+            ...(guardrailResult.signals || {}),
+            pii: true,
+            piiTypes: Array.from(new Set([...(guardrailResult.signals?.piiTypes || []), ...maskedRescue.piiTypes])),
+          };
+        }
+        handoffSource = `${handoffSource}:rescued_text_override`;
+      } else {
+        console.warn('[OCR] rescued_text_rejected_by_guardrails', { docId });
+      }
     }
     if (isUselessOcrResponseText(sanitizedText)) {
       const unusableMessage = 'Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.';

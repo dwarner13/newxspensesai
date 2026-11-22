@@ -1467,7 +1467,8 @@ export const handler: Handler = async (event, context) => {
         const autoSources = new Set([null, undefined, 'rule', 'ai', 'hardcoded', 'none', '']);
         const isAutomatic = autoSources.has(categorySource as string | null | undefined);
         if (isAutomatic && signedAmount < 0 && category === 'Income') {
-          console.warn(`[CommitImport] Sign/category conflict: negative amount ${signedAmount} with category Income for "${merchantName}" — falling back to Needs Review`);
+          // C2-A2: no merchant names or amounts in logs.
+          console.warn('[CommitImport] Sign/category conflict: negative amount with category Income - falling back to Needs Review');
           category = 'Needs Review';
           categorySource = 'sign_conflict';
         }

@@ -4,6 +4,7 @@
 import type { Handler } from '@netlify/functions';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { findReceiptMatchCandidates, linkReceiptToTransaction } from './_shared/receiptMatching.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -42,37 +43,28 @@ export const handler: Handler = async (event) => {
 
     for (const r of pending) {
       try {
-        const merchantSearch = (r.merchant_name || '').replace(/'/g, "''");
-        const receiptAmount = Number(r.amount);
-        let q = sb.from('transactions')
-          .select('id, merchant_name, amount, date')
-          .eq('user_id', userId)
-          .or(`merchant_name.ilike.%${merchantSearch}%,description.ilike.%${merchantSearch}%`)
-          .gte('amount', receiptAmount - 1.00)
-          .lte('amount', receiptAmount + 1.00)
-          .order('date', { ascending: false })
-          .limit(3);
-        if (r.receipt_date) {
-          const d = new Date(r.receipt_date);
-          const dayMinus5 = new Date(d.getTime() - 5 * 86400000).toISOString().split('T')[0];
-          const dayPlus5 = new Date(d.getTime() + 5 * 86400000).toISOString().split('T')[0];
-          q = q.gte('date', dayMinus5).lte('date', dayPlus5);
-        }
-        const { data: txMatches } = await q;
-        const best = txMatches?.[0];
+        // C2-A2: value-bound, user-scoped matching (no `.or()` string built from OCR output).
+        const txMatches = await findReceiptMatchCandidates(
+          sb,
+          userId,
+          { merchantName: r.merchant_name, amount: r.amount, receiptDate: r.receipt_date },
+          3,
+        );
+        const best = txMatches[0];
         if (best) {
+          const receiptAmount = Number(r.amount);
           const conf = Math.abs(Number(best.amount) - receiptAmount) < 0.01 ? 0.95 : 0.8;
-          await sb.from('receipts').update({ transaction_id: best.id, match_status: 'matched', match_confidence: conf }).eq('id', r.id);
-          await sb.from('transactions').update({ receipt_id: r.id, has_receipt: true }).eq('id', best.id);
-          matches.push({ receipt_id: r.id, transaction_id: best.id, merchant_name: r.merchant_name });
+          if (await linkReceiptToTransaction(sb, userId, r.id, best.id, conf)) {
+            matches.push({ receipt_id: r.id, transaction_id: best.id, merchant_name: r.merchant_name });
+          }
         }
       } catch { /* skip individual failures */ }
     }
 
     const stillPending = pending.length - matches.length;
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, matched: matches.length, still_pending: stillPending, matches }) };
-  } catch (err: any) {
-    console.error('[receipt-match] Error:', err.message);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+  } catch (err: unknown) {
+    console.error('[receipt-match] Failed', { name: err instanceof Error ? err.name : 'Error' });
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Receipt matching failed. Please try again.' }) };
   }
 };

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSupabase } from '@/lib/supabase';
+import { resolveReceiptFileUrls } from '@/lib/receipts/receiptFileUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { Reveal } from './PrimeChatV2/Reveal';
@@ -11,6 +12,7 @@ export default function ReceiptsPage() {
   const navigate = useNavigate();
   const { userId } = useAuth();
   const [receipts, setReceipts] = useState<any[]>([]);
+  const [fileUrls, setFileUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'matched' | 'pending' | 'no_match'>('all');
   const [byteMessage, setByteMessage] = useState<string | null>(null);
@@ -24,7 +26,16 @@ export default function ReceiptsPage() {
     let q = sb.from('receipts').select('*').eq('user_id', userId);
     if (filter !== 'all') q = q.eq('match_status', filter);
     const { data } = await q.order('created_at', { ascending: false }).limit(50);
-    setReceipts(data || []);
+    const rows = data || [];
+    // C2-A2: private bucket - show files through short-lived signed URLs only.
+    const signed = await resolveReceiptFileUrls(sb, rows.map((r) => r.file_url || r.image_url));
+    const urls: Record<string, string> = {};
+    for (const r of rows) {
+      const url = signed.get(String(r.file_url || r.image_url || '').trim());
+      if (url) urls[r.id] = url;
+    }
+    setFileUrls(urls);
+    setReceipts(rows);
     setLoading(false);
   }, [userId, filter]);
 
@@ -134,8 +145,8 @@ export default function ReceiptsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
           {receipts.map(r => (
             <div key={r.id} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
-              {isImg(r.file_url || r.image_url) ? (
-                <img src={r.file_url || r.image_url} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+              {isImg(r.file_url || r.image_url) && fileUrls[r.id] ? (
+                <img src={fileUrls[r.id]} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
               ) : (
                 <div style={{ height: 140, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', background: `${T.border}33` }}>
                   <span style={{ fontSize: 32 }}>{'\uD83D\uDCC4'}</span>
@@ -159,7 +170,7 @@ export default function ReceiptsPage() {
                 {r.match_status === 'pending' && <div style={{ marginTop: 8, fontSize: 11, color: T.amber }}>Waiting for matching statement</div>}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
                   <button onClick={() => handleDelete(r)} style={{ fontSize: 11, color: T.dim, background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
-                  {(r.file_url || r.image_url) && <button onClick={() => window.open(r.file_url || r.image_url, '_blank')} style={{ fontSize: 11, fontWeight: 600, color: T.cyan, background: 'none', border: 'none', cursor: 'pointer' }}>View file {'\u2192'}</button>}
+                  {fileUrls[r.id] && <button onClick={() => window.open(fileUrls[r.id], '_blank', 'noopener,noreferrer')} style={{ fontSize: 11, fontWeight: 600, color: T.cyan, background: 'none', border: 'none', cursor: 'pointer' }}>View file {'\u2192'}</button>}
                 </div>
               </div>
             </div>

@@ -445,12 +445,11 @@ function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAd
 
     // Diagnostic: anchor found but extraction failed. Fires once per failed call.
     const charIdx = text.search(/closing\s+totals/i);
+    // C2-A2: never log statement text or amounts - positions and counts only.
     console.warn('[parseBmoStatementTotals] Anchor present but amounts not extracted', {
       textLength: text.length,
       anchorCharIndex: charIdx,
-      before: charIdx > 0 ? text.slice(Math.max(0, charIdx - 80), charIdx) : '',
-      anchorAndAfter: text.slice(charIdx, Math.min(text.length, charIdx + 400)),
-      collectedSoFar: collected,
+      collectedCount: collected.length,
     });
   }
 

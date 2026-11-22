@@ -129,7 +129,12 @@ export function TransactionInsightDrawer({
         const { getSupabase } = await import('../../lib/supabase');
         const sb = getSupabase(); if (!sb) return;
         const { data } = await sb.from('receipts').select('id, file_url, image_url, merchant_name, amount, receipt_date, suggested_category, match_status').eq('transaction_id', tx.id).maybeSingle();
-        setLinkedReceipt(data);
+        if (!data) { setLinkedReceipt(null); return; }
+        // C2-A2: private bucket - open the file through a short-lived signed URL only.
+        const { resolveReceiptFileUrls } = await import('../../lib/receipts/receiptFileUrl');
+        const ref = String(data.file_url || data.image_url || '').trim();
+        const signed = ref ? await resolveReceiptFileUrls(sb, [ref]) : new Map<string, string>();
+        setLinkedReceipt({ ...data, view_url: signed.get(ref) || null });
       } catch { /* silent */ }
     })();
   }, [row?.kind === 'committed' ? (row as any).transaction.id : null]);
@@ -507,7 +512,7 @@ export function TransactionInsightDrawer({
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#34d399' }}>Receipt attached</div>
                 <div style={{ fontSize: 11, color: '#475569' }}>{linkedReceipt.merchant_name}{linkedReceipt.amount ? ` \u00b7 $${Number(linkedReceipt.amount).toFixed(2)}` : ''}</div>
               </div>
-              <button onClick={() => window.open(linkedReceipt.file_url || linkedReceipt.image_url, '_blank')} style={{ fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' as const }}>View {'\uD83E\uDDFE'}</button>
+              {linkedReceipt.view_url && <button onClick={() => window.open(linkedReceipt.view_url, '_blank', 'noopener,noreferrer')} style={{ fontSize: 11, fontWeight: 600, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' as const }}>View {'\uD83E\uDDFE'}</button>}
             </div>
           )}
           {/* ATTACH RECEIPT */}
@@ -525,7 +530,7 @@ export function TransactionInsightDrawer({
                     const base64 = (reader.result as string).split(',')[1];
                     const res = await fetch('/.netlify/functions/receipt-upload', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ image_base64: base64, mime_type: file.type, filename: file.name, transaction_id: txId }) });
                     const data = await res.json();
-                    if (data.ok) { setLinkedReceipt({ id: data.receipt_id, merchant_name: data.merchant_name, amount: data.amount, file_url: data.file_url, match_status: 'matched' }); }
+                    if (data.ok) { setLinkedReceipt({ id: data.receipt_id, merchant_name: data.merchant_name, amount: data.amount, file_url: data.file_path ?? null, view_url: data.file_url ?? null, match_status: 'matched' }); }
                   };
                   reader.readAsDataURL(file);
                 } catch { /* silent */ }
