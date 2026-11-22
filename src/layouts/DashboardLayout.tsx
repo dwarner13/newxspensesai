@@ -16,7 +16,6 @@ import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
 import UnifiedAssistantChat from "../components/chat/UnifiedAssistantChat";
 import { useUnifiedChatLauncher, closeUnifiedChat } from "../hooks/useUnifiedChatLauncher";
 import { resolvePrimeLaunch } from "../lib/primeChatSession";
-import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
 // ActivityFeedSidebar removed - activity timeline lives in DashboardHomeV2
 // DesktopChatSideBar removed - agents accessed via Prime briefing panel
 import { ChatHistorySidebar } from "../components/chat/ChatHistorySidebar";
@@ -1123,6 +1122,17 @@ export default function DashboardLayout() {
               <span className="font-black text-lg text-white">XspensesAI</span>
             </div>
             
+            {/* C2-E1: Ask Prime on mobile — opens the existing Prime panel */}
+            <button
+              type="button"
+              onClick={() => setIsPrimeBriefingOpen(true)}
+              aria-label="Ask Prime"
+              data-testid="ask-prime-mobile"
+              className="ml-auto mr-2 px-3 py-1.5 rounded-lg text-xs font-bold"
+              style={{ background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.35)', color: '#e8cf86' }}
+            >
+              Ask Prime
+            </button>
             <button 
               onClick={() => { window.location.href = "/dashboard/settings"; }}
               className="flex items-center gap-2 hover:bg-white/10 rounded-lg p-1 transition-all duration-200"
@@ -1174,13 +1184,13 @@ export default function DashboardLayout() {
   // 
   // Z-INDEX LAYERING (bottom to top):
   // - ActivityFeed: default z-index (stays in document flow)
-  // - PrimeFloatingButton: z-30 (floats above content, below header)
+  // - Ask Prime (DashboardHeader / mobile header): opens PrimeBriefingPanel (C2-E1)
   // - DesktopChatSideBar: z-998 (right-edge tab)
   // - UnifiedAssistantChat: z-999 (slide-out panel, highest)
   // - DashboardHeader: z-40 (sticky header, highest UI element)
   //
   // CHAT BEHAVIOR:
-  // - PrimeFloatingButton: Opens unified chat via useUnifiedChatLauncher
+  // - Ask Prime: sets isPrimeBriefingOpenAtom; the panel reuses the shared Prime session
   // - DesktopChatSideBar: Right-edge vertical tab, also opens unified chat
   // - UnifiedAssistantChat: Slide-out panel from right, overlays ActivityPanel correctly
   //

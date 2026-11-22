@@ -805,6 +805,17 @@ export default function TransactionsPageV2() {
                   </>
                 )}
               </div>
+              {/* C2-E1: Ask Prime — opens the existing Prime panel; this page stays visible underneath */}
+              <button
+                type="button"
+                onClick={handleOpenPrime}
+                aria-label="Ask Prime about your transactions"
+                data-testid="ask-prime-transactions"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-bold rounded-lg border"
+                style={{ background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.35)', color: '#e8cf86', cursor: 'pointer' }}
+              >
+                <span aria-hidden="true">{"♕"}</span> Ask Prime
+              </button>
             </div>
             {isStatementMode && (
               <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0', fontWeight: 500 }}>

@@ -5,6 +5,8 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSetAtom } from 'jotai';
+import { isPrimeBriefingOpenAtom } from '../../lib/uiStore';
 import { CompactScoreRing } from '../../pages/XspenseScore/ScoreRing';
 import { useXspenseScore } from '../../pages/XspenseScore/useXspenseScore';
 import { Bell, User, Settings, HelpCircle, LogOut } from 'lucide-react';
@@ -27,6 +29,8 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const scoreData = useXspenseScore();
+  // C2-E1: global Ask Prime — opens the existing Prime panel over the current page.
+  const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [unreadCount] = useState(4);
   const notificationsRef = useRef<HTMLDivElement>(null);
@@ -126,6 +130,17 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
 
         {/* RIGHT: Bell + Profile */}
         <div className="flex items-center gap-3">
+          {/* C2-E1: Ask Prime (existing Prime panel; same session as everywhere else) */}
+          <button
+            type="button"
+            onClick={() => setIsPrimeBriefingOpen(true)}
+            aria-label="Ask Prime"
+            data-testid="ask-prime-header"
+            className="flex items-center gap-1.5 h-[30px] px-3 rounded-lg text-[12px] font-bold transition-colors"
+            style={{ background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.35)', color: '#e8cf86', cursor: 'pointer' }}
+          >
+            <span aria-hidden="true">{"♕"}</span> Ask Prime
+          </button>
           {/* Notifications */}
           {/* Score badge */}
           {!scoreData.loading && (
