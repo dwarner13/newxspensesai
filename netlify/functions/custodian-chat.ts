@@ -4,6 +4,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
+import { boundChatHistory, safeAppPath, MAX_USER_MESSAGE_CHARS } from './_shared/boundedChatInput.js';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 
@@ -125,7 +126,7 @@ export const handler: Handler = async (event) => {
     const body = JSON.parse(event.body || '{}');
     const { message, history = [], currentPath } = body;
 
-    if (!message) {
+    if (!message || typeof message !== 'string') {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
     }
 
@@ -138,7 +139,10 @@ export const handler: Handler = async (event) => {
     } catch { /* non-blocking */ }
 
     const userContext = userName ? `The user's name is ${userName}. ` : '';
-    const pathContext = currentPath ? `The user is currently on: ${currentPath}. ` : '';
+    // COLLAB-1: only a real app path reaches the system prompt; history and message are bounded.
+    const appPath = safeAppPath(currentPath);
+    const pathContext = appPath ? `The user is currently on: ${appPath}. ` : '';
+    const boundedHistory = boundChatHistory(history);
 
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -148,11 +152,8 @@ export const handler: Handler = async (event) => {
       max_tokens: 500,
       system: SYSTEM_PROMPT + '\n\n' + userContext + pathContext,
       messages: [
-        ...history.map((m: { role: string; content: string }) => ({
-          role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-          content: m.content,
-        })),
-        { role: 'user', content: message },
+        ...boundedHistory,
+        { role: 'user', content: message.slice(0, MAX_USER_MESSAGE_CHARS) },
       ],
     });
 

@@ -1,29 +1,26 @@
 /**
- * C1-S — server policy for a client-supplied `systemPromptOverride` (SERVER-ONLY).
+ * C1-S / COLLAB-1 — server policy for a client-supplied `systemPromptOverride` (SERVER-ONLY).
  *
- * The chat request body may carry `systemPromptOverride`. Before C1-S, chat.ts pushed it as
- * a SYSTEM message for any employee, so any authenticated user could replace Prime's
- * authoritative instructions for their own session.
+ * The chat request body may carry `systemPromptOverride`. It used to be pushed as a SYSTEM
+ * message that REPLACED the employee's server prompt, so any authenticated user could
+ * rewrite an employee's instructions for their own session.
  *
  * Policy:
- *  - Prime ('prime-boss' / 'prime') NEVER accepts a client prompt. Prime's instructions are
- *    server-owned (brain pack, preamble, memory, persona); the Prime panel and
- *    EmployeeChatPage therefore get the same instructions.
- *  - Specialists keep their existing behaviour (ReviewStatementPage → custodian,
- *    ReportsV2 → Crystal / Tag, EmployeeChatPage → Crystal / Tag / Blitz context prompts).
- *    This is the documented compatibility surface; tightening it is a separate decision.
- *  - Non-string or blank values are ignored for everyone.
+ *  - C1-S: Prime ('prime-boss' / 'prime') never accepts a client prompt.
+ *  - COLLAB-1: no employee accepts free-text client instructions any more. Pages that need
+ *    context send a structured `pageContext` instead, rendered from server-owned templates
+ *    (see pageContextTemplates.ts) and added alongside — never instead of — the employee's
+ *    server prompt.
+ *  - The prompt text is never logged.
  *
- * The decision is taken at the USE site with the FINAL employee slug (after routing and
- * session resolution), so a request cannot name a specialist and end up as Prime with its
- * own prompt. The prompt text is never logged.
+ * The decision is still taken at the USE site with the FINAL employee slug.
  */
 
 export const PRIME_EMPLOYEE_SLUGS: ReadonlySet<string> = new Set(['prime-boss', 'prime']);
 
 export type SystemPromptOverrideDecision =
   | { accepted: true; prompt: string }
-  | { accepted: false; reason: 'absent' | 'not_string' | 'blank' | 'prime_server_owned' };
+  | { accepted: false; reason: 'absent' | 'not_string' | 'blank' | 'prime_server_owned' | 'client_prompts_not_accepted' };
 
 export function isPrimeEmployeeSlug(slug: string | null | undefined): boolean {
   return PRIME_EMPLOYEE_SLUGS.has(String(slug ?? '').trim().toLowerCase());
@@ -40,5 +37,6 @@ export function resolveSystemPromptOverride(
   if (!finalEmployeeSlug || isPrimeEmployeeSlug(finalEmployeeSlug)) {
     return { accepted: false, reason: 'prime_server_owned' };
   }
-  return { accepted: true, prompt: raw };
+  // COLLAB-1: specialists no longer accept free-text client prompts either.
+  return { accepted: false, reason: 'client_prompts_not_accepted' };
 }

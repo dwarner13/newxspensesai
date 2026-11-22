@@ -73,6 +73,9 @@ import { ensureSession, getRecentMessages } from './_shared/session.js';
 import { ensureThread } from './_shared/ensureThread.js';
 // C1-S: Prime never accepts a client-supplied system prompt (server-owned instructions)
 import { resolveSystemPromptOverride } from './_shared/systemPromptOverridePolicy.js';
+import { resolvePageContext } from './_shared/pageContextTemplates.js';
+import { sanitizePrimeContext } from './_shared/primeContextSanitizer.js';
+import { createToolCallBudget, boundDocumentIds, TOOL_BUDGET_EXCEEDED_RESULT } from './_shared/toolCallBudget.js';
 import { buildResponseHeaders } from './_shared/headers.js';
 import { getEmployeeModelConfig } from './_shared/employeeModelConfig.js';
 import { buildFinancialSnapshot } from './_shared/financial-snapshot.js';
@@ -263,7 +266,8 @@ interface ChatRequest {
   client_message_id?: string; // Optional client-generated ID for user message dedupe
   request_id?: string; // Optional client-generated request ID for assistant dedupe
   stream?: boolean;
-  systemPromptOverride?: string; // Custom system prompt from frontend (e.g., category/transaction context)
+  systemPromptOverride?: string; // COLLAB-1: ignored for every employee (server-owned prompts only)
+  pageContext?: unknown; // COLLAB-1: structured page context, rendered from server-owned templates
   documentIds?: string[]; // Document IDs from Smart Import uploads
   prime_context?: { // Optional PrimeState snapshot (convenience overlay, verified server-side)
     displayName: string | null;
@@ -6257,8 +6261,13 @@ export const handler: Handler = async (event, context) => {
     // Parse request body (userId now comes from JWT, not body)
     const requestBody = (body || JSON.parse(event.body || '{}')) as ChatRequest;
     let { employeeSlug, message, sessionId, threadId: requestThreadId, stream = true, systemPromptOverride, documentIds, client_message_id, request_id, hidden } = requestBody as any;
+    // COLLAB-1: bounded document references; structured page context; per-request tool budget.
+    documentIds = boundDocumentIds(documentIds);
+    const pageContextRaw: unknown = (requestBody as any)?.pageContext;
+    const toolCallBudget = createToolCallBudget();
     const ocrText: string | null = (body.ocrText as string) || null;
-    let effectivePrimeContext: ChatRequest['prime_context'] = requestBody?.prime_context || null;
+    // COLLAB-1: browser snapshot validated (allowlisted fields, types, lengths); unknown fields dropped.
+    let effectivePrimeContext: ChatRequest['prime_context'] = sanitizePrimeContext(requestBody?.prime_context) as ChatRequest['prime_context'];
     employeeSlugForLog = employeeSlug || null;
     const userForcedEmployee = !!body.employeeSlug;
     const isNetlifyDev = process.env.NETLIFY_DEV === 'true';
@@ -6588,8 +6597,8 @@ export const handler: Handler = async (event, context) => {
           }),
         };
       }
-      // For other errors (including module not found, table missing, etc.), fail open
-      // In local dev, rate limiting may not be available - don't crash
+      // COLLAB-1: the rate-limit module now applies an in-memory fallback limit itself when its
+      // database is unavailable; only a missing module (local dev) reaches this branch.
       if (rateLimitError.code !== 'MODULE_NOT_FOUND') {
         console.warn('[Chat] Rate limit check failed (non-fatal, failing open):', rateLimitError.message || rateLimitError);
       }
@@ -11021,6 +11030,15 @@ CUSTODIAN CONTEXT (Account Security & Settings):
       }
       console.log(`[Chat] Using routing-based prompts for ${finalEmployeeSlug} (no DB system_prompt found)`);
     }
+    // COLLAB-1: structured page context from server-owned templates, added AFTER the employee's
+    // server prompt (never replacing it). Only kinds allowed for this employee are accepted.
+    const pageContextDecision = resolvePageContext(finalEmployeeSlug, pageContextRaw);
+    if (pageContextDecision.accepted) {
+      systemMessages.push({ role: 'system', content: pageContextDecision.message });
+      console.log(`[Chat] pageContext applied: kind=${pageContextDecision.kind} employee=${finalEmployeeSlug}`);
+    } else if (pageContextDecision.reason !== 'absent') {
+      console.log(`[Chat] pageContext ignored: reason=${pageContextDecision.reason} employee=${finalEmployeeSlug}`);
+    }
     }
 
     // Build attachment context if documentIds provided
@@ -12071,6 +12089,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                   if (streamCached) {
                     result = streamCached.data;
                     console.log(`[Chat] P3.1C dedup hit (streaming) for ${toolName} — returning cached result`);
+                  } else if (!toolCallBudget.take()) {
+                    result = TOOL_BUDGET_EXCEEDED_RESULT;
+                    console.log(`[Chat] tool budget exhausted (${toolCallBudget.max}) — ${toolName} not run`);
                   } else {
                     result = await executeTool(toolModule, args, toolContext, {
                       employeeSlug: finalEmployeeSlug,
@@ -12476,7 +12497,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
                   // Track tx_search IDs
                   const toolCtx: ToolContext = { userId, conversationId: finalSessionId, sessionId: finalSessionId, authHeader: authHeader || '' };
-                  const tResult = await executeTool(tm, tArgs, toolCtx);
+                  const tResult = toolCallBudget.take() ? await executeTool(tm, tArgs, toolCtx) : TOOL_BUDGET_EXCEEDED_RESULT;
 
                   if (tn === 'tx_search' && finalSessionId && tResult && typeof tResult === 'object' && !('error' in tResult)) {
                     // P3.3C: ownership from model-declared purpose. Only candidate_establishment
@@ -13787,6 +13808,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             if (p31cCached) {
               result = p31cCached.data;
               console.log(`[Chat] P3.1C dedup hit for ${toolName} — returning cached result`);
+            } else if (!toolCallBudget.take()) {
+              result = TOOL_BUDGET_EXCEEDED_RESULT;
+              console.log(`[Chat] tool budget exhausted (${toolCallBudget.max}) — ${toolName} not run`);
             } else {
               result = await executeTool(toolModule, args, toolContext, {
                 employeeSlug: finalEmployeeSlug,
@@ -14183,6 +14207,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 if (loopCached) {
                   result = loopCached.data;
                   console.log(`[Chat] P3.1C dedup hit (tool-loop) for ${toolName} — returning cached result`);
+                } else if (!toolCallBudget.take()) {
+                  result = TOOL_BUDGET_EXCEEDED_RESULT;
+                  console.log(`[Chat] tool budget exhausted (${toolCallBudget.max}) — ${toolName} not run`);
                 } else {
                   result = await executeTool(toolModule, args, toolContext, {
                     employeeSlug: finalEmployeeSlug,

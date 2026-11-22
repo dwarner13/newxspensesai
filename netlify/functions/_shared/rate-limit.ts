@@ -18,10 +18,13 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!  // server-side only
-);
+// COLLAB-1: created on first use, so a missing configuration falls back to the in-memory
+// limiter instead of failing at import time.
+let cachedClient: ReturnType<typeof createClient> | null = null;
+function getClient() {
+  if (!cachedClient) cachedClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!); // server-side only
+  return cachedClient;
+}
 
 /**
  * Check if a string is a valid UUID format
@@ -33,159 +36,101 @@ function isValidUuid(value: string | null | undefined): boolean {
 }
 
 /**
+ * COLLAB-1: in-memory fallback limiter. Used whenever the database limiter is unavailable
+ * (table missing, query error, non-UUID id) so the limit no longer "fails open" to
+ * unlimited requests. Per warm function instance; same per-user budget; bounded map.
+ */
+const FALLBACK_MAX_USERS = 5000;
+const fallbackWindows = new Map<string, { start: number; count: number }>();
+
+function rateLimitError(maxPerMinute: number, retryAfter: number): Error {
+  const err: any = new Error(`Rate limit exceeded. You can make ${maxPerMinute} requests per minute. Try again in ${retryAfter}s.`);
+  err.statusCode = 429;
+  err.retryAfter = retryAfter;
+  return err;
+}
+
+export function assertWithinFallbackRateLimit(userId: string, maxPerMinute = 20, nowMs = Date.now()): void {
+  const windowMs = 60_000;
+  const key = String(userId || 'anonymous');
+  const w = fallbackWindows.get(key);
+  if (!w || nowMs - w.start > windowMs) {
+    if (!w && fallbackWindows.size >= FALLBACK_MAX_USERS) {
+      const oldest = fallbackWindows.keys().next().value;
+      if (oldest !== undefined) fallbackWindows.delete(oldest);
+    }
+    fallbackWindows.set(key, { start: nowMs, count: 1 });
+    return;
+  }
+  if (w.count + 1 > maxPerMinute) throw rateLimitError(maxPerMinute, Math.max(1, Math.ceil((windowMs - (nowMs - w.start)) / 1000)));
+  w.count += 1;
+}
+
+/** Test hook only. */
+export function __resetFallbackRateLimitForTests(): void { fallbackWindows.clear(); }
+
+/**
  * Assert that user is within rate limit
  * @param userId - User ID to check
  * @param maxPerMinute - Maximum requests per minute (default: 20)
  * @throws Error with statusCode 429 if rate limit exceeded
+ *
+ * COLLAB-1: when the database limiter cannot be used, the in-memory fallback limiter is
+ * applied instead of allowing the request unconditionally.
  */
-export async function assertWithinRateLimit(userId: string, maxPerMinute = 20) {
-  // Skip rate limiting for non-UUID users (anon users) to avoid UUID type errors
-  if (!isValidUuid(userId)) {
-    console.warn('[Rate Limit] Skipping DB rate limit for non-uuid user', userId.substring(0, 20));
-    return; // Fail open - allow request to proceed
-  }
+export async function assertWithinRateLimit(userId: string, maxPerMinute = 20, injectedClient?: any) {
+  const fallback = (reason: string) => {
+    console.warn(`[Rate Limit] database limiter unavailable (${reason}) — using in-memory fallback`);
+    assertWithinFallbackRateLimit(userId, maxPerMinute);
+  };
+  if (!isValidUuid(userId)) return fallback('non_uuid_user');
 
   const now = new Date();
-  const windowMs = 60_000; // 1 minute in milliseconds
-
+  const windowMs = 60_000;
   try {
-    // Fetch current rate limit state for user
-    // Use chat_rate_limits table (updated from rate_limits)
-    let data: any = null;
-    let fetchError: any = null;
-    
-    try {
-      const result = await supabase
-        .from('chat_rate_limits')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      
-      data = result.data;
-      fetchError = result.error;
-    } catch (err: any) {
-      // If table doesn't exist (PGRST205), log warning and skip rate limiting
-      if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
-        console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
-        return; // Fail open - allow request to proceed
-      }
-      throw err;
-    }
-
-    if (fetchError) {
-      // PGRST205 = table not found
-      if (fetchError.code === 'PGRST205' || fetchError.message?.includes('table') || fetchError.message?.includes('not found')) {
-        console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
-        return; // Fail open - allow request to proceed
-      }
-      console.error('[Rate Limit] Fetch error:', fetchError);
-      // Fail open - don't block user if rate limit check fails
-      return;
-    }
+    const client = injectedClient ?? getClient();
+    const { data, error: fetchError } = await client
+      .from('chat_rate_limits')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (fetchError) return fallback('fetch_error');
 
     // First request from this user - create new window
     if (!data) {
-      try {
-        const { error: insertError } = await supabase
-          .from('chat_rate_limits')
-          .insert({ 
-            user_id: userId, 
-            window_start: now.toISOString(), 
-            count: 1 
-          });
-
-        if (insertError) {
-          if (insertError.code === 'PGRST205' || insertError.message?.includes('table') || insertError.message?.includes('not found')) {
-            console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
-            return;
-          }
-          console.error('[Rate Limit] Insert error:', insertError);
-          // Fail open
-        }
-      } catch (err: any) {
-        if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
-          console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
-          return;
-        }
-        throw err;
-      }
+      const { error: insertError } = await client
+        .from('chat_rate_limits')
+        .insert({ user_id: userId, window_start: now.toISOString(), count: 1 });
+      if (insertError) return fallback('insert_error');
       return;
     }
 
-    // Calculate elapsed time since window start
-    const start = new Date(data.window_start);
-    const elapsed = now.getTime() - start.getTime();
+    const elapsed = now.getTime() - new Date(data.window_start).getTime();
 
     // Window expired - reset with new window
     if (elapsed > windowMs) {
-      try {
-        const { error: resetError } = await supabase
-          .from('chat_rate_limits')
-          .update({ 
-            window_start: now.toISOString(), 
-            count: 1 
-          })
-          .eq('user_id', userId);
-
-        if (resetError) {
-          if (resetError.code === 'PGRST205' || resetError.message?.includes('table') || resetError.message?.includes('not found')) {
-            console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
-            return;
-          }
-          console.error('[Rate Limit] Reset error:', resetError);
-          // Fail open
-        }
-      } catch (err: any) {
-        if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
-          console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
-          return;
-        }
-        throw err;
-      }
+      const { error: resetError } = await client
+        .from('chat_rate_limits')
+        .update({ window_start: now.toISOString(), count: 1 })
+        .eq('user_id', userId);
+      if (resetError) return fallback('reset_error');
       return;
     }
 
     // Check if next request would exceed limit
     if (data.count + 1 > maxPerMinute) {
-      const resetInSeconds = Math.ceil((windowMs - elapsed) / 1000);
-      const err: any = new Error(
-        `Rate limit exceeded. You can make ${maxPerMinute} requests per minute. Try again in ${resetInSeconds}s.`
-      );
-      err.statusCode = 429;
-      err.retryAfter = resetInSeconds;
-      throw err;
+      throw rateLimitError(maxPerMinute, Math.ceil((windowMs - elapsed) / 1000));
     }
 
     // Increment counter
-    try {
-      const { error: updateError } = await supabase
-        .from('chat_rate_limits')
-        .update({ count: data.count + 1 })
-        .eq('user_id', userId);
-
-      if (updateError) {
-        if (updateError.code === 'PGRST205' || updateError.message?.includes('table') || updateError.message?.includes('not found')) {
-          console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
-          return;
-        }
-        console.error('[Rate Limit] Update error:', updateError);
-        // Fail open
-      }
-    } catch (err: any) {
-      if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
-        console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
-        return;
-      }
-      throw err;
-    }
+    const { error: updateError } = await client
+      .from('chat_rate_limits')
+      .update({ count: data.count + 1 })
+      .eq('user_id', userId);
+    if (updateError) return fallback('update_error');
   } catch (err: any) {
-    // Re-throw rate limit errors
-    if (err.statusCode === 429) {
-      throw err;
-    }
-    
-    // For all other errors, fail open (don't block user)
-    console.error('[Rate Limit] Unexpected error:', err);
+    if (err?.statusCode === 429) throw err;
+    return fallback('exception');
   }
 }
 
@@ -199,7 +144,7 @@ export async function getRateLimitStatus(userId: string) {
   let error: any = null;
   
   try {
-    const result = await supabase
+    const result = await getClient()
       .from('chat_rate_limits')
       .select('*')
       .eq('user_id', userId)

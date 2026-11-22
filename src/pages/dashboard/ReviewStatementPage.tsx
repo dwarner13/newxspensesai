@@ -37,18 +37,7 @@ function formatAmount(n: number): string {
 
 // ── Custodian explanation prompt (inline, not from DB) ──
 
-const CUSTODIAN_REVIEW_PROMPT = `# STATEMENT REVIEW MODE
-A "held" statement is one where the parser could not make the transactions add up to
-the totals the bank printed. This is a PRODUCT/SYSTEM issue — you explain what the app
-read versus what the document says. This is IN SCOPE, NOT bookkeeping or financial
-advice. Do not decline it.
-You have: the bank's printed totals (totalDeducted, totalAdded), the sum of the parsed
-rows, the dollar gap, and confidence flags on rows the parser was unsure of.
-HOW TO EXPLAIN: 1) State the gap in plain dollars and which side. 2) Give the likely
-cause in one sentence from the confidence flags. 3) Point them at the PDF section to check.
-HARD RULE: You may PROPOSE a specific fix but NEVER apply it or write a dollar amount
-yourself. Propose \u2192 user verifies against PDF \u2192 user applies. Never skip the middle step.
-QUALITY BAR: Explain clearly enough that a non-accountant can fix it in under 2 minutes.`;
+// COLLAB-1: the statement-review instructions are server-owned (netlify/functions/_shared/pageContextTemplates.ts).
 
 // ── Main component ──
 
@@ -322,7 +311,7 @@ export default function ReviewStatementPage() {
         body: JSON.stringify({
           employeeSlug: 'custodian',
           messages: [{ role: 'user', content: `Review this held statement. Context: ${context}` }],
-          systemPromptOverride: CUSTODIAN_REVIEW_PROMPT,
+          pageContext: { kind: "statement_review" }, // COLLAB-1: server-owned review instructions
           stream: false,
         }),
       });

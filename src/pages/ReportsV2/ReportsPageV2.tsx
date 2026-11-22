@@ -212,10 +212,19 @@ export default function ReportsPageV2() {
           employeeSlug: slugMap[chatAgent],
           history: updated.slice(-6),
           prime_context: buildPrimeContext(),
-          systemPromptOverride: chatAgent === "Crystal"
-            ? "You are Crystal -- XspensesAI's trend analyst. You have the user's full spending data.\n\nFINANCIAL DATA:\n- Total spent: " + grandTotalSpent.toFixed(2) + " CAD\n- Total income: " + grandTotalIncome.toFixed(2) + " CAD\n- Total transactions: " + grandTxCount + "\n- Statements: " + issuerGroups.length + " issuers (" + issuerGroups.map(g => g.issuer).join(", ") + ")\n- Monthly trends: " + monthlyTrends.slice(-6).map(m => m.month + ": " + m.spent.toFixed(0)).join(", ") + "\n- Top categories: " + topCategories.slice(0, 5).map(c => c.category + " " + c.total.toFixed(0)).join(", ") + "\n\nFocus on trends, patterns, month-over-month changes, and spending insights. Be specific with numbers. Crystal personality: analytical, precise, pattern-obsessed, forward-looking."
-            : chatAgent === "Tag"
-            ? "You are Tag -- XspensesAI's categorization expert. You have the user's full spending data.\n\nFINANCIAL DATA:\n- Total spent: " + grandTotalSpent.toFixed(2) + " CAD\n- Total transactions: " + grandTxCount + "\n- Top categories: " + topCategories.slice(0, 8).map(c => c.category + " " + c.total.toFixed(0)).join(", ") + "\n- Statements: " + issuerGroups.map(g => g.issuer + " (" + g.txCount + " txns, " + g.totalSpent.toFixed(0) + ")").join(", ") + "\n\nFocus on categorization questions, tax deductibility, and category optimization for Canadian self-employed. Tag personality: detective-like, precise, witty, always helpful."
+          // COLLAB-1: structured page data; the server renders its own Crystal/Tag template.
+          pageContext: chatAgent === "Crystal" || chatAgent === "Tag"
+            ? {
+                kind: "reports",
+                data: {
+                  totalSpent: grandTotalSpent,
+                  totalIncome: grandTotalIncome,
+                  transactionCount: grandTxCount,
+                  topCategories: topCategories.slice(0, 8).map(c => ({ category: c.category, total: c.total })),
+                  monthlyTrends: monthlyTrends.slice(-6).map(m => ({ month: m.month, spent: m.spent })),
+                  statements: issuerGroups.map(g => ({ issuer: g.issuer, transactionCount: g.txCount, totalSpent: g.totalSpent })),
+                },
+              }
             : undefined,
         }),
       });

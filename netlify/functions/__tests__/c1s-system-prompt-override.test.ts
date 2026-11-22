@@ -34,10 +34,12 @@ describe('policy: Prime never accepts a client prompt', () => {
   });
 });
 
-describe('policy: specialists keep their existing behaviour', () => {
-  it.each(['custodian', 'crystal-insights', 'crystal', 'tag-categorizer', 'tag-ai', 'tag', 'blitz'])('%s → accepted unchanged', (slug) => {
+// COLLAB-1 supersedes the C1-S compatibility surface: specialists no longer accept free-text
+// client prompts either (pages send a structured pageContext rendered from server templates).
+describe('policy: specialists no longer accept free-text client prompts (COLLAB-1)', () => {
+  it.each(['custodian', 'crystal-insights', 'crystal', 'tag-categorizer', 'tag-ai', 'tag', 'blitz'])('%s → rejected', (slug) => {
     const prompt = '# STATEMENT REVIEW MODE\nExplain what the app read versus the document.';
-    expect(resolveSystemPromptOverride(slug, prompt)).toEqual({ accepted: true, prompt });
+    expect(resolveSystemPromptOverride(slug, prompt)).toEqual({ accepted: false, reason: 'client_prompts_not_accepted' });
     expect(isPrimeEmployeeSlug(slug)).toBe(false);
   });
 });
@@ -101,13 +103,16 @@ describe('chat.ts applies the policy at the single use site', () => {
 describe('frontend callers (compatibility)', () => {
   const read = (p: string) => fs.readFileSync(path.resolve(__dirname, '../../..', p), 'utf8');
 
-  it('ReportsV2 sends no override for Prime; Crystal/Tag overrides stay specialist-scoped', () => {
+  // COLLAB-1: these callers now send a structured pageContext instead of a free-text override.
+  it('ReportsV2 sends structured page context for Crystal/Tag only, and no free-text override', () => {
     const src = read('src/pages/ReportsV2/ReportsPageV2.tsx');
-    expect(src).toMatch(/systemPromptOverride: chatAgent === "Crystal"[\s\S]*?: chatAgent === "Tag"[\s\S]*?: undefined,/);
+    expect(src).toMatch(/pageContext: chatAgent === "Crystal" \|\| chatAgent === "Tag"[\s\S]*?kind: "reports"[\s\S]*?: undefined,/);
+    expect(src).not.toContain('systemPromptOverride');
   });
 
-  it('ReviewStatementPage override targets the custodian specialist', () => {
+  it('ReviewStatementPage asks custodian for the server-owned statement-review template', () => {
     const src = read('src/pages/dashboard/ReviewStatementPage.tsx');
-    expect(src).toMatch(/employeeSlug: 'custodian',[\s\S]{0,200}systemPromptOverride: CUSTODIAN_REVIEW_PROMPT/);
+    expect(src).toMatch(/employeeSlug: 'custodian',[\s\S]{0,200}pageContext: \{ kind: "statement_review" \}/);
+    expect(src).not.toContain('systemPromptOverride');
   });
 });

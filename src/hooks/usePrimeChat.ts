@@ -116,13 +116,16 @@ export interface PendingConfirmation {
 }
 
 // Grade 4 explanation: This type lists all the employees you can chat with
+/** COLLAB-1: structured page context; the server renders it from server-owned templates. */
+export type PrimePageContext = { kind: 'transaction' | 'category' | 'reports' | 'statement_review'; data?: Record<string, unknown> };
+
 type EmployeeOverride = 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian';
 
 export function usePrimeChat(
   userId: string,
   sessionId?: string,
   employeeOverride?: EmployeeOverride,
-  systemPrompt?: string | null,
+  systemPrompt?: string | PrimePageContext | null, // COLLAB-1: strings are no longer sent; pass a PrimePageContext
   initialMessages?: ChatMessage[], // Optional initial messages to populate on mount
   additionalPrimeContext?: Record<string, unknown> // Extra fields merged into prime_context per send
 ) {
@@ -255,15 +258,14 @@ export function usePrimeChat(
   });
   const requestEmployeeSlugRef = useRef<Map<string, string>>(new Map());
   
-  // Ensure systemPrompt is a string or null (defensive check)
-  let safeSystemPrompt: string | null | undefined = systemPrompt;
-  if (systemPrompt && typeof systemPrompt === 'object' && 'then' in systemPrompt) {
-    // Check for Promise-like object (defensive check)
-    warn('[usePrimeChat] systemPrompt is a Promise, this should be resolved before passing to usePrimeChat');
-    safeSystemPrompt = null; // Use null instead of awaiting to avoid blocking
-  } else if (systemPrompt !== null && systemPrompt !== undefined && typeof systemPrompt !== 'string') {
-    warn('[usePrimeChat] systemPrompt is not a string, converting:', typeof systemPrompt);
-    safeSystemPrompt = String(systemPrompt);
+  // COLLAB-1: free-text system prompts are no longer sent — the server ignores them for every
+  // employee. A structured page context is sent as `pageContext` and rendered server-side.
+  const pageContextForRequest: PrimePageContext | null =
+    systemPrompt && typeof systemPrompt === 'object' && typeof (systemPrompt as PrimePageContext).kind === 'string'
+      ? (systemPrompt as PrimePageContext)
+      : null;
+  if (typeof systemPrompt === 'string' && systemPrompt.trim()) {
+    warn('[usePrimeChat] free-text systemPrompt is no longer sent (COLLAB-1); pass a PrimePageContext instead');
   }
   
   // Ensure initialMessages are valid (defensive check)
@@ -1426,8 +1428,8 @@ export function usePrimeChat(
             activeEmployeeSlug,
             hasPrimeContext: !!primeContext,
             primeContextKeys: primeContext ? Object.keys(primeContext) : [],
-            hasSystemPrompt: !!safeSystemPrompt,
-            systemPromptLength: safeSystemPrompt?.length || 0,
+            hasPageContext: !!pageContextForRequest,
+            pageContextKind: pageContextForRequest?.kind ?? null,
             hasDocumentIds: !!(opts?.documentIds && opts.documentIds.length > 0),
             documentIdsCount: opts?.documentIds?.length || 0,
             primeContextDetails: primeContext ? {
@@ -1501,7 +1503,7 @@ export function usePrimeChat(
           client_message_id: clientMessageId,
           request_id: requestId,
           stream: true,
-          ...(safeSystemPrompt ? { systemPromptOverride: safeSystemPrompt } : {}), // Use safe systemPrompt
+          ...(pageContextForRequest ? { pageContext: pageContextForRequest } : {}), // COLLAB-1
           ...(opts?.documentIds && opts.documentIds.length > 0 ? { documentIds: opts.documentIds } : {}), // Include document IDs if provided
           ...(opts?.hidden ? { hidden: true } : {}), // Add hidden flag so backend skips storing user prompt
           ...(primeContext ? { prime_context: primeContext } : {}), // Include PrimeState snapshot for Prime only
@@ -1530,7 +1532,7 @@ export function usePrimeChat(
             employeeSlug: employeeSlugToSend,
             requestBodyKeys: Object.keys(requestBody),
             hasPrimeContext: !!requestBody.prime_context,
-            hasSystemPrompt: !!requestBody.systemPromptOverride,
+            hasPageContext: !!requestBody.pageContext,
             hasDocumentIds: !!requestBody.documentIds,
             documentIdsCount: requestBody.documentIds?.length || 0,
             sessionId: requestBody.sessionId ? 'present' : 'missing',
@@ -1558,8 +1560,8 @@ export function usePrimeChat(
             log('📄 Document IDs:', requestBody.documentIds);
           }
           
-          if (requestBody.systemPromptOverride) {
-            log('📝 Custom System Prompt:', requestBody.systemPromptOverride.substring(0, 200) + '...');
+          if (requestBody.pageContext) {
+            log('📝 Page context kind:', requestBody.pageContext.kind);
           }
           
           log('💬 User Message:', content);
@@ -1903,7 +1905,7 @@ export function usePrimeChat(
           client_message_id: clientMessageId,
           request_id: requestId,
           stream: false,
-          ...(safeSystemPrompt ? { systemPromptOverride: safeSystemPrompt } : {}),
+          ...(pageContextForRequest ? { pageContext: pageContextForRequest } : {}),
           ...(opts?.documentIds && opts.documentIds.length > 0 ? { documentIds: opts.documentIds } : {}),
           ...(primeContext ? { prime_context: primeContext } : {}),
         };
@@ -2338,7 +2340,7 @@ export function usePrimeChat(
     uploads,
     safeUserId,
     sessionId,
-    safeSystemPrompt,
+    pageContextForRequest,
     employeeOverride,
     effectiveThreadId,
     activeEmployeeSlug,
