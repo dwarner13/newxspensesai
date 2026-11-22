@@ -22,3 +22,41 @@ export function buildTagReviewPath(transactionId: unknown): string | null {
   if (!isTransactionUuid(transactionId)) return null;
   return `/dashboard/transactions?${TAG_REVIEW_PARAM}=${encodeURIComponent(transactionId)}`;
 }
+
+/**
+ * C2-E2A-F1 — bring the selected transaction into view on Transactions.
+ *
+ * The list is filtered (year defaults to the current year; type, statement, account, Tag
+ * category/subcategory and search) and shows the first `visibleCount` rows. When the
+ * selected row is hidden by the current filters, the filters that could hide it are reset
+ * (year switches to the transaction's own year) — never to a different transaction.
+ */
+export type TxListFilters = {
+  year: number | 'all';
+  type: 'all' | 'expenses' | 'income';
+  statement: string;
+  account: string;
+  category: string;
+  subcategory: string;
+  search: string;
+};
+
+/** Filters under which the transaction dated `txDate` is guaranteed to be listed. */
+export function filtersRevealing(txDate: string | null | undefined): TxListFilters {
+  const y = Number(String(txDate || '').slice(0, 4));
+  return {
+    year: Number.isInteger(y) && y > 1900 ? y : 'all',
+    type: 'all',
+    statement: 'all',
+    account: 'all',
+    category: '',
+    subcategory: '',
+    search: '',
+  };
+}
+
+/** How many rows must be rendered so the row at `index` exists (keeps the current count when enough). */
+export function visibleCountFor(index: number, current: number): number {
+  if (index < 0) return current;
+  return index < current ? current : index + 10;
+}

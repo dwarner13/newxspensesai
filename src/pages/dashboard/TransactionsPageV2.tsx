@@ -8,7 +8,8 @@ import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
 import { useUnifiedChatLauncher } from '@/hooks/useUnifiedChatLauncher';
 import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
-import { TAG_REVIEW_PARAM, isTransactionUuid } from '@/lib/tagReview';
+import { TAG_REVIEW_PARAM, isTransactionUuid, type TxListFilters } from '@/lib/tagReview';
+import { useRevealReviewedTransaction } from '@/hooks/useRevealReviewedTransaction';
 import { TransactionInsightDrawer } from '@/components/transactions/TransactionInsightDrawer';
 import type { CommittedTransaction } from '@/types/transactions';
 import { getSupabase } from '@/lib/supabase';
@@ -463,10 +464,13 @@ export default function TransactionsPageV2() {
   // it is resolved against the user's loaded rows or one user-filtered RLS read, and Tag
   // re-reads it server-side. Missing/stale/foreign IDs open Tag without a focus.
   const [tagFromPrime, setTagFromPrime] = useState(false);
+  // C2-E2A-F1: the transaction Prime asked to review — brought into view and highlighted.
+  const [highlightTxId, setHighlightTxId] = useState<string | null>(null);
   const tagTxConsumedRef = useRef<string | null>(null);
   useEffect(() => {
     const requested = searchParams.get(TAG_REVIEW_PARAM);
-    if (!requested) return;
+    // Param consumed/removed → allow the same transaction to be reviewed again later.
+    if (!requested) { tagTxConsumedRef.current = null; return; }
     const strip = () => setSearchParams(p => { p.delete(TAG_REVIEW_PARAM); return p; }, { replace: true });
     if (!isTransactionUuid(requested)) { strip(); return; }
     if (tagTxConsumedRef.current === requested || isLoading) return;
@@ -474,6 +478,7 @@ export default function TransactionsPageV2() {
     setIsPrimeBriefingOpen(false); // one panel at a time; Prime's session is kept
     setTagFromPrime(true);
     const openTagWith = (tx: CommittedTransaction | null) => {
+      setHighlightTxId(tx ? tx.id : null); // only a resolved, owned row is ever highlighted
       setSelectedTx(null);
       setTagPanelTx(tx);
       setTagInjectedMsg(null);
@@ -508,6 +513,7 @@ export default function TransactionsPageV2() {
     setTagPanelOpen(false);
     setTagPanelTx(null);
     setTagFromPrime(false);
+    setHighlightTxId(null);
     setIsPrimeBriefingOpen(true);
   }, [setIsPrimeBriefingOpen]);
 
@@ -751,6 +757,13 @@ export default function TransactionsPageV2() {
     });
     return groups;
   }, [filtered, visibleCount]);
+
+  // C2-E2A-F1: bring the reviewed transaction into view (filters, load-more, scroll).
+  const applyRevealFilters = useCallback((f: TxListFilters) => {
+    setYearFilter(f.year); setFilter(f.type); setStatementFilter(f.statement); setAccountFilter(f.account);
+    setTagCategoryFilter(f.category); setTagSubcategoryFilter(f.subcategory); setSearchQuery(f.search);
+  }, []);
+  useRevealReviewedTransaction({ highlightTxId, transactions, filtered, visibleCount, setVisibleCount, applyFilters: applyRevealFilters });
 
   const uncategorizedCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
   const isStatementMode = statementFilter !== 'all';
@@ -1178,7 +1191,8 @@ export default function TransactionsPageV2() {
                 const isDupe = isDuplicate(t);
                 const c = colorFor(cat);
                 return (
-                  <button key={t.id} onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left" style={isDupe ? { background: 'rgba(248,113,113,0.08)', borderLeft: '3px solid rgba(248,113,113,0.55)' } : undefined}>
+                  <button key={t.id} data-tx-id={t.id} aria-current={highlightTxId === t.id ? 'true' : undefined} onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left" style={highlightTxId === t.id ? { background: 'rgba(34,211,238,0.12)', boxShadow: 'inset 3px 0 0 #22d3ee', outline: '1px solid rgba(34,211,238,0.45)', outlineOffset: -1 } : isDupe ? { background: 'rgba(248,113,113,0.08)', borderLeft: '3px solid rgba(248,113,113,0.55)' } : undefined}>
+                    {highlightTxId === t.id && <span className="sr-only">Selected for review with Tag. </span>}
                     <div className="relative flex items-center justify-center h-[44px] w-[44px] rounded-xl shrink-0" style={{ background: c + '2e', border: `1px solid ${c}40` }}>
                       <span className="text-base">{iconFor(cat)}</span>
                       {isUncat && <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-2.5 w-2.5 rounded-full bg-amber-400" /></span>}
@@ -1379,7 +1393,7 @@ export default function TransactionsPageV2() {
           }
           void refetch(); void fetchTagInbox();
         } catch { /* silent */ }
-      }} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
+      }} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
         if (action.type === 'handoff') {
           const slugMap: Record<string, string> = {
             'prime-boss': 'prime-boss', 'prime': 'prime-boss',
