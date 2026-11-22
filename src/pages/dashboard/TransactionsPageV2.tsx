@@ -8,6 +8,7 @@ import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
 import { useUnifiedChatLauncher } from '@/hooks/useUnifiedChatLauncher';
 import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
+import { TAG_REVIEW_PARAM, isTransactionUuid } from '@/lib/tagReview';
 import { TransactionInsightDrawer } from '@/components/transactions/TransactionInsightDrawer';
 import type { CommittedTransaction } from '@/types/transactions';
 import { getSupabase } from '@/lib/supabase';
@@ -456,6 +457,59 @@ export default function TransactionsPageV2() {
       setSearchParams(p => { p.delete('txId'); return p; }, { replace: true });
     })();
   }, [searchParams, transactions, isLoading, fetchTagInsight, setSearchParams]);
+
+  // C2-E2A: Prime "Review with Tag" deep link (?tagTx=<uuid>). Opens the existing Tag panel
+  // focused on the user's own transaction and offers "Back to Prime". Only the ID travels;
+  // it is resolved against the user's loaded rows or one user-filtered RLS read, and Tag
+  // re-reads it server-side. Missing/stale/foreign IDs open Tag without a focus.
+  const [tagFromPrime, setTagFromPrime] = useState(false);
+  const tagTxConsumedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const requested = searchParams.get(TAG_REVIEW_PARAM);
+    if (!requested) return;
+    const strip = () => setSearchParams(p => { p.delete(TAG_REVIEW_PARAM); return p; }, { replace: true });
+    if (!isTransactionUuid(requested)) { strip(); return; }
+    if (tagTxConsumedRef.current === requested || isLoading) return;
+    tagTxConsumedRef.current = requested;
+    setIsPrimeBriefingOpen(false); // one panel at a time; Prime's session is kept
+    setTagFromPrime(true);
+    const openTagWith = (tx: CommittedTransaction | null) => {
+      setSelectedTx(null);
+      setTagPanelTx(tx);
+      setTagInjectedMsg(null);
+      setTagFollowupMerchants(null);
+      setTagPanelOpen(true);
+    };
+    const loaded = transactions.find(t => t.id === requested);
+    if (loaded) { openTagWith(loaded); strip(); return; }
+    (async () => {
+      let found: CommittedTransaction | null = null;
+      try {
+        const supabase = getSupabase();
+        const uid = supabase ? (await supabase.auth.getUser()).data.user?.id : undefined;
+        if (supabase && uid) {
+          const { data } = await supabase
+            .from('transactions')
+            .select('id,user_id,posted_at,merchant_name,merchant,description,amount,category,subcategory,subcategory_source,category_source,date,type,import_id,document_id,created_at,updated_at')
+            .eq('id', requested)
+            .eq('user_id', uid)
+            .maybeSingle();
+          found = (data as CommittedTransaction | null) ?? null;
+        }
+      } catch { /* network error — open Tag without a focus */ }
+      openTagWith(found);
+      strip();
+    })();
+  }, [searchParams, transactions, isLoading, setSearchParams, setIsPrimeBriefingOpen]);
+
+  // C2-E2A: return path from Tag to Prime — close Tag (its history stays in localStorage)
+  // and reopen the existing Prime panel over this page (same Prime session).
+  const handleBackToPrime = useCallback(() => {
+    setTagPanelOpen(false);
+    setTagPanelTx(null);
+    setTagFromPrime(false);
+    setIsPrimeBriefingOpen(true);
+  }, [setIsPrimeBriefingOpen]);
 
   // Account membership: importId -> accountId (computed before `filtered`)
   type AccountCard = {
@@ -1325,7 +1379,7 @@ export default function TransactionsPageV2() {
           }
           void refetch(); void fetchTagInbox();
         } catch { /* silent */ }
-      }} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
+      }} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
         if (action.type === 'handoff') {
           const slugMap: Record<string, string> = {
             'prime-boss': 'prime-boss', 'prime': 'prime-boss',

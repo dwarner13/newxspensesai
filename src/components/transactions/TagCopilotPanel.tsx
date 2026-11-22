@@ -264,6 +264,8 @@ function StatCard({ label, value, color }: { label: string; value: string; color
 
 interface TagCopilotPanelProps {
   initialMessage?: string; onClose: () => void; firstName?: string;
+  /** C2-E2A: shown only when Tag was opened from Prime; reopens the existing Prime panel. */
+  onBackToPrime?: () => void;
   flaggedCount: number; categorizedCount: number; totalCount: number;
   avgConfidence: number; rulesCount: number;
   flaggedTransactions?: FlaggedTransaction[]; subcategorySuggestions?: SubcategorySuggestion[];
@@ -312,6 +314,7 @@ export function TagCopilotPanel({
   importId, importLabel, importTxCount,
   injectedMessage,
   focusedTransaction,
+  onBackToPrime,
 }: TagCopilotPanelProps) {
 
   // Presence of importId means this is an upload-handoff session - start fresh so
@@ -1098,6 +1101,17 @@ export function TagCopilotPanel({
             <Trash2 size={12} />
             <span style={{ fontWeight: 600 }}>Clear</span>
           </button>
+          {onBackToPrime && (
+            <button
+              type="button"
+              onClick={onBackToPrime}
+              aria-label="Back to Prime"
+              data-testid="tag-back-to-prime"
+              style={{ height: 30, padding: "0 10px", borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              {"← Back to Prime"}
+            </button>
+          )}
           <button
             className="tag-close"
             onClick={handleClose}

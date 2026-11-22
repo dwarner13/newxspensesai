@@ -5,6 +5,7 @@ import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
 import { TAG_CATEGORIES } from './_shared/tagCategories.js';
 import { searchTransactions } from './_shared/txSearchCore.js';
+import { resolveFocusedTransaction } from './_shared/tagFocusedTransaction.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -511,8 +512,12 @@ RULES FOR USING MERCHANT DATA:
     // this into the prompt so Tag knows which transaction "this one" refers
     // to AND can suggest extending the change to other matching rows.
     let focusedTransactionBlock = '';
-    if (focusedTransaction && focusedTransaction.id && focusedTransaction.merchant_name) {
-      const ft = focusedTransaction;
+    // C2-E2A: only the ID comes from the browser; the row is re-read server-side,
+    // scoped to this user. Missing, stale or foreign IDs simply mean "no focus".
+    const focused = await resolveFocusedTransaction(supabase as unknown as Parameters<typeof resolveFocusedTransaction>[0], auth.userId, focusedTransaction);
+    if (focused.status !== 'none') console.log(`[tag-copilot] focused transaction: ${focused.status}`);
+    if (focused.row) {
+      const ft = focused.row;
       const ftMerchant = String(ft.merchant_name);
       const ftAmount = Number(ft.amount || 0);
       const ftDate = ft.posted_at || ft.date || 'unknown date';

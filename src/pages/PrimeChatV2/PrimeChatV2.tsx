@@ -15,6 +15,7 @@ import {
   type RecentActivityRow, type SessionRow, isPrimeSlug,
 } from "@/lib/primeChatSession";
 import { useChatSessions } from "@/hooks/useChatSessions";
+import { buildTagReviewPath } from "@/lib/tagReview";
 import { getSupabase } from "@/lib/supabase";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { TypingMessage } from "@/components/chat/TypingMessage";
@@ -612,6 +613,14 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   }, [requestedSessionId, userId, sessionId, setRequestedSessionId, clearMessages, resetThread, resetActiveEmployee]);
 
   // C2-F: open a saved Prime conversation from the panel. Same verified path as Chat History.
+  // C2-E2A: "Review with Tag" on a server-verified card row. Navigation only: opens the
+  // existing Tag panel on Transactions, focused on this ID (Tag re-reads the row
+  // server-side, scoped to the user). The Prime session is untouched (shared session key).
+  const handleReviewWithTag = useCallback((transactionId: string) => {
+    const path = buildTagReviewPath(transactionId);
+    if (path) navigate(path);
+  }, [navigate]);
+
   const handleOpenHistorySession = useCallback((id: string) => {
     setSessionsOpen(false);
     if (id && id !== sessionId) setRequestedSessionId(id);
@@ -1349,6 +1358,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                               candidates={txCandidates}
                               // Live reveals animate; hydrated history (typed via ref only) does not.
                               animateReveal={typedMessageIds.has(msg.id) || !typedIdsRef.current.has(msg.id)}
+                              onReviewWithTag={handleReviewWithTag}
                             />
                           )}
                         </>

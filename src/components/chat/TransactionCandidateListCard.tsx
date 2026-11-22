@@ -94,10 +94,16 @@ export function parseTxCandidates(
 export function TransactionCandidateListCard({
   candidates,
   animateReveal = false,
+  onReviewWithTag,
 }: {
   candidates: TxCandidate[];
   /** Live reveal only. Frozen at mount — later renders never restart or cancel it. */
   animateReveal?: boolean;
+  /**
+   * C2-E2A: opens the existing Tag panel focused on this server-verified card row.
+   * Navigation only — Tag re-verifies the row server-side; nothing is changed here.
+   */
+  onReviewWithTag?: (transactionId: string) => void;
 }) {
   const [animate] = useState(() => animateReveal && !prefersReducedMotion());
   return (
@@ -171,9 +177,28 @@ export function TransactionCandidateListCard({
                 </span>
               )}
             </div>
-            {categoryPath && (
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                {categoryPath}
+            {(categoryPath || onReviewWithTag) && (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 1 }}>
+                {categoryPath && (
+                  <div style={{ fontSize: 11, color: '#94a3b8', flex: 1, minWidth: 0 }}>
+                    {categoryPath}
+                  </div>
+                )}
+                {onReviewWithTag && (
+                  <button
+                    type="button"
+                    data-testid={`tx-candidate-${tx.ordinal}-review-tag`}
+                    aria-label={`Review transaction ${tx.ordinal} with Tag`}
+                    onClick={() => onReviewWithTag(tx.id)}
+                    style={{
+                      marginLeft: 'auto', flexShrink: 0, padding: '1px 8px', borderRadius: 6,
+                      fontSize: 10.5, fontWeight: 600, cursor: 'pointer',
+                      background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.25)', color: '#67e8f9',
+                    }}
+                  >
+                    Review with Tag
+                  </button>
+                )}
               </div>
             )}
           </div>
