@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { safePartialMarkdown, nextRevealIndex } from './typingReveal';
 
 interface TypingMessageProps {
   /** Full message content */
@@ -337,12 +338,13 @@ export function TypingMessage({
         }
       }
 
-      // Reveal next character
-      currentIndexRef.current = currentIndex + 1;
-      setDisplayedText(content.slice(0, currentIndexRef.current));
+      // Reveal through the end of the next word (C2-D3), keeping the per-character pace
+      const nextIndex = isStreaming ? currentIndex + 1 : nextRevealIndex(content, currentIndex);
+      currentIndexRef.current = nextIndex;
+      setDisplayedText(content.slice(0, nextIndex));
 
-      // Schedule next character
-      animationRef.current = window.setTimeout(typeNextChar, finalDelay);
+      // Schedule the next step: delay scales with the characters just revealed
+      animationRef.current = window.setTimeout(typeNextChar, finalDelay * Math.max(1, nextIndex - currentIndex));
     };
 
     if (!isStreaming && totalChars === 0) {
@@ -370,13 +372,15 @@ export function TypingMessage({
   }, [content, messageId, isStreaming, isTyped, charDelay, maxDuration, prefersReducedMotion, onTyped]);
 
   const settled = isStreaming || isTyped || displayedText.length >= content.length;
+  // C2-D3: format progressively (bold, lists, links) instead of plain text then a jump.
+  const visibleText = settled ? displayedText : safePartialMarkdown(displayedText);
   return (
-    <span className="break-words">
-      {renderer ? renderer(displayedText) : settled ? (
-        <FormattedMessageText text={displayedText} />
-      ) : (
-        <span className="whitespace-pre-wrap">{displayedText}</span>
-      )}
+    <span className="break-words" aria-busy={!settled}>
+      {/* Screen readers get the complete reply once, not every revealed word. */}
+      {!settled && <span className="sr-only">{content}</span>}
+      <span aria-hidden={!settled || undefined}>
+        {renderer ? renderer(visibleText) : <FormattedMessageText text={visibleText} />}
+      </span>
     </span>
   );
 }

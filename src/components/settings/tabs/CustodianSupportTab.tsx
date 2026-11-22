@@ -5,7 +5,8 @@
  * Routes messages to Custodian employee.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { TypingMessage } from '../../chat/TypingMessage';
 import { useAuth } from '../../../contexts/AuthContext';
 import { MessageCircle, Send, Sparkles } from 'lucide-react';
 import { Button } from '../../ui/button';
@@ -46,24 +47,38 @@ export function CustodianSupportTab() {
     conversationId: userId ? `custodian-support-${userId}` : 'custodian-support-guest',
   });
 
-  // Sync chat engine messages to local messages
+  // Sync chat engine messages to local messages. C2-D3: also carry content updates for
+  // messages already shown, so a reply filled in after its placeholder never stays stale.
   useEffect(() => {
     if (chatMessages.length > 0) {
-      const newMessages = chatMessages
-        .filter(msg => !messages.find(m => m.id === msg.id))
-        .map(msg => ({
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-          timestamp: new Date(msg.createdAt || Date.now()),
-        }));
-      
-      if (newMessages.length > 0) {
-        setMessages(prev => [...prev, ...newMessages]);
-      }
+      setMessages(prev => {
+        const byId = new Map(chatMessages.map(msg => [msg.id, msg]));
+        let changed = false;
+        const updated = prev.map(m => {
+          const src = byId.get(m.id);
+          if (src && src.content !== m.content) { changed = true; return { ...m, content: src.content }; }
+          return m;
+        });
+        const added = chatMessages
+          .filter(msg => !prev.some(m => m.id === msg.id))
+          .map(msg => ({
+            id: msg.id,
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+            timestamp: new Date(msg.createdAt || Date.now()),
+          }));
+        return changed || added.length > 0 ? [...updated, ...added] : prev;
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatMessages]);
+
+  // C2-D3: progressive reveal for new replies (shared TypingMessage); earlier history and
+  // the static greeting render immediately.
+  const mountedAtRef = useRef(Date.now());
+  const [typedIds, setTypedIds] = useState<Set<string>>(() => new Set(['custodian-greeting']));
+  const markTyped = useCallback((id: string) => {
+    setTypedIds(prev => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -146,7 +161,20 @@ export function CustodianSupportTab() {
                     : 'bg-slate-800 text-slate-100'
                 }`}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                {message.role === 'assistant' ? (
+                  <div className="text-sm">
+                    <TypingMessage
+                      content={message.content}
+                      messageId={message.id}
+                      isTyped={typedIds.has(message.id) || message.timestamp.getTime() < mountedAtRef.current - 5000}
+                      onTyped={markTyped}
+                      charDelay={12}
+                      maxDuration={2800}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                )}
               </div>
             </motion.div>
           ))}
