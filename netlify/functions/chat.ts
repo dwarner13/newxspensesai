@@ -13101,13 +13101,14 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
             const contextYear = new Date().getFullYear();
 
-            // Check if context already has the answer
-            const contextEvidence = isAnswerInContext(financialClassification, taxSummary, contextYear);
-
-            if (contextEvidence) {
-              financialEvidence = contextEvidence;
-              console.log(`[FinancialGrounding] evidence=context fromContext=true`);
-            } else {
+            // C2-G2: a match in the dashboard snapshot (prime_context.taxSummary, computed in the
+            // browser) is never verified evidence. It used to mark the request grounded/verified
+            // and skip the server pre-execution; now the request always continues through the
+            // server evidence path and its normal gates (P3.1C, C2-F, merchant trust, Phase 1D).
+            if (isAnswerInContext(financialClassification, taxSummary, contextYear)) {
+              console.log('[FinancialGrounding] snapshot-only match ignored — continuing to the verified evidence path');
+            }
+            {
               // Pre-execute the right tool
               const plan = buildPreExecutionPlan(financialClassification, contextYear);
               // ── P3.1C gate: skip legacy pre-exec when P3.1C already provided equivalent evidence ──

@@ -368,7 +368,13 @@ export const handler: Handler = async (event) => {
   // nobody to rate-limit.
 
   const body = JSON.parse(event.body || '{}');
-  const { message, history = [], systemPromptOverride, importId, focusedTransaction } = body;
+  const { message, history = [], importId, focusedTransaction } = body;
+  // C2-G2: Tag's instructions are server-owned. A browser-supplied systemPromptOverride is
+  // ignored (it used to REPLACE the server prompt, bypassing the two-step confirmation and
+  // tool rules). Structural log only — never the override's content.
+  if (body && Object.prototype.hasOwnProperty.call(body, 'systemPromptOverride')) {
+    console.log('[tag-copilot] systemPromptOverride ignored (server-owned prompt)');
+  }
 
   if (!message) return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
 
@@ -566,7 +572,7 @@ If there are zero other matching transactions (other count = 0), the server will
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
-      system: (systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome })) + merchantDataBlock + focusedTransactionBlock,
+      system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }) + merchantDataBlock + focusedTransactionBlock,
       tools: TAG_TOOLS,
       messages: [
         ...history.map((m: { role: string; content: string }) => ({
@@ -1011,7 +1017,7 @@ REQUIREMENTS:
             const secondCall = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
               max_tokens: 600,
-              system: (systemPromptOverride || buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome })) + merchantDataBlock + focusedTransactionBlock,
+              system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }) + merchantDataBlock + focusedTransactionBlock,
               messages: [
                 ...history.map((m: { role: string; content: string }) => ({
                   role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
