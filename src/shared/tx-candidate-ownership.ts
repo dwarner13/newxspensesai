@@ -134,9 +134,15 @@ export function resolveModelSearchOwnership(input: {
   aggregateEvidenceSatisfied: boolean;
   /** P2-B: the authoritative P3.1C list search already answered this explicit list request. */
   authoritativeListAnswered?: boolean;
+  /** C2-F: false = this request is NOT an explicit transaction list (undefined = not known/applied). */
+  explicitListRequest?: boolean;
   args: unknown;
 }): CandidateOwnershipIntent {
   const base = resolveCandidateOwnership(input.purpose, input.hasExistingCandidates);
+  // C2-F: an UNDATED model search in a request that is not an explicit list (e.g. a category
+  // summary or a general question) is background evidence: it would only show the newest rows,
+  // unrelated to the answer. Explicit list requests keep their cards.
+  if (base === 'candidate_establishment' && input.explicitListRequest === false && isUndatedTxSearch(input.args)) return 'analytical_evidence';
   // P2-B: the authoritative list owns the cards for this request (or proved the period empty);
   // a model-initiated search may inform the answer but never replaces or invents the list.
   if (base === 'candidate_establishment' && input.authoritativeListAnswered) return 'analytical_evidence';

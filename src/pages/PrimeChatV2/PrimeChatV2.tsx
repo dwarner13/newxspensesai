@@ -12,8 +12,9 @@ import { primeRequestedSessionIdAtom } from "@/lib/uiStore";
 import {
   primeSessionStorageKey, storePrimeSessionId, verifyOwnedPrimeSession, type SessionOwnershipClient,
   selectResumeCandidate, readResumeState, writeResumeState, primeConversationFallbackTitle,
-  type RecentActivityRow, type SessionRow,
+  type RecentActivityRow, type SessionRow, isPrimeSlug,
 } from "@/lib/primeChatSession";
+import { useChatSessions } from "@/hooks/useChatSessions";
 import { getSupabase } from "@/lib/supabase";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { TypingMessage } from "@/components/chat/TypingMessage";
@@ -181,6 +182,12 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const [lastSession, setLastSession] = useState<{ title: string; summary: string; sessionId?: string; lastActivity?: string } | null>(null);
   const [lastSessionChecked, setLastSessionChecked] = useState(false);
   const [showBriefing, setShowBriefing] = useState(false);
+  // C2-F: New Chat shows a short welcome; the full briefing stays available on demand.
+  const [freshWelcome, setFreshWelcome] = useState(false);
+  // C2-F: visible Chat History in the panel (existing useChatSessions; includes unsummarized chats).
+  const [sessionsOpen, setSessionsOpen] = useState(false);
+  const { sessions: historySessions, isLoading: historyLoading, loadSessions: loadHistorySessions } = useChatSessions({ limit: 40, perEmployee: 40, autoLoad: false });
+  const primeHistory = useMemo(() => historySessions.filter(h => isPrimeSlug(h.employee_slug) && h.id), [historySessions]);
 
   // Fetch Tag rule-coverage stat for the briefing one-liner (Surface #2)
   useEffect(() => {
@@ -311,8 +318,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // First-time users (no prior Prime session and no history) skip the resume
   // card and go straight to the briefing cascade.
   useEffect(() => {
-    if (lastSessionChecked && historyChecked && !lastSession && history.length === 0) setShowBriefing(true);
-  }, [lastSessionChecked, historyChecked, lastSession, history.length]);
+    if (lastSessionChecked && historyChecked && !lastSession && history.length === 0 && !freshWelcome) setShowBriefing(true);
+  }, [lastSessionChecked, historyChecked, lastSession, history.length, freshWelcome]);
 
   // Returning users with hydrated history: collapse the briefing so only the
   // conversation is visible. Without this the full 8-step cascade renders
@@ -551,11 +558,13 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     // to be reset to false here, but the effect that sets it only re-runs on userId changes, so
     // the welcome area stayed blank. Jump straight to the final briefing step (no 10s replay).
     setLastSessionChecked(true);
-    setShowBriefing(true);
+    setShowBriefing(false);
+    setFreshWelcome(true); // C2-F: short welcome + suggestions; briefing on demand
+    setSessionsOpen(false);
     setPromptsUsed(false);
     setBriefingCollapsed(false);
-    setRevealStep(8);
-    revealStarted.current = true;
+    setRevealStep(0);
+    revealStarted.current = false;
     setUploadMessages([]);
     typedIdsRef.current.clear();
     userScrolledUpRef.current = false;
@@ -592,6 +601,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         setHistory([]);
         setHistoryChecked(false);
         setUploadMessages([]);
+        setFreshWelcome(false);
         typedIdsRef.current.clear();
         userScrolledUpRef.current = false;
       } finally {
@@ -600,6 +610,18 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       }
     })();
   }, [requestedSessionId, userId, sessionId, setRequestedSessionId, clearMessages, resetThread, resetActiveEmployee]);
+
+  // C2-F: open a saved Prime conversation from the panel. Same verified path as Chat History.
+  const handleOpenHistorySession = useCallback((id: string) => {
+    setSessionsOpen(false);
+    if (id && id !== sessionId) setRequestedSessionId(id);
+  }, [sessionId, setRequestedSessionId]);
+  const toggleSessionsOpen = useCallback(() => {
+    setSessionsOpen(open => {
+      if (!open) void loadHistorySessions();
+      return !open;
+    });
+  }, [loadHistorySessions]);
 
   // C2-R: Continue opens the offered conversation through the ownership-verified C2-B flow above.
   // It sends no message and creates no session. Dismiss only records the offer as seen.
@@ -835,6 +857,41 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green }} />
           <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>Secured</span>
         </div>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            onClick={toggleSessionsOpen}
+            title="Chat history"
+            aria-label="Chat history"
+            aria-expanded={sessionsOpen}
+            style={{
+              height: 30, padding: "0 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+              background: sessionsOpen ? THEME.surface : "transparent", border: `1px solid ${THEME.border}`,
+              color: THEME.textMuted, cursor: "pointer",
+            }}
+          >
+            History
+          </button>
+          {sessionsOpen && (
+            <div role="dialog" aria-label="Prime conversations" style={{
+              position: "absolute", right: 0, top: 36, zIndex: 20, width: 280, maxWidth: "80vw", maxHeight: 360, overflowY: "auto",
+              background: THEME.bg, border: `1px solid ${THEME.border}`, borderRadius: 10, padding: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            }}>
+              {historyLoading && primeHistory.length === 0 ? (
+                <div style={{ padding: 10, fontSize: 12, color: THEME.textMuted }}>Loading conversations…</div>
+              ) : primeHistory.length === 0 ? (
+                <div style={{ padding: 10, fontSize: 12, color: THEME.textMuted }}>No saved conversations yet.</div>
+              ) : primeHistory.map(h => (
+                <button key={h.id} onClick={() => handleOpenHistorySession(h.id)} style={{
+                  display: "block", width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "none",
+                  background: h.id === sessionId ? THEME.accentGlow : "transparent", color: THEME.text, cursor: "pointer",
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.title || "Prime conversation"}</div>
+                  <div style={{ fontSize: 10, color: THEME.textDim }}>{(h.last_message_at || h.created_at) ? new Date(h.last_message_at || h.created_at).toLocaleString() : ""}{h.id === sessionId ? " · current" : ""}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           onClick={handleNewChat}
           title="New chat"
@@ -947,6 +1004,32 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        ) : freshWelcome && !showBriefing && history.length === 0 && !(!data.loading && data.transactionCount === 0) ? (
+          /* ── C2-F: New Chat welcome — short greeting + suggestions; full briefing on demand ── */
+          <div style={{ display: "flex", gap: 10, marginBottom: 8, animation: 'primeReveal 0.4s ease forwards' }}>
+            <AgentDot agent="Prime" size={28} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
+                <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text, lineHeight: 1.5 }}>
+                Hey{firstName ? ` ${firstName}` : ""} — fresh page. What do you want to dig into?
+              </div>
+              {!promptsUsed && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                  {["How much did I spend last month?", "What are my biggest spending categories?", "Show me my recent transactions"].map((q) => (
+                    <button key={q} onClick={() => handleSend(q)} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500, background: THEME.surface, border: `1px solid ${THEME.border}`, color: THEME.text, cursor: "pointer" }}>
+                      {q}
+                    </button>
+                  ))}
+                  <button onClick={() => { setFreshWelcome(false); setShowBriefing(true); setRevealStep(8); revealStarted.current = true; }} style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 500, background: "transparent", border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}>
+                    Show today&apos;s briefing
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ) : briefingCollapsed ? (

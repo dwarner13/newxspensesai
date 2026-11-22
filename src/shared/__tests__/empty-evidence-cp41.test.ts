@@ -236,7 +236,7 @@ describe('CP4.1 chat.ts wiring (structural)', () => {
   });
   it('the false-zero retry is gated by the existing suppression function', () => {
     expect(chat).toContain('const p31cRetrySuppressed = plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false;');
-    expect(chat).toContain('if (!p31cRetrySuppressed && plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry) {');
+    expect(chat).toContain('if (!p31cRetrySuppressed && plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry && !periodUnresolvedRetry) {'); // C2-F adds the period gate
   });
   it('unproven scoped evidence gets the honest could-not-confirm fallback, not "I found financial data"', () => {
     expect(chat).toContain('retryBlockedByP31C && !financialEvidence.grounded');

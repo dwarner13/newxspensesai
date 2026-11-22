@@ -186,7 +186,7 @@ describe('PrimeChatV2 wiring', () => {
     const nc = v2.slice(s, v2.indexOf('}, [userId]);', s));
     expect(nc).toContain('writeResumeState(userId, { ...readResumeState(userId), baseline: new Date().toISOString() });');
     expect(nc).toContain('setLastSessionChecked(true);');
-    expect(nc).toContain('setRevealStep(8);');
+    expect(nc).toContain('setFreshWelcome(true);'); // C2-F: short welcome replaces the auto briefing
     const c2b = v2.slice(v2.indexOf('storePrimeSessionId(userId, target);'), v2.indexOf('setSessionId(target);'));
     expect(c2b).toContain('baseline: new Date().toISOString()');
   });

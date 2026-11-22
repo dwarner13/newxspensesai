@@ -273,7 +273,7 @@ describe('wiring', () => {
   it('chat.ts: only explicit, non-merchant list requests let the authoritative result establish cards', () => {
     expect(chat).toMatch(/const p31cExplicitListRequest = isPrime\s+&& shadowIntentResult\?\.financialClassification\?\.requestShape === 'list'\s+&& shadowIntentResult\?\.financialClassification\?\.queryType !== 'merchant';/);
     expect(chat).toContain('submitEvidenceTxSearchResults(p31cResult.results, ownershipGate, { establishFrame: p31cExplicitListRequest })');
-    expect(chat.match(/authoritativeListAnswered, args/g)?.length).toBe(4);
+    expect(chat.match(/authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args/g)?.length).toBe(4); // C2-F adds explicitListRequest
     expect(chat).toContain('if (p31cListFrameEstablished && ownershipGate.visibleFrame && ownershipGate.visibleFrame.shown > 0) {');
   });
 
@@ -282,9 +282,10 @@ describe('wiring', () => {
     const block = v2.slice(start, v2.indexOf('}, [userId]);', start));
     expect(block).toContain('localStorage.setItem(primeSessionStorageKey(userId), newId);'); // new session
     expect(block).toContain('setLastSessionChecked(true);');
-    expect(block).toContain('setShowBriefing(true);');
-    expect(block).toContain('setRevealStep(8);'); // final step — no 10s replay
-    expect(block).toContain('revealStarted.current = true;');
+    // C2-F: New Chat now shows a short welcome; the full briefing is on demand (no replay)
+    expect(block).toContain('setFreshWelcome(true);');
+    expect(block).toContain('setShowBriefing(false);');
+    expect(block).toContain('setRevealStep(0);');
     expect(block).toContain('clearMessages();'); // no previous messages/cards
     expect(block).toContain('setHistory([]);');
     expect(block).toContain('setUploadMessages([]);');

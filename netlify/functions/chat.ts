@@ -246,7 +246,7 @@ import {
   validateGroundedAnswer,
 } from '../../src/shared/financial-grounding';
 // Phase 1B.1: Tool-gate exact-scope sufficiency
-import { shouldRetainTools, analyzeQueryScope } from '../../src/shared/tool-gate';
+import { analyzeQueryScope } from '../../src/shared/tool-gate';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
 
@@ -10150,6 +10150,10 @@ export const handler: Handler = async (event, context) => {
     // a TDZ ReferenceError on its first read (swallowed by .catch).
     // P2-B: an EXPLICIT transaction-list request (CP4 request shape "list", not the merchant
     // architecture). For these, the authoritative P3.1C tx_search owns the visible cards.
+    // C2-F: any explicit list request (incl. merchant lists) — undated MODEL searches may create cards only then.
+    const primeExplicitListShape: boolean | undefined = isPrime
+      ? shadowIntentResult?.financialClassification?.requestShape === 'list'
+      : undefined;
     const p31cExplicitListRequest = isPrime
       && shadowIntentResult?.financialClassification?.requestShape === 'list'
       && shadowIntentResult?.financialClassification?.queryType !== 'merchant';
@@ -10630,7 +10634,9 @@ export const handler: Handler = async (event, context) => {
       // PHASE 2.2 FIX: Tax-workspace mirror with authority instruction.
       // Prime has been ignoring this data and calling tx_search instead. Strong directive added.
       if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
-        primeContextMessage += `\nTax Summary (AUTHORITATIVE — use these numbers, do NOT call tx_search for these):\n`;
+        // C2-F: this snapshot is computed in the browser (not verified server evidence) and is not
+        // scoped to the period the user asks about. It must never be presented as an authoritative total.
+        primeContextMessage += `\nDashboard snapshot (browser-computed, NOT verified, NOT period-specific — orientation only; never quote these as a verified or period total, and use your tools for any specific period or category):\n`;
         for (const section of pc.taxSummary) {
           if (!section || typeof section.total !== 'number') continue;
           primeContextMessage += `- ${section.section}: ${section.total} (${section.count} txns)`;
@@ -10642,7 +10648,7 @@ export const handler: Handler = async (event, context) => {
           }
           primeContextMessage += `\n`;
         }
-        primeContextMessage += `\nWhen user asks "how much on X" where X matches a subcategory above, answer directly with that number. Do NOT call tx_search unless the category is not in this Tax Summary.\n`;
+        primeContextMessage += `\nFor a specific period or category, rely on verified tool evidence; if you mention a snapshot figure, say it is an unverified dashboard snapshot.\n`;
       }
       
       // Team activity summary (what other agents did recently)
@@ -12090,7 +12096,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                       // lock and persisted frame are settled before the next tool call runs.
                       // P1: undated model search after an answered total = background evidence (no cards/frame)
-                      const streamingOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, args });
+                      const streamingOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args });
                       const streamingOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'streaming', streamingOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (streaming):', e?.message); return null; });
                       // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                       rememberTxSearchModelView(result, presentTxSearchResultForModel(result, streamingOwnershipOutcome, ownershipGate.visibleFrame));
@@ -12477,7 +12483,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                     // lock and persisted frame are settled before the next tool call runs.
                     // P1: undated model search after an answered total = background evidence (no cards/frame)
-                    const specOwnership = resolveModelSearchOwnership({ purpose: tArgs?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, args: tArgs });
+                    const specOwnership = resolveModelSearchOwnership({ purpose: tArgs?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args: tArgs });
                     const specOwnershipOutcome = await ownershipGate.submitSearchResult(tResult, 'specialist', specOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (specialist):', e?.message); return null; });
                     // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                     rememberTxSearchModelView(tResult, presentTxSearchResultForModel(tResult, specOwnershipOutcome, ownershipGate.visibleFrame));
@@ -13066,23 +13072,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         // PHASE 1B.1: Exact-scope tool gating for Prime financial read tools.
         // Only strip tools when authoritative context contains the EXACT answer.
         // A broader scope (section total) NEVER satisfies a narrower one (subcategory, merchant, different year).
-        let primeToolChoice: any = undefined;
-        if (isPrime && openaiTools) {
-          const pc = (effectivePrimeContext as any) || {};
-          const taxSummary = Array.isArray(pc.taxSummary) ? pc.taxSummary : [];
-          if (taxSummary.length > 0) {
-            const lastUserMsg = String(messageTrimmed || '').toLowerCase();
-            const contextYear = new Date().getFullYear();
-            const retain = shouldRetainTools(taxSummary, lastUserMsg, contextYear);
-            if (!retain) {
-              openaiTools = undefined;
-              primeToolChoice = undefined;
-              console.log('[Chat][PRIME_DEBUG] tools stripped (exact-scope match in Tax Summary)');
-            } else {
-              console.log('[Chat][PRIME_DEBUG] tools retained (exact scope not satisfied by context)');
-            }
-          }
-        }
+        // C2-F: tools are no longer stripped on the strength of the browser-computed snapshot —
+        // it is unverified and not period-specific, so it can never satisfy a request on its own.
+        const primeToolChoice: any = undefined;
         
         // Model config already resolved above - reuse it
         // (No need to resolve again - already available in scope)
@@ -13139,6 +13131,14 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               // a chance to call select_transaction for follow-up references.
               // tax_summary pre-exec is still allowed (it doesn't affect candidates).
               const phase1dSuppressed = shouldPreserveCandidates && plan.toolName === 'tx_search';
+              // C2-F: when P3.1C left the request unresolved for lack of a period, a legacy full-year
+              // tax_summary would silently answer a different scope (e.g. a May follow-up answered with
+              // 2026 "Personal" section totals). Skip it; the model uses the conversation and its tools.
+              const periodUnresolvedTaxSummary = plan.toolName === 'tax_summary'
+                && !!evidencePlanForExecution?.unresolved.some(u => u.reason === 'ambiguous_request');
+              if (periodUnresolvedTaxSummary) {
+                console.log('[FinancialGrounding] skipping legacy tax_summary pre-exec — request period unresolved (no silent full-year substitution)');
+              }
               if (phase1dSuppressed) {
                 console.log(`[FinancialGrounding] Phase1D: skipping tx_search pre-exec — ${existingTxResolution!.candidates.length} existing candidates preserved for model selection`);
               }
@@ -13148,7 +13148,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               if (untrustedMerchantPreExec) {
                 console.log(`[FinancialGrounding] skipping pre-exec — untrusted merchant hint "${financialClassification.merchantHint}"`);
               }
-              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed && !merchantAggGate && !untrustedMerchantPreExec) {
+              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed && !merchantAggGate && !untrustedMerchantPreExec && !periodUnresolvedTaxSummary) {
                 console.log(`[FinancialGrounding] pre-executing tool=${plan.toolName} args=${JSON.stringify(plan.toolArgs)}`);
                 try {
                   const toolContext: ToolContext = {
@@ -13811,7 +13811,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                 // lock and persisted frame are settled before the next tool call runs.
                 // P1: undated model search after an answered total = background evidence (no cards/frame)
-                const nsOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, args });
+                const nsOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args });
                 const nsOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'non-streaming', nsOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (non-streaming):', e?.message); return null; });
                 // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                 rememberTxSearchModelView(result, presentTxSearchResultForModel(result, nsOwnershipOutcome, ownershipGate.visibleFrame));
@@ -14196,7 +14196,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                   // lock and persisted frame are settled before the next tool call runs.
                   // P1: undated model search after an answered total = background evidence (no cards/frame)
-                  const loopOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, args });
+                  const loopOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args });
                   const loopOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'tool-loop', loopOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (tool-loop):', e?.message); return null; });
                   // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                   rememberTxSearchModelView(result, presentTxSearchResultForModel(result, loopOwnershipOutcome, ownershipGate.visibleFrame));
@@ -14374,7 +14374,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               retryBlockedByP31C = true;
               console.log(`[FinancialGrounding] P3.1C gate: skipping legacy ${plan.toolName} false-zero retry — scoped P3.1C evidence owns this request`);
             }
-            if (!p31cRetrySuppressed && plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry) {
+            const periodUnresolvedRetry = plan.toolName === 'tax_summary' && !!evidencePlanForExecution?.unresolved.some(u => u.reason === 'ambiguous_request');
+            if (!p31cRetrySuppressed && plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry && !periodUnresolvedRetry) {
               const toolCtx: ToolContext = {
                 userId,
                 conversationId: finalSessionId,
