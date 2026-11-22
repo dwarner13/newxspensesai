@@ -4,6 +4,8 @@ import toast from "react-hot-toast";
 import { THEME } from "@/pages/CategoriesV2/categoryConfig";
 import { Reveal } from "@/pages/PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
+import { useNavigate } from "react-router-dom";
+import { buildTagReviewPath } from "@/lib/tagReview";
 import type { FlaggedTransaction, SubcategorySuggestion } from "@/pages/CategoriesV2/useCategoriesData";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { TypingMessage } from "@/components/chat/TypingMessage";
@@ -102,43 +104,16 @@ function renderMarkdown(text: string): React.ReactNode[] {
 }
 
 
-function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: () => void; supabase: any }) {
-  const [correcting, setCorrecting] = React.useState(false);
-  const [correctedValue, setCorrectedValue] = React.useState(issue.medianAmount ? issue.medianAmount.toFixed(2) : "");
-  const [saving, setSaving] = React.useState(false);
+// C3 containment: review-only. This card never writes financial data. It explains that an
+// amount may need attention and opens the exact transaction (existing ?tagTx reveal path).
+// Dismiss only hides the card locally. No amount editing, no activity-log write.
+function AmountAnomalyCard({ issue }: { issue: any }) {
+  const navigate = useNavigate();
+  const [dismissed, setDismissed] = React.useState(false);
+  const firstId = Array.isArray(issue?.transactionIds) ? issue.transactionIds[0] : undefined;
+  const reviewPath = buildTagReviewPath(firstId);
 
-  const handleSave = async () => {
-    const newAmt = parseFloat(correctedValue);
-    if (!Number.isFinite(newAmt) || newAmt <= 0) return;
-    setSaving(true);
-    try {
-      const sb = supabase;
-      const txId = issue.transactionIds[0];
-      const oldAmt = issue.totalAmount;
-      // Fix the amount
-      await sb.from("transactions").update({ amount: newAmt }).eq("id", txId);
-      // Log to tag_activity_log so Tag remembers this correction
-      const { data: { session } } = await sb.auth.getSession();
-      if (session?.user?.id) {
-        await sb.from("tag_activity_log").insert({
-          user_id: session.user.id,
-          transaction_id: txId,
-          merchant_name: issue.merchant,
-          action: "amount_corrected",
-          old_value: String(oldAmt),
-          new_value: String(newAmt),
-          reason: `OCR misread detected - corrected from ${Number(oldAmt).toFixed(2)} to ${newAmt.toFixed(2)}`,
-          source: "tag_anomaly_review",
-        });
-      }
-      onFixed();
-      setCorrecting(false);
-    } catch (e) {
-      console.error("Amount fix failed:", e);
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (dismissed) return null;
 
   return (
     <div style={{
@@ -149,76 +124,47 @@ function AmountAnomalyCard({ issue, onFixed, supabase }: { issue: any; onFixed: 
       boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#e8f0fc", fontFamily: "'Syne',sans-serif" }}>{issue.merchant}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#e8f0fc", fontFamily: "'Syne',sans-serif" }}>Review transaction amount</span>
         <span style={{
           fontSize: 13, fontWeight: 700, color: "#ffffff",
           fontFamily: "'DM Mono',monospace",
           background: "rgba(239,68,68,0.18)",
           border: "1px solid rgba(239,68,68,0.38)",
           padding: "1px 8px", borderRadius: 6,
-        }}>${Math.abs(issue.totalAmount).toFixed(2)}</span>
+        }}>${Math.abs(Number(issue.totalAmount) || 0).toFixed(2)}</span>
       </div>
-      <div style={{ fontSize: 12, color: "#8899b4", marginBottom: 12, lineHeight: 1.5 }}>{issue.reason}</div>
-      {!correcting ? (
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => setCorrecting(true)}
-            style={{
-              padding: "7px 14px", borderRadius: 9, fontSize: 11, fontWeight: 700,
-              background: "rgba(239,68,68,0.12)",
-              border: "1px solid rgba(239,68,68,0.3)",
-              color: "#ffffff", cursor: "pointer",
-              fontFamily: "'Syne',sans-serif", letterSpacing: 0.3,
-            }}
-          >Correct Amount</button>
-          <button
-            onClick={onFixed}
-            style={{
-              padding: "7px 14px", borderRadius: 9, fontSize: 11, fontWeight: 700,
-              background: "transparent",
-              border: "1px solid #1a2740",
-              color: "#8899b4", cursor: "pointer",
-              fontFamily: "'Syne',sans-serif",
-            }}
-          >Looks Fine</button>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ fontSize: 13, color: "#8899b4", fontFamily: "'DM Mono',monospace" }}>$</span>
-          <input
-            type="number"
-            value={correctedValue}
-            onChange={e => setCorrectedValue(e.target.value)}
-            style={{
-              flex: 1, padding: "7px 10px", borderRadius: 8, fontSize: 13,
-              background: "#111d33", border: "1px solid rgba(34,211,238,0.3)",
-              color: "#e8f0fc", fontFamily: "'DM Mono',monospace",
-              outline: "none",
-            }}
-            placeholder={issue.medianAmount ? issue.medianAmount.toFixed(2) : "Enter correct amount"}
-            autoFocus
-          />
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              padding: "7px 14px", borderRadius: 9, fontSize: 11, fontWeight: 700,
-              background: saving ? "rgba(34,211,238,0.1)" : "rgba(34,211,238,0.15)",
-              border: "1px solid rgba(34,211,238,0.3)",
-              color: "#22d3ee", cursor: saving ? "default" : "pointer",
-              fontFamily: "'Syne',sans-serif",
-            }}
-          >{saving ? "Saving..." : "Save"}</button>
-          <button
-            onClick={() => setCorrecting(false)}
-            style={{
-              padding: "7px 10px", borderRadius: 9, fontSize: 11,
-              background: "transparent", border: "1px solid #1a2740",
-              color: "#4a5f7a", cursor: "pointer",
-            }}
-          >?</button>
-        </div>
+      {issue.merchant && (
+        <div style={{ fontSize: 12, color: "#e8f0fc", marginBottom: 4 }}>{issue.merchant}</div>
       )}
+      <div style={{ fontSize: 12, color: "#8899b4", marginBottom: 12, lineHeight: 1.5 }}>
+        Tag thinks this amount may be a misread. Compare it with your statement. Amount corrections are temporarily unavailable.
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => { if (reviewPath) navigate(reviewPath); }}
+          disabled={!reviewPath}
+          style={{
+            padding: "7px 14px", borderRadius: 9, fontSize: 11, fontWeight: 700,
+            background: "rgba(34,211,238,0.15)",
+            border: "1px solid rgba(34,211,238,0.3)",
+            color: "#22d3ee", cursor: reviewPath ? "pointer" : "default",
+            opacity: reviewPath ? 1 : 0.5,
+            fontFamily: "'Syne',sans-serif", letterSpacing: 0.3,
+          }}
+        >Review transaction</button>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          style={{
+            padding: "7px 14px", borderRadius: 9, fontSize: 11, fontWeight: 700,
+            background: "transparent",
+            border: "1px solid #1a2740",
+            color: "#8899b4", cursor: "pointer",
+            fontFamily: "'Syne',sans-serif",
+          }}
+        >Dismiss</button>
+      </div>
     </div>
   );
 }
@@ -1336,7 +1282,7 @@ export function TagCopilotPanel({
                 return (
                   <>
                     {visible.map((issue: any) => (
-                      <AmountAnomalyCard key={issue.id} issue={issue} onFixed={() => { fetchSmartReview && fetchSmartReview(); }} supabase={getSupabase()} />
+                      <AmountAnomalyCard key={issue.id} issue={issue} />
                     ))}
                     {ocrIssues.length > 3 && (
                       <button

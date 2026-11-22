@@ -149,6 +149,15 @@ function applyRules(merchant: string): string | null {
   return null;
 }
 
+/**
+ * C1 containment: the legacy known-expense pass (type + amount rewrite) runs only when this
+ * variable is exactly '1'. Absent, empty or any other value means disabled. Read per request.
+ */
+export const LEGACY_INCOME_TO_EXPENSE_ENV = 'TAG_LEGACY_INCOME_TO_EXPENSE_CONVERSION';
+export function isLegacyIncomeToExpenseConversionEnabled(): boolean {
+  return process.env[LEGACY_INCOME_TO_EXPENSE_ENV] === '1';
+}
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') {
@@ -384,7 +393,19 @@ export const handler: Handler = async (event) => {
     }
   } catch { /* non-blocking */ }
 
-  // Third pass: known-expense merchant correction
+  // Third pass: known-expense merchant correction — LEGACY, DISABLED BY DEFAULT (C1 containment).
+  // It rewrites type AND negates amount on income rows from a hardcoded merchant list, with no
+  // customer approval and no audit trail. It runs ONLY when TAG_LEGACY_INCOME_TO_EXPENSE_CONVERSION
+  // is exactly '1'. That variable must NOT be set in staging or production without separate
+  // owner authorization. When disabled, this function never changes type, amount or sign.
+  if (!isLegacyIncomeToExpenseConversionEnabled()) {
+    safeLog('info', '[tag-categorize-committed] legacy income-to-expense conversion disabled (default)', { userId });
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ ok: true, updated, reclassified, typeEnforced, total: txs.length }),
+    };
+  }
   // Runs a SEPARATE query — txs above only contains null/Other/Uncategorized.
   // False-income transactions already have category='Business Income' so they
   // never appear in txs. This pass explicitly fetches type=income rows and
