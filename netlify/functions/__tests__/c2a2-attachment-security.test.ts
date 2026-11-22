@@ -664,3 +664,36 @@ describe('A2-2 client: receipt file URLs are signed, never public', () => {
     expect(out.size).toBe(0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('A2-3 chat.ts: client OCR text is never document evidence (static source checks)', () => {
+  const readChat = async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    return fs.readFileSync(path.resolve(__dirname, '../chat.ts'), 'utf8');
+  };
+
+  it('does not read body.ocrText into the prompt', async () => {
+    const chat = await readChat();
+    expect(chat).not.toMatch(/FINANCIAL DOCUMENT \(OCR extracted text\)/);
+    expect(chat).not.toMatch(/const ocrText\b/);
+    expect(chat).not.toMatch(/\$\{[^}]*ocrText/);
+    expect(chat).not.toMatch(/runInputGuardrails\(ocrText\)/);
+  });
+
+  it('logs only that client ocrText was ignored, never its content', async () => {
+    const chat = await readChat();
+    const line = chat.split('\n').find((l) => l.includes('client ocrText ignored'));
+    expect(line).toBeDefined();
+    expect(line).not.toMatch(/ocrText\)|ocrText,|\$\{/);
+  });
+
+  it('document content still comes only from server-resolved, user-scoped documentIds', async () => {
+    const chat = await readChat();
+    expect(chat).toMatch(/documentIds = boundDocumentIds\(documentIds\)/);
+    const fn = chat.slice(chat.indexOf('async function buildAttachmentContext('));
+    const body = fn.slice(0, fn.indexOf('\n}\n'));
+    expect(body).toMatch(/\.from\('user_documents'\)[\s\S]*?\.in\('id', documentIds\)[\s\S]*?\.eq\('user_id', userId\)/);
+    expect(body).toMatch(/\.from\('imports'\)[\s\S]*?\.eq\('user_id', userId\)/);
+  });
+});

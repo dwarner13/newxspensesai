@@ -5565,7 +5565,8 @@ function formatUserContextForPrompt(userProfile: {
  * @param documentIds - Array of document IDs
  * @returns Attachment context string or null if no documents/processing
  */
-async function buildAttachmentContext(
+// Exported for tests only (C2-A2 / A2-3); behaviour unchanged.
+export async function buildAttachmentContext(
   sb: SupabaseClient,
   userId: string,
   documentIds: string[]
@@ -6265,7 +6266,13 @@ export const handler: Handler = async (event, context) => {
     documentIds = boundDocumentIds(documentIds);
     const pageContextRaw: unknown = (requestBody as any)?.pageContext;
     const toolCallBudget = createToolCallBudget();
-    const ocrText: string | null = (body.ocrText as string) || null;
+    // C2-A2 (A2-3): client-supplied OCR text is never document evidence. Document content reaches
+    // the model only through server-resolved, user-scoped documentIds (buildAttachmentContext).
+    // No app caller sends `ocrText`; it is ignored and only its presence is logged (never content).
+    const ignoredClientOcrText: unknown = (requestBody as unknown as { ocrText?: unknown } | null)?.ocrText;
+    if (typeof ignoredClientOcrText === 'string' && ignoredClientOcrText.trim().length > 0) {
+      console.warn('[Chat Security] client ocrText ignored: reason=client_ocr_not_evidence');
+    }
     // COLLAB-1: browser snapshot validated (allowlisted fields, types, lengths); unknown fields dropped.
     let effectivePrimeContext: ChatRequest['prime_context'] = sanitizePrimeContext(requestBody?.prime_context) as ChatRequest['prime_context'];
     employeeSlugForLog = employeeSlug || null;
@@ -11072,33 +11079,6 @@ CUSTODIAN CONTEXT (Account Security & Settings):
     if (attachmentContext && !isGreetingMessage) {
       userMessageContent = `${masked}${attachmentContext}`;
     }
-    if (ocrText && ocrText.trim().length > 0) {
-      // TASK 1: Run Guardrails on OCR Text (Fail-Closed)
-      const ocrGuardResult = await runInputGuardrails(ocrText);
-      if (!ocrGuardResult.isValid) {
-        console.warn(`[Chat Security] Blocked response due to PII/Guardrails on OCR Text. Reason: ${ocrGuardResult.reason}`);
-        
-        let blockedMessage = "PII Detected";
-        if (ocrGuardResult.reason === 'pii') {
-          blockedMessage = "PII Detected";
-        } else if (ocrGuardResult.reason === 'jailbreak') {
-          blockedMessage = "Jailbreak Detected";
-        } else if (ocrGuardResult.reason === 'moderation') {
-          blockedMessage = "Moderation Detected";
-        }
-        
-        return {
-          statusCode: 403,
-          headers: {
-            ...baseHeaders,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ error: 'SECURITY_BLOCK', message: blockedMessage })
-        };
-      }
-      userMessageContent = `${userMessageContent}\n\n---\nFINANCIAL DOCUMENT (OCR extracted text):\n${ocrGuardResult.maskedText || ocrText}`;
-    }
-
     const txSearchAvailable = toolsAllowedThisTurn && employeeTools.includes('tx_search');
     const importIdContextForTurn = await resolveImportIdContextForTurn(masked, sb, userId);
 
