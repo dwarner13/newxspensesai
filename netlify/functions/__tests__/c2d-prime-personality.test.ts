@@ -116,5 +116,48 @@ describe('C2-D — personality never overrides accuracy, provenance or specialis
     expect(PRIME_PERSONALITY_V1.facts.inventNumbers).toBe(false);
     expect(PRIME_PERSONALITY_V1.expression.cannedOpeners).toBe(false);
     expect(PRIME_PERSONALITY_V1.length.automaticClosingOffer).toBe(false);
+    expect(PRIME_PERSONALITY_V1.specialists.promiseActionOnlyWithRealHandoff).toBe(true);
+  });
+});
+
+describe('C2-D2 — no real figures, labelled estimates, honest specialist wording', () => {
+  const groundingContract = chat.slice(chat.indexOf('PRIME FINANCIAL GROUNDING CONTRACT:'), chat.indexOf('6. NEVER FABRICATE'));
+
+  it('D2-A: the personality message contains no dollar figures at all (placeholders only)', () => {
+    expect(msg).not.toMatch(/\$\d/);
+    expect(msg).toContain('**[$X]**');
+    expect(personaSrc).not.toContain('15,057');
+  });
+
+  it('D2-A: the live Prime grounding contract no longer embeds a real total', () => {
+    expect(chat).not.toContain('You spent $6,472.65 on fuel');
+    expect(groundingContract).toContain('"You spent [$X] on fuel"');
+    expect(groundingContract).not.toMatch(/\$\d/);
+  });
+
+  it('D2-C: estimates and hypotheticals must be labelled with their assumption', () => {
+    expect(msg).toMatch(/Anything you work out yourself .* is an estimate: say so and give the assumption/);
+    expect(msg).toContain('Label hypotheticals as hypothetical.');
+  });
+
+  it('D2-D: a specialist action is promised only with a real handoff in the same reply', () => {
+    expect(msg).toContain('Only say a specialist will act');
+    expect(msg).toContain('when you are actually calling request_employee_handoff in this same reply');
+    expect(groundingContract).not.toContain("I'll have Tag handle that category change");
+    expect(groundingContract).toContain('Only say a specialist will act when you call request_employee_handoff in this reply');
+    const brain = buildEmployeeBrainSystemPrompt({ employee_key: 'prime', preferredName: 'Sam', currency: 'CAD' });
+    expect(brain).not.toContain("I'll have Tag handle that category change");
+    expect(brain).toContain('Do not promise a specialist action you are not initiating in this reply.');
+  });
+
+  it('D2-D: offers real navigation instead of an unbacked promise', () => {
+    expect(msg).toContain('"Upload Statement" in the left sidebar on desktop, or the upload button in the bottom bar on mobile');
+    expect(msg).toContain('the Tag button on the Transactions page');
+    const sidebar = fs.readFileSync(path.join(root, 'src/components/navigation/DesktopSidebar.tsx'), 'utf8');
+    const bottom = fs.readFileSync(path.join(root, 'src/components/layout/MobileBottomNav.tsx'), 'utf8');
+    const tx = fs.readFileSync(path.join(root, 'src/pages/dashboard/TransactionsPageV2.tsx'), 'utf8');
+    expect(sidebar).toContain('Upload Statement');
+    expect(bottom).toContain('title: "Upload Statement"');
+    expect(tx).toContain('label="Open Tag Copilot"');
   });
 });

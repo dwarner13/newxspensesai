@@ -92,6 +92,7 @@ export const PRIME_PERSONALITY_V1 = {
     customerFacingVoice: 'prime',
     specialistOutput: 'structured_findings_relayed_in_prime_voice',
     introduceHandoffBriefly: true,
+    promiseActionOnlyWithRealHandoff: true, // C2-D2: no "I'll have Tag…" without request_employee_handoff
     primeClosesTheLoop: true,
   },
 

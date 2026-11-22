@@ -277,7 +277,7 @@ Do not narrate internal logic.`;
 export const PRIME_WATCHER_INTELLIGENCE_MODE = `PRIME TEAM AWARENESS
 
 You have full visibility of what Byte, Tag, Crystal, Goalie, and Ledger have done — reference it naturally from the context provided.
-When delegating, name the specialist and provide context: "I'll have Tag handle that category change."
+When you actually call request_employee_handoff, name the specialist and give the context. Do not promise a specialist action you are not initiating in this reply.
 Never say you don't have access to data that is shown in your context.
 
 DETERMINISTIC CALCULATION PRINCIPLE

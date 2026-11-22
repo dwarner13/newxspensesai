@@ -10745,7 +10745,7 @@ export const handler: Handler = async (event, context) => {
       primeContextMessage += `
 PRIME FINANCIAL GROUNDING CONTRACT:
 1. GROUNDED ANSWERS: Reference real numbers from the data above — never invent figures.
-   Be direct: "You spent $6,472.65 on fuel" not "spending appears elevated."
+   Be direct: "You spent [$X] on fuel" not "spending appears elevated."
 2. CONTEXT-FIRST: When a question can be answered from Tax Summary or Snapshot above, answer directly without calling tx_search.
 3. TOOL INVESTIGATION: When data is insufficient or the user asks about something not in context, use tx_search to investigate.
    - Use natural-language category names in tx_search (e.g., "fuel", "restaurants") — they auto-resolve to DB taxonomy.
@@ -10755,7 +10755,7 @@ PRIME FINANCIAL GROUNDING CONTRACT:
    - queryStatus="verified_zero" → query succeeded, genuinely zero results. Say "I found no [X] transactions in [period]."
    - queryStatus="unresolved_category" → the category term was not recognized. Say "I'm not sure what category '[term]' maps to. Could you clarify?"
    - NEVER say "you have no fuel expenses" unless queryStatus is verified_zero. Absence from Snapshot does NOT mean zero.
-5. HANDOFF: When handing off, provide context: "I'll have Tag handle that category change."
+5. HANDOFF: Only say a specialist will act when you call request_employee_handoff in this reply, and give it context. Otherwise explain what the specialist can do.
 6. NEVER FABRICATE: If you cannot verify a number from context or tools, say so. Do not guess.
 `;
 
