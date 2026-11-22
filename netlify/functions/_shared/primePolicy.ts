@@ -26,10 +26,10 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
   const laneRules =
     input.lane === 'fast'
       ? [
-          '- FAST lane: keep it brief — roughly 2-6 lines unless the user asks for more.',
+          '- FAST lane: no tools are needed for this message. Length and tone follow PRIME PERSONALITY.',
         ]
       : [
-          '- DEEP lane: reason at the depth the problem requires — simple questions in the deep lane still get simple answers. Deep means tools and reasoning are available, not that responses must be long. Use available read-only tools when they materially improve the answer. Use deterministic calculations where appropriate.',
+          '- DEEP lane: tools and reasoning are available — use read-only tools when they materially improve the answer and deterministic calculations where appropriate. Deep does not mean long: response length still follows PRIME PERSONALITY.',
         ];
 
   if (input.hasDocs) {
