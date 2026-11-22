@@ -98,3 +98,118 @@ export async function verifyOwnedPrimeSession(
     return false;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C2-R — cross-device resume + history completeness (pure helpers)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RecentActivityRow { session_id: string; created_at: string }
+export interface SessionRow { id: string; employee_slug: string | null; title?: string | null; created_at?: string | null }
+
+/** Latest message time per session (ISO strings). */
+export function latestActivityBySession(rows: readonly RecentActivityRow[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    if (!r?.session_id || !r?.created_at) continue;
+    const prev = out.get(r.session_id);
+    if (!prev || r.created_at > prev) out.set(r.session_id, r.created_at);
+  }
+  return out;
+}
+
+/**
+ * Per-device resume state. `baseline`: only activity after this time is offered (set on New
+ * chat, Continue and explicit selections). `dismissed`: session id → last activity already
+ * offered and dismissed/continued (offered again only if that session gets newer activity).
+ */
+export interface ResumeState { baseline?: string; dismissed?: Record<string, string> }
+
+const resumeKey = (userId: string) => `prime_resume_state_${userId}`;
+
+export function readResumeState(userId: string): ResumeState {
+  try {
+    const raw = localStorage.getItem(resumeKey(userId));
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed as ResumeState : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeResumeState(userId: string, state: ResumeState): void {
+  try {
+    const dismissed = Object.entries(state.dismissed ?? {}).slice(-50); // bounded
+    localStorage.setItem(resumeKey(userId), JSON.stringify({ ...state, dismissed: Object.fromEntries(dismissed) }));
+  } catch { /* storage unavailable: resume offers simply repeat */ }
+}
+
+export interface ResumeCandidate { sessionId: string; lastActivity: string; title: string | null }
+
+/**
+ * A newer, different, owned Prime conversation to OFFER (never switched to automatically).
+ * `sessions` must already be filtered to the signed-in user's rows.
+ */
+export function selectResumeCandidate(input: {
+  recent: readonly RecentActivityRow[];
+  sessions: readonly SessionRow[];
+  currentSessionId?: string | null;
+  currentLastActivity?: string | null;
+  state: ResumeState;
+}): ResumeCandidate | null {
+  const activity = latestActivityBySession(input.recent);
+  const current = input.currentSessionId ?? null;
+  const currentLast = (current && activity.get(current)) || input.currentLastActivity || null;
+  const floor = [currentLast, input.state.baseline].filter((v): v is string => !!v).sort().pop() ?? null;
+  const byId = new Map(input.sessions.map(s => [s.id, s]));
+  const ordered = [...activity.entries()].sort((a, b) => (a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : 0));
+  for (const [id, last] of ordered) {
+    if (id === current || !isSessionUuid(id)) continue;
+    const row = byId.get(id);
+    if (!row || !isPrimeSlug(row.employee_slug)) continue;
+    if (floor && last <= floor) return null; // ordered newest first: nothing newer remains
+    const dismissedAt = input.state.dismissed?.[id];
+    if (dismissedAt && dismissedAt >= last) continue;
+    return { sessionId: id, lastActivity: last, title: row.title && row.title.trim() && row.title !== 'New Chat' ? row.title : null };
+  }
+  return null;
+}
+
+/** Fallback label for a Prime conversation without an AI summary. */
+export function primeConversationFallbackTitle(row: SessionRow, lastActivity?: string | null): string {
+  if (row.title && row.title.trim() && row.title !== 'New Chat') return row.title;
+  const when = lastActivity || row.created_at;
+  const d = when ? new Date(when) : null;
+  return d && Number.isFinite(d.getTime())
+    ? `Prime conversation · ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+    : 'Prime conversation';
+}
+
+/** Shape used by useChatSessions for chat_convo_summaries rows. */
+export interface SummaryLikeRow {
+  convo_id?: string | null; conversation_id?: string | null; title: string | null; summary: string | null;
+  tags: string[]; employees_involved: string[]; started_at: string | null; last_message_at: string | null; pinned: boolean;
+}
+
+/**
+ * Append owned Prime sessions that have messages but no AI summary (e.g. summary generation
+ * failed), so no saved conversation is invisible. Never duplicates a summarized session.
+ */
+export function mergeUnsummarizedPrimeSessions(
+  summaries: readonly SummaryLikeRow[],
+  sessions: readonly SessionRow[],
+  activity: ReadonlyMap<string, string>,
+): SummaryLikeRow[] {
+  const have = new Set(summaries.flatMap(s => [s.conversation_id, s.convo_id]).filter(Boolean) as string[]);
+  const extra: SummaryLikeRow[] = [];
+  for (const row of sessions) {
+    if (!row?.id || have.has(row.id) || !isPrimeSlug(row.employee_slug)) continue;
+    const last = activity.get(row.id);
+    if (!last) continue; // no messages → nothing to reopen
+    have.add(row.id);
+    extra.push({
+      convo_id: row.id, conversation_id: row.id, title: primeConversationFallbackTitle(row, last), summary: null,
+      tags: [], employees_involved: [PRIME_SESSION_SLUG], started_at: row.created_at ?? last, last_message_at: last, pinned: false,
+    });
+  }
+  return [...summaries, ...extra];
+}

@@ -8,6 +8,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getSupabase } from '../lib/supabase';
+import {
+  mergeUnsummarizedPrimeSessions,
+  latestActivityBySession,
+  type SummaryLikeRow,
+  type SessionRow,
+  type RecentActivityRow,
+} from '../lib/primeChatSession';
 
 export interface ChatSession {
   id: string;
@@ -113,6 +120,38 @@ export function useChatSessions({
           setSessions([]);
           setIsLoading(false);
           return;
+        }
+      }
+
+      // C2-R: owned Prime sessions whose AI summary was never written (e.g. summary generation
+      // failed) are still listed, with a fallback title. Summaries are never regenerated here,
+      // summarized sessions are never duplicated, and both queries are scoped to this user.
+      if (!summariesError && Array.isArray(summariesData)) {
+        try {
+          const { data: primeRows } = await supabase
+            .from('chat_sessions')
+            .select('id, employee_slug, title, created_at')
+            .eq('user_id', userId)
+            .in('employee_slug', ['prime-boss', 'prime'])
+            .order('created_at', { ascending: false })
+            .limit(limit * 2);
+          const ids = (primeRows ?? []).map((r: { id: string }) => r.id);
+          if (ids.length > 0) {
+            const { data: activityRows } = await supabase
+              .from('chat_messages')
+              .select('session_id, created_at')
+              .eq('user_id', userId)
+              .in('session_id', ids)
+              .order('created_at', { ascending: false })
+              .limit(1000);
+            summariesData = mergeUnsummarizedPrimeSessions(
+              summariesData as SummaryLikeRow[],
+              (primeRows ?? []) as SessionRow[],
+              latestActivityBySession((activityRows ?? []) as RecentActivityRow[]),
+            );
+          }
+        } catch (mergeErr) {
+          console.warn('[useChatSessions] unsummarized Prime sessions could not be merged (non-fatal):', mergeErr);
         }
       }
 

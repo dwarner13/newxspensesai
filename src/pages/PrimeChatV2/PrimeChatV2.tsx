@@ -7,9 +7,13 @@ import { TaxDeductionsCard } from "./TaxDeductionsCard";
 import { QuickActionChips } from "./QuickActionChips";
 import { PrimeChatInput } from "./PrimeChatInput";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { primeRequestedSessionIdAtom } from "@/lib/uiStore";
-import { primeSessionStorageKey, storePrimeSessionId, verifyOwnedPrimeSession, type SessionOwnershipClient } from "@/lib/primeChatSession";
+import {
+  primeSessionStorageKey, storePrimeSessionId, verifyOwnedPrimeSession, type SessionOwnershipClient,
+  selectResumeCandidate, readResumeState, writeResumeState, primeConversationFallbackTitle,
+  type RecentActivityRow, type SessionRow,
+} from "@/lib/primeChatSession";
 import { getSupabase } from "@/lib/supabase";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { TypingMessage } from "@/components/chat/TypingMessage";
@@ -173,7 +177,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const revealStarted = useRef(false);
   const [coverage, setCoverage] = useState<{ autoPct: number; total: number } | null>(null);
   // ── Returning-user resume (Surface #3) ──
-  const [lastSession, setLastSession] = useState<{ title: string; summary: string } | null>(null);
+  // C2-R: the most recent OTHER owned Prime conversation to offer (never switched to automatically).
+  const [lastSession, setLastSession] = useState<{ title: string; summary: string; sessionId?: string; lastActivity?: string } | null>(null);
   const [lastSessionChecked, setLastSessionChecked] = useState(false);
   const [showBriefing, setShowBriefing] = useState(false);
 
@@ -201,35 +206,72 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  // Fetch the most recent Prime conversation summary. chat_convo_summaries is the
-  // populated, Custodian-maintained table; chat_sessions.last_message_at is NULL.
-  // Returning users get a resume card; first-timers fall through to the briefing.
+  // C2-R: cross-device resume. Offer the most recent OTHER owned Prime conversation when it has
+  // newer activity than this device's conversation (e.g. a chat continued on the phone). It is
+  // only an offer — the active conversation is never switched automatically — and a pending
+  // explicit selection (Chat History / launcher) always wins. Summary title when available,
+  // otherwise a fallback title (sessions whose AI summary failed are still offered).
+  const pendingRequestedSessionId = useAtomValue(primeRequestedSessionIdAtom);
   useEffect(() => {
+    if (!historyChecked) return;
     let cancelled = false;
     (async () => {
       const sb = getSupabase();
-      if (!sb || !userId) { setLastSessionChecked(true); return; }
-      const { data: row, error } = await sb
-        .from("chat_convo_summaries")
-        .select("title, summary, last_message_at")
-        .eq("user_id", userId)
-        .contains("employees_involved", ["prime-boss"])
-        .order("last_message_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error) {
-        console.warn("[PrimeChatV2] last-session lookup failed", error);
-        setLastSessionChecked(true);
-        return;
+      if (!sb || !userId || pendingRequestedSessionId) { setLastSessionChecked(true); return; }
+      try {
+        const { data: recent, error } = await sb
+          .from("chat_messages")
+          .select("session_id, created_at")
+          .eq("user_id", userId)
+          .in("role", ["user", "assistant"])
+          .order("created_at", { ascending: false })
+          .limit(60);
+        if (error) throw error;
+        const recentRows = (recent ?? []) as RecentActivityRow[];
+        const ids = [...new Set(recentRows.map(r => r.session_id))].filter(id => id && id !== sessionId).slice(0, 10);
+        let sessionRows: SessionRow[] = [];
+        if (ids.length > 0) {
+          const { data: rows } = await sb
+            .from("chat_sessions")
+            .select("id, employee_slug, title, created_at")
+            .eq("user_id", userId)
+            .in("id", ids);
+          sessionRows = (rows ?? []) as SessionRow[];
+        }
+        const currentLast = history.length > 0 ? (history[history.length - 1].createdAt ?? null) : null;
+        const candidate = selectResumeCandidate({
+          recent: recentRows,
+          sessions: sessionRows,
+          currentSessionId: sessionId ?? null,
+          currentLastActivity: typeof currentLast === "string" ? currentLast : null,
+          state: readResumeState(userId),
+        });
+        let summaryRow: { title?: string | null; summary?: string | null } | null = null;
+        if (candidate) {
+          const { data: srow } = await sb
+            .from("chat_convo_summaries")
+            .select("title, summary")
+            .eq("user_id", userId)
+            .eq("conversation_id", candidate.sessionId)
+            .maybeSingle();
+          summaryRow = srow ?? null;
+        }
+        if (cancelled) return;
+        setLastSession(candidate ? {
+          sessionId: candidate.sessionId,
+          lastActivity: candidate.lastActivity,
+          title: summaryRow?.title || candidate.title || primeConversationFallbackTitle({ id: candidate.sessionId, employee_slug: "prime-boss", title: null }, candidate.lastActivity),
+          summary: summaryRow?.summary || "",
+        } : null);
+      } catch (error) {
+        console.warn("[PrimeChatV2] resume lookup failed", error);
+        if (!cancelled) setLastSession(null);
+      } finally {
+        if (!cancelled) setLastSessionChecked(true);
       }
-      if (row && (row.summary || row.title)) {
-        setLastSession({ title: row.title || "your finances", summary: row.summary || "" });
-      }
-      setLastSessionChecked(true);
     })();
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, sessionId, historyChecked, history, pendingRequestedSessionId]);
 
   // Hydrate chat history from the existing Prime session so returning users see
   // their prior conversation immediately on panel mount.
@@ -497,6 +539,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     if (!userId) return;
     const newId = crypto.randomUUID();
     localStorage.setItem(primeSessionStorageKey(userId), newId);
+    writeResumeState(userId, { ...readResumeState(userId), baseline: new Date().toISOString() });
     setSessionId(newId);
     clearMessages();
     resetThread();
@@ -541,6 +584,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           return;
         }
         storePrimeSessionId(userId, target);
+        writeResumeState(userId, { ...readResumeState(userId), baseline: new Date().toISOString() });
         setSessionId(target);
         clearMessages();
         resetThread();
@@ -556,6 +600,22 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       }
     })();
   }, [requestedSessionId, userId, sessionId, setRequestedSessionId, clearMessages, resetThread, resetActiveEmployee]);
+
+  // C2-R: Continue opens the offered conversation through the ownership-verified C2-B flow above.
+  // It sends no message and creates no session. Dismiss only records the offer as seen.
+  const handleResumeContinue = useCallback((target: { sessionId?: string; lastActivity?: string } | null) => {
+    if (!userId || !target?.sessionId) return;
+    const st = readResumeState(userId);
+    writeResumeState(userId, { ...st, dismissed: { ...(st.dismissed ?? {}), [target.sessionId]: target.lastActivity ?? new Date().toISOString() } });
+    setLastSession(null);
+    setRequestedSessionId(target.sessionId);
+  }, [userId, setRequestedSessionId]);
+  const handleResumeDismiss = useCallback((target: { sessionId?: string; lastActivity?: string } | null) => {
+    if (!userId || !target?.sessionId) return;
+    const st = readResumeState(userId);
+    writeResumeState(userId, { ...st, dismissed: { ...(st.dismissed ?? {}), [target.sessionId]: target.lastActivity ?? new Date().toISOString() } });
+    setLastSession(null);
+  }, [userId]);
 
   // ── Process file through the import pipeline ──
   const processFile = useCallback(async (file: File) => {
@@ -866,7 +926,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
                   <button
-                    onClick={() => handleSend(`Let's pick up where we left off — last time we were working on: ${lastSession.title}.`)}
+                    onClick={() => handleResumeContinue(lastSession)}
                     style={{
                       padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
                       background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`,
@@ -1095,6 +1155,22 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── C2-R: newer conversation elsewhere (offer only; never auto-switches) ── */}
+        {lastSessionChecked && lastSession?.sessionId && (history.length > 0 || chatMessages.length > 0) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 12px", marginBottom: 12, borderRadius: 10, background: THEME.accentGlow, border: `1px solid ${THEME.accent}33` }}>
+            <AgentDot agent="Prime" size={18} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: THEME.textMuted }}>
+              More recent conversation: <span style={{ color: THEME.text, fontWeight: 600 }}>{lastSession.title}</span>
+            </span>
+            <button onClick={() => handleResumeContinue(lastSession)} style={{ padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`, border: "none", color: "#0b1220", cursor: "pointer" }}>
+              Continue recent conversation
+            </button>
+            <button onClick={() => handleResumeDismiss(lastSession)} style={{ padding: "5px 10px", borderRadius: 8, fontSize: 11, background: THEME.surface, border: `1px solid ${THEME.border}`, color: THEME.text, cursor: "pointer" }}>
+              Dismiss
+            </button>
           </div>
         )}
 
