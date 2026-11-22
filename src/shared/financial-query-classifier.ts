@@ -217,6 +217,20 @@ function isLeapYear(y: number): boolean { return (y % 4 === 0 && y % 100 !== 0) 
  * This is the SINGLE authoritative merchant extraction for the entire app.
  * Do not duplicate this logic — import and call this function instead.
  */
+/** Words that never start or form a merchant name in "<X> transaction(s)". */
+const NON_MERCHANT_WORDS = new Set([
+  'my', 'the', 'a', 'an', 'this', 'that', 'each', 'every', 'any',
+  'no', 'your', 'his', 'her', 'our', 'their', 'some', 'one',
+  'recent', 'last', 'first', 'next', 'new', 'old', 'all',
+  'find', 'show', 'get', 'see', 'check', 'make', 'handles',
+  'what', 'which', 'where', 'when', 'how', 'who',
+  'did', 'does', 'do', 'is', 'was', 'were',
+  // F1: list verbs ("list transactions on May 15" is not a merchant called "list")
+  'list', 'display', 'view', 'pull', 'search', 'look', 'give', 'tell', 'review',
+]);
+/** F2: words that end a multi-word merchant name after "at/from X". */
+const MERCHANT_CONNECTOR_WORDS = new Set(['in', 'on', 'for', 'during', 'from', 'to', 'this', 'last', 'and', 'or', 'with', 'i', 'my']);
+
 export function extractMerchantHint(msg: string): string | undefined {
   return extractMerchantHintWithSource(msg)?.hint;
 }
@@ -232,7 +246,15 @@ export function extractMerchantHintWithSource(msg: string): { hint: string; sour
   // are retained because they strongly signal a merchant/payee context.
   const match = msg.match(/\b(?:at|from|paid to|sent to|spent at|bought at|purchased at|charges? from)\s+([A-Z][a-zA-Z0-9'&-]{1,30})\b/i);
   if (match?.[1]) {
-    const candidate = match[1].trim();
+    // F2: multi-word merchant names ("at Peace Hills") — extend with up to two following
+    // Capitalized words (case-sensitive), never month names or connector words.
+    const after = msg.slice((match.index ?? 0) + match[0].length);
+    const extra: string[] = [];
+    for (const w of after.match(/^(?:\s+[A-Z][a-zA-Z0-9'&-]{1,30}){1,2}/)?.[0].trim().split(/\s+/) ?? []) {
+      if (MONTH_NAMES.has(w.toLowerCase()) || MERCHANT_CONNECTOR_WORDS.has(w.toLowerCase())) break;
+      extra.push(w);
+    }
+    const candidate = [match[1].trim(), ...extra].join(' ');
     // Reject month names — they are part of date phrases ("from August 21")
     if (!MONTH_NAMES.has(candidate.toLowerCase())) {
       const cleaned = candidate.replace(/\s+(in|for|on|during|from|to|this|last)\s.*$/i, '').trim();
@@ -244,18 +266,21 @@ export function extractMerchantHintWithSource(msg: string): { hint: string; sour
 
   // Secondary: <Merchant> transaction/charge/purchase/payment
   // Catches "Costco transaction", "Petro-Canada charge" where no preposition is used
+  // F2: first a case-sensitive run of up to three Capitalized words ("the Peace Hills
+  // transaction" → "Peace Hills"), leading non-merchant words dropped.
+  const multi = msg.match(/\b((?:[A-Z][a-zA-Z0-9'&-]{1,30}\s+){1,2}[A-Z][a-zA-Z0-9'&-]{1,30})\s+(?:transactions?|charges?|purchases?|payments?)\b/);
+  if (multi?.[1]) {
+    const words = multi[1].trim().split(/\s+/);
+    while (words.length && (NON_MERCHANT_WORDS.has(words[0].toLowerCase()) || MONTH_NAMES.has(words[0].toLowerCase()))) words.shift();
+    const candidate = words.join(' ');
+    if (words.length >= 2 && !CATEGORY_NOT_MERCHANT.has(candidate.toLowerCase()) && !words.some(w => MONTH_NAMES.has(w.toLowerCase()))) {
+      return { hint: candidate, source: 'noun_suffix' };
+    }
+  }
   const secondary = msg.match(/\b([A-Z][a-zA-Z0-9'&-]{1,30})\s+(?:transactions?|charges?|purchases?|payments?)\b/i);
   if (secondary?.[1]) {
     const candidate = secondary[1].trim();
     const lower = candidate.toLowerCase();
-    const NON_MERCHANT_WORDS = new Set([
-      'my', 'the', 'a', 'an', 'this', 'that', 'each', 'every', 'any',
-      'no', 'your', 'his', 'her', 'our', 'their', 'some', 'one',
-      'recent', 'last', 'first', 'next', 'new', 'old', 'all',
-      'find', 'show', 'get', 'see', 'check', 'make', 'handles',
-      'what', 'which', 'where', 'when', 'how', 'who',
-      'did', 'does', 'do', 'is', 'was', 'were',
-    ]);
     if (!CATEGORY_NOT_MERCHANT.has(lower) && !MONTH_NAMES.has(lower) && !NON_MERCHANT_WORDS.has(lower)) {
       return { hint: candidate, source: 'noun_suffix' };
     }
@@ -423,7 +448,10 @@ export function classifyFinancialQuery(message: string): FinancialQueryClassific
     // September" has none and stays with Prime's own interpretation).
     (subject !== undefined && (hasPersonalRef || hasPeriod)) ||
     (wantsBreakdown && (hasPersonalRef || hasPeriod)) ||
-    (resolved !== undefined && hasPeriod && requestShape !== 'unknown');
+    (resolved !== undefined && hasPeriod && requestShape !== 'unknown') ||
+    // F1: a transaction list for a date/period ("Show all transactions from May 15") is the
+    // user's own data even without "my" — route it through the verified evidence path.
+    (isListRequest && LIST_NOUN_RE.test(lower) && hasPeriod);
 
   if (!isUserDataQuery) {
     return {

@@ -333,6 +333,12 @@ function buildTemporalScopeInner(
     return { primary: range, granularity: 'range', confidence: 'deterministic' };
   }
 
+  // ── 0b. F1: a single explicit calendar day ("May 15", "2026-05-15") — before month names ──
+  const singleDay = extractSingleDay(message, ctx);
+  if (singleDay) {
+    return { primary: singleDay, granularity: 'day', confidence: 'deterministic' };
+  }
+
   // ── 1. Two explicit periods ──
   const twoPeriods = extractTwoPeriods(message);
   if (twoPeriods) {
@@ -741,4 +747,55 @@ export function buildTemporalScopeTelemetry(
     comparisonSource: scope.comparison?.source,
     comparisonConfidence: scope.comparison?.confidence,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// F1: single calendar day ("May 15", "May 15th, 2026", "15th of May", "2026-05-15")
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MONTH_DAY_RE = new RegExp(`\\b(${MONTH_NAMES_PATTERN})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b(?!\\s*[:%])(?:,?\\s+(\\d{4})\\b)?`);
+const DAY_MONTH_RE = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_NAMES_PATTERN})\\b(?:,?\\s+(\\d{4})\\b)?`);
+const ISO_DAY_RE = /\b(\d{4})-(\d{2})-(\d{2})\b/;
+
+/**
+ * One explicit calendar day → a [day, day+1) period with 'day' granularity.
+ * Without a year, the most recent occurrence that is not in the future (same idea as the
+ * bare-month policy). Ranges are handled earlier by extractDateRange; invalid days → null.
+ */
+export function extractSingleDay(message: string, ctx: TemporalScopeContext): PrimeTemporalPeriod | null {
+  const lower = message.toLowerCase();
+  let y: number | undefined;
+  let m: number | undefined;
+  let d: number | undefined;
+  const iso = lower.match(ISO_DAY_RE);
+  const md = lower.match(MONTH_DAY_RE);
+  const dm = lower.match(DAY_MONTH_RE);
+  if (iso) { y = +iso[1]; m = +iso[2]; d = +iso[3]; }
+  else if (md && MONTH_MAP[md[1]]) { m = MONTH_MAP[md[1]]; d = parseInt(md[2], 10); y = md[3] ? parseInt(md[3], 10) : undefined; }
+  else if (dm && MONTH_MAP[dm[2]]) { m = MONTH_MAP[dm[2]]; d = parseInt(dm[1], 10); y = dm[3] ? parseInt(dm[3], 10) : undefined; }
+  if (!m || !d) return null;
+  if (y === undefined) {
+    const today = localToday(ctx);
+    const thisYear = parseInt(today.slice(0, 4), 10);
+    y = `${thisYear}-${pad2(m)}-${pad2(d)}` <= today ? thisYear : thisYear - 1;
+  }
+  if (y < 2000 || y > 2099) return null;
+  const day = validDate(y, m, d);
+  if (!day) return null;
+  const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+  return { from: ymd(day), to: ymd(next), label: ymd(day), source: 'explicit_date', confidence: 'deterministic' };
+}
+
+/**
+ * M1b: a temporal scope for a period inherited from the last verified financial request.
+ * Same shape the parser produces (including asOf for a current period); source
+ * 'inferred_previous' marks it as inherited, not stated in this message.
+ */
+export function inheritedTemporalScope(
+  period: { from: string; to: string; label: string },
+  granularity: TemporalGranularity,
+  ctx: TemporalScopeContext,
+): PrimeTemporalScope {
+  const primary = applyAsOf({ from: period.from, to: period.to, label: period.label, source: 'inferred_previous', confidence: 'deterministic' }, localToday(ctx));
+  return { primary, granularity, confidence: 'deterministic' };
 }

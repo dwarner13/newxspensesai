@@ -182,7 +182,8 @@ describe('P2-B: explicit list cards match the requested period', () => {
     expect(result.results.find(r => r.tool === 'tx_search')?.status).toBe('successful_empty');
     const { g, persistLayer2 } = gate();
     const outcomes = await submitEvidenceTxSearchResults(result.results, g, { establishFrame: true });
-    expect(outcomes).toEqual(['skipped_analytical']);
+    // F1: the empty authoritative list establishes an EMPTY frame (clears any stale cards/reference)
+    expect(outcomes).toEqual(['established']);
     expect(g.txCandidatesForResponse).toBeNull();
     for (const args of [{}, { startDate: '2026-06-01', endDate: '2026-06-30' }]) {
       const intent = resolveModelSearchOwnership({ purpose: undefined, hasExistingCandidates: false, aggregateEvidenceSatisfied: false, authoritativeListAnswered: true, args });
@@ -190,7 +191,9 @@ describe('P2-B: explicit list cards match the requested period', () => {
       await g.submitSearchResult((await txSearch(args)).json, 'non-streaming', intent);
     }
     expect(g.txCandidatesForResponse).toBeNull();
-    expect(persistLayer2).not.toHaveBeenCalled();
+    // only the one clearing write of the empty frame — the model's searches never persist
+    expect(persistLayer2).toHaveBeenCalledTimes(1);
+    expect((persistLayer2.mock.calls[0][0] as { rows: unknown[] }).rows).toEqual([]);
   });
 
   it('category-scoped list keeps its filter (and period) in cards and count', async () => {
@@ -273,7 +276,7 @@ describe('wiring', () => {
   it('chat.ts: only explicit, non-merchant list requests let the authoritative result establish cards', () => {
     expect(chat).toMatch(/const p31cExplicitListRequest = isPrime\s+&& shadowIntentResult\?\.financialClassification\?\.requestShape === 'list'\s+&& shadowIntentResult\?\.financialClassification\?\.queryType !== 'merchant';/);
     expect(chat).toContain('submitEvidenceTxSearchResults(p31cResult.results, ownershipGate, { establishFrame: p31cExplicitListRequest })');
-    expect(chat.match(/authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args/g)?.length).toBe(4); // C2-F adds explicitListRequest
+    expect(chat.match(/authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args/g)?.length).toBe(4); // C2-F explicitListRequest; F2 unscopedReference
     expect(chat).toContain('if (p31cListFrameEstablished && ownershipGate.visibleFrame && ownershipGate.visibleFrame.shown > 0) {');
   });
 

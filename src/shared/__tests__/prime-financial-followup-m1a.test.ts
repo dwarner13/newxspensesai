@@ -206,10 +206,13 @@ describe('logging and wiring', () => {
   const start = chat.indexOf('// ── C2-C / M1a: financial follow-up memory (SHADOW');
   const block = chat.slice(start, chat.indexOf('// shadow only — never affects the response', start));
 
-  it('chat.ts: shadow only, behind the existing kill switch, never touching plans, evidence or answers', () => {
+  // M1b: this block also runs when M1b inheritance is enabled (it saves the verified scope that
+  // follow-ups inherit). The block itself still never touches plans, evidence or answers — the
+  // M1b period effect lives in its own block (see m1b tests).
+  it('chat.ts: the M1a save/log block never touches plans, evidence or answers', () => {
     expect(start).toBeGreaterThan(0);
     expect(chat).toContain('const m1aShadowEnabled = isPrime && flagEnabled(process.env.PRIME_SHADOW_SEMANTICS);');
-    expect(block).toContain('if (m1aShadowEnabled) {');
+    expect(block).toContain('if (m1aShadowEnabled || m1bEnabled) {');
     expect(block).toMatch(/console\.log\(`\[PrimeMemory\]\[M1a\] request=\$\{requestId\.slice\(0,12\)\} \$\{JSON\.stringify\(buildFollowUpLog\(m1aProposal, m1aWrote\)\)\}`\)/);
     for (const forbidden of ['systemMessages.push', 'messages.push', 'evidencePlanForExecution =', 'p31cResult =', 'executeEvidencePlan', 'openai', 'ownershipGate.submit']) {
       expect(block).not.toContain(forbidden);

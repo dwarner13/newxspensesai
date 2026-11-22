@@ -322,3 +322,80 @@ export function buildFollowUpLog(p: FollowUpProposal, wroteContext: boolean): Re
     wroteContext,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// M1b — authoritative period inheritance (narrow)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type InheritReason = 'same_subject' | 'category_superlative' | 'scope_swap' | 'previous_period';
+export type NoInheritReason =
+  | 'own_period' | 'no_context' | 'no_period' | 'not_financial' | 'different_subject' | 'not_a_follow_up' | 'unsupported';
+
+export type InheritDecision =
+  | { apply: true; reason: InheritReason; periodSource: 'inherited' | 'shifted'; period: { from: string; to: string; label: string }; granularity: PrimeTemporalScope['granularity'] }
+  | { apply: false; reason: NoInheritReason; contextStatus: ContextStatus };
+
+const sameText = (a?: string | null, b?: string | null) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+const ALL_TIME_RE = /\b(all[-\s]?time|ever|lifetime|since the (?:beginning|start)|in total|all (?:of )?my history|overall)\b/i;
+
+/**
+ * M1b: decide whether this message inherits the PERIOD of the last verified financial request.
+ * Only when the message states no period of its own, the context is valid for this user and
+ * not expired, and the message continues the same subject (same category / merchant /
+ * subject), asks for the top category, swaps scope ("what about X"), or asks for the period
+ * before. A different subject never inherits. The inherited period is re-queried through the
+ * normal verified evidence path — nothing here is evidence.
+ */
+export function resolveInheritedPeriod(input: {
+  message: string;
+  financialClassification: FinancialQueryClassification | null | undefined;
+  temporalScope: PrimeTemporalScope | null | undefined;
+  context: ReturnType<typeof validateLastFinancialRequest>;
+}): InheritDecision {
+  const ctxStatus = input.context.status;
+  if (input.temporalScope?.primary) return { apply: false, reason: 'own_period', contextStatus: ctxStatus };
+  // An explicit all-time request is its own scope — never narrowed to the previous period.
+  if (ALL_TIME_RE.test(String(input.message || ''))) return { apply: false, reason: 'own_period', contextStatus: ctxStatus };
+  if (input.context.status !== 'valid') return { apply: false, reason: 'no_context', contextStatus: ctxStatus };
+  const prev = input.context.value;
+  if (!prev.period) return { apply: false, reason: 'no_period', contextStatus: 'valid' };
+  const fc = input.financialClassification;
+  const kind = detectFinancialFollowUp({ message: input.message, financialClassification: fc, temporalScope: input.temporalScope });
+  const inherited = { from: prev.period.from, to: prev.period.to, label: prev.period.label };
+
+  if (kind === 'previous_period') {
+    const shifted = shiftPeriodBack(prev.period);
+    return shifted
+      ? { apply: true, reason: 'previous_period', periodSource: 'shifted', period: shifted, granularity: prev.period.granularity }
+      : { apply: false, reason: 'unsupported', contextStatus: 'valid' };
+  }
+  if (kind === 'category_superlative') {
+    return { apply: true, reason: 'category_superlative', periodSource: 'inherited', period: inherited, granularity: prev.period.granularity };
+  }
+  // "What about restaurants?" right after a verified answer: a swap to a KNOWN category or
+  // merchant keeps the period even though the short message alone is not grounded.
+  if (kind === 'scope_swap' && (fc?.resolvedCategory || fc?.merchantHint)) {
+    return { apply: true, reason: 'scope_swap', periodSource: 'inherited', period: inherited, granularity: prev.period.granularity };
+  }
+  if (!fc?.requiresGrounding) return { apply: false, reason: 'not_financial', contextStatus: 'valid' };
+  // Same subject continued without a period ("I want to know about my groceries").
+  const msgCategory = fc.resolvedCategory?.category ?? null;
+  const msgMerchant = fc.merchantHint ?? null;
+  if (msgCategory || msgMerchant) {
+    const same = (msgCategory && sameText(msgCategory, prev.category?.category)) || (msgMerchant && sameText(msgMerchant, prev.merchant));
+    return same
+      ? { apply: true, reason: 'same_subject', periodSource: 'inherited', period: inherited, granularity: prev.period.granularity }
+      : { apply: false, reason: 'different_subject', contextStatus: 'valid' };
+  }
+  if (fc.subject && prev.subject && fc.subject === prev.subject && !prev.category && !prev.merchant) {
+    return { apply: true, reason: 'same_subject', periodSource: 'inherited', period: inherited, granularity: prev.period.granularity };
+  }
+  return { apply: false, reason: 'not_a_follow_up', contextStatus: 'valid' };
+}
+
+/** Structural M1b log — no dates, names, amounts or ids. */
+export function buildInheritLog(d: InheritDecision): Record<string, unknown> {
+  return d.apply
+    ? { m1b: 1, applied: true, reason: d.reason, periodSource: d.periodSource, granularity: d.granularity }
+    : { m1b: 1, applied: false, reason: d.reason, contextStatus: d.contextStatus };
+}

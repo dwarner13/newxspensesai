@@ -136,9 +136,17 @@ export function resolveModelSearchOwnership(input: {
   authoritativeListAnswered?: boolean;
   /** C2-F: false = this request is NOT an explicit transaction list (undefined = not known/applied). */
   explicitListRequest?: boolean;
+  /**
+   * F2: the user asked for "the transaction" / "it" without naming any scope (no merchant,
+   * category, period or amount). A model search here has no verified scope, so it is
+   * background evidence only — it never creates or replaces cards (Prime resolves the
+   * existing verified reference or asks which transaction).
+   */
+  unscopedReference?: boolean;
   args: unknown;
 }): CandidateOwnershipIntent {
   const base = resolveCandidateOwnership(input.purpose, input.hasExistingCandidates);
+  if (input.unscopedReference) return 'analytical_evidence';
   // C2-F: an UNDATED model search in a request that is not an explicit list (e.g. a category
   // summary or a general question) is background evidence: it would only show the newest rows,
   // unrelated to the answer. Explicit list requests keep their cards.
@@ -421,11 +429,12 @@ export async function submitEvidenceTxSearchResults(
     if (r.status !== 'resolved' && r.status !== 'successful_empty') continue;
     const data = r.data as { rows?: unknown; queryStatus?: unknown; matchedCount?: unknown } | null | undefined;
     if (!data?.rows) continue;
-    const rowCount = Array.isArray(data.rows) ? data.rows.length : 0;
     // P2-B: for an EXPLICIT list request, the first non-empty authoritative (period/filter-scoped)
     // result establishes the visible frame through the gate (code-initiated, like the merchant
     // bridge). Empty results never establish — an empty period shows no cards.
-    const establish = !!opts.establishFrame && !establishUsed && rowCount > 0;
+    // F1: an EMPTY authoritative list result also establishes — it persists an empty frame,
+    // clearing stale cards/references from an earlier list (it still shows no cards).
+    const establish = !!opts.establishFrame && !establishUsed;
     if (establish) establishUsed = true;
     const submitted = {
       rows: data.rows,
@@ -519,8 +528,16 @@ export function computeB2CBridgeActive(input: {
   merchantAggSatisfied: boolean;
   hasExistingCandidates: boolean;
   isNewGroundedSearch: boolean;
+  /**
+   * F2: this message is itself a trusted merchant LIST ("Show me the Peace Hills transaction"),
+   * or the merchant total found exactly one transaction — show the verified rows as cards in
+   * the same request (the analysis context was just built from this request's merchant total).
+   */
+  directMerchantList?: boolean;
 }): boolean {
-  if (!input.macReady || !input.phraseMatch) return false;
+  if (!input.macReady) return false;
+  if (input.directMerchantList) return !input.hasExistingCandidates || input.isNewGroundedSearch;
+  if (!input.phraseMatch) return false;
   if (input.merchantAggSatisfied) return false;
   return !input.hasExistingCandidates || input.isNewGroundedSearch;
 }

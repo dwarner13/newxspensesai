@@ -153,6 +153,9 @@ import {
   detectFinancialFollowUp,
   proposeFollowUp,
   buildFollowUpLog,
+  resolveInheritedPeriod,
+  buildInheritLog,
+  type InheritDecision,
   type LastFinancialRequest,
 } from '../../src/shared/prime-financial-followup';
 import { detectCurrentTimeIntent, type CurrentTimeIntent } from '../../src/shared/detect-current-time-intent';
@@ -219,7 +222,7 @@ import {
   merchantTemporalScopeFromPlanSteps,
 } from '../../src/shared/merchant-analysis-context';
 // P3.1A.1: Canonical temporal scope (observational only — does not change runtime behavior)
-import { buildTemporalScope, buildTemporalScopeTelemetry } from '../../src/shared/prime-temporal-scope';
+import { buildTemporalScope, buildTemporalScopeTelemetry, inheritedTemporalScope } from '../../src/shared/prime-temporal-scope';
 // P3.1C: Controlled read-only evidence execution
 import {
   executeEvidencePlan as executeEvidencePlanP31C,
@@ -9944,8 +9947,10 @@ export const handler: Handler = async (event, context) => {
     // ── P3.2B2B: Load merchant analysis context at request start ──
     // C2-C / M1a (shadow): previous verified financial request scope for follow-up interpretation.
     const m1aShadowEnabled = isPrime && flagEnabled(process.env.PRIME_SHADOW_SEMANTICS);
+    // M1b: authoritative period inheritance for same-subject follow-ups (kill switch: PRIME_M1B_INHERIT=0).
+    const m1bEnabled = isPrime && process.env.PRIME_M1B_INHERIT !== '0';
     let m1aPrevRaw: unknown = null;
-    if (m1aShadowEnabled && finalSessionId) {
+    if ((m1aShadowEnabled || m1bEnabled) && finalSessionId) {
       m1aPrevRaw = await readLastFinancialRequestRaw(sb, finalSessionId, userId);
     }
     let existingMerchantAnalysis: MerchantAnalysisContext | null = null;
@@ -10113,6 +10118,32 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    // ── M1b: inherit the last VERIFIED period for a same-subject follow-up ──
+    // Only when this message states no period of its own and continues the same subject
+    // (resolveInheritedPeriod). The inherited period is re-queried through the normal verified
+    // evidence path below; an explicit date always wins; a different subject never inherits.
+    let m1bDecision: InheritDecision | null = null;
+    if (m1bEnabled && shadowIntentResult) {
+      try {
+        m1bDecision = resolveInheritedPeriod({
+          message: String(masked || ''),
+          financialClassification: shadowIntentResult.financialClassification,
+          temporalScope,
+          context: validateLastFinancialRequest(m1aPrevRaw, userId, Date.now()),
+        });
+        if (m1bDecision.apply) {
+          temporalScope = inheritedTemporalScope(m1bDecision.period, m1bDecision.granularity, { timezone: effectiveTimezone, referenceDate: new Date() });
+          systemMessages.push({
+            role: 'system',
+            content: `FOLLOW-UP PERIOD: the user did not name a period, so this answer uses the period from their previous verified question (${m1bDecision.period.label}). Say which period you used; if they meant a different one, they can say so.`,
+          });
+        }
+        console.log(`[PrimeMemory][M1b] request=${requestId.slice(0, 12)} ${JSON.stringify(buildInheritLog(m1bDecision))}`);
+      } catch {
+        m1bDecision = null; // never breaks the request — falls back to the message's own scope
+      }
+    }
+
     // ── P3.1A: Runtime Evidence Contract (observational only) ──
     // Builds a structured evidence contract from P3.0A classification.
     // Does NOT execute tools, query databases, or change behavior.
@@ -10170,6 +10201,21 @@ export const handler: Handler = async (event, context) => {
     const primeExplicitListShape: boolean | undefined = isPrime
       ? shadowIntentResult?.financialClassification?.requestShape === 'list'
       : undefined;
+    // F2: "show me the transaction" / "review it" with no merchant, category, period or amount —
+    // the model has no verified scope to search, so its searches never create or replace cards.
+    const primeUnscopedReference: boolean = (() => {
+      if (!isPrime) return false;
+      const fc = classifyFinancialQuery(String(masked || ''));
+      return !fc.requiresGrounding && !temporalScope?.primary && !fc.merchantHint && !fc.resolvedCategory
+        && fc.exactAmount === undefined
+        && /\b(?:the|that|this)\s+(?:transaction|charge|purchase|payment)\b|\b(?:review|show|open|see|check)\s+(?:it|that|this)\b|\bthat one\b/i.test(String(masked || ''));
+    })();
+    if (primeUnscopedReference && !hasExistingCandidates) {
+      systemMessages.push({
+        role: 'system',
+        content: 'TRANSACTION REFERENCE: the user refers to a specific transaction, but no verified transaction is selected in this conversation. Ask which one they mean (merchant and date) in one short question — do not guess and do not show unrelated transactions.',
+      });
+    }
     const p31cExplicitListRequest = isPrime
       && shadowIntentResult?.financialClassification?.requestShape === 'list'
       && shadowIntentResult?.financialClassification?.queryType !== 'merchant';
@@ -10325,7 +10371,8 @@ export const handler: Handler = async (event, context) => {
     // the evidence or the answer. The new scope is written only from successful authoritative
     // P3.1C evidence (after untrusted merchant evidence was withheld above) — never from the
     // briefing, the model or prompt context. Kill switch: PRIME_SHADOW_SEMANTICS.
-    if (m1aShadowEnabled) {
+    // M1b: the verified scope is also saved whenever inheritance is enabled (it is what follow-ups inherit).
+    if (m1aShadowEnabled || m1bEnabled) {
       try {
         const m1aMessageFc = classifyFinancialQuery(String(masked || ''));
         const m1aKind = detectFinancialFollowUp({ message: String(masked || ''), financialClassification: m1aMessageFc, temporalScope });
@@ -10438,12 +10485,24 @@ export const handler: Handler = async (event, context) => {
     // any existing frame against arbitrary model searches). With an existing frame,
     // the bridge may replace it only on a new grounded request — candidate
     // follow-ups and historical references set isNewGroundedSearch=false.
+    // F2: a trusted merchant LIST in this message ("Show me the Peace Hills transaction"), or a
+    // merchant total that found exactly one transaction, shows the verified rows as cards now —
+    // the analysis context was just built from this request's merchant total. A single row is
+    // auto-selected as the verified reference for "it" / "that transaction".
+    const p31cMerchantSingleMatch = !!p31cResult?.results.some(r =>
+      r.tool === 'merchant_totals' && r.status === 'resolved' && (r.data as { transactionCount?: unknown } | null)?.transactionCount === 1);
+    const directMerchantList = !!(
+      isPrime && merchantHintTrusted && shadowFC?.queryType === 'merchant'
+      && (shadowFC?.requestShape === 'list' || p31cMerchantSingleMatch)
+      && !shadowFC?.exactAmount && !queryScope?.isMutation
+    );
     const merchantAnalysisBridgeActive = computeB2CBridgeActive({
       macReady: b2cMacReady,
       phraseMatch: b2cPhraseMatch,
       merchantAggSatisfied,
       hasExistingCandidates,
       isNewGroundedSearch,
+      directMerchantList,
     });
     // Build and log B2C bridge args in shared path.
     // Execution is deferred until the stream/non-stream split (after prompt assembly).
@@ -12097,7 +12156,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                       // lock and persisted frame are settled before the next tool call runs.
                       // P1: undated model search after an answered total = background evidence (no cards/frame)
-                      const streamingOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args });
+                      const streamingOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args });
                       const streamingOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'streaming', streamingOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (streaming):', e?.message); return null; });
                       // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                       rememberTxSearchModelView(result, presentTxSearchResultForModel(result, streamingOwnershipOutcome, ownershipGate.visibleFrame));
@@ -12484,7 +12543,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                     // lock and persisted frame are settled before the next tool call runs.
                     // P1: undated model search after an answered total = background evidence (no cards/frame)
-                    const specOwnership = resolveModelSearchOwnership({ purpose: tArgs?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args: tArgs });
+                    const specOwnership = resolveModelSearchOwnership({ purpose: tArgs?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args: tArgs });
                     const specOwnershipOutcome = await ownershipGate.submitSearchResult(tResult, 'specialist', specOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (specialist):', e?.message); return null; });
                     // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                     rememberTxSearchModelView(tResult, presentTxSearchResultForModel(tResult, specOwnershipOutcome, ownershipGate.visibleFrame));
@@ -13816,7 +13875,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                 // lock and persisted frame are settled before the next tool call runs.
                 // P1: undated model search after an answered total = background evidence (no cards/frame)
-                const nsOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args });
+                const nsOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args });
                 const nsOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'non-streaming', nsOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (non-streaming):', e?.message); return null; });
                 // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                 rememberTxSearchModelView(result, presentTxSearchResultForModel(result, nsOwnershipOutcome, ownershipGate.visibleFrame));
@@ -14204,7 +14263,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                   // lock and persisted frame are settled before the next tool call runs.
                   // P1: undated model search after an answered total = background evidence (no cards/frame)
-                  const loopOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, args });
+                  const loopOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args });
                   const loopOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'tool-loop', loopOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (tool-loop):', e?.message); return null; });
                   // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                   rememberTxSearchModelView(result, presentTxSearchResultForModel(result, loopOwnershipOutcome, ownershipGate.visibleFrame));
