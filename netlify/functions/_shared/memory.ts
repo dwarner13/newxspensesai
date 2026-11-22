@@ -29,6 +29,7 @@ import { maskPII } from './pii';
 // Phase 2.1: Import advanced memory modules as internal helpers
 import { extractAndSaveMemories } from './memory-extraction.js';
 import { retrieveContext } from './context-retrieval.js';
+import { formatUserStatedFacts } from './memoryFactPresentation.js';
 
 // ============================================================================
 // TYPES
@@ -62,6 +63,8 @@ export interface RecalledFact {
   score: number;
   fact_id: string;
   memory_type?: 'habit' | 'goal' | 'correction' | 'stress_signal' | 'preference' | 'fact';
+  /** C2-G1: when the fact was saved (from the stored record only; never invented). */
+  created_at?: string;
 }
 
 type MemoryQueryIntent =
@@ -456,6 +459,7 @@ export async function recall(params: RecallParams): Promise<RecalledFact[]> {
         score: f.source_message_id === normalizedSessionId ? 0.7 : 0.5, // Boost session-scoped facts
         fact_id: f.id,
         memory_type: classifyMemoryType(f.fact || ''),
+        created_at: f.created_at || undefined,
       }));
 
       // Sort by score (session-scoped first) then take top k
@@ -783,6 +787,8 @@ export async function getMemory(params: {
     const existing = Array.from(factMap.values()).find(
       existing => existing.fact === f.fact
     );
+    // C2-G1: carry the stored record's date onto an already-recalled copy of the same fact
+    if (existing && !existing.created_at && f.created_at) existing.created_at = f.created_at;
     if (!existing) {
       const normalizedFact = f.fact || '';
       factMap.set(f.fact || '', {
@@ -790,6 +796,7 @@ export async function getMemory(params: {
         score: 0.5, // Default score for context-retrieval facts
         fact_id: normalizedFact,
         memory_type: classifyMemoryType(normalizedFact),
+        created_at: f.created_at || undefined,
       });
     }
   });
@@ -798,13 +805,10 @@ export async function getMemory(params: {
   // Build unified context
   const contextParts: string[] = [];
 
-  // Add facts section
-  if (prioritizedFacts.length > 0) {
-    const factLines = prioritizedFacts
-      .map(f => `- [${f.memory_type || 'fact'}] ${f.fact}`)
-      .join('\n');
-    contextParts.push(`## Known User Facts & Preferences\n${factLines}`);
-  }
+  // Add facts section. C2-G1: remembered facts are user-stated (dated when the stored record
+  // has a date), never presented as verified financial records.
+  const userStatedBlock = formatUserStatedFacts(prioritizedFacts);
+  if (userStatedBlock) contextParts.push(userStatedBlock);
 
   // Add tasks section (if requested)
   if (includeTasks && retrieved.tasks.length > 0) {

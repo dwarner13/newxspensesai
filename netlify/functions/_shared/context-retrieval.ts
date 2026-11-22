@@ -10,6 +10,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { formatUserStatedFacts } from './memoryFactPresentation';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -203,10 +204,8 @@ export async function retrieveContext(params: {
   // 4. BUILD COMPACT CONTEXT BLOCK
   // ========================================================================
   
-  // Format facts (simple strings like "pref:key=value")
-  const factLines = (facts ?? [])
-    .map(f => `- ${f.fact}`)
-    .join('\n');
+  // C2-G1: remembered facts are user-stated (dated from the stored record), not verified records
+  const factBlock = formatUserStatedFacts(facts ?? []);
 
   // Format memories with similarity scores
   const memorySnippets = topMemory
@@ -221,8 +220,8 @@ export async function retrieveContext(params: {
   // Combine into formatted context
   const contextParts: string[] = [];
 
-  if (factLines) {
-    contextParts.push(`## Known User Facts & Preferences\n${factLines}`);
+  if (factBlock) {
+    contextParts.push(factBlock);
   }
 
   if (taskLines) {

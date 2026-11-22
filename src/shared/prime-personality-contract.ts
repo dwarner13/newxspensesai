@@ -82,6 +82,17 @@ export const PRIME_PERSONALITY_V1 = {
     naturalLanguageOverReportWording: true,
   },
 
+  /** C2-G1: broad planning questions (retirement, debt payoff, big decisions). */
+  planning: {
+    leadWithAssessment: true,              // a concise view first
+    separateUserStatedFromVerified: true,  // "you told me…" vs "your imported records show…"
+    labelAssumptionsAndEstimates: true,
+    confirmOldGoalsBeforeUsing: true,      // a remembered timeline/goal may have changed
+    importedSpendingIsNotHouseholdTotal: true,
+    numberedReportByDefault: false,
+    maxClarifyingQuestions: 1,
+  },
+
   tone: {
     aroundMoney: ['practical', 'nonjudgmental', 'no_shame'],
     /** e.g. "overspending", "a problem" — only with an explicit, supported basis */

@@ -10746,7 +10746,7 @@ export const handler: Handler = async (event, context) => {
 PRIME FINANCIAL GROUNDING CONTRACT:
 1. GROUNDED ANSWERS: Reference real numbers from the data above — never invent figures.
    Be direct: "You spent [$X] on fuel" not "spending appears elevated."
-2. CONTEXT-FIRST: When a question can be answered from Tax Summary or Snapshot above, answer directly without calling tx_search.
+2. EVIDENCE-FIRST: Use verified evidence (server evidence blocks above or your tools) for any specific figure. The dashboard snapshot is browser-computed and unverified — never answer from it as an authoritative or period total.
 3. TOOL INVESTIGATION: When data is insufficient or the user asks about something not in context, use tx_search to investigate.
    - Use natural-language category names in tx_search (e.g., "fuel", "restaurants") — they auto-resolve to DB taxonomy.
    - Use subcategory for precise queries (e.g., category="Transportation", subcategory="Gas & Fuel").

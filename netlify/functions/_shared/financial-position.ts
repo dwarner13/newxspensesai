@@ -334,7 +334,8 @@ export function formatPositionForPrompt(pos: FinancialPosition): string {
   // Income
   if (pos.income.status === 'verified' && pos.income.periodTotal) {
     const pt = pos.income.periodTotal;
-    lines.push(`Income: $${pt.amount.toLocaleString('en-CA')} (${pt.periodStart} to ${pt.periodEnd}, verified)`);
+    // C2-G1: imported records only — not necessarily all income sources
+    lines.push(`Income: $${pt.amount.toLocaleString('en-CA')} (${pt.periodStart} to ${pt.periodEnd}; verified sum of imported transactions only — may not include every income source or account; a multi-month total, not an annual salary)`);
     if (pos.income.monthlyIncome) {
       lines.push(`  Current month: $${pos.income.monthlyIncome.amount.toLocaleString('en-CA')}`);
     }
@@ -345,7 +346,8 @@ export function formatPositionForPrompt(pos: FinancialPosition): string {
   // Spending
   if (pos.spending.status === 'verified' && pos.spending.periodTotal) {
     const pt = pos.spending.periodTotal;
-    lines.push(`Spending: $${pt.amount.toLocaleString('en-CA')} (${pt.periodStart} to ${pt.periodEnd}, verified, excludes transfers/debt/investments)`);
+    // C2-G1: imported records only — never complete household or annual living expenses
+    lines.push(`Spending: $${pt.amount.toLocaleString('en-CA')} (${pt.periodStart} to ${pt.periodEnd}; verified sum of imported transactions only, excludes transfers/debt/investments — may not include every account or all household spending; a multi-month total, not annual living expenses; do not annualize or treat it as a retirement spending need without saying so)`);
     if (pos.spending.monthlySpend) {
       lines.push(`  Current month: $${pos.spending.monthlySpend.amount.toLocaleString('en-CA')}`);
     }
