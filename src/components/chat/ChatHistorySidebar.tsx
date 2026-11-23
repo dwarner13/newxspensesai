@@ -24,7 +24,9 @@ export function ChatHistorySidebar({ isOpen, onClose }: ChatHistorySidebarProps)
   const { sessions, isLoading, loadSessions } = useChatSessions({
     limit: 50, // Show last 50 sessions total
     perEmployee: 10, // Up to 10 sessions per employee (keeps history manageable)
-    autoLoad: true,
+    // UX-C3: load only while the sidebar is open (it is mounted hidden on every
+    // dashboard page). Opening it loads fresh sessions; history itself is unchanged.
+    autoLoad: isOpen,
   });
   
   const { openChat } = useUnifiedChatLauncher();
