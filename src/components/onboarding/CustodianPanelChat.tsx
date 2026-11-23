@@ -59,7 +59,9 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
         width: isMobile ? '100%' : PANEL.panelWidthDesktop,
         height: isMobile ? PANEL.panelHeightMobile : '100%',
         borderRadius: isMobile ? '20px 20px 0 0' : 0,
-        paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : 0,
+        // H1-C: the mobile panel is a bottom sheet, so it clears the home indicator
+        // (bottom inset), not the status bar. env() is 0 on devices without one.
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         background: '#0b1220',
         borderLeft: isMobile ? 'none' : '1px solid rgba(167,139,250,0.2)',
         borderTop: isMobile ? '1px solid rgba(167,139,250,0.2)' : 'none',
@@ -121,7 +123,7 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void send(); } }}
             placeholder="Ask Custodian anything..."
-            style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#e8ecf4', outline: 'none', fontFamily: 'inherit' }}
+            style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', fontSize: PANEL.inputFontSize, color: '#e8ecf4', outline: 'none', fontFamily: 'inherit' }}
           />
           <button onClick={() => void send()} disabled={busy || !input.trim()}
             style={{ width: 36, height: 36, borderRadius: 10, background: busy ? 'rgba(167,139,250,0.08)' : 'rgba(167,139,250,0.2)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: busy ? 'default' : 'pointer', color: '#a78bfa', flexShrink: 0 }}>
