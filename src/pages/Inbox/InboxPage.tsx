@@ -54,39 +54,6 @@ const FOLDERS: { key: Folder; label: string; color?: string; icon?: string }[] =
   { key: "crystal-analytics", label: "Crystal", color: T.purple },
 ];
 
-const DEMO_MESSAGES: Notification[] = [
-  {
-    id: "demo-1", employee_slug: "byte", priority: "success", read: false, href: null,
-    title: "Statement Processed \u2014 BMO March 2025",
-    description: "I finished reading your BMO statement. 117 transactions extracted and passed to Tag for categorization. Everything looks clean.",
-    created_at: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
-  },
-  {
-    id: "demo-2", employee_slug: "tag-ai", priority: "action", read: false, href: "/dashboard/categories",
-    title: "Categorization Complete \u2014 691 transactions sorted",
-    description: "Done. 607 transactions categorized across 15 categories. I flagged 140 in Other that need a second look \u2014 want me to go through them?",
-    created_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-  },
-  {
-    id: "demo-3", employee_slug: "crystal", priority: "action", read: false, href: "/dashboard/reports",
-    title: "Pattern Detected \u2014 Transfers dominating at 33%",
-    description: "Transfers represent $32,194 \u2014 33% of all spending. This is unusually high. Worth flagging for your accountant meeting on Monday.",
-    created_at: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
-  },
-  {
-    id: "demo-4", employee_slug: "prime-boss", priority: "info", read: true, href: null,
-    title: "Weekly Briefing \u2014 Your numbers are ready",
-    description: "Net flow is -$11,086 this period. Income at $87,966, expenses at $99,052. Your biggest gap is unclassified spend in Other at $27K. I have prepared a summary for your accountant.",
-    created_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-  },
-  {
-    id: "demo-5", employee_slug: "byte", priority: "info", read: true, href: null,
-    title: "Duplicate Protection Triggered \u2014 1 file blocked",
-    description: "I detected a duplicate upload attempt for BMO February 2025. The file was already imported on March 26. No action needed.",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-  },
-];
-
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -114,20 +81,25 @@ export default function InboxPage() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   useEffect(() => { const h = () => setIsMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
 
+  // N0-b: real notifications only. No sample/demo messages are ever shown; an empty
+  // result shows the empty state and a failure shows a retryable error.
+  const [loadError, setLoadError] = useState(false);
   const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const sb = getSupabase();
-      if (!sb) { setNotifications(DEMO_MESSAGES); setLoading(false); return; }
+      if (!sb) { setNotifications([]); setLoadError(true); setLoading(false); return; }
       const { data: { user } } = await sb.auth.getUser();
-      if (!user) { setNotifications(DEMO_MESSAGES); setLoading(false); return; }
+      if (!user) { setNotifications([]); setLoadError(true); setLoading(false); return; }
       // Fetch from both notification tables
       const [{ data: notifs }, { data: userNotifs }] = await Promise.all([
         sb.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
         sb.from("user_notifications").select("id, user_id, employee_slug, type, title, message, priority, payload, read_at, sent_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20).then(r => ({ data: (r.data ?? []).map((n: any) => ({ ...n, description: n.message, read: !!n.read_at, href: null })) })).catch(() => ({ data: [] })),
       ]);
       const combined = [...(notifs ?? []), ...(userNotifs ?? [])].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 50);
-      setNotifications(combined.length > 0 ? combined : DEMO_MESSAGES);
-    } catch { setNotifications(DEMO_MESSAGES); }
+      setNotifications(combined);
+    } catch { setNotifications([]); setLoadError(true); }
     setLoading(false);
   }, []);
 
@@ -135,12 +107,10 @@ export default function InboxPage() {
 
   const markRead = useCallback(async (n: Notification) => {
     if (n.read) return;
-    if (!n.id.startsWith("demo-")) {
-      const sb = getSupabase();
-      if (sb) {
-        await sb.from("notifications").update({ read: true }).eq("id", n.id);
-        await sb.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("id", n.id);
-      }
+    const sb = getSupabase();
+    if (sb) {
+      await sb.from("notifications").update({ read: true }).eq("id", n.id);
+      await sb.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("id", n.id);
     }
     setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
   }, []);
@@ -254,6 +224,11 @@ export default function InboxPage() {
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: T.dim }}>
               <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${T.border}`, borderTopColor: T.cyan, animation: "spin 1s linear infinite", marginRight: 10 }} />
               Loading messages...
+            </div>
+          ) : loadError ? (
+            <div role="alert" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: T.dim, gap: 10 }}>
+              <span style={{ fontSize: 14 }}>We couldn't load your notifications.</span>
+              <button onClick={() => void fetchNotifications()} style={{ padding: "6px 16px", borderRadius: 16, fontSize: 12, fontWeight: 700, background: "transparent", border: `1px solid ${T.border}`, color: T.cyan, cursor: "pointer" }}>Try again</button>
             </div>
           ) : filtered.length === 0 ? (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: T.dim, gap: 8 }}>
