@@ -60,3 +60,27 @@ export function visibleCountFor(index: number, current: number): number {
   if (index < 0) return current;
   return index < current ? current : index + 10;
 }
+
+/**
+ * C3b: display-only amount label for an amount-anomaly card. Uses the signed transaction amount
+ * from issue.samples[0].amount (negative = money out, positive = money in). If that is missing or
+ * not a finite number, falls back to the unsigned issue.totalAmount with no sign, and if that is
+ * also unusable shows 'Amount unavailable'. Pure formatting: never reads or writes data.
+ */
+type AnomalyAmountSource = { samples?: Array<{ amount?: unknown } | null | undefined> | null; totalAmount?: unknown } | null | undefined;
+export function anomalyAmountDisplay(issue: AnomalyAmountSource): { text: string; ariaLabel: string } {
+  const fmt = (n: number) =>
+    `$${Math.abs(n).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const raw = issue?.samples?.[0]?.amount;
+  const signed = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
+  if (Number.isFinite(signed)) {
+    if (signed < 0) return { text: `-${fmt(signed)}`, ariaLabel: `Money out: ${fmt(signed)}` };
+    if (signed > 0) return { text: `+${fmt(signed)}`, ariaLabel: `Money in: ${fmt(signed)}` };
+    return { text: fmt(0), ariaLabel: `Amount: ${fmt(0)}` };
+  }
+  const total = Number(issue?.totalAmount);
+  if (issue?.totalAmount != null && Number.isFinite(total)) {
+    return { text: fmt(total), ariaLabel: `Amount: ${fmt(total)}` };
+  }
+  return { text: 'Amount unavailable', ariaLabel: 'Amount unavailable' };
+}

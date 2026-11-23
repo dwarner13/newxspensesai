@@ -190,7 +190,7 @@ describe('C3 — AmountAnomalyCard is review-only', () => {
   });
 
   it('Review navigates to the exact transaction via the existing helper; Dismiss is local state only', () => {
-    expect(panel).toContain('import { buildTagReviewPath } from "@/lib/tagReview";');
+    expect(panel).toMatch(/import \{ buildTagReviewPath(, anomalyAmountDisplay)? \} from "@\/lib\/tagReview";/);
     expect(card).toContain('const reviewPath = buildTagReviewPath(firstId);');
     expect(card).toContain('onClick={() => { if (reviewPath) navigate(reviewPath); }}');
     expect(card).toContain('onClick={() => setDismissed(true)}');
@@ -198,5 +198,63 @@ describe('C3 — AmountAnomalyCard is review-only', () => {
 
   it('the mount passes no database client or refresh callback', () => {
     expect(panel).toContain('<AmountAnomalyCard key={issue.id} issue={issue} />');
+  });
+});
+
+describe('C3b — signed amount display on the review-only card (display only)', async () => {
+  const { anomalyAmountDisplay } = await import('../../../src/lib/tagReview');
+  const panel = fs.readFileSync(path.resolve(__dirname, '../../../src/components/transactions/TagCopilotPanel.tsx'), 'utf8');
+  const card = panel.slice(panel.indexOf('function AmountAnomalyCard('), panel.indexOf('function TagAvatar('));
+  const lib = fs.readFileSync(path.resolve(__dirname, '../../../src/lib/tagReview.ts'), 'utf8');
+  const helper = lib.slice(lib.indexOf('export function anomalyAmountDisplay('));
+
+  it('negative sample amount shows a minus sign (money out)', () => {
+    expect(anomalyAmountDisplay({ samples: [{ amount: -1234.5 }], totalAmount: 1234.5 })).toEqual({ text: '-$1,234.50', ariaLabel: 'Money out: $1,234.50' });
+  });
+
+  it('positive sample amount shows a plus sign (money in)', () => {
+    expect(anomalyAmountDisplay({ samples: [{ amount: 250 }], totalAmount: 250 })).toEqual({ text: '+$250.00', ariaLabel: 'Money in: $250.00' });
+  });
+
+  it('a numeric string sample keeps its sign; zero has no sign', () => {
+    expect(anomalyAmountDisplay({ samples: [{ amount: '-75.1' }] }).text).toBe('-$75.10');
+    expect(anomalyAmountDisplay({ samples: [{ amount: 0 }] }).text).toBe('$0.00');
+  });
+
+  it('missing or invalid sample falls back to the unsigned total, never inventing a sign', () => {
+    for (const issue of [
+      { totalAmount: 99.9 },
+      { samples: [], totalAmount: 99.9 },
+      { samples: [null], totalAmount: 99.9 },
+      { samples: [{}], totalAmount: 99.9 },
+      { samples: [{ amount: 'abc' }], totalAmount: 99.9 },
+      { samples: [{ amount: '' }], totalAmount: 99.9 },
+      { samples: [{ amount: Number.NaN }], totalAmount: 99.9 },
+      { samples: [{ amount: Infinity }], totalAmount: 99.9 },
+    ]) {
+      expect(anomalyAmountDisplay(issue)).toEqual({ text: '$99.90', ariaLabel: 'Amount: $99.90' });
+    }
+  });
+
+  it('nothing usable shows "Amount unavailable" (no $0.00 that could be mistaken for a real value)', () => {
+    for (const issue of [undefined, null, {}, { samples: null }, { totalAmount: null }, { totalAmount: 'x' }]) {
+      expect(anomalyAmountDisplay(issue)).toEqual({ text: 'Amount unavailable', ariaLabel: 'Amount unavailable' });
+    }
+  });
+
+  it('the card renders the helper output; approved text, review navigation and local Dismiss are preserved', () => {
+    expect(panel).toContain('import { buildTagReviewPath, anomalyAmountDisplay } from "@/lib/tagReview";');
+    expect(card).toContain('const amount = anomalyAmountDisplay(issue);');
+    expect(card).toContain('<span aria-label={amount.ariaLabel}');
+    expect(card).toContain('{amount.text}</span>');
+    expect(card).not.toContain('Math.abs(Number(issue.totalAmount)');
+    expect(card).toContain('Tag thinks this amount may be a misread. Compare it with your statement. Amount corrections are temporarily unavailable.');
+    expect(card).toContain('onClick={() => { if (reviewPath) navigate(reviewPath); }}');
+    expect(card).toContain('onClick={() => setDismissed(true)}');
+  });
+
+  it('the helper is pure formatting: no data access of any kind', () => {
+    expect(helper.length).toBeGreaterThan(100);
+    expect(helper).not.toMatch(/\.from\(|\.(update|insert|upsert|delete|rpc)\(|supabase|fetch\(/);
   });
 });

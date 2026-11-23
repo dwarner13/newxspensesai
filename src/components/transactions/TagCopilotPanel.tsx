@@ -5,7 +5,7 @@ import { THEME } from "@/pages/CategoriesV2/categoryConfig";
 import { Reveal } from "@/pages/PrimeChatV2/Reveal";
 import { getSupabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
-import { buildTagReviewPath } from "@/lib/tagReview";
+import { buildTagReviewPath, anomalyAmountDisplay } from "@/lib/tagReview";
 import type { FlaggedTransaction, SubcategorySuggestion } from "@/pages/CategoriesV2/useCategoriesData";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { TypingMessage } from "@/components/chat/TypingMessage";
@@ -112,6 +112,7 @@ function AmountAnomalyCard({ issue }: { issue: any }) {
   const [dismissed, setDismissed] = React.useState(false);
   const firstId = Array.isArray(issue?.transactionIds) ? issue.transactionIds[0] : undefined;
   const reviewPath = buildTagReviewPath(firstId);
+  const amount = anomalyAmountDisplay(issue);
 
   if (dismissed) return null;
 
@@ -125,13 +126,13 @@ function AmountAnomalyCard({ issue }: { issue: any }) {
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: "#e8f0fc", fontFamily: "'Syne',sans-serif" }}>Review transaction amount</span>
-        <span style={{
+        <span aria-label={amount.ariaLabel} style={{
           fontSize: 13, fontWeight: 700, color: "#ffffff",
           fontFamily: "'DM Mono',monospace",
           background: "rgba(239,68,68,0.18)",
           border: "1px solid rgba(239,68,68,0.38)",
           padding: "1px 8px", borderRadius: 6,
-        }}>${Math.abs(Number(issue.totalAmount) || 0).toFixed(2)}</span>
+        }}>{amount.text}</span>
       </div>
       {issue.merchant && (
         <div style={{ fontSize: 12, color: "#e8f0fc", marginBottom: 4 }}>{issue.merchant}</div>
