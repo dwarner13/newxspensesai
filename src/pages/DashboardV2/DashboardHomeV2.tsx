@@ -15,6 +15,7 @@ import { isPrimeBriefingOpenAtom } from "@/lib/uiStore";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { CompactScoreRing } from "../XspenseScore/ScoreRing";
 import { useXspenseScore } from "../XspenseScore/useXspenseScore";
+import { isXspenseScoreVisible } from "../XspenseScore/scoreDisplay";
 import toast from "react-hot-toast";
 
 export default function DashboardHomeV2() {
@@ -72,7 +73,7 @@ export default function DashboardHomeV2() {
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {/* Xspense Score widget - desktop only */}
-              {!scoreData.loading && !isMobile && (
+              {isXspenseScoreVisible() && !scoreData.loading && !isMobile && (
                 <button onClick={() => navigate("/dashboard/xspense-score")} style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "4px 14px 4px 4px", borderRadius: 20,
                   background: THEME.surface, border: `1px solid ${THEME.border}`, cursor: "pointer", transition: "all 0.15s",
@@ -94,7 +95,7 @@ export default function DashboardHomeV2() {
         </Reveal>
 
         {/* MOBILE HERO SCORE ï¿½ Borrowell style */}
-        {isMobile && !scoreData.loading && (
+        {isXspenseScoreVisible() && isMobile && !scoreData.loading && (
           <Reveal delay={100}>
             <button onClick={() => navigate("/dashboard/xspense-score")} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "24px 20px", marginBottom: 20, borderRadius: 20, background: `linear-gradient(180deg, ${THEME.surface}, ${THEME.bg})`, border: `1px solid ${THEME.border}`, cursor: "pointer", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 180, height: 180, borderRadius: "50%", background: `radial-gradient(circle, ${THEME.accent}15, transparent 70%)`, filter: "blur(30px)" }} />
