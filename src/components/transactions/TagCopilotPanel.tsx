@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
+import { computeComposerHeight, COMPOSER_MAX_HEIGHT_PX } from "@/lib/chatComposer";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { THEME } from "@/pages/CategoriesV2/categoryConfig";
@@ -989,6 +990,18 @@ export function TagCopilotPanel({
 
   const canSend = inputValue.trim() && !isLoading;
 
+  // UX-C1: auto-grow the composer from one line up to COMPOSER_MAX_HEIGHT_PX, then scroll.
+  // Re-measures on every value change, including the reset to "" after sending.
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const { height, scrollable } = computeComposerHeight(el.scrollHeight);
+    el.style.height = `${height}px`;
+    el.style.overflowY = scrollable ? "auto" : "hidden";
+  }, [inputValue]);
+
   return (
     <>
       <style>{STYLES}</style>
@@ -1011,9 +1024,10 @@ export function TagCopilotPanel({
         boxShadow: "-24px 0 80px rgba(0,0,0,0.6), -1px 0 0 rgba(34,211,238,0.06)",
       }}>
 
-        {/* Header */}
+        {/* Header — UX-C1: clears the iPhone status bar in the installed app
+            (index.html uses viewport-fit=cover); env() is 0 elsewhere. */}
         <div style={{
-          padding: "18px 20px 16px",
+          padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 16px",
           borderBottom: `1px solid ${T.border}`,
           display: "flex", alignItems: "center", gap: 12,
           background: "linear-gradient(180deg, rgba(13,21,38,0.95) 0%, rgba(8,15,28,0.8) 100%)",
@@ -1104,7 +1118,7 @@ export function TagCopilotPanel({
           ref={scrollRef}
           onScroll={handleScroll}
           className="tag-panel-scrollbar"
-          style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", padding: "24px 20px calc(160px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", justifyContent: "flex-start", WebkitOverflowScrolling: "touch" }}
+          style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", padding: "24px 20px 16px", display: "flex", flexDirection: "column", justifyContent: "flex-start", WebkitOverflowScrolling: "touch" }}
         >
           {/* Greeting */}
           {greetingText && messages.length === 0 && (
@@ -1659,24 +1673,27 @@ export function TagCopilotPanel({
           )}
         </div>
 
-        {/* Input */}
+        {/* Input — UX-C1: an in-flow flex child below the message list (no longer floats
+            over the last messages), with its own home-indicator spacing. */}
         <div style={{
-          position: "absolute", bottom: 0, left: 0, right: 0,
-          background: `linear-gradient(0deg, ${T.bg} 70%, transparent)`,
-          padding: "28px 20px calc(16px + env(safe-area-inset-bottom, 0px))",
-          backdropFilter: "blur(4px)",
+          flexShrink: 0,
+          background: T.bg,
+          borderTop: `1px solid ${T.border}`,
+          padding: "12px 20px calc(12px + env(safe-area-inset-bottom, 0px))",
         }}>
           <div style={{
             display: "flex", alignItems: "flex-end", gap: 9,
             background: T.surface,
             borderRadius: 14,
             border: `1px solid ${T.borderHi}`,
-            padding: "12px 12px 12px 20px",
+            padding: "8px 8px 8px 16px",
             boxShadow: "0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03)",
           }}>
             <textarea
+              ref={composerRef}
               className="tag-input"
-              rows={2}
+              rows={1}
+              aria-label="Message Tag"
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
               onKeyDown={e => {
@@ -1696,15 +1713,18 @@ export function TagCopilotPanel({
                 // 16px on mobile prevents iOS auto-zoom when the textarea is focused.
                 // Anything below 16px triggers the zoom-to-input behavior that breaks layout.
                 fontSize: isMobile ? 16 : 15,
-                padding: "10px 12px 10px 0",
+                // Vertical padding centres a single line against the 38px Send button.
+                padding: "7px 8px 7px 0",
                 fontFamily: "inherit", resize: "none", lineHeight: 1.55,
-                minHeight: isMobile ? 50 : 46,
+                maxHeight: COMPOSER_MAX_HEIGHT_PX,
+                overflowY: "hidden",
               }}
             />
             <button
               className="tag-btn-send"
               onClick={() => handleSend()}
               disabled={!canSend}
+              aria-label="Send message to Tag"
               style={{
                 width: 38, height: 38, borderRadius: 10, flexShrink: 0,
                 background: canSend ? `linear-gradient(135deg, ${T.cyan} 0%, #0891b2 100%)` : T.surface2,
