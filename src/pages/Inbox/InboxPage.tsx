@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Star, Pencil, Reply, Archive, ExternalLink } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { markNotificationReadForOwner, type NotificationUpdateClient } from "@/lib/inbox/markNotificationRead";
 
 // ─── Design tokens ──────────────────────────────────────────────────────
 const T = {
@@ -40,7 +41,10 @@ interface Notification {
   href: string | null;
   read: boolean;
   created_at: string;
+  /** Which table the row came from; mark-as-read updates only that table. */
+  source?: "notifications" | "user_notifications";
 }
+
 
 type Folder = "all" | "unread" | "starred" | "prime-boss" | "byte-docs" | "tag-ai" | "crystal-analytics";
 
@@ -94,8 +98,8 @@ export default function InboxPage() {
       if (!user) { setNotifications([]); setLoadError(true); setLoading(false); return; }
       // Fetch from both notification tables
       const [{ data: notifs }, { data: userNotifs }] = await Promise.all([
-        sb.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
-        sb.from("user_notifications").select("id, user_id, employee_slug, type, title, message, priority, payload, read_at, sent_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20).then(r => ({ data: (r.data ?? []).map((n: any) => ({ ...n, description: n.message, read: !!n.read_at, href: null })) })).catch(() => ({ data: [] })),
+        sb.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30).then(r => ({ data: (r.data ?? []).map((n: Notification) => ({ ...n, source: "notifications" as const })) })),
+        sb.from("user_notifications").select("id, user_id, employee_slug, type, title, message, priority, payload, read_at, sent_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20).then(r => ({ data: (r.data ?? []).map((n: any) => ({ ...n, description: n.message, read: !!n.read_at, href: null, source: "user_notifications" as const })) })).catch(() => ({ data: [] })),
       ]);
       const combined = [...(notifs ?? []), ...(userNotifs ?? [])].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 50);
       setNotifications(combined);
@@ -108,11 +112,14 @@ export default function InboxPage() {
   const markRead = useCallback(async (n: Notification) => {
     if (n.read) return;
     const sb = getSupabase();
-    if (sb) {
-      await sb.from("notifications").update({ read: true }).eq("id", n.id);
-      await sb.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("id", n.id);
-    }
-    setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
+    if (!sb) return;
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      const ok = await markNotificationReadForOwner(sb as unknown as NotificationUpdateClient, n, user.id);
+      // Only reflect "read" locally after a confirmed update of exactly this row.
+      if (ok) setNotifications(prev => prev.map(x => x.id === n.id && x.source === n.source ? { ...x, read: true } : x));
+    } catch { /* leave the row unread; the next load shows the true state */ }
   }, []);
 
   const toggleStar = useCallback((id: string, e: React.MouseEvent) => {

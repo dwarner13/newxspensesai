@@ -29,6 +29,7 @@ describe('InboxPage', () => {
 
   it('keeps the empty state and mark-read behaviour', () => {
     expect(inbox).toMatch(/No messages yet/);
-    expect(inbox).toMatch(/update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)/);
+    // Security batch: mark-read moved into the owner-scoped helper (src/lib/inbox/markNotificationRead.ts).
+    expect(inbox).toMatch(/markNotificationReadForOwner\(/);
   });
 });

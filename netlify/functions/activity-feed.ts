@@ -3,30 +3,31 @@
  * 
  * Returns activity events for the authenticated user.
  * Reads from ai_activity_events table and converts to ActivityEvent format.
- * 
- * GET /.netlify/functions/activity-feed?userId=...&limit=30&category=prime&unreadOnly=false
- * 
+ *
+ * GET /.netlify/functions/activity-feed?limit=30&category=prime&unreadOnly=false
+ *
+ * Security (S0 activity-feed): identity comes only from the verified Supabase JWT
+ * (Authorization: Bearer). A userId in the query, body or x-user-id header is never
+ * identity; if present it must equal the verified user (403 otherwise). Every read
+ * is filtered by the verified user id.
+ *
  * Response: { events: ActivityEvent[], ok: true }
  */
 
 import type { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
 import { admin } from './_shared/supabase.js';
+import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
 
-function getSupabaseClient(authToken: string) {
-  const url = process.env.SUPABASE_URL!;
-  const key = process.env.SUPABASE_ANON_KEY!;
-  
-  return createClient(url, key, {
-    global: {
-      headers: {
-        Authorization: authToken,
-      },
-    },
-  });
+const MAX_LIMIT = 100;
+const DEFAULT_LIMIT = 30;
+
+function parseLimit(raw: unknown): number {
+  const n = parseInt(String(raw ?? ''), 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_LIMIT;
+  return Math.min(n, MAX_LIMIT);
 }
 
-export const handler: Handler = async (event, context) => {
+export const handler: Handler = async (event) => {
   // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -53,53 +54,48 @@ export const handler: Handler = async (event, context) => {
     };
   }
 
+  // Identity comes only from the verified JWT, before any data access.
+  const authn = await authenticateUser(event);
+  if (!authn.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
+  }
+  const verifiedUserId = authn.principal.userId;
+
   try {
-    // Parse userId from query params (GET) or JSON body (POST)
-    let userId: string | undefined;
-    let limit = '30';
+    // Optional filters from query params (GET) or JSON body (POST). A claimed userId is not identity.
+    let claimedUserId: string | undefined;
+    let limit: unknown = DEFAULT_LIMIT;
     let category: string | undefined;
     let unreadOnly: string | undefined;
     
     if (event.httpMethod === 'POST') {
       try {
         const body = JSON.parse(event.body || '{}');
-        userId = body.userId;
-        limit = body.limit?.toString() || '30';
+        claimedUserId = body.userId;
+        limit = body.limit;
         category = body.category;
         unreadOnly = body.unreadOnly?.toString();
       } catch {
         // If POST body can't be parsed, fall back to query params
         const params = event.queryStringParameters || {};
-        userId = params.userId;
-        limit = params.limit || '30';
+        claimedUserId = params.userId;
+        limit = params.limit;
         category = params.category;
         unreadOnly = params.unreadOnly;
       }
     } else {
       // GET method - use query params
       const params = event.queryStringParameters || {};
-      userId = params.userId;
-      limit = params.limit || '30';
+      claimedUserId = params.userId;
+      limit = params.limit;
       category = params.category;
       unreadOnly = params.unreadOnly;
     }
-    
-    // DEV-SAFE: If userId missing, return empty events (dev only)
-    if (!userId) {
-      const isDev = process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development';
-      if (isDev) {
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ ok: true, events: [] }),
-        };
-      }
-      // Production: return 400
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ ok: false, error: 'Missing userId parameter' }),
-      };
+    void unreadOnly; // unread filtering is disabled (read_at filter below is commented out)
+
+    const claimedHeaderUserId = event.headers?.['x-user-id'] || event.headers?.['X-User-Id'];
+    if (!claimedUserIdMatches(claimedUserId, verifiedUserId) || !claimedUserIdMatches(claimedHeaderUserId, verifiedUserId)) {
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
     }
 
     // P0 FIX: Use admin client instead of anon client to avoid RLS permission issues
@@ -110,9 +106,9 @@ export const handler: Handler = async (event, context) => {
     let query = sb
       .from('ai_activity_events')
       .select('id, employee_id, event_type, status, label, details, created_at, read_at')
-      .eq('user_id', userId) // RLS should enforce this, but explicit for clarity
+      .eq('user_id', verifiedUserId) // service-role client: this filter IS the isolation boundary
       .order('created_at', { ascending: false })
-      .limit(parseInt(limit, 10));
+      .limit(parseLimit(limit));
 
     // Filter by category if provided (map to employee_id or event_type)
     if (category) {
@@ -138,7 +134,7 @@ export const handler: Handler = async (event, context) => {
     const { data: events, error } = await query;
 
     if (error) {
-      console.error('[activity-feed] Error fetching events:', error);
+      console.error('[activity-feed] Error fetching events:', (error as { code?: string })?.code ?? 'unknown');
       return {
         statusCode: 500,
         headers,
@@ -208,15 +204,11 @@ export const handler: Handler = async (event, context) => {
       }),
     };
   } catch (error: any) {
-    console.error('[activity-feed] Unexpected error:', error);
+    console.error('[activity-feed] Unexpected error:', error?.name ?? 'Error');
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({
-        ok: false,
-        error: 'Internal server error',
-        message: error.message,
-      }),
+      body: JSON.stringify({ ok: false, error: 'Internal server error' }),
     };
   }
 };
