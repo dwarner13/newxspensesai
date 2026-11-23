@@ -25,7 +25,6 @@ export default function XspenseScorePage() {
     );
   }
 
-  const scoreDiff = data.overallScore - data.previousScore;
   const scoreColor = getScoreColor(data.overallScore);
 
   // Score history mini chart
@@ -74,14 +73,8 @@ export default function XspenseScorePage() {
               marginBottom: 16, boxShadow: `0 4px 24px ${scoreColor}08`,
             }}>
               <ScoreRing score={data.overallScore} />
-              <div style={{ fontSize: 12, color: THEME.textMuted, marginTop: 16, textAlign: "center", lineHeight: 1.5 }}>
-                {scoreDiff > 0
-                  ? <>Your score improved <span style={{ color: "#34d399", fontWeight: 700 }}>+{scoreDiff} points</span> this month</>
-                  : scoreDiff < 0
-                  ? <>Your score dropped <span style={{ color: "#f87171", fontWeight: 700 }}>{scoreDiff} points</span> this month</>
-                  : <>Your score is <span style={{ fontWeight: 700 }}>unchanged</span> this month</>
-                }
-              </div>
+              {/* N0-c: no "improved/dropped this month" claim; previousScore is an estimate
+                  (useXspenseScore), not stored score history. */}
             </div>
           </Reveal>
 
