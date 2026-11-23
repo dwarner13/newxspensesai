@@ -32,7 +32,8 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
   // C2-E1: global Ask Prime — opens the existing Prime panel over the current page.
   const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [unreadCount] = useState(4);
+  // N0: no unread count is shown until a real source exists (UX-N1 phase N2); the
+  // previous hardcoded 4 was not backed by any notification data.
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -159,16 +160,12 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
               aria-label="Notifications"
             >
               <Bell className="w-[18px] h-[18px]" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-[10px] leading-4 font-bold text-white flex items-center justify-center">{unreadCount}</span>
-              )}
             </button>
             {isNotificationsOpen && (
               <div className="absolute right-0 top-full mt-2 w-72 rounded-xl z-50" style={{ background: '#111a2e', border: '1px solid #1e2d4a', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-[13px] font-bold" style={{ color: '#e8ecf4' }}>Notifications</h3>
-                    <span className="text-[11px]" style={{ color: '#9ba8bc' }}>{unreadCount} unread</span>
                   </div>
                   <div className="text-[12px]" style={{ color: '#c8d0e0' }}>Your AI team activity appears on the Dashboard home.</div>
                 </div>
