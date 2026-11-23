@@ -9,6 +9,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { getSupabase } from "@/lib/supabase";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { CustodianPanel } from "@/components/onboarding/CustodianPanelChat";
+import { shouldOpenCustodianFromState } from "@/lib/custodianLaunch";
 
 const NAV_ITEMS = [
   { id: "account", label: "Account", icon: "\uD83D\uDC64" },
@@ -85,6 +86,14 @@ export default function SettingsPageV2() {
       } catch { setDataStats("Unable to load"); }
     })();
   }, [userId]);
+
+  // H1-A: open Custodian only for an explicit launch (from /dashboard/custodian), then
+  // clear the one-time flag so refresh/Back and ordinary Settings visits don't re-open it.
+  useEffect(() => {
+    if (!shouldOpenCustodianFromState(location.state)) return;
+    setCustodianOpen(true);
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [location.state, location.pathname, location.search, navigate]);
 
   useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
 

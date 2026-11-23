@@ -138,20 +138,9 @@ export default function TransactionsPageV2() {
     }
   }, [tagPanelOpen]);
 
-  // Auto-open Tag once per session when landing on Transactions. Shares the
-  // 'tag_autopen_dismissed' sessionStorage key with the Categories page, so
-  // if Tag auto-opened on Categories first, it won't re-auto-open here (and
-  // vice-versa). Gated on isLoading so we open WITH real numbers, not the
-  // empty state.
-  useEffect(() => {
-    if (isLoading) return;
-    if (tagPanelOpen) return;
-    try {
-      if (sessionStorage.getItem('tag_autopen_dismissed') === '1') return;
-    } catch { return; /* storage blocked — don't auto-open */ }
-    const t = window.setTimeout(() => setTagPanelOpen(true), 400);
-    return () => window.clearTimeout(t);
-  }, [isLoading, tagPanelOpen]);
+  // UX-C2: Tag no longer auto-opens on Transactions. It opens only from explicit
+  // actions: the ?openTag handoff (initial state above), Review with Tag, Ask Tag about
+  // this, and the floating Tag bubble.
 
   // Overview section (stat cards + donut + AI insights) open/closed.
   // First visit default: expanded on desktop (md+), collapsed on mobile —

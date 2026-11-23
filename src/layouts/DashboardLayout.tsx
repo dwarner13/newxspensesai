@@ -579,21 +579,9 @@ export default function DashboardLayout() {
     closeUnifiedChat();
   }, [isChatOpen, chatOptions.initialEmployeeSlug, chatOptions.conversationId, activeEmployeeSlug, setIsPrimeBriefingOpen, setPrimeRequestedSessionId]);
 
-  // Auto-open Prime briefing once per session (mirrors Tag autopen pattern).
-  useEffect(() => {
-    if (!ready || !userId || !profile) return;
-    if (!location.pathname.startsWith('/dashboard')) return;
-    if (location.pathname.startsWith('/dashboard/review')) return;
-    if (location.pathname.startsWith('/dashboard/transactions')) return;
-    let cancelled = false;
-    try {
-      if (sessionStorage.getItem('prime_autopen_dismissed') === '1') return;
-    } catch { /* sessionStorage unavailable - fall through and try opening */ }
-    const t = setTimeout(() => {
-      if (!cancelled) setIsPrimeBriefingOpen(true);
-    }, 600);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [ready, userId, profile, location.pathname, setIsPrimeBriefingOpen]);
+  // UX-C2: Prime no longer auto-opens on navigation (CHAT_BEHAVIOR_CONTRACT: chat never
+  // auto-opens on mount, login or route change). It opens only from explicit actions:
+  // Ask Prime (header / mobile), launcher requests above, and Chat History.
 
   // Persist dismissal when Prime closes (any path).
   const prevPrimeOpenRef = useRef(false);
