@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSupabase } from '@/lib/supabase';
 import { useTypewriter } from '../../pages/PrimeChatV2/useTypewriter';
+import { getOnboardingProgress, assertSupabaseWriteOk, ONBOARDING_SAVE_ERROR_MESSAGE } from '@/lib/onboardingProgress';
 
 const T = { bg: '#0b1220', surface: '#111a2e', border: '#1e2d4a', text: '#e8ecf4', muted: '#7b8ba5', dim: '#4a5a75', accent: '#c8a64e', green: '#34d399', purple: '#7c3aed' };
 
@@ -15,6 +16,7 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({ name: '', employment: '', goal: '', country: '', income: '', business: '' });
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [countrySearch, setCountrySearch] = useState('');
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -61,9 +63,6 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
   }, []);
 
   const isSelfEmployed = answers.employment === 'Self-Employed' || answers.employment === 'Both';
-  // Total always shows 7 (6 questions + completion). If not self-employed, business step is auto-skipped
-  // but the denominator stays constant so the progress bar doesn't jump mid-flow.
-  const totalSteps = 7;
 
   const STEPS = [
     { msg: "Hi! I'm Custodian, your setup guide. I'm going to ask you a few quick questions so your AI team knows exactly how to help you. What should I call you?" },
@@ -78,37 +77,54 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
   const currentMsg = STEPS[step]?.msg || '';
   const [typed, typeDone] = useTypewriter(currentMsg, 14, 300);
   const isComplete = step === STEPS.length - 1;
+  // H1-B: progress counts the steps actually presented (6, or 7 with the business step).
+  const progress = getOnboardingProgress(step, STEPS.length);
 
-  const saveProgress = async (updates: Record<string, any>) => {
+  // H1-B: returns true only when the profile write is confirmed. Missing client/session,
+  // a read error or a write error all count as failure so the wizard never advances on
+  // an unsaved answer.
+  const saveProgress = async (updates: Record<string, any>): Promise<boolean> => {
     setSaving(true);
+    setSaveError(null);
     try {
-      const sb = getSupabase(); if (!sb) return;
-      const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+      const sb = getSupabase(); if (!sb) throw new Error('No client');
+      const { data: { session } } = await sb.auth.getSession(); if (!session) throw new Error('No session');
       const uid = session.user.id;
-      const { data: profile } = await sb.from('profiles').select('metadata').eq('id', uid).maybeSingle();
+      const profileRead = await sb.from('profiles').select('metadata').eq('id', uid).maybeSingle();
+      assertSupabaseWriteOk(profileRead, 'Profile read');
+      const profile = profileRead.data;
       const currentMeta = (profile?.metadata && typeof profile.metadata === 'object') ? profile.metadata as any : {};
       const currentOnboarding = currentMeta.onboarding || {};
       const newMeta = { ...currentMeta, onboarding: { ...currentOnboarding, ...updates.onboarding }, ...(updates.country ? { country: updates.country } : {}), ...(updates.business_name ? { business_name: updates.business_name } : {}) };
       const profileUpdate: any = { id: uid, metadata: newMeta };
       if (updates.display_name) { profileUpdate.display_name = updates.display_name; profileUpdate.full_name = updates.display_name; }
-      await sb.from('profiles').upsert(profileUpdate);
-    } catch (e) { console.error('[CustodianOnboardingWizard] Save error:', e); }
+      assertSupabaseWriteOk(await sb.from('profiles').upsert(profileUpdate), 'Profile save');
+      return true;
+    } catch (e) {
+      console.error('[CustodianOnboardingWizard] Save error:', e);
+      setSaveError(ONBOARDING_SAVE_ERROR_MESSAGE);
+      return false;
+    }
     finally { setSaving(false); }
   };
 
   const completeOnboarding = async () => {
     setSaving(true);
+    setSaveError(null);
+    let saved = false;
     try {
-      const sb = getSupabase(); if (!sb) return;
-      const { data: { session } } = await sb.auth.getSession(); if (!session) return;
+      const sb = getSupabase(); if (!sb) throw new Error('No client');
+      const { data: { session } } = await sb.auth.getSession(); if (!session) throw new Error('No session');
       const uid = session.user.id;
-      const { data: profile } = await sb.from('profiles').select('metadata').eq('id', uid).maybeSingle();
+      const profileRead = await sb.from('profiles').select('metadata').eq('id', uid).maybeSingle();
+      assertSupabaseWriteOk(profileRead, 'Profile read');
+      const profile = profileRead.data;
       const currentMeta = (profile?.metadata && typeof profile.metadata === 'object') ? profile.metadata as any : {};
       // Write ALL three completion flags so every guard/reader agrees onboarding is done:
       //   - onboarding_completed (top-level)   → OnboardingGuard
       //   - onboarding.completed (nested)      → isProfileComplete() / userIdentity.ts
       //   - custodian_ready                    → legacy readers
-      await sb.from('profiles').upsert({
+      const completion = await sb.from('profiles').upsert({
         id: uid,
         onboarding_completed: true,
         onboarding_completed_at: new Date().toISOString(),
@@ -123,10 +139,23 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
           },
         },
       });
-      await sb.auth.updateUser({ data: { display_name: answers.name, onboarding_complete: true } });
-    } catch (e) { console.error('[CustodianOnboardingWizard] Complete error:', e); }
+      assertSupabaseWriteOk(completion, 'Onboarding completion save');
+      saved = true;
+      // Auth display-name metadata is cosmetic (no guard reads it); a failure here is
+      // logged but does not block completion, since the profile flags above are saved.
+      try {
+        await sb.auth.updateUser({ data: { display_name: answers.name, onboarding_complete: true } });
+      } catch (e) { console.error('[CustodianOnboardingWizard] Auth metadata update error:', e); }
+    } catch (e) {
+      console.error('[CustodianOnboardingWizard] Complete error:', e);
+      setSaveError(ONBOARDING_SAVE_ERROR_MESSAGE);
+    }
     finally {
       setSaving(false);
+    }
+    // H1-B: navigate only after the completion save is confirmed; otherwise stay on this
+    // step with the error shown so the customer can retry.
+    if (saved) {
       // Signal to parent (OnboardingSetupPage) that we completed here so its Navigate
       // guard doesn't preempt our redirect on the next render.
       try {
@@ -143,13 +172,16 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
   };
 
   const advance = async () => {
-    if (step === 0) await saveProgress({ display_name: answers.name, onboarding: { first_name: answers.name } });
-    else if (step === 1) await saveProgress({ onboarding: { employment_type: answers.employment } });
-    else if (step === 2) await saveProgress({ onboarding: { primary_goal: answers.goal } });
-    else if (step === 3) await saveProgress({ onboarding: { country: answers.country }, country: answers.country });
-    else if (step === 4) await saveProgress({ onboarding: { monthly_income_range: answers.income } });
-    else if (isSelfEmployed && step === 5) await saveProgress({ onboarding: { business_name: answers.business }, business_name: answers.business });
-    setStep(s => s + 1);
+    if (saving) return;
+    let ok = true;
+    if (step === 0) ok = await saveProgress({ display_name: answers.name, onboarding: { first_name: answers.name } });
+    else if (step === 1) ok = await saveProgress({ onboarding: { employment_type: answers.employment } });
+    else if (step === 2) ok = await saveProgress({ onboarding: { primary_goal: answers.goal } });
+    else if (step === 3) ok = await saveProgress({ onboarding: { country: answers.country }, country: answers.country });
+    else if (step === 4) ok = await saveProgress({ onboarding: { monthly_income_range: answers.income } });
+    else if (isSelfEmployed && step === 5) ok = await saveProgress({ onboarding: { business_name: answers.business }, business_name: answers.business });
+    // H1-B: only advance once this step's answer is confirmed saved.
+    if (ok) setStep(s => s + 1);
   };
 
   const canAdvance = () => {
@@ -175,11 +207,11 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
       {/* Progress */}
       <div style={{ width: '100%', maxWidth: 480, marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 11, color: T.muted }}>Setup {Math.min(step + 1, totalSteps)} of {totalSteps}</span>
-          <span style={{ fontSize: 11, color: T.muted }}>{Math.round((Math.min(step + 1, totalSteps) / totalSteps) * 100)}% complete</span>
+          <span style={{ fontSize: 11, color: T.muted }}>Setup {progress.current} of {progress.total}</span>
+          <span style={{ fontSize: 11, color: T.muted }}>{progress.percent}% complete</span>
         </div>
         <div style={{ height: 3, borderRadius: 2, background: T.border }}>
-          <div style={{ height: '100%', borderRadius: 2, background: T.accent, width: `${(Math.min(step + 1, totalSteps) / totalSteps) * 100}%`, transition: 'width 0.4s ease' }} />
+          <div style={{ height: '100%', borderRadius: 2, background: T.accent, width: `${progress.percent}%`, transition: 'width 0.4s ease' }} />
         </div>
       </div>
 
@@ -268,19 +300,26 @@ export function CustodianOnboardingWizard({ onComplete }: Props) {
           </div>
         )}
 
+        {/* H1-B: save failure \u2014 stay on this step; the button below retries. */}
+        {saveError && !saving && (
+          <div role="alert" style={{ marginTop: 16, padding: '10px 14px', borderRadius: 10, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.35)', color: '#fca5a5', fontSize: 13, lineHeight: 1.5 }}>
+            {saveError}
+          </div>
+        )}
+
         {/* Continue / Complete button */}
         {!isComplete ? (
           <>
             <button onClick={() => void advance()} disabled={!canAdvance() || saving} style={{ width: '100%', padding: '14px', borderRadius: 12, marginTop: 20, background: canAdvance() && !saving ? `linear-gradient(135deg, ${T.accent}, #a08030)` : T.border, border: 'none', color: canAdvance() && !saving ? '#0b1220' : T.dim, fontSize: 15, fontWeight: 700, cursor: canAdvance() && !saving ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-              {saving ? 'Saving...' : step === 0 ? 'Nice to meet you \u2192' : 'Continue \u2192'}
+              {saving ? 'Saving...' : saveError ? 'Try again \u2192' : step === 0 ? 'Nice to meet you \u2192' : 'Continue \u2192'}
             </button>
             {(step === 4 || (isSelfEmployed && step === 5)) && (
-              <button onClick={() => void advance()} style={{ display: 'block', margin: '10px auto 0', fontSize: 13, color: T.dim, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Skip for now {'\u2192'}</button>
+              <button onClick={() => void advance()} disabled={saving} style={{ display: 'block', margin: '10px auto 0', fontSize: 13, color: T.dim, background: 'none', border: 'none', cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit' }}>Skip for now {'\u2192'}</button>
             )}
           </>
         ) : (
           <button onClick={() => void completeOnboarding()} disabled={saving} style={{ width: '100%', padding: '14px', borderRadius: 12, marginTop: 20, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: 'none', color: '#0b1220', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {saving ? 'Setting up...' : 'Meet My Team \u2192'}
+            {saving ? 'Setting up...' : saveError ? 'Try again \u2192' : 'Meet My Team \u2192'}
           </button>
         )}
       </div>
