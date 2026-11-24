@@ -24,7 +24,7 @@
  */
 
 import crypto from 'crypto';
-import { formatSnippetDate } from '../../../src/shared/memory-dating';
+import { formatSnippetDate, formatConversationSummaries } from '../../../src/shared/memory-dating';
 import { admin } from './supabase';
 import { maskPII } from './pii';
 // Phase 2.1: Import advanced memory modules as internal helpers
@@ -829,11 +829,26 @@ export async function getMemory(params: {
     contextParts.push(`## Relevant Past Conversations (historical — customer statements, not verified current balances)\n${memorySnippets}`);
   }
 
-  // TODO: Add session summaries (Phase 2.3 or later)
-  // if (includeSummaries) {
-  //   const summaries = await getSessionSummaries(userId, sessionId);
-  //   ...
-  // }
+  // P-1 item 6: past-conversation summaries, owner-scoped, dated, labelled as untrusted history.
+  // Fail-safe: any read error (schema drift) simply omits them.
+  if (includeSummaries) {
+    try {
+      const { data: summaryRows } = await admin()
+        .from('chat_convo_summaries')
+        .select('conversation_id, title, summary, last_message_at')
+        .eq('user_id', userId)
+        .order('last_message_at', { ascending: false })
+        .limit(6);
+      const masked = (summaryRows || []).map((r: { summary?: unknown }) => ({
+        ...r,
+        summary: typeof r.summary === 'string' ? maskPII(r.summary, 'full').masked : r.summary,
+      }));
+      const block = formatConversationSummaries(masked, normalizedSessionId || null);
+      if (block) contextParts.push(block);
+    } catch (summaryErr) {
+      console.warn('[MEMORY] conversation summaries unavailable (non-fatal):', (summaryErr as Error)?.message);
+    }
+  }
 
   const context = contextParts.join('\n\n');
 

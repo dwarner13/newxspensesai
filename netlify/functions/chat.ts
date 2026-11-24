@@ -9513,7 +9513,8 @@ export const handler: Handler = async (event, context) => {
             topK: 6,
             minScore: 0.2,
             includeTasks: true, // Skip tasks in fast path
-            includeSummaries: false
+            // P-1 item 6: Prime gets dated, owner-scoped summaries of earlier conversations.
+            includeSummaries: finalEmployeeSlug === 'prime-boss'
           }
         });
 

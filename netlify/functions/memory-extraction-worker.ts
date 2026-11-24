@@ -17,10 +17,19 @@
  */
 
 import type { Handler } from '@netlify/functions';
+import { timingSafeEqual } from 'crypto';
 import { admin } from './_shared/supabase.js';
 import { extractAndSaveMemories } from './_shared/memory-extraction.js';
 
 const MAX_JOBS_PER_RUN = 10; // Process up to 10 jobs per invocation
+
+/** Constant-time secret comparison (P-1 memory hardening). */
+export function workerSecretMatches(provided: string | undefined | null, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export const handler: Handler = async (event, context) => {
   // Method check
@@ -45,7 +54,7 @@ export const handler: Handler = async (event, context) => {
     };
   }
   const providedSecret = event.headers?.['x-worker-secret'] || event.headers?.['X-Worker-Secret'];
-  if (!providedSecret || providedSecret !== expectedSecret) {
+  if (!workerSecretMatches(providedSecret, expectedSecret)) {
     return {
       statusCode: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -102,8 +111,10 @@ export const handler: Handler = async (event, context) => {
       };
     }
     if (claimed.retry_count >= claimed.max_retries) {
-      // Revert to pending — this row has exhausted retries
-      await sb.from('memory_extraction_queue').update({ status: 'pending' }).eq('id', requestedJobId);
+      // P-1: an exhausted job is FAILED, never put back to pending (it would be re-claimed forever).
+      await sb.from('memory_extraction_queue')
+        .update({ status: 'failed', error_message: 'retries exhausted', updated_at: new Date().toISOString() })
+        .eq('id', requestedJobId);
       return {
         statusCode: 409,
         headers: { 'Content-Type': 'application/json' },
@@ -184,13 +195,20 @@ export const handler: Handler = async (event, context) => {
       console.log(`[Memory Worker] Processing job ${jobId.substring(0, 8)}...`);
 
       try {
+        // P-1: the claim RPC does not return created_at; facts must carry the date the customer
+        // said them (memory dating), so look it up instead of falling back to "now".
+        let statedAt: string | undefined = jobData.created_at;
+        if (!statedAt) {
+          const { data: row } = await sb.from('memory_extraction_queue').select('created_at').eq('id', jobId).maybeSingle();
+          statedAt = row?.created_at ?? undefined;
+        }
         // Run memory extraction
         await extractAndSaveMemories({
           userId: jobData.user_id,
           sessionId: jobData.session_id,
           redactedUserText: jobData.user_message, // Should already be PII-masked
           assistantResponse: jobData.assistant_response || undefined,
-          statedAt: jobData.created_at,
+          statedAt,
         });
 
         // Mark as completed
