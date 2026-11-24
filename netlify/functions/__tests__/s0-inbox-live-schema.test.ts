@@ -45,6 +45,15 @@ describe('Inbox selects only live columns', () => {
   });
 });
 
+describe('header NotificationsPanel mark-read (Attachments HQ review note)', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '../../../src/components/system/NotificationsPanel.tsx'), 'utf8');
+  it('writes read_at (not the non-existent is_read), always owner-filtered', () => {
+    expect(src).not.toMatch(/update\(\{ is_read: true \}\)/);
+    expect(src.match(/\.update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)/g)?.length).toBe(2);
+    expect(src.match(/\.eq\('user_id', user\.id\)/g)?.length).toBe(2);
+  });
+});
+
 describe('row normalization', () => {
   it('notifications: message → description, read_at → read, safe href', () => {
     const r = normalizeNotificationRow({ id: 'n1', employee_slug: 'tag-ai', priority: 'action', title: 'T', message: 'M', action_url: '/transactions', read_at: '2026-11-01T00:00:00Z', created_at: 'c' });

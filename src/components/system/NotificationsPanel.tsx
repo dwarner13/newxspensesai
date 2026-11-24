@@ -38,13 +38,18 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
     if (!notification.is_read) {
       markNotificationRead(notification.id);
       
-      // Update in database
+      // Update in database. Live schema: read state is read_at (there is no is_read column), and
+      // customers may update only read_at on their own rows (notifications RLS migration).
       const supabase = getSupabase();
       if (supabase) {
-        await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('id', notification.id);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from('notifications')
+            .update({ read_at: new Date().toISOString() })
+            .eq('id', notification.id)
+            .eq('user_id', user.id);
+        }
       }
     }
     
@@ -64,10 +69,14 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
     if (supabase && unreadAllCount > 0) {
       const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
       if (unreadIds.length > 0) {
-        await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .in('id', unreadIds);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from('notifications')
+            .update({ read_at: new Date().toISOString() })
+            .in('id', unreadIds)
+            .eq('user_id', user.id);
+        }
       }
     }
   };
