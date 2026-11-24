@@ -258,6 +258,7 @@ import {
 // Phase 1B.1: Tool-gate exact-scope sufficiency
 import { analyzeQueryScope } from '../../src/shared/tool-gate';
 import { buildChatDocumentContext } from './_shared/chatDocumentContext.js';
+import { chatDocumentModeEnabled } from './_shared/documentPurpose.js';
 import { loadActiveDocumentIds, mergeContextDocumentIds, resolveAttachmentRefs, withAttachmentRefs, type ChatAttachmentRef } from './_shared/chatAttachments.js';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
@@ -7062,6 +7063,13 @@ export const handler: Handler = async (event, context) => {
             employeeTools = [...employeeTools, 'tag_status'];
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime tag_status tool enabled (COLLAB-2a, read-only)');
+          }
+          // Attachments D1: read-only Tag findings on documents attached in this conversation.
+          // Only when chat documents are enabled, so Prime never sees a tool it cannot use.
+          if (chatDocumentModeEnabled() && !employeeTools.includes('tag_document_findings')) {
+            employeeTools = [...employeeTools, 'tag_document_findings'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime tag_document_findings tool enabled (Attachments D1, read-only)');
           }
         }
         
