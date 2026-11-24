@@ -258,6 +258,7 @@ import {
 // Phase 1B.1: Tool-gate exact-scope sufficiency
 import { analyzeQueryScope } from '../../src/shared/tool-gate';
 import { buildChatDocumentContext } from './_shared/chatDocumentContext.js';
+import { loadActiveDocumentIds, mergeContextDocumentIds, resolveAttachmentRefs, withAttachmentRefs, type ChatAttachmentRef } from './_shared/chatAttachments.js';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
 
@@ -7219,6 +7220,13 @@ export const handler: Handler = async (event, context) => {
     }
     orchCtx.sessionId = finalSessionId;
     orchCtx.employee = finalEmployeeSlug;
+    // Attachments C3: references (no text) for this message's own chat documents, and this
+    // session's active documents from earlier user messages (candidates only; the context builder
+    // re-checks ownership, purpose and status every request).
+    const [turnAttachmentRefs, activeChatDocumentIds]: [ChatAttachmentRef[], string[]] = await Promise.all([
+      resolveAttachmentRefs(sb, userId, documentIds),
+      loadActiveDocumentIds(sb, userId, finalSessionId),
+    ]);
     orchCtx.persist_worker_output = async (key: string, value: any): Promise<boolean> => {
       if (key !== 'tag') return false;
       const persisted = await persistTagOutputStateBestEffort(sb, orchCtx.sessionId, orchCtx.threadId, value);
@@ -8221,7 +8229,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -8754,7 +8762,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -8857,7 +8865,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -8957,7 +8965,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -9071,7 +9079,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -9171,7 +9179,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -9271,7 +9279,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -9371,7 +9379,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -9471,7 +9479,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
         await sb.from('chat_messages').insert({
@@ -11167,8 +11175,10 @@ CUSTODIAN CONTEXT (Account Security & Settings):
 
     // Build attachment context if documentIds provided
     let attachmentContext: string | null = null;
-    if (!isPrimeFastLane && documentIds && documentIds.length > 0) {
-      attachmentContext = await buildAttachmentContext(sb, userId, documentIds, { question: masked });
+    // Attachments C3: this message's documents first, then the session's active ones (≤10).
+    const contextDocumentIds = mergeContextDocumentIds(documentIds, activeChatDocumentIds);
+    if (!isPrimeFastLane && contextDocumentIds.length > 0) {
+      attachmentContext = await buildAttachmentContext(sb, userId, contextDocumentIds, { question: masked });
     }
     const shouldAttachLatestImportContext =
       isPrime &&
@@ -11558,7 +11568,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         content: masked, // Store masked version
         tokens: estimateTokens(masked),
         thread_id: threadId, // CRITICAL: thread_id is always required
-        metadata: (client_message_id || safeHidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(safeHidden ? { hidden: true } : {}) } : undefined,
+        metadata: withAttachmentRefs((client_message_id || safeHidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(safeHidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
       };
       console.log(`[Chat] Inserting user message with thread_id: ${threadId}`);
       const _tUserMessageInsert = Date.now(); // V1-A CP4.3
