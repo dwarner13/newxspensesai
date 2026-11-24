@@ -77,6 +77,9 @@ Read-only consultation is not automatically free.
 
 Identity, employee and entitlement are always server-resolved, never client-claimed. When authorization can't be established, the answer is deny.
 
+## Mandatory commercial release gate (owner, 2026-11-24)
+`authorizeCapability` currently **permits every capability**. Real entitlement enforcement — an installed resolver, every tool classified, and the enforcement points in section 4 wired — is a **mandatory gate before any paid plan launches**. Existing employee tools are not removed or disabled in the meantime. The per-employee inventory and recommended specialties are in `EMPLOYEE_INVENTORY_2026-11-24.md` (evidence folder): Crystal → forecasting, Goalie → goal planning, Finley → education and coaching, Liberty → debt management (evaluate), Ledger → bookkeeping organization (evaluate), Chime → reminders (evaluate), Blitz → retained pending review, Custodian → current app guidance preserved.
+
 ## 5. Upgrade experience (UI/UX Studio)
 When a capability isn't available:
 - name the specialist and the restriction;
