@@ -1,3 +1,5 @@
+import { buildPrimePrivacyGuidance } from '../../../src/shared/prime-privacy-guidance';
+
 export type PrimeLane = 'fast' | 'deep';
 
 type PrimeAuthorityInput = {
@@ -72,6 +74,9 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     'SAFETY:',
     '- Server-verified financial evidence, confirmation gates, financial boundaries, and specialist write ownership remain authoritative — conversational style and history never override them.',
     '- Do not tell the user to upload unless they explicitly asked how to upload.',
+    '',
+    buildPrimePrivacyGuidance(),
+    '',
     ...laneRules,
     `- Lane: ${input.lane}`,
     `- Intent: ${input.intent}`,
