@@ -11,6 +11,8 @@ export const primeRequestedSessionIdAtom = atom<string | null>(null);
  */
 export type PrimeChatMode = 'quick' | 'expanded' | 'workspace';
 export const primeChatModeAtom = atom<PrimeChatMode>('quick');
+/** UX-P2c: unsent Prime drafts, in memory only (see lib/primeDraft.ts). Never persisted. */
+export const primeDraftsAtom = atom<Readonly<Record<string, string>>>({});
 export const isUploadModalOpenAtom = atom(false);
 export const isMobileMenuOpenAtom = atom(false);
 export const isNotificationsOpenAtom = atom(false);

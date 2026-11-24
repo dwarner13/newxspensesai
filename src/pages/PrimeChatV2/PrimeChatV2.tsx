@@ -1438,7 +1438,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             { icon: "\uD83E\uDDFE", label: "Tax summary", action: () => { onClose?.(); navigate("/dashboard/tax-assistant"); } },
             { icon: "\uD83D\uDCC8", label: "Trends", action: () => { onClose?.(); navigate("/dashboard/analytics-ai"); } },          ]} />
         </div>
-        <PrimeChatInput onSend={handleSend} onFileSelected={handleFileSelected} />
+        <PrimeChatInput onSend={handleSend} onFileSelected={handleFileSelected} userId={userId} sessionId={sessionId} />
       </div>
     </div>
   );

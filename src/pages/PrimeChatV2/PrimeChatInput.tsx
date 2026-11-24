@@ -1,4 +1,7 @@
-import { useState, useRef, useLayoutEffect, type KeyboardEvent } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, type KeyboardEvent } from "react";
+import { useAtom } from "jotai";
+import { primeDraftsAtom } from "@/lib/uiStore";
+import { draftKey, readDraft, writeDraft, keepOnlyUser } from "@/lib/primeDraft";
 import { THEME } from "./agentConfig";
 import { PANEL } from "./panelConfig";
 import { ChatAttachmentButton } from "@/components/chat/ChatAttachmentButton";
@@ -12,10 +15,31 @@ interface PrimeChatInputProps {
   onSend: (message: string) => void;
   onFileSelected?: (file: File) => void;
   initialValue?: string;
+  /** P2-c: the signed-in user and the open conversation, used only to key the in-memory draft. */
+  userId?: string | null;
+  sessionId?: string | null;
 }
 
-export function PrimeChatInput({ onSend, onFileSelected, initialValue = "" }: PrimeChatInputProps) {
-  const [value, setValue] = useState(initialValue);
+export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", userId, sessionId }: PrimeChatInputProps) {
+  // P2-c: unsent text survives closing/reopening Prime and switching modes or conversations
+  // within this tab. In memory only; never stored, logged or sent until Send.
+  const [drafts, setDrafts] = useAtom(primeDraftsAtom);
+  const key = draftKey(userId, sessionId);
+  const [value, setValueState] = useState(() => readDraft(drafts, key) || initialValue);
+  const setValue = (text: string) => {
+    setValueState(text);
+    setDrafts(d => writeDraft(d, key, text));
+  };
+  // Switching conversations shows that conversation's own draft.
+  const loadedKeyRef = useRef(key);
+  useEffect(() => {
+    if (loadedKeyRef.current === key) return;
+    loadedKeyRef.current = key;
+    setValueState(readDraft(drafts, key));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  // Drafts of any other user are dropped when the signed-in user changes (logout / switch).
+  useEffect(() => { setDrafts(d => keepOnlyUser(d, userId)); }, [userId, setDrafts]);
   const [pendingFile, setPendingFile] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
