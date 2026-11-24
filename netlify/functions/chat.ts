@@ -137,6 +137,9 @@ import OpenAI from 'openai';
 import { toOpenAIToolDefs, pickTools, executeTool } from '../../src/agent/tools/index.js';
 import type { ToolContext } from '../../src/agent/tools/index.js';
 import { execute as executeTagStatus } from '../../src/agent/tools/impl/tag_status';
+import { execute as executeStatementCoverage } from '../../src/agent/tools/impl/statement_coverage';
+import { isStatementInventoryQuestion, formatStatementCoverageEvidence } from '../../src/shared/prime-statement-guidance';
+import type { StatementCoverage } from '../../src/shared/statement-coverage';
 import { isCategorizationReviewQuestion, tagStatusInputFromScope, formatTagConsultationEvidence, buildTagConsultationEvent, type SpecialistConsultationEvent, type ResolvedPeriodLike } from '../../src/shared/prime-tag-consultation';
 import type { TagStatus } from '../../src/shared/tag-status';
 // Server-enforced AI tool confirmation gate
@@ -7061,6 +7064,11 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime merchant_analysis_refine tool enabled via runtime fallback');
           }
+          // L-B: read-only statement inventory (code-owned)
+          if (!employeeTools.includes('statement_coverage')) {
+            employeeTools = [...employeeTools, 'statement_coverage'];
+            toolModules = pickTools(employeeTools);
+          }
           // COLLAB-2a: read-only Tag consultation (code-owned; no database tool list change)
           if (!employeeTools.includes('tag_status')) {
             employeeTools = [...employeeTools, 'tag_status'];
@@ -10628,6 +10636,21 @@ export const handler: Handler = async (event, context) => {
         }
       } catch (e: unknown) {
         console.warn('[L-A] tag_status consultation failed (non-fatal):', (e as Error)?.name ?? 'Error');
+      }
+    }
+
+    // ── L-B: statement inventory questions get a deterministic, read-only statement lookup ──
+    // (owner-scoped imports + user_documents; chat documents excluded; upload date kept separate
+    // from statement period). Prime no longer answers "I can't access upload history".
+    if (isPrime && isStatementInventoryQuestion(String(masked || ''))) {
+      try {
+        const covResult = (await executeStatementCoverage({}, { userId })) as unknown as { ok: boolean; value?: StatementCoverage };
+        if (covResult && covResult.ok && covResult.value) {
+          systemMessages.push({ role: 'system', content: formatStatementCoverageEvidence(covResult.value) });
+          console.log(`[L-B] statement_coverage status=${covResult.value.status} accounts=${covResult.value.accounts.length}`);
+        }
+      } catch (e: unknown) {
+        console.warn('[L-B] statement_coverage failed (non-fatal):', (e as Error)?.name ?? 'Error');
       }
     }
 

@@ -4,6 +4,7 @@ import { buildTeamCapabilityRoster } from '../../../src/shared/prime-capability-
 import { buildPrimeTagConsultationRule } from '../../../src/shared/prime-tag-consultation';
 import { buildPrimeDocumentGuidance } from '../../../src/shared/prime-document-guidance';
 import { buildPrimeTaxAndConfidenceGuidance } from '../../../src/shared/prime-tax-guidance';
+import { buildPrimeRoutesRule } from '../../../src/shared/prime-statement-guidance';
 
 export type PrimeLane = 'fast' | 'deep';
 
@@ -91,6 +92,8 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     buildPrimeDocumentGuidance(),
     '',
     buildPrimeTaxAndConfidenceGuidance(),
+    '',
+    buildPrimeRoutesRule(),
     '',
     ...laneRules,
     `- Lane: ${input.lane}`,

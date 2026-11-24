@@ -33,6 +33,7 @@ import * as cashFlowSummary from './impl/cash_flow_summary';
 import * as merchantTotals from './impl/merchant_totals';
 import * as accountBalancesQuery from './impl/account_balances_query';
 import * as tagStatus from './impl/tag_status';
+import * as statementCoverage from './impl/statement_coverage';
 import * as tagDocumentFindings from './impl/tag_document_findings';
 import * as goalsQuery from './impl/goals_query';
 import * as createGoal from './impl/create_goal';
@@ -486,6 +487,19 @@ const toolModules: Map<string, ToolModule> = new Map([
     meta: {
       timeout: 15000,
       rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['statement_coverage', {
+    id: 'statement_coverage',
+    description: 'READ-ONLY. The customer\'s imported statements: most recent upload attempt and most recent completed import (institution, last 4, statement period, upload date, import status), import status counts, and completed statement coverage by account with gaps. Upload date and statement period are separate. Chat attachments are never counted. Takes no arguments.',
+    inputSchema: statementCoverage.inputSchema,
+    outputSchema: statementCoverage.outputSchema,
+    run: statementCoverage.execute,
+    meta: {
+      mutates: false,
+      requiresConfirm: false,
+      timeout: 10000,
+      rateLimit: { perMinute: 10 },
     },
   }],
   ['tag_status', {
