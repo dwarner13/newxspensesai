@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useTransactions } from "@/hooks/useTransactions";
 import type { CategoryData, SubcategoryChip } from "./categoryConfig";
 import { getCategoryMeta } from "./categoryConfig";
+import { calendarDayOfTx, periodKeyOf, yearOf } from "@/lib/categoryPeriod";
 
 const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
 
@@ -106,37 +107,30 @@ export function useCategoriesData(selectedPeriod?: string, selectedYear?: number
     const yearSet = new Set<number>();
     yearSet.add(new Date().getFullYear());
     if (typeof selectedYear === 'number') yearSet.add(selectedYear);
+    // K-c: years / months come from the calendar day (date, or posted_at's YYYY-MM-DD),
+    // never from posted_at as an instant (UTC midnight shifted the 1st into the prior month).
     transactions.forEach(t => {
-      const d = new Date(t.posted_at || "");
-      if (!isNaN(d.getTime())) yearSet.add(d.getFullYear());
+      const y = yearOf(calendarDayOfTx(t));
+      if (y !== null) yearSet.add(y);
     });
     const availableYears = Array.from(yearSet).sort((a, b) => b - a);
 
     // Filter to selected year first (year is the primary filter)
     const yearFiltered = (typeof selectedYear === 'number')
-      ? transactions.filter(t => {
-          const d = new Date(t.posted_at || "");
-          if (isNaN(d.getTime())) return false;
-          return d.getFullYear() === selectedYear;
-        })
+      ? transactions.filter(t => yearOf(calendarDayOfTx(t)) === selectedYear)
       : transactions;
 
     // Build available periods (within selected year)
     const periodSet = new Set<string>();
     yearFiltered.forEach(t => {
-      const d = new Date(t.posted_at || "");
-      if (!isNaN(d.getTime()))
-        periodSet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+      const key = periodKeyOf(calendarDayOfTx(t));
+      if (key) periodSet.add(key);
     });
     const availablePeriods = Array.from(periodSet).sort().reverse();
 
     // Filter to selected period (within selected year)
     const periodFiltered = selectedPeriod
-      ? yearFiltered.filter(t => {
-          const d = new Date(t.posted_at || "");
-          if (isNaN(d.getTime())) return false;
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` === selectedPeriod;
-        })
+      ? yearFiltered.filter(t => periodKeyOf(calendarDayOfTx(t)) === selectedPeriod)
       : yearFiltered;
 
     // Income total
@@ -149,9 +143,8 @@ export function useCategoriesData(selectedPeriod?: string, selectedYear?: number
     // MoM trend within selected year
     const monthBuckets: Record<string, Record<string, number>> = {};
     yearFiltered.filter(t => !isIncome(t) && !isNonSpend(t)).forEach(t => {
-      const d = new Date(t.posted_at || "");
-      if (isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const key = periodKeyOf(calendarDayOfTx(t));
+      if (!key) return;
       const cat = t.category || "Other";
       if (!monthBuckets[key]) monthBuckets[key] = {};
       monthBuckets[key][cat] = (monthBuckets[key][cat] || 0) + Math.abs(t.amount);
