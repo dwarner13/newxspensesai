@@ -3,6 +3,7 @@ import { X, TrendingUp, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
+import { formatCalendarDate } from '../../lib/calendarDate';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { chatSize } from '@/theme/typography';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
@@ -237,12 +238,9 @@ export function TransactionInsightDrawer({
   const amountColor = effectiveIsIncome ? '#10b981' : '#ef4444';
   const amountPrefix = effectiveIsIncome ? '+' : '-';
 
-  const formattedDate = useMemo(() => {
-    if (!postedAt) return null;
-    const d = new Date(postedAt + (postedAt.length === 10 ? 'T00:00:00' : ''));
-    if (isNaN(d.getTime())) return null;
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  }, [postedAt]);
+  // D-1: posted_at is stored as UTC midnight; format its calendar day so Mountain-time
+  // users see the statement's date (Jun 16), not the previous day. Display only.
+  const formattedDate = useMemo(() => formatCalendarDate(postedAt, 'long'), [postedAt]);
 
   // Month spend for this merchant
   const merchantMonthSpend = useMemo(() => {

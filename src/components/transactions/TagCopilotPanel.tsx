@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { computeComposerHeight, COMPOSER_MAX_HEIGHT_PX } from "@/lib/chatComposer";
 import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
+import { formatCalendarDate } from "@/lib/calendarDate";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
@@ -1107,9 +1108,9 @@ export function TagCopilotPanel({
             <span style={{ color: T.textDim }}>
               ${Math.abs(Number(focusedTransaction.amount || 0)).toFixed(2)}
             </span>
-            {(focusedTransaction.posted_at || focusedTransaction.date) && (
+            {formatCalendarDate(focusedTransaction.posted_at || focusedTransaction.date, 'medium') && (
               <span style={{ color: T.textDim }}>
-                - {focusedTransaction.posted_at || focusedTransaction.date}
+                - {formatCalendarDate(focusedTransaction.posted_at || focusedTransaction.date, 'medium')}
               </span>
             )}
           </div>
