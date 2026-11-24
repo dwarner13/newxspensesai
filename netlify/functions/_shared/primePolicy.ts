@@ -1,5 +1,6 @@
 import { buildPrimePrivacyGuidance } from '../../../src/shared/prime-privacy-guidance';
 import { buildPrimeSourceTransparency } from '../../../src/shared/prime-source-transparency';
+import { buildTeamCapabilityRoster } from '../../../src/shared/prime-capability-registry';
 
 export type PrimeLane = 'fast' | 'deep';
 
@@ -79,6 +80,8 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     buildPrimePrivacyGuidance(),
     '',
     buildPrimeSourceTransparency(),
+    '',
+    buildTeamCapabilityRoster(),
     '',
     ...laneRules,
     `- Lane: ${input.lane}`,

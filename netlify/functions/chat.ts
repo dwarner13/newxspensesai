@@ -240,6 +240,7 @@ import {
   type DedupCache,
 } from '../../src/shared/prime-evidence-executor';
 import { fetchTransactionCoverage, formatCoverageNote, emptyRequestedPeriod, type CoverageClient } from '../../src/shared/prime-data-coverage';
+import { buildSpecialistCapabilityBoundary } from '../../src/shared/prime-capability-registry';
 // P3.1D: Post-stream evidence violation detection (telemetry only)
 import {
   detectEvidenceViolation,
@@ -11107,6 +11108,9 @@ CUSTODIAN CONTEXT (Account Security & Settings):
       // The DB system_prompt for Prime contains legacy receptionist routing rules that conflict
       // with Prime Boss V1's reasoning-first contract.
       systemMessages.push({ role: 'system', content: employeeSystemPrompt });
+      // PB-05: code-owned capability boundary takes precedence over stored-prompt claims.
+      const directBoundary = buildSpecialistCapabilityBoundary(finalEmployeeSlug);
+      if (directBoundary) systemMessages.push({ role: 'system', content: directBoundary });
       if (memoryContext) {
         systemMessages.push({ role: 'system', content: memoryContext });
       }
@@ -12343,6 +12347,9 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
             if (specialistProfile?.system_prompt) {
               messages.push({ role: 'system', content: specialistProfile.system_prompt });
               console.log(`[Chat] Injected specialist system_prompt for ${finalEmployeeSlug} (${specialistProfile.system_prompt.length} chars)`);
+              // PB-05: code-owned capability boundary takes precedence over stored-prompt claims.
+              const streamingBoundary = buildSpecialistCapabilityBoundary(finalEmployeeSlug);
+              if (streamingBoundary) messages.push({ role: 'system', content: streamingBoundary });
             }
           } catch (e: any) {
             console.warn('[Chat] Failed to load specialist system_prompt for continuation:', e?.message);
@@ -14036,6 +14043,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 if (specialistProfile?.system_prompt) {
                   messages.push({ role: 'system', content: specialistProfile.system_prompt });
                   console.log(`[Chat] Injected specialist system_prompt (non-streaming) for ${finalEmployeeSlug}`);
+                  // PB-05: code-owned capability boundary takes precedence over stored-prompt claims.
+                  const nsBoundary = buildSpecialistCapabilityBoundary(finalEmployeeSlug);
+                  if (nsBoundary) messages.push({ role: 'system', content: nsBoundary });
                 }
               } catch (e: any) {
                 console.warn('[Chat] Failed to load specialist system_prompt (non-streaming):', e?.message);
