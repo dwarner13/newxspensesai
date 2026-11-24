@@ -56,6 +56,7 @@ const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2,
 
 // LIVE-UI-01: one lookup per import per session; reopening a transaction shows its facts at once.
 const STATEMENT_FACTS_CACHE = new Map<string, StatementFacts>();
+const DRAWER_EXPANDED_KEY = 'xspensesai.txDrawer.expanded';
 
 export function TransactionInsightDrawer({
   open, row, allCommittedTransactions, onClose,
@@ -85,6 +86,16 @@ export function TransactionInsightDrawer({
   const [linkedReceipt, setLinkedReceipt] = useState<any>(null);
   const [localType, setLocalType] = useState<'income' | 'expense'>('expense');
   const [isFlippingType, setIsFlippingType] = useState(false);
+  const [expandedPref, setExpandedPref] = useState<boolean>(() => {
+    try { return window.localStorage.getItem(DRAWER_EXPANDED_KEY) === '1'; } catch { return false; }
+  });
+  const toggleExpanded = () => {
+    setExpandedPref((v) => {
+      const next = !v;
+      try { window.localStorage.setItem(DRAWER_EXPANDED_KEY, next ? '1' : '0'); } catch { /* per-viewer convenience only */ }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768);
@@ -411,13 +422,55 @@ export function TransactionInsightDrawer({
   if (!open || !row) return null;
 
   const seenCount = tagInsight?.merchantSeenCount || 0;
+  // LIVE-UI-02: expanded desktop layout (details + controls left, Tag right). Same component
+  // and state, so the selected transaction and any unsaved edits are kept when toggling.
+  const expanded = expandedPref && !isMobile;
+  // Tag's category card, rendered once: inline (default) or in the right column (expanded).
+  const tagVerdictCard = (
+          <div style={{ borderRadius: 14, background: 'rgba(34,211,153,0.05)', border: '1px solid rgba(34,211,153,0.15)' }}>
+            {/* Verdict row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid rgba(34,211,153,0.08)' }}>
+              <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.06) 100%)', border: '1.5px solid rgba(34,211,238,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#67e8f9' }}>Category</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', marginTop: 2 }}>{localCategory}</div>
+                {/* D-5: no confidence percentage (often a heuristic); plain-language source and
+                    approximate merchant history only. */}
+                <div style={{ fontSize: 13, color: '#9ba8bc', marginTop: 2 }}>
+                  {tagInsightLoading ? 'Analyzing…' : [
+                    describeCategorySource(tagInsight?.categorySource),
+                    tagInsight?.merchantSeenCapped ? describeMerchantHistory(MERCHANT_HISTORY_CAP) : describeMerchantHistory(seenCount),
+                  ].filter(Boolean).join(' · ') || 'Current category'}
+                </div>
+                {isPotentiallyTaxRelevant(localCategory) && (
+                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 8, background: 'rgba(148,163,184,0.06)', border: '1px solid rgba(148,163,184,0.2)', fontSize: 12, fontWeight: 600, color: '#c8d0e0' }}>
+                    {TAX_NOTE}
+                  </div>
+                )}
+              </div>
+              {tagInsight?.isAmountAnomaly && (
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '2px 6px', flexShrink: 0 }}>⚠ Unusual</span>
+              )}
+            </div>
+            {/* Tag message */}
+            {(tagInsightLoading || tagInsight?.message) && (
+              <div aria-busy={tagInsightLoading || undefined} style={{ padding: '12px 14px', fontSize: 15, color: '#dbe3ef', lineHeight: 1.6, minHeight: 72, boxSizing: 'border-box' }}>
+                {tagInsightLoading ? 'Analyzing this transaction…' : tagInsight?.message}
+              </div>
+            )}
+            {/* Proactive insights */}
+            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[\u{1F300}-\u{1F9FF}]/gu, ""); return (
+              <div key={i} style={{ padding: '10px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 14, color: '#b7c2d3', lineHeight: 1.55 }}>{cleanInsight}</div>
+            ); })}
+          </div>
+  );
 
   return (
     <>
       <button type="button" aria-label="Close" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(11,18,32,0.7)', backdropFilter: 'blur(4px)', border: 'none', cursor: 'pointer' }} onClick={onClose} />
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0,
-        zIndex: 1201, width: isMobile ? '100%' : 500,
+        zIndex: 1201, width: isMobile ? '100%' : (expanded ? 'min(1120px, calc(100vw - 32px))' : 500), transition: 'width 0.2s ease',
         display: 'flex', flexDirection: 'column', background: '#080f1e',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
         fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '-8px 0 60px rgba(0,0,0,0.5)',
@@ -457,12 +510,14 @@ export function TransactionInsightDrawer({
         )}
 
         {/* HEADER */}
-        <div style={{ padding: onBackToChat ? '12px 20px 16px' : '20px 20px 16px', paddingTop: !onBackToChat && !isMobile ? 'max(20px, env(safe-area-inset-top, 20px))' : (onBackToChat ? 12 : 20), borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ padding: expanded ? '12px 24px 12px' : (onBackToChat ? '12px 20px 16px' : '20px 20px 16px'), paddingTop: expanded ? 12 : (!onBackToChat && !isMobile ? 'max(20px, env(safe-area-inset-top, 20px))' : (onBackToChat ? 12 : 20)), borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.4, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</h2>
-            <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 800, color: amountColor, marginTop: 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+            <div style={expanded ? { display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' } : undefined}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : (expanded ? 22 : 24), fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.4, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</h2>
+            <div style={{ fontSize: isMobile ? 28 : (expanded ? 26 : 32), fontWeight: 800, color: amountColor, marginTop: expanded ? 0 : 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+            </div>
             {/* D-2: facts grid — date, account and statement are prominent and readable */}
-            <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', margin: '14px 0 0' }}>
+            <dl style={{ display: 'grid', gridTemplateColumns: expanded ? 'repeat(4, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))', gap: expanded ? '8px 20px' : '12px 16px', margin: expanded ? '10px 0 0' : '14px 0 0' }}>
               {formattedDate && (
                 <div style={{ minWidth: 0 }}>
                   <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>Date</dt>
@@ -493,6 +548,15 @@ export function TransactionInsightDrawer({
               )}
             </dl>
           </div>
+          {!isMobile && (
+            <button type="button" onClick={toggleExpanded} aria-pressed={expanded} aria-label={expanded ? 'Collapse transaction details' : 'Expand transaction details'} title={expanded ? 'Collapse' : 'Expand'}
+              style={{ flexShrink: 0, minHeight: 44, padding: '0 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: expanded ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.04)', color: '#c8d0e0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {expanded ? <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" /> : <path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />}
+              </svg>
+              <span>{expanded ? 'Collapse' : 'Expand'}</span>
+            </button>
+          )}
           {/* Only show standalone X when Back to Conversation bar is NOT present (avoids double X) */}
           {!onBackToChat && (
             <button type="button" onClick={onClose} aria-label="Close transaction details" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#c8d0e0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -502,7 +566,8 @@ export function TransactionInsightDrawer({
         </div>
 
         {/* SCROLLABLE BODY */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: expanded ? '16px 24px' : '16px 20px', display: 'flex', flexDirection: expanded ? 'row' : 'column', alignItems: expanded ? 'flex-start' : 'stretch', gap: expanded ? 24 : 14 }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* D-3: SUCCESSFUL CORRECTION — only after the server confirmed the save */}
           {savedNotice && (
@@ -575,43 +640,8 @@ export function TransactionInsightDrawer({
             </div>
           )}
 
-          {/* TAG VERDICT */}
-          <div style={{ borderRadius: 14, background: 'rgba(34,211,153,0.05)', border: '1px solid rgba(34,211,153,0.15)' }}>
-            {/* Verdict row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid rgba(34,211,153,0.08)' }}>
-              <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.06) 100%)', border: '1.5px solid rgba(34,211,238,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#67e8f9' }}>Category</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', marginTop: 2 }}>{localCategory}</div>
-                {/* D-5: no confidence percentage (often a heuristic); plain-language source and
-                    approximate merchant history only. */}
-                <div style={{ fontSize: 13, color: '#9ba8bc', marginTop: 2 }}>
-                  {tagInsightLoading ? 'Analyzing…' : [
-                    describeCategorySource(tagInsight?.categorySource),
-                    tagInsight?.merchantSeenCapped ? describeMerchantHistory(MERCHANT_HISTORY_CAP) : describeMerchantHistory(seenCount),
-                  ].filter(Boolean).join(' · ') || 'Current category'}
-                </div>
-                {isPotentiallyTaxRelevant(localCategory) && (
-                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 8, background: 'rgba(148,163,184,0.06)', border: '1px solid rgba(148,163,184,0.2)', fontSize: 12, fontWeight: 600, color: '#c8d0e0' }}>
-                    {TAX_NOTE}
-                  </div>
-                )}
-              </div>
-              {tagInsight?.isAmountAnomaly && (
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '2px 6px', flexShrink: 0 }}>⚠ Unusual</span>
-              )}
-            </div>
-            {/* Tag message */}
-            {(tagInsightLoading || tagInsight?.message) && (
-              <div aria-busy={tagInsightLoading || undefined} style={{ padding: '12px 14px', fontSize: 15, color: '#dbe3ef', lineHeight: 1.6, minHeight: 72, boxSizing: 'border-box' }}>
-                {tagInsightLoading ? 'Analyzing this transaction…' : tagInsight?.message}
-              </div>
-            )}
-            {/* Proactive insights */}
-            {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[\u{1F300}-\u{1F9FF}]/gu, ""); return (
-              <div key={i} style={{ padding: '10px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 14, color: '#b7c2d3', lineHeight: 1.55 }}>{cleanInsight}</div>
-            ); })}
-          </div>
+          {/* TAG VERDICT — in the right column when expanded */}
+          {!expanded && tagVerdictCard}
 
           {/* SUBCATEGORY */}
           {localCategory && localCategory !== 'Uncategorized' && subcategoryOptions.length > 0 && (
@@ -704,6 +734,12 @@ export function TransactionInsightDrawer({
             </button>
           )}
 
+        </div>
+        {expanded && (
+          <aside aria-label="Tag's explanation" style={{ width: 'min(420px, 40%)', flexShrink: 0, position: 'sticky', top: 0 }}>
+            {tagVerdictCard}
+          </aside>
+        )}
         </div>
 
         {/* FOOTER — transaction actions (Split/Close) */}
