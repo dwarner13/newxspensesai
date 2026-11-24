@@ -1792,6 +1792,11 @@ export function usePrimeChat(
             if (Array.isArray(payload?.txCandidates) && payload.txCandidates.length > 0) {
               extraMetaFromPayload.txCandidates = payload.txCandidates;
             }
+            // L-A: genuine specialist consultations that ran server-side (rendered by UI/UX as
+            // "Prime checked with Tag"). Passed through exactly as received; never synthesized.
+            if (Array.isArray(payload?.specialistConsultations) && payload.specialistConsultations.length > 0) {
+              extraMetaFromPayload.specialistConsultations = payload.specialistConsultations;
+            }
             upsertAssistantMessage({
               messageId,
               requestId,

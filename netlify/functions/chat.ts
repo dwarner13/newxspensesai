@@ -14714,6 +14714,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         if (ownershipGate.txCandidatesForResponse && ownershipGate.txCandidatesForResponse.length > 0) {
           assistantMsgMetadata.txCandidates = ownershipGate.txCandidatesForResponse;
         }
+        // L-A: persist genuine consultations so the marker survives a reload.
+        if (specialistConsultations.length > 0) assistantMsgMetadata.specialistConsultations = specialistConsultations;
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
           user_id: userId,

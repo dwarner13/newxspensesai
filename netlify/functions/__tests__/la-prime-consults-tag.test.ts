@@ -114,8 +114,13 @@ describe('L-A chat.ts wiring', () => {
     expect(chat).toMatch(/&& !periodUnresolvedTaxSummary && !primeCategorizationReview\) \{/);
     expect(chat).toMatch(/\|\| hasPeriodScopedAuthoritativeEvidence\(p31cResult\)\n\s+\/\/ L-A:[^\n]*\n\s+\|\| primeCategorizationReview;/);
   });
-  it('the response carries the consultation event only when present', () => {
+  it('the response carries the consultation event only when present, and it is persisted with the message', () => {
     expect(chat).toMatch(/\.\.\.\(specialistConsultations\.length > 0 && \{ specialistConsultations \}\),/);
+    expect(chat).toMatch(/if \(specialistConsultations\.length > 0\) assistantMsgMetadata\.specialistConsultations = specialistConsultations;/);
+  });
+  it('usePrimeChat threads it to msg.meta.specialistConsultations exactly as received (UI/UX field path)', () => {
+    const hook = fs.readFileSync(path.resolve(__dirname, '../../../src/hooks/usePrimeChat.ts'), 'utf8');
+    expect(hook).toMatch(/if \(Array\.isArray\(payload\?\.specialistConsultations\) && payload\.specialistConsultations\.length > 0\) \{\n\s+extraMetaFromPayload\.specialistConsultations = payload\.specialistConsultations;/);
   });
   it('consultation is read-only: no confirmation, no write tool', () => {
     const block = chat.slice(chat.indexOf('if (primeCategorizationReview) {'), chat.indexOf('if (primeCategorizationReview) {') + 900);
