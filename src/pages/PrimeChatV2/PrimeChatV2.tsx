@@ -9,7 +9,7 @@ import { PrimeChatInput } from "./PrimeChatInput";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAtom, useAtomValue } from "jotai";
 import { primeRequestedSessionIdAtom, primeChatModeAtom } from "@/lib/uiStore";
-import { nextExpandMode } from "@/lib/primeChatMode";
+import { nextExpandMode, workspaceSideGutter } from "@/lib/primeChatMode";
 import {
   primeSessionStorageKey, storePrimeSessionId, verifyOwnedPrimeSession, type SessionOwnershipClient,
   selectResumeCandidate, readResumeState, writeResumeState, primeConversationFallbackTitle,
@@ -227,6 +227,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const pendingRequestedSessionId = useAtomValue(primeRequestedSessionIdAtom);
   // UX-P2a: layout mode of the single mounted chat (Quick / Expanded / Workspace).
   const [chatMode, setChatMode] = useAtom(primeChatModeAtom);
+  // UX-P2b: in Workspace the messages and composer sit in a centred 760px column.
+  const workspaceGutter = workspaceSideGutter(chatMode);
   useEffect(() => {
     if (!historyChecked) return;
     let cancelled = false;
@@ -908,8 +910,9 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green }} />
           <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>Secured</span>
         </div>
-        {/* UX-P2a: Quick ↔ Expanded on the same mounted chat (desktop only). */}
-        {!isMobileWidth && (
+        {/* UX-P2a: Quick ↔ Expanded on the same mounted chat (desktop only; not in Workspace,
+            where Close returns to the dashboard). */}
+        {!isMobileWidth && chatMode !== 'workspace' && (
           <button
             type="button"
             onClick={() => setChatMode(nextExpandMode(chatMode))}
@@ -1009,7 +1012,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         }
         candidateAnchorHoldRef.current = false;
         userScrolledUpRef.current = (el.scrollHeight - el.scrollTop - el.clientHeight) > 120;
-      }} style={{ flex: 1, overflowY: "auto", padding: "18px 16px 16px", minHeight: 0 }}>
+      }} style={{ flex: 1, overflowY: "auto", padding: `18px ${workspaceGutter} 16px`, minHeight: 0 }}>
 
         {/* ══════════ BRIEFING SECTION ══════════ */}
 
@@ -1426,7 +1429,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       <div style={{
         flexShrink: 0,
         borderTop: `1px solid ${THEME.border}`,
-        padding: "10px 16px 12px",
+        padding: `10px ${workspaceGutter} 12px`,
         background: THEME.bg,
       }}>
         <div className="md:hidden" style={{ marginBottom: 8 }}>
