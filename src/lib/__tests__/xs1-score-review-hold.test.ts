@@ -49,6 +49,14 @@ describe('Dashboard home', () => {
   });
 });
 
+describe('Header score chip', () => {
+  const header = read('src/components/ui/DashboardHeader.tsx');
+  it('is gated on the hold; Ask Prime untouched', () => {
+    expect(header).toMatch(/\{isXspenseScoreVisible\(\) && !scoreData\.loading && \(/);
+    expect(header).toMatch(/data-testid="ask-prime-header"/);
+  });
+});
+
 describe('scoring algorithm', () => {
   it('is unchanged (pillar weights and calculation still present)', () => {
     expect(hook).toMatch(/const overallScore = clamp\(pillars\.reduce\(\(s, p\) => s \+ p\.score \* p\.weight, 0\)\);/);
