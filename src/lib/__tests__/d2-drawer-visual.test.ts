@@ -15,13 +15,13 @@ describe('drawer facts', () => {
     expect(drawer).toMatch(/<dt[^>]*>Date<\/dt>/);
     expect(drawer).toMatch(/<dt[^>]*>Account<\/dt>/);
     expect(drawer).toMatch(/<dt[^>]*>Statement<\/dt>/);
-    expect(drawer).toMatch(/statementMeta\?\.last4 \? `•••• \$\{statementMeta\.last4\}`/);
+    // LIVE-UI-04: account / statement text now come from lib/statementFacts (tested there).
+    expect(drawer).toMatch(/accountText\(statementMeta\)/);
   });
 
   it('reads account and period from the existing imports query (no new request)', () => {
     expect(drawer.match(/\.from\('imports'\)/g)?.length).toBe(1);
-    expect(drawer).toMatch(/meta\?\.account_last4/);
-    expect(drawer).toMatch(/formatCalendarDate\(meta\?\.period_end, 'medium'\)/);
+    expect(drawer).toMatch(/factsFromStatementMeta\(\(imp\?\.statement_breakdown_json as any\)\?\.statement_meta/);
   });
 });
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { factsFromStatementMeta, formatStatementPeriod, accountText, statementText, type StatementFacts } from '@/lib/statementFacts';
 import { X, TrendingUp, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
@@ -53,6 +54,9 @@ const ALL_CATS = [
 function normalizeMerchant(v: string) { return v.toLowerCase().replace(/\s+/g, ' ').trim(); }
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// LIVE-UI-01: one lookup per import per session; reopening a transaction shows its facts at once.
+const STATEMENT_FACTS_CACHE = new Map<string, StatementFacts>();
+
 export function TransactionInsightDrawer({
   open, row, allCommittedTransactions, onClose,
   onApprovePending, onRejectPending, onEditCommitted,
@@ -64,8 +68,9 @@ export function TransactionInsightDrawer({
 }: TransactionInsightDrawerProps) {
   const [localCategory, setLocalCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [statementLabel, setStatementLabel] = useState<string | null>(null);
-  const [statementMeta, setStatementMeta] = useState<{ issuer: string | null; last4: string | null; period: string | null } | null>(null);
+  // LIVE-UI-04: verified account / statement-period facts. `undefined` = still loading
+  // (cells keep their height), `null` = not a committed transaction.
+  const [statementMeta, setStatementMeta] = useState<StatementFacts | null | undefined>(undefined);
   // D-3: shown only after a save was confirmed by the server.
   const [savedNotice, setSavedNotice] = useState<{ kind: 'category' | 'subcategory'; value: string } | null>(null);
   const [, setChatReply] = useState<string | null>(null);
@@ -150,67 +155,41 @@ export function TransactionInsightDrawer({
     })();
   }, [localCategory]);
 
-  // Statement label
+  // LIVE-UI-01 / LIVE-UI-04: statement facts are keyed by the transaction's import, not
+  // by the `row` object. The page builds a new row object on every render, so the old
+  // [row] dependency cleared and refetched Account / Statement each time Tag's insight
+  // loaded or the list refreshed, and the header resized under the Tag category card.
+  const committedImportId = row?.kind === 'committed' ? (row.transaction.import_id || null) : null;
+  const isCommittedRow = row?.kind === 'committed';
   useEffect(() => {
-    setStatementMeta(null);
-    if (!row || row.kind !== 'committed') { setStatementLabel(null); return; }
-    const importId = row.transaction.import_id;
-    if (!importId) { setStatementLabel(null); return; }
+    if (!isCommittedRow || !committedImportId) { setStatementMeta(null); return; }
+    const cached = STATEMENT_FACTS_CACHE.get(committedImportId);
+    if (cached) { setStatementMeta(cached); return; }
+    setStatementMeta(undefined);
+    let cancelled = false;
     (async () => {
+      let facts: StatementFacts = { issuer: null, last4: null, period: null };
       try {
         const supabase = getSupabase();
-        if (!supabase) return;
-        const { data: imp } = await supabase
-          .from('imports')
-          .select('statement_breakdown_json, file_url, filename, document_id')
-          .eq('id', importId).single();
-        const meta = (imp?.statement_breakdown_json as any)?.statement_meta;
-        const metaIssuer = String(meta?.issuer || meta?.bank_name || '').trim();
-        // D-2: account and statement period for the drawer facts, from the same row (no new query).
-        const last4 = String(meta?.account_last4 || '').replace(/\D/g, '').slice(-4);
-        setStatementMeta({
-          issuer: metaIssuer.length > 1 ? sanitizeIssuerPillLabel(metaIssuer) : null,
-          last4: last4.length === 4 ? last4 : null,
-          period: [formatCalendarDate(meta?.period_start, 'short'), formatCalendarDate(meta?.period_end, 'medium')].every(Boolean)
-            ? `${formatCalendarDate(meta?.period_start, 'short')} – ${formatCalendarDate(meta?.period_end, 'medium')}`
-            : null,
-        });
-        if (metaIssuer.length > 1) { setStatementLabel(metaIssuer); return; }
-        if ((imp as any)?.filename) {
-          const clean = String((imp as any).filename).replace(/\.pdf$/i, '').trim();
-          if (!/^\d{4}|^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(clean)) {
-            setStatementLabel(sanitizeIssuerPillLabel(clean)); return;
+        if (supabase) {
+          const { data: imp } = await supabase
+            .from('imports')
+            .select('statement_breakdown_json, document_id')
+            .eq('id', committedImportId).maybeSingle();
+          facts = factsFromStatementMeta((imp?.statement_breakdown_json as any)?.statement_meta, sanitizeIssuerPillLabel);
+          // Second verified source (same order as Prime's statement periods): the document's own period.
+          const docId = (imp as any)?.document_id;
+          if (!facts.period && docId) {
+            const { data: doc } = await supabase.from('user_documents').select('period_start, period_end').eq('id', docId).maybeSingle();
+            facts = { ...facts, period: formatStatementPeriod((doc as any)?.period_start, (doc as any)?.period_end) };
           }
+          STATEMENT_FACTS_CACHE.set(committedImportId, facts);
         }
-        const docId = (imp as any)?.document_id;
-        if (docId) {
-          const { data: doc } = await supabase.from('user_documents').select('original_name').eq('id', docId).maybeSingle();
-          if (doc?.original_name) {
-            const name = String(doc.original_name).replace(/\.pdf$/i, '').trim();
-            if (!/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{4})/i.test(name)) {
-              setStatementLabel(sanitizeIssuerPillLabel(name)); return;
-            }
-          }
-        }
-        const fileUrl = String((imp as any)?.file_url || '');
-        if (fileUrl) {
-          const raw = decodeURIComponent(fileUrl.split('/').pop() || '').replace(/\.pdf$/i, '').replace(/[^\x20-\x7E]/g, '').trim();
-          const dateMatch = raw.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-          if (dateMatch) {
-            const d = new Date(`${dateMatch[1]} ${dateMatch[2]} ${dateMatch[3]}`);
-            if (!isNaN(d.getTime())) {
-              setStatementLabel(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
-              return;
-            }
-          }
-          if (raw && !/^[0-9a-f]{8}/i.test(raw) && raw.length > 2) {
-            setStatementLabel(sanitizeIssuerPillLabel(raw)); return;
-          }
-        }
-      } catch { /* ignore */ }
-      setStatementLabel(`Statement #${importId.slice(-6)}`);
+      } catch { /* show "unavailable" rather than a guess */ }
+      if (!cancelled) setStatementMeta(facts);
     })();
-  }, [row]);
+    return () => { cancelled = true; };
+  }, [isCommittedRow, committedImportId]);
 
   // Derived values
   const rawMerchant = useMemo(() => {
@@ -485,18 +464,20 @@ export function TransactionInsightDrawer({
                   <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: '#e8ecf4' }}>{formattedDate}</dd>
                 </div>
               )}
-              {(statementMeta?.issuer || statementMeta?.last4) && (
+              {statementMeta !== null && (
                 <div style={{ minWidth: 0 }}>
                   <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>Account</dt>
-                  <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: '#e8ecf4', overflowWrap: 'anywhere' }}>
-                    {[statementMeta?.issuer, statementMeta?.last4 ? `•••• ${statementMeta.last4}` : null].filter(Boolean).join(' ')}
+                  <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: statementMeta && accountText(statementMeta) ? '#e8ecf4' : '#9ba8bc', overflowWrap: 'anywhere', minHeight: 20 }}>
+                    {statementMeta === undefined ? <span aria-label="Loading account">…</span> : (accountText(statementMeta) || 'Account not recorded')}
                   </dd>
                 </div>
               )}
-              {(statementMeta?.period || (statementLabel && !/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(statementLabel) && statementLabel !== formattedDate)) && (
+              {statementMeta !== null && (
                 <div style={{ minWidth: 0 }}>
                   <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>Statement</dt>
-                  <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: '#e8ecf4', overflowWrap: 'anywhere' }}>{statementMeta?.period || statementLabel}</dd>
+                  <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: statementMeta?.period ? '#e8ecf4' : '#9ba8bc', overflowWrap: 'anywhere', minHeight: 20 }}>
+                    {statementMeta === undefined ? <span aria-label="Loading statement period">…</span> : statementText(statementMeta)}
+                  </dd>
                 </div>
               )}
               {merchantMonthSpend > 0 && (
@@ -617,7 +598,7 @@ export function TransactionInsightDrawer({
             </div>
             {/* Tag message */}
             {(tagInsightLoading || tagInsight?.message) && (
-              <div style={{ padding: '12px 14px', fontSize: 15, color: '#dbe3ef', lineHeight: 1.6 }}>
+              <div aria-busy={tagInsightLoading || undefined} style={{ padding: '12px 14px', fontSize: 15, color: '#dbe3ef', lineHeight: 1.6, minHeight: 72, boxSizing: 'border-box' }}>
                 {tagInsightLoading ? 'Analyzing this transaction…' : tagInsight?.message}
               </div>
             )}
