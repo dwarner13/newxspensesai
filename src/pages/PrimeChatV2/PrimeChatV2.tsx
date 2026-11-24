@@ -20,6 +20,7 @@ import { getSupabase } from "@/lib/supabase";
 import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
 import { TypingMessage } from "@/components/chat/TypingMessage";
 import { runSmartImportPipeline } from "@/lib/smartImport/runSmartImportPipeline";
+import { attachForDiscussion } from "@/lib/chatDocuments/attachForDiscussion";
 import {
   usePrimeBriefingData,
   buildSummaryText,
@@ -668,6 +669,27 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           prev.map(m => m.id === msgId ? { ...m, text: successMsg, type: "success" as const } : m)
         );
       } else {
+        // Attachments C2: PDFs/images are attached for DISCUSSION (chat document, never imported).
+        // Until the owner activates chat documents on the server, this falls back to the existing
+        // import path below, so behaviour is unchanged.
+        const attached = await attachForDiscussion({ file, authToken });
+        if (attached.kind === "attached") {
+          setUploadMessages(prev =>
+            prev.map(m => m.id === msgId ? { ...m, text: `Attached ${file.name} - ready to discuss.`, type: "success" as const } : m)
+          );
+          await sendMessage(`I've attached ${file.name}. Please read it and tell me what's in it.`, { documentIds: [attached.documentId] });
+          return;
+        }
+        if (attached.kind === "failed") {
+          if (attached.label) {
+            setUploadMessages(prev =>
+              prev.map(m => m.id === msgId ? { ...m, text: `${file.name}: ${attached.label}`, type: "error" as const } : m)
+            );
+          } else {
+            setUploadMessages(prev => prev.filter(m => m.id !== msgId));
+          }
+          return;
+        }
         // PDF/image path: full smart import pipeline (uploads to Supabase storage via smart-import-init)
         const result = await runSmartImportPipeline({
           userId,
