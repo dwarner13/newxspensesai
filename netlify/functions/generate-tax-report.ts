@@ -352,11 +352,11 @@ function buildHTML(params: {
         <td colspan="2" style="padding:5px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#888;padding-top:10px">Business KM by Purpose</td>
       </tr>
       <tr>
-        <td style="padding:5px 8px;color:#555">GFS Outside Sales — T777 <span style="font-size:10px;color:#60a5fa">(requires T2200)</span></td>
+        <td style="padding:5px 8px;color:#555">Employment driving, if any — T777 <span style="font-size:10px;color:#60a5fa">(requires a T2200 from the employer)</span></td>
         <td style="text-align:right;font-weight:600;padding:5px 8px;color:#3b82f6">${vehicleCfg.business_km_gfs > 0 ? vehicleCfg.business_km_gfs.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km_gfs > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px;color:#888">(${((vehicleCfg.business_km_gfs / vehicleCfg.total_km) * 100).toFixed(1)}%)</span>` : ""}</td>
       </tr>
       <tr style="background:#faf7ef">
-        <td style="padding:5px 8px;color:#555">ROWNMI Client Visits — T2125 <span style="font-size:10px;color:#34d399">(self-employment)</span></td>
+        <td style="padding:5px 8px;color:#555">Self-employment driving, if any — T2125 <span style="font-size:10px;color:#34d399">(self-employment)</span></td>
         <td style="text-align:right;font-weight:600;padding:5px 8px;color:#059669">${vehicleCfg.business_km_rownmi > 0 ? vehicleCfg.business_km_rownmi.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km_rownmi > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px;color:#888">(${((vehicleCfg.business_km_rownmi / vehicleCfg.total_km) * 100).toFixed(1)}%)</span>` : ""}</td>
       </tr>
       <tr style="border-top:1px solid #e8d89a">
@@ -368,7 +368,7 @@ function buildHTML(params: {
         <td style="text-align:right;font-weight:700;padding:8px 8px;color:${gold}">$${fmt(vehicleSection.total)}</td>
       </tr>
     </table>
-    <p style="font-size:10px;color:#888;margin:4px 0 0 0">Business-use % and deductible amount to be determined by accountant. T777 requires signed T2200 from Gordon Food Service. T2125 for ROWNMI self-employment.</p>
+    <p style="font-size:10px;color:#888;margin:4px 0 0 0">Business-use % and deductible amount to be determined by accountant. If applicable: employment vehicle expenses (T777) require a T2200 signed by the employer; self-employment vehicle expenses go on T2125.</p>
   </div>` : ""}
 
   <!-- Meals note -->
@@ -433,12 +433,14 @@ function buildHTML(params: {
   <div style="margin-top:24px">
     <div style="font-size:14px;font-weight:700;color:${dark};margin-bottom:12px;border-bottom:1px solid #e0e0e0;padding-bottom:6px">Notes for Accountant</div>
     ${[
-      "All amounts sourced from uploaded BMO and credit card statements. Some cheque deposits may be identified generically.",
-      "Employment income from Gordon Food Service should be verified against the T4 slip (Box 14).",
-      "ROWNMI Marketing income should be verified against FreshBooks invoiced amount.",
-      "Transfers section includes Interac e-transfers, TFSA contributions, and cost-sharing deposits — these are not income or expenses.",
-      "Vehicle business-use % requires a mileage log. Odometer readings entered in app if available.",
-      "Manulife amounts may include both disability insurance benefits and investment dividends — please classify appropriately.",
+      // Privacy (owner decision 2026-11-24): generic notes only — no customer-specific employer,
+      // business, institution, benefit or income descriptions.
+      "All amounts are sourced from the statements uploaded to XspensesAI. Some deposits may be identified generically.",
+      "Employment income, if any, should be verified against the T4 slip(s).",
+      "Self-employment or business income, if any, should be verified against the customer's own invoicing or sales records.",
+      "Transfers section includes e-transfers, savings or investment contributions, and cost-sharing deposits — these are not income or expenses.",
+      "Vehicle business-use % requires a mileage log. Odometer readings entered in the app are shown if available.",
+      "Insurance and investment amounts may combine different kinds of payments — please classify appropriately.",
     ].map(note => `
       <div style="display:flex;gap:8px;margin-bottom:8px;font-size:12px;color:#444">
         <span style="color:${gold};font-weight:700;flex-shrink:0">›</span>
