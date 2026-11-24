@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Star, Pencil, Reply, Archive, ExternalLink } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { markNotificationReadForOwner, type NotificationUpdateClient } from "@/lib/inbox/markNotificationRead";
+import { NOTIFICATIONS_SELECT, USER_NOTIFICATIONS_SELECT, normalizeNotificationRow, normalizeUserNotificationRow } from "@/lib/inbox/notificationRows";
 
 // ─── Design tokens ──────────────────────────────────────────────────────
 const T = {
@@ -98,8 +99,9 @@ export default function InboxPage() {
       if (!user) { setNotifications([]); setLoadError(true); setLoading(false); return; }
       // Fetch from both notification tables
       const [{ data: notifs }, { data: userNotifs }] = await Promise.all([
-        sb.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30).then(r => ({ data: (r.data ?? []).map((n: Notification) => ({ ...n, source: "notifications" as const })) })),
-        sb.from("user_notifications").select("id, user_id, employee_slug, type, title, message, priority, payload, read_at, sent_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20).then(r => ({ data: (r.data ?? []).map((n: any) => ({ ...n, description: n.message, read: !!n.read_at, href: null, source: "user_notifications" as const })) })).catch(() => ({ data: [] })),
+        // Live column layout (read state is read_at on both tables); see notificationRows.ts.
+        sb.from("notifications").select(NOTIFICATIONS_SELECT).eq("user_id", user.id).order("created_at", { ascending: false }).limit(30).then(r => ({ data: (r.data ?? []).map(normalizeNotificationRow) })),
+        sb.from("user_notifications").select(USER_NOTIFICATIONS_SELECT).eq("user_id", user.id).order("created_at", { ascending: false }).limit(20).then(r => ({ data: (r.data ?? []).map(normalizeUserNotificationRow) })),
       ]);
       const combined = [...(notifs ?? []), ...(userNotifs ?? [])].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 50);
       setNotifications(combined);

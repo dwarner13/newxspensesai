@@ -26,9 +26,9 @@ export async function markNotificationReadForOwner(
   ownerId: string,
 ): Promise<boolean> {
   if (!ownerId || !n.id) return false;
-  const query = n.source === 'user_notifications'
-    ? sb.from('user_notifications').update({ read_at: new Date().toISOString() })
-    : sb.from('notifications').update({ read: true });
+  // Both tables store read state in read_at (live schema); customers may update only read_at.
+  const table: NotificationSource = n.source === 'user_notifications' ? 'user_notifications' : 'notifications';
+  const query = sb.from(table).update({ read_at: new Date().toISOString() });
   const { data, error } = await query.eq('id', n.id).eq('user_id', ownerId).select('id');
   if (error) return false;
   return Array.isArray(data) && data.length === 1 && data[0]?.id === n.id;

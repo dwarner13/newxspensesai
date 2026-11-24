@@ -207,7 +207,9 @@ describe('Inbox mark-as-read — owner scoping and truthful result', () => {
     expect(ok).toBe(true);
     expect(log).toHaveLength(1);
     expect(log[0].table).toBe('notifications');
-    expect(log[0].payload).toEqual({ read: true });
+    // Live schema: notifications has no `read` column; read state is read_at (the only column
+    // customers may update after the notifications RLS migration).
+    expect(Object.keys(log[0].payload as Row)).toEqual(['read_at']);
     expect(log[0].filters).toEqual([['id', 'n1'], ['user_id', USER_A]]);
     expect(log[0].selected).toBe(true);
   });
