@@ -14,6 +14,8 @@ export type TagExplanationResult = {
   confidenceLevel: 'high' | 'medium' | 'low' | null;
   /** True when merchantSeenCount hit the 100-row cap (show as "100+"). */
   merchantSeenCapped: boolean;
+  /** Display-only "Issuer •••• 1234" from the transaction's own import (last 4 only). Never logged or sent to AI. */
+  accountLabel: string | null;
   learnedCount: number;
   lastLearnedAt?: string | null;
   message: string;
@@ -26,13 +28,22 @@ export type TagExplanationResult = {
   proactiveInsights: string[];
 };
 
+/** "Issuer •••• 1234". Only the last 4 digits are ever kept; anything else is dropped. */
+export function formatAccountLabel(issuer: unknown, last4: unknown): string | null {
+  const digits = typeof last4 === 'string' || typeof last4 === 'number' ? String(last4).replace(/\D/g, '').slice(-4) : '';
+  const name = typeof issuer === 'string' ? issuer.replace(/\d{5,}/g, '').trim().slice(0, 40) : '';
+  if (digits.length === 4 && name) return `${name} •••• ${digits}`;
+  if (digits.length === 4) return `•••• ${digits}`;
+  return name || null;
+}
+
 export async function explainTransactionCategory(
   supabase: SupabaseClient,
   userId: string,
   transactionId: string
 ): Promise<TagExplanationResult> {
   const empty: TagExplanationResult = {
-    category: null, categorySource: 'unknown', confidence: null, confidenceSource: 'none', confidenceLevel: null, merchantSeenCapped: false,
+    category: null, categorySource: 'unknown', confidence: null, confidenceSource: 'none', confidenceLevel: null, merchantSeenCapped: false, accountLabel: null,
     learnedCount: 0, lastLearnedAt: null, message: '',
     merchantSeenCount: 0, merchantTotalSpent: 0, merchantAvgAmount: 0,
     isAmountAnomaly: false, anomalyRatio: 1, proactiveInsights: [],
@@ -42,7 +53,7 @@ export async function explainTransactionCategory(
     // 1. Fetch the transaction
     const { data: tx, error: txErr } = await supabase
       .from('transactions')
-      .select('id, category, category_source, confidence, merchant_name, merchant, description, amount, posted_at, user_id')
+      .select('id, category, category_source, confidence, merchant_name, merchant, description, amount, posted_at, user_id, import_id')
       .eq('id', transactionId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -117,6 +128,25 @@ export async function explainTransactionCategory(
     const confidenceLevel: TagExplanationResult['confidenceLevel'] =
       confidence === null ? null : confidence >= 0.85 ? 'high' : confidence >= 0.6 ? 'medium' : 'low';
 
+    // Account label (display-only): owner-scoped lookup of the transaction's own import.
+    let accountLabel: string | null = null;
+    const importId = (tx as { import_id?: unknown }).import_id;
+    if (typeof importId === 'string' && importId) {
+      try {
+        const { data: imp } = await supabase
+          .from('imports')
+          .select('statement_breakdown_json')
+          .eq('id', importId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        const meta = (imp as { statement_breakdown_json?: { statement_meta?: { issuer?: unknown; account_last4?: unknown } } } | null)
+          ?.statement_breakdown_json?.statement_meta;
+        accountLabel = formatAccountLabel(meta?.issuer, meta?.account_last4);
+      } catch {
+        accountLabel = null;
+      }
+    }
+
     // 6. Build primary message
     let message = '';
     if (categorySource === 'manual') {
@@ -154,7 +184,7 @@ export async function explainTransactionCategory(
     }
 
     return {
-      category, categorySource, confidence, confidenceSource, confidenceLevel, merchantSeenCapped, learnedCount, lastLearnedAt,
+      category, categorySource, confidence, confidenceSource, confidenceLevel, merchantSeenCapped, accountLabel, learnedCount, lastLearnedAt,
       message, merchantSeenCount, merchantTotalSpent, merchantAvgAmount,
       isAmountAnomaly, anomalyRatio, proactiveInsights,
     };
