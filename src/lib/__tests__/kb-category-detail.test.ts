@@ -41,7 +41,8 @@ describe('period predicate (mirrors useCategoriesData)', () => {
 
 describe('CategoryDetailDrawer', () => {
   it('filters by the page period and no longer caps at 10 / 15', () => {
-    expect(drawer).toMatch(/\.filter\(t => inSelectedPeriod\(calendarDayOfTx\(t\), selectedYear, selectedPeriod\)\)/);
+    // K-d: one shared rule (year / month, custom range, account) — see kd-categories-filters.
+    expect(drawer).toMatch(/\.filter\(t => matchesCategoryFilters\(t, \{ selectedYear, selectedPeriod, range, importIds \}\)\)/);
     expect(drawer).not.toMatch(/\.slice\(0, 15\)|base\.slice\(0, 10\)/);
     expect(drawer).toMatch(/const catTransactions = allCatTransactions\.slice\(0, visibleCount\);/);
     expect(drawer).toMatch(/Show more \(\{allCatTransactions\.length - catTransactions\.length\} more\)/);

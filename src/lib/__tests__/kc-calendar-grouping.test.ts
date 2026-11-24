@@ -55,6 +55,7 @@ describe('Categories uses calendar grouping everywhere', () => {
   });
 
   it('the detail drawer uses the same rule', () => {
-    expect(drawer).toMatch(/inSelectedPeriod\(calendarDayOfTx\(t\), selectedYear, selectedPeriod\)/);
+    // K-d: matchesCategoryFilters calls calendarDayOfTx internally.
+    expect(drawer).toMatch(/matchesCategoryFilters\(t, \{ selectedYear, selectedPeriod, range, importIds \}\)/);
   });
 });

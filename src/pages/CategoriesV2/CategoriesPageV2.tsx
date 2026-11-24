@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -8,6 +8,10 @@ import { useCategoriesData } from "./useCategoriesData";
 import { useProfile } from "@/hooks/useProfile";
 import { CategoryListRow } from "./CategoryListRow";
 import { formatMonthPeriod } from "@/lib/categoryList";
+import { useImportList } from "@/hooks/useImportList";
+import { groupImportsIntoAccounts, importIdsForAccount } from "@/lib/accountGroups";
+import { isRangeActive, type DateRange } from "@/lib/categoryPeriod";
+import { readCategoryFilters, writeCategoryFilters, hasActiveCategoryFilters } from "@/lib/categoryFilterUrl";
 import { CategoryDetailDrawer } from "./CategoryDetailDrawer";
 import { AgentInsightStrip } from "./AgentInsightStrip";
 import { TagCopilotPanel } from "@/components/transactions/TagCopilotPanel";
@@ -26,27 +30,40 @@ export default function CategoriesPageV2() {
   const location = useLocation();
   const { fullName } = useProfile();
   const firstName = fullName?.split(' ')[0] || '';
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("");
-  const [selectedYear, setSelectedYear] = useState<number | 'all'>(() => {
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      const param = sp.get('year');
-      if (param === 'all') return 'all';
-      const n = Number(param);
-      return Number.isFinite(n) && n >= 2000 ? n : new Date().getFullYear();
-    } catch { return new Date().getFullYear(); }
-  });
-  // Year filter <-> URL sync, and reset selected month pill when year changes
+  // K-d: every filter is read from / written to the URL so it survives navigation and reload.
+  const [initialUrl] = useState(() => { try { return readCategoryFilters(window.location.search); } catch { return readCategoryFilters(''); } });
+  const currentYear = new Date().getFullYear();
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(initialUrl.month);
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>(initialUrl.year ?? currentYear);
+  const [rangeFrom, setRangeFrom] = useState<string>(initialUrl.from);
+  const [rangeTo, setRangeTo] = useState<string>(initialUrl.to);
+  const [showRange, setShowRange] = useState<boolean>(!!(initialUrl.from || initialUrl.to));
+  const [accountId, setAccountId] = useState<string>(initialUrl.account || 'all');
+  // Reset the month when the year changes (not on the first render, so a URL month survives).
+  const yearMounted = useRef(false);
   useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    if (selectedYear === 'all') sp.delete('year');
-    else sp.set('year', String(selectedYear));
-    const qs = sp.toString();
-    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-    window.history.replaceState(null, '', url);
+    if (!yearMounted.current) { yearMounted.current = true; return; }
     setSelectedPeriod("");
   }, [selectedYear]);
-  const data = useCategoriesData(selectedPeriod || undefined, selectedYear);
+  useEffect(() => {
+    try {
+      const qs = writeCategoryFilters(window.location.search, { year: selectedYear, month: selectedPeriod, from: rangeFrom, to: rangeTo, account: accountId });
+      window.history.replaceState(window.history.state, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    } catch { /* noop */ }
+  }, [selectedYear, selectedPeriod, rangeFrom, rangeTo, accountId]);
+
+  // K-d: accounts are the same import groups the Transactions page uses.
+  const { imports } = useImportList();
+  const accountGroups = useMemo(() => groupImportsIntoAccounts(imports), [imports]);
+  const scopedImportIds = useMemo(() => importIdsForAccount(accountGroups, accountId), [accountGroups, accountId]);
+  const selectedAccountName = accountGroups.find(a => a.id === accountId)?.name ?? null;
+  const range: DateRange | null = useMemo(
+    () => (showRange && (rangeFrom || rangeTo) ? { from: rangeFrom || undefined, to: rangeTo || undefined } : null),
+    [showRange, rangeFrom, rangeTo],
+  );
+  const rangeActive = isRangeActive(range);
+  const rangeInvalid = !!(rangeFrom && rangeTo && rangeFrom > rangeTo);
+  const data = useCategoriesData(selectedPeriod || undefined, selectedYear, { range: rangeInvalid ? null : range, importIds: scopedImportIds });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleRefresh = useCallback(() => {
     if (isRefreshing) return;
@@ -82,6 +99,14 @@ export default function CategoriesPageV2() {
   const [budgetCategory, setBudgetCategory] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
   const [budgetSaving, setBudgetSaving] = useState(false);
+  const filtersActive = hasActiveCategoryFilters({ year: selectedYear, month: selectedPeriod, from: showRange ? rangeFrom : '', to: showRange ? rangeTo : '', account: accountId, search }, currentYear);
+  const resetFilters = useCallback(() => {
+    setSelectedYear(currentYear);
+    setSelectedPeriod("");
+    setRangeFrom(""); setRangeTo(""); setShowRange(false);
+    setAccountId('all');
+    setSearch("");
+  }, [currentYear]);
   // K-a: ⋯ menu (Refresh, Tag rules, Goalie budget); Escape closes it.
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -183,7 +208,9 @@ export default function CategoriesPageV2() {
                 <h1 style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: "white", margin: 0, letterSpacing: -0.3 }}>Categories</h1>
                 <p style={{ fontSize: 14, color: KA.dim, margin: "4px 0 0" }}>
                   {data.categoryCount} categories &middot; {totalTxCount} transactions
-                  {selectedPeriod && <span style={{ color: CYAN }}> &middot; {formatMonthPeriod(selectedPeriod)}</span>}
+                  {!rangeActive && selectedPeriod && <span style={{ color: CYAN }}> &middot; {formatMonthPeriod(selectedPeriod)}</span>}
+                  {rangeActive && !rangeInvalid && <span style={{ color: CYAN }}> &middot; custom range</span>}
+                  {selectedAccountName && <span style={{ color: CYAN }}> &middot; {selectedAccountName}</span>}
                 </p>
               </div>
               <button type="button" onClick={handleExport} aria-label="Export categories as CSV"
@@ -221,7 +248,7 @@ export default function CategoriesPageV2() {
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: KA.dim }}>
                 Year
-                <select value={selectedYear === 'all' ? 'all' : String(selectedYear)}
+                <select value={selectedYear === 'all' ? 'all' : String(selectedYear)} disabled={rangeActive}
                   onChange={(e) => setSelectedYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                   style={{ minHeight: 44, padding: "0 12px", background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.text, fontSize: 15, fontWeight: 600, cursor: "pointer", outline: "none", fontFamily: "inherit" }}>
                   {data.availableYears.map(y => <option key={y} value={y}>{y}</option>)}
@@ -230,13 +257,52 @@ export default function CategoriesPageV2() {
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: KA.dim }}>
                 Month
-                <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}
+                <select value={showRange ? "custom" : selectedPeriod}
+                  onChange={(e) => {
+                    if (e.target.value === "custom") { setShowRange(true); return; }
+                    setShowRange(false); setRangeFrom(""); setRangeTo("");
+                    setSelectedPeriod(e.target.value);
+                  }}
                   style={{ minHeight: 44, padding: "0 12px", background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.text, fontSize: 15, fontWeight: 600, cursor: "pointer", outline: "none", fontFamily: "inherit" }}>
                   <option value="">{selectedYear === 'all' ? "All months" : "All of the year"}</option>
                   {data.availablePeriods.map(p => <option key={p} value={p}>{formatMonthPeriod(p)}</option>)}
+                  <option value="custom">Custom range…</option>
                 </select>
               </label>
+              {accountGroups.length > 0 && (
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: KA.dim }}>
+                  Account
+                  <select value={accountId} onChange={(e) => setAccountId(e.target.value)}
+                    style={{ minHeight: 44, padding: "0 12px", background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.text, fontSize: 15, fontWeight: 600, cursor: "pointer", outline: "none", fontFamily: "inherit" }}>
+                    <option value="all">All accounts</option>
+                    {accountGroups.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </label>
+              )}
+              {filtersActive && (
+                <button type="button" onClick={resetFilters}
+                  style={{ minHeight: 44, padding: "0 14px", background: "transparent", border: `1px solid ${THEME.border}`, borderRadius: 12, color: CYAN, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  Reset filters
+                </button>
+              )}
             </div>
+            {showRange && (
+              <div role="group" aria-label="Custom date range" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: KA.dim }}>
+                  From
+                  <input type="date" value={rangeFrom} max={rangeTo || undefined} onChange={(e) => setRangeFrom(e.target.value)}
+                    style={{ minHeight: 44, padding: "0 12px", background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.text, fontSize: 15, fontWeight: 600, cursor: "pointer", outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: KA.dim }}>
+                  To
+                  <input type="date" value={rangeTo} min={rangeFrom || undefined} onChange={(e) => setRangeTo(e.target.value)}
+                    style={{ minHeight: 44, padding: "0 12px", background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.text, fontSize: 15, fontWeight: 600, cursor: "pointer", outline: "none", fontFamily: "inherit", colorScheme: "dark" }} />
+                </label>
+                <span role="status" style={{ fontSize: 13, color: rangeInvalid ? THEME.red : KA.dim }}>
+                  {rangeInvalid ? "The start date is after the end date." : rangeActive ? "Year and month are ignored while a custom range is set." : "Choose a start date, an end date or both."}
+                </span>
+              </div>
+            )}
           </div>
         </Reveal>
 
@@ -368,6 +434,9 @@ export default function CategoriesPageV2() {
         subcategoryFilter={subcategoryFilter}
         selectedYear={selectedYear}
         selectedPeriod={selectedPeriod || undefined}
+        range={rangeInvalid ? null : range}
+        importIds={scopedImportIds}
+        accountName={selectedAccountName}
         isTagOpen={copilotOpen}
         onAskTag={(question) => { setCopilotInitialMessage(question); setCopilotOpen(true); }}
       />

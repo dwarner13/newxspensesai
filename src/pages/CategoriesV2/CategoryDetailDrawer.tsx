@@ -7,7 +7,7 @@ import { AnimatedBar } from "./AnimatedBar";
 import { useTransactions } from "@/hooks/useTransactions";
 import { getSupabase } from "@/lib/supabase";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { inSelectedPeriod, periodLabel, calendarDayOfTx, DETAIL_PAGE_SIZE } from "@/lib/categoryPeriod";
+import { matchesCategoryFilters, periodLabel, rangeLabel, isRangeActive, calendarDayOfTx, DETAIL_PAGE_SIZE, type DateRange } from "@/lib/categoryPeriod";
 import { formatMonthPeriod } from "@/lib/categoryList";
 import { formatCalendarDate } from "@/lib/calendarDate";
 
@@ -40,9 +40,14 @@ interface CategoryDetailDrawerProps {
   /** K-b: the page's year / month filter, so the detail lists exactly what the page counted. */
   selectedYear?: number | 'all';
   selectedPeriod?: string;
+  /** K-d: custom date range (replaces year / month when active) and account scope. */
+  range?: DateRange | null;
+  importIds?: Set<string> | null;
+  /** K-d: account name for the header, e.g. "BMO Credit". */
+  accountName?: string | null;
 }
 
-export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onAskTag, isTagOpen = false, selectedYear, selectedPeriod }: CategoryDetailDrawerProps) {
+export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onAskTag, isTagOpen = false, selectedYear, selectedPeriod, range = null, importIds = null, accountName = null }: CategoryDetailDrawerProps) {
   const navigate = useNavigate();
   const { transactions } = useTransactions();
 
@@ -53,7 +58,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
   const isMobile = useIsMobile();
   // K-b: show every matching transaction, a page at a time (was capped at 10 / 15).
   const [visibleCount, setVisibleCount] = useState(DETAIL_PAGE_SIZE);
-  useEffect(() => { setVisibleCount(DETAIL_PAGE_SIZE); }, [category?.name, subcategoryFilter?.name, selectedYear, selectedPeriod]);
+  useEffect(() => { setVisibleCount(DETAIL_PAGE_SIZE); }, [category?.name, subcategoryFilter?.name, selectedYear, selectedPeriod, range, importIds]);
 
   const handleCategoryChange = async (txId, newCategory) => {
     const prevCategory = localCategories[txId];
@@ -107,14 +112,14 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
     if (!category) return [];
     const base = transactions
       .filter(t => (t.category || "Other") === category.name)
-      .filter(t => inSelectedPeriod(calendarDayOfTx(t), selectedYear, selectedPeriod))
+      .filter(t => matchesCategoryFilters(t, { selectedYear, selectedPeriod, range, importIds }))
       .sort((a, b) => (b.posted_at || "").localeCompare(a.posted_at || ""));
     if (subcategoryFilter) {
       const names = subcategoryFilter.merchantNames.map(n => n.toLowerCase());
       return base.filter(t => names.includes((t.merchant_name || "").toLowerCase()));
     }
     return base;
-  }, [transactions, category, subcategoryFilter, selectedYear, selectedPeriod]);
+  }, [transactions, category, subcategoryFilter, selectedYear, selectedPeriod, range, importIds]);
   const catTransactions = allCatTransactions.slice(0, visibleCount);
 
   if (!category) return null;
@@ -124,7 +129,9 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
     ? Math.round(allCatTransactions.reduce((s, t) => s + Math.abs(t.amount), 0))
     : category.spent;
   const displayCount = subcategoryFilter ? allCatTransactions.length : category.transactionCount;
-  const periodText = periodLabel(selectedYear, selectedPeriod, formatMonthPeriod);
+  const periodText = (isRangeActive(range)
+    ? rangeLabel(range, d => formatCalendarDate(d, 'medium') || d)
+    : periodLabel(selectedYear, selectedPeriod, formatMonthPeriod)) + (accountName ? ` · ${accountName}` : '');
 
   const pct = category.budget > 0 ? Math.round((category.spent / category.budget) * 100) : 0;
   const isOver = pct > 100;

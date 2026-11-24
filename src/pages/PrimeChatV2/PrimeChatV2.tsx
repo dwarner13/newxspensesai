@@ -31,6 +31,8 @@ import type { ChatMessage } from "@/hooks/usePrimeChat";
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
 import { ActionReceiptCard, parseActionReceipt } from "@/components/chat/ActionReceiptCard";
 import { TransactionCandidateListCard, parseTxCandidates } from "@/components/chat/TransactionCandidateListCard";
+import { SpecialistConsultationMarker } from "@/components/chat/SpecialistConsultationMarker";
+import { parseSpecialistConsultations } from "@/lib/specialistConsultation";
 import {
   shouldRevealCandidateCard,
   isCandidateCardRevealTransition,
@@ -910,6 +912,35 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green }} />
           <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>Secured</span>
         </div>
+        {/* LIVE-UI-03: Workspace was reachable only by typing /dashboard/chat/prime. A labelled
+            control now opens it (desktop), and Workspace offers a labelled way back. Same route,
+            same single mounted chat and conversation. */}
+        {!isMobileWidth && (
+          <button
+            type="button"
+            onClick={() => {
+              if (chatMode === 'workspace') {
+                if (window.history.length > 1) navigate(-1); else navigate('/dashboard');
+              } else {
+                navigate('/dashboard/chat/prime');
+              }
+            }}
+            aria-label={chatMode === 'workspace' ? "Exit full screen" : "Open Prime full screen"}
+            title={chatMode === 'workspace' ? "Exit full screen" : "Full screen"}
+            style={{
+              minHeight: CHAT_VISUALS.touchTarget, padding: "0 12px", borderRadius: 10, flexShrink: 0,
+              background: "transparent", border: `1px solid ${THEME.border}`, color: THEME.textMuted,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {chatMode === 'workspace'
+                ? <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+                : <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />}
+            </svg>
+            <span>{chatMode === 'workspace' ? "Exit full screen" : "Full screen"}</span>
+          </button>
+        )}
         {/* UX-P2a: Quick ↔ Expanded on the same mounted chat (desktop only; not in Workspace,
             where Close returns to the dashboard). */}
         {!isMobileWidth && chatMode !== 'workspace' && (
@@ -1385,8 +1416,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                       const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult) || parseActionReceipt(metaAny?.actionReceipt);
                       if (actionReceipt) return <ActionReceiptCard receipt={actionReceipt} />;
                       const txCandidates = parseTxCandidates(metaAny);
+                      // L-A: only for consultations the server recorded on this assistant message.
+                      const consultations = parseSpecialistConsultations(metaAny, msg.role);
                       return (
                         <>
+                          <SpecialistConsultationMarker consultations={consultations} />
                           <TypingMessage
                             content={msg.content}
                             messageId={msg.id}

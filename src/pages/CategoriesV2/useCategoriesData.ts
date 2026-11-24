@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTransactions } from "@/hooks/useTransactions";
 import type { CategoryData, SubcategoryChip } from "./categoryConfig";
 import { getCategoryMeta } from "./categoryConfig";
-import { calendarDayOfTx, periodKeyOf, yearOf } from "@/lib/categoryPeriod";
+import { calendarDayOfTx, periodKeyOf, yearOf, inDateRange, isRangeActive, type DateRange } from "@/lib/categoryPeriod";
 
 const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
 
@@ -90,10 +90,23 @@ export interface CategoriesPageData {
   refetch: () => Promise<void>;
 }
 
-export function useCategoriesData(selectedPeriod?: string, selectedYear?: number | 'all'): CategoriesPageData {
-  const { transactions, isLoading, refetch } = useTransactions();
+/** K-d: optional custom range (replaces year / month when active) and account scope. */
+export interface CategoriesScope {
+  range?: DateRange | null;
+  /** Import ids of the selected account; null = all accounts. */
+  importIds?: Set<string> | null;
+}
+
+export function useCategoriesData(selectedPeriod?: string, selectedYear?: number | 'all', scope?: CategoriesScope): CategoriesPageData {
+  const { transactions: allTransactions, isLoading, refetch } = useTransactions();
+  const range = scope?.range ?? null;
+  const importIds = scope?.importIds ?? null;
 
   return useMemo(() => {
+    // K-d: account scope applies to everything on the page (same rule as Transactions).
+    const transactions = importIds
+      ? allTransactions.filter(t => importIds.has(t.import_id || ""))
+      : allTransactions;
     if (isLoading) {
       return {
         categories: [], totalSpent: 0, totalIncome: 0, totalBudget: 0, categoryCount: 0,
@@ -129,9 +142,13 @@ export function useCategoriesData(selectedPeriod?: string, selectedYear?: number
     const availablePeriods = Array.from(periodSet).sort().reverse();
 
     // Filter to selected period (within selected year)
-    const periodFiltered = selectedPeriod
-      ? yearFiltered.filter(t => periodKeyOf(calendarDayOfTx(t)) === selectedPeriod)
-      : yearFiltered;
+    // K-d: an active custom range replaces the year / month filter (same rule as
+    // matchesCategoryFilters, used by the detail drawer).
+    const periodFiltered = isRangeActive(range)
+      ? transactions.filter(t => inDateRange(calendarDayOfTx(t), range))
+      : selectedPeriod
+        ? yearFiltered.filter(t => periodKeyOf(calendarDayOfTx(t)) === selectedPeriod)
+        : yearFiltered;
 
     // Income total
     const totalIncome = Math.round(
@@ -276,5 +293,5 @@ export function useCategoriesData(selectedPeriod?: string, selectedYear?: number
       availableYears,
       refetch,
     };
-  }, [transactions, isLoading, selectedPeriod, selectedYear, refetch]);
+  }, [allTransactions, isLoading, selectedPeriod, selectedYear, range, importIds, refetch]);
 }
