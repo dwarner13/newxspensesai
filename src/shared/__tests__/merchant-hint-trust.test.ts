@@ -206,7 +206,7 @@ describe('N. grounding pre-exec never runs for an untrusted merchant hint', () =
 
   it('chat.ts gates both the pre-exec and the false-zero retry with the same rule', () => {
     expect(CHAT_SRC).toContain('const untrustedMerchantPreExec = isUntrustedMerchantHint(financialClassification, resolveMerchantHintTrust(financialClassification, merchantGroundingKeys));');
-    expect(CHAT_SRC).toContain('!merchantAggGate && !untrustedMerchantPreExec && !periodUnresolvedTaxSummary) {'); // C2-F adds the period gate
+    expect(CHAT_SRC).toContain('!merchantAggGate && !untrustedMerchantPreExec && !periodUnresolvedTaxSummary && !primeCategorizationReview) {'); // C2-F adds the period gate; L-A the categorization gate
     expect(CHAT_SRC).toContain('const untrustedMerchantRetry = isUntrustedMerchantHint(financialClassification, resolveMerchantHintTrust(financialClassification, merchantGroundingKeys));');
     expect(CHAT_SRC).toContain('toolModules[plan.toolName] && !untrustedMerchantRetry && !periodUnresolvedRetry) {'); // C2-F adds the period gate
   });

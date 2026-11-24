@@ -136,6 +136,9 @@ import OpenAI from 'openai';
 // Import tool system for Tag tools
 import { toOpenAIToolDefs, pickTools, executeTool } from '../../src/agent/tools/index.js';
 import type { ToolContext } from '../../src/agent/tools/index.js';
+import { execute as executeTagStatus } from '../../src/agent/tools/impl/tag_status';
+import { isCategorizationReviewQuestion, tagStatusInputFromScope, formatTagConsultationEvidence, buildTagConsultationEvent, type SpecialistConsultationEvent, type ResolvedPeriodLike } from '../../src/shared/prime-tag-consultation';
+import type { TagStatus } from '../../src/shared/tag-status';
 // Server-enforced AI tool confirmation gate
 import {
   requiresConfirmation,
@@ -10607,6 +10610,27 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    // ── L-A: categorization questions are answered by a real, read-only Tag consultation ──
+    // Deterministic: the server runs tag_status (owner-scoped) with the owner's scope order and
+    // the result is injected as Tag evidence. The legacy full-year tax_summary pre-run is skipped
+    // for these questions (see primeCategorizationReview below). The consultation event is only
+    // added when tag_status actually executed.
+    const primeCategorizationReview: boolean = isPrime && isCategorizationReviewQuestion(String(masked || ''));
+    const specialistConsultations: SpecialistConsultationEvent[] = [];
+    if (primeCategorizationReview) {
+      try {
+        const tagInput = tagStatusInputFromScope(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision?.apply);
+        const tagResult = (await executeTagStatus(tagInput, { userId })) as unknown as { ok: boolean; value?: TagStatus };
+        if (tagResult && tagResult.ok && tagResult.value) {
+          systemMessages.push({ role: 'system', content: formatTagConsultationEvidence(tagResult.value) });
+          specialistConsultations.push(buildTagConsultationEvent(tagResult.value));
+          console.log(`[L-A] tag_status consulted status=${tagResult.value.status} scope=${tagResult.value.scope.source}`);
+        }
+      } catch (e: unknown) {
+        console.warn('[L-A] tag_status consultation failed (non-fatal):', (e as Error)?.name ?? 'Error');
+      }
+    }
+
     // ── P3.2B2B: Inject merchant analysis context into model prompt ──
     // Provides active merchant groups, exclusions, and refinement instructions.
     // Only injected when context is valid (within TTL) and a merchant query is active.
@@ -13289,7 +13313,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               if (untrustedMerchantPreExec) {
                 console.log(`[FinancialGrounding] skipping pre-exec — untrusted merchant hint "${financialClassification.merchantHint}"`);
               }
-              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed && !merchantAggGate && !untrustedMerchantPreExec && !periodUnresolvedTaxSummary) {
+              if (plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !phase1dSuppressed && !p31cSuppressed && !merchantAggGate && !untrustedMerchantPreExec && !periodUnresolvedTaxSummary && !primeCategorizationReview) {
                 console.log(`[FinancialGrounding] pre-executing tool=${plan.toolName} args=${JSON.stringify(plan.toolArgs)}`);
                 try {
                   const toolContext: ToolContext = {
@@ -14523,7 +14547,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             // replaced by the legacy retry, which searches a whole year and would pull in out-of-period rows.
             const p31cRetrySuppressed = (plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false)
               || merchantAggSatisfied
-              || hasPeriodScopedAuthoritativeEvidence(p31cResult);
+              || hasPeriodScopedAuthoritativeEvidence(p31cResult)
+              // L-A: categorization questions are answered from Tag's consultation, never a legacy retry.
+              || primeCategorizationReview;
             if (p31cRetrySuppressed) {
               retryBlockedByP31C = true;
               console.log(`[FinancialGrounding] P3.1C gate: skipping legacy ${plan.toolName} false-zero retry — scoped P3.1C evidence owns this request`);
@@ -14844,6 +14870,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             ...(handoffMeta && { meta: { handoff: handoffMeta } }),
             ...(pendingConfirmationPayload && { pendingConfirmation: pendingConfirmationPayload }),
             ...(ownershipGate.txCandidatesForResponse && ownershipGate.txCandidatesForResponse.length > 0 && { txCandidates: ownershipGate.txCandidatesForResponse }),
+            // L-A: genuine specialist consultations that actually ran this turn (none are simulated).
+            ...(specialistConsultations.length > 0 && { specialistConsultations }),
           }),
         };
       } catch (nonStreamingError: any) {

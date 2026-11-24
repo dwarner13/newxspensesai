@@ -49,7 +49,7 @@ describe('F3 — the reported May follow-up', () => {
 
   it('F3-b: chat.ts skips that legacy tax_summary (pre-exec AND false-zero retry) when the period is unresolved', () => {
     expect(chat).toContain("const periodUnresolvedTaxSummary = plan.toolName === 'tax_summary'");
-    expect(chat).toMatch(/!untrustedMerchantPreExec && !periodUnresolvedTaxSummary\) \{/);
+    expect(chat).toMatch(/!untrustedMerchantPreExec && !periodUnresolvedTaxSummary && !primeCategorizationReview\) \{/); // L-A adds the categorization gate
     expect(chat).toContain("const periodUnresolvedRetry = plan.toolName === 'tax_summary' && !!evidencePlanForExecution?.unresolved.some(u => u.reason === 'ambiguous_request');");
     expect(chat).toMatch(/!untrustedMerchantRetry && !periodUnresolvedRetry\) \{/);
   });

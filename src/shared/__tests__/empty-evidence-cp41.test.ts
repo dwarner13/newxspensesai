@@ -239,7 +239,8 @@ describe('CP4.1 chat.ts wiring (structural)', () => {
   it('the false-zero retry is gated by the existing suppression function', () => {
     // PB-01: still gated by the suppression function, plus merchant and period-scoped evidence guards.
     expect(chat).toContain('const p31cRetrySuppressed = (plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false)');
-    expect(chat).toContain('|| hasPeriodScopedAuthoritativeEvidence(p31cResult);');
+    // L-A appends `|| primeCategorizationReview` after this guard; the guard itself is unchanged.
+    expect(chat).toContain('|| hasPeriodScopedAuthoritativeEvidence(p31cResult)');
     expect(chat).toContain('if (!p31cRetrySuppressed && plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry && !periodUnresolvedRetry) {'); // C2-F adds the period gate
   });
   it('unproven scoped evidence gets the honest could-not-confirm fallback, not "I found financial data"', () => {
