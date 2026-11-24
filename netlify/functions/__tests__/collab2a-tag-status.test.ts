@@ -121,8 +121,9 @@ describe('scope precedence (owner decision)', () => {
 
 describe('category source classification (C4 caveat)', () => {
   it.each([
-    ['manual', 'customer_confirmed'], ['user_correction', 'customer_confirmed'], ['user_chat', 'customer_confirmed'],
-    ['ai', 'automatic'], ['tag_rule', 'automatic'], ['bulk_fix', 'automatic'], ['merchant_sweep', 'automatic'],
+    ['manual', 'customer_confirmed'], ['manual_edit', 'customer_confirmed'], ['user_correction', 'customer_confirmed'], ['user_chat', 'customer_confirmed'], ['user_edit', 'customer_confirmed'],
+    ['tag_rule', 'possibly_customer_approved'], ['tag_chat', 'possibly_customer_approved'],
+    ['ai', 'automatic'], ['bulk_fix', 'automatic'], ['merchant_sweep', 'automatic'], ['learned', 'automatic'], ['tag_single', 'automatic'], ['hardcoded', 'automatic'],
     ['needs_review', 'needs_review'], [null, 'unknown'], ['something_new', 'unknown'],
   ])('%s → %s', (src, want) => { expect(classifyCategorySource(src)).toBe(want); });
 });
@@ -133,9 +134,9 @@ describe('tag_status tool', () => {
     expect(v.status).toBe('ok');
     expect(v.scope.source).toBe('default_current_month');
     expect(v.totals).toEqual({ transactionCount: 6, categorized: 5, uncategorized: 1, otherCount: 1 });
-    expect(v.provenance).toEqual({ customer_confirmed: 2, automatic: 2, needs_review: 1, unknown: 1 });
+    expect(v.provenance).toEqual({ customer_confirmed: 2, possibly_customer_approved: 1, automatic: 1, needs_review: 1, unknown: 1 });
     expect(v.needsReviewCount).toBe(1);
-    expect(v.protectedFromProposals).toBe(2);
+    expect(v.protectedFromProposals).toBe(3);
     expect(v.recentCorrections).toEqual({ available: true, count: 2, topMerchants: ['NETFLIX'] });
     expect(v.caveats).toContain(C4_PROVENANCE_CAVEAT);
     expect(v.readOnly).toBe(true);
@@ -151,7 +152,8 @@ describe('tag_status tool', () => {
   it('PB-06: suspected misclassification is proposed; customer-confirmed rows are never proposed', async () => {
     const v = val(await run({}));
     const seven = v.anomalies.find((a: Row) => a.merchant === '7-ELEVEN STORE');
-    expect(seven).toMatchObject({ kind: 'likely_miscategorized', currentCategory: 'Transfers', suggestedCategory: 'Food & Dining', count: 2 });
+    // a1 ('ai') is proposed; a2 ('tag_rule', possibly customer-approved) is not.
+    expect(seven).toMatchObject({ kind: 'likely_miscategorized', currentCategory: 'Transfers', suggestedCategory: 'Food & Dining', count: 1 });
     expect(v.anomalies.find((a: Row) => a.merchant === 'SOBEYS')).toBeUndefined(); // 'manual' = customer-confirmed
   });
 
@@ -245,7 +247,7 @@ describe('read-only guarantees and wiring', () => {
     const msg = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasDocs: false, hasSnapshot: false });
     expect(msg).toContain('TAG CONSULTATION (code-owned; read-only):');
     expect(msg).toMatch(/Findings are PROPOSALS\. Never say a category was changed/);
-    expect(msg).toMatch(/Never propose changing customer-confirmed categories/);
+    expect(msg).toMatch(/Never propose changing customer-confirmed or possibly customer-approved categories/);
     expect(msg).toMatch(/Never widen the period on your own/);
   });
 });

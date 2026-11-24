@@ -14,7 +14,7 @@
 import { detectReviewIssues, type ReviewTx } from './tag-review-rules';
 
 export type ScopeSource = 'requested_period' | 'conversation_period' | 'document' | 'default_current_month';
-export type Provenance = 'customer_confirmed' | 'automatic' | 'needs_review' | 'unknown';
+export type Provenance = 'customer_confirmed' | 'possibly_customer_approved' | 'automatic' | 'needs_review' | 'unknown';
 export type TagStatusResult =
   | 'ok'
   | 'no_transactions_in_period'
@@ -32,14 +32,19 @@ export interface TagStatusScope {
 }
 
 export const C4_PROVENANCE_CAVEAT =
-  'Category-source labels are not fully reliable yet: some categories the customer approved in bulk may be labelled automatic. Treat customer-confirmed counts as a minimum, not a guarantee.';
+  'Category-source labels are not fully reliable yet: some categories labelled as Tag rules or Tag chat may have been approved by the customer, so they are counted as possibly customer-approved and never proposed for change. Treat customer-confirmed counts as a minimum, not a guarantee.';
 
-const CUSTOMER_SOURCES = new Set(['manual', 'user_correction', 'user_chat', 'user_split', 'user_undo', 'user_type_fix', 'user_confirmed']);
-const AUTOMATIC_SOURCES = new Set(['ai', 'tag_rule', 'tag_single', 'merchant_sweep', 'bulk_fix']);
+// Source groups follow the C4 inventory (C4_category_integrity_plan.md §0).
+const CUSTOMER_SOURCES = new Set(['manual', 'manual_edit', 'user_correction', 'user_chat', 'user_edit', 'user_split', 'user_type_fix', 'user_undo', 'user_confirmed']);
+// Written both by customer-approved Tag actions AND by automatic writers. Until C4 separates them,
+// they are treated as possibly customer-approved: counted separately and never proposed for change.
+const AMBIGUOUS_SOURCES = new Set(['tag_chat', 'tag_rule']);
+const AUTOMATIC_SOURCES = new Set(['ai', 'hardcoded', 'rule', 'merchant_map', 'merchant_sweep', 'sign_conflict', 'bulk_fix', 'xlsx-spreadsheet', 'learned', 'tag_single', 'tag_bulk', 'tag_conversation', 'tag_assisted']);
 
 export function classifyCategorySource(source: unknown): Provenance {
   const s = typeof source === 'string' ? source.trim().toLowerCase() : '';
   if (CUSTOMER_SOURCES.has(s)) return 'customer_confirmed';
+  if (AMBIGUOUS_SOURCES.has(s)) return 'possibly_customer_approved';
   if (AUTOMATIC_SOURCES.has(s)) return 'automatic';
   if (s === 'needs_review') return 'needs_review';
   return 'unknown';
@@ -141,7 +146,7 @@ export function summarizeTagStatus(input: {
     status: 'query_error',
     scope,
     totals: { transactionCount: 0, categorized: 0, uncategorized: 0, otherCount: 0 },
-    provenance: { customer_confirmed: 0, automatic: 0, needs_review: 0, unknown: 0 },
+    provenance: { customer_confirmed: 0, possibly_customer_approved: 0, automatic: 0, needs_review: 0, unknown: 0 },
     needsReviewCount: 0,
     protectedFromProposals: 0,
     recentCorrections: { available: false, count: 0, topMerchants: [] },
@@ -155,7 +160,7 @@ export function summarizeTagStatus(input: {
   }
 
   const rows = input.rows;
-  const provenance: Record<Provenance, number> = { customer_confirmed: 0, automatic: 0, needs_review: 0, unknown: 0 };
+  const provenance: Record<Provenance, number> = { customer_confirmed: 0, possibly_customer_approved: 0, automatic: 0, needs_review: 0, unknown: 0 };
   let uncategorized = 0;
   let otherCount = 0;
   for (const r of rows) {
@@ -165,9 +170,10 @@ export function summarizeTagStatus(input: {
     else if (c === 'other') otherCount++;
   }
 
-  // Customer-confirmed rows are never proposed for change (owner rule; C4 will make this authoritative).
+  // Customer-confirmed and possibly-customer-approved rows are never proposed for change (owner rule;
+  // C4 will make the distinction authoritative).
   const proposable: ReviewTx[] = rows
-    .filter(r => classifyCategorySource(r.category_source) !== 'customer_confirmed')
+    .filter(r => { const p = classifyCategorySource(r.category_source); return p !== 'customer_confirmed' && p !== 'possibly_customer_approved'; })
     .map(r => ({
       id: r.id,
       merchant_name: r.merchant_name ?? '',
@@ -221,7 +227,7 @@ export function summarizeTagStatus(input: {
     totals: { transactionCount: rows.length, categorized: rows.length - uncategorized, uncategorized, otherCount },
     provenance,
     needsReviewCount: provenance.needs_review,
-    protectedFromProposals: provenance.customer_confirmed,
+    protectedFromProposals: provenance.customer_confirmed + provenance.possibly_customer_approved,
     recentCorrections: { available: feedback !== null, count: feedback?.length ?? 0, topMerchants },
     anomalies,
     coverage: input.coverage,

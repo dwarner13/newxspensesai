@@ -45,7 +45,7 @@ export const outputSchema = z.object({
     label: z.string(),
   }),
   totals: z.object({ transactionCount: z.number(), categorized: z.number(), uncategorized: z.number(), otherCount: z.number() }),
-  provenance: z.object({ customer_confirmed: z.number(), automatic: z.number(), needs_review: z.number(), unknown: z.number() }),
+  provenance: z.object({ customer_confirmed: z.number(), possibly_customer_approved: z.number(), automatic: z.number(), needs_review: z.number(), unknown: z.number() }),
   needsReviewCount: z.number(),
   protectedFromProposals: z.number(),
   recentCorrections: z.object({ available: z.boolean(), count: z.number(), topMerchants: z.array(z.string()) }),
