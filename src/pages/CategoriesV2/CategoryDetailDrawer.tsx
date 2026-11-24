@@ -7,7 +7,7 @@ import { AnimatedBar } from "./AnimatedBar";
 import { useTransactions } from "@/hooks/useTransactions";
 import { getSupabase } from "@/lib/supabase";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { inSelectedPeriod, periodLabel, DETAIL_PAGE_SIZE } from "@/lib/categoryPeriod";
+import { inSelectedPeriod, periodLabel, calendarDayOfTx, DETAIL_PAGE_SIZE } from "@/lib/categoryPeriod";
 import { formatMonthPeriod } from "@/lib/categoryList";
 import { formatCalendarDate } from "@/lib/calendarDate";
 
@@ -107,7 +107,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
     if (!category) return [];
     const base = transactions
       .filter(t => (t.category || "Other") === category.name)
-      .filter(t => inSelectedPeriod(t.posted_at, selectedYear, selectedPeriod))
+      .filter(t => inSelectedPeriod(calendarDayOfTx(t), selectedYear, selectedPeriod))
       .sort((a, b) => (b.posted_at || "").localeCompare(a.posted_at || ""));
     if (subcategoryFilter) {
       const names = subcategoryFilter.merchantNames.map(n => n.toLowerCase());
@@ -233,7 +233,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
                       {t.merchant_name || 'Unknown'}
                     </div>
                     <div style={{ fontSize:12, color:'#94a3b8', marginTop:2, display:'flex', gap:6 }}>
-                      <span>{formatCalendarDate(t.posted_at, 'medium') || ''}</span>
+                      <span>{formatCalendarDate(calendarDayOfTx(t), 'medium') || ''}</span>
                       {displaySub && <span style={{ color:CYAN, fontWeight:600 }}>{displaySub}</span>}
                     </div>
                   </div>

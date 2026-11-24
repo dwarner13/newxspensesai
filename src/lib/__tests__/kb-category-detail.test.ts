@@ -33,15 +33,15 @@ describe('period predicate (mirrors useCategoriesData)', () => {
     expect(periodLabel('all', undefined, formatMonthPeriod)).toBe('All years');
   });
 
-  it('uses the same date rules as the page hook', () => {
-    expect(hook).toMatch(/d\.getFullYear\(\) === selectedYear/);
-    expect(hook).toMatch(/`\$\{d\.getFullYear\(\)\}-\$\{String\(d\.getMonth\(\) \+ 1\)\.padStart\(2, "0"\)\}` === selectedPeriod/);
+  it('uses the same date rules as the page hook (K-c: calendar day)', () => {
+    expect(hook).toMatch(/yearOf\(calendarDayOfTx\(t\)\) === selectedYear/);
+    expect(hook).toMatch(/periodKeyOf\(calendarDayOfTx\(t\)\) === selectedPeriod/);
   });
 });
 
 describe('CategoryDetailDrawer', () => {
   it('filters by the page period and no longer caps at 10 / 15', () => {
-    expect(drawer).toMatch(/\.filter\(t => inSelectedPeriod\(t\.posted_at, selectedYear, selectedPeriod\)\)/);
+    expect(drawer).toMatch(/\.filter\(t => inSelectedPeriod\(calendarDayOfTx\(t\), selectedYear, selectedPeriod\)\)/);
     expect(drawer).not.toMatch(/\.slice\(0, 15\)|base\.slice\(0, 10\)/);
     expect(drawer).toMatch(/const catTransactions = allCatTransactions\.slice\(0, visibleCount\);/);
     expect(drawer).toMatch(/Show more \(\{allCatTransactions\.length - catTransactions\.length\} more\)/);
@@ -63,7 +63,7 @@ describe('CategoryDetailDrawer', () => {
     expect(drawer).toMatch(/role="dialog"/);
     expect(drawer).toMatch(/aria-label="Close category details" style=\{\{ width: 44, height: 44/);
     expect(drawer).toMatch(/<button type="button" onClick=\{\(\) => setExpandedTxId\(isExpanded \? null : t\.id\)\} aria-expanded=\{isExpanded\}/);
-    expect(drawer).toMatch(/formatCalendarDate\(t\.posted_at, 'medium'\)/);
+    expect(drawer).toMatch(/formatCalendarDate\(calendarDayOfTx\(t\), 'medium'\)/);
     expect(drawer).toMatch(/width: isMobile \? "100%" : 440/);
   });
 });
