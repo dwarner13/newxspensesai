@@ -38,6 +38,8 @@ import {
 import { TeamHandoffAnnouncement, SpecialistCompleteMessage, parseLifecycleMessage } from "@/components/chat/TeamHandoffAnnouncement";
 import { deriveEmployeeStops } from "@/components/chat/deriveEmployeeStops";
 import { ConversationHistoryDropdown, HistoryDropdownTrigger } from "@/components/chat/ConversationHistoryDropdown";
+import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
+import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
 
 /* ── File upload helpers ── */
 
@@ -787,9 +789,9 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <AgentDot agent="Prime" size={48} />
+            <AgentDot agent="Prime" size={CHAT_VISUALS.welcomeLogo} />
           </div>
-          <div style={{ marginTop: 16, fontSize: 13, color: THEME.textMuted }}>
+          <div style={{ marginTop: 16, fontSize: 15, color: THEME.textMuted }}>
             Prime is preparing your briefing...
           </div>
         </div>
@@ -834,19 +836,19 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         flexShrink: 0,
       }}>
         <div style={{
-          width: 36, height: 36, borderRadius: "50%",
+          width: CHAT_VISUALS.headerLogo, height: CHAT_VISUALS.headerLogo, borderRadius: "50%", flexShrink: 0,
           background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: `0 0 24px ${THEME.accent}33`, fontSize: 17,
-        }}>{"\u2655"}</div>
-        <div style={{ flex: 1, position: "relative" }}>
+          boxShadow: `0 0 24px ${THEME.accent}33`, fontSize: 24,
+        }} aria-hidden="true">{"\u2655"}</div>
+        <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: 0.3 }}>Prime</span>
+            <span style={{ fontSize: CHAT_VISUALS.headerName, fontWeight: 800, letterSpacing: 0.2 }}>Prime</span>
             {employeeStops.length > 1 && (
               <HistoryDropdownTrigger onClick={toggleHistoryDropdown} isOpen={historyDropdownOpen} />
             )}
           </div>
-          <div style={{ fontSize: 10, color: THEME.textMuted }}>Your Financial Assistant</div>
+          <div style={{ fontSize: CHAT_VISUALS.headerSubtitle, color: THEME.textMuted }}>Your Financial Assistant</div>
           {/* Desktop dropdown */}
           {!isMobileWidth && (
             <ConversationHistoryDropdown
@@ -873,7 +875,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             aria-label="Chat history"
             aria-expanded={sessionsOpen}
             style={{
-              height: 30, padding: "0 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+              height: CHAT_VISUALS.touchTarget, padding: "0 12px", borderRadius: 10, fontSize: 13, fontWeight: 600,
               background: sessionsOpen ? THEME.surface : "transparent", border: `1px solid ${THEME.border}`,
               color: THEME.textMuted, cursor: "pointer",
             }}
@@ -973,7 +975,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           /* ── Returning-user resume card ── */
           <div style={{ animation: 'primeReveal 0.4s ease forwards' }}>
             <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-              <AgentDot agent="Prime" size={28} />
+              <AgentDot agent="Prime" size={CHAT_VISUALS.welcomeRowLogo} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
@@ -1018,7 +1020,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
         ) : freshWelcome && !showBriefing && history.length === 0 && !(!data.loading && data.transactionCount === 0) ? (
           /* ── C2-F: New Chat welcome — short greeting + suggestions; full briefing on demand ── */
           <div style={{ display: "flex", gap: 10, marginBottom: 8, animation: 'primeReveal 0.4s ease forwards' }}>
-            <AgentDot agent="Prime" size={28} />
+            <AgentDot agent="Prime" size={CHAT_VISUALS.welcomeRowLogo} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
@@ -1074,7 +1076,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           /* ── P2-A: no-data welcome (step-1 greeting style). The briefing cascade only reveals
              when there is data, so a new account used to see an empty area here. ── */
           <div style={{ display: "flex", gap: 10, marginBottom: 4, animation: 'primeReveal 0.4s ease forwards' }}>
-            <AgentDot agent="Prime" size={28} />
+            <AgentDot agent="Prime" size={CHAT_VISUALS.welcomeRowLogo} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
@@ -1100,7 +1102,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             {/* STEP 1 - Greeting */}
             {revealStep >= 1 && (
               <div style={{ display: "flex", gap: 10, marginBottom: 4, animation: 'primeReveal 0.4s ease forwards' }}>
-                <AgentDot agent="Prime" size={28} />
+                <AgentDot agent="Prime" size={CHAT_VISUALS.welcomeRowLogo} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: THEME.accent }}>Prime</span>
@@ -1288,10 +1290,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                 return (
                   <div key={msg.id} id={`msg-${msg.id}`} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
                     <div style={{
-                      maxWidth: "80%", padding: "10px 14px", borderRadius: 14,
+                      maxWidth: "80%", padding: "12px 16px", borderRadius: 16,
                       borderBottomRightRadius: 4,
                       background: THEME.surfaceLight, border: `1px solid ${THEME.borderLight}`,
-                      fontSize: 15, color: THEME.text, lineHeight: 1.55,
+                      fontSize: chatTextSize(isMobileWidth), color: THEME.text, lineHeight: 1.55,
                     }}>
                       {msg.content}
                     </div>
@@ -1320,22 +1322,17 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
               const agentForMsg: "Prime" | "Byte" | "Tag" | "Crystal" | "Goalie" =
                 (empKey && slugToAgent[empKey]) || 'Prime';
               return (
-                <div key={msg.id} id={`msg-${msg.id}`} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                  <AgentDot agent={agentForMsg} size={24} />
+                <div key={msg.id} id={`msg-${msg.id}`} style={{ display: "flex", gap: 10, marginBottom: CHAT_VISUALS.messageGap }}>
+                  <AgentDot agent={agentForMsg} size={CHAT_VISUALS.messageAvatar} />
                   <div style={{
-                    maxWidth: "85%", padding: "10px 14px", borderRadius: 14,
+                    maxWidth: "85%", padding: "12px 16px", borderRadius: 16,
                     borderBottomLeftRadius: 4,
                     background: AGENT_BG[agentForMsg], borderLeft: `3px solid ${AGENT_COLORS[agentForMsg]}44`,
-                    fontSize: 15, color: THEME.textMuted, lineHeight: 1.6, minWidth: 40,
+                    fontSize: chatTextSize(isMobileWidth), color: THEME.text, lineHeight: CHAT_VISUALS.lineHeight, minWidth: 40,
                   }}>
                     {isThisStreaming && isEmpty ? (
-                      // Typing indicator while waiting for first token
-                      <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0" }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: THEME.accent, opacity: 0.6, animation: "primeDot 1.4s ease-in-out infinite" }} />
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: THEME.accent, opacity: 0.6, animation: "primeDot 1.4s ease-in-out 0.2s infinite" }} />
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: THEME.accent, opacity: 0.6, animation: "primeDot 1.4s ease-in-out 0.4s infinite" }} />
-                        <style>{`@keyframes primeDot { 0%,80%,100% { transform: scale(0.6); opacity: 0.3; } 40% { transform: scale(1); opacity: 0.8; } }`}</style>
-                      </div>
+                      // Thinking indicator while waiting for the first token of a real request.
+                      <ThinkingIndicator color={AGENT_COLORS[agentForMsg]} label={`${agentForMsg} is thinking…`} />
                     ) : (() => {
                       const metaAny = msg.meta as any;
                       const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult) || parseActionReceipt(metaAny?.actionReceipt);

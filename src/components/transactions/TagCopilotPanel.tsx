@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { computeComposerHeight, COMPOSER_MAX_HEIGHT_PX } from "@/lib/chatComposer";
+import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
+import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { THEME } from "@/pages/CategoriesV2/categoryConfig";
@@ -1034,12 +1036,12 @@ export function TagCopilotPanel({
           backdropFilter: "blur(12px)",
           flexShrink: 0,
         }}>
-          <TagAvatar size={40} />
+          <TagAvatar size={CHAT_VISUALS.headerLogo} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, letterSpacing: 0.3, lineHeight: 1.2 }}>
+            <div style={{ fontSize: CHAT_VISUALS.headerName, fontWeight: 800, color: T.text, letterSpacing: 0.2, lineHeight: 1.2 }}>
               Tag <span style={{ fontWeight: 500, color: T.textMuted }}>Copilot</span>
             </div>
-            <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1, letterSpacing: 0.2 }}>Categorization intelligence</div>
+            <div style={{ fontSize: CHAT_VISUALS.headerSubtitle, color: T.textMuted, marginTop: 2, letterSpacing: 0.1 }}>Categorization intelligence</div>
           </div>
           <div style={{
             padding: "4px 10px", borderRadius: 20,
@@ -1123,14 +1125,14 @@ export function TagCopilotPanel({
           {/* Greeting */}
           {greetingText && messages.length === 0 && (
             <div style={{ display: "flex", gap: 10, marginBottom: 8, animation: "tagFadeUp 0.22s ease forwards" }}>
-              <TagAvatar size={28} />
+              <TagAvatar size={CHAT_VISUALS.messageAvatar} />
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: T.cyan, fontFamily: "'Syne',sans-serif" }}>Tag</span>
                   <span style={{ fontSize: 9.5, color: T.textDim }}>just now</span>
                 </div>
                 <div style={{
-                  fontSize: 'var(--chat-text-size)', color: T.text, lineHeight: 1.6,
+                  fontSize: chatTextSize(isMobile), color: T.text, lineHeight: 1.6,
                   padding: "13px 16px", borderRadius: "4px 14px 14px 14px",
                   background: "linear-gradient(135deg, rgba(34,211,238,0.07) 0%, rgba(34,211,238,0.03) 100%)",
                   border: "1px solid rgba(34,211,238,0.14)",
@@ -1537,7 +1539,7 @@ export function TagCopilotPanel({
             <Reveal delay={800} style={{ marginLeft: 38 }}>
               <SectionRule color={T.cyan} label="Tag Recommends" />
               <div style={{
-                fontSize: 'var(--chat-text-size)', color: T.textMuted, lineHeight: 1.6,
+                fontSize: chatTextSize(isMobile), color: T.textMuted, lineHeight: 1.6,
                 padding: "14px 16px", borderRadius: 14,
                 background: "linear-gradient(135deg, rgba(34,211,238,0.06) 0%, transparent 100%)",
                 border: "1px solid rgba(34,211,238,0.12)",
@@ -1579,11 +1581,11 @@ export function TagCopilotPanel({
                 flexDirection: isUser ? "row-reverse" : "row",
                 animation: isLastAssistant ? "tagFadeUp 0.2s ease forwards" : "none",
               }}>
-                {!isUser && <TagAvatar size={28} />}
+                {!isUser && <TagAvatar size={CHAT_VISUALS.messageAvatar} />}
                 <div style={{
                   maxWidth: "78%",
                   padding: "12px 16px",
-                  fontSize: 'var(--chat-text-size)', lineHeight: 1.6,
+                  fontSize: chatTextSize(isMobile), lineHeight: 1.6,
                   ...(isUser ? {
                     borderRadius: "14px 4px 14px 14px",
                     background: "rgba(34,211,238,0.1)",
@@ -1652,22 +1654,15 @@ export function TagCopilotPanel({
           {/* Typing indicator */}
           {isLoading && messages[messages.length - 1]?.role === "user" && (
             <div style={{ display: "flex", gap: 9, marginTop: 18, animation: "tagFadeUp 0.18s ease forwards" }}>
-              <TagAvatar size={28} />
+              <TagAvatar size={CHAT_VISUALS.messageAvatar} />
               <div style={{
-                padding: "13px 18px", borderRadius: "4px 14px 14px 14px",
+                padding: "10px 16px", borderRadius: "4px 14px 14px 14px",
                 background: "rgba(34,211,238,0.05)",
                 border: "1px solid rgba(34,211,238,0.1)",
                 borderLeft: "3px solid rgba(34,211,238,0.35)",
-                display: "flex", gap: 5, alignItems: "center",
                 boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
               }}>
-                {[0, 1, 2].map(d => (
-                  <div key={d} style={{
-                    width: 6, height: 6, borderRadius: "50%", background: T.cyan,
-                    animation: `tagDot 1.3s ease-in-out ${d * 0.18}s infinite`,
-                    opacity: 0.7,
-                  }} />
-                ))}
+                <ThinkingIndicator color={T.cyan} label="Tag is thinking…" />
               </div>
             </div>
           )}
