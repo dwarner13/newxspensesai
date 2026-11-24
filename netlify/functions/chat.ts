@@ -267,7 +267,7 @@ import {
 import { analyzeQueryScope } from '../../src/shared/tool-gate';
 import { buildChatDocumentContext } from './_shared/chatDocumentContext.js';
 import { chatDocumentModeEnabled } from './_shared/documentPurpose.js';
-import { resolveEmployeeDocumentAccess } from './_shared/employeeDocumentAccess.js';
+import { authorizeEmployeeDocumentAccess, resolveEmployeeDocumentAccess } from './_shared/employeeDocumentAccess.js';
 import { loadActiveDocumentIds, mergeContextDocumentIds, resolveAttachmentRefs, withAttachmentRefs, type ChatAttachmentRef } from './_shared/chatAttachments.js';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
@@ -7255,7 +7255,7 @@ export const handler: Handler = async (event, context) => {
     // session's active documents from earlier user messages (candidates only; the context builder
     // re-checks ownership, purpose and status every request).
     // Attachments E1: only employees authorized for chat documents store or read their refs.
-    const documentAccess = resolveEmployeeDocumentAccess(finalEmployeeSlug);
+    const documentAccess = await authorizeEmployeeDocumentAccess({ userId, employeeSlug: finalEmployeeSlug });
     const [turnAttachmentRefs, activeChatDocumentIds]: [ChatAttachmentRef[], string[]] = documentAccess.chatDocumentContext
       ? await Promise.all([
         resolveAttachmentRefs(sb, userId, documentIds),

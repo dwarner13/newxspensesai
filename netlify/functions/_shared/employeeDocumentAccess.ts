@@ -11,7 +11,13 @@
  *
  * To authorize a future employee: add its canonical key to EMPLOYEE_DOCUMENT_ACCESS (with an
  * owner-approved scope) — nothing else in the architecture changes.
+ *
+ * Entitlements (owner directive 2026-11-24): document access must ALSO pass the single capability
+ * hook (src/shared/capabilities.ts authorizeCapability, capability 'byte.chat_document_context',
+ * via 'document_access'). authorizeEmployeeDocumentAccess combines both; either one denying means
+ * no access. The acting employee is always the canonical, server-resolved key.
  */
+import { authorizeCapability } from '../../../src/shared/capabilities.js';
 
 export type DocumentTool = 'tag_document_findings';
 
@@ -54,6 +60,28 @@ const SLUG_ALIASES: Readonly<Record<string, string>> = Object.freeze({
 export function canonicalEmployeeKey(slug: unknown): string | null {
   const s = typeof slug === 'string' ? slug.trim().toLowerCase() : '';
   return SLUG_ALIASES[s] ?? null;
+}
+
+/**
+ * Static E1 permission AND the capability/entitlement hook. Used for every chat-document context
+ * decision. The hook allows everything until an entitlement resolver is installed, so Prime's
+ * behaviour is unchanged today.
+ */
+export async function authorizeEmployeeDocumentAccess(args: { userId: string; employeeSlug: unknown }): Promise<EmployeeDocumentAccess> {
+  const key = canonicalEmployeeKey(args.employeeSlug);
+  const permission = key ? EMPLOYEE_DOCUMENT_ACCESS[key] ?? NO_DOCUMENT_ACCESS : NO_DOCUMENT_ACCESS;
+  if (!key || !permission.chatDocumentContext) return NO_DOCUMENT_ACCESS;
+  try {
+    const decision = await authorizeCapability({
+      userId: args.userId,
+      actingEmployee: key, // canonical server-resolved key, never a client-supplied value
+      toolId: 'chat_document_context',
+      via: 'document_access',
+    });
+    return decision.allowed ? permission : NO_DOCUMENT_ACCESS;
+  } catch {
+    return NO_DOCUMENT_ACCESS;
+  }
 }
 
 export function resolveEmployeeDocumentAccess(slug: unknown): EmployeeDocumentAccess {

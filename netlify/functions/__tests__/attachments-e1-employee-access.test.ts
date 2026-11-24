@@ -106,7 +106,7 @@ describe('server-side enforcement in buildAttachmentContext', () => {
 describe('chat.ts wiring (static)', () => {
   const chat = fs.readFileSync(path.resolve(__dirname, '../chat.ts'), 'utf8');
   it('a specialist turn neither stores nor reads chat-document refs (only authorized employees compute them)', () => {
-    expect(chat).toMatch(/const documentAccess = resolveEmployeeDocumentAccess\(finalEmployeeSlug\);/);
+    expect(chat).toMatch(/const documentAccess = await authorizeEmployeeDocumentAccess\(\{ userId, employeeSlug: finalEmployeeSlug \}\);/);
     expect(chat).toMatch(/= documentAccess\.chatDocumentContext\s*\n\s*\? await Promise\.all\(\[\s*\n\s*resolveAttachmentRefs\(sb, userId, documentIds\),\s*\n\s*loadActiveDocumentIds\(sb, userId, finalSessionId\),\s*\n\s*\]\)\s*\n\s*: \[\[\], \[\]\];/);
   });
   it('the attachment context receives the permission; the D1 tool also requires it', () => {
@@ -116,5 +116,64 @@ describe('chat.ts wiring (static)', () => {
   it('enforcement lives only on the server: no frontend file decides document permissions', () => {
     const lib = fs.readFileSync(path.resolve(__dirname, '../../../src/lib/chatDocuments/attachForDiscussion.ts'), 'utf8');
     expect(lib).not.toMatch(/employeeDocumentAccess|chatDocumentContext/);
+  });
+});
+
+describe('entitlement hook (owner directive 2026-11-24): static permission AND authorizeCapability', () => {
+  it('no resolver installed → Prime keeps access (allow-all until the entitlement matrix lands)', async () => {
+    const caps = await import('../../../src/shared/capabilities');
+    caps.setEntitlementResolver(null);
+    expect(await access.authorizeEmployeeDocumentAccess({ userId: A, employeeSlug: 'prime-boss' })).toEqual({ chatDocumentContext: true, tools: ['tag_document_findings'] });
+  });
+
+  it('a resolver denying byte.chat_document_context → no access, so no excerpts and no refs', async () => {
+    const caps = await import('../../../src/shared/capabilities');
+    caps.setEntitlementResolver(async (_req, spec) => spec.capability !== 'byte.chat_document_context');
+    try {
+      const decided = await access.authorizeEmployeeDocumentAccess({ userId: A, employeeSlug: 'prime' });
+      expect(decided).toEqual({ chatDocumentContext: false, tools: [] });
+      const ctx = String(await buildAttachmentContext(makeSb(db()), A, [CHAT], { allowChatDocuments: decided.chatDocumentContext }));
+      expect(ctx).not.toContain('Rent is');
+      expect(ctx).toMatch(/not available to this assistant/);
+    } finally {
+      caps.setEntitlementResolver(null);
+    }
+  });
+
+  it('the static deny still wins even when the resolver allows everything (never calls the hook)', async () => {
+    const caps = await import('../../../src/shared/capabilities');
+    const seen: string[] = [];
+    caps.setEntitlementResolver(async (req) => { seen.push(req.actingEmployee); return true; });
+    try {
+      for (const slug of ['tag-ai', 'byte-docs', 'custodian', 'unknown-employee']) {
+        expect(await access.authorizeEmployeeDocumentAccess({ userId: A, employeeSlug: slug })).toEqual({ chatDocumentContext: false, tools: [] });
+      }
+      expect(seen).toEqual([]);
+    } finally {
+      caps.setEntitlementResolver(null);
+    }
+  });
+
+  it('actingEmployee is the canonical server-resolved key with the document_access path, never the raw slug', async () => {
+    const caps = await import('../../../src/shared/capabilities');
+    const reqs: Array<{ actingEmployee: string; toolId: string; via: string; userId: string }> = [];
+    caps.setEntitlementResolver(async (req) => { reqs.push(req); return true; });
+    try {
+      await access.authorizeEmployeeDocumentAccess({ userId: A, employeeSlug: ' Prime-Boss ' });
+      expect(reqs).toEqual([{ userId: A, actingEmployee: 'prime', toolId: 'chat_document_context', via: 'document_access' }]);
+      expect(caps.capabilityForTool('chat_document_context')).toMatchObject({ capability: 'byte.chat_document_context', classified: true });
+    } finally {
+      caps.setEntitlementResolver(null);
+    }
+  });
+
+  it('an entitlement error fails closed', async () => {
+    const caps = await import('../../../src/shared/capabilities');
+    caps.setEntitlementResolver(async () => { throw new Error('billing down'); });
+    try {
+      expect(await access.authorizeEmployeeDocumentAccess({ userId: A, employeeSlug: 'prime' })).toEqual({ chatDocumentContext: false, tools: [] });
+    } finally {
+      caps.setEntitlementResolver(null);
+    }
   });
 });
