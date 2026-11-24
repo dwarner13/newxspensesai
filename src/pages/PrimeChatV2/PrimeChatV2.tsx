@@ -8,7 +8,8 @@ import { QuickActionChips } from "./QuickActionChips";
 import { PrimeChatInput } from "./PrimeChatInput";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAtom, useAtomValue } from "jotai";
-import { primeRequestedSessionIdAtom } from "@/lib/uiStore";
+import { primeRequestedSessionIdAtom, primeChatModeAtom } from "@/lib/uiStore";
+import { nextExpandMode } from "@/lib/primeChatMode";
 import {
   primeSessionStorageKey, storePrimeSessionId, verifyOwnedPrimeSession, type SessionOwnershipClient,
   selectResumeCandidate, readResumeState, writeResumeState, primeConversationFallbackTitle,
@@ -224,6 +225,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   // explicit selection (Chat History / launcher) always wins. Summary title when available,
   // otherwise a fallback title (sessions whose AI summary failed are still offered).
   const pendingRequestedSessionId = useAtomValue(primeRequestedSessionIdAtom);
+  // UX-P2a: layout mode of the single mounted chat (Quick / Expanded / Workspace).
+  const [chatMode, setChatMode] = useAtom(primeChatModeAtom);
   useEffect(() => {
     if (!historyChecked) return;
     let cancelled = false;
@@ -905,6 +908,27 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
           <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green }} />
           <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>Secured</span>
         </div>
+        {/* UX-P2a: Quick ↔ Expanded on the same mounted chat (desktop only). */}
+        {!isMobileWidth && (
+          <button
+            type="button"
+            onClick={() => setChatMode(nextExpandMode(chatMode))}
+            aria-pressed={chatMode !== 'quick'}
+            aria-label={chatMode === 'quick' ? "Expand chat" : "Collapse chat"}
+            title={chatMode === 'quick' ? "Expand chat" : "Collapse chat"}
+            style={{
+              width: CHAT_VISUALS.touchTarget, height: CHAT_VISUALS.touchTarget, borderRadius: 10, flexShrink: 0,
+              background: chatMode !== 'quick' ? THEME.surface : "transparent", border: `1px solid ${THEME.border}`,
+              color: THEME.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {chatMode === 'quick'
+                ? <path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />
+                : <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />}
+            </svg>
+          </button>
+        )}
         <div style={{ position: "relative", flexShrink: 0 }}>
           <button
             onClick={toggleSessionsOpen}
