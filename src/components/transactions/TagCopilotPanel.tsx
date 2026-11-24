@@ -219,6 +219,9 @@ interface TagCopilotPanelProps {
   onBackToPrime?: () => void;
   /** D-4: when Tag was opened from a transaction drawer, reopens that transaction. */
   onBackToTransaction?: () => void;
+  /** D-6: display-only "Issuer •••• 1234" for the context card (from owner-scoped
+   * tag-explain). Never added to focusedTransaction or sent to Tag. */
+  focusedAccountLabel?: string | null;
   flaggedCount: number; categorizedCount: number; totalCount: number;
   avgConfidence: number; rulesCount: number;
   flaggedTransactions?: FlaggedTransaction[]; subcategorySuggestions?: SubcategorySuggestion[];
@@ -269,6 +272,7 @@ export function TagCopilotPanel({
   focusedTransaction,
   onBackToPrime,
   onBackToTransaction,
+  focusedAccountLabel,
 }: TagCopilotPanelProps) {
   // D-4: focused-transaction context card starts collapsed for each new transaction.
   const [contextOpen, setContextOpen] = useState(false);
@@ -951,7 +955,7 @@ export function TagCopilotPanel({
       text = `${sinceVisitLine}${hi} - I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
     } else {
       // Fallback - no category data yet
-      text = `${hi} - I'm your categorization engine. Want to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern?`;
+      text = `${hi} - I'm your categorization engine. Want to reclassify a merchant, see what may be tax-relevant, or build a rule for any spending pattern?`;
     }
 
     setGreetingText(text);
@@ -1126,6 +1130,12 @@ export function TagCopilotPanel({
                       <div style={{ minWidth: 0 }}>
                         <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: T.textMuted }}>Date</dt>
                         <dd style={{ margin: "2px 0 0", fontSize: 15, color: T.text }}>{ftDate}</dd>
+                      </div>
+                    )}
+                    {focusedAccountLabel && (
+                      <div style={{ minWidth: 0 }}>
+                        <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: T.textMuted }}>Account</dt>
+                        <dd style={{ margin: "2px 0 0", fontSize: 15, color: T.text, overflowWrap: "anywhere" }}>{focusedAccountLabel}</dd>
                       </div>
                     )}
                     <div style={{ minWidth: 0 }}>
