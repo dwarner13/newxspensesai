@@ -26,6 +26,7 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { getInternalBaseUrl } from './_shared/internalBaseUrl.js';
 import { authenticateUser, claimedUserIdMatches, verifyOwnership, type OwnershipClient } from './_shared/internalJobAuth.js';
+import { documentImportBlock } from './_shared/documentPurpose.js';
 
 export type SmartImportSyncResult = {
   docIds: string[];
@@ -1010,6 +1011,16 @@ export const handler: Handler = async (event) => {
         return owned.status === 500
           ? { statusCode: 503, headers, body: JSON.stringify({ ok: false, retryable: true, error: 'processing_unavailable' }) }
           : { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Forbidden' }) };
+      }
+      // Attachments B1: a chat document can never be normalized or committed through sync.
+      const purposeBlock = await documentImportBlock(sb, requestedDocId, userId);
+      if (purposeBlock) {
+        console.warn('[smart-import-sync] stage=import_blocked', { code: purposeBlock.code });
+        return {
+          statusCode: purposeBlock.status,
+          headers,
+          body: JSON.stringify({ ok: false, error: purposeBlock.code, ...(purposeBlock.status === 503 ? { retryable: true } : {}) }),
+        };
       }
     }
     // P0-C1b: same-deploy origin for normalize-transactions / commit-import (fail closed). NETLIFY_URL

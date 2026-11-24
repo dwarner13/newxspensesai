@@ -2,6 +2,15 @@ import { Handler } from '@netlify/functions';
 import { createHash, randomUUID } from 'crypto';
 import { admin } from './_shared/upload.js';
 import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
+import {
+  CHAT_DOCUMENT_MAX_BYTES,
+  CHAT_DOCUMENT_PURPOSE,
+  CHAT_DOCUMENT_TYPES,
+  chatDocumentModeEnabled,
+  effectivePurpose,
+  parseRequestedPurpose,
+  type DocumentPurpose,
+} from './_shared/documentPurpose.js';
 
 const MAX_FILE_NAME_LENGTH = 180;
 
@@ -101,14 +110,19 @@ function computeUploadHash(args: {
   fileSize: number;
   mimeType: string;
   lastModified: number;
+  purpose?: DocumentPurpose;
 }): string {
-  const normalized = [
+  const parts = [
     args.userId.trim().toLowerCase(),
     args.fileName.trim().toLowerCase(),
     String(args.fileSize || 0),
     args.mimeType.trim().toLowerCase(),
     String(args.lastModified || 0),
-  ].join('|');
+  ];
+  // Attachments B1: chat documents never share an upload hash with an import of the same file.
+  // Import hashes are unchanged.
+  if (args.purpose === CHAT_DOCUMENT_PURPOSE) parts.push('purpose=chat_document');
+  const normalized = parts.join('|');
   return createHash('sha256').update(normalized).digest('hex');
 }
 
@@ -249,6 +263,7 @@ function buildInitResponse(args: {
     extracted_data: extracted,
     confidence,
     hasFileRef,
+    purpose: effectivePurpose(args.doc),
     hasExtractedData: hasExtracted,
     ocrJobStatus: args.ocrJobStatus || null,
     safeToSkipUpload: skipDecision.safe,
@@ -301,16 +316,41 @@ export const handler: Handler = async (event) => {
       };
     }
 
+    // Attachments B1: purpose is decided here, server-side, once. Absent = 'import' (unchanged).
+    const purposeParse = parseRequestedPurpose(body?.purpose);
+    if (!purposeParse.ok) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'invalid_purpose' }) };
+    }
+    const purpose = purposeParse.purpose;
+
     const sb = admin();
     const effectiveMime = normalizeMimeType(mimeType || mime, fileName);
     const normalizedFileSize = toInt(fileSize, 0);
     const normalizedLastModified = toInt(lastModified, 0);
+
+    if (purpose === CHAT_DOCUMENT_PURPOSE) {
+      if (!chatDocumentModeEnabled()) {
+        return { statusCode: 403, body: JSON.stringify({ error: 'chat_documents_disabled' }) };
+      }
+      if (!(CHAT_DOCUMENT_TYPES as readonly string[]).includes(effectiveMime)) {
+        return { statusCode: 415, body: JSON.stringify({ error: 'unsupported_file_type' }) };
+      }
+      // The declared size is only a first check; smart-import-finalize re-checks the stored bytes.
+      if (normalizedFileSize <= 0) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'file_size_required' }) };
+      }
+      if (normalizedFileSize > CHAT_DOCUMENT_MAX_BYTES) {
+        return { statusCode: 413, body: JSON.stringify({ error: 'file_too_large' }) };
+      }
+    }
+
     const uploadHash = computeUploadHash({
       userId,
       fileName,
       fileSize: normalizedFileSize,
       mimeType: effectiveMime,
       lastModified: normalizedLastModified,
+      purpose,
     });
 
     let existingByUploadHash: ExistingDoc | null = null;
@@ -323,7 +363,12 @@ export const handler: Handler = async (event) => {
       .limit(1)
       .maybeSingle();
     // Only reuse a document whose storage path is inside this user's folder.
-    if (!existingDocError && existingDocData && isOwnedStoragePath(existingDocData.storage_path, userId)) {
+    if (
+      !existingDocError &&
+      existingDocData &&
+      isOwnedStoragePath(existingDocData.storage_path, userId) &&
+      effectivePurpose(existingDocData) === purpose
+    ) {
       existingByUploadHash = existingDocData;
     }
 
@@ -372,6 +417,7 @@ export const handler: Handler = async (event) => {
       mime_type: effectiveMime,
       status: 'uploading',
       upload_hash: uploadHash,
+      purpose,
       updated_at: new Date().toISOString(),
     };
     if (normalizedFileSize > 0) {
@@ -385,6 +431,19 @@ export const handler: Handler = async (event) => {
       .insert(insertPayload)
       .select('*')
       .single());
+    // Attachments B1: before the purpose migration is applied, imports keep working without the
+    // column; chat documents cannot be created at all (fail closed).
+    if (insertError && /purpose/i.test(String(insertError.message || '')) && /does not exist|schema cache/i.test(String(insertError.message || ''))) {
+      if (purpose === CHAT_DOCUMENT_PURPOSE) {
+        return { statusCode: 503, body: JSON.stringify({ error: 'chat_documents_unavailable' }) };
+      }
+      delete insertPayload.purpose;
+      ({ data: insertedDoc, error: insertError } = await sb
+        .from('user_documents')
+        .insert(insertPayload)
+        .select('*')
+        .single());
+    }
     if (insertError && String(insertError.message || '').includes('upload_hash')) {
       delete insertPayload.upload_hash;
       ({ data: insertedDoc, error: insertError } = await sb
@@ -429,7 +488,12 @@ export const handler: Handler = async (event) => {
           }
         }
       }
-      if (racedDoc?.id && (!insertedDoc || insertError) && isOwnedStoragePath(racedDoc.storage_path, userId)) {
+      if (
+        racedDoc?.id &&
+        (!insertedDoc || insertError) &&
+        isOwnedStoragePath(racedDoc.storage_path, userId) &&
+        effectivePurpose(racedDoc) === purpose
+      ) {
         console.log('[smart-import-init] doc_row_reused', {
           docId: racedDoc.id,
           sourcePath: 'smart-import-init:race_reuse',

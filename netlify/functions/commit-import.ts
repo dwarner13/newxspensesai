@@ -29,6 +29,7 @@ import { detectAndUpsertRecurringObligations, type RecurringCandidate } from './
 import { queueUpcomingPaymentNotifications } from './_shared/chimeNotifications.js';
 import { getFirstMoney } from './_shared/money.js';
 import { authenticateUser, claimedUserIdMatches, JOB_TOKEN_HEADER } from './_shared/internalJobAuth.js';
+import { documentImportBlock } from './_shared/documentPurpose.js';
 import { getInternalBaseUrl, InternalBaseUrlError } from './_shared/internalBaseUrl.js';
 
 const STAGED_ROWS_WAIT_MS = 12000;
@@ -1282,6 +1283,19 @@ export const handler: Handler = async (event, context) => {
             .eq('id', importId)
             .eq('user_id', userIdText);
         }
+      }
+    }
+
+    // Attachments B1: an import linked to a chat document is never committed to transactions.
+    if (documentId) {
+      const purposeBlock = await documentImportBlock(sb, String(documentId), userIdText);
+      if (purposeBlock) {
+        console.warn('[CommitImport] import_blocked', { code: purposeBlock.code });
+        return {
+          statusCode: purposeBlock.status,
+          headers,
+          body: JSON.stringify({ ok: false, error: purposeBlock.code, ...(purposeBlock.status === 503 ? { retryable: true } : {}) }),
+        };
       }
     }
 

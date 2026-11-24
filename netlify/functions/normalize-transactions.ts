@@ -16,6 +16,7 @@ import { parseInvoiceLike, parseReceiptLike } from './_shared/ocr_parsers.js';
 import { safeTextMetrics } from './_shared/textHash.js';
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 import { maskPII as maskPiiFallback } from './_shared/pii.js';
+import { documentImportBlock } from './_shared/documentPurpose.js';
 
 // Architecture A': Prefer Claude Vision structured extraction when available
 const PREFER_VISION_EXTRACTION = process.env.OCR_PREFER_VISION_EXTRACTION === '1';
@@ -1976,6 +1977,17 @@ export const handler: Handler = async (event, context) => {
     }
     if (!UUID_V4_RE.test(String(documentId))) {
       return respondError(400, 'invalid_document_id', 'documentId must be a valid UUID');
+    }
+    // Attachments B1: a chat document never creates an import or staged rows, whoever calls
+    // (job token, sync with a user JWT, or a replayed request).
+    const purposeBlock = await documentImportBlock(admin(), documentId, userId);
+    if (purposeBlock) {
+      return respondError(
+        purposeBlock.status,
+        purposeBlock.code,
+        purposeBlock.status === 409 ? 'This document is attached for discussion and cannot be imported.' : 'Processing is temporarily unavailable. Please retry.',
+        purposeBlock.status === 503 ? { retryable: true } : {},
+      );
     }
 
     console.log('[normalize-transactions] stage=normalize_start', {

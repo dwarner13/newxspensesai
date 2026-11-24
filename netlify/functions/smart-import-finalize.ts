@@ -12,6 +12,7 @@ import {
   type OwnershipProof,
 } from './_shared/internalJobAuth.js';
 import { buildInternalFunctionUrl } from './_shared/internalBaseUrl.js';
+import { checkChatDocumentFile, chatDocumentModeEnabled, isChatDocumentRow } from './_shared/documentPurpose.js';
 
 const BUCKET = 'docs';
 
@@ -147,6 +148,23 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
+    // Attachments B1: a chat document is validated by its stored bytes (type by magic bytes,
+    // declared-type match, 15 MB, 50 pages) and may only go to OCR - never to a statement parser.
+    if (isChatDocumentRow(doc)) {
+      if (!chatDocumentModeEnabled()) return json(403, { ok: false, error: 'chat_documents_disabled' });
+      const check = await checkChatDocumentFile(Buffer.from(await file.arrayBuffer()), doc.mime_type);
+      if (!check.ok) {
+        console.warn('[smart-import-finalize] chat document rejected', { code: check.code });
+        await markDocStatus(docId, 'rejected', `chat_document_${check.code.toLowerCase()}`);
+        try {
+          await sb.storage.from(BUCKET).remove([doc.storage_path]);
+        } catch {
+          // best effort; the row is already rejected and the object stays private
+        }
+        return json(check.status, { ok: false, error: check.code });
+      }
+    }
+
     // Route 1: Images/PDFs -> OCR (guardrails run in OCR function)
     if (isImageOrPdf(doc.mime_type)) {
       const docStatus = String(doc?.status || '').toLowerCase();
@@ -203,6 +221,9 @@ export const handler: Handler = async (event, context) => {
       // Return immediately - Byte can chat while OCR processes
       return { statusCode: 200, body: JSON.stringify({ started: true, queued: true, via: 'ocr' }) };
     }
+
+    // A chat document never reaches the statement parser or the unstructured route.
+    if (isChatDocumentRow(doc)) return json(415, { ok: false, error: 'UNSUPPORTED_FILE_TYPE' });
 
     // Route 2: CSV/OFX/QIF -> Parser with guardrails
     if (isStatement(doc.original_name)) {

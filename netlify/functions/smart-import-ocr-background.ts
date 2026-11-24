@@ -17,6 +17,8 @@ import { dispatchNormalize } from './_shared/normalizeHandoff.js';
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 import { maskPII as maskPiiFallback } from './_shared/pii.js';
 import { maskRescuedOcrText } from './_shared/ocrRescueMasking.js';
+import { checkChatDocumentFile, chatDocumentModeEnabled, isChatDocumentRow } from './_shared/documentPurpose.js';
+import { buildChatDocumentPageTexts } from './_shared/chatDocumentPages.js';
 import { safeTextMetrics } from './_shared/textHash.js';
 import { callGoogleVisionOnImage, callGoogleVisionOnPdf } from './_shared/vision/googleVisionClient.js';
 // AI Fluency: Event logging
@@ -538,6 +540,8 @@ type OCRRunResult = {
   durationMs: number;
   pages?: number;
   pageLimitReached?: boolean;
+  /** Attachments B1: raw per-page text when the provider returns page boundaries. */
+  pageTexts?: string[];
 };
 
 type OcrResult = {
@@ -1481,10 +1485,12 @@ async function runOCR(
   expectedSize?: number,
   docId?: string,
   docMode: 'statement' | 'receipt' = 'receipt',
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  opts: { disableOcrSpace?: boolean } = {}
 ): Promise<OCRRunResult> {
   const hasVision = !!process.env.GOOGLE_VISION_API_KEY;
-  const hasOcrSpace = !!process.env.OCR_SPACE_API_KEY;
+  // Attachments B1: OCR.space is never used for chat documents (owner decision).
+  const hasOcrSpace = !opts.disableOcrSpace && !!process.env.OCR_SPACE_API_KEY;
   const hasOpenAI = !!process.env.OPENAI_API_KEY;
   const normalizedMime = mimeType || 'application/pdf';
   const isImage = normalizedMime.startsWith('image/') && !normalizedMime.includes('pdf');
@@ -1701,6 +1707,7 @@ async function runOCR(
       const apiKey = process.env.GOOGLE_VISION_API_KEY as string;
       const visionUrl = `https://vision.googleapis.com/v1/files:annotate?key=${apiKey}`;
       const allChunkTexts: string[] = [];
+      const allPageTexts: string[] = [];
       let pagesOcrd = 0;
 
       for (let chunkIdx = 0; chunkIdx < chunkCount; chunkIdx++) {
@@ -1747,6 +1754,7 @@ async function runOCR(
 
         pagesOcrd += pageResponses.length;
         allChunkTexts.push(chunkText);
+        allPageTexts.push(...chunkPageTexts);
       }
 
       // Verify all pages were OCR'd
@@ -1758,7 +1766,7 @@ async function runOCR(
       console.log('[OCR] Google Vision chunked PDF REST success', { totalPages, pagesOcrd, chunkCount, chars: gvText.length, docId });
 
       if (gvText.length >= 200) {
-        return { text: gvText, provider: 'vision', durationMs: Date.now() - visionStart };
+        return { text: gvText, provider: 'vision', durationMs: Date.now() - visionStart, pageTexts: allPageTexts };
       }
       console.warn('[OCR] Google Vision PDF REST returned short text after all chunks, falling back');
     } catch (visionErr: any) {
@@ -2267,6 +2275,11 @@ export const handler: Handler = async (event, context) => {
     if (error || !doc) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Document not found' }) };
     }
+    // Attachments B1: purpose comes from the stored row only (never from the job body).
+    const isChatDocument = isChatDocumentRow(doc);
+    if (isChatDocument && !chatDocumentModeEnabled()) {
+      return { statusCode: 403, body: JSON.stringify({ error: 'chat_documents_disabled' }) };
+    }
     console.log('[smart-import-ocr] doc_row_state', {
       docId,
       caller,
@@ -2563,6 +2576,16 @@ export const handler: Handler = async (event, context) => {
         });
       }
     }
+    // Attachments B1: re-check the bytes actually being processed (type, 15 MB, 50 pages).
+    if (isChatDocument) {
+      const chatCheck = await checkChatDocumentFile(binaryBuffer, effectiveMimeType);
+      if (!chatCheck.ok) {
+        console.warn('[smart-import-ocr] chat document rejected', { docId, code: chatCheck.code });
+        await setDocumentOcrStatus(sb, docId, 'failed');
+        await markDocStatus(docId, 'rejected', `chat_document_${chatCheck.code.toLowerCase()}`);
+        return { statusCode: 200, body: JSON.stringify({ ok: false, rejected: true, error_code: chatCheck.code }) };
+      }
+    }
     const fileHash = computeFileHash(binaryBuffer);
     await sb
       .from('user_documents')
@@ -2578,7 +2601,8 @@ export const handler: Handler = async (event, context) => {
     // terminal response to await Vision before deciding the final outcome.
     let ocrDeferredFailure: { response: any; errorCode: string; rejectionReason: string } | null = null;
 
-    if (VISION_ENABLED && isPdfForVision) {
+    // Claude Vision here extracts TRANSACTIONS; chat documents never need it.
+    if (VISION_ENABLED && isPdfForVision && !isChatDocument) {
       console.log('[Vision] Starting parallel extraction', { docId, model: CLAUDE_VISION_MODEL, timeoutMs: CLAUDE_VISION_TIMEOUT_MS });
       visionPromise = withTimeout(
         runClaudeVisionExtraction(binaryBuffer, docId),
@@ -2732,6 +2756,7 @@ export const handler: Handler = async (event, context) => {
 
     // Run OCR
     let ocrText: string;
+    let ocrPageTexts: string[] | null = null;
     let ocrProvider: OCRProvider | null = null;
     let ocrDurationMs: number | null = null;
     let ocrPages: number | undefined;
@@ -2761,12 +2786,15 @@ export const handler: Handler = async (event, context) => {
     try {
       const ocrRunController = new AbortController();
       const ocrResult = await withTimeout(
-        runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId, docMode, ocrRunController.signal),
+        runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId, docMode, ocrRunController.signal, {
+          disableOcrSpace: isChatDocument,
+        }),
         OCR_STAGE_TIMEOUT_MS,
         'ocr_stage',
         () => ocrRunController.abort()
       );
       ocrText = ocrResult.text;
+      ocrPageTexts = ocrResult.pageTexts ?? null;
       ocrProvider = ocrResult.provider;
       ocrDurationMs = ocrResult.durationMs;
       ocrPages = ocrResult.pages;
@@ -3795,6 +3823,18 @@ export const handler: Handler = async (event, context) => {
       text_hash: textMetrics.hash || null,
       text_length: textMetrics.length ?? 0,
     };
+    // Attachments B1: chat documents also keep page-by-page text (PII-masked with the shared
+    // patterns), alongside the unchanged joined ocr_text. Only when the page boundaries match
+    // the final text; otherwise pages are left out rather than guessed.
+    if (isChatDocument) {
+      normalizedForStorage.purpose = 'chat_document';
+      normalizedForStorage.page_texts = buildChatDocumentPageTexts({
+        rawFinalText: ocrText,
+        rawPageTexts: ocrPageTexts,
+        isImage: String(effectiveMimeType || '').startsWith('image/'),
+        mask: (t) => sanitizeOcrText(maskPiiFallback(t, 'last4').masked),
+      });
+    }
 
     // ── Architecture A': Await Vision on OCR success path ────────────────────
     // OCR succeeded. If Vision is running, await it and merge result.
@@ -3986,7 +4026,10 @@ export const handler: Handler = async (event, context) => {
         userId: effectiveUserId,
       });
     }
-    if (!docId || !UUID_V4_RE.test(String(docId))) {
+    if (isChatDocument) {
+      // Attachments B1: a chat document never enters normalization, staging, categorization or commit.
+      console.log('[smart-import-ocr] stage=ocr_done_chat_document', { traceId, docId, textLength: textMetrics.length ?? 0 });
+    } else if (!docId || !UUID_V4_RE.test(String(docId))) {
       console.warn('[smart-import-ocr] Skipping normalize-transactions due to invalid documentId', { docId });
     } else {
       let skipNormalizeQueue = false;
