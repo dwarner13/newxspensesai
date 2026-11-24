@@ -22,7 +22,7 @@
  *     key: 'api-endpoint',
  *     limitPerMinute: 60,
  *     burst: 20,
- *     keyFn: (evt) => evt.headers['x-user-id'] || 'anon',
+ *     keyFn: (evt) => `user:${verifiedUserId}`, // a VERIFIED identity, never a client header
  *   });
  */
 
@@ -114,7 +114,9 @@ class TokenBucketCache {
   get(key: string, now: number): TokenBucketState {
     return (
       this.cache.get(key) || {
-        tokens: 0,
+        // E8 fix: a new bucket starts FULL (clamped to `burst` on first use). It used to start
+        // at 0, which refused every key's first request.
+        tokens: Number.POSITIVE_INFINITY,
         ts: now,
         hits: 0,
         lastHit: now,
@@ -328,10 +330,20 @@ async function checkTokenBucketDb(
  *     key: 'my-endpoint',
  *     limitPerMinute: 60,
  *     burst: 20,
- *     keyFn: (evt) => evt.headers['x-user-id'] || 'anon',
+ *     keyFn: (evt) => `user:${verifiedUserId}`, // a VERIFIED identity, never a client header
  *   }
  * );
  */
+/** Rate-limit key from the client IP only (never from client-supplied identity headers). */
+export function clientIpKey(event: { headers?: Record<string, string | undefined>; ip?: string } | null | undefined): string {
+  const h = event?.headers || {};
+  const nf = String(h['x-nf-client-connection-ip'] || '').trim();
+  if (nf) return `ip:${nf}`;
+  const xff = String(h['x-forwarded-for'] || '').split(',')[0].trim();
+  if (xff) return `ip:${xff}`;
+  return event?.ip ? `ip:${event.ip}` : 'ip-unknown';
+}
+
 export function withRateLimit(
   handler: (event: any, context: any) => Promise<any>,
   options: RateLimitOptions
@@ -351,14 +363,12 @@ export function withRateLimit(
     try {
       const now = Date.now();
 
-      // Extract rate limit key from event
-      const keyId =
-        keyFn?.(event) ||
-        event?.headers?.["x-user-id"] ||
-        event?.headers?.["x-api-key"] ||
-        event?.headers?.["x-forwarded-for"] ||
-        event?.ip ||
-        "ip-unknown";
+      // Extract rate limit key from event.
+      // E8: client-controlled headers (x-user-id, x-api-key) are never used as identity: a caller
+      // could rotate them to escape the limit or spend another user's budget. Callers that know
+      // the verified user pass keyFn; otherwise the limit is per client IP (Netlify's own header
+      // first, then the first x-forwarded-for hop).
+      const keyId = keyFn?.(event) || clientIpKey(event);
 
       const fullKeyId = `${key}:${keyId}`;
 

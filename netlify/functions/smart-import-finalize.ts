@@ -196,8 +196,23 @@ export const handler: Handler = async (event, context) => {
       // document untouched and the caller gets a clear retryable error.
       const job = prepareJob(owned.proof, 'ocr.run', 'smart-import-ocr-background', explicitRetry);
       if (!job) return processingUnavailable();
-      // Mark processing immediately to avoid stale "ready" reuse while OCR is being retriggered.
-      await markDocStatus(docId, 'ocr_processing', 'ocr_retriggered');
+      if (isChatDocumentRow(doc)) {
+        // Attachments E8: exactly one OCR job per chat document. Atomic compare-and-set
+        // uploading → ocr_processing; a retried or replayed finalize finds nothing to claim.
+        const { data: claimed } = await sb
+          .from('user_documents')
+          .update({ status: 'ocr_processing', updated_at: new Date().toISOString() })
+          .eq('id', docId)
+          .eq('user_id', userId)
+          .eq('status', 'uploading')
+          .select('id');
+        if (!Array.isArray(claimed) || claimed.length === 0) {
+          return json(200, { started: false, queued: false, skipped: true, reason: 'already_processing', via: 'ocr' });
+        }
+      } else {
+        // Mark processing immediately to avoid stale "ready" reuse while OCR is being retriggered.
+        await markDocStatus(docId, 'ocr_processing', 'ocr_retriggered');
+      }
       // Trigger OCR processing after successful upload. Identity, document and retry travel only
       // in the signed job token; the body carries no userId or retry flags.
       fetch(job.url, {

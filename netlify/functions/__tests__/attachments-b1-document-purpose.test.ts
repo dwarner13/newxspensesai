@@ -42,6 +42,9 @@ let storageFiles: Record<string, Buffer> = {};
 let removedPaths: string[] = [];
 let statusMarks: Array<{ docId: string; status: string }> = [];
 let noPurposeColumn = false;
+// E8: response of the claim_chat_document_upload RPC (null data + error = migration not applied)
+let quotaResponse: { data: unknown; error: unknown } = { data: { allowed: true }, error: null };
+let rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
 
 function seed() {
   db = {
@@ -126,7 +129,10 @@ const fakeClient = {
       token === TOKEN_A ? { data: { user: { id: USER_A } }, error: null } : { data: { user: null }, error: { message: 'invalid JWT' } },
   },
   from: (table: string) => query(table),
-  rpc: async () => ({ data: null, error: null }),
+  rpc: async (fn: string, args: Record<string, unknown>) => {
+    rpcCalls.push({ fn, args });
+    return fn === 'claim_chat_document_upload' ? quotaResponse : { data: null, error: null };
+  },
   storage: {
     from: () => ({
       createSignedUploadUrl: async (p: string) => ({ data: { signedUrl: `https://storage.test/signed/${encodeURIComponent(p)}` }, error: null }),
@@ -212,6 +218,8 @@ beforeEach(() => {
   seed();
   dbCalls = []; fnCalls = []; storageFiles = {}; removedPaths = []; statusMarks = [];
   noPurposeColumn = false;
+  quotaResponse = { data: { allowed: true }, error: null };
+  rpcCalls = [];
   paid.openai.mockClear(); paid.categorize.mockClear();
   process.env.INTERNAL_JOB_SIGNING_SECRET = SECRET;
   process.env.DEPLOY_URL = DEPLOY;
@@ -541,5 +549,93 @@ describe('static guarantees', () => {
     const chat = read('chat.ts');
     expect(chat).not.toMatch(/FINANCIAL DOCUMENT \(OCR extracted text\)/);
     expect(chat).toMatch(/client ocrText ignored/);
+  });
+});
+
+// ── E8: upload protection ────────────────────────────────────────────────────
+describe('E8 — chat-document upload quota and single processing', () => {
+  const body = { fileName: 'notes.pdf', mimeType: 'application/pdf', fileSize: 1000, lastModified: 9, purpose: 'chat_document' };
+
+  it('claims quota with the VERIFIED user id and default 10/hour, 30/day limits', async () => {
+    const r = await invoke(init.handler, bearer(TOKEN_A), { ...body, userId: USER_A });
+    expect(r.statusCode).toBe(200);
+    expect(rpcCalls).toEqual([{ fn: 'claim_chat_document_upload', args: { p_user_id: USER_A, p_hourly_limit: 10, p_daily_limit: 30 } }]);
+  });
+
+  it('limits are configurable (future entitlements plug in at resolveChatDocumentLimits)', async () => {
+    const q = await import('../_shared/chatDocumentQuota');
+    expect(await q.resolveChatDocumentLimits(USER_A, {})).toEqual({ hourly: 10, daily: 30 });
+    expect(await q.resolveChatDocumentLimits(USER_A, { CHAT_DOCUMENT_HOURLY_LIMIT: '3', CHAT_DOCUMENT_DAILY_LIMIT: '5' })).toEqual({ hourly: 3, daily: 5 });
+    expect(await q.resolveChatDocumentLimits(USER_A, { CHAT_DOCUMENT_HOURLY_LIMIT: '-1', CHAT_DOCUMENT_DAILY_LIMIT: 'lots' })).toEqual({ hourly: 10, daily: 30 });
+  });
+
+  it('limit reached → 429 with scope and Retry-After; nothing created', async () => {
+    quotaResponse = { data: { allowed: false, scope: 'hourly', retry_after_seconds: 1234 }, error: null };
+    const before = db.user_documents.length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Netlify handler response shape
+    const res = await (init.handler as any)({ httpMethod: 'POST', headers: { 'content-type': 'application/json', ...bearer(TOKEN_A) }, body: JSON.stringify(body) }, {});
+    expect(res.statusCode).toBe(429);
+    expect(res.headers['Retry-After']).toBe('1234');
+    expect(JSON.parse(res.body)).toEqual({ error: 'chat_document_limit', scope: 'hourly', retryAfterSeconds: 1234 });
+    expect(db.user_documents.length).toBe(before);
+  });
+
+  it('quota function missing or failing (migration not applied) → 503 fail closed, nothing created', async () => {
+    quotaResponse = { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
+    const before = db.user_documents.length;
+    expect((await invoke(init.handler, bearer(TOKEN_A), body)).statusCode).toBe(503);
+    expect(db.user_documents.length).toBe(before);
+  });
+
+  it('invalid requests never consume quota; imports never touch it', async () => {
+    await invoke(init.handler, bearer(TOKEN_A), { ...body, fileSize: 16 * 1024 * 1024 });
+    await invoke(init.handler, bearer(TOKEN_A), { ...body, mimeType: 'text/csv', fileName: 'x.csv' });
+    await invoke(init.handler, bearer(TOKEN_A), { fileName: 'stmt.csv', mimeType: 'text/csv', fileSize: 10, lastModified: 1 });
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  it('replayed / concurrent finalize starts exactly ONE OCR job', async () => {
+    storageFiles[`${USER_A}/${CHAT_A}/notes.pdf`] = await makePdf(2);
+    const [a, b] = await Promise.all([
+      invoke(finalize.handler, bearer(TOKEN_A), { docId: CHAT_A }),
+      invoke(finalize.handler, bearer(TOKEN_A), { docId: CHAT_A }),
+    ]);
+    const third = await invoke(finalize.handler, bearer(TOKEN_A), { docId: CHAT_A, retry: true });
+    expect(fnCalls.filter((c) => c.fn === 'smart-import-ocr-background')).toHaveLength(1);
+    const skipped = [a, b, third].filter((r) => r.json.reason === 'already_processing');
+    expect(skipped).toHaveLength(2);
+    expect(db.user_documents[0].status).toBe('ocr_processing');
+  });
+
+  it('OCR background skips a replayed job for a finished chat document (static)', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../smart-import-ocr-background.ts'), 'utf8');
+    expect(src).toMatch(/isChatDocument && \['ready', 'rejected', 'purged', 'needs_review'\]\.includes/);
+    expect(src).toMatch(/chat_document_already_processed/);
+  });
+
+  it("a forged x-user-id cannot move a request into another user's bucket (or out of its own)", async () => {
+    const rl = await import('../_shared/rate-limit-v2');
+    const ok = vi.fn(async () => ({ statusCode: 200, body: 'ok' }));
+    const limited = rl.withRateLimit(ok, { key: `b1-forge-${Date.now()}`, limitPerMinute: 1, burst: 1 });
+    const fromIp = (forgedUser: string) => ({ httpMethod: 'POST', headers: { 'x-nf-client-connection-ip': '203.0.113.9', 'x-user-id': forgedUser }, body: '{}' });
+    const first = await limited(fromIp(USER_A), {});
+    const second = await limited(fromIp(USER_B), {}); // same client, different forged identity
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(429);
+    // a verified keyFn still separates real users (unchanged behaviour for openai-vision / parse-pdf)
+    const perUser = rl.withRateLimit(ok, { key: `b1-verified-${Date.now()}`, limitPerMinute: 1, burst: 1, keyFn: (e: { __verified?: string }) => `user:${e.__verified}` });
+    expect((await perUser({ ...fromIp('x'), __verified: USER_A }, {})).statusCode).toBe(200);
+    expect((await perUser({ ...fromIp('x'), __verified: USER_B }, {})).statusCode).toBe(200);
+    expect((await perUser({ ...fromIp(USER_B), __verified: USER_A }, {})).statusCode).toBe(429);
+  });
+
+  it('rate-limit-v2 never keys on client identity headers', async () => {
+    const rl = await import('../_shared/rate-limit-v2');
+    expect(rl.clientIpKey({ headers: { 'x-user-id': USER_B, 'x-nf-client-connection-ip': '203.0.113.7' } })).toBe('ip:203.0.113.7');
+    expect(rl.clientIpKey({ headers: { 'x-user-id': USER_B, 'x-forwarded-for': '198.51.100.2, 10.0.0.1' } })).toBe('ip:198.51.100.2');
+    expect(rl.clientIpKey({ headers: { 'x-user-id': USER_B, 'x-api-key': 'k' } })).toBe('ip-unknown');
+    const src = fs.readFileSync(path.resolve(__dirname, '../_shared/rate-limit-v2.ts'), 'utf8');
+    expect(src).toMatch(/const keyId = keyFn\?\.\(event\) \|\| clientIpKey\(event\);/);
+    expect(src).not.toMatch(/headers\?\.\["x-user-id"\]/);
   });
 });

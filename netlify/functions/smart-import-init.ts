@@ -11,6 +11,7 @@ import {
   parseRequestedPurpose,
   type DocumentPurpose,
 } from './_shared/documentPurpose.js';
+import { claimChatDocumentUpload, resolveChatDocumentLimits } from './_shared/chatDocumentQuota.js';
 
 const MAX_FILE_NAME_LENGTH = 180;
 
@@ -341,6 +342,21 @@ export const handler: Handler = async (event) => {
       }
       if (normalizedFileSize > CHAT_DOCUMENT_MAX_BYTES) {
         return { statusCode: 413, body: JSON.stringify({ error: 'file_too_large' }) };
+      }
+      // Attachments E8: atomic per-user upload quota (verified user id only), checked after the
+      // cheap validation so rejected requests don't use quota. Fails closed if unavailable.
+      const quota = await claimChatDocumentUpload(sb, userId, await resolveChatDocumentLimits(userId));
+      if (!quota.allowed) {
+        if ('unavailable' in quota) {
+          console.warn('[smart-import-init] chat document quota unavailable');
+          return { statusCode: 503, body: JSON.stringify({ error: 'chat_documents_unavailable' }) };
+        }
+        console.warn('[smart-import-init] chat document quota reached', { scope: quota.scope });
+        return {
+          statusCode: 429,
+          headers: { 'Retry-After': String(quota.retryAfterSeconds) },
+          body: JSON.stringify({ error: 'chat_document_limit', scope: quota.scope, retryAfterSeconds: quota.retryAfterSeconds }),
+        };
       }
     }
 
