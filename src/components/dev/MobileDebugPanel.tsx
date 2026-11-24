@@ -1,4 +1,5 @@
 import React from 'react';
+import { isMobileDebugEnabled } from './mobileDebugGate';
 
 interface MobileDebugData {
   path: string;
@@ -16,9 +17,13 @@ interface MobileDebugPanelProps {
 }
 
 export default function MobileDebugPanel({ data }: MobileDebugPanelProps) {
-  const search = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const enabled = import.meta.env.VITE_MOBILE_DEBUG === 'true' || (search?.get('debugMobile') === '1');
-  
+  // S-1: development builds only; ?debugMobile=1 does nothing in production.
+  const enabled = isMobileDebugEnabled(
+    import.meta.env.DEV,
+    import.meta.env.VITE_MOBILE_DEBUG,
+    typeof window !== 'undefined' ? window.location.search : null,
+  );
+
   if (!enabled) return null;
 
   const getStatusColor = (value: boolean) => value ? 'text-green-400' : 'text-red-400';
