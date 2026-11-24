@@ -9,6 +9,7 @@ import { useSetAtom } from 'jotai';
 import { isPrimeBriefingOpenAtom } from '../../lib/uiStore';
 import { CompactScoreRing } from '../../pages/XspenseScore/ScoreRing';
 import { useXspenseScore } from '../../pages/XspenseScore/useXspenseScore';
+import { isXspenseScoreVisible } from '../../pages/XspenseScore/scoreDisplay';
 import { Bell, User, Settings, HelpCircle, LogOut } from 'lucide-react';
 import { CommandPalette } from './CommandPalette';
 import { useControlCenterDrawer } from '../settings/ControlCenterDrawer';
@@ -144,7 +145,8 @@ export default function DashboardHeader(_props: DashboardHeaderProps) {
           </button>
           {/* Notifications */}
           {/* Score badge */}
-          {!scoreData.loading && (
+          {/* XS-1: hidden while the Xspense Score is under accuracy review (scoreDisplay.ts). */}
+          {isXspenseScoreVisible() && !scoreData.loading && (
             <button onClick={() => navigate('/dashboard/xspense-score')} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors" style={{ background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={(e) => { e.currentTarget.style.background = '#162035'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
               <CompactScoreRing score={scoreData.overallScore} size={24} />
               <span className="text-[11px] font-bold" style={{ color: '#e8ecf4' }}>{scoreData.overallScore}</span>

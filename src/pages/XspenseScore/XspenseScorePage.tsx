@@ -5,6 +5,7 @@ import { useXspenseScore } from "./useXspenseScore";
 import { ScoreRing } from "./ScoreRing";
 import { PillarBreakdown } from "./PillarBreakdown";
 import { Reveal } from "../PrimeChatV2/Reveal";
+import { isXspenseScoreVisible, XSPENSE_SCORE_REVIEW_MESSAGE } from "./scoreDisplay";
 
 export default function XspenseScorePage() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
@@ -12,6 +13,19 @@ export default function XspenseScorePage() {
   const data = useXspenseScore();
   const [loaded, setLoaded] = useState(false);
   useEffect(() => setLoaded(true), []);
+
+  // Score review hold: show no number, ring, pillar scores or point impacts until the
+  // score's accuracy is reviewed (see scoreDisplay.ts). No placeholder score is shown.
+  if (!isXspenseScoreVisible()) {
+    return (
+      <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", padding: isMobile ? "20px 16px" : "28px 36px" }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>Xspense Score</h1>
+        <div role="status" style={{ marginTop: 20, maxWidth: 560, background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: "20px 22px", fontSize: 14, lineHeight: 1.6, color: THEME.textMuted }}>
+          {XSPENSE_SCORE_REVIEW_MESSAGE}
+        </div>
+      </div>
+    );
+  }
 
   if (data.loading) {
     return (
@@ -26,15 +40,8 @@ export default function XspenseScorePage() {
   }
 
   const scoreColor = getScoreColor(data.overallScore);
-
-  // Score history mini chart
-  const histW = 280, histH = 60;
-  const histMax = Math.max(...data.history.map(d => d.score));
-  const histMin = Math.min(...data.history.map(d => d.score));
-  const histRange = histMax - histMin || 1;
-  const histPts = data.history.map((d, i) =>
-    `${(i / (data.history.length - 1)) * histW},${histH - ((d.score - histMin) / histRange) * histH * 0.8 - histH * 0.1}`
-  ).join(" ");
+  // The score-history chart was removed: useXspenseScore's history is simulated from the
+  // current score plus random noise, not stored history. It returns only with real data.
 
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", padding: isMobile ? "20px 16px" : "28px 36px" }}>
@@ -75,31 +82,6 @@ export default function XspenseScorePage() {
               <ScoreRing score={data.overallScore} />
               {/* N0-c: no "improved/dropped this month" claim; previousScore is an estimate
                   (useXspenseScore), not stored score history. */}
-            </div>
-          </Reveal>
-
-          {/* Score history */}
-          <Reveal delay={200}>
-            <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: "20px", marginBottom: 16 }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 14 }}>Score History</div>
-              <svg width={histW} height={histH} style={{ overflow: "visible" }}>
-                <defs>
-                  <linearGradient id="scoreHistGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={THEME.accent} stopOpacity="0.2" />
-                    <stop offset="100%" stopColor={THEME.accent} stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <polygon points={`0,${histH} ${histPts} ${histW},${histH}`} fill="url(#scoreHistGrad)" />
-                <polyline points={histPts} fill="none" stroke={THEME.accent} strokeWidth={2} strokeLinecap="round" />
-                {data.history.map((d, i) => (
-                  <circle key={i} cx={(i / (data.history.length - 1)) * histW} cy={histH - ((d.score - histMin) / histRange) * histH * 0.8 - histH * 0.1} r={3} fill={THEME.accent} stroke={THEME.bg} strokeWidth={2} />
-                ))}
-              </svg>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                {data.history.map((d, i) => (
-                  <span key={i} style={{ fontSize: 9, color: THEME.textDim }}>{d.month}</span>
-                ))}
-              </div>
             </div>
           </Reveal>
 
