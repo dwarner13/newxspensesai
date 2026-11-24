@@ -141,7 +141,7 @@ import { authorizeCapability } from '../../src/shared/capabilities';
 import { execute as executeStatementCoverage } from '../../src/agent/tools/impl/statement_coverage';
 import { isStatementInventoryQuestion, formatStatementCoverageEvidence } from '../../src/shared/prime-statement-guidance';
 import type { StatementCoverage } from '../../src/shared/statement-coverage';
-import { isCategorizationReviewQuestion, tagStatusInputFromScope, formatTagConsultationEvidence, buildTagConsultationEvent, type SpecialistConsultationEvent, type ResolvedPeriodLike } from '../../src/shared/prime-tag-consultation';
+import { isCategorizationReviewQuestion, tagStatusInputFromScope, formatTagConsultationEvidence, buildTagConsultationEvent, tagConsultationAnswered, TAG_CONSULTATION_FAILED_REPLY, type SpecialistConsultationEvent, type ResolvedPeriodLike } from '../../src/shared/prime-tag-consultation';
 import type { TagStatus } from '../../src/shared/tag-status';
 // Server-enforced AI tool confirmation gate
 import {
@@ -10652,6 +10652,8 @@ export const handler: Handler = async (event, context) => {
     // added when tag_status actually executed.
     const primeCategorizationReview: boolean = isPrime && isCategorizationReviewQuestion(String(masked || ''));
     const specialistConsultations: SpecialistConsultationEvent[] = [];
+    // L-D1: what Tag actually returned this turn (null = not run, denied or threw).
+    let tagConsultationResult: TagStatus | null = null;
     if (primeCategorizationReview) {
       try {
         const tagInput = tagStatusInputFromScope(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision?.apply);
@@ -10661,8 +10663,11 @@ export const handler: Handler = async (event, context) => {
           ? (await executeTagStatus(tagInput, { userId })) as unknown as { ok: boolean; value?: TagStatus }
           : null;
         if (tagResult && tagResult.ok && tagResult.value) {
+          tagConsultationResult = tagResult.value;
           systemMessages.push({ role: 'system', content: formatTagConsultationEvidence(tagResult.value) });
-          specialistConsultations.push(buildTagConsultationEvent(tagResult.value));
+          // L-D1: the success indicator only when the consultation actually succeeded.
+          const consultationEvent = buildTagConsultationEvent(tagResult.value);
+          if (consultationEvent) specialistConsultations.push(consultationEvent);
           console.log(`[L-A] tag_status consulted status=${tagResult.value.status} scope=${tagResult.value.scope.source}`);
         }
       } catch (e: unknown) {
@@ -14586,7 +14591,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       // If Prime's answer claims zero/none for a financial query but we have
       // no verified_zero evidence, reject the answer and retry once with
       // the authoritative evidence in the prompt.
-      if (isPrime && financialClassification?.requiresGrounding) {
+      // L-D1: for a categorization question answered from Tag's evidence, Tag's result IS the grounding
+      // (including a valid empty period), so the legacy false-zero check must not override it. Every
+      // other financial answer keeps the safeguard.
+      const tagEvidenceGrounds = primeCategorizationReview && tagConsultationAnswered(tagConsultationResult);
+      if (isPrime && financialClassification?.requiresGrounding && !tagEvidenceGrounds) {
         const validationResult = validateGroundedAnswer(assistantContent, financialEvidence as any, financialClassification);
 
         if (validationResult === 'false_zero_ungrounded' || validationResult === 'false_zero_without_evidence') {
@@ -14686,7 +14695,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           // If retry also failed or was rejected, return an honest fallback instead of the false zero
           if (!retrySucceeded) {
             // V1-A CP4.1: scoped P3.1C evidence owned this request but proved neither data nor zero
-            assistantContent = retryBlockedByP31C && !financialEvidence.grounded
+            assistantContent = primeCategorizationReview
+              // L-D1: categorization question whose Tag consultation failed — say so honestly.
+              ? TAG_CONSULTATION_FAILED_REPLY
+              : retryBlockedByP31C && !financialEvidence.grounded
               ? "I wasn't able to confirm a reliable result for that period from your imported data, so I can't give you a total right now. Could you try asking again?"
               : "I found financial data for that request, but I wasn't able to produce a reliable summary from it. Could you try asking again?";
             console.warn('[FinancialGrounding] false-zero retry failed — returning grounded fallback');

@@ -77,12 +77,53 @@ export function tagStatusInputFromScope(
 
 // ── L-A: evidence for the model, and the genuine consultation event ─────────
 
+// ── L-D1: outcome classes and the empty-period offer ──────────────────────
+
+export type TagConsultationOutcome = 'with_transactions' | 'no_transactions' | 'partial' | 'failed';
+
+/** L-D1: the four outcomes the owner asked to distinguish. */
+export function classifyTagConsultation(s: TagStatus | null | undefined): TagConsultationOutcome {
+  if (!s || s.status === 'query_error') return 'failed';
+  if (s.status === 'partial') return 'partial';
+  if (s.status === 'ok' && s.totals.transactionCount > 0) return 'with_transactions';
+  return 'no_transactions'; // no_transactions_in_period, outside_imported_coverage, no_imported_data
+}
+
+/** True when Tag produced usable evidence (anything except a failed consultation). */
+export function tagConsultationAnswered(s: TagStatus | null | undefined): boolean {
+  return classifyTagConsultation(s) !== 'failed';
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** "June 2026" from an ISO date, or null. */
+function monthLabel(iso: string | null | undefined): string | null {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const [y, m] = iso.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${y}`;
+}
+
+/** L-D1: honest reply when the consultation itself failed (never the legacy financial fallback). */
+export const TAG_CONSULTATION_FAILED_REPLY =
+  "I asked Tag to check your categories, but the check didn't complete, so I can't tell you yet whether anything needs fixing. Nothing was changed. Could you try again in a moment?";
+
 export function formatTagConsultationEvidence(s: TagStatus): string {
   const lines: string[] = [
     'TAG CONSULTATION RESULT (you consulted Tag via tag_status — read-only, server-verified):',
     `- Period / scope: ${s.scope.label} (${s.scope.source.replace(/_/g, ' ')})`,
     `- Status: ${s.status}`,
+    `- Outcome: ${classifyTagConsultation(s).replace(/_/g, ' ')}`,
   ];
+  // L-D1: an empty period is a valid answer — say so, give the coverage, and OFFER (never run) the latest month.
+  if (classifyTagConsultation(s) === 'no_transactions') {
+    const latest = monthLabel(s.coverage?.latestDate ?? null);
+    if (s.status === 'no_imported_data') {
+      lines.push('- There are no imported transactions yet, so there is nothing for Tag to review.');
+    } else {
+      lines.push(`- There are no imported transactions in ${s.scope.label}.${s.coverage?.latestDate ? ` The most recent imported transaction is dated ${s.coverage.latestDate}.` : ''}`);
+      if (latest) lines.push(`- OFFER (do not do it automatically): "Would you like me to have Tag review ${latest}, your most recent imported month?" Do not widen the period on your own.`);
+    }
+  }
   if (s.status !== 'query_error') {
     lines.push(`- Transactions in scope: ${s.totals.transactionCount}; uncategorized: ${s.totals.uncategorized}; "Other": ${s.totals.otherCount}; needs review: ${s.needsReviewCount}`);
     lines.push(`- Category sources: customer-confirmed ${s.provenance.customer_confirmed}, possibly customer-approved ${s.provenance.possibly_customer_approved}, automatic ${s.provenance.automatic}, needs review ${s.provenance.needs_review}, unknown ${s.provenance.unknown}`);
@@ -113,7 +154,11 @@ export interface SpecialistConsultationEvent {
   readOnly: true;
 }
 
-/** Only ever built from a tag_status result that actually executed. */
-export function buildTagConsultationEvent(s: TagStatus): SpecialistConsultationEvent {
+/**
+ * Only ever built from a tag_status result that actually executed AND succeeded (L-D1: no success
+ * indicator for a failed consultation).
+ */
+export function buildTagConsultationEvent(s: TagStatus): SpecialistConsultationEvent | null {
+  if (!tagConsultationAnswered(s)) return null;
   return { employee: 'tag', tool: 'tag_status', status: s.status, scopeLabel: s.scope.label, readOnly: true };
 }

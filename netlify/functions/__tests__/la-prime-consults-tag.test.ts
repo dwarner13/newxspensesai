@@ -103,9 +103,10 @@ describe('L-A chat.ts wiring', () => {
     expect(chat).toMatch(/tagStatusInputFromScope\(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision\?\.apply\)/);
   });
   it('the event is pushed only after a successful execution', () => {
-    const block = chat.slice(chat.indexOf('if (primeCategorizationReview) {'), chat.indexOf('if (primeCategorizationReview) {') + 900);
+    const block = chat.slice(chat.indexOf('if (primeCategorizationReview) {'), chat.indexOf('if (primeCategorizationReview) {') + 1800);
     const okAt = block.indexOf('if (tagResult && tagResult.ok && tagResult.value) {');
-    const pushAt = block.indexOf('specialistConsultations.push(buildTagConsultationEvent(tagResult.value));');
+    // L-D1: the event is built only for a successful consultation, then pushed.
+    const pushAt = block.indexOf('if (consultationEvent) specialistConsultations.push(consultationEvent);');
     expect(okAt).toBeGreaterThan(0);
     expect(pushAt).toBeGreaterThan(okAt);
     expect(chat.match(/specialistConsultations\.push\(/g)?.length).toBe(1);
@@ -123,7 +124,7 @@ describe('L-A chat.ts wiring', () => {
     expect(hook).toMatch(/if \(Array\.isArray\(payload\?\.specialistConsultations\) && payload\.specialistConsultations\.length > 0\) \{\n\s+extraMetaFromPayload\.specialistConsultations = payload\.specialistConsultations;/);
   });
   it('consultation is read-only: no confirmation, no write tool', () => {
-    const block = chat.slice(chat.indexOf('if (primeCategorizationReview) {'), chat.indexOf('if (primeCategorizationReview) {') + 900);
+    const block = chat.slice(chat.indexOf('if (primeCategorizationReview) {'), chat.indexOf('if (primeCategorizationReview) {') + 1800);
     expect(block).not.toMatch(/requiresConfirm|pendingConfirmation|tag_update_transaction_category|tag_bulk_recategorize/);
   });
 });
