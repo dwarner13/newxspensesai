@@ -1,10 +1,14 @@
 /**
  * LIVE-UI-04 — Account and Statement facts for the transaction drawer.
  *
- * Statement period comes only from verified sources, in this order (same as Prime's L-B):
+ * Statement period comes only from verified sources, in this order (agreed with Prime HQ
+ * and Attachments HQ; same as Prime's statement inventory, L-D3):
  *   1. imports.statement_breakdown_json.statement_meta.period_start / period_end
- *   2. user_documents.period_start / period_end for the import's document
- *   3. otherwise "Statement period unavailable"
+ *   2. user_documents.extracted_data.claude_vision.period.{start,end} (ISO, Vision extraction)
+ *   3. user_documents.metadata.statement_summary.statement_period, verbatim, "(as printed)"
+ *   4. otherwise "Statement period unavailable"
+ * Only those JSON paths are selected (never the whole extracted_data / metadata, which can
+ * hold OCR text). Any query error degrades to "unavailable".
  * It is never derived from transaction dates, and the Statement cell never repeats the
  * issuer (the old fallback showed "BMO" for both Account and Statement).
  */
@@ -19,6 +23,35 @@ export interface StatementFacts {
   last4: string | null;
   /** "May 17 – Jun 16, 2025" or null when not recorded */
   period: string | null;
+  /** true when `period` is the statement's own printed text, shown verbatim */
+  periodAsPrinted?: boolean;
+}
+
+export const PRINTED_PERIOD_MAX = 60;
+
+/**
+ * Period text exactly as printed on the statement (metadata.statement_summary.statement_period).
+ * Shown verbatim (whitespace collapsed, length-capped); never re-parsed into dates here.
+ */
+export function printedPeriodText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const t = value.replace(/\s+/g, ' ').trim();
+  if (t.length < 4) return null;
+  return t.length > PRINTED_PERIOD_MAX ? `${t.slice(0, PRINTED_PERIOD_MAX - 1).trimEnd()}…` : t;
+}
+
+/**
+ * Fill a missing period from the import's document, in the agreed order (same as Prime's
+ * statement inventory, L-D3): Claude Vision's extracted ISO period, then the printed text.
+ */
+export function withDocumentPeriod(f: StatementFacts, doc: { vision_period?: unknown; printed_period?: unknown } | null | undefined): StatementFacts {
+  if (f.period || !doc) return f;
+  const vp = (doc.vision_period && typeof doc.vision_period === 'object' ? doc.vision_period : {}) as Record<string, unknown>;
+  const vision = formatStatementPeriod(vp.start, vp.end);
+  if (vision) return { ...f, period: vision, periodAsPrinted: false };
+  const printed = printedPeriodText(doc.printed_period);
+  if (printed) return { ...f, period: printed, periodAsPrinted: true };
+  return f;
 }
 
 export function formatStatementPeriod(start: unknown, end: unknown): string | null {
@@ -47,5 +80,6 @@ export function accountText(f: StatementFacts | null): string | null {
 
 /** Statement cell text: the verified period, or the explicit "unavailable" wording. */
 export function statementText(f: StatementFacts | null): string {
-  return f?.period || STATEMENT_PERIOD_UNAVAILABLE;
+  if (!f?.period) return STATEMENT_PERIOD_UNAVAILABLE;
+  return f.periodAsPrinted ? `${f.period} (as printed)` : f.period;
 }

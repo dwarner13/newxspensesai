@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { factsFromStatementMeta, formatStatementPeriod, accountText, statementText, STATEMENT_PERIOD_UNAVAILABLE } from '../statementFacts';
+import { factsFromStatementMeta, formatStatementPeriod, accountText, statementText, withDocumentPeriod, STATEMENT_PERIOD_UNAVAILABLE } from '../statementFacts';
 
 const root = path.resolve(__dirname, '../../..');
 const drawer = fs.readFileSync(path.join(root, 'src/components/transactions/TransactionInsightDrawer.tsx'), 'utf8');
@@ -26,8 +26,21 @@ describe('LIVE-UI-04 statement facts', () => {
     expect(formatStatementPeriod('2025-05-17T00:00:00.000Z', '2025-06-16T00:00:00.000Z')).toBe('May 17 – Jun 16, 2025');
   });
 
-  it('drawer falls back to user_documents.period_start/end, never to filenames or transaction dates', () => {
-    expect(drawer).toMatch(/from\('user_documents'\)\.select\('period_start, period_end'\)/);
+  it('document fallbacks: Vision ISO period, then printed text "(as printed)"', () => {
+    const base = factsFromStatementMeta({ issuer: 'BMO' }, id);
+    expect(statementText(withDocumentPeriod(base, { vision_period: { start: '2025-10-15', end: '2025-11-14' }, printed_period: 'x' }))).toBe('Oct 15 – Nov 14, 2025');
+    expect(statementText(withDocumentPeriod(base, { vision_period: null, printed_period: ' Oct 15, 2025 -  Nov 14, 2025 ' }))).toBe('Oct 15, 2025 - Nov 14, 2025 (as printed)');
+    expect(statementText(withDocumentPeriod(base, { vision_period: { start: '2025-10-15' }, printed_period: null }))).toBe(STATEMENT_PERIOD_UNAVAILABLE);
+    expect(statementText(withDocumentPeriod(base, null))).toBe(STATEMENT_PERIOD_UNAVAILABLE);
+    // statement_meta wins when present
+    const meta = factsFromStatementMeta({ period_start: '2025-05-17', period_end: '2025-06-16' }, id);
+    expect(withDocumentPeriod(meta, { printed_period: 'other' }).period).toBe('May 17 – Jun 16, 2025');
+  });
+
+  it('drawer selects only the two JSON paths, degrades on error, never uses filenames or transaction dates', () => {
+    expect(drawer).toMatch(/\.select\('vision_period:extracted_data->claude_vision->period, printed_period:metadata->statement_summary->>statement_period'\)/);
+    expect(drawer).toMatch(/if \(!docError\) facts = withDocumentPeriod\(facts, doc as any\);/);
+    expect(drawer).not.toMatch(/period_start, period_end/);
     expect(drawer).not.toMatch(/statementLabel/);
     expect(drawer).not.toMatch(/original_name/);
     expect(drawer).toMatch(/statementText\(statementMeta\)/);
