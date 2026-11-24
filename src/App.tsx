@@ -111,6 +111,7 @@ import MarketingHomePage from './pages/MarketingSite/MarketingHomePage';
 const PricingPage = lazy(() => import('./pages/MarketingSite/PricingPage'));
 const AIResultsPage = lazy(() => import('./pages/dashboard/AIResultsPage'));
 const EmployeeChatPage = lazy(() => import('./pages/dashboard/EmployeeChatPage'));
+const PrimeWorkspaceRoute = lazy(() => import('./pages/PrimeChatV2/PrimeWorkspaceRoute'));
 const AnalyticsAI = lazy(() => import('./pages/dashboard/AnalyticsAI'));
 
 // Feature pages
@@ -584,6 +585,8 @@ function App() {
                       <Route path="team-room" element={<Navigate to="/dashboard" replace />} />
                       
                       {/* Employee Chat Routes */}
+                      {/* UX-P2b: Prime full page = Workspace mode of the single mounted Prime chat. */}
+                      <Route path="chat/prime" element={<Suspense fallback={<LoadingSpinner />}><PrimeWorkspaceRoute /></Suspense>} />
                       <Route path="chat/:employeeId" element={<EmployeeChatPage />} />
                       <Route path="chat" element={<Navigate to="/dashboard/chat/prime" replace />} />
                       <Route path="blitz" element={<EmployeeChatPage />} />

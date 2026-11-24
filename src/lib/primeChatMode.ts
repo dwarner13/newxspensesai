@@ -12,6 +12,17 @@ export function primePanelWidth(mode: PrimeChatMode): string {
   return `min(${PRIME_PANEL_WIDTH[mode]}px, 100vw)`;
 }
 
+/** Workspace content column width (messages + composer). */
+export const WORKSPACE_COLUMN_PX = 760;
+
+/**
+ * Horizontal padding that centres the Workspace column; the normal 16px gutter otherwise.
+ * Padding (not a wrapper element) keeps the chat DOM identical across modes.
+ */
+export function workspaceSideGutter(mode: PrimeChatMode): string {
+  return mode === 'workspace' ? `max(16px, calc((100% - ${WORKSPACE_COLUMN_PX}px) / 2))` : '16px';
+}
+
 /** Quick ↔ Expanded toggle (Workspace returns to Quick). */
 export function nextExpandMode(mode: PrimeChatMode): PrimeChatMode {
   return mode === 'quick' ? 'expanded' : 'quick';
