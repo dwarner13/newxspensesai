@@ -366,6 +366,8 @@ export default function CategoriesPageV2() {
         category={selectedCategory}
         onClose={() => { setSelectedCategory(null); setSubcategoryFilter(null); }}
         subcategoryFilter={subcategoryFilter}
+        selectedYear={selectedYear}
+        selectedPeriod={selectedPeriod || undefined}
         isTagOpen={copilotOpen}
         onAskTag={(question) => { setCopilotInitialMessage(question); setCopilotOpen(true); }}
       />
