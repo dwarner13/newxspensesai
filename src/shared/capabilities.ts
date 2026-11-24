@@ -36,6 +36,8 @@ export const TOOL_CAPABILITIES: Readonly<Record<string, CapabilitySpec>> = Objec
   tag_update_transaction_category: { capability: 'tag.change_category', ownerEmployee: 'tag', kind: 'write' },
   tag_bulk_recategorize: { capability: 'tag.bulk_recategorize', ownerEmployee: 'tag', kind: 'write' },
   statement_coverage: { capability: 'byte.statement_inventory', ownerEmployee: 'byte', kind: 'read' },
+  // Not a tool: server-loaded chat-document excerpts (Attachments E1 reads them through this hook).
+  chat_document_context: { capability: 'byte.chat_document_context', ownerEmployee: 'byte', kind: 'read' },
   tx_search: { capability: 'prime.transaction_search', ownerEmployee: 'prime', kind: 'read' },
   tx_get: { capability: 'prime.transaction_search', ownerEmployee: 'prime', kind: 'read' },
   select_transaction: { capability: 'prime.transaction_search', ownerEmployee: 'prime', kind: 'read' },
@@ -66,7 +68,7 @@ export interface CapabilityRequest {
   actingEmployee: string;
   toolId: string;
   /** How the capability is reached: the model's tool call, or a server-side Prime consultation. */
-  via: 'tool_call' | 'prime_consultation';
+  via: 'tool_call' | 'prime_consultation' | 'document_access';
 }
 
 export interface CapabilityDecision {

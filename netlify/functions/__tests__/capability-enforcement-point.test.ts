@@ -26,6 +26,7 @@ describe('capability ownership', () => {
     expect(capabilityForTool('statement_coverage')).toMatchObject({ ownerEmployee: 'byte' });
     expect(capabilityForTool('analytics_forecast').ownerEmployee).toBe('crystal');
     expect(capabilityForTool('goalie_create_goal')).toMatchObject({ ownerEmployee: 'goalie', kind: 'write' });
+    expect(capabilityForTool('chat_document_context')).toMatchObject({ capability: 'byte.chat_document_context', ownerEmployee: 'byte', kind: 'read', classified: true });
   });
   it('unknown tools are visibly unclassified, never silently trusted', () => {
     expect(capabilityForTool('brand_new_tool')).toMatchObject({ classified: false, capability: 'unclassified.brand_new_tool' });
