@@ -19,8 +19,11 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 
 export const handler: Handler = async (event, context) => {
-  // PRODUCTION SAFETY: Disable in production
-  if (process.env.NETLIFY_DEV !== 'true' && process.env.NODE_ENV === 'production') {
+  // SECURITY (P-1 memory audit): this endpoint reads any user's memory with the admin client and
+  // has no authentication. NODE_ENV is NOT set on the Netlify sites, so the old
+  // "NODE_ENV === 'production'" gate never fired and staging served it. Now it runs ONLY under
+  // `netlify dev` with an explicit opt-in flag; every deployed context returns 404.
+  if (process.env.NETLIFY_DEV !== 'true' || process.env.DEBUG_MEMORY_ENDPOINT !== '1') {
     return {
       statusCode: 404,
       headers: { 'Content-Type': 'application/json' },
