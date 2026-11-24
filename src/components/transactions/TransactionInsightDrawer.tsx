@@ -184,7 +184,7 @@ export function TransactionInsightDrawer({
           if (!facts.period && docId) {
             const { data: doc, error: docError } = await supabase
               .from('user_documents')
-              .select('vision_period:extracted_data->claude_vision->period, printed_period:metadata->statement_summary->>statement_period')
+              .select('period_start, period_end, vision_period:extracted_data->claude_vision->period, printed_period:metadata->statement_summary->>statement_period')
               .eq('id', docId).maybeSingle();
             if (!docError) facts = withDocumentPeriod(facts, doc as any);
           }

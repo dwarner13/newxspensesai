@@ -34,15 +34,21 @@ describe('LIVE-UI-04 statement facts', () => {
     expect(statementText(withDocumentPeriod(base, null))).toBe(STATEMENT_PERIOD_UNAVAILABLE);
     // identical halves ("period ending" statements) are not shown as a one-day period
     expect(statementText(withDocumentPeriod(base, { printed_period: 'Oct 15, 2025 - Oct 15, 2025' }))).toBe('Period ending Oct 15, 2025 (as printed)');
+    // legacy document columns sit between Vision and printed text (shared rule order)
+    expect(statementText(withDocumentPeriod(base, { period_start: '2025-01-01', period_end: '2025-01-31', printed_period: 'x y z' }))).toBe('Jan 1 – Jan 31, 2025');
+  });
+
+  it('uses the shared L-D3 rule so the drawer and Prime agree', () => {
+    const src = fs.readFileSync(path.join(root, 'src/lib/statementFacts.ts'), 'utf8');
+    expect(src).toMatch(/import \{ resolveStatementPeriod, type StatementPeriod \} from '@\/shared\/statement-period';/);
     // statement_meta wins when present
     const meta = factsFromStatementMeta({ period_start: '2025-05-17', period_end: '2025-06-16' }, id);
     expect(withDocumentPeriod(meta, { printed_period: 'other' }).period).toBe('May 17 – Jun 16, 2025');
   });
 
-  it('drawer selects only the two JSON paths, degrades on error, never uses filenames or transaction dates', () => {
-    expect(drawer).toMatch(/\.select\('vision_period:extracted_data->claude_vision->period, printed_period:metadata->statement_summary->>statement_period'\)/);
+  it('drawer selects only the period fields (no OCR text), degrades on error, never uses filenames or transaction dates', () => {
+    expect(drawer).toMatch(/\.select\('period_start, period_end, vision_period:extracted_data->claude_vision->period, printed_period:metadata->statement_summary->>statement_period'\)/);
     expect(drawer).toMatch(/if \(!docError\) facts = withDocumentPeriod\(facts, doc as any\);/);
-    expect(drawer).not.toMatch(/period_start, period_end/);
     expect(drawer).not.toMatch(/statementLabel/);
     expect(drawer).not.toMatch(/original_name/);
     expect(drawer).toMatch(/statementText\(statementMeta\)/);
