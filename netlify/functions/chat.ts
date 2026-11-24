@@ -7056,6 +7056,12 @@ export const handler: Handler = async (event, context) => {
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime merchant_analysis_refine tool enabled via runtime fallback');
           }
+          // COLLAB-2a: read-only Tag consultation (code-owned; no database tool list change)
+          if (!employeeTools.includes('tag_status')) {
+            employeeTools = [...employeeTools, 'tag_status'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime tag_status tool enabled (COLLAB-2a, read-only)');
+          }
         }
         
         if (finalEmployeeSlug === 'tag-ai' || finalEmployeeSlug === 'tag') {

@@ -32,6 +32,7 @@ import * as transactionCategoryTotals from './impl/transaction_category_totals';
 import * as cashFlowSummary from './impl/cash_flow_summary';
 import * as merchantTotals from './impl/merchant_totals';
 import * as accountBalancesQuery from './impl/account_balances_query';
+import * as tagStatus from './impl/tag_status';
 import * as goalsQuery from './impl/goals_query';
 import * as createGoal from './impl/create_goal';
 import * as updateGoal from './impl/update_goal';
@@ -484,6 +485,19 @@ const toolModules: Map<string, ToolModule> = new Map([
     meta: {
       timeout: 15000,
       rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['tag_status', {
+    id: 'tag_status',
+    description: 'READ-ONLY. Ask Tag about categorization quality for the customer: category counts by source (customer-confirmed / automatic / needs review / unknown), needs-review count, recent corrections, and suspected misclassifications from Tag\'s review rules. Pass startDate/endDate (YYYY-MM-DD) for the period the customer asked about (periodSource "requested") or the period already established in this conversation (periodSource "conversation"); pass importId for one imported statement; with no period it uses the current calendar month. It never changes categories.',
+    inputSchema: tagStatus.inputSchema,
+    outputSchema: tagStatus.outputSchema,
+    run: tagStatus.execute,
+    meta: {
+      mutates: false,
+      requiresConfirm: false,
+      timeout: 10000,
+      rateLimit: { perMinute: 10 },
     },
   }],
   ['account_balances_query', {
