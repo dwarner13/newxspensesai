@@ -29,6 +29,8 @@ export interface TagStatusScope {
   endDate?: string;
   importId?: string;
   label: string;
+  /** Set when a requested period and a document were both referenced (never silently combined). */
+  conflict?: string;
 }
 
 export const C4_PROVENANCE_CAVEAT =
@@ -64,9 +66,13 @@ function monthBounds(today: Date): { startDate: string; endDate: string; label: 
 }
 
 /**
- * Resolve the scope. `periodSource` says where Prime got the dates: the customer's explicit request
- * or the period already established in the conversation. An importId (document context) is used
- * only when no period is given. Otherwise the current calendar month.
+ * Resolve the scope (owner precedence, Phase 2 authorization 2026-11-23):
+ *   1. explicit customer-requested period (periodSource 'requested', the default for dates);
+ *   2. explicitly referenced document (importId);
+ *   3. period established in the conversation (periodSource 'conversation');
+ *   4. current calendar month.
+ * When an explicit period AND a document are both given they are never silently combined: the
+ * requested period is used and `conflict` explains the distinction so Prime can clarify.
  */
 export function resolveTagStatusScope(
   input: { startDate?: string; endDate?: string; periodSource?: 'requested' | 'conversation'; importId?: string },
@@ -74,16 +80,23 @@ export function resolveTagStatusScope(
 ): TagStatusScope {
   const s = input.startDate && ISO.test(input.startDate) ? input.startDate : undefined;
   const e = input.endDate && ISO.test(input.endDate) ? input.endDate : undefined;
-  if (s && e && s <= e) {
+  const hasPeriod = !!(s && e && s <= e);
+  const hasDocument = !!(input.importId && UUID.test(input.importId));
+  const requested = hasPeriod && input.periodSource !== 'conversation';
+  if (requested) {
     return {
-      source: input.periodSource === 'conversation' ? 'conversation_period' : 'requested_period',
+      source: 'requested_period',
       startDate: s,
       endDate: e,
       label: `${s} through ${e}`,
+      ...(hasDocument ? { conflict: 'Both a period and a specific statement were referenced. Results cover the requested period only, not the statement; ask which one the customer meant if it matters.' } : {}),
     };
   }
-  if (input.importId && UUID.test(input.importId)) {
+  if (hasDocument) {
     return { source: 'document', importId: input.importId, label: 'the selected imported statement' };
+  }
+  if (hasPeriod) {
+    return { source: 'conversation_period', startDate: s, endDate: e, label: `${s} through ${e}` };
   }
   const m = monthBounds(today);
   return { source: 'default_current_month', startDate: m.startDate, endDate: m.endDate, label: `${m.label} (current month — no period was given)` };
@@ -219,6 +232,7 @@ export function summarizeTagStatus(input: {
     caveats.push('Only part of this period was scanned (row limit reached); counts are minimums.');
   }
   if (scope.source === 'default_current_month') caveats.push('No period was given, so the current calendar month was used. Say so.');
+  if (scope.conflict) caveats.push(scope.conflict);
   if (feedback === null) caveats.push('Recent correction history could not be retrieved.');
 
   return {

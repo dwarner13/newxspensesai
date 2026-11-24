@@ -43,6 +43,7 @@ export const outputSchema = z.object({
     endDate: z.string().optional(),
     importId: z.string().optional(),
     label: z.string(),
+    conflict: z.string().optional(),
   }),
   totals: z.object({ transactionCount: z.number(), categorized: z.number(), uncategorized: z.number(), otherCount: z.number() }),
   provenance: z.object({ customer_confirmed: z.number(), possibly_customer_approved: z.number(), automatic: z.number(), needs_review: z.number(), unknown: z.number() }),

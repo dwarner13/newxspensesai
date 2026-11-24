@@ -2,6 +2,7 @@ import { buildPrimePrivacyGuidance } from '../../../src/shared/prime-privacy-gui
 import { buildPrimeSourceTransparency } from '../../../src/shared/prime-source-transparency';
 import { buildTeamCapabilityRoster } from '../../../src/shared/prime-capability-registry';
 import { buildPrimeTagConsultationRule } from '../../../src/shared/prime-tag-consultation';
+import { buildPrimeDocumentGuidance } from '../../../src/shared/prime-document-guidance';
 
 export type PrimeLane = 'fast' | 'deep';
 
@@ -85,6 +86,8 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     buildTeamCapabilityRoster(),
     '',
     buildPrimeTagConsultationRule(),
+    '',
+    buildPrimeDocumentGuidance(),
     '',
     ...laneRules,
     `- Lane: ${input.lane}`,

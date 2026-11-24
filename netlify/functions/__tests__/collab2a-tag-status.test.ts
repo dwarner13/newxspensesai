@@ -100,13 +100,25 @@ describe('scope precedence (owner decision)', () => {
   it('1. explicit customer period', () => {
     expect(resolveTagStatusScope({ startDate: '2026-10-01', endDate: '2026-10-31', periodSource: 'requested' }, NOW)).toMatchObject({ source: 'requested_period', startDate: '2026-10-01', endDate: '2026-10-31' });
   });
-  it('2. established conversation period', () => {
+  const imp = '33333333-3333-4333-8333-333333333333';
+  it('2. explicitly referenced document beats the conversation period (Phase 2 order)', () => {
+    expect(resolveTagStatusScope({ importId: imp }, NOW)).toMatchObject({ source: 'document', importId: imp });
+    expect(resolveTagStatusScope({ importId: imp, startDate: '2026-09-01', endDate: '2026-09-30', periodSource: 'conversation' }, NOW))
+      .toMatchObject({ source: 'document', importId: imp });
+  });
+  it('3. established conversation period when no request or document', () => {
     expect(resolveTagStatusScope({ startDate: '2026-09-01', endDate: '2026-09-30', periodSource: 'conversation' }, NOW).source).toBe('conversation_period');
   });
-  it('3. explicit document context only when no period is given', () => {
-    const imp = '33333333-3333-4333-8333-333333333333';
-    expect(resolveTagStatusScope({ importId: imp }, NOW)).toMatchObject({ source: 'document', importId: imp });
-    expect(resolveTagStatusScope({ importId: imp, startDate: '2026-10-01', endDate: '2026-10-31' }, NOW).source).toBe('requested_period');
+  it('requested period + document are never silently combined: requested wins and the conflict is explained', () => {
+    const s = resolveTagStatusScope({ importId: imp, startDate: '2026-10-01', endDate: '2026-10-31', periodSource: 'requested' }, NOW);
+    expect(s).toMatchObject({ source: 'requested_period', startDate: '2026-10-01', endDate: '2026-10-31' });
+    expect(s.importId).toBeUndefined();
+    expect(s.conflict).toMatch(/Both a period and a specific statement were referenced/);
+    const summary = summarizeTagStatus({ scope: s, rows: [], queryFailed: false, capped: false, userHasAnyTransactions: true, coverage: null, feedbackMerchants: [] });
+    expect(summary.caveats).toContain(s.conflict);
+  });
+  it('no conflict note when only one scope is given', () => {
+    expect(resolveTagStatusScope({ startDate: '2026-10-01', endDate: '2026-10-31' }, NOW).conflict).toBeUndefined();
   });
   it('4. current calendar month fallback, clearly labelled', () => {
     const s = resolveTagStatusScope({}, NOW);
