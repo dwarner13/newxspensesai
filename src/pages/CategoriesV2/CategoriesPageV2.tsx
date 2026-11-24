@@ -6,7 +6,8 @@ import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME } from "./categoryConfig";
 import { useCategoriesData } from "./useCategoriesData";
 import { useProfile } from "@/hooks/useProfile";
-import { CategoryCard } from "./CategoryCard";
+import { CategoryListRow } from "./CategoryListRow";
+import { formatMonthPeriod } from "@/lib/categoryList";
 import { CategoryDetailDrawer } from "./CategoryDetailDrawer";
 import { AgentInsightStrip } from "./AgentInsightStrip";
 import { TagCopilotPanel } from "@/components/transactions/TagCopilotPanel";
@@ -17,11 +18,8 @@ import type { CategoryData } from "./categoryConfig";
 const CYAN = "#22d3ee";
 const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
-function formatPeriod(p: string): string {
-  const [year, month] = p.split("-");
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${months[parseInt(month, 10) - 1]} ${year}`;
-}
+// K-a: readable text colours (the shared THEME.textDim #64748b is below 4.5:1 on this navy).
+const KA = { text: "#e8ecf4", muted: "#c8d0e0", dim: "#9ba8bc" } as const;
 
 export default function CategoriesPageV2() {
   const navigate = useNavigate();
@@ -84,6 +82,14 @@ export default function CategoriesPageV2() {
   const [budgetCategory, setBudgetCategory] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
   const [budgetSaving, setBudgetSaving] = useState(false);
+  // K-a: ⋯ menu (Refresh, Tag rules, Goalie budget); Escape closes it.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth <= 768);
@@ -169,175 +175,157 @@ export default function CategoriesPageV2() {
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <div style={{ fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 1100, margin: "0 auto", padding: isMobile ? "20px 16px" : "32px 24px" }}>
 
-        {/* Header */}
+        {/* K-a: compact header — title, filters, search, Export and a ⋯ menu (Refresh, Tag Rules, Goalie budget) */}
         <Reveal delay={0}>
-          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: isMobile ? 12 : 0 }}>
-            <div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-                <h1 style={{ fontSize: 24, fontWeight: 800, color: "white", margin: 0, letterSpacing: -0.3 }}>Categories</h1>
-                <select
-                  value={selectedYear === 'all' ? 'all' : String(selectedYear)}
-                  onChange={(e) => setSelectedYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  style={{
-                    background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 8,
-                    color: '#e8ecf4', padding: '6px 12px', fontSize: 14, fontWeight: 600,
-                    cursor: 'pointer', outline: 'none',
-                  }}
-                >
-                  {data.availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                  <option value="all">All Years</option>
-                </select>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h1 style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: "white", margin: 0, letterSpacing: -0.3 }}>Categories</h1>
+                <p style={{ fontSize: 14, color: KA.dim, margin: "4px 0 0" }}>
+                  {data.categoryCount} categories &middot; {totalTxCount} transactions
+                  {selectedPeriod && <span style={{ color: CYAN }}> &middot; {formatMonthPeriod(selectedPeriod)}</span>}
+                </p>
               </div>
-              <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
-                {data.categoryCount} categories &middot; {totalTxCount} transactions
-                {selectedPeriod && <span style={{ color: CYAN }}> &middot; {formatPeriod(selectedPeriod)}</span>}
-              </p>
+              <button type="button" onClick={handleExport} aria-label="Export categories as CSV"
+                style={{ minHeight: 44, padding: isMobile ? "0 12px" : "0 16px", fontSize: 14, fontWeight: 700, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.muted, cursor: "pointer", fontFamily: "inherit" }}>
+                Export
+              </button>
+              <div style={{ position: "relative" }}>
+                <button type="button" onClick={() => setMenuOpen(v => !v)} aria-haspopup="menu" aria-expanded={menuOpen} aria-label="More actions"
+                  style={{ width: 44, height: 44, fontSize: 20, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.muted, cursor: "pointer" }}>
+                  ⋯
+                </button>
+                {menuOpen && (
+                  <div role="menu" aria-label="More actions" style={{ position: "absolute", right: 0, top: 50, zIndex: 30, minWidth: 220, padding: 6, borderRadius: 12, background: "#0f182b", border: `1px solid ${THEME.borderLight}`, boxShadow: "0 12px 32px rgba(0,0,0,0.45)" }}>
+                    {[
+                      { label: isRefreshing ? "Refreshing…" : "Refresh", onSelect: handleRefresh },
+                      { label: "Tag rules", onSelect: () => navigate('/dashboard/categories/rules') },
+                      { label: "Goalie: set a budget", onSelect: () => { setBudgetCategory(filtered[0]?.name || ""); setBudgetModal(true); } },
+                    ].map(item => (
+                      <button key={item.label} type="button" role="menuitem"
+                        onClick={() => { setMenuOpen(false); item.onSelect(); }}
+                        style={{ display: "block", width: "100%", minHeight: 44, padding: "0 12px", textAlign: "left", borderRadius: 8, border: "none", background: "transparent", color: KA.text, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={handleRefresh} disabled={isRefreshing} title="Refresh data"
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 10, color: isRefreshing ? CYAN : THEME.textMuted, cursor: isRefreshing ? "wait" : "pointer", opacity: isRefreshing ? 0.8 : 1, transition: "all 0.15s" }}>
-                <span style={{ display: "inline-block", transition: "transform 0.6s", transform: isRefreshing ? "rotate(360deg)" : "rotate(0deg)", fontSize: 14, lineHeight: 1 }}>↻</span>
-                {!isMobile && <span>{isRefreshing ? "Refreshing" : "Refresh"}</span>}
-              </button>
-              {!isMobile && (
-                <>
-                <button onClick={() => navigate('/dashboard/categories/rules')} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: `${CYAN}10`, border: `1px solid ${CYAN}30`, borderRadius: 10, color: CYAN, cursor: "pointer" }}>
-                  Tag Rules
-                </button>
-                <button onClick={handleExport} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 10, color: THEME.textMuted, cursor: "pointer" }}>
-                  Export
-                </button>
-                </>
-              )}
-              <button onClick={() => { setBudgetCategory(filtered[0]?.name || ""); setBudgetModal(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, fontWeight: 700, background: "linear-gradient(135deg, #fbbf24, #d97706)", border: "none", borderRadius: 10, color: "#0b1220", cursor: "pointer", boxShadow: "0 4px 16px rgba(251,191,36,0.35)" }}>
-                {'\u26A1'} Goalie: Set Budget
-              </button>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+              <label style={{ display: "flex", flex: "1 1 220px", minWidth: 0 }}>
+                <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Search categories</span>
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search categories"
+                  style={{ flex: 1, minWidth: 0, minHeight: 44, padding: "0 14px", background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 12, color: THEME.text, fontSize: 16, fontFamily: "inherit", outline: "none" }} />
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: KA.dim }}>
+                Year
+                <select value={selectedYear === 'all' ? 'all' : String(selectedYear)}
+                  onChange={(e) => setSelectedYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  style={{ minHeight: 44, padding: "0 12px", background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.text, fontSize: 15, fontWeight: 600, cursor: "pointer", outline: "none", fontFamily: "inherit" }}>
+                  {data.availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                  <option value="all">All years</option>
+                </select>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: KA.dim }}>
+                Month
+                <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}
+                  style={{ minHeight: 44, padding: "0 12px", background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, borderRadius: 12, color: KA.text, fontSize: 15, fontWeight: 600, cursor: "pointer", outline: "none", fontFamily: "inherit" }}>
+                  <option value="">{selectedYear === 'all' ? "All months" : "All of the year"}</option>
+                  {data.availablePeriods.map(p => <option key={p} value={p}>{formatMonthPeriod(p)}</option>)}
+                </select>
+              </label>
             </div>
           </div>
         </Reveal>
 
-        {/* Income / Expense / Net hero banner + period selector */}
+        {/* K-a: compact income / expenses / net strip */}
         <Reveal delay={50}>
-          <div style={{ borderRadius: 16, background: THEME.surface, border: `1px solid ${THEME.border}`, padding: "20px 24px", marginBottom: 20 }}>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: data.availablePeriods.length > 0 ? 16 : 0 }}>
-
-              {/* Income */}
-              <div>
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>Income</div>
-                <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 800, color: THEME.green }}>${fmt(data.totalIncome)}</div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{selectedPeriod ? formatPeriod(selectedPeriod) : "All time"}</div>
-              </div>
-
-              {/* Expenses */}
-              <div>
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>Expenses</div>
-                <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 800, color: THEME.red }}>${fmt(data.totalSpent)}</div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>excl. transfers</div>
-              </div>
-
-              {/* Net — desktop only */}
-              {!isMobile && (
-                <div>
-                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: "#94a3b8", fontWeight: 700, marginBottom: 6 }}>Net</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: net >= 0 ? THEME.green : THEME.red }}>
-                    {net >= 0 ? "+$" : "-$"}{fmt(Math.abs(net))}
-                  </div>
-                  <div style={{ fontSize: 11, color: net >= 0 ? THEME.green : THEME.red, marginTop: 2, fontWeight: 600 }}>
-                    {net >= 0 ? "\u2191 Positive cash flow" : "\u2193 Spending exceeds income"}
-                  </div>
-                </div>
-              )}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: 12, padding: "14px 18px", borderRadius: 14, background: THEME.surface, border: `1px solid ${THEME.border}`, marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Income</div>
+              <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, color: THEME.green }}>${fmt(data.totalIncome)}</div>
             </div>
-
-            {/* Period pills */}
-            {data.availablePeriods.length > 0 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingTop: 14, borderTop: `1px solid ${THEME.border}` }}>
-                <button
-                  onClick={() => setSelectedPeriod("")}
-                  style={{ padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer", border: `1px solid ${!selectedPeriod ? CYAN : THEME.border}`, background: !selectedPeriod ? `${CYAN}18` : "transparent", color: !selectedPeriod ? CYAN : THEME.textMuted, transition: "all 0.15s" }}
-                >
-                  All Time
-                </button>
-                {data.availablePeriods.slice(0, 8).map(p => (
-                  <button key={p} onClick={() => setSelectedPeriod(p)}
-                    style={{ padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer", border: `1px solid ${selectedPeriod === p ? CYAN : THEME.border}`, background: selectedPeriod === p ? `${CYAN}18` : "transparent", color: selectedPeriod === p ? CYAN : THEME.textMuted, transition: "all 0.15s" }}
-                  >
-                    {formatPeriod(p)}
-                  </button>
-                ))}
+            <div>
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Expenses <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>(excl. transfers)</span></div>
+              <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, color: THEME.red }}>${fmt(data.totalSpent)}</div>
+            </div>
+            {!isMobile && (
+              <div>
+                <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Net</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: net >= 0 ? THEME.green : THEME.red }}>{net >= 0 ? "+$" : "-$"}{fmt(Math.abs(net))}</div>
               </div>
             )}
           </div>
         </Reveal>
 
-        {/* Tag insight strip */}
-        <Reveal delay={150}>
+        {/* Review banner — opens Tag on request (no auto-open) */}
+        <Reveal delay={100}>
           <button type="button" onClick={() => setCopilotOpen(true)}
-            style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 18px", borderRadius: 14, marginBottom: 20, background: `${CYAN}04`, border: `1px solid ${CYAN}18`, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }}
-            onMouseEnter={e => { e.currentTarget.style.background = `${CYAN}08`; e.currentTarget.style.borderColor = `${CYAN}30`; }}
-            onMouseLeave={e => { e.currentTarget.style.background = `${CYAN}04`; e.currentTarget.style.borderColor = `${CYAN}18`; }}
-          >
-            <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: CYAN, boxShadow: `0 0 12px ${CYAN}25` }}>T</div>
-            <div style={{ flex: 1, fontSize: 12, color: THEME.textMuted }}>
-              <span style={{ color: CYAN, fontWeight: 600 }}>{data.uncategorizedCount} items need review</span>
-              {data.subcategorySuggestions?.length > 0 && <>{" \u2022 "}{data.subcategorySuggestions.length} subcategory split{data.subcategorySuggestions.length !== 1 ? "s" : ""} suggested</>}
-              {" \u2022 "}Tag rules active
-            </div>
-
+            style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", minHeight: 52, padding: "10px 16px", borderRadius: 14, marginBottom: 14, background: `${CYAN}06`, border: `1px solid ${CYAN}24`, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+            <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: CYAN }}>T</span>
+            <span style={{ flex: 1, fontSize: 15, color: KA.muted }}>
+              <span style={{ color: CYAN, fontWeight: 700 }}>{data.uncategorizedCount} items need review</span>
+              {data.subcategorySuggestions?.length > 0 && <>{" • "}{data.subcategorySuggestions.length} subcategory split{data.subcategorySuggestions.length !== 1 ? "s" : ""} suggested</>}
+            </span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: CYAN }}>Review with Tag</span>
           </button>
         </Reveal>
 
         {/* Agent insights */}
-        <Reveal delay={200}>
-          <div style={{ marginBottom: 20 }}>
+        <Reveal delay={150}>
+          <div style={{ marginBottom: 16 }}>
             <AgentInsightStrip data={data} />
           </div>
         </Reveal>
 
-        {/* Search */}
-        <Reveal delay={250}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 12, marginBottom: 20 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={THEME.textDim} strokeWidth="2">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search categories..."
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: THEME.text, fontSize: 13, fontFamily: "inherit" }} />
-          </div>
-        </Reveal>
-
-        {/* Main category grid — equal cards, 3-col on desktop */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
-          {filtered.map((cat, i) => (
-            <Reveal key={cat.name} delay={300 + i * 60}>
-              <CategoryCard
+        {/* K-a: compact category list (replaces the 3-column card grid) */}
+        <section aria-label="Categories" style={{ borderRadius: 14, background: THEME.surface, border: `1px solid ${THEME.border}`, overflow: "hidden" }}>
+          {!isMobile && filtered.length > 0 && (
+            <div aria-hidden="true" style={{ display: "grid", gridTemplateColumns: "36px minmax(0, 1.6fr) minmax(0, 1fr) 110px 64px", gap: 16, padding: "10px 18px", borderBottom: `1px solid ${THEME.border}`, fontSize: 12, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: KA.dim }}>
+              <span /><span>Category</span><span>Share of expenses</span><span style={{ textAlign: "right" }}>Spent</span><span style={{ textAlign: "right" }}>Trend</span>
+            </div>
+          )}
+          <ul style={{ margin: 0, padding: 0 }}>
+            {filtered.map(cat => (
+              <CategoryListRow
+                key={cat.name}
                 category={cat}
-                onClick={() => { setSubcategoryFilter(null); setSelectedCategory(cat); }}
-                onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(cat); }}
+                totalSpent={data.totalSpent}
+                isMobile={isMobile}
+                onOpen={() => { setSubcategoryFilter(null); setSelectedCategory(cat); }}
+                onSubcategory={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(cat); }}
               />
-            </Reveal>
-          ))}
-        </div>
-
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "48px 0", color: THEME.textDim, fontSize: 14 }}>
-            {search ? "No categories match your search" : "No categories found. Upload a statement to get started."}
-          </div>
-        )}
+            ))}
+          </ul>
+          {filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: "40px 16px", color: KA.dim, fontSize: 15 }}>
+              {search ? "No categories match your search" : "No categories found. Upload a statement to get started."}
+            </div>
+          )}
+        </section>
 
         {/* Money Movement — Transfers shown separately, excluded from expense totals */}
         {!search && transfersCategory && (
           <Reveal delay={200}>
-            <div style={{ marginTop: 32 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <div style={{ width: 14, height: 2, borderRadius: 1, background: THEME.blue }} />
-                <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: THEME.blue }}>Money Movement</span>
+            <section aria-label="Money movement" style={{ marginTop: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <h2 style={{ margin: 0, fontSize: 13, textTransform: "uppercase", letterSpacing: 1.2, fontWeight: 700, color: THEME.blue }}>Money movement</h2>
                 <div style={{ flex: 1, height: 1, background: THEME.border }} />
-                <span style={{ fontSize: 12, color: "#94a3b8" }}>Not counted in expenses</span>
+                <span style={{ fontSize: 13, color: KA.dim }}>Not counted in expenses</span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
-                <CategoryCard category={transfersCategory} onClick={() => { setSubcategoryFilter(null); setSelectedCategory(transfersCategory); }} onSubcategoryClick={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(transfersCategory); }} />
-              </div>
-            </div>
+              <ul style={{ margin: 0, padding: 0, borderRadius: 14, background: THEME.surface, border: `1px solid ${THEME.border}`, overflow: "hidden" }}>
+                <CategoryListRow
+                  category={transfersCategory}
+                  totalSpent={data.totalSpent}
+                  isMobile={isMobile}
+                  showShare={false}
+                  onOpen={() => { setSubcategoryFilter(null); setSelectedCategory(transfersCategory); }}
+                  onSubcategory={(name, merchantNames) => { setSubcategoryFilter({ name, merchantNames }); setSelectedCategory(transfersCategory); }}
+                />
+              </ul>
+            </section>
           </Reveal>
         )}
       </div>
