@@ -103,6 +103,8 @@ export interface EvidenceScope {
   startDate?: string;
   endDate?: string;
   year?: number;
+  /** PB-01: the merchant a merchant_aggregation step was scoped to (display only; not compared). */
+  merchant?: string;
 }
 
 /** The scope carried by the executed tool args (never parsed from prose). */
@@ -111,6 +113,7 @@ function evidenceScopeFromArgs(args: Record<string, unknown>): EvidenceScope {
   if (typeof args.startDate === 'string') scope.startDate = args.startDate;
   if (typeof args.endDate === 'string') scope.endDate = args.endDate;
   if (typeof args.year === 'number') scope.year = args.year;
+  if (typeof args.merchant === 'string' && args.merchant.trim()) scope.merchant = args.merchant.trim().slice(0, 80);
   return scope;
 }
 
@@ -980,6 +983,41 @@ export function legacyQueryStatusFromP31C(
   return null;
 }
 
+/**
+ * PB-01: the legacy FinancialGrounding status PROVEN by P3.1C merchant_aggregation evidence when the
+ * P3.3A merchant gate replaces the legacy tx_search pre-run.
+ *   any authoritative resolved merchant result          → 'verified'
+ *   every merchant result a proven-complete empty       → 'verified_zero' (a truthful "$0 / none")
+ *   anything else (partial, non-authoritative, none)    → null (nothing proven)
+ */
+export function merchantGateQueryStatus(
+  executionResult: PrimeEvidenceExecutionResult | null,
+): 'verified' | 'verified_zero' | null {
+  if (!executionResult) return null;
+  const merchant = executionResult.results.filter(r => r.evidenceKind === 'merchant_aggregation');
+  if (merchant.length === 0) return null;
+  const resolved = merchant.filter(r => r.status === 'resolved');
+  if (resolved.length > 0) return resolved.some(r => r.authoritative) ? 'verified' : null;
+  if (merchant.every(r => r.status === 'successful_empty' && isProvenEmpty(r))) return 'verified_zero';
+  return null;
+}
+
+/**
+ * PB-01: true when P3.1C produced authoritative evidence for an explicit period (startDate and
+ * endDate), resolved or proven empty. A legacy retry (which searches a whole year) must never
+ * replace that evidence: it would pull out-of-period rows into a period answer.
+ */
+export function hasPeriodScopedAuthoritativeEvidence(
+  executionResult: PrimeEvidenceExecutionResult | null,
+): boolean {
+  if (!executionResult) return false;
+  return executionResult.results.some(r =>
+    r.authoritative === true
+    && (r.status === 'resolved' || r.status === 'successful_empty')
+    && !!r.scope?.startDate && !!r.scope?.endDate,
+  );
+}
+
 /** Relevant P3.1C results for a legacy tool (shared evidence-kind mapping). */
 function relevantP31CResults(
   executionResult: PrimeEvidenceExecutionResult | null,
@@ -1270,12 +1308,33 @@ export function buildEvidenceShapePolicy(result: PrimeEvidenceExecutionResult): 
  */
 /** V1-A CP4.2: aggregate evidence states the exact scope it covers (from execution args). */
 function formatAggregateScope(result: PrimeEvidenceResult): string {
+  // PB-01: merchant evidence states its merchant and exact period too.
+  if (result.evidenceKind === 'merchant_aggregation' && result.scope) {
+    const { startDate, endDate, merchant } = result.scope;
+    const m = merchant ? ` merchant="${merchant}"` : '';
+    if (startDate && endDate) return ` tool=${result.tool}${m} period=${startDate} through ${endDate}`;
+    if (!startDate && !endDate) return ` tool=${result.tool}${m} period=all imported history`;
+    return ` tool=${result.tool}${m}`;
+  }
   if (!(result.evidenceKind in AGGREGATE_EVIDENCE_TOOLS) || !result.scope) return '';
   const { startDate, endDate, year } = result.scope;
   if (startDate && endDate) return ` tool=${result.tool} period=${startDate} through ${endDate}`;
   if (typeof year === 'number') return ` tool=${result.tool} year=${year}`;
   if (!startDate && !endDate) return ` tool=${result.tool} period=all imported history`;
   return ` tool=${result.tool}`;
+}
+
+/** PB-01: an empty result names what was searched and the exact period, so "$0 / none" is stated truthfully. */
+function formatEmptyEvidenceBody(result: PrimeEvidenceResult): string {
+  const base = 'No matching records found in the currently imported data. This is a verified empty result, not a retrieval failure.';
+  const sc = result.scope;
+  if (!sc || !sc.startDate || !sc.endDate) return base;
+  const what = result.evidenceKind === 'merchant_aggregation' && sc.merchant ? `${sc.merchant} transactions` : 'matching transactions';
+  const proven = result.authoritative === true && isProvenEmpty(result);
+  return `${proven ? 'verified_zero: ' : ''}There are no ${what} between ${sc.startDate} and ${sc.endDate} in the currently imported data. `
+    + 'This is a verified empty result, not a retrieval failure. '
+    + 'Answer for this period only: do NOT use transactions dated outside this period to answer it. '
+    + 'You may separately mention when matching transactions do exist, clearly labelled with their own dates.';
 }
 
 export function buildEvidenceContextMessage(
@@ -1293,7 +1352,7 @@ export function buildEvidenceContextMessage(
       const dataStr = formatEvidenceData(result);
       sections.push(`${header}\n${dataStr}`);
     } else if (result.status === 'successful_empty') {
-      sections.push(`${header}\nNo matching records found in the currently imported data. This is a verified empty result, not a retrieval failure.`);
+      sections.push(`${header}\n${formatEmptyEvidenceBody(result)}`);
     } else if (result.status === 'failed') {
       sections.push(`${header}\nData retrieval failed. Do not guess or estimate this value.`);
     } else if (result.status === 'skipped') {

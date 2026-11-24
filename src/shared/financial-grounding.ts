@@ -315,13 +315,35 @@ export function validateGroundedAnswer(
  * This replaces the "AUTHORITATIVE" directive with ACTUAL data from a real
  * tool execution, not frontend context that may be stale/loading.
  */
+/** PB-01: human-readable search scope from the executed tool args (never parsed from prose). */
+export function formatSearchScope(toolArgs?: Record<string, unknown>): string | null {
+  if (!toolArgs) return null;
+  const parts: string[] = [];
+  if (typeof toolArgs.q === 'string' && toolArgs.q) parts.push(`search "${toolArgs.q.slice(0, 60)}"`);
+  if (typeof toolArgs.merchant === 'string' && toolArgs.merchant) parts.push(`merchant "${toolArgs.merchant.slice(0, 60)}"`);
+  const start = typeof toolArgs.startDate === 'string' ? toolArgs.startDate : null;
+  const end = typeof toolArgs.endDate === 'string' ? toolArgs.endDate : null;
+  if (start || end) parts.push(`dates ${start ?? 'beginning'} through ${end ?? 'latest'}`);
+  else if (typeof toolArgs.year === 'number') parts.push(`year ${toolArgs.year}`);
+  else parts.push('dates: all imported history');
+  return `Search scope: ${parts.join(', ')}`;
+}
+
 export function buildEvidenceSystemMessage(
   toolName: string,
   toolResult: any,
   classification: FinancialQueryClassification,
+  toolArgs?: Record<string, unknown>,
 ): string {
   const lines: string[] = [];
   lines.push(`FINANCIAL EVIDENCE (server-verified, from ${toolName}):`);
+  // PB-01: always state the exact search scope, so rows are never mistaken for a different period.
+  const scopeLine = formatSearchScope(toolArgs);
+  if (scopeLine) {
+    lines.push(scopeLine);
+    lines.push('These rows answer ONLY for the search scope above. If the user asked about a different or narrower period, '
+      + 'use only rows whose dates fall inside that period; rows outside it must not be counted toward its total.');
+  }
 
   if (toolName === 'tax_summary') {
     const sections = toolResult?.sections || toolResult?.data?.sections || [];
@@ -395,7 +417,7 @@ export function buildEvidenceSystemMessage(
   // of resolvedCategory so merchant queries (e.g. "Costco") are covered.
   if (toolName === 'tx_search') {
     lines.push('');
-    lines.push('You already have verified transaction data above. Do NOT call tx_search for this query — the data is authoritative. You may call tx_search only if the user asks a DIFFERENT question requiring different search parameters.');
+    lines.push('You already have verified transaction data above. Do NOT call tx_search for this query — the data is authoritative for its search scope only. You may call tx_search only if the user asks a DIFFERENT question requiring different search parameters.');
 
     // ── Deterministic list directive ──
     // When a transaction list is being rendered as a structured card,

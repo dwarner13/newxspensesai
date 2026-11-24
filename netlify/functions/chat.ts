@@ -230,6 +230,8 @@ import {
   buildEvidenceContextMessage,
   shouldSuppressLegacyPreExec,
   legacyQueryStatusFromP31C,
+  merchantGateQueryStatus,
+  hasPeriodScopedAuthoritativeEvidence,
   satisfiedAggregateEvidenceKinds,
   lookupP31CCachedResult,
   AGGREGATE_EVIDENCE_TOOLS,
@@ -237,6 +239,7 @@ import {
   type PrimeEvidenceExecutionResult,
   type DedupCache,
 } from '../../src/shared/prime-evidence-executor';
+import { fetchTransactionCoverage, formatCoverageNote, emptyRequestedPeriod, type CoverageClient } from '../../src/shared/prime-data-coverage';
 // P3.1D: Post-stream evidence violation detection (telemetry only)
 import {
   detectEvidenceViolation,
@@ -10536,6 +10539,24 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    // ── PB-01: actual data coverage when the requested period proved empty ──
+    // Lets Prime say "no data for that period; your imported history runs X–Y" instead of
+    // filling the period with out-of-period rows. Owner-scoped counts and dates only.
+    if (isPrime && p31cResult) {
+      const emptyPeriod = emptyRequestedPeriod(p31cResult.results);
+      if (emptyPeriod) {
+        try {
+          const coverage = await fetchTransactionCoverage(admin() as unknown as CoverageClient, userId);
+          if (coverage) {
+            systemMessages.push({ role: 'system', content: formatCoverageNote(coverage, emptyPeriod) });
+            console.log(`[PB-01] coverage note injected (count=${coverage.transactionCount})`);
+          }
+        } catch (e: unknown) {
+          console.warn('[PB-01] coverage note failed (non-fatal):', (e as Error)?.name ?? 'Error');
+        }
+      }
+    }
+
     // ── P3.2B2B: Inject merchant analysis context into model prompt ──
     // Provides active merchant groups, exclusions, and refinement instructions.
     // Only injected when context is valid (within TTL) and a merchant query is active.
@@ -13180,8 +13201,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 console.log(`[FinancialGrounding] ${gateLabel} gate: skipping legacy ${plan.toolName} pre-exec — evidence already resolved`);
                 // V1-A CP4.1: P3.1C's actual result decides what is proven (verified / verified_zero).
                 // Suppressed-but-unproven evidence (partial, non-authoritative, classification-incomplete)
-                // claims no verified status. Only the P3.3A merchant gate keeps 'verified'.
-                const gateQueryStatus = p31cSuppressed ? legacyQueryStatusFromP31C(p31cResult, plan.toolName!) : 'verified';
+                // claims no verified status. PB-01: the P3.3A merchant gate reports what the merchant
+                // evidence actually proved — 'verified_zero' for a proven-empty period, never a blanket 'verified'.
+                const gateQueryStatus = p31cSuppressed ? legacyQueryStatusFromP31C(p31cResult, plan.toolName!) : merchantGateQueryStatus(p31cResult);
                 financialEvidence = gateQueryStatus
                   ? { grounded: true, toolName: plan.toolName as any, queryStatus: gateQueryStatus, fromContext: false }
                   : { grounded: false };
@@ -13243,7 +13265,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     };
 
                     // Inject evidence into messages as system prompt
-                    const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, preResult, financialClassification);
+                    const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, preResult, financialClassification, plan.toolArgs);
                     messages.push({ role: 'system', content: evidenceMsg });
                     console.log(`[FinancialGrounding] evidence=tool tool=${plan.toolName} queryStatus=${qs}`);
 
@@ -14436,7 +14458,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             const plan = buildPreExecutionPlan(financialClassification, contextYear);
             const untrustedMerchantRetry = isUntrustedMerchantHint(financialClassification, resolveMerchantHintTrust(financialClassification, merchantGroundingKeys));
             // V1-A CP4.1: scoped P3.1C evidence (resolved or empty, proven or not) is never replaced by a legacy retry tool
-            const p31cRetrySuppressed = plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false;
+            // PB-01: period-scoped authoritative P3.1C evidence (e.g. merchant_totals for last month) is never
+            // replaced by the legacy retry, which searches a whole year and would pull in out-of-period rows.
+            const p31cRetrySuppressed = (plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false)
+              || merchantAggSatisfied
+              || hasPeriodScopedAuthoritativeEvidence(p31cResult);
             if (p31cRetrySuppressed) {
               retryBlockedByP31C = true;
               console.log(`[FinancialGrounding] P3.1C gate: skipping legacy ${plan.toolName} false-zero retry — scoped P3.1C evidence owns this request`);
@@ -14476,7 +14502,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // establishment. It writes NEITHER Layer 1 nor Layer 2 — it must not
                 // overwrite (or clear) conversational transaction identity.
 
-                const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification);
+                const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification, plan.toolArgs);
                 messages.push(
                   { role: 'assistant', content: assistantContent },
                   { role: 'system', content: `CORRECTION: Your previous answer claimed zero/no data but the database query found results. Here is the actual evidence:\n\n${evidenceMsg}\n\nPlease rewrite your answer using this verified data. Do NOT claim zero unless the evidence shows zero.` }
