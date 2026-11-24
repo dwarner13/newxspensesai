@@ -31,6 +31,8 @@ import type { ChatMessage } from "@/hooks/usePrimeChat";
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
 import { ActionReceiptCard, parseActionReceipt } from "@/components/chat/ActionReceiptCard";
 import { TransactionCandidateListCard, parseTxCandidates } from "@/components/chat/TransactionCandidateListCard";
+import { SpecialistConsultationMarker } from "@/components/chat/SpecialistConsultationMarker";
+import { parseSpecialistConsultations } from "@/lib/specialistConsultation";
 import {
   shouldRevealCandidateCard,
   isCandidateCardRevealTransition,
@@ -1385,8 +1387,11 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                       const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult) || parseActionReceipt(metaAny?.actionReceipt);
                       if (actionReceipt) return <ActionReceiptCard receipt={actionReceipt} />;
                       const txCandidates = parseTxCandidates(metaAny);
+                      // L-A: only for consultations the server recorded on this assistant message.
+                      const consultations = parseSpecialistConsultations(metaAny, msg.role);
                       return (
                         <>
+                          <SpecialistConsultationMarker consultations={consultations} />
                           <TypingMessage
                             content={msg.content}
                             messageId={msg.id}
