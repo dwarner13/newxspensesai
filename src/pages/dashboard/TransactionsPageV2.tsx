@@ -7,6 +7,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
 import { groupImportsIntoAccounts } from '@/lib/accountGroups';
+import { calendarDayOfTx, inDateRange, isRangeActive } from '@/lib/categoryPeriod';
+import { readTxToolbarParams, writeTxToolbarParams } from '@/lib/txToolbar';
 import { useUnifiedChatLauncher } from '@/hooks/useUnifiedChatLauncher';
 import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
 import { TAG_REVIEW_PARAM, isTransactionUuid, type TxListFilters } from '@/lib/tagReview';
@@ -99,7 +101,7 @@ export default function TransactionsPageV2() {
   }, [isRefreshing, refetch]);
   const { imports } = useImportList();
   const { openChat } = useUnifiedChatLauncher();
-  const [filter, setFilter] = useState<'all' | 'expenses' | 'income'>('all');
+  const [filter, setFilter] = useState<'all' | 'expenses' | 'income'>(() => { try { return readTxToolbarParams(window.location.search).type; } catch { return 'all'; } });
   const listRef = useRef<HTMLDivElement>(null);
   const [statementFilter, setStatementFilter] = useState<string>(initialParams.importId || 'all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
@@ -114,6 +116,10 @@ export default function TransactionsPageV2() {
     } catch { return new Date().getFullYear(); }
   });
   const [searchQuery, setSearchQuery] = useState('');
+  // X-1: custom date range and type kept in the URL (same calendar-day rule as Categories).
+  const [initialToolbar] = useState(() => { try { return readTxToolbarParams(window.location.search); } catch { return readTxToolbarParams(''); } });
+  const [rangeFrom, setRangeFrom] = useState<string>(initialToolbar.from);
+  const [rangeTo, setRangeTo] = useState<string>(initialToolbar.to);
   const [tagFilterLabel, setTagFilterLabel] = useState('');
   const [tagCategoryFilter, setTagCategoryFilter] = useState('');
   const [tagSubcategoryFilter, setTagSubcategoryFilter] = useState('');
@@ -178,6 +184,14 @@ export default function TransactionsPageV2() {
   const [tagFollowupMerchants, setTagFollowupMerchants] = useState<any[] | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showProcessingBanner, setShowProcessingBanner] = useState(false);
+
+  // X-1: date range and type <-> URL (other params kept)
+  useEffect(() => {
+    try {
+      const qs = writeTxToolbarParams(window.location.search, { from: rangeFrom, to: rangeTo, type: filter });
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs ? '?' + qs : ''}`);
+    } catch { /* non-fatal */ }
+  }, [rangeFrom, rangeTo, filter]);
 
   // Year filter <-> URL sync
   useEffect(() => {
@@ -602,7 +616,11 @@ export default function TransactionsPageV2() {
 
   const filtered = useMemo(() => {
     let list = transactions;
-    if (yearFilter !== 'all') {
+    const range = (rangeFrom || rangeTo) && !(rangeFrom && rangeTo && rangeFrom > rangeTo) ? { from: rangeFrom || undefined, to: rangeTo || undefined } : null;
+    if (isRangeActive(range)) {
+      // X-1: an active custom range replaces the year filter (calendar days, as in Categories).
+      list = list.filter(t => inDateRange(calendarDayOfTx(t), range));
+    } else if (yearFilter !== 'all') {
       const y = String(yearFilter);
       list = list.filter(t => {
         const d = (t.date || t.posted_at || (t as any).transaction_date || (t as any).txn_date || '').slice(0, 4);
@@ -638,7 +656,7 @@ export default function TransactionsPageV2() {
       });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter, yearFilter]);
+  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter, yearFilter, rangeFrom, rangeTo]);
 
   const handleExport = useCallback(() => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -693,6 +711,8 @@ export default function TransactionsPageV2() {
       });
   }, [imports]);
   const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
+  // X-1: categories present in the loaded transactions, for the toolbar filter.
+  const categoryOptions = useMemo(() => Array.from(new Set(transactions.map(t => t.category || 'Uncategorized'))).sort((a, b) => a.localeCompare(b)), [transactions]);
 
   // AI insights — from filtered
   const insights = useMemo(() => {
@@ -737,6 +757,7 @@ export default function TransactionsPageV2() {
   const applyRevealFilters = useCallback((f: TxListFilters) => {
     setYearFilter(f.year); setFilter(f.type); setStatementFilter(f.statement); setAccountFilter(f.account);
     setTagCategoryFilter(f.category); setTagSubcategoryFilter(f.subcategory); setSearchQuery(f.search);
+    setRangeFrom(''); setRangeTo('');
   }, []);
   useRevealReviewedTransaction({ highlightTxId, transactions, filtered, visibleCount, setVisibleCount, applyFilters: applyRevealFilters });
 
@@ -772,36 +793,91 @@ export default function TransactionsPageV2() {
         </div>
       )}
       <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-3">
-          <div className="min-w-0 md:flex-1">
+        {/* X-1: header — title and page actions */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="min-w-0 flex-1">
             {isStatementMode && (
               <button
                 onClick={() => { setStatementFilter('all'); setAccountFilter('all'); }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', letterSpacing: 0.2 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 32, fontSize: 13, fontWeight: 600, color: '#9ba8bc', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               >
                 ← All Transactions
               </button>
             )}
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-              <h1 style={{ fontSize: isStatementMode ? 22 : 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0, lineHeight: 1.2 }}>
-                {isStatementMode ? activeStatementLabel : 'Transactions'}
-              </h1>
-              <select
-                value={yearFilter === 'all' ? 'all' : String(yearFilter)}
-                onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                style={{
-                  background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 8,
-                  color: '#e8ecf4', padding: '6px 12px', fontSize: 14, fontWeight: 600,
-                  cursor: 'pointer', outline: 'none',
-                }}
+            <h1 style={{ fontSize: isStatementMode ? 22 : 28, fontWeight: 800, letterSpacing: -0.5, color: '#e8ecf4', margin: 0, lineHeight: 1.2 }}>
+              {isStatementMode ? activeStatementLabel : 'Transactions'}
+            </h1>
+          </div>
+              {/* C2-E1: Ask Prime — opens the existing Prime panel; this page stays visible underneath */}
+              <button
+                type="button"
+                onClick={handleOpenPrime}
+                aria-label="Ask Prime about your transactions"
+                data-testid="ask-prime-transactions"
+                className="flex items-center gap-1.5 px-3 text-[13px] font-bold rounded-lg border min-h-[44px]"
+                style={{ background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.35)', color: '#e8cf86', cursor: 'pointer' }}
               >
-                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                <option value="all">All Years</option>
-              </select>
+                <span aria-hidden="true">{"♕"}</span> Ask Prime
+              </button>
+          <button onClick={handleRefresh} disabled={isRefreshing} title="Refresh data" aria-label="Refresh transactions" className={`flex items-center gap-2 px-3 min-h-[44px] text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg transition-colors ${isRefreshing ? 'opacity-60 cursor-wait' : 'hover:bg-slate-700/50'}`}>
+            <span aria-hidden="true" className={`inline-block ${isRefreshing ? 'animate-spin' : ''}`} style={{ fontSize: 15, lineHeight: 1 }}>↻</span>
+            <span className="hidden sm:inline">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
+          </button>
+          <button onClick={handleExport} aria-label="Export transactions as CSV" className="flex items-center gap-2 px-3 min-h-[44px] text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-colors"><Download className="h-4 w-4" /><span className="hidden sm:inline">Export</span></button>
+          <button onClick={handleUpload} className="flex items-center gap-2 px-4 min-h-[44px] text-[13px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-400 hover:to-orange-400 transition-colors"><Upload className="h-4 w-4" />Upload</button>
+        </div>
+
+        {/* X-1: one toolbar — search, year, dates, account, statement, category, type */}
+        <div ref={listRef} className="flex flex-wrap items-center gap-2 mb-3">
+          <label className="flex items-center gap-2 flex-[1_1_240px] min-w-0 rounded-[10px] border border-[#24365a] bg-[#111a2e] px-3" style={{ minHeight: 44 }}>
+            <Search aria-hidden="true" className="h-4 w-4 text-slate-500 shrink-0" />
+            <span className="sr-only">Search transactions</span>
+            <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) { setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); } }} placeholder="Search merchant, category or amount" className="flex-1 min-w-0 bg-transparent text-[16px] md:text-[14px] text-slate-200 placeholder:text-slate-500 outline-none" />
+          </label>
+          <select aria-label="Year" value={yearFilter === 'all' ? 'all' : String(yearFilter)} disabled={!!(rangeFrom || rangeTo)}
+            onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            style={{ minHeight: 44, padding: '0 12px', background: '#111a2e', border: '1px solid #24365a', borderRadius: 10, color: '#e8ecf4', fontSize: 14, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit' }}>
+            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+            <option value="all">All years</option>
+          </select>
+          <details className="relative">
+            <summary className="list-none cursor-pointer flex items-center gap-1.5 rounded-[10px] border px-3 text-[14px] font-semibold" style={{ minHeight: 44, background: (rangeFrom || rangeTo) ? 'rgba(34,211,238,0.08)' : '#111a2e', borderColor: (rangeFrom || rangeTo) ? 'rgba(34,211,238,0.4)' : '#24365a', color: '#e8ecf4' }}>
+              {(rangeFrom || rangeTo) ? `${rangeFrom || '…'} – ${rangeTo || '…'}` : 'All dates'} <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
+            </summary>
+            <div role="group" aria-label="Date range" className="absolute left-0 top-full z-40 mt-1 flex flex-col gap-2 rounded-xl border border-slate-700/60 bg-slate-900 p-3 shadow-xl" style={{ minWidth: 240 }}>
+              <label className="flex items-center justify-between gap-2 text-[13px] text-slate-400">From
+                <input type="date" value={rangeFrom} max={rangeTo || undefined} onChange={(e) => setRangeFrom(e.target.value)} style={{ minHeight: 44, padding: '0 12px', background: '#111a2e', border: '1px solid #24365a', borderRadius: 10, color: '#e8ecf4', fontSize: 14, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit', colorScheme: 'dark' }} />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-[13px] text-slate-400">To
+                <input type="date" value={rangeTo} min={rangeFrom || undefined} onChange={(e) => setRangeTo(e.target.value)} style={{ minHeight: 44, padding: '0 12px', background: '#111a2e', border: '1px solid #24365a', borderRadius: 10, color: '#e8ecf4', fontSize: 14, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit', colorScheme: 'dark' }} />
+              </label>
+              <span role="status" className="text-[12px]" style={{ color: rangeFrom && rangeTo && rangeFrom > rangeTo ? '#f87171' : '#9ba8bc' }}>
+                {rangeFrom && rangeTo && rangeFrom > rangeTo ? 'The start date is after the end date.' : (rangeFrom || rangeTo) ? 'The year is ignored while dates are set.' : 'Choose a start date, an end date or both.'}
+              </span>
+              {(rangeFrom || rangeTo) && (
+                <button type="button" onClick={() => { setRangeFrom(''); setRangeTo(''); }} className="self-start text-[13px] font-semibold text-cyan-300" style={{ minHeight: 36 }}>Clear dates</button>
+              )}
+            </div>
+          </details>
+          {accounts.length > 0 && (
+            <select aria-label="Account" value={accountFilter} onChange={(e) => {
+              const id = e.target.value;
+              setAccountFilter(id);
+              // Same URL handling as the account cards (bookmarkable; survives reload).
+              const sp = new URLSearchParams(window.location.search);
+              if (id === 'all') sp.delete('issuer'); else sp.set('issuer', id.split('|')[0] || '');
+              sp.delete('import_id'); sp.delete('importId');
+              const qs = sp.toString();
+              window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs ? '?' + qs : ''}`);
+            }} style={{ minHeight: 44, padding: '0 12px', background: '#111a2e', border: '1px solid #24365a', borderRadius: 10, color: '#e8ecf4', fontSize: 14, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit' }}>
+              <option value="all">All accounts</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          )}
               <div className="relative">
                 <button
                   onClick={() => setStmtDropdownOpen(v => !v)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-[13px] font-bold rounded-lg border transition-colors"
+                  className="flex items-center gap-2 px-3 min-h-[44px] text-[14px] font-semibold rounded-[10px] border transition-colors"
                   style={{
                     background: isStatementMode ? 'rgba(99,102,241,0.1)' : '#111a2e',
                     border: isStatementMode ? '1px solid rgba(99,102,241,0.3)' : '1px solid #1e2d4a',
@@ -847,26 +923,48 @@ export default function TransactionsPageV2() {
                   </>
                 )}
               </div>
-              {/* C2-E1: Ask Prime — opens the existing Prime panel; this page stays visible underneath */}
-              <button
-                type="button"
-                onClick={handleOpenPrime}
-                aria-label="Ask Prime about your transactions"
-                data-testid="ask-prime-transactions"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-bold rounded-lg border"
-                style={{ background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.35)', color: '#e8cf86', cursor: 'pointer' }}
-              >
-                <span aria-hidden="true">{"♕"}</span> Ask Prime
+          <select aria-label="Category" value={tagCategoryFilter} onChange={(e) => { setTagCategoryFilter(e.target.value); setTagFilterLabel(''); }} style={{ minHeight: 44, padding: '0 12px', background: '#111a2e', border: '1px solid #24365a', borderRadius: 10, color: '#e8ecf4', fontSize: 14, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit' }}>
+            <option value="">All categories</option>
+            {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <div role="group" aria-label="Transaction type" className="flex p-1 rounded-[10px] bg-slate-800/40 border border-slate-700/30">
+            {(['all', 'expenses', 'income'] as const).map(f => (
+              <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`px-3.5 text-[13px] font-bold rounded-md transition-colors ${filter === f ? 'bg-slate-700/60 text-white' : 'text-slate-400 hover:text-slate-200'}`} style={{ minHeight: 36 }}>
+                {f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
-            </div>
-            {isStatementMode && (
-              <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0', fontWeight: 500 }}>
-                {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
-              </p>
-            )}
+            ))}
+          </div>
+        </div>
+
+        {/* X-1: one summary strip; the overview (accounts, totals, donut, insights) opens on request */}
+        {!isStatementMode && (
+          <button
+            type="button"
+            onClick={() => setOverviewOpen(v => !v)}
+            className="w-full flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-slate-700/50 bg-slate-900/50 px-4 py-2.5 mb-3 text-left hover:border-[#2d4a6e] transition-colors"
+            style={{ minHeight: 52 }}
+            aria-expanded={overviewOpen}
+            aria-controls="tx-overview-content"
+          >
+            <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{filtered.length}</strong> transaction{filtered.length !== 1 ? 's' : ''}</span>
+            <span className="text-[14px] text-slate-300">Spent <strong className="text-white tabular-nums">${fmt(totalSpent)}</strong></span>
+            <span className="text-[14px] text-slate-300">Income <strong className="text-emerald-300 tabular-nums">${fmt(totalIncome)}</strong></span>
+            {uncategorizedCount > 0 && <span className="text-[14px] text-amber-200"><strong className="tabular-nums">{uncategorizedCount}</strong> need review</span>}
+            <span className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-slate-400">
+              {overviewOpen ? 'Hide overview' : 'Show overview'}
+              <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${overviewOpen ? 'rotate-180' : ''}`} />
+            </span>
+          </button>
+        )}
+        {isStatementMode && (
+          <p style={{ fontSize: 13, color: '#9ba8bc', margin: '0 0 12px', fontWeight: 500 }}>
+            {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
+          </p>
+        )}
+
             <style>{`.acct-scroll::-webkit-scrollbar{height:6px}.acct-scroll::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.3);border-radius:3px}.acct-scroll::-webkit-scrollbar-track{background:transparent}`}</style>
-            {!isStatementMode && <div
-              className="acct-scroll mt-3"
+            {!isStatementMode && overviewOpen && <div
+              className="acct-scroll mb-3"
               style={{
                 display: 'flex',
                 flexWrap: 'nowrap',
@@ -968,49 +1066,11 @@ export default function TransactionsPageV2() {
                 });
               })()}
             </div>}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={handleRefresh} disabled={isRefreshing} title="Refresh data" className={`flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg transition-colors ${isRefreshing ? 'opacity-60 cursor-wait' : 'hover:bg-slate-700/50'}`}>
-              <span className={`inline-block ${isRefreshing ? 'animate-spin' : ''}`} style={{ fontSize: 15, lineHeight: 1 }}>↻</span>
-              {isRefreshing ? 'Refreshing' : 'Refresh'}
-            </button>
-            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-colors"><Download className="h-4 w-4" />Export</button>
-            <button onClick={handleUpload} className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-400 hover:to-orange-400 transition-colors"><Upload className="h-4 w-4" />Upload</button>
-          </div>
-        </div>
-
-        {/* OVERVIEW SUMMARY STRIP — mobile only. Acts as both a collapsed
-            summary (shows key numbers) and an expand/collapse toggle. On
-            desktop (md+) this button is hidden entirely; the stats/charts
-            below always render. */}
-        {!isStatementMode && (
-          <button
-            onClick={() => setOverviewOpen(v => !v)}
-            className="md:hidden w-full flex items-center gap-3 rounded-xl border border-slate-700/50 bg-slate-900/50 px-4 py-3 mb-3 hover:border-[#2d4a6e] transition-colors"
-            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}
-            aria-expanded={overviewOpen}
-            aria-controls="tx-overview-content"
-          >
-            <ChevronDown
-              className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${overviewOpen ? '' : '-rotate-90'}`}
-            />
-            <span className="text-[11px] uppercase tracking-[0.14em] text-slate-400 font-bold shrink-0">Overview</span>
-            {!overviewOpen && (
-              <div className="flex items-center gap-2 text-[12px] font-bold tabular-nums min-w-0 ml-auto">
-                <span className={netFlow >= 0 ? 'text-emerald-400' : 'text-amber-400'}>
-                  {netFlow >= 0 ? '+' : '-'}${fmt(Math.abs(netFlow))}
-                </span>
-                <span className="text-slate-600">·</span>
-                <span className="text-slate-300">{filtered.length} txns</span>
-              </div>
-            )}
-          </button>
-        )}
 
         {/* STAT CARDS — hidden in statement mode; collapsible on mobile via
             overviewOpen. On md+ always visible regardless of state (md:grid
             overrides mobile hidden). */}
-        {!isStatementMode && <div id="tx-overview-content" className={`grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 ${overviewOpen ? '' : 'hidden md:grid'}`}>
+        {!isStatementMode && <div id="tx-overview-content" className={`grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 ${overviewOpen ? '' : 'hidden'}`}>
           {[
             { label: 'Total Spent', value: `$${fmt(totalSpent)}`, color: 'text-red-400', icon: <ArrowUpRight className="h-3.5 w-3.5 text-red-400" />, tab: 'expenses' as const },
             { label: 'Total Income', value: `$${fmt(totalIncome)}`, color: 'text-emerald-400', icon: <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400" />, tab: 'income' as const },
@@ -1029,7 +1089,7 @@ export default function TransactionsPageV2() {
 
         {/* TWO COLUMN: Donut + AI Insights — hidden in statement mode;
             collapsible on mobile via overviewOpen (same rules as stat cards). */}
-        {!isStatementMode && <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 ${overviewOpen ? '' : 'hidden md:grid'}`}>
+        {!isStatementMode && <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 ${overviewOpen ? '' : 'hidden'}`}>
           {/* Donut */}
           <div className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-4">Spending by category</div>
@@ -1077,24 +1137,9 @@ export default function TransactionsPageV2() {
           </div>
         </div>}
 
-        {/* FILTER BAR */}
-        <div ref={listRef} className="flex items-center justify-between mb-5">
-          <div className="flex p-1 rounded-lg bg-slate-800/40 border border-slate-700/30">
-            {(['all', 'expenses', 'income'] as const).map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-5 py-2 text-[13px] font-bold rounded-md transition-colors ${filter === f ? 'bg-slate-700/60 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* TRANSACTION LIST */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-900/30">
-          {/* Search */}
-          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-800/60">
-            <Search className="h-4 w-4 text-slate-500 shrink-0" />
-            <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) { setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); } }} placeholder="Search merchants, categories..." className="flex-1 bg-transparent text-[14px] text-slate-200 placeholder:text-slate-600 outline-none" />
-          </div>
+          {/* X-1: search moved to the toolbar above */}
 
           {/* Tag filter chip */}
           <div id="tx-list-anchor" />
