@@ -122,6 +122,7 @@ import {
   type PrimeLane,
 } from './_shared/primePolicy.js';
 import { buildPrimePersonalityMessage } from './_shared/primePersonality.js';
+import { resolvePreferredName } from '../../src/shared/preferred-name';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
 import { buildContextInjection } from './_shared/contextInjection.js';
@@ -5274,11 +5275,8 @@ async function getUserProfile(
       // Fallback: auth user metadata name (never the email address)
       try {
         const { data: authUser } = await sb.auth.admin.getUserById(userId);
-        const metaName = authUser?.user?.user_metadata?.full_name
-          || authUser?.user?.user_metadata?.name
-          || null;
-        // P-1: never derive a customer's name from their email address.
-        const fallbackName = metaName || 'there';
+        // P-1: shared resolver (src/shared/preferred-name.ts); never the email address.
+        const fallbackName = resolvePreferredName(null, authUser?.user?.user_metadata).fullName || 'there';
         return {
           preferredName: fallbackName,
           scope: 'exploring',
@@ -5303,18 +5301,12 @@ async function getUserProfile(
     }
 
     // Preferred name: display_name -> first_name -> full_name -> auth metadata name (never email)
-    const rawPreferredName = profile.display_name || profile.first_name || profile.full_name || 'there';
-    // Capitalize each word (handles "darrell warner" -> "Darrell Warner")
-    let preferredName = rawPreferredName === 'there' ? 'there'
-      : rawPreferredName.split(' ').map((w: string) => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
+    // P-1: shared resolver (src/shared/preferred-name.ts) — same rule as the client greeting.
+    let preferredName = resolvePreferredName(profile).fullName || 'there';
     if (preferredName === 'there') {
       try {
         const { data: authUser } = await sb.auth.admin.getUserById(userId);
-        const metaName = authUser?.user?.user_metadata?.full_name
-          || authUser?.user?.user_metadata?.name
-          || null;
-        // P-1: never derive a customer's name from their email address.
-        preferredName = metaName || preferredName;
+        preferredName = resolvePreferredName(profile, authUser?.user?.user_metadata).fullName || 'there';
       } catch (fallbackError: any) {
         if (process.env.NETLIFY_DEV === 'true') {
           console.warn('[Chat] getUserProfile name fallback failed:', fallbackError?.message || fallbackError);

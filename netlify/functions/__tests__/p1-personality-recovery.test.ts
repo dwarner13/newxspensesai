@@ -131,3 +131,22 @@ describe('P-1: (b) truncation narrowed (behavioural)', () => {
     expect(sanitizePrimeResponse('Here it is.\nbyte: raw extraction\nsnapshot: x')).toBe('Here it is.');
   });
 });
+
+import { resolvePreferredName } from '../../../src/shared/preferred-name';
+describe('P-1: shared preferred-name resolver (server + greeting)', () => {
+  it('chain order display → first → full → metadata full_name → metadata name', () => {
+    expect(resolvePreferredName({ display_name: 'sam lee', first_name: 'X' })).toEqual({ fullName: 'Sam Lee', firstName: 'Sam', source: 'display_name' });
+    expect(resolvePreferredName({ display_name: ' ', first_name: 'alex' }).source).toBe('first_name');
+    expect(resolvePreferredName({ full_name: 'Jo Smith' }).firstName).toBe('Jo');
+    expect(resolvePreferredName(null, { full_name: 'Pat Doe' }).source).toBe('metadata_full_name');
+    expect(resolvePreferredName({}, { name: 'kim' }).fullName).toBe('Kim');
+  });
+  it('never an email address; "there" and blanks are no name', () => {
+    expect(resolvePreferredName({ display_name: 'someone@example.com' })).toEqual({ fullName: null, firstName: null, source: 'none' });
+    expect(resolvePreferredName({ display_name: 'there' }).source).toBe('none');
+    expect(resolvePreferredName(null, null).firstName).toBeNull();
+  });
+  it('chat.ts uses the shared resolver for both paths', () => {
+    expect(chat.match(/resolvePreferredName\(/g)?.length).toBe(3);
+  });
+});
