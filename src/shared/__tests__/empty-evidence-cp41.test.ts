@@ -230,12 +230,16 @@ describe('CP4.1 chat.ts wiring (structural)', () => {
 
   it('the P3.1C suppression branch uses the proven status and never fabricates verified', () => {
     expect(chat).not.toContain("financialEvidence = { grounded: true, toolName: plan.toolName as any, queryStatus: 'verified', fromContext: false };");
-    expect(chat).toContain("const gateQueryStatus = p31cSuppressed ? legacyQueryStatusFromP31C(p31cResult, plan.toolName!) : 'verified';");
+    // PB-01: the merchant gate also reports only what its evidence proved (no blanket 'verified').
+    expect(chat).toContain("const gateQueryStatus = p31cSuppressed ? legacyQueryStatusFromP31C(p31cResult, plan.toolName!) : merchantGateQueryStatus(p31cResult);");
+    expect(chat).not.toContain("legacyQueryStatusFromP31C(p31cResult, plan.toolName!) : 'verified'");
     expect(chat).toContain('? { grounded: true, toolName: plan.toolName as any, queryStatus: gateQueryStatus, fromContext: false }');
     expect(chat).toContain(': { grounded: false };');
   });
   it('the false-zero retry is gated by the existing suppression function', () => {
-    expect(chat).toContain('const p31cRetrySuppressed = plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false;');
+    // PB-01: still gated by the suppression function, plus merchant and period-scoped evidence guards.
+    expect(chat).toContain('const p31cRetrySuppressed = (plan.toolName ? shouldSuppressLegacyPreExec(p31cResult, plan.toolName) : false)');
+    expect(chat).toContain('|| hasPeriodScopedAuthoritativeEvidence(p31cResult);');
     expect(chat).toContain('if (!p31cRetrySuppressed && plan.shouldPreExecute && plan.toolName && toolModules[plan.toolName] && !untrustedMerchantRetry && !periodUnresolvedRetry) {'); // C2-F adds the period gate
   });
   it('unproven scoped evidence gets the honest could-not-confirm fallback, not "I found financial data"', () => {

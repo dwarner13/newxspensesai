@@ -94,7 +94,7 @@ describe('F3 — the reported May follow-up', () => {
 
   it('chat.ts passes the explicit-list signal for Prime only, at all four model-search sites', () => {
     expect(chat).toMatch(/const primeExplicitListShape: boolean \| undefined = isPrime\s+\? shadowIntentResult\?\.financialClassification\?\.requestShape === 'list'\s+: undefined;/);
-    expect(chat.match(/explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args/g)?.length).toBe(4); // F2 adds unscopedReference
+    expect(chat.match(/explicitListRequest: primeExplicitListShape, summaryOrInventoryRequest: primeSummaryOrInventory, unscopedReference: primeUnscopedReference, args/g)?.length).toBe(4); // F2 adds unscopedReference; PB-03 adds summaryOrInventoryRequest
   });
 });
 
