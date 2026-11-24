@@ -3,6 +3,7 @@ import { X, TrendingUp, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
+import { formatCalendarDate } from '../../lib/calendarDate';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { chatSize } from '@/theme/typography';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
@@ -27,6 +28,8 @@ interface TransactionInsightDrawerProps {
   tagInsight?: { category?: string; categorySource?: string; confidence?: number; message?: string; proactiveInsights?: string[]; merchantSeenCount?: number; isAmountAnomaly?: boolean } | null;
   tagInsightLoading?: boolean;
   onBackToChat?: () => void;
+  /** D-3: "Done" after a confirmed save; the page returns to this transaction in its list. */
+  onDone?: (transactionId: string) => void;
 }
 
 const TAX_INFO: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -73,10 +76,14 @@ export function TransactionInsightDrawer({
   onAskTag,
   tagInsight, tagInsightLoading = false,
   onBackToChat,
+  onDone,
 }: TransactionInsightDrawerProps) {
   const [localCategory, setLocalCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [statementLabel, setStatementLabel] = useState<string | null>(null);
+  const [statementMeta, setStatementMeta] = useState<{ issuer: string | null; last4: string | null; period: string | null } | null>(null);
+  // D-3: shown only after a save was confirmed by the server.
+  const [savedNotice, setSavedNotice] = useState<{ kind: 'category' | 'subcategory'; value: string } | null>(null);
   const [, setChatReply] = useState<string | null>(null);
   const [showAllCats, setShowAllCats] = useState(false);
   const [splitMode, setSplitMode] = useState(false);
@@ -99,6 +106,7 @@ export function TransactionInsightDrawer({
   // Reset on transaction change
   useEffect(() => {
     setChatReply(null);
+    setSavedNotice(null);
     setShowAllCats(false);
     setSplitMode(false);
     setAddingSubcategory(false);
@@ -160,6 +168,7 @@ export function TransactionInsightDrawer({
 
   // Statement label
   useEffect(() => {
+    setStatementMeta(null);
     if (!row || row.kind !== 'committed') { setStatementLabel(null); return; }
     const importId = row.transaction.import_id;
     if (!importId) { setStatementLabel(null); return; }
@@ -173,6 +182,15 @@ export function TransactionInsightDrawer({
           .eq('id', importId).single();
         const meta = (imp?.statement_breakdown_json as any)?.statement_meta;
         const metaIssuer = String(meta?.issuer || meta?.bank_name || '').trim();
+        // D-2: account and statement period for the drawer facts, from the same row (no new query).
+        const last4 = String(meta?.account_last4 || '').replace(/\D/g, '').slice(-4);
+        setStatementMeta({
+          issuer: metaIssuer.length > 1 ? sanitizeIssuerPillLabel(metaIssuer) : null,
+          last4: last4.length === 4 ? last4 : null,
+          period: [formatCalendarDate(meta?.period_start, 'short'), formatCalendarDate(meta?.period_end, 'medium')].every(Boolean)
+            ? `${formatCalendarDate(meta?.period_start, 'short')} – ${formatCalendarDate(meta?.period_end, 'medium')}`
+            : null,
+        });
         if (metaIssuer.length > 1) { setStatementLabel(metaIssuer); return; }
         if ((imp as any)?.filename) {
           const clean = String((imp as any).filename).replace(/\.pdf$/i, '').trim();
@@ -237,12 +255,9 @@ export function TransactionInsightDrawer({
   const amountColor = effectiveIsIncome ? '#10b981' : '#ef4444';
   const amountPrefix = effectiveIsIncome ? '+' : '-';
 
-  const formattedDate = useMemo(() => {
-    if (!postedAt) return null;
-    const d = new Date(postedAt + (postedAt.length === 10 ? 'T00:00:00' : ''));
-    if (isNaN(d.getTime())) return null;
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  }, [postedAt]);
+  // D-1: posted_at is stored as UTC midnight; format its calendar day so Mountain-time
+  // users see the statement's date (Jun 16), not the previous day. Display only.
+  const formattedDate = useMemo(() => formatCalendarDate(postedAt, 'long'), [postedAt]);
 
   // Month spend for this merchant
   const merchantMonthSpend = useMemo(() => {
@@ -261,6 +276,9 @@ export function TransactionInsightDrawer({
 
   const applyCategory = async (category: string) => {
     if (!row) return;
+    // D-3: remember the confirmed value so a failed save can be rolled back on screen.
+    const previousCategory = localCategory;
+    setSavedNotice(null);
     setLocalCategory(category);
     setIsSaving(true);
     try {
@@ -280,6 +298,8 @@ export function TransactionInsightDrawer({
         onPendingCategorySaved?.(row.transaction.id, category);
       }
       toast.success('Category updated');
+      // D-3: confirmed only after tx-update-category returned ok.
+      setSavedNotice({ kind: 'category', value: category });
       // Start Tag conversation about this change (committed only)
       if (row.kind === 'committed') {
         try {
@@ -302,6 +322,8 @@ export function TransactionInsightDrawer({
         } catch { setChatReply(`Moved to **${category}**.`); }
       }
     } catch {
+      // D-3: the save was not confirmed — show the last saved category again.
+      setLocalCategory(previousCategory);
       toast.error('Could not save category');
     } finally { setIsSaving(false); }
   };
@@ -328,6 +350,9 @@ export function TransactionInsightDrawer({
 
   const handleSubcategoryChange = async (value: string) => {
     if (value === '__add_new__') { setAddingSubcategory(true); return; }
+    // D-3: previously a failed subcategory save was silent and still looked saved.
+    const previousSubcategory = localSubcategory;
+    setSavedNotice(null);
     setLocalSubcategory(value);
     if (!row) return;
     try {
@@ -335,12 +360,17 @@ export function TransactionInsightDrawer({
       const { data: { session } } = await supabase!.auth.getSession();
       const token = session?.access_token ?? '';
       const table = row.kind === 'pending' ? 'transactions_staging' : 'transactions';
-      await fetch('/.netlify/functions/tx-update-category', {
+      const res = await fetch('/.netlify/functions/tx-update-category', {
         method: 'POST',
         headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ id: row.transaction.id, table, category: localCategory, subcategory: value }),
       });
-    } catch { /* silent */ }
+      if (!res.ok) throw new Error('subcategory save failed');
+      setSavedNotice({ kind: 'subcategory', value: value || 'None' });
+    } catch {
+      setLocalSubcategory(previousSubcategory);
+      toast.error('Could not save subcategory');
+    }
   };
 
   const saveNewSubcategory = async () => {
@@ -453,8 +483,8 @@ export function TransactionInsightDrawer({
               <span aria-hidden="true" style={{ fontSize: 14 }}>{'\u2190'}</span>
               Back to Conversation
             </button>
-            <button type="button" onClick={onClose} aria-label="Close" style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <X style={{ width: 16, height: 16 }} />
+            <button type="button" onClick={onClose} aria-label="Close transaction details" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#c8d0e0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X style={{ width: 18, height: 18 }} />
             </button>
           </div>
         )}
@@ -462,31 +492,67 @@ export function TransactionInsightDrawer({
         {/* HEADER */}
         <div style={{ padding: onBackToChat ? '12px 20px 16px' : '20px 20px 16px', paddingTop: !onBackToChat && !isMobile ? 'max(20px, env(safe-area-inset-top, 20px))' : (onBackToChat ? 12 : 20), borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.5, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</div>
-            <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 800, color: amountColor, marginTop: 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
-            {/* Meta row */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.4, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</h2>
+            <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 800, color: amountColor, marginTop: 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+            {/* D-2: facts grid — date, account and statement are prominent and readable */}
+            <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', margin: '14px 0 0' }}>
               {formattedDate && (
-                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{formattedDate}</span>
+                <div style={{ minWidth: 0 }}>
+                  <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>Date</dt>
+                  <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: '#e8ecf4' }}>{formattedDate}</dd>
+                </div>
               )}
-              {statementLabel && !/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(statementLabel) && statementLabel !== formattedDate && (
-                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{statementLabel}</span>
+              {(statementMeta?.issuer || statementMeta?.last4) && (
+                <div style={{ minWidth: 0 }}>
+                  <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>Account</dt>
+                  <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: '#e8ecf4', overflowWrap: 'anywhere' }}>
+                    {[statementMeta?.issuer, statementMeta?.last4 ? `•••• ${statementMeta.last4}` : null].filter(Boolean).join(' ')}
+                  </dd>
+                </div>
+              )}
+              {(statementMeta?.period || (statementLabel && !/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(statementLabel) && statementLabel !== formattedDate)) && (
+                <div style={{ minWidth: 0 }}>
+                  <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>Statement</dt>
+                  <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: '#e8ecf4', overflowWrap: 'anywhere' }}>{statementMeta?.period || statementLabel}</dd>
+                </div>
               )}
               {merchantMonthSpend > 0 && (
-                <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '3px 8px', color: '#94a3b8' }}>{fmt(merchantMonthSpend)} this month</span>
+                <div style={{ minWidth: 0 }}>
+                  <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>This month here</dt>
+                  <dd style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 600, color: '#e8ecf4' }}>${fmt(merchantMonthSpend)}</dd>
+                </div>
               )}
-            </div>
+            </dl>
           </div>
           {/* Only show standalone X when Back to Conversation bar is NOT present (avoids double X) */}
           {!onBackToChat && (
-            <button type="button" onClick={onClose} style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <X style={{ width: 16, height: 16 }} />
+            <button type="button" onClick={onClose} aria-label="Close transaction details" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#c8d0e0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X style={{ width: 18, height: 18 }} />
             </button>
           )}
         </div>
 
         {/* SCROLLABLE BODY */}
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* D-3: SUCCESSFUL CORRECTION — only after the server confirmed the save */}
+          {savedNotice && (
+            <div role="status" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px', borderRadius: 14, background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.35)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span aria-hidden="true" style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(52,211,153,0.18)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>{'✓'}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#e8ecf4' }}>
+                    {savedNotice.kind === 'category' ? `Saved — category is now ${savedNotice.value}` : `Saved — subcategory is now ${savedNotice.value}`}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#9ba8bc', marginTop: 2 }}>Saved to this transaction.</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => { if (onDone) onDone(row.transaction.id); else onClose(); }} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: 'none', background: '#34d399', color: '#062018', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Done</button>
+                <button type="button" onClick={() => setSavedNotice(null)} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#c8d0e0', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Keep editing</button>
+              </div>
+            </div>
+          )}
 
           {/* TAG CHANGED BANNER */}
           {row.kind === 'committed' && (row.transaction as any).category_source === 'user_chat' && (
@@ -544,10 +610,11 @@ export function TransactionInsightDrawer({
           <div style={{ borderRadius: 14, background: 'rgba(34,211,153,0.05)', border: '1px solid rgba(34,211,153,0.15)' }}>
             {/* Verdict row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid rgba(34,211,153,0.08)' }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
+              <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.06) 100%)', border: '1.5px solid rgba(34,211,238,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{localCategory}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#67e8f9' }}>Category</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', marginTop: 2 }}>{localCategory}</div>
+                <div style={{ fontSize: 13, color: '#9ba8bc', marginTop: 2 }}>
                   {tagInsightLoading ? 'Analyzing…' : [
                     confidence != null && confidence > 0 && `${confidence}% confidence`,
                     seenCount > 0 && `Seen ${seenCount}x`,
@@ -555,7 +622,7 @@ export function TransactionInsightDrawer({
                   ].filter(Boolean).join(' · ') || 'Current category'}
                 </div>
                             {TAX_INFO[localCategory] && (
-                <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 10, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
+                <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 8, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 12, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
                   {TAX_INFO[localCategory].label}
                 </div>
               )}
@@ -566,38 +633,38 @@ export function TransactionInsightDrawer({
             </div>
             {/* Tag message */}
             {(tagInsightLoading || tagInsight?.message) && (
-              <div style={{ padding: '10px 14px', fontSize: 12, color: '#cbd5e1', lineHeight: 1.6 }}>
+              <div style={{ padding: '12px 14px', fontSize: 15, color: '#dbe3ef', lineHeight: 1.6 }}>
                 {tagInsightLoading ? 'Analyzing this transaction…' : tagInsight?.message}
               </div>
             )}
             {/* Proactive insights */}
             {tagInsight?.proactiveInsights?.map((insight, i) => { const cleanInsight = insight.replace(/[\u{1F300}-\u{1F9FF}]/gu, ""); return (
-              <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{cleanInsight}</div>
+              <div key={i} style={{ padding: '10px 14px', borderTop: '1px solid rgba(34,211,153,0.06)', fontSize: 14, color: '#b7c2d3', lineHeight: 1.55 }}>{cleanInsight}</div>
             ); })}
           </div>
 
           {/* SUBCATEGORY */}
           {localCategory && localCategory !== 'Uncategorized' && subcategoryOptions.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 11, color: '#475569', width: 80, flexShrink: 0 }}>Subcategory</div>
-              <select value={localSubcategory} onChange={e => void handleSubcategoryChange(e.target.value)} style={{ flex: 1, padding: '4px 8px', borderRadius: 8, background: '#0b1220', border: '1px solid #1e2d4a', color: localSubcategory ? '#f1f5f9' : '#475569', fontSize: 12, fontFamily: 'inherit' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>Subcategory</span>
+              <select value={localSubcategory} onChange={e => void handleSubcategoryChange(e.target.value)} style={{ minHeight: 44, padding: '0 12px', borderRadius: 10, background: '#0b1220', border: '1px solid #24365a', color: localSubcategory ? '#f1f5f9' : '#9ba8bc', fontSize: 15, fontFamily: 'inherit' }}>
                 <option value="">-- select --</option>
                 {subcategoryOptions.map(s => <option key={s} value={s}>{s}</option>)}
                 <option value="__add_new__">+ Add new...</option>
               </select>
-            </div>
+            </label>
           )}
           {addingSubcategory && (
             <div style={{ display: 'flex', gap: 6 }}>
-              <input autoFocus placeholder="e.g. Hair & Grooming" value={newSubcategoryText} onChange={e => setNewSubcategoryText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void saveNewSubcategory(); if (e.key === 'Escape') setAddingSubcategory(false); }} style={{ flex: 1, padding: '6px 10px', borderRadius: 8, background: '#0b1220', border: '1px solid rgba(34,211,238,0.4)', color: '#f1f5f9', fontSize: 12, outline: 'none' }} />
-              <button onClick={() => void saveNewSubcategory()} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>Save</button>
+              <input autoFocus aria-label="New subcategory name" placeholder="e.g. Hair & Grooming" value={newSubcategoryText} onChange={e => setNewSubcategoryText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void saveNewSubcategory(); if (e.key === 'Escape') setAddingSubcategory(false); }} style={{ flex: 1, minHeight: 44, padding: '0 12px', borderRadius: 10, background: '#0b1220', border: '1px solid rgba(34,211,238,0.4)', color: '#f1f5f9', fontSize: 16, outline: 'none' }} />
+              <button onClick={() => void saveNewSubcategory()} style={{ minHeight: 44, padding: '0 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>Save</button>
             </div>
           )}
 
           {/* TYPE TOGGLE */}
           {(row.kind === 'committed' || row.kind === 'pending') && (
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8', marginBottom: 8 }}>Transaction type</div>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ba8bc', marginBottom: 8 }}>Transaction type</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {(['expense', 'income'] as const).map(t => {
                   const active = localType === t;
@@ -606,7 +673,8 @@ export function TransactionInsightDrawer({
                   const activeText = t === 'income' ? '#10b981' : '#ef4444';
                   return (
                     <button key={t} type="button" onClick={() => void flipType(t)} disabled={isFlippingType}
-                      style={{ padding: '7px 20px', borderRadius: 20, fontSize: 13, fontWeight: 700, cursor: isFlippingType ? 'not-allowed' : 'pointer', transition: 'all 0.15s', background: active ? activeColor : 'rgba(255,255,255,0.04)', border: `1px solid ${active ? activeBorder : 'rgba(255,255,255,0.08)'}`, color: active ? activeText : '#475569', opacity: isFlippingType ? 0.6 : 1 }}>
+                      aria-pressed={active}
+                      style={{ minHeight: 44, padding: '0 20px', borderRadius: 22, fontSize: 14, fontWeight: 700, cursor: isFlippingType ? 'not-allowed' : 'pointer', transition: 'all 0.15s', background: active ? activeColor : 'rgba(255,255,255,0.04)', border: `1px solid ${active ? activeBorder : 'rgba(255,255,255,0.1)'}`, color: active ? activeText : '#9ba8bc', opacity: isFlippingType ? 0.6 : 1 }}>
                       {t === 'income' ? '↑ Income' : '↓ Expense'}
                     </button>
                   );
@@ -617,24 +685,26 @@ export function TransactionInsightDrawer({
 
           {/* QUICK CATEGORY CHIPS */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8', marginBottom: 8 }}>Quick change</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ba8bc', marginBottom: 8 }}>Change category</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {QUICK_CATS.map(q => (
                 <button key={q.category} type="button" onClick={() => void applyCategory(q.category)} disabled={isSaving}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: localCategory === q.category ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${localCategory === q.category ? 'rgba(34,211,153,0.4)' : 'rgba(255,255,255,0.08)'}`, color: localCategory === q.category ? '#22d3ee' : '#cbd5e1' }}>
+                  aria-pressed={localCategory === q.category}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 44, padding: '0 14px', borderRadius: 22, fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: localCategory === q.category ? 'rgba(34,211,153,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${localCategory === q.category ? 'rgba(34,211,153,0.4)' : 'rgba(255,255,255,0.08)'}`, color: localCategory === q.category ? '#22d3ee' : '#cbd5e1' }}>
                   {q.label}
                 </button>
               ))}
-              <button type="button" onClick={() => setShowAllCats(v => !v)}
-                style={{ padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#475569' }}>
-                {showAllCats ? 'Less ▲' : 'More ▼'}
+              <button type="button" onClick={() => setShowAllCats(v => !v)} aria-expanded={showAllCats}
+                style={{ minHeight: 44, padding: '0 14px', borderRadius: 22, fontSize: 14, fontWeight: 600, cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#9ba8bc' }}>
+                {showAllCats ? 'Fewer categories ▲' : 'All categories ▼'}
               </button>
             </div>
             {showAllCats && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                 {ALL_CATS.filter(c => !QUICK_CATS.find(q => q.category === c)).map(c => (
                   <button key={c} type="button" onClick={() => { void applyCategory(c); setShowAllCats(false); }} disabled={isSaving}
-                    style={{ padding: '5px 11px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: localCategory === c ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${localCategory === c ? 'rgba(34,211,153,0.3)' : 'rgba(255,255,255,0.06)'}`, color: localCategory === c ? '#22d3ee' : '#64748b' }}>
+                    aria-pressed={localCategory === c}
+                    style={{ minHeight: 44, padding: '0 14px', borderRadius: 22, fontSize: 14, fontWeight: 600, cursor: 'pointer', background: localCategory === c ? 'rgba(34,211,153,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${localCategory === c ? 'rgba(34,211,153,0.3)' : 'rgba(255,255,255,0.08)'}`, color: localCategory === c ? '#22d3ee' : '#b7c2d3' }}>
                     {c}
                   </button>
                 ))}
@@ -667,7 +737,7 @@ export function TransactionInsightDrawer({
         </div>
 
         {/* FOOTER — transaction actions (Split/Close) */}
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* SPLIT UI */}
           {splitMode && row?.kind === 'committed' && (() => {
             const totalAmt = Math.abs(Number(row.transaction.amount || 0));
@@ -723,8 +793,8 @@ export function TransactionInsightDrawer({
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button type="button" onClick={() => setSplitMode(v => !v)} style={{ padding: '10px', borderRadius: 10, border: splitMode ? '1px solid rgba(34,211,238,0.3)' : '1px solid rgba(255,255,255,0.08)', background: splitMode ? 'rgba(34,211,238,0.1)' : 'rgba(255,255,255,0.04)', color: splitMode ? '#22d3ee' : '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{splitMode ? 'Cancel Split' : 'Split'}</button>
-              <button type="button" onClick={onClose} style={{ padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Close</button>
+              <button type="button" onClick={() => setSplitMode(v => !v)} aria-expanded={splitMode} style={{ minHeight: 46, padding: '0 10px', borderRadius: 12, border: splitMode ? '1px solid rgba(34,211,238,0.3)' : '1px solid rgba(255,255,255,0.1)', background: splitMode ? 'rgba(34,211,238,0.1)' : 'rgba(255,255,255,0.04)', color: splitMode ? '#22d3ee' : '#c8d0e0', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{splitMode ? 'Cancel split' : 'Split'}</button>
+              <button type="button" onClick={onClose} style={{ minHeight: 46, padding: '0 10px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#c8d0e0', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Close</button>
             </div>
           )}
         </div>

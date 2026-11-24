@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { computeComposerHeight, COMPOSER_MAX_HEIGHT_PX } from "@/lib/chatComposer";
 import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
+import { formatCalendarDate } from "@/lib/calendarDate";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
@@ -216,6 +217,8 @@ interface TagCopilotPanelProps {
   initialMessage?: string; onClose: () => void; firstName?: string;
   /** C2-E2A: shown only when Tag was opened from Prime; reopens the existing Prime panel. */
   onBackToPrime?: () => void;
+  /** D-4: when Tag was opened from a transaction drawer, reopens that transaction. */
+  onBackToTransaction?: () => void;
   flaggedCount: number; categorizedCount: number; totalCount: number;
   avgConfidence: number; rulesCount: number;
   flaggedTransactions?: FlaggedTransaction[]; subcategorySuggestions?: SubcategorySuggestion[];
@@ -265,7 +268,11 @@ export function TagCopilotPanel({
   injectedMessage,
   focusedTransaction,
   onBackToPrime,
+  onBackToTransaction,
 }: TagCopilotPanelProps) {
+  // D-4: focused-transaction context card starts collapsed for each new transaction.
+  const [contextOpen, setContextOpen] = useState(false);
+  useEffect(() => { setContextOpen(false); }, [focusedTransaction?.id]);
 
   // Presence of importId means this is an upload-handoff session - start fresh so
   // the user sees a briefing scoped to their import, not yesterday's conversation.
@@ -1086,34 +1093,64 @@ export function TagCopilotPanel({
             or single-row context. Tells the user which row Tag is anchored
             to, so the two-step flow ("change THIS one, then offer to extend")
             has visible grounding. */}
-        {focusedTransaction && focusedTransaction.id && (
-          <div style={{
-            padding: "8px 16px",
-            background: "rgba(34,211,238,0.06)",
-            borderBottom: `1px solid ${T.border}`,
-            display: "flex", alignItems: "center", gap: 8,
-            fontSize: 11, color: T.textMuted,
-            flexShrink: 0,
-          }}>
-            <span style={{
-              padding: "2px 7px", borderRadius: 8,
-              background: "rgba(34,211,238,0.12)",
-              border: "1px solid rgba(34,211,238,0.25)",
-              color: T.cyan, fontWeight: 700, fontSize: 9.5, letterSpacing: 0.4,
-            }}>FOCUSED</span>
-            <span style={{ color: T.text, fontWeight: 600 }}>
-              {focusedTransaction.merchant_name || 'Transaction'}
-            </span>
-            <span style={{ color: T.textDim }}>
-              ${Math.abs(Number(focusedTransaction.amount || 0)).toFixed(2)}
-            </span>
-            {(focusedTransaction.posted_at || focusedTransaction.date) && (
-              <span style={{ color: T.textDim }}>
-                - {focusedTransaction.posted_at || focusedTransaction.date}
-              </span>
-            )}
-          </div>
-        )}
+        {/* D-4: compact, expandable context card for the focused transaction. Same
+            focusedTransaction data; nothing here changes what is sent to Tag. */}
+        {focusedTransaction && focusedTransaction.id && (() => {
+          const ftAmount = Number(focusedTransaction.amount || 0);
+          const ftAmountText = `${ftAmount < 0 ? '−' : ftAmount > 0 ? '+' : ''}$${Math.abs(ftAmount).toFixed(2)}`;
+          const ftDate = formatCalendarDate(focusedTransaction.posted_at || focusedTransaction.date, 'long');
+          const ftClass = [focusedTransaction.category || 'Uncategorized', focusedTransaction.subcategory].filter(Boolean).join(' · ');
+          return (
+            <div style={{ background: "rgba(34,211,238,0.05)", borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => setContextOpen(v => !v)}
+                aria-expanded={contextOpen}
+                aria-controls="tag-focused-context"
+                style={{
+                  width: "100%", minHeight: 52, padding: "8px 16px", display: "flex", alignItems: "center", gap: 10,
+                  background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: T.cyan, flexShrink: 0 }}>Looking at</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {focusedTransaction.merchant_name || 'Transaction'}
+                </span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: T.text, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{ftAmountText}</span>
+                <span aria-hidden="true" style={{ color: T.textMuted, flexShrink: 0, transform: contextOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▾</span>
+              </button>
+              {contextOpen && (
+                <div id="tag-focused-context" style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <dl style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px 16px", margin: 0 }}>
+                    {ftDate && (
+                      <div style={{ minWidth: 0 }}>
+                        <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: T.textMuted }}>Date</dt>
+                        <dd style={{ margin: "2px 0 0", fontSize: 15, color: T.text }}>{ftDate}</dd>
+                      </div>
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: T.textMuted }}>Category</dt>
+                      <dd style={{ margin: "2px 0 0", fontSize: 15, color: T.text, overflowWrap: "anywhere" }}>{ftClass}</dd>
+                    </div>
+                  </dl>
+                  {onBackToTransaction && (
+                    <button
+                      type="button"
+                      onClick={onBackToTransaction}
+                      style={{
+                        alignSelf: "flex-start", minHeight: 44, padding: "0 14px", borderRadius: 10,
+                        border: "1px solid rgba(34,211,238,0.35)", background: "rgba(34,211,238,0.08)",
+                        color: T.cyan, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      {'←'} Back to transaction
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Body */}
         <div
