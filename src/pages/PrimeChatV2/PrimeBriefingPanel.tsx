@@ -1,11 +1,16 @@
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { isPrimeBriefingOpenAtom } from "@/lib/uiStore";
+import { isPrimeBriefingOpenAtom, primeChatModeAtom } from "@/lib/uiStore";
+import { primePanelWidth } from "@/lib/primeChatMode";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { PrimeChatV2Content } from "./PrimeChatV2";
 
 export function PrimeBriefingPanel() {
   const [isOpen, setIsOpen] = useAtom(isPrimeBriefingOpenAtom);
+  // UX-P2: one mounted chat; the mode only changes this shell's width (no remount).
+  const mode = useAtomValue(primeChatModeAtom);
+  const isMobile = useIsMobile();
 
   // Stop ALL keyboard events from escaping the panel into the dashboard.
   // This prevents the old Prime chat modal / command palette / any global
@@ -44,8 +49,11 @@ export function PrimeBriefingPanel() {
       />
       {/* Panel - capture and stop all key events */}
       <div
-        className="fixed top-0 right-0 z-[51] h-full w-full md:w-[560px] shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
+        className="fixed top-0 right-0 z-[51] h-full shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
+        data-prime-mode={mode}
         style={{
+          width: isMobile ? "100%" : primePanelWidth(mode),
+          transition: "width 0.25s cubic-bezier(0.16,1,0.3,1)",
           animation: "primePanelSlideIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards",
           paddingTop: "env(safe-area-inset-top, 0px)",
         }}

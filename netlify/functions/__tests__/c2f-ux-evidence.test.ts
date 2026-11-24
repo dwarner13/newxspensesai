@@ -142,6 +142,8 @@ describe('F2 — Chat History in the Prime panel', () => {
   it('the header has a visible History control next to New chat', () => {
     const header = v2.slice(v2.indexOf('onClick={toggleSessionsOpen}'), v2.indexOf('onClick={handleNewChat}'));
     expect(header).toContain('title="Chat history"');
-    expect(header).toContain('onClick={() => handleOpenHistorySession(h.id)}');
+    // P1-e: rows moved from the header popover into ConversationHistoryDrawer, which calls
+    // onSelect(id) → handleOpenHistorySession (same ownership-verified path).
+    expect(v2).toContain('onSelect={handleOpenHistorySession}');
   });
 });

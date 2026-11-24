@@ -59,7 +59,9 @@ describe('C2-E1 — Ask Prime entry points open the existing Prime panel', () =>
 describe('C2-E1 — one panel, one session, page stays visible', () => {
   it('the panel is an overlay portal over the current page (the page is not navigated away)', () => {
     expect(panel).toContain('createPortal(');
-    expect(panel).toContain('className="fixed top-0 right-0 z-[51] h-full w-full md:w-[560px]');
+    // UX-P2a: width now follows primeChatModeAtom (560 Quick / 820 Expanded; full width on mobile).
+    expect(panel).toContain('className="fixed top-0 right-0 z-[51] h-full');
+    expect(panel).toContain('width: isMobile ? "100%" : primePanelWidth(mode),');
     for (const s of [header, slice(tx, 'data-testid="ask-prime-transactions"', 200)]) expect(s).not.toMatch(/navigate\(['"]\/dashboard\/prime|window\.location/);
   });
 

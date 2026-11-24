@@ -4,6 +4,13 @@ import { atom } from 'jotai';
 export const isPrimeBriefingOpenAtom = atom(false);
 /** C2-B: a Prime conversation requested by the launcher (e.g. Chat History); consumed by PrimeChatV2. */
 export const primeRequestedSessionIdAtom = atom<string | null>(null);
+/**
+ * UX-P2: Prime chat layout mode on the single mounted PrimeChatV2Content.
+ * 'quick' = 560px side panel, 'expanded' = 820px panel, 'workspace' = full-page layout.
+ * Changing it only resizes the panel; the conversation, scroll and draft are kept.
+ */
+export type PrimeChatMode = 'quick' | 'expanded' | 'workspace';
+export const primeChatModeAtom = atom<PrimeChatMode>('quick');
 export const isUploadModalOpenAtom = atom(false);
 export const isMobileMenuOpenAtom = atom(false);
 export const isNotificationsOpenAtom = atom(false);
