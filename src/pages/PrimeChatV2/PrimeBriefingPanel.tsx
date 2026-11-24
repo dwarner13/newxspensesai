@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { isPrimeBriefingOpenAtom, primeChatModeAtom } from "@/lib/uiStore";
 import { primePanelWidth } from "@/lib/primeChatMode";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { PrimeChatV2Content } from "./PrimeChatV2";
 
 export function PrimeBriefingPanel() {
@@ -11,6 +12,9 @@ export function PrimeBriefingPanel() {
   // UX-P2: one mounted chat; the mode only changes this shell's width (no remount).
   const mode = useAtomValue(primeChatModeAtom);
   const isMobile = useIsMobile();
+  // UX-P2d: on phones, size the panel to the visible viewport so the composer stays above
+  // the on-screen keyboard (iOS keeps 100% height under the keyboard).
+  const visibleViewport = useVisualViewport(isMobile && isOpen);
 
   // Stop ALL keyboard events from escaping the panel into the dashboard.
   // This prevents the old Prime chat modal / command palette / any global
@@ -53,6 +57,7 @@ export function PrimeBriefingPanel() {
         data-prime-mode={mode}
         style={{
           width: isMobile ? "100%" : primePanelWidth(mode),
+          ...(isMobile && visibleViewport ? { top: visibleViewport.offsetTop, height: visibleViewport.height } : null),
           transition: "width 0.25s cubic-bezier(0.16,1,0.3,1)",
           animation: "primePanelSlideIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards",
           paddingTop: "env(safe-area-inset-top, 0px)",

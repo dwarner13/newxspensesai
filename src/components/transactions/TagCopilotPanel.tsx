@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "re
 import { computeComposerHeight, COMPOSER_MAX_HEIGHT_PX } from "@/lib/chatComposer";
 import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
 import { formatCalendarDate } from "@/lib/calendarDate";
+import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
 import { Trash2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
@@ -511,6 +512,7 @@ export function TagCopilotPanel({
   const [greetingText, setGreetingText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const visibleViewport = useVisualViewport(isMobile);
   // Tracks whether user was near the bottom at last scroll. Used by the auto-scroll
   // effect below to avoid hijacking scroll position when user is reading history.
   // Bug fix: users reported the chat was "locked" - they couldn't scroll up because
@@ -1020,6 +1022,8 @@ export function TagCopilotPanel({
       <style>{STYLES}</style>
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0,
+        // UX-P2d: on phones, fit the visible viewport so the composer stays above the keyboard.
+        ...(isMobile && visibleViewport ? { top: visibleViewport.offsetTop, bottom: "auto", height: visibleViewport.height } : null),
         width: "min(500px, 100vw)",
         maxWidth: "100vw",
         background: T.bg,
