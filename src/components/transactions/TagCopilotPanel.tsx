@@ -951,7 +951,7 @@ export function TagCopilotPanel({
       text = `${sinceVisitLine}${hi} - I've got your **${count} transactions** sorted out. Nothing needs your review right now. Your biggest spend is **${top.category}** at **${fmtAmount(top.total)}**${catsList ? `, then ${catsList}` : ""}.\n\nWant me to break down what's in ${top.category}, or look for anything deductible?`;
     } else {
       // Fallback - no category data yet
-      text = `${hi} - I'm your categorization engine. Want to reclassify a merchant, check what's tax-deductible, or build a rule for any spending pattern?`;
+      text = `${hi} - I'm your categorization engine. Want to reclassify a merchant, see what may be tax-relevant, or build a rule for any spending pattern?`;
     }
 
     setGreetingText(text);

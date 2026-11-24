@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { sanitizeIssuerPillLabel } from '../../lib/transactionUi';
 import { formatCalendarDate } from '../../lib/calendarDate';
+import { describeCategorySource, describeMerchantHistory, isPotentiallyTaxRelevant, MERCHANT_HISTORY_CAP, TAX_NOTE } from '../../lib/tagExplanation';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { chatSize } from '@/theme/typography';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
@@ -25,30 +26,13 @@ interface TransactionInsightDrawerProps {
   onPendingCategorySaved?: (pendingId: string, category: string) => void;
   onAskTag?: (row: DrawerTransaction) => void;
   onFlagReview?: (row: DrawerTransaction) => void;
-  tagInsight?: { category?: string; categorySource?: string; confidence?: number; message?: string; proactiveInsights?: string[]; merchantSeenCount?: number; isAmountAnomaly?: boolean } | null;
+  tagInsight?: { category?: string; categorySource?: string; confidence?: number; message?: string; proactiveInsights?: string[]; merchantSeenCount?: number; merchantSeenCapped?: boolean; isAmountAnomaly?: boolean } | null;
   tagInsightLoading?: boolean;
   onBackToChat?: () => void;
   /** D-3: "Done" after a confirmed save; the page returns to this transaction in its list. */
   onDone?: (transactionId: string) => void;
 }
 
-const TAX_INFO: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  Transportation:  { label: '✓ Deductible · CRA T2125 Line 9281', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Housing:         { label: '✓ Deductible · home-office % (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Utilities:       { label: '✓ Deductible · business-use % applies', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Healthcare:      { label: '✓ Deductible · medical expense credit', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Education:       { label: '✓ Deductible · training/tuition (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Insurance:       { label: '✓ Deductible · business coverage %', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Subscriptions:   { label: '✓ Likely deductible · if business use', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  'Bank Fees':     { label: '✓ Deductible · bank charges (T2125)', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)' },
-  Travel:          { label: '~ Partially deductible · business purpose required', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  'Food & Dining': { label: '~ 50% deductible · meals & entertainment rule', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Shopping:        { label: '~ May be deductible · business use only', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)', border: 'rgba(251,191,36,0.2)' },
-  Income:          { label: '• Taxable income · report on T2125', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
-  Transfers:       { label: '• Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  Savings:         { label: '• Not deductible', color: '#475569', bg: 'rgba(71,85,105,0.05)', border: 'rgba(71,85,105,0.12)' },
-  'Debt Payments': { label: '• Principal not deductible; interest may be', color: '#94a3b8', bg: 'rgba(148,163,184,0.05)', border: 'rgba(148,163,184,0.12)' },
-};
 const QUICK_CATS = [
   { label: 'Gas', category: 'Transportation', emoji: '⛽' },
   { label: 'Groceries', category: 'Groceries', emoji: '🛒' },
@@ -442,7 +426,6 @@ export function TransactionInsightDrawer({
 
   if (!open || !row) return null;
 
-  const confidence = tagInsight?.confidence != null ? Math.round(tagInsight.confidence * 100) : null;
   const seenCount = tagInsight?.merchantSeenCount || 0;
 
   return (
@@ -614,18 +597,19 @@ export function TransactionInsightDrawer({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#67e8f9' }}>Category</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', marginTop: 2 }}>{localCategory}</div>
+                {/* D-5: no confidence percentage (often a heuristic); plain-language source and
+                    approximate merchant history only. */}
                 <div style={{ fontSize: 13, color: '#9ba8bc', marginTop: 2 }}>
                   {tagInsightLoading ? 'Analyzing…' : [
-                    confidence != null && confidence > 0 && `${confidence}% confidence`,
-                    seenCount > 0 && `Seen ${seenCount}x`,
-                    tagInsight?.categorySource && tagInsight.categorySource !== 'unknown' && tagInsight.categorySource,
+                    describeCategorySource(tagInsight?.categorySource),
+                    tagInsight?.merchantSeenCapped ? describeMerchantHistory(MERCHANT_HISTORY_CAP) : describeMerchantHistory(seenCount),
                   ].filter(Boolean).join(' · ') || 'Current category'}
                 </div>
-                            {TAX_INFO[localCategory] && (
-                <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 8, background: TAX_INFO[localCategory].bg, border: `1px solid ${TAX_INFO[localCategory].border}`, fontSize: 12, fontWeight: 700, color: TAX_INFO[localCategory].color, letterSpacing: '0.03em' }}>
-                  {TAX_INFO[localCategory].label}
-                </div>
-              )}
+                {isPotentiallyTaxRelevant(localCategory) && (
+                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 8, background: 'rgba(148,163,184,0.06)', border: '1px solid rgba(148,163,184,0.2)', fontSize: 12, fontWeight: 600, color: '#c8d0e0' }}>
+                    {TAX_NOTE}
+                  </div>
+                )}
               </div>
               {tagInsight?.isAmountAnomaly && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '2px 6px', flexShrink: 0 }}>⚠ Unusual</span>
