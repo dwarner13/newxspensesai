@@ -193,7 +193,9 @@ describe('follow-up questions keep document context (chat.ts buildAttachmentCont
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loaded after env setup
   let buildAttachmentContext: (sb: any, userId: string, ids: string[], opts?: { question?: string }) => Promise<string | null>;
   beforeAll(async () => {
-    buildAttachmentContext = (await import('../chat')).buildAttachmentContext;
+    // As called for Prime (authorized for chat documents, E1).
+    const real = (await import('../chat')).buildAttachmentContext;
+    buildAttachmentContext = (sb, userId, ids, opts = {}) => real(sb, userId, ids, { allowChatDocuments: true, ...opts });
   }, 120_000);
 
   const withPages = () => {
@@ -258,7 +260,7 @@ describe('chat.ts C3 wiring (static)', () => {
     expect(chat).toMatch(/resolveAttachmentRefs\(sb, userId, documentIds\)/);
     expect(chat).toMatch(/loadActiveDocumentIds\(sb, userId, finalSessionId\)/);
     expect(chat).toMatch(/const contextDocumentIds = mergeContextDocumentIds\(documentIds, activeChatDocumentIds\);/);
-    expect(chat).toMatch(/buildAttachmentContext\(sb, userId, contextDocumentIds, \{ question: masked \}\)/);
+    expect(chat).toMatch(/buildAttachmentContext\(sb, userId, contextDocumentIds, \{ question: masked, allowChatDocuments: documentAccess\.chatDocumentContext \}\)/);
     // assistant messages never carry attachment refs
     expect(chat).not.toMatch(/role: 'assistant',[^}]*turnAttachmentRefs/);
   });
