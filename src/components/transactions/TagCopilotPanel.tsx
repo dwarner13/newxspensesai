@@ -219,6 +219,9 @@ interface TagCopilotPanelProps {
   onBackToPrime?: () => void;
   /** D-4: when Tag was opened from a transaction drawer, reopens that transaction. */
   onBackToTransaction?: () => void;
+  /** D-6: display-only "Issuer •••• 1234" for the context card (from owner-scoped
+   * tag-explain). Never added to focusedTransaction or sent to Tag. */
+  focusedAccountLabel?: string | null;
   flaggedCount: number; categorizedCount: number; totalCount: number;
   avgConfidence: number; rulesCount: number;
   flaggedTransactions?: FlaggedTransaction[]; subcategorySuggestions?: SubcategorySuggestion[];
@@ -269,6 +272,7 @@ export function TagCopilotPanel({
   focusedTransaction,
   onBackToPrime,
   onBackToTransaction,
+  focusedAccountLabel,
 }: TagCopilotPanelProps) {
   // D-4: focused-transaction context card starts collapsed for each new transaction.
   const [contextOpen, setContextOpen] = useState(false);
@@ -1126,6 +1130,12 @@ export function TagCopilotPanel({
                       <div style={{ minWidth: 0 }}>
                         <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: T.textMuted }}>Date</dt>
                         <dd style={{ margin: "2px 0 0", fontSize: 15, color: T.text }}>{ftDate}</dd>
+                      </div>
+                    )}
+                    {focusedAccountLabel && (
+                      <div style={{ minWidth: 0 }}>
+                        <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: T.textMuted }}>Account</dt>
+                        <dd style={{ margin: "2px 0 0", fontSize: 15, color: T.text, overflowWrap: "anywhere" }}>{focusedAccountLabel}</dd>
                       </div>
                     )}
                     <div style={{ minWidth: 0 }}>

@@ -118,7 +118,10 @@ export default function TransactionsPageV2() {
   const [tagSubcategoryFilter, setTagSubcategoryFilter] = useState('');
   const txListRef = (typeof window !== 'undefined') ? { current: null } : { current: null };
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
-  const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string } | null>(null);
+  const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string; accountLabel?: string | null } | null>(null);
+  // D-6: display-only account label ("Issuer •••• 1234") for Tag's context card, captured from the
+  // owner-scoped tag-explain result of the transaction handed to Tag. Never sent to Tag.
+  const [tagPanelAccountLabel, setTagPanelAccountLabel] = useState<string | null>(null);
   const [tagInsightLoading, setTagInsightLoading] = useState(false);
   const [tagPanelOpen, setTagPanelOpen] = useState(() => {
     // URL param (upload handoff) forces Tag open on mount. Otherwise defer
@@ -490,6 +493,7 @@ export default function TransactionsPageV2() {
       setHighlightTxId(tx ? tx.id : null); // only a resolved, owned row is ever highlighted
       setSelectedTx(null);
       setTagPanelTx(tx);
+      setTagPanelAccountLabel(null); // D-6: no stale label from another transaction
       setTagInjectedMsg(null);
       setTagFollowupMerchants(null);
       setTagPanelOpen(true);
@@ -1402,7 +1406,7 @@ export default function TransactionsPageV2() {
           }
           void refetch(); void fetchTagInbox();
         } catch { /* silent */ }
-      }} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
+      }} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} focusedAccountLabel={tagPanelTx ? tagPanelAccountLabel : null} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
         if (action.type === 'handoff') {
           const slugMap: Record<string, string> = {
             'prime-boss': 'prime-boss', 'prime': 'prime-boss',
@@ -1556,6 +1560,7 @@ export default function TransactionsPageV2() {
             // through to the server. Without this, Tag has no structured
             // handle on the row and falls back to merchant-level rule flow.
             setTagPanelTx(tx);
+            setTagPanelAccountLabel(typeof tagInsight?.accountLabel === 'string' ? tagInsight.accountLabel : null);
             setTagInjectedMsg(injected);
             setTagPanelOpen(true);
           }}
