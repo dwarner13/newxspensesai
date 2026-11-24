@@ -3891,78 +3891,6 @@ function isPrimeSummarySystemPrompt(message: string): boolean {
   );
 }
 
-function isSimpleHowAreYouIntent(message: string): boolean {
-  const text = String(message || '').toLowerCase().trim();
-  if (!text) return false;
-  const compact = text.replace(/[^a-z]/g, '');
-  if (
-    compact === 'howareyou' ||
-    compact === 'howareyoudoing' ||
-    compact === 'howareyoutoday' ||
-    compact === 'howyoudoing' ||
-    compact === 'howsitgoing'
-  ) {
-    return true;
-  }
-  if (/\b(how are you|how are you doing|how are you today|how you doing|how's it going|hows it going)\b/.test(text)) {
-    return true;
-  }
-  // Accept lightweight variants like "hey prime, how are you?"
-  return /^(?:(?:hi|hey|hello)\b[\s,!.]*)?(?:prime\b[\s,!.]*)?(how are you|how are you doing|how are you today|how you doing|how's it going|hows it going)(?:\s+prime)?[\s?.!]*$/.test(text);
-}
-
-function isAskMyNameIntent(message: string): boolean {
-  const text = String(message || '').toLowerCase().trim();
-  if (!text) return false;
-  const compact = text.replace(/[^a-z]/g, '');
-  if (
-    compact.includes('whatismyname') ||
-    compact.includes('whatsmyname') ||
-    compact.includes('tellmyname') ||
-    compact.includes('whoami')
-  ) {
-    return true;
-  }
-
-  const words = text.replace(/[^a-z]/g, ' ').split(/\s+/).filter(Boolean);
-  const hasNameLikeToken = words.some((w) => w === 'name' || w === 'nam' || w === 'nae' || w === 'na');
-  const hasLead = words.includes('what') || words.includes('whats') || words.includes('tell');
-  const hasMy = words.includes('my');
-  return hasLead && hasMy && hasNameLikeToken;
-}
-
-function formatFirstName(displayName: string | null | undefined): string {
-  const cleaned = String(displayName || '').trim();
-  if (!cleaned) return 'there';
-  const first = cleaned.split(' ')[0] || 'there';
-  if (!first) return 'there';
-  return first === 'there' ? 'there' : first.charAt(0).toUpperCase() + first.slice(1);
-}
-
-function buildPrimeSmallTalkDeterministicReply(
-  message: string,
-  displayName: string | null | undefined
-): { text: string; intent: 'ask_my_name' | 'how_are_you' } | null {
-  const firstName = formatFirstName(displayName);
-  if (isAskMyNameIntent(message)) {
-    return {
-      intent: 'ask_my_name',
-      text: firstName === 'there'
-        ? "I don't have your name loaded yet. Add it in Account settings and I'll use it in chat."
-        : `Your profile name is ${firstName}.`,
-    };
-  }
-  if (isSimpleHowAreYouIntent(message)) {
-    return {
-      intent: 'how_are_you',
-      text: firstName === 'there'
-        ? 'I am doing well and ready to help. What should we tackle next with your money today?'
-        : `${firstName}, I am doing well and ready to help. What should we tackle next with your money today?`,
-    };
-  }
-  return null;
-}
-
 async function loadLatestImportSummaryTextBestEffort(
   sb: SupabaseClient,
   userId: string
@@ -3981,32 +3909,6 @@ async function loadLatestImportSummaryTextBestEffort(
   } catch {
     return null;
   }
-}
-
-async function resolveUserDisplayNameBestEffort(
-  sb: SupabaseClient,
-  userId: string,
-  fallbackDisplayName?: string | null
-): Promise<string> {
-  const fallback = String(fallbackDisplayName || '').trim();
-  if (fallback) return fallback;
-  try {
-    const { data } = await sb
-      .from('profiles')
-      .select('display_name, first_name, full_name')
-      .eq('id', userId)
-      .maybeSingle();
-    const profileName = String(
-      data?.display_name ||
-      data?.first_name ||
-      data?.full_name ||
-      ''
-    ).trim();
-    if (profileName) return profileName;
-  } catch {
-    // Ignore and fall back.
-  }
-  return 'there';
 }
 
 type LatestImportFacts = {
@@ -5369,14 +5271,14 @@ async function getUserProfile(
     }
 
     if (!profile) {
-      // Fallback: try auth user metadata/email for a name
+      // Fallback: auth user metadata name (never the email address)
       try {
         const { data: authUser } = await sb.auth.admin.getUserById(userId);
         const metaName = authUser?.user?.user_metadata?.full_name
           || authUser?.user?.user_metadata?.name
           || null;
-        const emailName = authUser?.user?.email?.split('@')[0] || null;
-        const fallbackName = metaName || emailName || 'there';
+        // P-1: never derive a customer's name from their email address.
+        const fallbackName = metaName || 'there';
         return {
           preferredName: fallbackName,
           scope: 'exploring',
@@ -5400,7 +5302,7 @@ async function getUserProfile(
       }
     }
 
-    // Preferred name: display_name -> first_name -> full_name -> auth metadata/email
+    // Preferred name: display_name -> first_name -> full_name -> auth metadata name (never email)
     const rawPreferredName = profile.display_name || profile.first_name || profile.full_name || 'there';
     // Capitalize each word (handles "darrell warner" -> "Darrell Warner")
     let preferredName = rawPreferredName === 'there' ? 'there'
@@ -5411,8 +5313,8 @@ async function getUserProfile(
         const metaName = authUser?.user?.user_metadata?.full_name
           || authUser?.user?.user_metadata?.name
           || null;
-        const emailName = authUser?.user?.email?.split('@')[0] || null;
-        preferredName = metaName || emailName || preferredName;
+        // P-1: never derive a customer's name from their email address.
+        preferredName = metaName || preferredName;
       } catch (fallbackError: any) {
         if (process.env.NETLIFY_DEV === 'true') {
           console.warn('[Chat] getUserProfile name fallback failed:', fallbackError?.message || fallbackError);
@@ -5523,11 +5425,11 @@ function formatUserContextForPrompt(userProfile: {
   taxSystem: string | null;
   aiFluencyLevel: string | null;
   aiFluencyScore: number | null;
-}): string {
+}, opts: { omitName?: boolean } = {}): string {
   const parts: string[] = [];
   
   parts.push(`**User Identity:**`);
-  parts.push(`- Preferred name: ${userProfile.preferredName}`);
+  if (!opts.omitName) parts.push(`- Preferred name: ${userProfile.preferredName}`);
   
   if (userProfile.scope && userProfile.scope !== 'exploring') {
     parts.push(`- Account scope: ${userProfile.scope}`);
@@ -7849,9 +7751,6 @@ export const handler: Handler = async (event, context) => {
       }
     }
     if (!forcedPrimeDecision && workspaceActivityIntent && !hasAttachments) {
-      const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
-      const rawFirst5921 = String(displayName).split(' ')[0] || 'there';
-      const firstName = rawFirst5921 === 'there' ? 'there' : rawFirst5921.charAt(0).toUpperCase() + rawFirst5921.slice(1);
       const activity = await loadWorkspaceActivitySnapshotBestEffort(sb, userId);
       if (activity) {
         const latestUpload = activity.latestUploadAt ? new Date(activity.latestUploadAt).toLocaleString() : 'not yet';
@@ -7860,7 +7759,7 @@ export const handler: Handler = async (event, context) => {
           deterministic_path: 'workspace_activity',
           deterministic_intent: 'workspace_activity_snapshot',
           assistantText: [
-            `${firstName}, here is your workspace activity snapshot:`,
+            'Here is your workspace activity snapshot:',
             `- Uploads in last 30 days: ${activity.uploads30d}`,
             `- Chat questions in last 7 days: ${activity.chatTurns7d}`,
             `- Latest upload: ${latestUpload}`,
@@ -7871,9 +7770,6 @@ export const handler: Handler = async (event, context) => {
       }
     }
     if (!forcedPrimeDecision && recallLastUploadIntent && !hasAttachments) {
-      const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
-      const rawFirst5947 = String(displayName).split(' ')[0] || 'there';
-      const firstName = rawFirst5947 === 'there' ? 'there' : rawFirst5947.charAt(0).toUpperCase() + rawFirst5947.slice(1);
       const latest = await loadLatestImportSummaryBestEffort(sb, userId);
       if (latest?.summaryText) {
         let institutionOverride: string | null = null;
@@ -7897,7 +7793,7 @@ export const handler: Handler = async (event, context) => {
           deterministic_path: 'upload_recall',
           deterministic_intent: 'last_upload_recall',
           assistantText: [
-            `${firstName}, using your last uploaded document${statementLabel ? ` (${statementLabel})` : ''} (${timestampText})${latest.importId ? ` [import ${latest.importId.slice(0, 8)}]` : ''}.`,
+            `Using your last uploaded document${statementLabel ? ` (${statementLabel})` : ''} (${timestampText})${latest.importId ? ` [import ${latest.importId.slice(0, 8)}]` : ''}.`,
             '',
             buildUploadFindingsResponseFromSummary(latest.summaryText, { institutionOverride }),
           ].join('\n'),
@@ -7958,31 +7854,6 @@ export const handler: Handler = async (event, context) => {
           assistantText,
         };
       }
-    }
-    if (!forcedPrimeDecision && isAskMyNameIntent(masked)) {
-      const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
-      const firstName = formatFirstName(displayName);
-      forcedPrimeDecision = {
-        lane: 'deterministic',
-        deterministic_path: 'small_talk',
-        deterministic_intent: 'ask_my_name',
-        assistantText: firstName === 'there'
-          ? "I don't have your name loaded yet. Add it in Account settings and I'll use it in chat."
-          : `Your profile name is ${firstName}.`,
-      };
-    }
-    if (!forcedPrimeDecision && isSimpleHowAreYouIntent(masked)) {
-      const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
-      const firstName = formatFirstName(displayName);
-      const assistantText = firstName === 'there'
-        ? 'I am doing well and ready to help. What should we tackle next with your money today?'
-        : `${firstName}, I am doing well and ready to help. What should we tackle next with your money today?`;
-      forcedPrimeDecision = {
-        lane: 'deterministic',
-        deterministic_path: 'small_talk',
-        deterministic_intent: 'how_are_you',
-        assistantText,
-      };
     }
     // Deterministic temporal lane: answer "what time/date/day is it" without OpenAI.
     // detectTemporalIntent() already excludes financial questions (spend, transactions, etc.)
@@ -8246,12 +8117,14 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
-    let preferredNameForPrime: string | null = effectivePrimeContext?.displayName || null;
+    // P-1: one authoritative source — the authenticated server-side profile (never the client-sent
+    // page context, never the email address).
+    let preferredNameForPrime: string | null = null;
 
     if (primeDecision.lane === 'deterministic') {
       orchCtx.deterministic_path = primeDecision.deterministic_path;
       orchCtx.deterministic_intent = primeDecision.deterministic_intent;
-      let assistantContent = sanitizePrimeAssistantPresentation(primeDecision.assistantText, finalEmployeeSlug, preferredNameForPrime);
+      let assistantContent = sanitizePrimeAssistantPresentation(primeDecision.assistantText, finalEmployeeSlug);
       assistantContent = ensureAssistantContent(assistantContent, orchestrationStage, orchCtx);
       fallbackUsed = orchCtx.fallback_used;
       setStage('respond');
@@ -8783,7 +8656,7 @@ export const handler: Handler = async (event, context) => {
         ].join('\n');
       }
       const assistantContent = ensureAssistantContent(
-        sanitizePrimeAssistantPresentation(primeWorkerSummary, finalEmployeeSlug, preferredNameForPrime),
+        sanitizePrimeAssistantPresentation(primeWorkerSummary, finalEmployeeSlug),
         orchestrationStage,
         orchCtx
       );
@@ -8882,8 +8755,7 @@ export const handler: Handler = async (event, context) => {
           temporalIntent,
           effectivePrimeContext?.timezone || null
         ),
-        finalEmployeeSlug,
-        preferredNameForPrime
+        finalEmployeeSlug
       );
 
       console.log('[Chat] ⚡ Deterministic temporal response path', {
@@ -8982,8 +8854,7 @@ export const handler: Handler = async (event, context) => {
     if (!masked.startsWith('[PRIME_GREETING]') && groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildGroundedFactsResponse(groundedFactsIntent, effectivePrimeContext),
-        finalEmployeeSlug,
-        preferredNameForPrime
+        finalEmployeeSlug
       );
 
       console.log('[Chat] ⚡ Deterministic grounded facts response path', {
@@ -9097,8 +8968,7 @@ export const handler: Handler = async (event, context) => {
     if (effectiveClarificationDecision && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         effectiveClarificationDecision.question,
-        finalEmployeeSlug,
-        preferredNameForPrime
+        finalEmployeeSlug
       );
 
       console.log('[Chat] ⚡ Deterministic clarification response path', {
@@ -9196,8 +9066,7 @@ export const handler: Handler = async (event, context) => {
     if (coachingIntent && isPrimeEmployeeForCoaching && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildCoachingResponse(coachingIntent, effectivePrimeContext),
-        finalEmployeeSlug,
-        preferredNameForPrime
+        finalEmployeeSlug
       );
 
       console.log('[Chat] ⚡ Deterministic coaching response path', {
@@ -9296,8 +9165,7 @@ export const handler: Handler = async (event, context) => {
     if (insightIntent && isPrimeEmployeeForInsights && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildInsightResponse(insightIntent, effectivePrimeContext),
-        finalEmployeeSlug,
-        preferredNameForPrime
+        finalEmployeeSlug
       );
 
       console.log('[Chat] ⚡ Deterministic financial insight response path', {
@@ -9396,8 +9264,7 @@ export const handler: Handler = async (event, context) => {
     if (predictiveIntent && isPrimeEmployeeForPredictive && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildPredictiveResponse(predictiveIntent, effectivePrimeContext),
-        finalEmployeeSlug,
-        preferredNameForPrime
+        finalEmployeeSlug
       );
 
       console.log('[Chat] ⚡ Deterministic predictive finance response path', {
@@ -9496,8 +9363,7 @@ export const handler: Handler = async (event, context) => {
     if (automationIntent && isPrimeEmployeeForAutomation && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildAutomationResponse(automationIntent, effectivePrimeContext),
-        finalEmployeeSlug,
-        preferredNameForPrime
+        finalEmployeeSlug
       );
 
       console.log('[Chat] ⚡ Deterministic automation response path', {
@@ -9958,7 +9824,7 @@ export const handler: Handler = async (event, context) => {
       }
     }
     timingLogs.profile = Date.now() - profileStartTime;
-    const userContextBlock = userProfile ? formatUserContextForPrompt(userProfile) : null;
+    const userContextBlock = userProfile ? formatUserContextForPrompt(userProfile, { omitName: finalEmployeeSlug === 'prime-boss' }) : null;
 
     // ── Authoritative date-range normalization ──────────────────────────
     // Detect relative date periods in the user message and resolve them
@@ -10765,7 +10631,9 @@ export const handler: Handler = async (event, context) => {
     }
     
     // Add user name context (CRITICAL: Never show email as name)
-    if (userProfile?.preferredName) {
+    if (isPrimeBoss) {
+      // P-1: Prime's single name rule lives in PRIME PERSONALITY (one source, used naturally).
+    } else if (userProfile?.preferredName) {
       const rawFirst7807 = userProfile.preferredName.split(' ')[0] || userProfile.preferredName;
       const firstName = rawFirst7807 === 'there' ? 'there' : rawFirst7807.charAt(0).toUpperCase() + rawFirst7807.slice(1);
       mergedUserContext += `\n\n**User Name Context (IMPORTANT):**
@@ -10828,8 +10696,7 @@ export const handler: Handler = async (event, context) => {
       // Build Prime context system message (convenience overlay, verified server-side)
       let primeContextMessage = 'PRIME CONTEXT (User State Snapshot):\n\n';
 
-      // User identity
-      primeContextMessage += `User: ${pc.displayName || 'User'}\n`;
+      // P-1: the customer's name is not repeated here (PRIME PERSONALITY carries the one name rule).
       if (pc.timezone) primeContextMessage += `Timezone: ${pc.timezone}\n`;
       if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
       if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
@@ -11400,10 +11267,12 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
     // Build final messages: system messages + chat history + current user message
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       ...(primeAuthorityHint ? [primeAuthorityHint] : []),
-      ...(primePersonalityHint ? [primePersonalityHint] : []),
       ...(tagAuthorityHint ? [tagAuthorityHint] : []),
       ...(byteContextHint ? [byteContextHint] : []),
       ...systemMessages,
+      // P-1: the personality contract is the last system block, so the voice frames the answer
+      // after all rules; it remains presentation policy and never overrides truth or security.
+      ...(primePersonalityHint ? [primePersonalityHint] : []),
       ...recentMessages.map((m: any) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -12973,21 +12842,6 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         primeIntent.isBreakdownReport &&
         !primeIntent.isUploadHowTo &&
         isGenericUploadTemplateReply(assistantContent);
-      const shouldForcePrimeSmallTalk =
-        isPrime &&
-        (isAskMyNameIntent(masked) || isSimpleHowAreYouIntent(masked));
-      if (shouldForcePrimeSmallTalk) {
-        const resolvedNameForSmallTalk =
-          preferredNameForPrime ||
-          await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
-        const deterministicSmallTalk = buildPrimeSmallTalkDeterministicReply(masked, resolvedNameForSmallTalk);
-        if (deterministicSmallTalk) {
-          assistantContent = deterministicSmallTalk.text;
-          orchCtx.deterministic_path = 'small_talk';
-          orchCtx.deterministic_intent = deterministicSmallTalk.intent;
-          console.log('[Chat] Forced deterministic small_talk override (streaming):', deterministicSmallTalk.intent);
-        }
-      }
       if (shouldRewritePrimeGeneric) {
         const rewritten = buildPrimeDeterministicRewrite({
           hasDocs: hasDocumentContext,
@@ -12998,7 +12852,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         writeSSE({ type: 'text', content: `\n\nUpdated answer:\n${rewritten}` });
       }
 
-      const sanitizedStreamAssistantContent = sanitizePrimeAssistantPresentation(assistantContent, finalEmployeeSlug, preferredNameForPrime);
+      const sanitizedStreamAssistantContent = sanitizePrimeAssistantPresentation(assistantContent, finalEmployeeSlug);
       if (sanitizedStreamAssistantContent !== assistantContent) {
         assistantContent = sanitizedStreamAssistantContent;
         writeSSE({ type: 'text', content: `\n\nUpdated answer:\n${assistantContent}` });
@@ -14559,21 +14413,6 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         primeIntent.isBreakdownReport &&
         !primeIntent.isUploadHowTo &&
         isGenericUploadTemplateReply(assistantContent);
-      const shouldForcePrimeSmallTalkNonStream =
-        isPrime &&
-        (isAskMyNameIntent(masked) || isSimpleHowAreYouIntent(masked));
-      if (shouldForcePrimeSmallTalkNonStream) {
-        const resolvedNameForSmallTalk =
-          preferredNameForPrime ||
-          await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
-        const deterministicSmallTalk = buildPrimeSmallTalkDeterministicReply(masked, resolvedNameForSmallTalk);
-        if (deterministicSmallTalk) {
-          assistantContent = deterministicSmallTalk.text;
-          orchCtx.deterministic_path = 'small_talk';
-          orchCtx.deterministic_intent = deterministicSmallTalk.intent;
-          console.log('[Chat] Forced deterministic small_talk override (non-streaming):', deterministicSmallTalk.intent);
-        }
-      }
       if (shouldRewritePrimeGenericNonStream) {
         assistantContent = buildPrimeDeterministicRewrite({
           hasDocs: hasDocumentContext,
@@ -14581,7 +14420,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         });
       }
 
-      assistantContent = sanitizePrimeAssistantPresentation(assistantContent, finalEmployeeSlug, preferredNameForPrime);
+      assistantContent = sanitizePrimeAssistantPresentation(assistantContent, finalEmployeeSlug);
       setStage('respond');
       assistantContent = ensureAssistantContent(assistantContent, orchestrationStage, orchCtx);
       if (assistantContent === buildSafeFallbackResponse(orchestrationStage)) {
@@ -15152,31 +14991,15 @@ function ensureAssistantContent(content: string | null | undefined, stage: strin
 function sanitizePrimeAssistantPresentation(
   content: string | null | undefined,
   employeeSlug: string | null | undefined,
-  preferredName?: string | null
 ): string {
   const text = String(content || '');
   const slug = String(employeeSlug || '').toLowerCase();
   const isPrime = slug === 'prime-boss' || slug === 'prime';
   if (!isPrime) return text;
 
-  let sanitized = sanitizePrimeResponse(text);
-  const isGreetingLikeReply = /\b(how can i assist you today|how can i help|how are you|i(?:'m| am) here and ready to help|i(?:'m| am) doing great)\b/i.test(sanitized);
-  // If Prime returned a generic greeting, add first-name personalization when available.
-  if (isGreetingLikeReply) {
-    const preferred = String(preferredName || '').trim();
-    const firstNameRaw = preferred.split(' ')[0] || '';
-    const firstName = firstNameRaw
-      ? firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1)
-      : '';
-    if (firstName && firstName.toLowerCase() !== 'there') {
-      const alreadyAddressed = new RegExp(`\\b${firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(sanitized);
-      if (!alreadyAddressed) {
-        sanitized = `${firstName}, ${sanitized.charAt(0).toLowerCase()}${sanitized.slice(1)}`;
-      }
-    }
-  }
-  // Keep Prime conversational and avoid repetitive canned closers after every answer.
-  return isGreetingLikeReply ? sanitized : sanitized.trim();
+  // P-1: the name is never prepended by code (contract name.prependByCode = false);
+  // Prime uses the preferred name naturally from its personality instruction.
+  return sanitizePrimeResponse(text).trim();
 }
 
 async function logOrchestrationTelemetry(

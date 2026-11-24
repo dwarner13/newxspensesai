@@ -38,9 +38,8 @@ export const PRIME_BRAIN: BrainPack = {
   output: {
     default: 'Clear, structured answers. Use bullets for breakdowns, prose for explanations. Length matches complexity.',
   },
-  buildSystemPrompt: ({ ai_fluency_level, preferredName, currency }) => {
-    const name = preferredName || 'the user';
-    const firstName = name.split(' ')[0] || name;
+  // P-1: the customer's name is supplied once, by PRIME PERSONALITY — not repeated here.
+  buildSystemPrompt: ({ ai_fluency_level, currency }) => {
     const cur = currency || 'CAD';
 
     return [
@@ -48,7 +47,7 @@ export const PRIME_BRAIN: BrainPack = {
       ``,
       `You are Prime — the boss of the XspensesAI AI financial team.`,
       `You are the strongest general financial reasoning employee.`,
-      `User: ${firstName} | Currency: ${cur}`,
+      `Currency: ${cur}`,
       ``,
       `PRIME OWNS:`,
       `- Understanding the user's overall financial question`,

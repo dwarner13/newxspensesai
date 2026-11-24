@@ -22,8 +22,9 @@ const msg = buildPrimePersonalityMessage({ preferredName: 'Sam Lee' });
 describe('C2-D — one authoritative personality path', () => {
   it('the personality message is rendered from PRIME_PERSONALITY_V1', () => {
     expect(personaSrc).toContain("import { PRIME_PERSONALITY_V1 as P } from '../../../src/shared/prime-personality-contract';");
-    const [lo, hi] = PRIME_PERSONALITY_V1.length.typicalSentences;
-    expect(msg).toContain(`Everyday questions: usually ${lo}–${hi} sentences.`);
+    // P-1 (owner GO): no global sentence caps — length adapts to the question.
+    expect(PRIME_PERSONALITY_V1.length.adaptive).toBe(true);
+    expect(msg).toContain('RESPONSE STYLE (match the shape of the answer to the question):');
     expect(msg).toContain(`at most ${PRIME_PERSONALITY_V1.expression.maxEmojiPerReply} per reply`);
     expect(msg).toContain(`Ask at most ${PRIME_PERSONALITY_V1.clarification.maxQuestionsPerTurn} follow-up question`);
   });
@@ -82,14 +83,17 @@ describe('C2-D — owner-approved style rules', () => {
     expect(msg).toMatch(/only when it would genuinely change the answer/);
   });
 
-  it('short by default, longer only when needed, key figures bolded sparingly', () => {
-    expect(msg).toMatch(/Go longer only when the question genuinely needs it/);
-    expect(msg).toMatch(/well under 150 words unless the user asks for depth/);
-    expect(msg).toContain('Bold the one or two figures that matter most');
+  it('P-1: concise for simple questions, structured for complex ones; key figures bolded', () => {
+    expect(msg).toMatch(/Simple or everyday question: answer it directly/);
+    expect(msg).toMatch(/Complex financial question .*structured explanation.*headings.*markdown table.*numbered steps.*observations/);
+    expect(msg).toContain('never add headings or a table to a short answer');
+    expect(msg).not.toMatch(/well under 150 words|at most 3 short bullets|No headings or/);
+    expect(msg).toContain('Bold the figures that matter most');
   });
 
-  it('name used sparingly; profile name only', () => {
-    expect(msg).toContain("The user's name is Sam. Use it sparingly");
+  it('name used naturally and occasionally; profile name only', () => {
+    expect(msg).toContain("The user's preferred name is Sam. Use it naturally and occasionally");
+    expect(msg).toContain('never in every reply and never as a mechanical opener');
     expect(buildPrimePersonalityMessage({ preferredName: 'there' })).toContain('The user has not provided a name.');
   });
 });

@@ -50,12 +50,13 @@ export function sanitizePrimeResponse(text: string): string {
     .replace(/\bWhat I used:\s*$/gim, '')
     .replace(/\bNext steps:\s*$/gim, '');
 
-  // If model returns rigid "(a)/(b)/(c)" format, keep only the direct answer.
-  if (/\(\s*a\s*\)/i.test(sanitized) && /\(\s*b\s*\)/i.test(sanitized)) {
+  // P-1: only the legacy rigid scaffold — a line starting "(a) Direct answer:" followed by a line
+  // starting "(b)" — is reduced to the direct answer. Ordinary "(a)"/"(b)" options inside a sentence
+  // or a list are never truncated.
+  if (/^\s*\(\s*a\s*\)\s*Direct answer:/im.test(sanitized) && /^\s*\(\s*b\s*\)/im.test(sanitized)) {
     sanitized = sanitized
-      .replace(/\(\s*a\s*\)\s*/i, '')
-      .replace(/\bDirect answer:\s*/i, '')
-      .replace(/\n*\(\s*b\s*\)[\s\S]*$/i, '');
+      .replace(/^(\s*)\(\s*a\s*\)\s*Direct answer:\s*/im, '$1')
+      .replace(/\n\s*\(\s*b\s*\)[\s\S]*$/i, '');
   }
 
   return collapseBlankLines(sanitized);
