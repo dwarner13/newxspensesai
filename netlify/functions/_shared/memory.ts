@@ -24,6 +24,7 @@
  */
 
 import crypto from 'crypto';
+import { formatSnippetDate } from '../../../src/shared/memory-dating';
 import { admin } from './supabase';
 import { maskPII } from './pii';
 // Phase 2.1: Import advanced memory modules as internal helpers
@@ -821,9 +822,11 @@ export async function getMemory(params: {
   // Add RAG memories section
   if (retrieved.memories.length > 0) {
     const memorySnippets = retrieved.memories
-      .map(m => `- ${m.content_redacted} (${(m.similarity * 100).toFixed(0)}% match)`)
+      // L-D4: every snippet carries its recorded date (or "date unknown"); amounts in it are historical
+      // customer statements, never current verified balances.
+      .map(m => `- ${m.content_redacted} (${formatSnippetDate((m as { created_at?: unknown }).created_at)}; ${(m.similarity * 100).toFixed(0)}% match)`)
       .join('\n');
-    contextParts.push(`## Relevant Past Conversations\n${memorySnippets}`);
+    contextParts.push(`## Relevant Past Conversations (historical — customer statements, not verified current balances)\n${memorySnippets}`);
   }
 
   // TODO: Add session summaries (Phase 2.3 or later)

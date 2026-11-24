@@ -10895,7 +10895,8 @@ export const handler: Handler = async (event, context) => {
         if (ms.factsCount !== undefined) primeContextMessage += `- factsCount: ${ms.factsCount}\n`;
         if (ms.lastUpdatedAt) primeContextMessage += `- lastUpdatedAt: ${ms.lastUpdatedAt}\n`;
         if (ms.recentFacts && ms.recentFacts.length > 0) {
-          primeContextMessage += `- recentFacts: ${ms.recentFacts.slice(0, 3).join(', ')}\n`;
+          // L-D4: client-supplied facts carry no date — label them so they are never read as verified balances.
+          primeContextMessage += `- recentFacts (customer-provided earlier, date unknown — not verified balances): ${ms.recentFacts.slice(0, 3).join(', ')}\n`;
         }
       }
       

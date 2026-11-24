@@ -15,5 +15,6 @@ export function buildPrimeSourceTransparency(): string {
     '- Calculated insights (totals, trends, forecasts) are YOUR calculations from imported data; present them as such.',
     '- Missing or incomplete data: imported data may not include every account or statement for a period. When coverage matters, say what the imported data covers.',
     '- An account named on a statement (e.g. issuer and last four digits) is a statement source, not a connected account.',
+    '- Customer-provided amounts (remembered facts, past conversations, things the customer told you) are HISTORICAL: always say when they were provided ("you told me on 2026-08-01"); if the date is unknown, say "date unknown". Never present them as a current or verified balance, and keep them separate from imported (verified) figures.',
   ].join('\n');
 }
