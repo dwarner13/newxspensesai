@@ -227,7 +227,28 @@ const NON_MERCHANT_WORDS = new Set([
   'did', 'does', 'do', 'is', 'was', 'were',
   // F1: list verbs ("list transactions on May 15" is not a merchant called "list")
   'list', 'display', 'view', 'pull', 'search', 'look', 'give', 'tell', 'review',
+  // PB-03: quantity words ("how many transactions" is not a merchant called "many")
+  'many', 'much', 'few', 'several', 'most',
 ]);
+
+/**
+ * PB-03: an inventory / coverage question about the user's data as a whole — how many transactions,
+ * what date range or period it covers, how far back it goes, which accounts it comes from.
+ * These are answered with counts and dates, never with individual transaction cards.
+ */
+const INVENTORY_PATTERNS: readonly RegExp[] = [
+  /\bhow many (transactions|purchases|records|entries|statements|imports)\b(?![^?.!]*\b(at|from|on|over|under|above|below|more than|less than)\b)/i,
+  /\b(date range|time ?frame|time period|what period|which period|what dates|which dates|what months|which months)\b[^?.!]*\b(cover|covers|covered|span|spans|data|history|transactions|imported|have)\b/i,
+  /\b(cover|covers|span|spans)\b[^?.!]*\b(date range|time ?frame|period|dates|months)\b/i,
+  /\bhow far back\b/i,
+  /\b(which|what) (bank |credit card |financial )?(accounts?|cards?|banks?)\b[^?.!]*\b(do you have|do i have|have i|you have|imported|connected|linked|on file|you see|(transactions|statements|data) (are|come|came) from|are (they|these|those|my \w+) from)\b/i,
+  /\b(earliest|oldest|latest|most recent|newest) (transaction|statement|import)s?\b[^?.!]*\b(i have|on file|imported|you have|in my data)\b/i,
+];
+
+export function isInventoryQuestion(msg: string): boolean {
+  const text = String(msg || '');
+  return INVENTORY_PATTERNS.some(re => re.test(text));
+}
 /** F2: words that end a multi-word merchant name after "at/from X". */
 const MERCHANT_CONNECTOR_WORDS = new Set(['in', 'on', 'for', 'during', 'from', 'to', 'this', 'last', 'and', 'or', 'with', 'i', 'my']);
 

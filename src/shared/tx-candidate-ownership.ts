@@ -143,10 +143,17 @@ export function resolveModelSearchOwnership(input: {
    * existing verified reference or asks which transaction).
    */
   unscopedReference?: boolean;
+  /**
+   * PB-03: the request is a summary (aggregate total) or an inventory/coverage question ("how many
+   * transactions", "what date range", "which accounts"). Its answer is a number or a range, so a
+   * model search is background evidence only — dated or not — and never renders cards.
+   */
+  summaryOrInventoryRequest?: boolean;
   args: unknown;
 }): CandidateOwnershipIntent {
   const base = resolveCandidateOwnership(input.purpose, input.hasExistingCandidates);
   if (input.unscopedReference) return 'analytical_evidence';
+  if (base === 'candidate_establishment' && input.summaryOrInventoryRequest === true) return 'analytical_evidence';
   // C2-F: an UNDATED model search in a request that is not an explicit list (e.g. a category
   // summary or a general question) is background evidence: it would only show the newest rows,
   // unrelated to the answer. Explicit list requests keep their cards.

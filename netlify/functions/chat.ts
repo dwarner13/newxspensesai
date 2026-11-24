@@ -145,7 +145,7 @@ import {
   preValidateConfirmationArgs,
 } from './_shared/toolConfirmation.js';
 // Phase 1B.2: Server-enforced financial grounding (static imports — must not fail-open)
-import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint } from '../../src/shared/financial-query-classifier';
+import { classifyFinancialQuery, classifyTemporalIntent, extractMerchantHint, isInventoryQuestion } from '../../src/shared/financial-query-classifier';
 // C2-C / M1a: financial follow-up memory (shadow only — observational, never changes plans or answers)
 import {
   buildLastFinancialRequest,
@@ -10204,6 +10204,11 @@ export const handler: Handler = async (event, context) => {
     const primeExplicitListShape: boolean | undefined = isPrime
       ? shadowIntentResult?.financialClassification?.requestShape === 'list'
       : undefined;
+    // PB-03: summary (aggregate) and inventory/coverage questions are answered with numbers and
+    // ranges — no model or grounding search may turn them into individual transaction cards.
+    const primeInventoryQuestion: boolean = isPrime && isInventoryQuestion(String(masked || ''));
+    const primeSummaryOrInventory: boolean = isPrime && primeExplicitListShape !== true
+      && (shadowIntentResult?.financialClassification?.requestShape === 'aggregate' || primeInventoryQuestion);
     // F2: "show me the transaction" / "review it" with no merchant, category, period or amount —
     // the model has no verified scope to search, so its searches never create or replace cards.
     const primeUnscopedReference: boolean = (() => {
@@ -10542,9 +10547,11 @@ export const handler: Handler = async (event, context) => {
     // ── PB-01: actual data coverage when the requested period proved empty ──
     // Lets Prime say "no data for that period; your imported history runs X–Y" instead of
     // filling the period with out-of-period rows. Owner-scoped counts and dates only.
-    if (isPrime && p31cResult) {
-      const emptyPeriod = emptyRequestedPeriod(p31cResult.results);
-      if (emptyPeriod) {
+    // PB-03: inventory/coverage questions ("how many transactions", "what date range") get the same
+    // server-verified coverage, so they are answered from counts and dates rather than sample rows.
+    if (isPrime && (p31cResult || primeInventoryQuestion)) {
+      const emptyPeriod = p31cResult ? emptyRequestedPeriod(p31cResult.results) : null;
+      if (emptyPeriod || primeInventoryQuestion) {
         try {
           const coverage = await fetchTransactionCoverage(admin() as unknown as CoverageClient, userId);
           if (coverage) {
@@ -12177,7 +12184,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                       // lock and persisted frame are settled before the next tool call runs.
                       // P1: undated model search after an answered total = background evidence (no cards/frame)
-                      const streamingOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args });
+                      const streamingOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, summaryOrInventoryRequest: primeSummaryOrInventory, unscopedReference: primeUnscopedReference, args });
                       const streamingOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'streaming', streamingOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (streaming):', e?.message); return null; });
                       // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                       rememberTxSearchModelView(result, presentTxSearchResultForModel(result, streamingOwnershipOutcome, ownershipGate.visibleFrame));
@@ -12564,7 +12571,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                     // lock and persisted frame are settled before the next tool call runs.
                     // P1: undated model search after an answered total = background evidence (no cards/frame)
-                    const specOwnership = resolveModelSearchOwnership({ purpose: tArgs?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args: tArgs });
+                    const specOwnership = resolveModelSearchOwnership({ purpose: tArgs?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, summaryOrInventoryRequest: primeSummaryOrInventory, unscopedReference: primeUnscopedReference, args: tArgs });
                     const specOwnershipOutcome = await ownershipGate.submitSearchResult(tResult, 'specialist', specOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (specialist):', e?.message); return null; });
                     // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                     rememberTxSearchModelView(tResult, presentTxSearchResultForModel(tResult, specOwnershipOutcome, ownershipGate.visibleFrame));
@@ -13274,7 +13281,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                     // no candidates exist (cold start), analytical_evidence when candidates exist
                     // (though phase1dSuppressed should have blocked this path).
                     if (plan.toolName === 'tx_search' && finalSessionId) {
-                      const groundingOwnership: CandidateOwnershipIntent = hasExistingCandidates ? 'analytical_evidence' : 'candidate_establishment';
+                      const groundingOwnership: CandidateOwnershipIntent = hasExistingCandidates || primeSummaryOrInventory ? 'analytical_evidence' : 'candidate_establishment';
                       const groundingOutcome = await ownershipGate.submitSearchResult(preResult, 'grounding', groundingOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (grounding):', e?.message); return null; });
                       // P3.3D: the established visible frame is rendered as cards — frame, don't re-list
                       if (groundingOutcome === 'established' && ownershipGate.visibleFrame && ownershipGate.visibleFrame.shown > 0) {
@@ -13897,7 +13904,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                 // lock and persisted frame are settled before the next tool call runs.
                 // P1: undated model search after an answered total = background evidence (no cards/frame)
-                const nsOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args });
+                const nsOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, summaryOrInventoryRequest: primeSummaryOrInventory, unscopedReference: primeUnscopedReference, args });
                 const nsOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'non-streaming', nsOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (non-streaming):', e?.message); return null; });
                 // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                 rememberTxSearchModelView(result, presentTxSearchResultForModel(result, nsOwnershipOutcome, ownershipGate.visibleFrame));
@@ -14285,7 +14292,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // may write Layer 1 / Layer 2 / cards (all inside the gate). Awaited so the
                   // lock and persisted frame are settled before the next tool call runs.
                   // P1: undated model search after an answered total = background evidence (no cards/frame)
-                  const loopOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args });
+                  const loopOwnership = resolveModelSearchOwnership({ purpose: args?.purpose, hasExistingCandidates, aggregateEvidenceSatisfied: satisfiedAggregateTools.size > 0, authoritativeListAnswered, explicitListRequest: primeExplicitListShape, summaryOrInventoryRequest: primeSummaryOrInventory, unscopedReference: primeUnscopedReference, args });
                   const loopOwnershipOutcome = await ownershipGate.submitSearchResult(result, 'tool-loop', loopOwnership).catch(e => { console.warn('[Chat] TxResolution submit error (tool-loop):', e?.message); return null; });
                   // P3.3D: the model sees exactly the visible frame as selectable (or evidence-only rows)
                   rememberTxSearchModelView(result, presentTxSearchResultForModel(result, loopOwnershipOutcome, ownershipGate.visibleFrame));

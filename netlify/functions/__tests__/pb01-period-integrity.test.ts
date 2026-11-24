@@ -237,7 +237,7 @@ describe('PB-01 E: actual transaction coverage', () => {
   });
   it('chat.ts injects the coverage note only for a proven-empty period, owner-scoped', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../chat.ts'), 'utf8');
-    expect(src).toMatch(/const emptyPeriod = emptyRequestedPeriod\(p31cResult\.results\);/);
+    expect(src).toMatch(/const emptyPeriod = p31cResult \? emptyRequestedPeriod\(p31cResult\.results\) : null;/);
     expect(src).toMatch(/fetchTransactionCoverage\(admin\(\) as unknown as CoverageClient, userId\)/);
   });
 });

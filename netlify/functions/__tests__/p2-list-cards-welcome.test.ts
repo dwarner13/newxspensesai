@@ -276,7 +276,7 @@ describe('wiring', () => {
   it('chat.ts: only explicit, non-merchant list requests let the authoritative result establish cards', () => {
     expect(chat).toMatch(/const p31cExplicitListRequest = isPrime\s+&& shadowIntentResult\?\.financialClassification\?\.requestShape === 'list'\s+&& shadowIntentResult\?\.financialClassification\?\.queryType !== 'merchant';/);
     expect(chat).toContain('submitEvidenceTxSearchResults(p31cResult.results, ownershipGate, { establishFrame: p31cExplicitListRequest })');
-    expect(chat.match(/authoritativeListAnswered, explicitListRequest: primeExplicitListShape, unscopedReference: primeUnscopedReference, args/g)?.length).toBe(4); // C2-F explicitListRequest; F2 unscopedReference
+    expect(chat.match(/authoritativeListAnswered, explicitListRequest: primeExplicitListShape, summaryOrInventoryRequest: primeSummaryOrInventory, unscopedReference: primeUnscopedReference, args/g)?.length).toBe(4); // C2-F explicitListRequest; PB-03 summaryOrInventoryRequest; F2 unscopedReference
     expect(chat).toContain('if (p31cListFrameEstablished && ownershipGate.visibleFrame && ownershipGate.visibleFrame.shown > 0) {');
   });
 
