@@ -20,13 +20,19 @@ export const outputSchema = z.object({
   totalBalance: z.number().nullable(),
   hasVerifiedBalances: z.boolean(),
   provenance: z.enum(['verified_db', 'unavailable']),
+  /** PB-04: there is no live bank connection; these are stored records, never real-time balances. */
+  liveConnection: z.literal(false),
+  sourceNote: z.string(),
 });
+
+/** PB-04: what the model must say about where balances come from. */
+export const ACCOUNT_BALANCE_SOURCE_NOTE = 'Stored account records only. XspensesAI has no live bank connection; balances are as recorded, may be out of date, and are not real-time.';
 
 export type Input = z.infer<typeof inputSchema>;
 export type Output = z.infer<typeof outputSchema>;
 
 /**
- * Query verified account balances from linked accounts.
+ * Query stored account balance records (PB-04: not linked or live accounts — none exist).
  *
  * Returns only balances sourced from the accounts table (verified_db).
  * When no verified account data exists, returns an empty result with
@@ -54,6 +60,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         totalBalance: null,
         hasVerifiedBalances: false,
         provenance: 'unavailable' as const,
+        liveConnection: false as const,
+        sourceNote: ACCOUNT_BALANCE_SOURCE_NOTE,
       });
     }
 
@@ -73,6 +81,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       totalBalance,
       hasVerifiedBalances: true,
       provenance: 'verified_db' as const,
+      liveConnection: false as const,
+      sourceNote: ACCOUNT_BALANCE_SOURCE_NOTE,
     });
   } catch (error) {
     console.error('[account_balances_query] Error:', error);

@@ -488,7 +488,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['account_balances_query', {
     id: 'account_balances_query',
-    description: 'Query verified account balances from linked accounts. Returns only balances sourced from the accounts table. When no linked accounts exist, returns hasVerifiedBalances: false and provenance: unavailable. Never estimates or synthesizes balances.',
+    description: 'Look up stored account balance records (the accounts table). XspensesAI has NO live bank connection: never describe results as linked, connected or real-time accounts, and say balances are as recorded and may be out of date. When no records exist, returns hasVerifiedBalances: false and provenance: unavailable — then say balance information is not available. Never estimates or synthesizes balances.',
     inputSchema: accountBalancesQuery.inputSchema,
     outputSchema: accountBalancesQuery.outputSchema,
     run: accountBalancesQuery.execute,
