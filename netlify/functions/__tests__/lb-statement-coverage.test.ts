@@ -176,8 +176,9 @@ describe('L-B evidence, routes and wiring', () => {
   it('evidence separates upload date from statement period and the attempt from the completed import', async () => {
     const c = await loadStatementCoverage(fakeDb(IMPORTS, DOCS).client, U);
     const ev = formatStatementCoverageEvidence(c);
-    expect(ev).toMatch(/Most recent upload attempt: institution not recorded; statement period not recorded; uploaded 2026-11-21; import status: failed/);
-    expect(ev).toMatch(/Most recent COMPLETED import: BMO •••• 1234; statement period 2026-05-17 to 2026-06-16; uploaded 2026-07-02; import status: completed/);
+    // L-D2: why the bank is missing, the file name, and a customer-friendly status.
+    expect(ev).toContain('Most recent upload attempt: bank not identified — this import did not complete, and bank details are recorded only when an import completes; file "d6.pdf"; statement period not recorded; uploaded 2026-11-21; import status: did not complete');
+    expect(ev).toContain('Most recent COMPLETED import: BMO •••• 1234; file "d1.pdf"; statement period 2026-05-17 to 2026-06-16; uploaded 2026-07-02; import status: imported');
     expect(ev).toMatch(/never mix them/);
   });
   it('Prime may only point to verified routes; no Documents/Statements page', () => {

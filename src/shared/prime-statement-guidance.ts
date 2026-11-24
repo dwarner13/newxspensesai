@@ -43,11 +43,34 @@ export function buildPrimeRoutesRule(): string {
   ].join('\n');
 }
 
+/** L-D2: customer-friendly import status. */
+export function friendlyImportStatus(state: StatementRecord['state']): string {
+  switch (state) {
+    case 'completed': return 'imported';
+    case 'awaiting_review': return 'waiting for your review';
+    case 'in_progress': return 'still processing';
+    case 'failed': return 'did not complete';
+    default: return 'status unknown';
+  }
+}
+
 function fmtRecord(r: StatementRecord): string {
-  const who = r.institution && r.accountLast4 ? `${r.institution} •••• ${r.accountLast4}` : r.institution ?? (r.accountLast4 ? `•••• ${r.accountLast4}` : 'institution not recorded');
+  const who = r.institution && r.accountLast4 ? `${r.institution} •••• ${r.accountLast4}` : r.institution ?? (r.accountLast4 ? `•••• ${r.accountLast4}` : null);
+  // L-D2: bank details are recorded only when an import completes — say why they're missing.
+  const why: Record<StatementRecord['state'], string> = {
+    completed: '',
+    awaiting_review: 'is waiting for your review',
+    in_progress: 'is still processing',
+    failed: 'did not complete',
+    unknown: 'has an unknown status',
+  };
+  const bank = who ?? (r.state === 'completed'
+    ? 'bank not recorded on this statement'
+    : `bank not identified — this import ${why[r.state]}, and bank details are recorded only when an import completes`);
   const period = r.periodStart && r.periodEnd ? `statement period ${r.periodStart} to ${r.periodEnd}` : 'statement period not recorded';
   const uploaded = r.uploadedAt ? `uploaded ${r.uploadedAt.slice(0, 10)}` : 'upload date not recorded';
-  return `${who}; ${period}; ${uploaded}; import status: ${r.state.replace(/_/g, ' ')}`;
+  const file = r.fileName ? `file "${r.fileName}"` : null;
+  return [bank, file, period, uploaded, `import status: ${friendlyImportStatus(r.state)}`].filter(Boolean).join('; ');
 }
 
 export function formatStatementCoverageEvidence(c: StatementCoverage): string {
