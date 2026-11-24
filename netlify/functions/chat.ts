@@ -257,6 +257,7 @@ import {
 } from '../../src/shared/financial-grounding';
 // Phase 1B.1: Tool-gate exact-scope sufficiency
 import { analyzeQueryScope } from '../../src/shared/tool-gate';
+import { buildChatDocumentContext } from './_shared/chatDocumentContext.js';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
 
@@ -5576,7 +5577,8 @@ function formatUserContextForPrompt(userProfile: {
 export async function buildAttachmentContext(
   sb: SupabaseClient,
   userId: string,
-  documentIds: string[]
+  documentIds: string[],
+  opts: { question?: string } = {}
 ): Promise<string | null> {
   if (!documentIds || documentIds.length === 0) {
     return null;
@@ -5622,8 +5624,18 @@ export async function buildAttachmentContext(
 
     const contextParts: string[] = [];
     const processingDocs: string[] = [];
+    // Attachments C1: chat documents (attach-and-discuss) get server-loaded, masked page excerpts
+    // from _shared/chatDocumentContext; import documents below stay metadata + breakdown only.
+    const chatDocIds: string[] = [];
+    const unreadableChatDocs: string[] = [];
 
     for (const doc of documents) {
+      if (doc?.purpose === 'chat_document') {
+        if (doc.status === 'ready') chatDocIds.push(String(doc.id));
+        else if (doc.status === 'rejected') unreadableChatDocs.push(String(doc.original_name || 'document'));
+        else processingDocs.push(String(doc.original_name || 'document'));
+        continue;
+      }
       const isProcessing = doc.status === 'pending' || doc.status === 'processing';
       const textLengthValue = doc?.ocr_text_length ?? doc?.extracted_data?.text_length ?? null;
       const textLength = Number.isFinite(Number(textLengthValue)) ? Number(textLengthValue) : 0;
@@ -5708,6 +5720,14 @@ export async function buildAttachmentContext(
       }
 
       contextParts.push(docContext.join('\n'));
+    }
+
+    if (chatDocIds.length > 0) {
+      const chatDocs = await buildChatDocumentContext(sb, userId, chatDocIds, { question: opts.question });
+      if (chatDocs.text) contextParts.push(chatDocs.text);
+    }
+    if (unreadableChatDocs.length > 0) {
+      contextParts.push(`Note: ${unreadableChatDocs.length} attached document(s) could not be read: ${unreadableChatDocs.join(', ')}. Say so; do not guess their contents.`);
     }
 
     if (processingDocs.length > 0) {
@@ -11142,7 +11162,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
     // Build attachment context if documentIds provided
     let attachmentContext: string | null = null;
     if (!isPrimeFastLane && documentIds && documentIds.length > 0) {
-      attachmentContext = await buildAttachmentContext(sb, userId, documentIds);
+      attachmentContext = await buildAttachmentContext(sb, userId, documentIds, { question: masked });
     }
     const shouldAttachLatestImportContext =
       isPrime &&
