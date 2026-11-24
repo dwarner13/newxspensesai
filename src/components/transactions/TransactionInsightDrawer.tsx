@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { factsFromStatementMeta, formatStatementPeriod, accountText, statementText, type StatementFacts } from '@/lib/statementFacts';
+import { factsFromStatementMeta, withDocumentPeriod, accountText, statementText, type StatementFacts } from '@/lib/statementFacts';
 import { X, TrendingUp, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
@@ -177,11 +177,16 @@ export function TransactionInsightDrawer({
             .select('statement_breakdown_json, document_id')
             .eq('id', committedImportId).maybeSingle();
           facts = factsFromStatementMeta((imp?.statement_breakdown_json as any)?.statement_meta, sanitizeIssuerPillLabel);
-          // Second verified source (same order as Prime's statement periods): the document's own period.
+          // Next verified sources (agreed order, L-D3): Vision's extracted period, then the period
+          // text as printed. Only those two JSON paths are selected (no OCR text); an error
+          // leaves the period empty, so the cell reads "Statement period unavailable".
           const docId = (imp as any)?.document_id;
           if (!facts.period && docId) {
-            const { data: doc } = await supabase.from('user_documents').select('period_start, period_end').eq('id', docId).maybeSingle();
-            facts = { ...facts, period: formatStatementPeriod((doc as any)?.period_start, (doc as any)?.period_end) };
+            const { data: doc, error: docError } = await supabase
+              .from('user_documents')
+              .select('vision_period:extracted_data->claude_vision->period, printed_period:metadata->statement_summary->>statement_period')
+              .eq('id', docId).maybeSingle();
+            if (!docError) facts = withDocumentPeriod(facts, doc as any);
           }
           STATEMENT_FACTS_CACHE.set(committedImportId, facts);
         }
