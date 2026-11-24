@@ -1,0 +1,175 @@
+{
+ "ok": true,
+ "totalScanned": 26,
+ "issues": [
+  {
+   "id": "id-5",
+   "merchant": "NETFLIX",
+   "currentCategory": "Shopping",
+   "suggestedCategory": "Subscriptions",
+   "suggestedSubcategory": null,
+   "reason": "Inconsistent - most transactions for this merchant are Subscriptions",
+   "transactionIds": [
+    "t14",
+    "t15",
+    "t16"
+   ],
+   "count": 3,
+   "totalAmount": 47.94,
+   "samples": [
+    {
+     "merchant_name": "NETFLIX",
+     "amount": -15.99,
+     "posted_at": "2026-08-01"
+    },
+    {
+     "merchant_name": "NETFLIX",
+     "amount": -15.98,
+     "posted_at": "2026-09-01"
+    },
+    {
+     "merchant_name": "NETFLIX",
+     "amount": -15.97,
+     "posted_at": "2026-10-01"
+    }
+   ]
+  },
+  {
+   "id": "id-4",
+   "merchant": "7-ELEVEN STORE",
+   "currentCategory": "Transfers",
+   "suggestedCategory": "Food & Dining",
+   "suggestedSubcategory": "Convenience Store",
+   "reason": "Convenience store categorized as Transfers - should be Food & Dining",
+   "transactionIds": [
+    "t05",
+    "t06"
+   ],
+   "count": 2,
+   "totalAmount": 20.25,
+   "samples": [
+    {
+     "merchant_name": "7-ELEVEN STORE",
+     "amount": -12.25,
+     "posted_at": "2026-05-05"
+    },
+    {
+     "merchant_name": "7-ELEVEN STORE",
+     "amount": -8,
+     "posted_at": "2026-05-06"
+    }
+   ]
+  },
+  {
+   "id": "dup-t21",
+   "merchant": "COSTCO",
+   "currentCategory": "Groceries",
+   "suggestedCategory": "Groceries",
+   "suggestedSubcategory": null,
+   "reason": "2 identical transactions on 2026-05-04 for $141.39 — likely a parsing duplicate",
+   "transactionIds": [
+    "t21",
+    "t22"
+   ],
+   "count": 2,
+   "totalAmount": 282.78,
+   "samples": [
+    {
+     "merchant_name": "COSTCO",
+     "amount": -141.39,
+     "posted_at": "2026-05-04"
+    },
+    {
+     "merchant_name": "COSTCO",
+     "amount": -141.39,
+     "posted_at": "2026-05-04"
+    }
+   ]
+  },
+  {
+   "id": "id-1",
+   "merchant": "GORDON FOOD SERVICE PAYROLL",
+   "currentCategory": "Transfers",
+   "suggestedCategory": "Income",
+   "suggestedSubcategory": "Employment Income",
+   "reason": "Looks like your employer - should be Employment Income",
+   "transactionIds": [
+    "t01"
+   ],
+   "count": 1,
+   "totalAmount": 2500,
+   "samples": [
+    {
+     "merchant_name": "GORDON FOOD SERVICE PAYROLL",
+     "amount": 2500,
+     "posted_at": "2026-05-01"
+    }
+   ]
+  },
+  {
+   "id": "id-2",
+   "merchant": "TD LOAN PMT",
+   "currentCategory": "Business Income",
+   "suggestedCategory": "Debt Payments",
+   "suggestedSubcategory": "Loan Payment",
+   "reason": "Loan payment - should be Debt Payments",
+   "transactionIds": [
+    "t03"
+   ],
+   "count": 1,
+   "totalAmount": 300,
+   "samples": [
+    {
+     "merchant_name": "TD LOAN PMT",
+     "amount": -300,
+     "posted_at": "2026-05-03"
+    }
+   ]
+  },
+  {
+   "id": "id-3",
+   "merchant": "SOBEYS #123",
+   "currentCategory": "Business Income",
+   "suggestedCategory": "Groceries",
+   "suggestedSubcategory": null,
+   "reason": "Grocery store - should be Groceries",
+   "transactionIds": [
+    "t04"
+   ],
+   "count": 1,
+   "totalAmount": 80.5,
+   "samples": [
+    {
+     "merchant_name": "SOBEYS #123",
+     "amount": -80.5,
+     "posted_at": "2026-05-04"
+    }
+   ]
+  },
+  {
+   "id": "id-6",
+   "merchant": "TIM HORTONS",
+   "currentCategory": "Food & Dining",
+   "suggestedCategory": "Food & Dining",
+   "suggestedSubcategory": null,
+   "reason": "Typical TIM HORTONS transaction is ~5.00 but this shows 450.00 — likely an OCR misread",
+   "transactionIds": [
+    "t25"
+   ],
+   "count": 1,
+   "totalAmount": 450,
+   "samples": [
+    {
+     "merchant_name": "TIM HORTONS",
+     "amount": -450,
+     "posted_at": "2026-05-09"
+    }
+   ],
+   "issueType": "amount_anomaly",
+   "suggestedAmount": null,
+   "medianAmount": 5
+  }
+ ],
+ "issueCount": 7,
+ "totalAffected": 11
+}
