@@ -736,9 +736,13 @@ export default function TaxWorkspacePage() {
                 <div style={{ marginBottom: 12, paddingTop: 12, borderTop: `1px solid ${THEME.border}44` }}>
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: THEME.textDim, fontWeight: 600, marginBottom: 8 }}>Business KM by Purpose</div>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {/* Privacy (owner decision 2026-11-24): generic labels only — no business or employer
+                        names and no example figures. The storage keys (businessGFS / businessROWNMI,
+                        business_km_gfs / business_km_rownmi) are internal names kept for saved-data
+                        compatibility; they are never shown. Both rows are optional. */}
                     {([
-                      { label: "GFS Sales (T777)", key: "businessGFS" as const, placeholder: "e.g. 35000", color: "#60a5fa" },
-                      { label: "ROWNMI Clients (T2125)", key: "businessROWNMI" as const, placeholder: "e.g. 7321", color: "#34d399" },
+                      { label: "Employment driving, if any (T777)", key: "businessGFS" as const, placeholder: "km (optional)", color: "#60a5fa" },
+                      { label: "Self-employment driving, if any (T2125)", key: "businessROWNMI" as const, placeholder: "km (optional)", color: "#34d399" },
                     ] as const).map((field) => (
                       <div key={field.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         <span style={{ fontSize: 11, color: field.color, fontWeight: 600 }}>{field.label}</span>
@@ -771,7 +775,7 @@ export default function TaxWorkspacePage() {
                 {/* Footer row */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: `1px solid ${THEME.border}44` }}>
                   <div style={{ fontSize: 11, color: THEME.textDim }}>
-                    T777 requires T2200 from GFS · T2125 for ROWNMI self-employment
+                    If applicable: employment vehicle expenses (T777) need a T2200 signed by your employer · self-employment vehicle expenses go on T2125
                   </div>
                   <button
                     onClick={saveVehicleKm}
