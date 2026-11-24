@@ -1635,9 +1635,9 @@ function buildTxDeterministicFormatHint(message: string): string | null {
   }
   if (isLikelyDeductibleIntent(message)) {
     return [
-      'TX_RESPONSE_FORMAT (likely deductible):',
-      '- Likely deductible (rule-based): <list>',
-      '- Confidence note: "These are likely matches; please confirm."',
+      'TX_RESPONSE_FORMAT (potential business expenses):',
+      '- Potential business expenses (rule-based; deductibility not determined): <list>',
+      '- Note: "These may be business expenses. Whether they are deductible depends on business use and your situation; confirm with a tax professional."',
       '- Ask for confirmation before any category changes.',
     ].join('\n');
   }
@@ -1786,7 +1786,7 @@ function buildTxDeterministicMetricsHint(message: string, toolCalls: any[], tool
     }).slice(0, 5);
     return [
       'TX_COMPUTED_METRICS:',
-      `- Likely deductible count: ${likely.length}`,
+      `- Potential business expense count (rule-based; deductibility not determined): ${likely.length}`,
       ...likely.map((r: any) => `- ${String(r?.date || 'UNKNOWN-DATE')} | ${String(r?.merchant_normalized || r?.merchant || 'UNKNOWN-MERCHANT')} | ${formatCurrency(Math.abs(txNum(r?.amount)), 'CAD')} | ${String(r?.category || 'Uncategorized')}`),
       '- Mark these as likely only and ask for confirmation.',
     ].join('\n');

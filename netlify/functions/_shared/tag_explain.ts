@@ -6,7 +6,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export type TagExplanationResult = {
   category: string | null;
   categorySource: 'manual' | 'learned' | 'ai' | 'rule' | 'unknown';
+  /** Legacy numeric value. Uncalibrated - never show it as a measured probability. */
   confidence: number | null;
+  /** 'stored' = recorded by the categorizer; 'estimated' = derived here from merchant history; 'none'. */
+  confidenceSource: 'stored' | 'estimated' | 'none';
+  /** Qualitative level for display (owner direction 2026-11-23: no uncalibrated percentages). */
+  confidenceLevel: 'high' | 'medium' | 'low' | null;
+  /** True when merchantSeenCount hit the 100-row cap (show as "100+"). */
+  merchantSeenCapped: boolean;
   learnedCount: number;
   lastLearnedAt?: string | null;
   message: string;
@@ -25,7 +32,7 @@ export async function explainTransactionCategory(
   transactionId: string
 ): Promise<TagExplanationResult> {
   const empty: TagExplanationResult = {
-    category: null, categorySource: 'unknown', confidence: null,
+    category: null, categorySource: 'unknown', confidence: null, confidenceSource: 'none', confidenceLevel: null, merchantSeenCapped: false,
     learnedCount: 0, lastLearnedAt: null, message: '',
     merchantSeenCount: 0, merchantTotalSpent: 0, merchantAvgAmount: 0,
     isAmountAnomaly: false, anomalyRatio: 1, proactiveInsights: [],
@@ -58,6 +65,9 @@ export async function explainTransactionCategory(
       .limit(100);
 
     const merchantSeenCount = merchantTxs?.length || 0;
+    // Approximate: substring merchant match, capped at 100 rows.
+    const merchantSeenCapped = merchantSeenCount >= 100;
+    const seenLabel = merchantSeenCapped ? '100+' : `about ${merchantSeenCount}`;
     const merchantTotalSpent = merchantTxs?.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) || 0;
     const merchantAvgAmount = merchantSeenCount > 0 ? merchantTotalSpent / merchantSeenCount : 0;
     const anomalyRatio = merchantAvgAmount > 0 ? amount / merchantAvgAmount : 1;
@@ -92,7 +102,9 @@ export async function explainTransactionCategory(
 
     // 5. Confidence — enrich from merchant history
     let confidence = tx.confidence != null ? Number(tx.confidence) : null;
+    let confidenceSource: TagExplanationResult['confidenceSource'] = confidence !== null && confidence !== 0 ? 'stored' : 'none';
     if (confidence === null || confidence === 0) {
+      confidenceSource = 'estimated';
       if (merchantSeenCount >= 10 && dominantCatCount / merchantSeenCount >= 0.8) confidence = 0.95;
       else if (merchantSeenCount >= 5 && dominantCatCount / merchantSeenCount >= 0.7) confidence = 0.85;
       else if (merchantSeenCount >= 3) confidence = 0.70;
@@ -101,6 +113,10 @@ export async function explainTransactionCategory(
       else confidence = 0.30;
     }
 
+    // Qualitative level only (both stored and estimated values are uncalibrated).
+    const confidenceLevel: TagExplanationResult['confidenceLevel'] =
+      confidence === null ? null : confidence >= 0.85 ? 'high' : confidence >= 0.6 ? 'medium' : 'low';
+
     // 6. Build primary message
     let message = '';
     if (categorySource === 'manual') {
@@ -108,9 +124,9 @@ export async function explainTransactionCategory(
     } else if (categorySource === 'learned' && learnedCount >= 2) {
       message = `I learned from your ${learnedCount} past corrections and always tag ${merchant || 'this merchant'} as ${category}.`;
     } else if (merchantSeenCount >= 5 && dominantCat === category) {
-      message = `I have seen ${merchant || 'this merchant'} ${merchantSeenCount} times — ${dominantCatCount} of those were ${category}. High confidence.`;
+      message = `I have seen ${merchant || 'this merchant'} ${seenLabel} times — most of those were ${category}, so this is a strong match with your history.`;
     } else if (merchantSeenCount >= 2) {
-      message = `I have seen ${merchant || 'this merchant'} ${merchantSeenCount} times before. Based on that history I tagged this as ${category}.`;
+      message = `I have seen ${merchant || 'this merchant'} ${seenLabel} times before. Based on that history I tagged this as ${category}.`;
     } else if (categorySource === 'rule') {
       message = `The merchant name matched my ${category} rules. First time I have seen this one — tell me if I am wrong.`;
     } else {
@@ -129,15 +145,16 @@ export async function explainTransactionCategory(
     }
 
     if (merchantSeenCount === 0 && !category) {
-      proactiveInsights.push(`✨ New merchant. Tell me what category fits and I will apply it to all future ${merchant} transactions automatically.`);
+      // C4 direction: merchant learning needs explicit consent (default off) - never promise automatic application.
+      proactiveInsights.push(`✨ New merchant. Tell me what category fits. If you want, I can remember it for future ${merchant} transactions — only when you ask me to.`);
     }
 
     if (merchantSeenCount >= 5) {
-      proactiveInsights.push(`📊 You have spent $${merchantTotalSpent.toFixed(2)} at ${merchant} across ${merchantSeenCount} transactions.`);
+      proactiveInsights.push(`📊 You have spent about ${merchantTotalSpent.toFixed(2)} at ${merchant} across ${seenLabel} transactions${merchantSeenCapped ? ' (only the most recent 100 are counted)' : ''}.`);
     }
 
     return {
-      category, categorySource, confidence, learnedCount, lastLearnedAt,
+      category, categorySource, confidence, confidenceSource, confidenceLevel, merchantSeenCapped, learnedCount, lastLearnedAt,
       message, merchantSeenCount, merchantTotalSpent, merchantAvgAmount,
       isAmountAnomaly, anomalyRatio, proactiveInsights,
     };

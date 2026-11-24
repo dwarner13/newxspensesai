@@ -3,6 +3,7 @@ import { buildPrimeSourceTransparency } from '../../../src/shared/prime-source-t
 import { buildTeamCapabilityRoster } from '../../../src/shared/prime-capability-registry';
 import { buildPrimeTagConsultationRule } from '../../../src/shared/prime-tag-consultation';
 import { buildPrimeDocumentGuidance } from '../../../src/shared/prime-document-guidance';
+import { buildPrimeTaxAndConfidenceGuidance } from '../../../src/shared/prime-tax-guidance';
 
 export type PrimeLane = 'fast' | 'deep';
 
@@ -88,6 +89,8 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     buildPrimeTagConsultationRule(),
     '',
     buildPrimeDocumentGuidance(),
+    '',
+    buildPrimeTaxAndConfidenceGuidance(),
     '',
     ...laneRules,
     `- Lane: ${input.lane}`,
