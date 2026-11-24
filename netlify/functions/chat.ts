@@ -137,6 +137,7 @@ import OpenAI from 'openai';
 import { toOpenAIToolDefs, pickTools, executeTool } from '../../src/agent/tools/index.js';
 import type { ToolContext } from '../../src/agent/tools/index.js';
 import { execute as executeTagStatus } from '../../src/agent/tools/impl/tag_status';
+import { authorizeCapability } from '../../src/shared/capabilities';
 import { execute as executeStatementCoverage } from '../../src/agent/tools/impl/statement_coverage';
 import { isStatementInventoryQuestion, formatStatementCoverageEvidence } from '../../src/shared/prime-statement-guidance';
 import type { StatementCoverage } from '../../src/shared/statement-coverage';
@@ -10640,7 +10641,11 @@ export const handler: Handler = async (event, context) => {
     if (primeCategorizationReview) {
       try {
         const tagInput = tagStatusInputFromScope(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision?.apply);
-        const tagResult = (await executeTagStatus(tagInput, { userId })) as unknown as { ok: boolean; value?: TagStatus };
+        // Same enforcement point as model tool calls: a Prime consultation never bypasses entitlements.
+        const tagCap = await authorizeCapability({ userId, actingEmployee: finalEmployeeSlug, toolId: 'tag_status', via: 'prime_consultation' });
+        const tagResult = tagCap.allowed
+          ? (await executeTagStatus(tagInput, { userId })) as unknown as { ok: boolean; value?: TagStatus }
+          : null;
         if (tagResult && tagResult.ok && tagResult.value) {
           systemMessages.push({ role: 'system', content: formatTagConsultationEvidence(tagResult.value) });
           specialistConsultations.push(buildTagConsultationEvent(tagResult.value));
@@ -10656,7 +10661,10 @@ export const handler: Handler = async (event, context) => {
     // from statement period). Prime no longer answers "I can't access upload history".
     if (isPrime && isStatementInventoryQuestion(String(masked || ''))) {
       try {
-        const covResult = (await executeStatementCoverage({}, { userId })) as unknown as { ok: boolean; value?: StatementCoverage };
+        const covCap = await authorizeCapability({ userId, actingEmployee: finalEmployeeSlug, toolId: 'statement_coverage', via: 'prime_consultation' });
+        const covResult = covCap.allowed
+          ? (await executeStatementCoverage({}, { userId })) as unknown as { ok: boolean; value?: StatementCoverage }
+          : null;
         if (covResult && covResult.ok && covResult.value) {
           systemMessages.push({ role: 'system', content: formatStatementCoverageEvidence(covResult.value) });
           console.log(`[L-B] statement_coverage status=${covResult.value.status} accounts=${covResult.value.accounts.length}`);

@@ -99,7 +99,7 @@ describe('L-A chat.ts wiring', () => {
   const chat = fs.readFileSync(path.resolve(__dirname, '../chat.ts'), 'utf8');
   it('runs tag_status deterministically for categorization questions', () => {
     expect(chat).toMatch(/const primeCategorizationReview: boolean = isPrime && isCategorizationReviewQuestion\(String\(masked \|\| ''\)\);/);
-    expect(chat).toMatch(/const tagResult = \(await executeTagStatus\(tagInput, \{ userId \}\)\)/);
+    expect(chat).toMatch(/\? \(await executeTagStatus\(tagInput, \{ userId \}\)\)/); // runs only when the capability hook allows it
     expect(chat).toMatch(/tagStatusInputFromScope\(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision\?\.apply\)/);
   });
   it('the event is pushed only after a successful execution', () => {

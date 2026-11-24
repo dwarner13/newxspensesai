@@ -33,6 +33,7 @@ import * as cashFlowSummary from './impl/cash_flow_summary';
 import * as merchantTotals from './impl/merchant_totals';
 import * as accountBalancesQuery from './impl/account_balances_query';
 import * as tagStatus from './impl/tag_status';
+import { authorizeCapability } from '../../shared/capabilities';
 import * as statementCoverage from './impl/statement_coverage';
 import * as tagDocumentFindings from './impl/tag_document_findings';
 import * as goalsQuery from './impl/goals_query';
@@ -917,6 +918,18 @@ export async function executeTool(
     };
   }
   
+  // Employee capability / entitlement enforcement point (owner directive 2026-11-24). Allows
+  // everything until the entitlement matrix is approved; then denies by default here.
+  const capabilityDecision = await authorizeCapability({
+    userId: ctx.userId,
+    actingEmployee: loggingOptions?.employeeSlug ?? 'unknown',
+    toolId: tool.id,
+    via: 'tool_call',
+  });
+  if (!capabilityDecision.allowed) {
+    return { error: 'Capability not available', reason: capabilityDecision.reason, capability: capabilityDecision.spec.capability };
+  }
+
   // Check rate limit
   if (tool.meta.rateLimit) {
     const rateLimitKey = `tool:${tool.id}:${ctx.userId}`;
