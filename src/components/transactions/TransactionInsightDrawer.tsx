@@ -28,6 +28,8 @@ interface TransactionInsightDrawerProps {
   tagInsight?: { category?: string; categorySource?: string; confidence?: number; message?: string; proactiveInsights?: string[]; merchantSeenCount?: number; isAmountAnomaly?: boolean } | null;
   tagInsightLoading?: boolean;
   onBackToChat?: () => void;
+  /** D-3: "Done" after a confirmed save; the page returns to this transaction in its list. */
+  onDone?: (transactionId: string) => void;
 }
 
 const TAX_INFO: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -74,11 +76,14 @@ export function TransactionInsightDrawer({
   onAskTag,
   tagInsight, tagInsightLoading = false,
   onBackToChat,
+  onDone,
 }: TransactionInsightDrawerProps) {
   const [localCategory, setLocalCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [statementLabel, setStatementLabel] = useState<string | null>(null);
   const [statementMeta, setStatementMeta] = useState<{ issuer: string | null; last4: string | null; period: string | null } | null>(null);
+  // D-3: shown only after a save was confirmed by the server.
+  const [savedNotice, setSavedNotice] = useState<{ kind: 'category' | 'subcategory'; value: string } | null>(null);
   const [, setChatReply] = useState<string | null>(null);
   const [showAllCats, setShowAllCats] = useState(false);
   const [splitMode, setSplitMode] = useState(false);
@@ -101,6 +106,7 @@ export function TransactionInsightDrawer({
   // Reset on transaction change
   useEffect(() => {
     setChatReply(null);
+    setSavedNotice(null);
     setShowAllCats(false);
     setSplitMode(false);
     setAddingSubcategory(false);
@@ -270,6 +276,9 @@ export function TransactionInsightDrawer({
 
   const applyCategory = async (category: string) => {
     if (!row) return;
+    // D-3: remember the confirmed value so a failed save can be rolled back on screen.
+    const previousCategory = localCategory;
+    setSavedNotice(null);
     setLocalCategory(category);
     setIsSaving(true);
     try {
@@ -289,6 +298,8 @@ export function TransactionInsightDrawer({
         onPendingCategorySaved?.(row.transaction.id, category);
       }
       toast.success('Category updated');
+      // D-3: confirmed only after tx-update-category returned ok.
+      setSavedNotice({ kind: 'category', value: category });
       // Start Tag conversation about this change (committed only)
       if (row.kind === 'committed') {
         try {
@@ -311,6 +322,8 @@ export function TransactionInsightDrawer({
         } catch { setChatReply(`Moved to **${category}**.`); }
       }
     } catch {
+      // D-3: the save was not confirmed — show the last saved category again.
+      setLocalCategory(previousCategory);
       toast.error('Could not save category');
     } finally { setIsSaving(false); }
   };
@@ -337,6 +350,9 @@ export function TransactionInsightDrawer({
 
   const handleSubcategoryChange = async (value: string) => {
     if (value === '__add_new__') { setAddingSubcategory(true); return; }
+    // D-3: previously a failed subcategory save was silent and still looked saved.
+    const previousSubcategory = localSubcategory;
+    setSavedNotice(null);
     setLocalSubcategory(value);
     if (!row) return;
     try {
@@ -344,12 +360,17 @@ export function TransactionInsightDrawer({
       const { data: { session } } = await supabase!.auth.getSession();
       const token = session?.access_token ?? '';
       const table = row.kind === 'pending' ? 'transactions_staging' : 'transactions';
-      await fetch('/.netlify/functions/tx-update-category', {
+      const res = await fetch('/.netlify/functions/tx-update-category', {
         method: 'POST',
         headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ id: row.transaction.id, table, category: localCategory, subcategory: value }),
       });
-    } catch { /* silent */ }
+      if (!res.ok) throw new Error('subcategory save failed');
+      setSavedNotice({ kind: 'subcategory', value: value || 'None' });
+    } catch {
+      setLocalSubcategory(previousSubcategory);
+      toast.error('Could not save subcategory');
+    }
   };
 
   const saveNewSubcategory = async () => {
@@ -513,6 +534,25 @@ export function TransactionInsightDrawer({
 
         {/* SCROLLABLE BODY */}
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* D-3: SUCCESSFUL CORRECTION — only after the server confirmed the save */}
+          {savedNotice && (
+            <div role="status" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px', borderRadius: 14, background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.35)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span aria-hidden="true" style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(52,211,153,0.18)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>{'✓'}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#e8ecf4' }}>
+                    {savedNotice.kind === 'category' ? `Saved — category is now ${savedNotice.value}` : `Saved — subcategory is now ${savedNotice.value}`}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#9ba8bc', marginTop: 2 }}>Saved to this transaction.</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => { if (onDone) onDone(row.transaction.id); else onClose(); }} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: 'none', background: '#34d399', color: '#062018', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Done</button>
+                <button type="button" onClick={() => setSavedNotice(null)} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#c8d0e0', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Keep editing</button>
+              </div>
+            </div>
+          )}
 
           {/* TAG CHANGED BANNER */}
           {row.kind === 'committed' && (row.transaction as any).category_source === 'user_chat' && (

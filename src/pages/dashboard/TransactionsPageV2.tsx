@@ -374,6 +374,20 @@ export default function TransactionsPageV2() {
     setSelectedTx(null);
   }, []);
 
+  // D-3: "Done" after a confirmed correction — close the drawer and return to the same row:
+  // focus it, keep it in view and mark it briefly. Filters, search and the loaded list are
+  // untouched (the list stays mounted under the drawer, so scroll is preserved).
+  const [lastEditedTxId, setLastEditedTxId] = useState<string | null>(null);
+  const handleDrawerDone = useCallback((txId: string) => {
+    handleDrawerClose();
+    setLastEditedTxId(txId);
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(`[data-tx-id="${CSS.escape(txId)}"]`);
+      if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
+    });
+    window.setTimeout(() => setLastEditedTxId(prev => (prev === txId ? null : prev)), 4000);
+  }, [handleDrawerClose]);
+
   const fetchTagInsight = useCallback(async (tx: CommittedTransaction) => {
     setTagInsight(null);
     setTagInsightLoading(true);
@@ -1185,7 +1199,7 @@ export default function TransactionsPageV2() {
                 const isDupe = isDuplicate(t);
                 const c = colorFor(cat);
                 return (
-                  <button key={t.id} data-tx-id={t.id} aria-current={highlightTxId === t.id ? 'true' : undefined} onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left" style={highlightTxId === t.id ? { background: 'rgba(34,211,238,0.12)', boxShadow: 'inset 3px 0 0 #22d3ee', outline: '1px solid rgba(34,211,238,0.45)', outlineOffset: -1 } : isDupe ? { background: 'rgba(248,113,113,0.08)', borderLeft: '3px solid rgba(248,113,113,0.55)' } : undefined}>
+                  <button key={t.id} data-tx-id={t.id} aria-current={highlightTxId === t.id ? 'true' : undefined} onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left" style={highlightTxId === t.id ? { background: 'rgba(34,211,238,0.12)', boxShadow: 'inset 3px 0 0 #22d3ee', outline: '1px solid rgba(34,211,238,0.45)', outlineOffset: -1 } : lastEditedTxId === t.id ? { background: 'rgba(52,211,153,0.10)', boxShadow: 'inset 3px 0 0 #34d399' } : isDupe ? { background: 'rgba(248,113,113,0.08)', borderLeft: '3px solid rgba(248,113,113,0.55)' } : undefined}>
                     {highlightTxId === t.id && <span className="sr-only">Selected for review with Tag. </span>}
                     <div className="relative flex items-center justify-center h-[44px] w-[44px] rounded-xl shrink-0" style={{ background: c + '2e', border: `1px solid ${c}40` }}>
                       <span className="text-base">{iconFor(cat)}</span>
@@ -1515,6 +1529,7 @@ export default function TransactionsPageV2() {
           row={selectedTx ? { kind: 'committed', transaction: selectedTx } : null}
           allCommittedTransactions={transactions}
           onClose={handleDrawerClose}
+          onDone={handleDrawerDone}
           onBackToChat={chatReturnCtx ? handleBackToChat : undefined}
           onCommittedCategorySaved={(txId, category) => {
             // Update the selected transaction in-place - don't close the drawer
