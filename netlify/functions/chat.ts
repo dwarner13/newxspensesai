@@ -245,7 +245,8 @@ import {
   type PrimeEvidenceExecutionResult,
   type DedupCache,
 } from '../../src/shared/prime-evidence-executor';
-import { fetchTransactionCoverage, formatCoverageNote, emptyRequestedPeriod, type CoverageClient } from '../../src/shared/prime-data-coverage';
+import { fetchTransactionCoverage, formatCoverageNote, emptyRequestedPeriod, answerMentionsCoverage, buildCoverageGuardSentence, type CoverageClient, type TransactionCoverage, type PeriodStatementCoverage } from '../../src/shared/prime-data-coverage';
+import { loadStatementCoverage, coverageForPeriod, type CoverageDbClient } from '../../src/shared/statement-coverage';
 import { buildSpecialistCapabilityBoundary } from '../../src/shared/prime-capability-registry';
 // P3.1D: Post-stream evidence violation detection (telemetry only)
 import {
@@ -10603,14 +10604,25 @@ export const handler: Handler = async (event, context) => {
     // filling the period with out-of-period rows. Owner-scoped counts and dates only.
     // PB-03: inventory/coverage questions ("how many transactions", "what date range") get the same
     // server-verified coverage, so they are answered from counts and dates rather than sample rows.
+    // L-C: kept for the server-side safeguard applied to the final answer (before it is saved).
+    let coverageGuard: { coverage: TransactionCoverage; period: { startDate: string; endDate: string }; statements: PeriodStatementCoverage | null } | null = null;
     if (isPrime && (p31cResult || primeInventoryQuestion)) {
       const emptyPeriod = p31cResult ? emptyRequestedPeriod(p31cResult.results) : null;
       if (emptyPeriod || primeInventoryQuestion) {
         try {
           const coverage = await fetchTransactionCoverage(admin() as unknown as CoverageClient, userId);
+          // L-C: per-account statement coverage of the empty period (completed statements only).
+          let periodStatements: PeriodStatementCoverage | null = null;
+          if (emptyPeriod) {
+            try {
+              const sc = await loadStatementCoverage(admin() as unknown as CoverageDbClient, userId);
+              if (sc.status !== 'query_error') periodStatements = coverageForPeriod(sc, emptyPeriod.startDate, emptyPeriod.endDate);
+            } catch { periodStatements = null; }
+          }
           if (coverage) {
-            systemMessages.push({ role: 'system', content: formatCoverageNote(coverage, emptyPeriod) });
-            console.log(`[PB-01] coverage note injected (count=${coverage.transactionCount})`);
+            systemMessages.push({ role: 'system', content: formatCoverageNote(coverage, emptyPeriod, periodStatements) });
+            if (emptyPeriod) coverageGuard = { coverage, period: emptyPeriod, statements: periodStatements };
+            console.log(`[PB-01] coverage note injected (count=${coverage.transactionCount}, statements=${periodStatements?.overall ?? 'n/a'})`);
           }
         } catch (e: unknown) {
           console.warn('[PB-01] coverage note failed (non-fatal):', (e as Error)?.name ?? 'Error');
@@ -14686,6 +14698,14 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       const totalTokens = promptTokens + completionTokens;
       const durationMs = Date.now() - requestStartTime;
       const latencyMs = firstTokenTime ? firstTokenTime - requestStartTime : durationMs;
+
+      // ── L-C: server-side coverage safeguard (before saving) ──
+      // A zero / no-match answer for a proven-empty period must state the period searched and the
+      // imported coverage. If the model omitted the coverage dates, append one deterministic sentence.
+      if (isPrime && coverageGuard && assistantContent && !answerMentionsCoverage(assistantContent, coverageGuard.coverage)) {
+        assistantContent = `${assistantContent.trimEnd()}\n\n${buildCoverageGuardSentence(coverageGuard.coverage, coverageGuard.period, coverageGuard.statements)}`;
+        console.log('[L-C] coverage safeguard appended');
+      }
 
       // Save assistant message - non-blocking
       try {
