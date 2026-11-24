@@ -67,7 +67,12 @@ function fmtRecord(r: StatementRecord): string {
   const bank = who ?? (r.state === 'completed'
     ? 'bank not recorded on this statement'
     : `bank not identified — this import ${why[r.state]}, and bank details are recorded only when an import completes`);
-  const period = r.periodStart && r.periodEnd ? `statement period ${r.periodStart} to ${r.periodEnd}` : 'statement period not recorded';
+  // L-D3: printed text is shown verbatim and labelled; a range appears only if it parsed unambiguously.
+  const period = r.periodSource === 'printed_text' && r.periodText && r.periodEndingOnly
+    ? `statement period ending "${r.periodText}" (as printed; start date not recorded)`
+    : r.periodSource === 'printed_text' && r.periodText
+    ? `statement period as printed on the statement: "${r.periodText}"${r.periodStart && r.periodEnd ? ` (${r.periodStart} to ${r.periodEnd})` : ''}`
+    : r.periodStart && r.periodEnd ? `statement period ${r.periodStart} to ${r.periodEnd}` : 'statement period not recorded';
   const uploaded = r.uploadedAt ? `uploaded ${r.uploadedAt.slice(0, 10)}` : 'upload date not recorded';
   const file = r.fileName ? `file "${r.fileName}"` : null;
   return [bank, file, period, uploaded, `import status: ${friendlyImportStatus(r.state)}`].filter(Boolean).join('; ');

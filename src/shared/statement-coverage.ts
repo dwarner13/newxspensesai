@@ -17,6 +17,8 @@
  *  - Never returns OCR text, extracted contents or storage paths; last 4 digits only.
  */
 
+import { resolveStatementPeriod, type StatementPeriodSource } from './statement-period';
+
 export type ImportState = 'completed' | 'awaiting_review' | 'in_progress' | 'failed' | 'unknown';
 
 const COMPLETED = new Set(['committed', 'completed']);
@@ -40,6 +42,11 @@ export interface StatementRecord {
   statementType: 'bank' | 'credit_card' | 'unknown';
   periodStart: string | null;
   periodEnd: string | null;
+  /** L-D3: verbatim printed period when that is the only source (shown "as printed"). */
+  periodText: string | null;
+  /** L-D3: printed text is a single "period ending" date (no start, no coverage). */
+  periodEndingOnly: boolean;
+  periodSource: StatementPeriodSource;
   uploadedAt: string | null;
   completedAt: string | null;
   state: ImportState;
@@ -69,9 +76,7 @@ export interface StatementCoverage {
   readOnly: true;
 }
 
-const ISO = /^\d{4}-\d{2}-\d{2}/;
-const day = (v: unknown): string | null => (typeof v === 'string' && ISO.test(v) ? v.slice(0, 10) : null);
-const ts = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
+const ts =(v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
 
 function last4(v: unknown): string | null {
   if (typeof v !== 'string' && typeof v !== 'number') return null;
@@ -110,14 +115,24 @@ export interface DocumentRow {
   period_start?: string | null;
   period_end?: string | null;
   purpose?: string | null;
+  /** extracted_data->claude_vision->period (ISO start/end), selected as a JSON path. */
+  vision_period?: { start?: unknown; end?: unknown } | null;
+  /** metadata->statement_summary->>statement_period (printed text), selected as a JSON path. */
+  printed_period?: string | null;
 }
 
 export function toStatementRecord(imp: ImportRow, doc: DocumentRow | undefined): StatementRecord {
   const meta = imp.statement_breakdown_json?.statement_meta ?? {};
   const inst = institutionName(meta.issuer) ?? institutionName(imp.issuer);
   const l4 = last4(meta.account_last4);
-  const periodStart = day(meta.period_start) ?? day(doc?.period_start);
-  const periodEnd = day(meta.period_end) ?? day(doc?.period_end);
+  const period = resolveStatementPeriod({
+    statementMeta: meta,
+    visionPeriod: doc?.vision_period ?? null,
+    documentPeriod: doc ? { start: doc.period_start, end: doc.period_end } : null,
+    printedPeriod: doc?.printed_period ?? null,
+  });
+  const periodStart = period.start;
+  const periodEnd = period.end;
   const st = typeof meta.statement_type === 'string' && (meta.statement_type === 'bank' || meta.statement_type === 'credit_card') ? meta.statement_type : 'unknown';
   return {
     institution: inst,
@@ -125,6 +140,9 @@ export function toStatementRecord(imp: ImportRow, doc: DocumentRow | undefined):
     statementType: st,
     periodStart,
     periodEnd,
+    periodText: period.printedText,
+    periodEndingOnly: period.printedEndingOnly,
+    periodSource: period.source,
     uploadedAt: ts(imp.created_at),
     completedAt: ts(imp.committed_at),
     state: classifyImportStatus(imp.status, imp.committed_at),
@@ -251,10 +269,12 @@ export async function loadStatementCoverage(sb: CoverageDbClient, userId: string
 
     const docs = new Map<string, DocumentRow>();
     if (docIds.length > 0) {
-      let res = await sb.from('user_documents').select('id, original_name, period_start, period_end, purpose').eq('user_id', userId).in('id', docIds).limit(MAX_IMPORTS);
+      // L-D3: the two verified extra period sources are read as JSON paths only (no document text).
+      const PERIOD_PATHS = 'vision_period:extracted_data->claude_vision->period, printed_period:metadata->statement_summary->>statement_period';
+      let res = await sb.from('user_documents').select(`id, original_name, period_start, period_end, purpose, ${PERIOD_PATHS}`).eq('user_id', userId).in('id', docIds).limit(MAX_IMPORTS);
       if (res.error && isMissingPurposeColumn(res.error)) {
         // Before the purpose migration: no chat documents can exist; every row is an import.
-        res = await sb.from('user_documents').select('id, original_name, period_start, period_end').eq('user_id', userId).in('id', docIds).limit(MAX_IMPORTS);
+        res = await sb.from('user_documents').select(`id, original_name, period_start, period_end, ${PERIOD_PATHS}`).eq('user_id', userId).in('id', docIds).limit(MAX_IMPORTS);
       }
       if (res.error) return errorResult;
       for (const d of (res.data ?? []) as DocumentRow[]) docs.set(d.id, d);
