@@ -50,3 +50,15 @@ describe('LIVE-UI-01 drawer stability', () => {
     expect(drawer).toMatch(/aria-busy=\{tagInsightLoading \|\| undefined\} style=\{\{[^}]*minHeight: 72/);
   });
 });
+
+describe('LIVE-UI-03 Workspace is discoverable', () => {
+  const v2 = fs.readFileSync(path.join(root, 'src/pages/PrimeChatV2/PrimeChatV2.tsx'), 'utf8');
+  it('desktop header has a labelled Full screen control that opens the Workspace route', () => {
+    expect(v2).toMatch(/navigate\('\/dashboard\/chat\/prime'\)/);
+    expect(v2).toMatch(/aria-label=\{chatMode === 'workspace' \? "Exit full screen" : "Open Prime full screen"\}/);
+    expect(v2).toMatch(/<span>\{chatMode === 'workspace' \? "Exit full screen" : "Full screen"\}<\/span>/);
+  });
+  it('Workspace offers a way back to the previous page', () => {
+    expect(v2).toMatch(/if \(window\.history\.length > 1\) navigate\(-1\); else navigate\('\/dashboard'\);/);
+  });
+});
