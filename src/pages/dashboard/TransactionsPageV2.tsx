@@ -6,6 +6,7 @@ import { Search, ChevronRight, ChevronDown, ArrowDownLeft, ArrowUpRight, Trendin
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
+import { groupImportsIntoAccounts } from '@/lib/accountGroups';
 import { useUnifiedChatLauncher } from '@/hooks/useUnifiedChatLauncher';
 import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
 import { TAG_REVIEW_PARAM, isTransactionUuid, type TxListFilters } from '@/lib/tagReview';
@@ -542,50 +543,11 @@ export default function TransactionsPageV2() {
     uncategorizedCount: number;
   };
   const accounts: AccountCard[] = useMemo(() => {
-    const detectIssuer = (imp: any): string => {
-      const fromCol = String(imp?.issuer || '').trim();
-      if (fromCol) return fromCol;
-      const raw = String(imp?.docName || imp?.file_name || '').toUpperCase();
-      if (/\bBMO\b/.test(raw)) return 'BMO';
-      if (/\bTD\b/.test(raw)) return 'TD';
-      if (/\bRBC\b|ROYAL BANK/.test(raw)) return 'RBC';
-      if (/\bCIBC\b/.test(raw)) return 'CIBC';
-      if (/SCOTIA/.test(raw)) return 'Scotiabank';
-      if (/TANGERINE/.test(raw)) return 'Tangerine';
-      if (/AMEX|AMERICAN EXPRESS/.test(raw)) return 'Amex';
-      if (/CANADIAN TIRE|TRIANGLE/.test(raw)) return 'Canadian Tire';
-      if (/MBNA/.test(raw)) return 'MBNA';
-      if (/CAPITAL ONE/.test(raw)) return 'Capital One';
-      return 'BMO'; // default for current corpus
-    };
-    const detectType = (imp: any): 'Credit Card' | 'Chequing' => {
-      const raw = String(imp?.docName || imp?.file_name || '').toLowerCase();
-      if (/credit|visa|mastercard|amex|mc\b|cc\b|triangle/.test(raw)) return 'Credit Card';
-      return 'Chequing';
-    };
+    // K-d: grouping moved unchanged to lib/accountGroups.ts so Categories uses the same accounts.
     const groups = new Map<string, AccountCard>();
-    imports
-      .filter(i => i.status === 'committed')
-      .forEach(i => {
-        const issuer = detectIssuer(i);
-        const type = detectType(i);
-        const key = `${issuer}|${type}`;
-        let g = groups.get(key);
-        if (!g) {
-          g = {
-            id: key,
-            name: `${issuer} ${type === 'Credit Card' ? 'Credit' : 'Chequing'}`,
-            type,
-            statementCount: 0,
-            importIds: [],
-            totalSpent: 0,
-            totalIncome: 0,
-            uncategorizedCount: 0,
-          };
-          groups.set(key, g);
-        }
-        g.importIds.push(i.id);
-      });
+    for (const a of groupImportsIntoAccounts(imports)) {
+      groups.set(a.id, { ...a, statementCount: 0, totalSpent: 0, totalIncome: 0, uncategorizedCount: 0 });
+    }
     const byImportId = new Map<string, AccountCard>();
     for (const a of groups.values()) {
       for (const tid of a.importIds) byImportId.set(tid, a);

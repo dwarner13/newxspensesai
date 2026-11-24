@@ -51,3 +51,52 @@ export function periodLabel(selectedYear: number | 'all' | undefined, selectedPe
 }
 
 export const DETAIL_PAGE_SIZE = 25;
+
+/* ── K-d: custom date range and account scope ─────────────────────────────── */
+
+export interface DateRange {
+  /** Inclusive "YYYY-MM-DD"; empty = open-ended. */
+  from?: string;
+  to?: string;
+}
+
+export function isRangeActive(range: DateRange | null | undefined): boolean {
+  return !!range && !!(range.from || range.to);
+}
+
+/** Inclusive calendar-day range check (string compare on YYYY-MM-DD). */
+export function inDateRange(day: string | null | undefined, range: DateRange | null | undefined): boolean {
+  if (!range || !isRangeActive(range)) return true;
+  if (!day) return false;
+  if (range.from && day < range.from) return false;
+  if (range.to && day > range.to) return false;
+  return true;
+}
+
+export interface CategoryFilters {
+  selectedYear?: number | 'all';
+  selectedPeriod?: string;
+  /** When active, replaces the year / month filter. */
+  range?: DateRange | null;
+  /** Import ids of the selected account; null = all accounts. */
+  importIds?: Set<string> | null;
+}
+
+/**
+ * The one Categories filter rule, used by the page totals (useCategoriesData) and by the
+ * category / subcategory detail, so their transactions and counts always match.
+ */
+export function matchesCategoryFilters(t: DatedTx & { import_id?: string | null }, f: CategoryFilters): boolean {
+  if (f.importIds && !f.importIds.has(t.import_id || '')) return false;
+  const day = calendarDayOfTx(t);
+  if (isRangeActive(f.range)) return inDateRange(day, f.range);
+  return inSelectedPeriod(day, f.selectedYear, f.selectedPeriod);
+}
+
+/** Header label for a custom range. */
+export function rangeLabel(range: DateRange | null | undefined, fmt: (day: string) => string): string {
+  if (!range || !isRangeActive(range)) return '';
+  if (range.from && range.to) return `${fmt(range.from)} – ${fmt(range.to)}`;
+  if (range.from) return `From ${fmt(range.from)}`;
+  return `Until ${fmt(range.to as string)}`;
+}

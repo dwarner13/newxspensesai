@@ -41,9 +41,9 @@ describe('Categories page', () => {
   });
 
   it('keeps year, month and search filters wired to the same data hook', () => {
-    expect(page).toMatch(/const data = useCategoriesData\(selectedPeriod \|\| undefined, selectedYear\);/);
+    expect(page).toMatch(/const data = useCategoriesData\(selectedPeriod \|\| undefined, selectedYear, \{/);
     expect(page).toMatch(/onChange=\{\(e\) => setSelectedYear\(/);
-    expect(page).toMatch(/onChange=\{\(e\) => setSelectedPeriod\(e\.target\.value\)\}/);
+    expect(page).toMatch(/setSelectedPeriod\(e\.target\.value\);/);
     expect(page).toMatch(/onChange=\{e => setSearch\(e\.target\.value\)\}/);
     expect(page).toMatch(/\{data\.categoryCount\} categories &middot; \{totalTxCount\} transactions/);
   });
