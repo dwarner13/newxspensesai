@@ -35,8 +35,14 @@ export const PRINTED_PERIOD_MAX = 60;
  */
 export function printedPeriodText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const t = value.replace(/\s+/g, ' ').trim();
+  let t = value.replace(/\s+/g, ' ').trim();
   if (t.length < 4) return null;
+  // BMO "For the period ending Oct 15, 2025" is stored as "Oct 15, 2025 - Oct 15, 2025";
+  // shown verbatim it reads as a one-day period.
+  const halves = t.split(/\s+[-–—]\s+|\s+to\s+/i);
+  if (halves.length === 2 && halves[0].trim().toLowerCase() === halves[1].trim().toLowerCase()) {
+    t = `Period ending ${halves[1].trim()}`;
+  }
   return t.length > PRINTED_PERIOD_MAX ? `${t.slice(0, PRINTED_PERIOD_MAX - 1).trimEnd()}…` : t;
 }
 

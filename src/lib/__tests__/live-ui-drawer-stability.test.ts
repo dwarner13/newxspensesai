@@ -32,6 +32,8 @@ describe('LIVE-UI-04 statement facts', () => {
     expect(statementText(withDocumentPeriod(base, { vision_period: null, printed_period: ' Oct 15, 2025 -  Nov 14, 2025 ' }))).toBe('Oct 15, 2025 - Nov 14, 2025 (as printed)');
     expect(statementText(withDocumentPeriod(base, { vision_period: { start: '2025-10-15' }, printed_period: null }))).toBe(STATEMENT_PERIOD_UNAVAILABLE);
     expect(statementText(withDocumentPeriod(base, null))).toBe(STATEMENT_PERIOD_UNAVAILABLE);
+    // identical halves ("period ending" statements) are not shown as a one-day period
+    expect(statementText(withDocumentPeriod(base, { printed_period: 'Oct 15, 2025 - Oct 15, 2025' }))).toBe('Period ending Oct 15, 2025 (as printed)');
     // statement_meta wins when present
     const meta = factsFromStatementMeta({ period_start: '2025-05-17', period_end: '2025-06-16' }, id);
     expect(withDocumentPeriod(meta, { printed_period: 'other' }).period).toBe('May 17 – Jun 16, 2025');
