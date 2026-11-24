@@ -50,6 +50,7 @@ describe('surfaces use the calendar formatter', () => {
   it('Tag context strip no longer prints the raw ISO timestamp', () => {
     const tag = read('src/components/transactions/TagCopilotPanel.tsx');
     expect(tag).not.toMatch(/- \{focusedTransaction\.posted_at \|\| focusedTransaction\.date\}/);
-    expect(tag).toMatch(/formatCalendarDate\(focusedTransaction\.posted_at \|\| focusedTransaction\.date, 'medium'\)/);
+    // D-4 moved the strip into an expandable card using the long style.
+    expect(tag).toMatch(/formatCalendarDate\(focusedTransaction\.posted_at \|\| focusedTransaction\.date, '(medium|long)'\)/);
   });
 });

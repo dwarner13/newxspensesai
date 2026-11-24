@@ -12,6 +12,7 @@ import { TAG_REVIEW_PARAM, isTransactionUuid, type TxListFilters } from '@/lib/t
 import { useRevealReviewedTransaction } from '@/hooks/useRevealReviewedTransaction';
 import { TransactionInsightDrawer } from '@/components/transactions/TransactionInsightDrawer';
 import type { CommittedTransaction } from '@/types/transactions';
+import { formatCalendarDate } from '@/lib/calendarDate';
 import { getSupabase } from '@/lib/supabase';
 import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
 import { AgentFloatingBubble } from '@/components/ui/AgentFloatingBubble';
@@ -1401,7 +1402,7 @@ export default function TransactionsPageV2() {
           }
           void refetch(); void fetchTagInbox();
         } catch { /* silent */ }
-      }} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
+      }} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
         if (action.type === 'handoff') {
           const slugMap: Record<string, string> = {
             'prime-boss': 'prime-boss', 'prime': 'prime-boss',
@@ -1545,7 +1546,8 @@ export default function TransactionsPageV2() {
             const merchant = tx.merchant_name || 'this transaction';
             const amt = Math.abs(Number(tx.amount || 0)).toFixed(2);
             const cat = tx.category || 'Uncategorized';
-            const date = (tx as any).posted_at || (tx as any).date || '';
+            // D-4: calendar date ("Jun 16, 2025"), not the raw UTC timestamp.
+            const date = formatCalendarDate((tx as any).posted_at || (tx as any).date, 'medium') || '';
             const injected = `I'm looking at ${merchant} — $${amt}${date ? ' on ' + date : ''} — currently tagged as ${cat}. Can you help me with this?`;
             // Close the drawer, open main Tag, inject the question — Tag's
             // existing auto-send effect will fire handleSend for us.
