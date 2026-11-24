@@ -5,6 +5,7 @@ import { CHAT_ENDPOINT } from '../lib/chatEndpoint';
 import { usePrimeState } from '../contexts/usePrimeState';
 import { log, warn } from '../lib/logger';
 import { getSupabase } from '../lib/supabase';
+import { validateFinancialVisual } from '../shared/prime-financial-visual';
 
 type ChatRole = 'user' | 'assistant' | 'system';
 
@@ -1003,6 +1004,23 @@ export function usePrimeChat(
             return { aiText, hasContent };
           }
 
+          // P-1 item 4: verified financial visual (server-built from tool results). Validated against
+          // the typed contract; anything malformed is dropped, never rendered.
+          if (j.type === 'financial_visual') {
+            const visual = validateFinancialVisual(j.financialVisual);
+            if (visual && messageId) {
+              upsertAssistantMessage({
+                messageId,
+                requestId,
+                content: textByRequestRef.current.get(requestId) || aiText || '',
+                isStreaming: false,
+                employeeKey: employeeSlugToSend,
+                extraMeta: { financialVisual: visual },
+              });
+            }
+            return { aiText, hasContent };
+          }
+
           // Handle tool_executing events (dev mode)
           // QUIET MODE GATE: VITE_DISABLE_AUTO_HANDOFFS prevents request_employee_handoff tool execution
           // Purpose: Suppress handoff storms during OCR/Smart Import debugging
@@ -1797,6 +1815,9 @@ export function usePrimeChat(
             if (Array.isArray(payload?.specialistConsultations) && payload.specialistConsultations.length > 0) {
               extraMetaFromPayload.specialistConsultations = payload.specialistConsultations;
             }
+            // P-1 item 4: verified financial visual, re-validated client-side.
+            const financialVisual = validateFinancialVisual(payload?.financialVisual);
+            if (financialVisual) extraMetaFromPayload.financialVisual = financialVisual;
             upsertAssistantMessage({
               messageId,
               requestId,

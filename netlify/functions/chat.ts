@@ -123,6 +123,7 @@ import {
 } from './_shared/primePolicy.js';
 import { buildPrimePersonalityMessage } from './_shared/primePersonality.js';
 import { resolvePreferredName } from '../../src/shared/preferred-name';
+import { buildCategoryBreakdownVisual, type FinancialVisual } from '../../src/shared/prime-financial-visual';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
 import { buildContextInjection } from './_shared/contextInjection.js';
@@ -10510,6 +10511,14 @@ export const handler: Handler = async (event, context) => {
     // added when tag_status actually executed.
     const primeCategorizationReview: boolean = isPrime && isCategorizationReviewQuestion(String(masked || ''));
     const specialistConsultations: SpecialistConsultationEvent[] = [];
+    // P-1 item 4: verified spending breakdown for the existing SpendingBreakdown card. Built only
+    // from a verified transaction_category_totals result (never model text); last one wins.
+    let financialVisual: FinancialVisual | null = null;
+    const captureFinancialVisual = (tool: string, result: unknown) => {
+      if (!isPrimeBoss || tool !== 'transaction_category_totals') return;
+      const v = buildCategoryBreakdownVisual(result as Parameters<typeof buildCategoryBreakdownVisual>[0], userProfile?.currency || effectivePrimeContext?.currency || 'CAD');
+      if (v) financialVisual = v;
+    };
     // L-D1: what Tag actually returned this turn (null = not run, denied or threw).
     let tagConsultationResult: TagStatus | null = null;
     if (primeCategorizationReview) {
@@ -12195,6 +12204,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
                       });
                     }
                     // P3.1D: Track successful read-tool results in accumulated evidence
+                    if (result && typeof result === 'object' && !('error' in result)) captureFinancialVisual(toolName, result);
                     if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
                       const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
                       const rowCount = countEvidenceRows(toolName, result); // V1-A CP4: shared shape-aware count
@@ -12862,6 +12872,9 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         writeSSE({ type: 'tx_candidates', txCandidates: ownershipGate.txCandidatesForResponse });
         console.log(`[Chat] P0: emitted ${ownershipGate.txCandidatesForResponse.length} txCandidates via SSE`);
       }
+
+      // P-1 item 4: verified financial visual (typed data only; the client re-validates).
+      if (financialVisual) writeSSE({ type: 'financial_visual', financialVisual });
 
       // Send completion signal after all post-generation rewrites
       const guardrailsMetadata = {
@@ -13903,6 +13916,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 });
               }
               // P3.1D: Track successful read-tool results in accumulated evidence
+              if (result && typeof result === 'object' && !('error' in result)) captureFinancialVisual(toolName, result);
               if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
                 const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
                 const rowCount = countEvidenceRows(toolName, result); // V1-A CP4: shared shape-aware count
@@ -14294,6 +14308,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   });
                 }
                 // P3.1D: Track successful read-tool results in accumulated evidence (tool loop)
+                if (result && typeof result === 'object' && !('error' in result)) captureFinancialVisual(toolName, result);
                 if (EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(toolName) && result && typeof result === 'object' && !('error' in result)) {
                   const kind = toolName === 'tx_search' ? 'transaction_data' : toolName === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
                   const rowCount = countEvidenceRows(toolName, result); // V1-A CP4: shared shape-aware count
@@ -14582,6 +14597,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         }
         // L-A: persist genuine consultations so the marker survives a reload.
         if (specialistConsultations.length > 0) assistantMsgMetadata.specialistConsultations = specialistConsultations;
+        if (financialVisual) assistantMsgMetadata.financialVisual = financialVisual;
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
           user_id: userId,
@@ -14783,6 +14799,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             ...(ownershipGate.txCandidatesForResponse && ownershipGate.txCandidatesForResponse.length > 0 && { txCandidates: ownershipGate.txCandidatesForResponse }),
             // L-A: genuine specialist consultations that actually ran this turn (none are simulated).
             ...(specialistConsultations.length > 0 && { specialistConsultations }),
+            ...(financialVisual && { financialVisual }),
           }),
         };
       } catch (nonStreamingError: any) {
