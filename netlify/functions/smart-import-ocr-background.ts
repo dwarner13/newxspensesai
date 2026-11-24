@@ -2280,6 +2280,10 @@ export const handler: Handler = async (event, context) => {
     if (isChatDocument && !chatDocumentModeEnabled()) {
       return { statusCode: 403, body: JSON.stringify({ error: 'chat_documents_disabled' }) };
     }
+    // Attachments E8: a replayed job for a finished chat document never re-runs OCR.
+    if (isChatDocument && ['ready', 'rejected', 'purged', 'needs_review'].includes(String(doc.status || '').toLowerCase())) {
+      return { statusCode: 200, body: JSON.stringify({ ok: true, skipped: true, reason: 'chat_document_already_processed' }) };
+    }
     console.log('[smart-import-ocr] doc_row_state', {
       docId,
       caller,

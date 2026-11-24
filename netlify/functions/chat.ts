@@ -267,6 +267,7 @@ import {
 import { analyzeQueryScope } from '../../src/shared/tool-gate';
 import { buildChatDocumentContext } from './_shared/chatDocumentContext.js';
 import { chatDocumentModeEnabled } from './_shared/documentPurpose.js';
+import { resolveEmployeeDocumentAccess } from './_shared/employeeDocumentAccess.js';
 import { loadActiveDocumentIds, mergeContextDocumentIds, resolveAttachmentRefs, withAttachmentRefs, type ChatAttachmentRef } from './_shared/chatAttachments.js';
 // Rate limiting (optional - fails open if not available)
 // Note: Import handled dynamically in handler to avoid breaking if module doesn't exist
@@ -5588,7 +5589,7 @@ export async function buildAttachmentContext(
   sb: SupabaseClient,
   userId: string,
   documentIds: string[],
-  opts: { question?: string } = {}
+  opts: { question?: string; allowChatDocuments?: boolean } = {}
 ): Promise<string | null> {
   if (!documentIds || documentIds.length === 0) {
     return null;
@@ -5638,8 +5639,14 @@ export async function buildAttachmentContext(
     // from _shared/chatDocumentContext; import documents below stay metadata + breakdown only.
     const chatDocIds: string[] = [];
     const unreadableChatDocs: string[] = [];
+    // Attachments E1: deny by default; only authorized employees receive chat documents.
+    let unavailableChatDocs = 0;
 
     for (const doc of documents) {
+      if (doc?.purpose === 'chat_document' && opts.allowChatDocuments !== true) {
+        unavailableChatDocs++;
+        continue;
+      }
       if (doc?.purpose === 'chat_document') {
         if (doc.status === 'ready') chatDocIds.push(String(doc.id));
         else if (doc.status === 'rejected') unreadableChatDocs.push(String(doc.original_name || 'document'));
@@ -5735,6 +5742,9 @@ export async function buildAttachmentContext(
     if (chatDocIds.length > 0) {
       const chatDocs = await buildChatDocumentContext(sb, userId, chatDocIds, { question: opts.question });
       if (chatDocs.text) contextParts.push(chatDocs.text);
+    }
+    if (unavailableChatDocs > 0) {
+      contextParts.push(`Note: ${unavailableChatDocs} attached document(s) are not available to this assistant.`);
     }
     if (unreadableChatDocs.length > 0) {
       contextParts.push(`Note: ${unreadableChatDocs.length} attached document(s) could not be read: ${unreadableChatDocs.join(', ')}. Say so; do not guess their contents.`);
@@ -7079,7 +7089,7 @@ export const handler: Handler = async (event, context) => {
           }
           // Attachments D1: read-only Tag findings on documents attached in this conversation.
           // Only when chat documents are enabled, so Prime never sees a tool it cannot use.
-          if (chatDocumentModeEnabled() && !employeeTools.includes('tag_document_findings')) {
+          if (chatDocumentModeEnabled() && resolveEmployeeDocumentAccess(finalEmployeeSlug).tools.includes('tag_document_findings') && !employeeTools.includes('tag_document_findings')) {
             employeeTools = [...employeeTools, 'tag_document_findings'];
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime tag_document_findings tool enabled (Attachments D1, read-only)');
@@ -7244,10 +7254,14 @@ export const handler: Handler = async (event, context) => {
     // Attachments C3: references (no text) for this message's own chat documents, and this
     // session's active documents from earlier user messages (candidates only; the context builder
     // re-checks ownership, purpose and status every request).
-    const [turnAttachmentRefs, activeChatDocumentIds]: [ChatAttachmentRef[], string[]] = await Promise.all([
-      resolveAttachmentRefs(sb, userId, documentIds),
-      loadActiveDocumentIds(sb, userId, finalSessionId),
-    ]);
+    // Attachments E1: only employees authorized for chat documents store or read their refs.
+    const documentAccess = resolveEmployeeDocumentAccess(finalEmployeeSlug);
+    const [turnAttachmentRefs, activeChatDocumentIds]: [ChatAttachmentRef[], string[]] = documentAccess.chatDocumentContext
+      ? await Promise.all([
+        resolveAttachmentRefs(sb, userId, documentIds),
+        loadActiveDocumentIds(sb, userId, finalSessionId),
+      ])
+      : [[], []];
     orchCtx.persist_worker_output = async (key: string, value: any): Promise<boolean> => {
       if (key !== 'tag') return false;
       const persisted = await persistTagOutputStateBestEffort(sb, orchCtx.sessionId, orchCtx.threadId, value);
@@ -11253,7 +11267,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
     // Attachments C3: this message's documents first, then the session's active ones (≤10).
     const contextDocumentIds = mergeContextDocumentIds(documentIds, activeChatDocumentIds);
     if (!isPrimeFastLane && contextDocumentIds.length > 0) {
-      attachmentContext = await buildAttachmentContext(sb, userId, contextDocumentIds, { question: masked });
+      attachmentContext = await buildAttachmentContext(sb, userId, contextDocumentIds, { question: masked, allowChatDocuments: documentAccess.chatDocumentContext });
     }
     const shouldAttachLatestImportContext =
       isPrime &&

@@ -234,7 +234,8 @@ describe('read-only guarantees and wiring', () => {
   });
   it('Prime gets the tool only when chat documents are enabled (absent while CHAT_DOCUMENT_MODE_ENABLED is unset)', async () => {
     const chat = read('netlify/functions/chat.ts');
-    expect(chat).toMatch(/if \(chatDocumentModeEnabled\(\) && !employeeTools\.includes\('tag_document_findings'\)\) \{\n\s+employeeTools = \[\.\.\.employeeTools, 'tag_document_findings'\];/);
+    // E1: also requires the employee's document permission (Prime only today).
+    expect(chat).toMatch(/if \(chatDocumentModeEnabled\(\) && resolveEmployeeDocumentAccess\(finalEmployeeSlug\)\.tools\.includes\('tag_document_findings'\) && !employeeTools\.includes\('tag_document_findings'\)\) \{\n\s+employeeTools = \[\.\.\.employeeTools, 'tag_document_findings'\];/);
     // the only place the tool is added to any employee's list is that gated block
     expect(chat.split("[...employeeTools, 'tag_document_findings']").length - 1).toBe(1);
     const { chatDocumentModeEnabled } = await import('../_shared/documentPurpose');

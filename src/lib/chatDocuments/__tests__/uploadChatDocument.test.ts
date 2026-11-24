@@ -167,4 +167,11 @@ describe('uploadChatDocument', () => {
     });
     expect(r).toMatchObject({ ok: false, reason: 'aborted', documentId: DOC });
   });
+
+  it('E8: server upload limit (429) → rate_limited, nothing uploaded', async () => {
+    const s429 = fakeServer({ init: { status: 429, body: { error: 'chat_document_limit', scope: 'hourly', retryAfterSeconds: 600 } } });
+    const r = await uploadChatDocument({ ...base, file: file('a.pdf', 'application/pdf'), fetchImpl: s429.fetchImpl });
+    expect(r).toEqual({ ok: false, reason: 'rate_limited', documentId: null });
+    expect(s429.calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
 });

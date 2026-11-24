@@ -21,6 +21,7 @@ export const CHAT_DOCUMENT_FAILURE_LABELS: Record<ChatDocumentFailure, string | 
   upload_failed: "Upload didn't finish — try again",
   failed: "Upload didn't finish — try again",
   server_mismatch: "Upload didn't finish — try again",
+  rate_limited: 'Upload limit reached — try again later',
   aborted: null,
 };
 

@@ -38,6 +38,7 @@ export type ChatDocumentFailure =
   | 'timeout'
   | 'aborted'
   | 'server_mismatch'
+  | 'rate_limited'
   | 'failed';
 
 export type UploadChatDocumentResult =
@@ -71,6 +72,7 @@ function resolveMime(file: UploadableFile): string | null {
 function failureForStatus(status: number, code?: unknown): ChatDocumentFailure {
   const c = String(code || '').toUpperCase();
   if (status === 401) return 'unauthorized';
+  if (status === 429) return 'rate_limited';
   if (status === 403 && c === 'CHAT_DOCUMENTS_DISABLED') return 'disabled';
   if (status === 403) return 'unauthorized';
   if (c === 'TOO_MANY_PAGES') return 'too_many_pages';

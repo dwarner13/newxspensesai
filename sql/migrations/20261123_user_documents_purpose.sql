@@ -23,6 +23,9 @@
 --   commit;
 
 begin;
+-- Gate B amendment (owner-approved): fail fast instead of queueing behind long transactions.
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
 
 -- 1. Column + allowed values
 alter table public.user_documents add column if not exists purpose text;

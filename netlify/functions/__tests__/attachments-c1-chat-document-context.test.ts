@@ -91,7 +91,9 @@ let buildAttachmentContext: (sb: any, userId: string, ids: string[], opts?: { qu
 
 beforeAll(async () => {
   ctxLib = await import('../_shared/chatDocumentContext');
-  buildAttachmentContext = (await import('../chat')).buildAttachmentContext;
+  // As called for Prime (authorized for chat documents, E1). Deny-by-default is tested in attachments-e1.
+  const real = (await import('../chat')).buildAttachmentContext;
+  buildAttachmentContext = (sb, userId, ids, opts = {}) => real(sb, userId, ids, { allowChatDocuments: true, ...opts });
 }, 120_000);
 
 describe('buildChatDocumentContext', () => {

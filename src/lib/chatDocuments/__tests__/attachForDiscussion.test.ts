@@ -30,6 +30,7 @@ describe('attachForDiscussion', () => {
       [{ ok: false, reason: 'timeout', documentId: 'd' }, 'Still reading — check back shortly'],
       [{ ok: false, reason: 'unauthorized', documentId: null }, 'Please sign in again'],
       [{ ok: false, reason: 'upload_failed', documentId: 'd' }, "Upload didn't finish — try again"],
+      [{ ok: false, reason: 'rate_limited', documentId: null }, 'Upload limit reached — try again later'],
       [{ ok: false, reason: 'aborted', documentId: 'd' }, null],
     ];
     for (const [r, label] of cases) {
