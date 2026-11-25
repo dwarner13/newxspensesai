@@ -1,27 +1,32 @@
 /**
  * useTagChatActions
  *
- * Intercepts Tag chat messages, detects action intents,
- * runs preview -> confirmation -> commit flow.
+ * Intercepts Tag chat messages, detects action intents and runs the SERVER proposal → explicit
+ * confirmation flow (T-ACT-FINAL, owner GO 2026-11-25: one action safety contract however the
+ * customer initiates a request).
+ *
+ * - The preview goes to tag-action WITH a conversation: the server verifies the full affected set,
+ *   keeps customer-confirmed rows, writes the proposal text and records a signed 'proposed' receipt.
+ * - The confirmation is tag-action commit_proposal with the proposal exactly as the server signed it;
+ *   the server re-checks the scope (stale → nothing changes) and reports the verified count.
+ * - Merchant detection is the shared detectUserActionIntent ("this" / "it" are never a merchant).
  */
 
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { fetchPrimeSummarySingleFlight } from '../lib/ai/primeSummaryClient';
+import { detectUserActionIntent } from '../lib/tagActionConversation';
+import { newClientMessageId } from '../lib/tagConversation';
 
 export interface TagPreviewResult {
   matchValue: string;
   targetCategory: string;
-  matchType: 'contains' | 'exact';
+  /** Existing transactions the proposal would change (server-verified). */
   matchCount: number;
-  samples: Array<{
-    id: string;
-    merchant_name: string;
-    amount: number;
-    posted_at: string;
-    current_category: string;
-  }>;
-  affectedIds: string[];
+  /** Signed proposal, echoed back unchanged on confirmation. */
+  action: string;
+  subject: Record<string, string | number | null>;
+  sessionId: string | null;
 }
 
 export interface UseTagChatActionsResult {
@@ -40,28 +45,23 @@ export interface UseTagChatActionsResult {
   cancelAction: () => void;
 }
 
-// Classify intent client-side before hitting the backend
-function classifyTagIntent(message: string): {
-  matchValue: string;
-  targetCategory: string;
-  matchType: 'contains' | 'exact';
-} | null {
-  const actionVerbs = /\b(move|change|set|mark|categorize|recategorize|put|tag|assign|update)\b/i;
-  if (!actionVerbs.test(message)) return null;
+type TagActionResponse = {
+  ok?: boolean;
+  error?: string;
+  proposal?: { kind?: string; action?: unknown; subject?: unknown };
+  conversation?: { sessionId?: string | null; reply?: string; receipt?: { state?: string; count?: number; result?: { affectedCount?: number } } | null };
+  targetCategory?: string;
+  matchValue?: string;
+  matchCount?: number;
+};
 
-  const toPattern = /(?:move|change|set|mark|categorize|recategorize|put|tag|assign|update)\s+(?:all\s+)?["']?([^"']+?)["']?\s+(?:to|as)\s+["']?([^"'.,!?]+)["']?/i;
-  const match = message.match(toPattern);
-  if (!match) return null;
-
-  const matchValue = match[1].trim();
-  const targetCategory = match[2].trim();
-  if (!matchValue || !targetCategory) return null;
-
-  return {
-    matchValue,
-    targetCategory: targetCategory.charAt(0).toUpperCase() + targetCategory.slice(1),
-    matchType: 'contains',
-  };
+async function postTagAction(authToken: string, body: Record<string, unknown>): Promise<TagActionResponse> {
+  const res = await fetch('/.netlify/functions/tag-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+    body: JSON.stringify(body),
+  });
+  return res.json();
 }
 
 export function useTagChatActions(): UseTagChatActionsResult {
@@ -70,56 +70,43 @@ export function useTagChatActions(): UseTagChatActionsResult {
 
   const handleTagMessage = useCallback(async (
     message: string,
-    { userId, importId, authToken, onConfirmMessage }: {
+    { authToken, onConfirmMessage }: {
       userId: string;
       importId?: string | null;
       authToken: string;
       onConfirmMessage: (msg: string) => void;
     }
   ): Promise<boolean> => {
-    const intent = classifyTagIntent(message);
+    const intent = detectUserActionIntent(message);
     if (!intent) return false; // not an action - fall through to chat
 
     setIsProcessing(true);
+    setPendingPreview(null);
     try {
-      const res = await fetch('/.netlify/functions/tag-action', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          intent: 'preview',
-          matchValue: intent.matchValue,
-          targetCategory: intent.targetCategory,
-          matchType: intent.matchType,
-          importId: importId || null,
-        }),
+      const data = await postTagAction(authToken, {
+        intent: 'preview',
+        matchValue: intent.matchValue,
+        targetCategory: intent.targetCategory,
+        matchType: intent.matchType,
+        conversation: { customerText: message, clientMessageId: newClientMessageId() },
       });
-
-      const data = await res.json();
-      if (!data.ok) {
-        onConfirmMessage(`I couldn't find any transactions matching "${intent.matchValue}". Try a different keyword.`);
-        return true;
+      // Tag's words come from the server (proposal, "no matches", or "which category?").
+      const reply = data.conversation?.reply
+        || `I couldn't check "${intent.matchValue}" just now, so nothing has changed. Try again?`;
+      const p = data.proposal;
+      if (p && p.kind === 'action' && typeof p.action === 'string' && p.subject && typeof p.subject === 'object'
+          && data.conversation?.receipt?.state === 'proposed') {
+        const subject = p.subject as Record<string, string | number | null>;
+        setPendingPreview({
+          matchValue: String(data.matchValue ?? intent.matchValue),
+          targetCategory: String(data.targetCategory ?? subject.targetCategory ?? intent.targetCategory),
+          matchCount: Number(subject.affected ?? 0),
+          action: p.action,
+          subject,
+          sessionId: data.conversation?.sessionId ?? null,
+        });
       }
-
-      if (data.matchCount === 0) {
-        onConfirmMessage(`I searched your transactions but found nothing matching "${intent.matchValue}". Try a different keyword or check the spelling.`);
-        return true;
-      }
-
-      setPendingPreview(data);
-
-      // Inject Tag's confirmation message into chat
-      const sampleList = data.samples
-        .slice(0, 3)
-        .map((s: any) => `- ${s.merchant_name} - ${Math.abs(s.amount).toFixed(2)} (currently: ${s.current_category})`)
-        .join('\n');
-
-      onConfirmMessage(
-        `I found **${data.matchCount} transaction${data.matchCount !== 1 ? 's' : ''}** matching "${intent.matchValue}" to move to **${intent.targetCategory}**.\n\n${sampleList}${data.matchCount > 3 ? `\n- ...and ${data.matchCount - 3} more` : ''}\n\nConfirm to apply this change.`
-      );
-
+      onConfirmMessage(reply);
       return true;
     } catch {
       toast.error('Tag action failed - check your connection');
@@ -136,44 +123,37 @@ export function useTagChatActions(): UseTagChatActionsResult {
     if (!pendingPreview) return;
     setIsProcessing(true);
     try {
-      const res = await fetch('/.netlify/functions/tag-action', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+      const data = await postTagAction(authToken, {
+        intent: 'commit_proposal',
+        action: pendingPreview.action,
+        subject: pendingPreview.subject,
+        conversation: {
+          customerText: 'yes',
+          clientMessageId: newClientMessageId(),
+          ...(pendingPreview.sessionId ? { sessionId: pendingPreview.sessionId } : {}),
         },
-        body: JSON.stringify({
-          intent: 'commit',
-          matchValue: pendingPreview.matchValue,
-          targetCategory: pendingPreview.targetCategory,
-          matchType: pendingPreview.matchType,
-          affectedIds: pendingPreview.affectedIds,
-        }),
       });
-
-      const data = await res.json();
-      if (data.ok) {
-        toast.success(`Updated ${data.updatedCount} transactions to ${data.targetCategory}`);
-        onSuccess(
-          `Done. I've updated **${data.updatedCount} transaction${data.updatedCount !== 1 ? 's' : ''}** to **${data.targetCategory}** and saved a rule so future "${pendingPreview.matchValue}" transactions are categorized automatically.`
-        );
-        setPendingPreview(null);
-
+      const receipt = data.conversation?.receipt;
+      const reply = data.conversation?.reply || "I couldn't confirm whether that went through. Please check your transactions before trying again.";
+      if (receipt?.state === 'completed') {
+        const n = typeof receipt.count === 'number' ? receipt.count : (receipt.result?.affectedCount ?? 0);
+        toast.success(`Updated ${n} transaction${n !== 1 ? 's' : ''}`);
+        onSuccess(reply);
         // Re-fire prime-summary so the summary reflects the change
         try {
-          await fetchPrimeSummarySingleFlight({}, {
-            headers: {
-              Authorization: `Bearer ${authToken}`,
-            },
-          });
+          await fetchPrimeSummarySingleFlight({}, { headers: { Authorization: `Bearer ${authToken}` } });
         } catch {
           // non-fatal
         }
       } else {
-        toast.error(data.error || 'Commit failed');
+        // Stale / no matching proposal / failure: the server says what happened; nothing is claimed.
+        onSuccess(reply);
+        toast.error('Nothing was changed');
       }
+      setPendingPreview(null);
     } catch {
-      toast.error('Tag commit failed - check your connection');
+      // The request failed: the outcome is unknown. No automatic retry.
+      toast.error("Couldn't confirm whether that went through - check your transactions before trying again");
     } finally {
       setIsProcessing(false);
     }

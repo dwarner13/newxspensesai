@@ -38,7 +38,7 @@ export const TOOL_TO_ACTION: Readonly<Record<string, string>> = {
 export type ProposalSubject = Record<string, string | number | null>;
 
 export type ActionProposalOutcome =
-  | { state: 'proposed'; action: string; subject: ProposalSubject; reply: string }
+  | { state: 'proposed'; action: string; subject: ProposalSubject; reply: string; /** Rows matching the scope (before protection / no-op filtering). */ matched?: number }
   | { state: 'failed'; action: string; reason: string; reply: string };
 
 export type ActionExecutionOutcome = {
@@ -67,7 +67,7 @@ interface ScopeRow { id: string; merchant_name?: string | null; category?: strin
 interface Scope { matched: number; eligible: string[]; kept: number; complete: boolean }
 
 type Params =
-  | { action: typeof TAG_RULE_ACTION; merchantPattern: string; targetCategory: string; targetSubcategory: string | null; applyToExisting: boolean }
+  | { action: typeof TAG_RULE_ACTION; merchantPattern: string; targetCategory: string; targetSubcategory: string | null; applyToExisting: boolean; exact?: boolean }
   | { action: typeof TAG_BULK_ACTION; fromCategory: string; toCategory: string }
   | { action: typeof TAG_RENAME_ACTION; fromName: string; toName: string };
 
@@ -75,7 +75,7 @@ type Params =
 async function readScope(sb: SupabaseClient, userId: string, p: Params): Promise<Scope> {
   const res = await pagedSelectAll<ScopeRow>(() => {
     let q = sb.from('transactions').select('id, merchant_name, category, subcategory, category_source').eq('user_id', userId);
-    if (p.action === TAG_RULE_ACTION) q = q.ilike('merchant_name', `%${escLike(p.merchantPattern)}%`);
+    if (p.action === TAG_RULE_ACTION) q = q.ilike('merchant_name', p.exact ? escLike(p.merchantPattern) : `%${escLike(p.merchantPattern)}%`);
     else if (p.action === TAG_BULK_ACTION) q = q.eq('category', p.fromCategory);
     else q = q.ilike('merchant_name', escLike(p.fromName));
     return q.order('id', { ascending: true }) as unknown as PagedQuery;
@@ -103,7 +103,7 @@ async function readScope(sb: SupabaseClient, userId: string, p: Params): Promise
 
 function paramsFromSubject(action: string, s: ProposalSubject): Params | null {
   if (action === TAG_RULE_ACTION && typeof s.merchantPattern === 'string' && typeof s.targetCategory === 'string') {
-    return { action, merchantPattern: s.merchantPattern, targetCategory: s.targetCategory, targetSubcategory: typeof s.targetSubcategory === 'string' ? s.targetSubcategory : null, applyToExisting: s.applyToExisting === 'yes' };
+    return { action, merchantPattern: s.merchantPattern, targetCategory: s.targetCategory, targetSubcategory: typeof s.targetSubcategory === 'string' ? s.targetSubcategory : null, applyToExisting: s.applyToExisting === 'yes', exact: s.matchType === 'exact' };
   }
   if (action === TAG_BULK_ACTION && typeof s.fromCategory === 'string' && typeof s.toCategory === 'string') {
     return { action, fromCategory: s.fromCategory, toCategory: s.toCategory };
@@ -151,7 +151,9 @@ export async function buildActionProposal(
         if (existing?.subcategory && existing.category === res.category) targetSubcategory = String(existing.subcategory);
       }
       const applyToExisting = input.applyToExisting === true;
-      const p: Params = { action: TAG_RULE_ACTION, merchantPattern, targetCategory: res.category, targetSubcategory, applyToExisting };
+      // 'exact' only when a caller passes an exact merchant name (e.g. a suggestion chip); default contains.
+      const exact = input.matchType === 'exact';
+      const p: Params = { action: TAG_RULE_ACTION, merchantPattern, targetCategory: res.category, targetSubcategory, applyToExisting, exact };
       const scope = await readScope(sb, userId, p);
       if (!scope.complete) return failed(action, 'scope_incomplete', INCOMPLETE);
       const target = catLabel(res.category, targetSubcategory);
@@ -161,9 +163,9 @@ export async function buildActionProposal(
         ? `${note}Save a rule so **future imports** matching "${vendor}" are categorized as **${target}**, AND change **${scope.eligible.length}** of your **existing** "${vendor}" ${scope.eligible.length === 1 ? 'transaction' : 'transactions'} to **${target}** now${keptLine}? Say yes to confirm.`
         : `${note}Save a rule so **future imports** matching "${vendor}" are categorized as **${target}**? This does **not** change your ${plural(scope.matched, 'existing transaction')} matching "${vendor}" — tell me if you want those changed too. Say yes to confirm.`;
       return {
-        state: 'proposed', action, reply,
+        state: 'proposed', action, reply, matched: scope.matched,
         subject: {
-          merchantPattern, targetCategory: res.category, targetSubcategory, applyToExisting: applyToExisting ? 'yes' : 'no',
+          merchantPattern, targetCategory: res.category, targetSubcategory, applyToExisting: applyToExisting ? 'yes' : 'no', matchType: exact ? 'exact' : 'contains',
           affected: applyToExisting ? scope.eligible.length : 0,
           fingerprint: applyToExisting ? scopeFingerprint(scope.eligible) : 'rule_only',
         },
@@ -294,7 +296,7 @@ export async function executeActionProposal(
     }
     const vendorKey = p.merchantPattern.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
     const { error: ruleErr } = await sb.from('category_rules').upsert({
-      user_id: userId, match_type: 'contains', merchant_pattern: p.merchantPattern, match_value: p.merchantPattern,
+      user_id: userId, match_type: p.exact ? 'exact' : 'contains', merchant_pattern: p.merchantPattern, match_value: p.merchantPattern,
       category: p.targetCategory, ...(p.targetSubcategory ? { subcategory: p.targetSubcategory } : {}), is_active: true, updated_at: now,
     }, { onConflict: 'user_id,merchant_pattern' });
     const { error: memErr } = await sb.from('vendor_category_memory').upsert({

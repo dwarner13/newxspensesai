@@ -77,24 +77,7 @@ function normalizeCategory(raw: string): string {
   return CATEGORY_ALIASES[lower] || trimmed;
 }
 
-async function enforceType(sb: any, userId: string, category: string, transactionId?: string): Promise<void> {
-  try {
-    const { data: typeRule } = await sb.from('category_type_rules').select('forced_type').eq('category', category).single();
-    if (!typeRule) return;
-    if (transactionId) {
-      await sb.from('transactions').update({ type: typeRule.forced_type }).eq('id', transactionId).eq('user_id', userId);
-    }
-  } catch { /* non-blocking */ }
-}
 
-async function enforceTypeBulk(sb: any, userId: string, category: string, merchantPattern: string): Promise<string | null> {
-  try {
-    const { data: typeRule } = await sb.from('category_type_rules').select('forced_type').eq('category', category).single();
-    if (!typeRule) return null;
-    await sb.from('transactions').update({ type: typeRule.forced_type }).eq('user_id', userId).ilike('merchant_name', `%${merchantPattern}%`);
-    return typeRule.forced_type;
-  } catch { return null; }
-}
 
 async function callWithRetry(fn: () => Promise<any>, retries = 2): Promise<any> {
   for (let i = 0; i <= retries; i++) {
@@ -122,9 +105,6 @@ function parseNeedsReviewQueue(text: string): boolean {
   return /<needs_review_queue\s*\/?>/.test(text);
 }
 
-function parseMerchantSweep(text: string): boolean {
-  return /<merchant_sweep\s*\/?>/.test(text);
-}
 
 function parseSessionClose(text: string): boolean {
   return /SESSION_CLOSE/i.test(text);
@@ -252,25 +232,11 @@ function extractSearchIntent(message: string): {
   };
 }
 
-function parseDeleteRule(text: string): { merchant_pattern: string } | null {
-  const match = text.match(/<delete_rule>([\s\S]*?)<\/delete_rule>/);
-  if (!match) return null;
-  try { return JSON.parse(match[1].trim()); } catch { return null; }
-}
 
 function parseListRules(text: string): boolean {
   return /<list_rules\s*\/?>/.test(text);
 }
 
-function parseCorrection(text: string): { merchant_pattern: string; category: string; subcategory: string; min_amount?: number | null; max_amount?: number | null } | null {
-  const match = text.match(/<correction>([\s\S]*?)<\/correction>/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[1].trim());
-  } catch {
-    return null;
-  }
-}
 
 function buildSystemPrompt(
   merchant: string,
@@ -284,6 +250,7 @@ function buildSystemPrompt(
   learnedCategory?: string | null
 ): string {
   const userLine = (userName ? `The user's name is ${userName}. Use it occasionally but naturally.\n` : '') +
+    `HIGHEST PRIORITY: You cannot change, save, delete, rename or flag anything from this chat — no categories, rules or transactions. Never say you changed or saved something, and do not output <correction>, <delete_rule>, <merchant_sweep/>, SAVE_RULE or action JSON (the server ignores them). If the customer wants a change, tell them to ask Tag in the Tag panel on the Transactions page, where they will see exactly what will change and confirm it.\n` +
     `IMPORTANT: Never introduce yourself or say hello when the user has already started a conversation. If the conversation history exists, respond directly to what the user said. Never say "Hello! How can I assist you" or "Hi there" mid-conversation. Only greet on the very first message if history is empty.\n`;
   const merchantBlock = merchant ? `
 MERCHANT IN FOCUS: ${merchant}
@@ -1047,89 +1014,19 @@ export const handler: Handler = async (event) => {
     reply = reply.replace(/\s*HANDOFF:\s*\{[^}]+\}/g, '').trim();
   }
 
-  // Handle correction intent  - user told Tag a merchant is miscategorized
-  const correction = parseCorrection(reply);
-  if (correction) {
-    const { merchant_pattern, min_amount, max_amount } = correction;
-    const category = normalizeCategory(correction.category);
-    const subcategory = correction.subcategory?.trim() || null;
-    try {
-      // Upsert into category_rules  - schema uses match_value, NOT merchant_pattern
-      const rulePayload: Record<string, any> = {
-        user_id: auth.userId,
-        match_value: merchant_pattern.toUpperCase(),
-        category,
-        subcategory: subcategory || null,
-        match_type: 'contains',
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      };
-      if (min_amount != null) rulePayload.min_amount = min_amount;
-      if (max_amount != null) rulePayload.max_amount = max_amount;
+  // T-ACT-FINAL (owner GO 2026-11-25): text the MODEL writes never changes data. <correction>,
+  // <delete_rule>, <merchant_sweep/>, SAVE_RULE:{…} and the legacy {"action":"recategorize"} used to
+  // write rules / recategorize history / delete rules / reset rows the moment they appeared in the
+  // model's reply, with no server-enforced confirmation (and reachable through client-supplied
+  // history). They are now stripped and nothing is written; changes go through Tag's signed
+  // proposal → explicit confirmation flow (tag-copilot / tag-action).
+  let blockedModelWrite = false;
+  const stripModelWrite = (re: RegExp) => {
+    if (re.test(reply)) { blockedModelWrite = true; reply = reply.replace(re, '').trim(); }
+  };
+  stripModelWrite(/<correction>[\s\S]*?<\/correction>/g);
 
-      if (min_amount != null || max_amount != null) {
-        const { error: insErr } = await supabase.from('category_rules').insert(rulePayload);
-        if (insErr) console.error('[tag-chat] correction insert failed', insErr.message);
-      } else {
-        const { error: upErr } = await supabase.from('category_rules').upsert(rulePayload, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' });
-        if (upErr) console.error('[tag-chat] correction upsert failed', upErr.message);
-      }
-      const amountNote = min_amount != null || max_amount != null ? ` (${min_amount != null ? '>=$' + min_amount : ''}${min_amount != null && max_amount != null ? ', ' : ''}${max_amount != null ? '<$' + max_amount : ''})` : '';
-      console.log(`[tag-chat] Correction rule saved: ${merchant_pattern} -> ${category}${subcategory ? ' / ' + subcategory : ''}${amountNote}`);
-
-      // Backfill existing transactions
-      const updatePayload: Record<string, any> = {
-        category,
-        category_source: 'user_correction',
-        updated_at: new Date().toISOString(),
-      };
-      if (subcategory) {
-        updatePayload.subcategory = subcategory;
-        updatePayload.subcategory_source = 'user_correction';
-      }
-      let backfillQ = supabase
-        .from('transactions')
-        .update(updatePayload)
-        .eq('user_id', auth.userId)
-        .ilike('merchant_name', `%${merchant_pattern}%`);
-      // Apply amount threshold if this is an amount-specific correction
-      if (min_amount != null) backfillQ = backfillQ.gte('amount', min_amount);
-      if (max_amount != null) backfillQ = backfillQ.lt('amount', max_amount);
-      const { count } = await backfillQ.select('id', { count: 'exact', head: true });
-      console.log(`[tag-chat] Backfilled ${count || 0} transactions${min_amount != null || max_amount != null ? ` (amount filtered)` : ''}`);
-
-      // Enforce type from category_type_rules
-      await enforceTypeBulk(supabase, auth.userId, category, merchant_pattern);
-    } catch (err: any) {
-      console.error('[tag-chat] Correction handling error:', err.message);
-    }
-
-    // Strip the <correction> block from the response sent to the user
-    reply = reply.replace(/<correction>[\s\S]*?<\/correction>/g, '').trim();
-
-    // Mark any existing feedback as applied
-    try {
-      await supabase.from('tag_category_feedback')
-        .update({ applied_at: new Date().toISOString() })
-        .eq('user_id', auth.userId)
-        .eq('merchant_pattern', correction.merchant_pattern)
-        .is('applied_at', null);
-    } catch { /* table/column may not exist */ }
-  }
-
-  // Handle delete_rule intent
-  const deletion = parseDeleteRule(reply);
-  if (deletion) {
-    try {
-      await supabase.from('category_rules').delete()
-        .eq('user_id', auth.userId)
-        .ilike('match_value', deletion.merchant_pattern);
-      console.log(`[tag-chat] Deleted rules for: ${deletion.merchant_pattern}`);
-    } catch (err: any) {
-      console.error('[tag-chat] Delete rule error:', err.message);
-    }
-    reply = reply.replace(/<delete_rule>[\s\S]*?<\/delete_rule>/g, '').trim();
-  }
+  stripModelWrite(/<delete_rule>[\s\S]*?<\/delete_rule>/g);
 
   // Handle list_rules intent
   if (parseListRules(reply)) {
@@ -1170,56 +1067,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // Handle merchant_sweep intent  - find and flag unknown-merchant transactions
-  if (parseMerchantSweep(reply)) {
-    reply = reply.replace(/<merchant_sweep\s*\/?>/g, '').trim();
-    try {
-      const { data: unknowns } = await supabase
-        .from('transactions')
-        .select('id, description, amount, date, posted_at, category')
-        .eq('user_id', auth.userId)
-        .not('category', 'in', '("Transfers","Income")')
-        .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
-        .not('subcategory', 'eq', 'Unknown Merchant - Verify')
-        .order('posted_at', { ascending: false })
-        .limit(10);
-
-      if (unknowns && unknowns.length > 0) {
-        // Mark them for review
-        for (const tx of unknowns) {
-          await supabase.from('transactions').update({
-            category: 'Needs Review',
-            subcategory: 'Unknown Merchant - Verify',
-            category_source: 'merchant_sweep',
-            updated_at: new Date().toISOString(),
-          }).eq('id', tx.id).eq('user_id', auth.userId);
-        }
-
-        // Get total remaining
-        const { count: remaining } = await supabase
-          .from('transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', auth.userId)
-          .not('category', 'in', '("Transfers","Income")')
-          .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
-          .not('subcategory', 'eq', 'Unknown Merchant - Verify');
-
-        const lines = unknowns.slice(0, 5).map(tx => {
-          const amt = Math.abs(Number(tx.amount || 0)).toFixed(2);
-          const d = tx.date || tx.posted_at?.split('T')[0] || '?';
-          const desc = tx.description || '(no description)';
-          return `- **$${amt}** on ${d}  - "${desc}"`;
-        }).join('\n');
-
-        reply = `Found ${unknowns.length} transactions with no merchant name. I've flagged them for review.\n\n${lines}${unknowns.length > 5 ? `\n- ... and ${unknowns.length - 5} more` : ''}${(remaining || 0) > 0 ? `\n\n${remaining} more still unflagged  - say "fix unknowns" again for the next batch.` : ''}\n\nOpen any of these in the transaction drawer to add the merchant name and category. I'll learn from your corrections.`;
-      } else {
-        reply = 'All your transactions have merchant names  - nothing to fix here!';
-      }
-    } catch (err: any) {
-      console.error('[tag-chat] merchant_sweep error:', err.message);
-      reply = 'I had trouble scanning for unknown merchants. Try again in a moment.';
-    }
-  }
+  stripModelWrite(/<merchant_sweep\s*\/?>/g);
 
   /*
    * SQL RPC required for staging backfill  - run in Supabase SQL editor:
@@ -1247,97 +1095,15 @@ export const handler: Handler = async (event) => {
    * $$;
    */
 
-  // 7. Detect SAVE_RULE: in response
-  let ruleSaved = false;
-  let backfillCount = 0;
-  const ruleMatch = reply.match(/SAVE_RULE:\s*(\{[^}]+\})/);
-  if (ruleMatch) {
-    try {
-      const ruleData = JSON.parse(ruleMatch[1]);
-      ruleData.category = normalizeCategory(ruleData.category || '');
-      const pattern = String(ruleData.merchant_pattern || merchantName).toUpperCase();
-
-      // 7a. Save rule (INSERT for amount-specific, upsert for generic)
-      const ruleRow: Record<string, any> = {
-        user_id: auth.userId,
-        match_value: pattern,
-        merchant_pattern: pattern,
-        category: ruleData.category,
-        match_type: ruleData.match_type || 'exact',
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      };
-      if (ruleData.amount_min != null) ruleRow.min_amount = ruleData.amount_min;
-      if (ruleData.amount_max != null) ruleRow.max_amount = ruleData.amount_max;
-      if (ruleData.amount_min != null || ruleData.amount_max != null) {
-        await supabase.from('category_rules').insert(ruleRow);
-      } else {
-        await supabase.from('category_rules').upsert(ruleRow, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' });
-      }
-
-      // 7b. Write vendor memory
-      await supabase.from('vendor_category_memory').upsert({
-        user_id: auth.userId,
-        vendor_key: pattern.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
-        category: ruleData.category,
-        source: 'tag_conversation',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,vendor_key' });
-
-      // 7c. Backfill committed transactions
-      let backfillQuery = supabase
-        .from('transactions')
-        .update({
-          category: ruleData.category,
-          category_source: 'tag_rule',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', auth.userId)
-        .ilike('merchant_name', `%${pattern}%`)
-        .not('category_source', 'eq', 'user_override');
-
-      if (ruleData.amount_min != null) {
-        backfillQuery = backfillQuery.gte('amount', ruleData.amount_min);
-      }
-      if (ruleData.amount_max != null) {
-        backfillQuery = backfillQuery.lte('amount', ruleData.amount_max);
-      }
-
-      const { data: backfilled } = await backfillQuery.select('id');
-      backfillCount = backfilled?.length ?? 0;
-
-      // 7c2. Enforce type from category_type_rules
-      await enforceTypeBulk(supabase, auth.userId, ruleData.category, pattern);
-
-      // 7d. Backfill staging transactions (RPC  - may not exist yet)
-      try {
-        await supabase.rpc('backfill_staging_category', {
-          p_user_id: auth.userId,
-          p_match_value: pattern,
-          p_category: ruleData.category,
-        });
-      } catch { /* RPC may not exist yet  - skip */ }
-
-      ruleSaved = true;
-    } catch { /* ignore parse errors */ }
-    // Strip SAVE_RULE from reply
-    reply = reply.replace(/\n?SAVE_RULE:\s*\{[^}]+\}/g, '').trim();
-  }
-
-  // 8. Legacy recategorize action support
-  let action: { action: string; category: string } | null = null;
-  const actionMatch = reply.match(/\{"action"\s*:\s*"recategorize"\s*,\s*"category"\s*:\s*"([^"]+)"\}/);
-  if (actionMatch) {
-    const category = normalizeCategory(actionMatch[1]);
-    action = { action: 'recategorize', category };
-    if (transactionId) {
-      await supabase.from('transactions').update({
-        category, category_source: 'user_chat', updated_at: new Date().toISOString(),
-      }).eq('id', transactionId).eq('user_id', auth.userId);
-      // Enforce type
-      await enforceType(supabase, auth.userId, category, transactionId);
-    }
-    reply = reply.replace(/\n?\{"action"[^}]+\}/g, '').trim();
+  // 7./8. SAVE_RULE:{…} and the legacy recategorize JSON: stripped, never executed.
+  const ruleSaved = false;
+  const backfillCount = 0;
+  const action: { action: string; category: string } | null = null;
+  stripModelWrite(/\n?SAVE_RULE:\s*\{[^}]+\}/g);
+  stripModelWrite(/\n?\{"action"\s*:\s*"recategorize"[^}]*\}/g);
+  if (blockedModelWrite) {
+    reply = `${reply}${reply ? '\n\n' : ''}I haven't changed anything here. To change a category, save a rule or rename a merchant, ask me in the Tag panel on the Transactions page — I'll show you exactly what will change and wait for your yes.`;
+    console.log('[tag-chat] model-emitted change tag ignored (no write)');
   }
 
   // 9. Save conversation to tag_conversations

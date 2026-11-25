@@ -201,7 +201,8 @@ describe('T-LIVE-02 — ownership and signed-proposal safeguards', () => {
   });
   it('a merchant-wide confirmation can never consume a single-transaction proposal', async () => {
     const p = await proposeFocused();
-    const { json } = await act({ intent: 'commit', matchValue: 'SAMPLE EVENTS CO', targetCategory: 'Food & Dining', ...convo('yes', 'msg_single_0009', { sessionId: p.json.conversation.sessionId }) });
+    const merchantEcho = { merchantPattern: 'SAMPLE EVENTS CO', targetCategory: 'Food & Dining', targetSubcategory: null, applyToExisting: 'yes', matchType: 'contains', affected: 2, fingerprint: 'x' };
+    const { json } = await act({ intent: 'commit_proposal', action: 'save_merchant_rule', subject: merchantEcho, ...convo('yes', 'msg_single_0009', { sessionId: p.json.conversation.sessionId }) });
     expect(json.conversation.receipt.reason).toBe('no_matching_proposal');
     expect(txUpdateCalls).toBe(0);
   });
@@ -242,9 +243,9 @@ describe('T-LIVE-02 — category resolution (never a silent substitution)', () =
   });
   it('merchant-wide path: "Food And Beverage" is proposed as Food & Dining WITH the note, and the confirmation binds', async () => {
     const p = await act({ intent: 'preview', matchValue: 'SAMPLE EVENTS', targetCategory: 'Food And Beverage', ...convo('change all SAMPLE EVENTS to food and beverage', 'msg_single_0017') });
-    expect(p.json.conversation.receipt).toMatchObject({ state: 'proposed', subject: { targetCategory: 'Food & Dining' } });
+    expect(p.json.conversation.receipt).toMatchObject({ state: 'proposed', action: 'save_merchant_rule', subject: { targetCategory: 'Food & Dining' } });
     expect(p.json.conversation.reply).toContain('There\'s no "Food And Beverage" category — the closest is **Food & Dining**.');
-    const c = await act({ intent: 'commit', matchValue: 'SAMPLE EVENTS', targetCategory: 'Food And Beverage', ...convo('yes', 'msg_single_0018', { sessionId: p.json.conversation.sessionId }) });
+    const c = await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_single_0018', { sessionId: p.json.conversation.sessionId }) });
     expect(c.json.conversation.receipt.state).toBe('completed');
     expect(tx(FOCUS).category).toBe('Food & Dining');
     expect(tx(SAME_MERCHANT).category).toBe('Food & Dining');
