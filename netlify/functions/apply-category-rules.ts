@@ -75,8 +75,7 @@ const HARDCODED_OVERRIDES: Array<{ key: string; category: string; subcategory?: 
   { key: 'CDACARBONREBATE', category: 'Income', subcategory: 'Government Rebate' },
   { key: 'CANADA RIT', category: 'Income', subcategory: 'Tax Refund' },
   { key: 'MANULIFE', category: 'Income', subcategory: 'Insurance' },
-  { key: 'GORDON FOOD SER PAY', category: 'Income', subcategory: 'Employment' },
-  { key: 'GFS PAY', category: 'Income', subcategory: 'Employment' },
+  // FST-2 S7 (owner GO 2026-11-25): rules built for ONE customer (their employer payroll / business) applied to every customer and were removed. Personal rules live in that customer's own category_rules.
   { key: 'GORDON FOOD SER', category: 'Groceries', subcategory: 'Food Supply' },
   { key: 'RIVER CITY HYUNDAI', category: 'Transportation', subcategory: 'Auto Service' },
   { key: 'JIFFY LUBE', category: 'Transportation', subcategory: 'Auto Service' },
@@ -231,7 +230,7 @@ function normalizeVendorKey(raw: string): string {
 
 // ─── Inline rules for common Canadian merchants ────────────────────────────
 const RULES: Array<{ contains: string[]; category: string }> = [
-  { contains: ['gordon food', 'gordon foods'], category: 'Income' },
+  // S7: 'gordon food' → Income removed (one customer's employer; a food supplier for everyone else).
   { contains: ['celtic group'], category: 'Debt Payments' },
   { contains: ['b/m payt', 'b/m pay'], category: 'Housing' },
   { contains: ['td loan'], category: 'Debt Payments' },

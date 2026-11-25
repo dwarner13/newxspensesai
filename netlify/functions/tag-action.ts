@@ -310,7 +310,7 @@ const MERCHANT_SUBCATEGORY_RULES: SubcategoryRule[] = [
   { keyword: 'imperial pfs', category: 'Subscriptions', subcategory: 'Business Insurance' },
 
   // ── Income subcategories ──────────────────────────────────────────────────
-  { keyword: 'rownmi', category: 'Income', subcategory: 'Business Revenue' },
+  // S7: one customer's business-name keyword removed (it applied to every customer).
   { keyword: 'payroll', category: 'Income', subcategory: 'Salary / Payroll' },
   { keyword: 'deposit', category: 'Income', subcategory: 'Deposit' },
   { keyword: 'etrnsfr rcvd', category: 'Income', subcategory: 'E-Transfer Received' },

@@ -24,7 +24,7 @@ const headers = {
 };
 
 const RULES: Array<{ contains: string[]; category: string }> = [
-  { contains: ['gordon food ser pay', 'gordon foods pay'], category: 'Income' },
+  // FST-2 S7 (owner GO 2026-11-25): rules built for ONE customer (their employer payroll / business) applied to every customer and were removed. Personal rules live in that customer's own category_rules.
   { contains: ['celtic group'], category: 'Housing' },
   { contains: ['b/m payt', 'b/m pay', 'b/mpayt', 'b/mpay', 'mtg/hyp'], category: 'Housing' },
   { contains: ['td loan'], category: 'Transportation' },

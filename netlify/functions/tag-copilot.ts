@@ -82,7 +82,7 @@ const TAG_TOOLS = [
         vendor: {
           type: 'string',
           description:
-            'Merchant name or keyword (case-insensitive substring match). Use the user\'s exact wording — do not "correct" or rephrase. Examples: "smittys", "yo yo massage", "shell", "GFS PAY".',
+            'Merchant name or keyword (case-insensitive substring match). Use the user\'s exact wording — do not "correct" or rephrase. Examples: "smittys", "yo yo massage", "shell", "acme pay".',
         },
         category: {
           type: 'string',

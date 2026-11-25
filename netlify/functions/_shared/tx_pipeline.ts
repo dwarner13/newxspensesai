@@ -117,7 +117,7 @@ export async function autoCategorize(
       } else if (vendorUpper.includes('STARBUCKS') || vendorUpper.includes('TIM HORTONS') || vendorUpper.includes('MCDONALDS')) {
         category = 'Food & Dining';
         confidence = 0.85;
-      } else if (descUpper.includes('PAYROLL') || descUpper.includes('SALARY') || descUpper.includes('GFS')) {
+      } else if (descUpper.includes('PAYROLL') || descUpper.includes('SALARY')) { // S7: one customer's employer token ('GFS') removed
         category = 'Income';
         confidence = 0.95;
       } else if (vendorUpper.includes('UBER') || vendorUpper.includes('LYFT')) {
