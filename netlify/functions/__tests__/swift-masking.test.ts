@@ -32,6 +32,14 @@ describe.each([['pii.ts', viaPii], ['pii-patterns.ts', viaPatterns]])('%s', (_na
     expect(out).toContain('[REDACTED:SWIFT]');
   });
 
+  it('two codes in one text: the second (all letters) is masked by the cue right before it (stale-index fix)', () => {
+    const t = 'Paid via SWIFT ROYCCAT2 and the refund came back via BIC: DEUTDEFF yesterday';
+    const out = mask(t);
+    expect(out).not.toContain('ROYCCAT2');
+    expect(out).not.toContain('DEUTDEFF');
+    expect(out.match(/\[REDACTED:SWIFT\]/g)?.length).toBe(2);
+  });
+
   it('a BIC-shaped word without a valid country code is not a BIC', () => {
     expect(mask('ABCDQQ12 reference')).not.toContain('[REDACTED:SWIFT]'); // QQ is not an ISO country
   });
@@ -52,6 +60,8 @@ describe('source hygiene', () => {
   });
   it('pii.ts passes the detector context (single PII source)', () => {
     const pii = fs.readFileSync(path.join(__dirname, '../_shared/pii.ts'), 'utf8');
-    expect(pii.match(/detector\.mask\(originalText, strategy, \{ source: masked, index \}\)/g)?.length).toBe(2);
+    // indices refer to the text as scanned (review fix): both loops snapshot it
+    expect(pii.match(/detector\.mask\(originalText, strategy, \{ source: scanned, index \}\)/g)?.length).toBe(2);
+    expect(pii.match(/const scanned = masked;/g)?.length).toBe(2);
   });
 });

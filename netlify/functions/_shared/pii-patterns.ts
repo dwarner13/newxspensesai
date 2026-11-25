@@ -682,13 +682,15 @@ export function maskPII(text: string, strategy: MaskStrategy = 'last4'): string 
     if (!detector) continue;
     
     const rx = detector.rx;
-    const matches = [...masked.matchAll(rx)];
+    // SWIFT-MASK review: indices refer to the text AS SCANNED (masked changes length in the loop).
+    const scanned = masked;
+    const matches = [...scanned.matchAll(rx)];
     
     for (const match of matches) {
       if (!match[0]) continue;
       const originalText = match[0];
       const maskedValue = detector.mask(originalText, strategy, {
-        source: masked,
+        source: scanned,
         index: match.index ?? 0,
       });
       masked = masked.replace(originalText, maskedValue);
