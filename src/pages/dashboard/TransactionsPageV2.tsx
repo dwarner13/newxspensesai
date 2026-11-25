@@ -29,14 +29,7 @@ const CAT_COLORS: Record<string, string> = {
   Groceries: '#fbbf24', 'Food & Dining': '#fb923c', Transportation: '#38bdf8',
   Healthcare: '#f87171', 'Bank Fees': '#94a3b8', Income: '#34d399', Other: '#475569',
 };
-const CAT_ICONS: Record<string, string> = {
-  'Personal Care': '\u2728', Subscriptions: '\ud83d\udd01', Shopping: '\ud83d\udecd\ufe0f',
-  Groceries: '\ud83e\uded2', 'Food & Dining': '\ud83c\udf7d\ufe0f', Transportation: '\ud83d\ude97',
-  Healthcare: '\ud83c\udfe5', 'Bank Fees': '\ud83c\udfe6', Income: '\ud83d\udcb0',
-  Other: '\ud83d\udcc1', Uncategorized: '\u2753',
-};
 const colorFor = (c?: string) => CAT_COLORS[c || ''] || '#475569';
-const iconFor = (c?: string) => CAT_ICONS[c || ''] || '\ud83d\udcc1';
 
 const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
 function isIncomeTx(t: CommittedTransaction): boolean {
@@ -1061,7 +1054,7 @@ export default function TransactionsPageV2() {
           {uncategorizedCount > 0 && (
             <div className="mx-4 mt-4 flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3">
               <div className="flex items-center gap-3">
-                <span className="relative flex h-2.5 w-2.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-2.5 w-2.5 rounded-full bg-amber-400" /></span>
+                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
                 <span className="text-[13px] text-amber-200">Tag found <strong>{uncategorizedCount}</strong> transaction{uncategorizedCount !== 1 ? 's' : ''} that need review</span>
               </div>
               <button type="button" onClick={() => { setNeedsCategoryOnly(true); listRef.current?.scrollIntoView({ block: 'start' }); }} className="px-3 min-h-[40px] text-[13px] font-bold text-amber-900 bg-amber-400 rounded-md hover:bg-amber-300 transition-colors">Review</button>
@@ -1142,7 +1135,8 @@ export default function TransactionsPageV2() {
                     <span aria-hidden="true" className="hidden md:block truncate text-[14px] text-slate-300">{accountName || '\u2014'}</span>
                     {/* Category (desktop column) */}
                     <span aria-hidden="true" className={`hidden md:flex items-center gap-2 min-w-0 text-[14px] ${isUncat ? 'text-amber-300 font-semibold' : 'text-slate-200'}`}>
-                      {!isUncat && <span className="text-[13px] shrink-0">{iconFor(cat)}</span>}
+                      {/* Category colour dot (the emoji icons rendered as empty boxes on Windows 10). */}
+                      {!isUncat && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: colorFor(cat) }} />}
                       <span className="truncate">{categoryText}</span>
                     </span>
                     {/* Amount */}

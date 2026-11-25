@@ -510,14 +510,16 @@ export function TransactionInsightDrawer({
         )}
 
         {/* HEADER */}
-        <div style={{ padding: expanded ? '12px 24px 12px' : (onBackToChat ? '12px 20px 16px' : '20px 20px 16px'), paddingTop: expanded ? 12 : (!onBackToChat && !isMobile ? 'max(20px, env(safe-area-inset-top, 20px))' : (onBackToChat ? 12 : 20)), borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        {/* DRAWER-SPACING: room above the title, a clear gap before the actions, and the
+            title's first line centred on the 44px buttons. */}
+        <div style={{ padding: expanded ? '16px 24px 16px' : (onBackToChat ? '16px 24px 20px' : '24px 24px 20px'), paddingTop: expanded ? 16 : (!onBackToChat && !isMobile ? 'max(24px, env(safe-area-inset-top, 24px))' : (onBackToChat ? 16 : 24)), borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={expanded ? { display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' } : undefined}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : (expanded ? 22 : 24), fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.4, lineHeight: 1.2, wordBreak: 'break-word' }}>{rawMerchant}</h2>
-            <div style={{ fontSize: isMobile ? 28 : (expanded ? 26 : 32), fontWeight: 800, color: amountColor, marginTop: expanded ? 0 : 6, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
+            <h2 style={{ margin: 0, paddingTop: expanded ? 0 : 7, fontSize: isMobile ? 20 : (expanded ? 22 : 24), fontWeight: 800, color: '#e8ecf4', letterSpacing: -0.4, lineHeight: 1.25, wordBreak: 'break-word' }}>{rawMerchant}</h2>
+            <div style={{ fontSize: isMobile ? 28 : (expanded ? 26 : 32), fontWeight: 800, color: amountColor, marginTop: expanded ? 0 : 10, letterSpacing: -1, fontVariantNumeric: 'tabular-nums' }}>{amountPrefix}${fmt(Math.abs(amount))}</div>
             </div>
             {/* D-2: facts grid — date, account and statement are prominent and readable */}
-            <dl style={{ display: 'grid', gridTemplateColumns: expanded ? 'repeat(4, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))', gap: expanded ? '8px 20px' : '12px 16px', margin: expanded ? '10px 0 0' : '14px 0 0' }}>
+            <dl style={{ display: 'grid', gridTemplateColumns: expanded ? 'repeat(4, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))', gap: expanded ? '8px 20px' : '14px 20px', margin: expanded ? '12px 0 0' : '20px 0 0' }}>
               {formattedDate && (
                 <div style={{ minWidth: 0 }}>
                   <dt style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#9ba8bc' }}>Date</dt>
@@ -566,7 +568,7 @@ export function TransactionInsightDrawer({
         </div>
 
         {/* SCROLLABLE BODY */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: expanded ? '16px 24px' : '16px 20px', display: 'flex', flexDirection: expanded ? 'row' : 'column', alignItems: expanded ? 'flex-start' : 'stretch', gap: expanded ? 24 : 14 }}>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '16px 24px', display: 'flex', flexDirection: expanded ? 'row' : 'column', alignItems: expanded ? 'flex-start' : 'stretch', gap: expanded ? 24 : 14 }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* D-3: SUCCESSFUL CORRECTION — only after the server confirmed the save */}
