@@ -11,7 +11,7 @@
  * - Employee identity: a session owned by the user but belonging to ANOTHER employee is never
  *   continued — a fresh session for this employee is opened instead.
  * - Model context comes only from stored history (toModelHistory); client-sent history is ignored.
- * - Customer text is PII-masked (shared pii.ts patterns) before it is stored.
+ * - Customer text is PII-masked before it is stored (critical detectors from pii-patterns.ts, as chat.ts).
  * - Retries with the same client message id do not create duplicate messages.
  * - The session gets a title from the first (masked) customer message.
  * Persistence never grants tools, documents or paid actions: those stay with each employee's own
@@ -20,7 +20,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ensureSession, getRecentMessages } from './session.js';
-import { maskPII, maskSpecificPII, getCriticalDetectors } from './pii.js';
+import { maskSpecificPII, getCriticalDetectors } from './pii.js';
 import {
   canonicalEmployeeSlug,
   deriveConversationTitle,
@@ -72,6 +72,14 @@ export async function loadConversationHistory(
  */
 export function maskCustomerTextForModel(text: unknown): string {
   return maskSpecificPII(String(text ?? ''), getCriticalDetectors().map(d => d.name)).masked;
+}
+
+/**
+ * chat_messages.employee_key (NOT NULL live) for a canonical slug, matching chat.ts's fallback
+ * derivation (`slug.split('-')[0]`): 'prime-boss' -> 'prime', 'tag-ai' -> 'tag', 'custodian' -> 'custodian'.
+ */
+export function employeeKeyForSlug(slug: ConversationEmployeeSlug): string {
+  return slug.split('-')[0] || slug;
 }
 
 /** A conversation idle longer than this is not resumed implicitly (it is kept, never deleted). */
@@ -170,8 +178,11 @@ export async function recordConversationTurn(
     assistantMetadata?: Record<string, unknown>;
   },
 ): Promise<RecordedTurn> {
-  const maskedUserText = maskPII(String(params.userText ?? '')).masked;
+  // Stored text is masked the same way chat.ts stores Prime's messages (critical detectors), so
+  // merchant names, store numbers, dates and amounts stay usable in the conversation history.
+  const maskedUserText = maskCustomerTextForModel(params.userText);
   const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
+  const employeeKey = employeeKeyForSlug(params.employeeSlug);
 
   if (clientMessageId) {
     const { data: existing } = await sb
@@ -185,23 +196,32 @@ export async function recordConversationTurn(
     if (Array.isArray(existing) && existing.length > 0) return { duplicate: true, maskedUserText };
   }
 
-  const base = { session_id: params.sessionId, user_id: params.userId, thread_id: params.sessionId };
+  // Live schema (owner P-1/P-2, 2026-11-24): chat_messages has NO redacted_content column, and
+  // employee_key is NOT NULL. Masked text goes in `content` (as in chat.ts). employee_key uses the
+  // short key chat.ts derives from the slug ('tag-ai' -> 'tag'); employee_slug stays in metadata.
+  const base = { session_id: params.sessionId, user_id: params.userId, thread_id: params.sessionId, employee_key: employeeKey };
   const { error: userErr } = await sb.from('chat_messages').insert({
     ...base,
     role: 'user',
     content: maskedUserText,
-    redacted_content: maskedUserText,
+    // Top-level client_message_id column (live) on the customer row only, plus the metadata copy
+    // that chat.ts's retry check reads. The reply row never carries it, so a unique index on the
+    // column (P-5, unverified) cannot reject the reply.
+    ...(clientMessageId ? { client_message_id: clientMessageId } : {}),
     tokens: Math.ceil(maskedUserText.length / 4),
     metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { client_message_id: clientMessageId } : {}) },
   });
-  if (userErr) throw new Error('Failed to save conversation message');
+  if (userErr) {
+    // A unique-key conflict on client_message_id means a concurrent retry already stored this turn.
+    if (clientMessageId && (userErr as { code?: string }).code === '23505') return { duplicate: true, maskedUserText };
+    throw new Error('Failed to save conversation message');
+  }
 
   const assistantText = String(params.assistantText ?? '');
   const { error: asstErr } = await sb.from('chat_messages').insert({
     ...base,
     role: 'assistant',
     content: assistantText,
-    redacted_content: assistantText,
     tokens: Math.ceil(assistantText.length / 4),
     metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { reply_to: clientMessageId } : {}), ...(params.assistantMetadata ?? {}) },
   });

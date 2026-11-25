@@ -11,7 +11,7 @@ import { maskCustomerTextForModel, findRecordedTurn } from '../_shared/conversat
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 const db: Record<string, Row[]> = {};
-const failures = { insertChatMessages: false, chatSessions: false };
+const failures = { insertChatMessages: false, chatSessions: false, uniqueConflict: false };
 const get = (row: Row, col: string) => (col.includes('->>') ? (row[col.split('->>')[0]] || {})[col.split('->>')[1]] : row[col]);
 
 function tableBuilder(table: string) {
@@ -26,6 +26,7 @@ function tableBuilder(table: string) {
     if (table === 'chat_sessions' && failures.chatSessions) return { data: null, error: { message: 'unavailable' } };
     if (op === 'insert') {
       if (table === 'chat_messages' && failures.insertChatMessages) return { data: null, error: { message: 'insert failed' } };
+      if (table === 'chat_messages' && failures.uniqueConflict && payload!.client_message_id) return { data: null, error: { code: '23505', message: 'duplicate key' } };
       if (table === 'chat_sessions' && rows().some(r => r.id === payload!.id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
       const row = { created_at: new Date(Date.now() + rows().length).toISOString(), ...payload };
       rows().push(row);
@@ -110,6 +111,7 @@ beforeEach(() => {
   for (const k of Object.keys(db)) delete db[k];
   failures.insertChatMessages = false;
   failures.chatSessions = false;
+  failures.uniqueConflict = false;
   modelCalls.length = 0;
   authState.userId = ALICE;
   logged = [];
@@ -179,7 +181,26 @@ describe('T-H1 — Tag Copilot conversation persistence', () => {
     const stored = messagesOf(json.sessionId)[0];
     expect(stored.content).not.toContain('4519 0123 4567 8901');
     expect(stored.content).not.toContain('a.b@example.com');
-    expect(stored.redacted_content).toBe(stored.content);
+    expect(stored.content).toContain('7-ELEVEN STORE #33535');
+  });
+
+  it('writes only live columns: no redacted_content; employee_key "tag"; client_message_id column on the customer row only', async () => {
+    const { json } = await callTag({ message: 'Why is Uber in Travel?', clientMessageId: 'msg_schema_001' });
+    const [user, reply] = messagesOf(json.sessionId);
+    expect('redacted_content' in user).toBe(false);
+    expect('redacted_content' in reply).toBe(false);
+    expect(user.employee_key).toBe('tag');
+    expect(reply.employee_key).toBe('tag');
+    expect(user.client_message_id).toBe('msg_schema_001');
+    expect('client_message_id' in reply).toBe(false);
+    expect(reply.metadata).toMatchObject({ employee_slug: 'tag-ai', reply_to: 'msg_schema_001' });
+  });
+
+  it('a unique-key conflict on client_message_id (concurrent retry) is treated as a duplicate, not a failure', async () => {
+    failures.uniqueConflict = true;
+    const { json } = await callTag({ message: 'Why is Uber in Travel?', clientMessageId: 'msg_race_00001' });
+    expect(json.persisted).toBe(true);
+    expect(messagesOf(json.sessionId)).toHaveLength(0);
   });
 
   it('a retry with the same client message id returns the stored reply without re-running the model or tools', async () => {
