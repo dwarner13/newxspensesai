@@ -156,8 +156,8 @@ describe('tag_document_findings — findings vs verified records', () => {
     const out = await run();
     expect(out.status).toBe('ok');
     const byAmount = (a: number) => out.verifiedRecords.find((r) => r.amount === a)!;
-    // 84.20 on 2026-11-02 vs committed 2026-11-03 (within window) → matched, customer-confirmed
-    expect(byAmount(84.2)).toMatchObject({ page: 1, date: '2026-11-02', matchesCommittedTransaction: true, reason: 'matched', committedCategory: 'Groceries', committedProvenance: 'customer_confirmed' });
+    // 84.20 on 2026-11-02 vs committed 2026-11-03 (within window) → matched; user_correction is protected (origin unverified)
+    expect(byAmount(84.2)).toMatchObject({ page: 1, date: '2026-11-02', matchesCommittedTransaction: true, reason: 'matched', committedCategory: 'Groceries', committedProvenance: 'protected_unverified' });
     // 45.10 on Nov 3 vs committed Oct 1 → same amount, wrong date → no match
     expect(byAmount(45.1)).toMatchObject({ date: '2026-11-03', matchesCommittedTransaction: false, reason: 'no_match', committedCategory: null });
     // 03/04/2026 is ambiguous (d/m vs m/d) → never guessed; B's 4.75 never matches
