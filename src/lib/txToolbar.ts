@@ -10,6 +10,8 @@ export interface TxToolbarParams {
   from: string;
   to: string;
   type: TxType;
+  /** X-3: show only transactions that need a category (?review=1). */
+  needsCategory?: boolean;
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -23,6 +25,7 @@ export function readTxToolbarParams(search: string): TxToolbarParams {
     from: DAY.test(from) ? from : '',
     to: DAY.test(to) ? to : '',
     type: type === 'expenses' || type === 'income' ? type : 'all',
+    needsCategory: sp.get('review') === '1',
   };
 }
 
@@ -33,5 +36,6 @@ export function writeTxToolbarParams(search: string, p: TxToolbarParams): string
   set('from', DAY.test(p.from) ? p.from : '');
   set('to', DAY.test(p.to) ? p.to : '');
   set('type', p.type === 'all' ? '' : p.type);
+  set('review', p.needsCategory ? '1' : '');
   return sp.toString();
 }

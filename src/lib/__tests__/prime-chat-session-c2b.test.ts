@@ -186,7 +186,8 @@ describe('wiring', () => {
     const start = v2.indexOf('const [requestedSessionId, setRequestedSessionId] = useAtom(primeRequestedSessionIdAtom);');
     expect(start).toBeGreaterThan(0);
     const block = v2.slice(start, v2.indexOf('// ── Process file through the import pipeline ──', start));
-    const verify = block.indexOf('verifyOwnedPrimeSession(');
+    // T-H2: the shared check (user AND Prime employee) replaced verifyOwnedPrimeSession here.
+    const verify = block.indexOf("verifyOwnedSession(getSupabase(), userId, target, 'prime-boss')");
     expect(verify).toBeGreaterThan(0);
     expect(block.indexOf('if (!owned)')).toBeGreaterThan(verify);
     expect(block.indexOf('storePrimeSessionId(userId, target);')).toBeGreaterThan(block.indexOf('if (!owned)'));

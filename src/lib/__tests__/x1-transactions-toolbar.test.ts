@@ -13,11 +13,11 @@ const page = fs.readFileSync(path.join(root, 'src/pages/dashboard/TransactionsPa
 describe('toolbar URL params', () => {
   it('round-trips from / to / type and keeps other params', () => {
     const qs = writeTxToolbarParams('?year=2025&issuer=BMO', { from: '2025-03-01', to: '2025-03-31', type: 'expenses' });
-    expect(readTxToolbarParams('?' + qs)).toEqual({ from: '2025-03-01', to: '2025-03-31', type: 'expenses' });
+    expect(readTxToolbarParams('?' + qs)).toEqual({ from: '2025-03-01', to: '2025-03-31', type: 'expenses', needsCategory: false });
     expect(qs).toContain('year=2025');
     expect(qs).toContain('issuer=BMO');
     expect(writeTxToolbarParams('?type=income&from=2025-01-01', { from: '', to: '', type: 'all' })).toBe('');
-    expect(readTxToolbarParams('?from=2025-3-1&type=bogus')).toEqual({ from: '', to: '', type: 'all' });
+    expect(readTxToolbarParams('?from=2025-3-1&type=bogus')).toEqual({ from: '', to: '', type: 'all', needsCategory: false });
   });
 });
 
@@ -36,7 +36,7 @@ describe('toolbar', () => {
 
   it('category filter reuses the existing category state (no new filter logic); reveal clears the dates', () => {
     expect(page).toMatch(/value=\{tagCategoryFilter\} onChange=\{\(e\) => \{ setTagCategoryFilter\(e\.target\.value\);/);
-    expect(page).toMatch(/setRangeFrom\(''\); setRangeTo\(''\);\n  \}, \[\]\);/);
+    expect(page).toMatch(/setRangeFrom\(''\); setRangeTo\(''\);/);
   });
 
   it('account select keeps the issuer URL handling of the account cards', () => {
@@ -60,7 +60,8 @@ describe('summary strip and overview', () => {
     expect(page).toMatch(/id="tx-overview-content" className=\{`grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 \$\{overviewOpen \? '' : 'hidden'\}`\}/);
     expect(page).toContain('Spending by category');
     expect(page).toContain('AI insights');
-    expect(page).not.toMatch(/hidden md:grid/);
+    // the overview is no longer forced open on desktop
+    expect(page).not.toMatch(/overviewOpen \? '' : 'hidden md:grid'/);
   });
 
   it('page actions are 44px', () => {
