@@ -51,7 +51,7 @@ never retry automatically; `duplicate` / `conflict` replies are display-only.
 | Goalie | `GoalieCopilotPanel` | Done: shared hook |
 | Byte | `ByteCopilotPanel` | Done: shared hook, **history only** (no document access) |
 | Ledger | `LedgerCopilotPanel` | Done: shared hook |
-| Custodian | `CustodianPanel` (`components/onboarding/CustodianPanelChat.tsx`, opened from Settings) | **Blocked.** The live panel calls a separate `custodian-chat` endpoint with client-sent history, not `/chat`. Its persistence is unverified. Needs Prime HQ to verify or move it to `/chat`, then the shared hook. (`CustodianSupportTab` uses `/chat` but is unmounted, inside `AccountCenterPanel`.) |
+| Custodian | `CustodianPanel` (`components/onboarding/CustodianPanelChat.tsx`, opened from Settings) | Done: keeps its own `custodian-chat` endpoint (Prime HQ `0b71326`: same contract as Tag); restore, history, New conversation, notices via the shared `useEndpointConversation` hook. Read-only, no tools. |
 | Finley, Liberty, Chime, Blitz | No live panel found; `src/pages/chat/*` are legacy, with routes commented out in `App.tsx` | Unverified. Wire when a live panel exists and Prime HQ verifies the server side. |
 | Any employee via `/dashboard/chat/:employeeId` (`EmployeeChatPage`) | Generic route | To audit: which employees reach it, and whether it should use the shared hook. |
 

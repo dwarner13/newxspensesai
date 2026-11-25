@@ -1,7 +1,7 @@
 /**
  * Universal conversation history rollout: Goalie (2), Byte (4, history only), Ledger (5)
- * use the same shared hook and controls as Crystal. Custodian (3) is NOT wired: its live
- * panel uses a separate custodian-chat endpoint whose persistence is not yet verified.
+ * use the same shared hook and controls as Crystal. Custodian (3) keeps its own
+ * custodian-chat endpoint and uses the shared endpoint-conversation hook.
  */
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
@@ -39,9 +39,28 @@ describe('Byte: history only', () => {
   });
 });
 
-describe('Custodian: not wired until its endpoint is verified', () => {
-  it('the live Custodian panel is unchanged', () => {
-    const live = read('src/components/onboarding/CustodianPanelChat.tsx');
-    expect(live).not.toMatch(/useEmployeeChat|ConversationControls/);
+describe('Custodian (rollout 3): own endpoint, shared conversation hook', () => {
+  const live = read('src/components/onboarding/CustodianPanelChat.tsx');
+  const hook = read('src/hooks/useEndpointConversation.ts');
+  it('uses the shared endpoint hook and controls; keeps custodian-chat', () => {
+    expect(live).toMatch(/const convo = useEndpointConversation\('custodian'\);/);
+    expect(live).toMatch(/<ConversationControls\s+employeeName="Custodian"/);
+    expect(live).toMatch(/fetch\('\/\.netlify\/functions\/custodian-chat'/);
+  });
+  it('no client history is sent; sessionId / clientMessageId / newConversation come from the hook', () => {
+    expect(live).not.toMatch(/history,|history:/);
+    expect(live).toMatch(/body: JSON\.stringify\(\{ message: text, currentPath: window\.location\.pathname, \.\.\.fields \}\)/);
+    expect(hook).toMatch(/clientMessageId: retryClientMessageId \|\| newClientMessageId\(\),/);
+  });
+  it('duplicate / conflict replies are display-only; unsaved and resend notices; manual retry only', () => {
+    expect(live).toMatch(/action: outcome\.mayApply \? data\.action : undefined,/);
+    expect(live).toMatch(/\{m\.unsaved && <UnsavedReplyNotice \/>\}/);
+    expect(live).toMatch(/Nothing was changed\. Please send that again\./);
+    expect(live).toMatch(/onClick=\{\(\) => void send\(failed\)\}/);
+  });
+  it('restore and history are owner- and employee-scoped; nothing deleted', () => {
+    expect(hook).toMatch(/verifyOwnedSession\(sb, userId, cachedId, employee\)/);
+    expect(hook).toMatch(/if \(!\(await verifyOwnedSession\(sb, userId, id, employee\)\)\) return false;/);
+    expect(hook).not.toMatch(/\.delete\(|chat_threads/);
   });
 });
