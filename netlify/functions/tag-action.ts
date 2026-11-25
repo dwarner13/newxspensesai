@@ -13,7 +13,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { safeLog } from './_shared/safeLog.js';
 import {
@@ -371,7 +371,8 @@ export function classifyTagIntent(message: string): {
 }
 
 // ── Shared cores for PREVIEW and COMMIT (used by the legacy and conversational paths) ─────────
-type TagSupabase = ReturnType<typeof createClient>;
+// Same client type the shared conversation platform uses.
+type TagSupabase = SupabaseClient;
 type PreviewRow = { id: string; merchant_name: string | null; amount: number | null; posted_at: string | null; category: string | null };
 
 /** Owner-scoped merchant match over the customer's recent transactions (read only). */
@@ -497,7 +498,7 @@ async function handleConversationalAction(
   // 1. The customer's own Tag conversation.
   let sessionId: string | null = null;
   try {
-    sessionId = (await resolveEmployeeConversation(supabase as never, {
+    sessionId = (await resolveEmployeeConversation(supabase, {
       userId, employeeSlug: 'tag-ai', requestedSessionId: convo.sessionId, newConversation: convo.newConversation,
     })).sessionId;
   } catch {
@@ -509,7 +510,7 @@ async function handleConversationalAction(
   let pending: { receipt: ActionReceipt; replyTo: string | null } | null = null;
   if (sessionId && intent !== 'preview') {
     try {
-      const latest = await findLatestActionReceipt(supabase as never, { sessionId, userId, lookback: 1 });
+      const latest = await findLatestActionReceipt(supabase, { sessionId, userId, lookback: 1 });
       if (latest && latest.receipt.state === 'proposed' && latest.receipt.action === TAG_ACTION) pending = latest;
     } catch { pending = null; }
   }
@@ -525,7 +526,7 @@ async function handleConversationalAction(
         : undefined;
     let claim: Awaited<ReturnType<typeof claimConversationTurn>> | null = null;
     try {
-      claim = await claimConversationTurn(supabase as never, {
+      claim = await claimConversationTurn(supabase, {
         sessionId, userId, employeeSlug: 'tag-ai', userText: convo.customerText, clientMessageId: convo.clientMessageId,
         ...(actionIntent ? { metadata: { actionIntent } } : {}),
       });
@@ -642,7 +643,7 @@ async function handleConversationalAction(
   let persisted = false;
   if (sessionId && claimed) {
     try {
-      await completeConversationTurn(supabase as never, {
+      await completeConversationTurn(supabase, {
         sessionId, userId, employeeSlug: 'tag-ai', assistantText: reply, clientMessageId: convo.clientMessageId,
         assistantMetadata: { actionReceipt: receipt },
       });
@@ -665,7 +666,7 @@ export const handler: Handler = async (event) => {
   const auth = await verifyAuth(event);
   if (!auth.userId) return err('Unauthorized', 401);
   const userId = auth.userId;
-  const supabase = createClient(
+  const supabase: SupabaseClient = createClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
