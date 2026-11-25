@@ -4,7 +4,15 @@ import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
 import { formatCalendarDate } from "@/lib/calendarDate";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
-import { Trash2, RefreshCw } from "lucide-react";
+import { Trash2, RefreshCw, History as HistoryIcon, SquarePen } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { ConversationHistoryDrawer } from "@/components/chat/ConversationHistoryDrawer";
+import { useChatSessions } from "@/hooks/useChatSessions";
+import {
+  readCachedConversation, writeCachedConversation, loadEmployeeSessions, verifyOwnedSession,
+  restoreSessionMessages, type RestoredMessage,
+} from "@/lib/conversationStore";
+import { newClientMessageId, tagReplyOutcome, legacyTagTranscript } from "@/lib/tagConversation";
 import toast from "react-hot-toast";
 import { THEME } from "@/pages/CategoriesV2/categoryConfig";
 import { Reveal } from "@/pages/PrimeChatV2/Reveal";
@@ -456,29 +464,11 @@ export function TagCopilotPanel({
     finally { setRulesRefreshing(false); }
   };
 
-  // Session cutoff for the chat history - after 6 hours of inactivity we
-  // drop the stored messages so the user gets a fresh greeting instead of
-  // resuming a stale conversation. Tag's real learning lives in
-  // category_rules / vendor_category_memory, not the transcript.
-  const SESSION_WINDOW_MS = 6 * 60 * 60 * 1000;
+  // T-H2: the server is the source of truth for Tag conversations. The old browser-only
+  // transcript (tag_chat_history) is no longer wiped after 6 hours; it is read once, shown
+  // only until the server copy loads, and never sent to the server.
   const normalizeStoredMessages = (): ChatMessage[] => {
-    try {
-      const saved = localStorage.getItem("tag_chat_history");
-      if (!saved) return [];
-      const raw = JSON.parse(saved);
-      const lastActive = Number(localStorage.getItem("tag_chat_last_active") || 0);
-      if (lastActive && Date.now() - lastActive > SESSION_WINDOW_MS) {
-        localStorage.removeItem("tag_chat_history");
-        localStorage.removeItem("tag_chat_last_active");
-        return [];
-      }
-      return raw
-        .map((m: any) => ({
-          role: (m.role === "tag" ? "assistant" : m.role === "user" ? "user" : "assistant") as "user" | "assistant",
-          content: String(m.content || m.text || "").trim(),
-        }))
-        .filter((m: ChatMessage) => m.content.length > 0);
-    } catch { return []; }
+    try { return legacyTagTranscript(localStorage.getItem("tag_chat_history")); } catch { return []; }
   };
 
   // If the panel opened via an upload handoff (?openTag=1), we used to wipe
@@ -500,6 +490,21 @@ export function TagCopilotPanel({
     freshBriefing ? false : normalizeStoredMessages().length > 0
   );
   const [isLoading, setIsLoading] = useState(false);
+  // T-H2: server conversation (sessionId), save notices and history.
+  const { userId } = useAuth();
+  const [tagSessionId, setTagSessionId] = useState<string | null>(null);
+  const tagSessionIdRef = useRef<string | null>(null);
+  tagSessionIdRef.current = tagSessionId;
+  const startNewConversationRef = useRef(false);
+  const [saveNotice, setSaveNotice] = useState<
+    | { kind: "not_saved"; text: string; clientMessageId: string }
+    | { kind: "conflict" }
+    | { kind: "failed"; text: string; clientMessageId: string }
+    | null
+  >(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { sessions: tagHistory, isLoading: tagHistoryLoading, loadSessions: loadTagHistory } =
+    useChatSessions({ employee: "tag-ai", limit: 40, autoLoad: false });
   // Pending proposal that Tag has verbalized but not yet committed.
   // Captured from Tag's previous reply; fires commit when user confirms
   // ("yes" / "confirm" / "do it" / "go ahead"). Bypasses LLM to guarantee
@@ -535,6 +540,86 @@ export function TagCopilotPanel({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Restored messages show at once (no typewriter replay).
+  const markAllTyped = (list: ChatMessage[]) => {
+    list.forEach((m, i) => {
+      if (m.role === "assistant") typedIdsRef.current.add(`tag-${i}|${(m.content ?? "").slice(0, 32)}`);
+    });
+  };
+  const toChat = (rows: RestoredMessage[]): ChatMessage[] =>
+    rows.map(r => ({ role: r.role, content: r.content })).filter(m => m.content.trim().length > 0);
+
+  // T-H2: on open, show this account's cached copy, then the server copy of the latest Tag
+  // conversation (so desktop and iPhone resume the same conversation). Owner- and
+  // employee-scoped; on any failure, what is on screen is kept.
+  const restoredForUserRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!userId || freshBriefing || restoredForUserRef.current === userId) return;
+    restoredForUserRef.current = userId;
+    let cancelled = false;
+    let cachedSession: string | null = null;
+    try {
+      const cached = readCachedConversation(window.localStorage, userId, "tag-ai");
+      if (cached) {
+        cachedSession = cached.sessionId;
+        if (cached.messages.length > 0) {
+          const list = toChat(cached.messages);
+          markAllTyped(list);
+          setMessages(list);
+        }
+        if (cached.sessionId) setTagSessionId(cached.sessionId);
+      }
+    } catch { /* cache only */ }
+    (async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      let target = cachedSession;
+      if (target && !(await verifyOwnedSession(sb, userId, target, "tag-ai"))) target = null;
+      if (!target) target = (await loadEmployeeSessions(sb, userId, "tag-ai", 1))[0]?.id ?? null;
+      if (!target || cancelled || startNewConversationRef.current) return;
+      const rows = await restoreSessionMessages(sb, userId, target);
+      if (cancelled || startNewConversationRef.current || !rows || rows.length === 0) return;
+      const list = toChat(rows);
+      markAllTyped(list);
+      setMessages(list);
+      setTagSessionId(target);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, freshBriefing]);
+
+  // T-H2: New conversation — a fresh server conversation (newConversation:true) and the
+  // stored sessionId dropped. Earlier conversations stay in History; nothing is deleted.
+  const startNewConversation = () => {
+    startNewConversationRef.current = true;
+    setTagSessionId(null);
+    setMessages([]);
+    setSaveNotice(null);
+    setPendingProposal(null);
+    setGreetingText("");
+    try { writeCachedConversation(window.localStorage, userId, "tag-ai", { sessionId: null, messages: [] }); } catch { /* cache only */ }
+  };
+
+  // T-H2: open a previous conversation from History (ownership + employee checked first).
+  const openTagConversation = async (id: string) => {
+    const sb = getSupabase();
+    if (!sb || !userId) return;
+    if (!(await verifyOwnedSession(sb, userId, id, "tag-ai"))) {
+      toast.error("That conversation isn't available.");
+      return;
+    }
+    const rows = await restoreSessionMessages(sb, userId, id);
+    if (!rows) { toast.error("Couldn't load that conversation. Try again."); return; }
+    const list = toChat(rows);
+    markAllTyped(list);
+    startNewConversationRef.current = false;
+    setMessages(list);
+    setTagSessionId(id);
+    setSaveNotice(null);
+    setPendingProposal(null);
+    setHistoryOpen(false);
+  };
 
   const lastSentMsg = { current: "" };
   useEffect(() => {
@@ -697,13 +782,16 @@ export function TagCopilotPanel({
     }
   };
 
-  const handleSend = async (overrideText?: string) => {
+  const handleSend = async (overrideText?: string, retryClientMessageId?: string) => {
     const text = (overrideText ?? inputValue).trim();
     if (!text || isLoading) return;
+    // T-H2: a resend of a chat message goes straight back to tag-copilot with the same
+    // clientMessageId. It never re-enters the action interceptors below, so a retry can
+    // never re-run a preview or a confirmation.
 
     // INTERCEPTOR 1: If a proposal is pending and user said yes, fire commit
     // directly. Bypass the LLM so the action is guaranteed to run.
-    if (pendingProposal && isConfirmation(text)) {
+    if (!retryClientMessageId && pendingProposal && isConfirmation(text)) {
       setInputValue("");
       setMessages(prev => [...prev, { role: 'user', content: text }]);
       await commitPendingProposal(pendingProposal);
@@ -714,7 +802,7 @@ export function TagCopilotPanel({
     // If so, preview against real data BEFORE asking Tag. Tag's prompt
     // doesn't include merchant names, so he can't reliably confirm what
     // exists - but the DB can. We go straight to the source of truth.
-    const userIntent = detectUserActionIntent(text);
+    const userIntent = retryClientMessageId ? null : detectUserActionIntent(text);
     if (userIntent) {
       setInputValue("");
       setMessages(prev => [...prev, { role: 'user', content: text }]);
@@ -753,9 +841,15 @@ export function TagCopilotPanel({
     // later "yes" can't fire an action they no longer want. (Tool-use
     // path: server fires the action directly, no client-side proposal carry.)
     if (pendingProposal) setPendingProposal(null);
-    const userMsg: ChatMessage = { role: "user", content: text };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
+    // T-H2: a retry of the same message reuses its clientMessageId and does not repeat the
+    // user's bubble; any other send gets a new id.
+    const isRetry = !!retryClientMessageId;
+    const clientMessageId = retryClientMessageId || newClientMessageId();
+    setSaveNotice(null);
+    if (!isRetry) {
+      const userMsg: ChatMessage = { role: "user", content: text };
+      setMessages(prev => [...prev, userMsg]);
+    }
     setIsLoading(true);
     // User just sent a message - reset position tracker and force scroll to bottom.
     // This bypasses the conditional auto-scroll since the user action is explicit.
@@ -770,7 +864,10 @@ export function TagCopilotPanel({
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           message: text,
-          history: updatedMessages.slice(0, -1),
+          // T-H2: the server keeps the conversation; client history is never sent.
+          sessionId: tagSessionIdRef.current || undefined,
+          clientMessageId,
+          ...(startNewConversationRef.current && !tagSessionIdRef.current ? { newConversation: true } : {}),
           // Tool-use refactor (Apr 25 2026): we deliberately do NOT send a
           // systemPromptOverride from this code path. The previous override
           // contained pre-tool-use "proposal phrasing" instructions that told
@@ -788,6 +885,10 @@ export function TagCopilotPanel({
       });
       if (!res.ok) throw new Error(`tag-copilot ${res.status}`);
       const data = await res.json();
+      const outcome = tagReplyOutcome(data);
+      if (outcome.sessionId) { setTagSessionId(outcome.sessionId); startNewConversationRef.current = false; }
+      if (outcome.kind === "conflict") setSaveNotice({ kind: "conflict" });
+      else if (outcome.kind === "not_saved") setSaveNotice({ kind: "not_saved", text, clientMessageId });
       let replyText: string = data.reply || "";
       // Strip HANDOFF JSON if present; capture target for graceful message
       let handoffTo: string | null = null;
@@ -812,6 +913,9 @@ export function TagCopilotPanel({
       // path before this LLM round-trip) and we should NOT carry it forward
       // past an unrelated LLM reply, since the user has moved on. If the
       // server fired a tool, that's the source of truth - clear pending.
+      // T-H2: a duplicate (already handled) or conflict (nothing ran) reply is display-only:
+      // nothing is applied or refreshed again.
+      if (!outcome.mayApply) return;
       const actionFired = !!(data.action?.applied || data.rule_saved || (data.backfill_count || 0) > 0);
       if (actionFired) {
         setPendingProposal(null);
@@ -827,7 +931,8 @@ export function TagCopilotPanel({
         void fetchLearnedRules();
       }
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I ran into an issue. Try again in a moment." }]);
+      // T-H2: no automatic retry. The customer can resend the same message (same id).
+      setSaveNotice({ kind: "failed", text, clientMessageId });
     } finally {
       setIsLoading(false);
       // Only auto-scroll on response if user didn't scroll up to read history mid-request.
@@ -997,11 +1102,15 @@ export function TagCopilotPanel({
     return () => obs.disconnect();
   }, []);
 
+  // T-H2: account-scoped cache (per user and employee) for a fast first paint only; the server
+  // copy replaces it. The old global tag_chat_history key is no longer written.
   useEffect(() => {
-    if (messages.length === 0) return;
-    localStorage.setItem("tag_chat_history", JSON.stringify(messages.slice(-20)));
-    localStorage.setItem("tag_chat_last_active", String(Date.now()));
-  }, [messages]);
+    if (!userId || messages.length === 0) return;
+    writeCachedConversation(window.localStorage, userId, "tag-ai", {
+      sessionId: tagSessionId,
+      messages: messages.map((m, i) => ({ id: `c${i}`, role: m.role, content: m.content, createdAt: "" })),
+    });
+  }, [messages, tagSessionId, userId]);
 
   const canSend = inputValue.trim() && !isLoading;
 
@@ -1041,6 +1150,18 @@ export function TagCopilotPanel({
         boxShadow: "-24px 0 80px rgba(0,0,0,0.6), -1px 0 0 rgba(34,211,238,0.06)",
       }}>
 
+        {/* T-H2: the shared history drawer (same component as Prime), Tag's conversations only. */}
+        <ConversationHistoryDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          items={tagHistory.map(h => ({ id: h.id, title: h.title, lastActivity: h.last_message_at || h.created_at }))}
+          loading={tagHistoryLoading}
+          currentId={tagSessionId}
+          onSelect={(id) => { void openTagConversation(id); }}
+          onNewChat={() => { startNewConversation(); setHistoryOpen(false); }}
+          accent={T.cyan}
+          fallbackTitle="Tag conversation"
+        />
         {/* Header — UX-C1: clears the iPhone status bar in the installed app
             (index.html uses viewport-fit=cover); env() is 0 elsewhere. */}
         <div style={{
@@ -1071,13 +1192,24 @@ export function TagCopilotPanel({
             }} />
             <span style={{ fontSize: 10, fontWeight: 600, color: T.green }}>LIVE</span>
           </div>
+          {/* T-H2: History (previous Tag conversations) and New conversation. Nothing is deleted. */}
           <button
-            className="tag-clear"
-            onClick={() => { localStorage.removeItem("tag_chat_history"); setMessages([]); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: T.textDim, fontSize: 11, display: "flex", alignItems: "center", gap: 4, padding: "5px 8px", borderRadius: 7 }}
+            type="button"
+            onClick={() => { setHistoryOpen(true); void loadTagHistory(); }}
+            aria-label="Previous Tag conversations"
+            title="History"
+            style={{ width: 44, height: 44, background: "none", border: `1px solid ${T.border}`, cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10, flexShrink: 0 }}
           >
-            <Trash2 size={12} />
-            <span style={{ fontWeight: 600 }}>Clear</span>
+            <HistoryIcon size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={startNewConversation}
+            aria-label="New conversation"
+            title="New conversation"
+            style={{ width: 44, height: 44, background: "none", border: `1px solid ${T.border}`, cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10, flexShrink: 0 }}
+          >
+            <SquarePen size={18} aria-hidden="true" />
           </button>
           {onBackToPrime && (
             <button
@@ -1719,6 +1851,30 @@ export function TagCopilotPanel({
           )}
         </div>
 
+        {/* T-H2: honest save status. Never retried automatically. */}
+        {saveNotice && (
+          <div role="status" style={{ flexShrink: 0, margin: "0 16px 8px", padding: "10px 12px", borderRadius: 12, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)", display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "#fde68a" }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {saveNotice.kind === "conflict"
+                ? "Nothing was changed. Please send that again."
+                : saveNotice.kind === "not_saved"
+                  ? "This conversation couldn't be saved, so it won't appear in History or on your other devices."
+                  : "That message didn't go through."}
+            </span>
+            {/* Retry only when the message never got an answer: same clientMessageId, so the
+                server can recognise it. A reply that arrived unsaved is not re-sent (Tag would
+                run again). */}
+            {saveNotice.kind === "failed" && (
+              <button type="button" disabled={isLoading}
+                onClick={() => { const n = saveNotice; if (n.kind === "failed") void handleSend(n.text, n.clientMessageId); }}
+                style={{ minHeight: 40, padding: "0 12px", borderRadius: 10, border: "1px solid rgba(251,191,36,0.45)", background: "transparent", color: "#fcd34d", fontSize: 14, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                Retry
+              </button>
+            )}
+            <button type="button" onClick={() => setSaveNotice(null)} aria-label="Dismiss"
+              style={{ width: 40, height: 40, borderRadius: 10, border: "none", background: "transparent", color: "#fde68a", cursor: "pointer", flexShrink: 0 }}>×</button>
+          </div>
+        )}
         {/* Input — UX-C1: an in-flow flex child below the message list (no longer floats
             over the last messages), with its own home-indicator spacing. */}
         <div style={{
