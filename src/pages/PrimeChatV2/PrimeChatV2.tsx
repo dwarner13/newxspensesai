@@ -6,6 +6,7 @@ import { AgentCallout } from "./AgentCallout";
 import { TaxDeductionsCard } from "./TaxDeductionsCard";
 import { QuickActionChips } from "./QuickActionChips";
 import { PrimeChatInput } from "./PrimeChatInput";
+import { resolvePreferredName } from "@/shared/preferred-name";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAtom, useAtomValue } from "jotai";
 import { primeRequestedSessionIdAtom, primeChatModeAtom } from "@/lib/uiStore";
@@ -43,6 +44,9 @@ import { TeamHandoffAnnouncement, SpecialistCompleteMessage, parseLifecycleMessa
 import { deriveEmployeeStops } from "@/components/chat/deriveEmployeeStops";
 import { ConversationHistoryDropdown, HistoryDropdownTrigger } from "@/components/chat/ConversationHistoryDropdown";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
+import { SpendingBreakdown } from "./SpendingBreakdown";
+import { validateFinancialVisual } from "@/shared/prime-financial-visual";
+import { thinkingLabelFor } from "@/lib/primeActivity";
 import { ConversationHistoryDrawer } from "@/components/chat/ConversationHistoryDrawer";
 import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
 
@@ -118,7 +122,16 @@ interface PrimeChatV2ContentProps {
 export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
   const data = usePrimeBriefingData();
   const navigate = useNavigate();
-  const { firstName, userId, session } = useAuth();
+  const { userId, session, profile, user } = useAuth();
+  // P-UI-2 (owner GO): the greeting uses the same preferred-name rule as Prime's replies
+  // (src/shared/preferred-name.ts): display_name → first_name → full_name → sign-in metadata;
+  // never the email address. null when no name is known, and every line still reads naturally.
+  const firstName = useMemo(
+    () => resolvePreferredName(profile, user?.user_metadata).firstName,
+    [profile, user],
+  );
+  const nameSuffix = firstName ? `, ${firstName}` : '';
+  const namePrefix = firstName ? `${firstName} — ` : '';
 
   const [sessionId, setSessionId] = useState<string | undefined>(
     () => (userId ? localStorage.getItem(primeSessionStorageKey(userId)) ?? undefined : undefined)
@@ -139,6 +152,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     pendingConfirmation,
     confirmToolExecution,
     cancelToolExecution,
+    activeToolLabel,
   } = useUnifiedChatEngine({
     employeeSlug: "prime-boss",
     initialMessages: history,
@@ -387,32 +401,32 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
 
     // Priority 1: Urgent signals (uncategorized, pending imports, trend alerts)
     if (data.uncategorizedCount > 5) {
-      openers.push({ weight: 10, lead: `${data.uncategorizedCount} transactions still need your call, ${firstName}.` });
-      openers.push({ weight: 8, lead: `Heads up, ${firstName} — Tag's queue is at ${data.uncategorizedCount}.` });
+      openers.push({ weight: 10, lead: `${data.uncategorizedCount} transactions still need your call${nameSuffix}.` });
+      openers.push({ weight: 8, lead: `Heads up${nameSuffix} — Tag's queue is at ${data.uncategorizedCount}.` });
     }
     if (data.pendingImports > 0) {
-      openers.push({ weight: 10, lead: `${data.pendingImports} import${data.pendingImports > 1 ? 's' : ''} waiting to commit, ${firstName}.` });
+      openers.push({ weight: 10, lead: `${data.pendingImports} import${data.pendingImports > 1 ? 's' : ''} waiting to commit${nameSuffix}.` });
     }
     if (data.trendAlert) {
       const dir = data.trendAlert.direction === 'up' ? 'climbing' : 'dropping';
-      openers.push({ weight: 9, lead: `Your ${data.trendAlert.category.toLowerCase()} is ${dir} three months running, ${firstName}.` });
+      openers.push({ weight: 9, lead: `Your ${data.trendAlert.category.toLowerCase()} is ${dir} three months running${nameSuffix}.` });
     }
 
     // Priority 2: Net flow framing (if meaningful income/expense)
     if (data.totalIncome > 0 && data.totalSpent > 0) {
       const net = data.totalIncome - data.totalSpent;
       if (net < -1000) {
-        openers.push({ weight: 6, lead: `Expenses outpacing income by $${Math.abs(net).toLocaleString()}, ${firstName}.` });
-        openers.push({ weight: 5, lead: `${firstName} — the gap is $${Math.abs(net).toLocaleString()} this period.` });
+        openers.push({ weight: 6, lead: `Expenses outpacing income by $${Math.abs(net).toLocaleString()}${nameSuffix}.` });
+        openers.push({ weight: 5, lead: `${namePrefix}${firstName ? 'the' : 'The'} gap is $${Math.abs(net).toLocaleString()} this period.` });
       } else if (net > 1000) {
-        openers.push({ weight: 6, lead: `Net positive by $${net.toLocaleString()}, ${firstName}.` });
+        openers.push({ weight: 6, lead: `Net positive by $${net.toLocaleString()}${nameSuffix}.` });
       }
     }
 
     // Priority 3: Month-over-month framing
     if (Math.abs(data.monthOverMonthPct) >= 15 && Math.abs(data.monthOverMonthPct) < 500) {
       const dir = data.monthOverMonthPct > 0 ? 'up' : 'down';
-      openers.push({ weight: 5, lead: `Spending ${dir} ${Math.abs(data.monthOverMonthPct)}% from last month, ${firstName}.` });
+      openers.push({ weight: 5, lead: `Spending ${dir} ${Math.abs(data.monthOverMonthPct)}% from last month${nameSuffix}.` });
     }
 
     // Priority 4: Top category framing
@@ -420,21 +434,21 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       const top = data.categoryBreakdown[0];
       const pct = Math.round((top.amount / data.totalSpent) * 100);
       if (pct >= 30) {
-        openers.push({ weight: 4, lead: `${top.label} is ${pct}% of your spend, ${firstName}.` });
+        openers.push({ weight: 4, lead: `${top.label} is ${pct}% of your spend${nameSuffix}.` });
       }
     }
 
     // Priority 5: Deductions
     if (data.deductions.total > 500) {
-      openers.push({ weight: 4, lead: `$${data.deductions.total.toLocaleString()} in potential deductions on the table, ${firstName}.` });
+      openers.push({ weight: 4, lead: `$${data.deductions.total.toLocaleString()} in potential deductions on the table${nameSuffix}.` });
     }
 
     // Priority 6: Generic varied openers (always available as fallback)
-    openers.push({ weight: 2, lead: `${firstName} — here's where things stand.` });
-    openers.push({ weight: 2, lead: `Quick read on your books, ${firstName}.` });
-    openers.push({ weight: 2, lead: `Your numbers right now, ${firstName}.` });
-    openers.push({ weight: 2, lead: `Let's run the tape, ${firstName}.` });
-    openers.push({ weight: 1, lead: `Good ${timeOfDay}, ${firstName}.` });
+    openers.push({ weight: 2, lead: `${namePrefix}${firstName ? 'here' : 'Here'}'s where things stand.` });
+    openers.push({ weight: 2, lead: `Quick read on your books${nameSuffix}.` });
+    openers.push({ weight: 2, lead: `Your numbers right now${nameSuffix}.` });
+    openers.push({ weight: 2, lead: `Let's run the tape${nameSuffix}.` });
+    openers.push({ weight: 1, lead: `Good ${timeOfDay}${nameSuffix}.` });
 
     // Weighted random pick with light rotation: avoid the same opener two sessions in a row.
     let lastOpener = '';
@@ -447,7 +461,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     for (const o of pool) { r -= o.weight; if (r <= 0) { pick = o; break; } }
     try { sessionStorage.setItem('prime_last_opener', pick.lead); } catch { /* ignore */ }
     return pick.lead;
-  }, [data.loading, data.uncategorizedCount, data.pendingImports, data.trendAlert, data.totalIncome, data.totalSpent, data.monthOverMonthPct, data.categoryBreakdown, data.deductions.total, firstName]);
+  }, [data.loading, data.uncategorizedCount, data.pendingImports, data.trendAlert, data.totalIncome, data.totalSpent, data.monthOverMonthPct, data.categoryBreakdown, data.deductions.total, firstName, nameSuffix, namePrefix]);
 
   // Filter to only visible messages - skip hidden user prompts and greeting instructions
   const chatMessages = messages.filter(m => {
@@ -1060,7 +1074,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                   <span style={{ fontSize: 10, color: THEME.textDim }}>just now</span>
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 600, color: THEME.text, lineHeight: 1.5 }}>
-                  Hey {firstName} — want to pick up where we left off?
+                  Hey{firstName ? ` ${firstName}` : ""} — want to pick up where we left off?
                 </div>
                 <div style={{
                   fontSize: 13, color: THEME.textMuted, marginTop: 8, lineHeight: 1.6,
@@ -1410,12 +1424,14 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                   }}>
                     {isThisStreaming && isEmpty ? (
                       // Thinking indicator while waiting for the first token of a real request.
-                      <ThinkingIndicator color={AGENT_COLORS[agentForMsg]} label={`${agentForMsg} is thinking…`} />
+                      <ThinkingIndicator color={AGENT_COLORS[agentForMsg]} label={thinkingLabelFor(agentForMsg, agentForMsg === "Prime" ? activeToolLabel : null)} />
                     ) : (() => {
                       const metaAny = msg.meta as any;
                       const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult) || parseActionReceipt(metaAny?.actionReceipt);
                       if (actionReceipt) return <ActionReceiptCard receipt={actionReceipt} />;
                       const txCandidates = parseTxCandidates(metaAny);
+                      // P-UI-3: server-verified category breakdown only (re-validated here, also for restored history).
+                      const financialVisual = msg.role === "assistant" ? validateFinancialVisual(metaAny?.financialVisual) : null;
                       // L-A: only for consultations the server recorded on this assistant message.
                       const consultations = parseSpecialistConsultations(metaAny, msg.role);
                       return (
@@ -1438,6 +1454,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                               animateReveal={typedMessageIds.has(msg.id) || !typedIdsRef.current.has(msg.id)}
                               onReviewWithTag={handleReviewWithTag}
                             />
+                          )}
+                          {/* P-UI-3: after the reply has finished typing (history shows it at once) */}
+                          {financialVisual && !isThisStreaming && (typedMessageIds.has(msg.id) || typedIdsRef.current.has(msg.id)) && (
+                            <SpendingBreakdown visual={financialVisual} />
                           )}
                         </>
                       );

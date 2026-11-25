@@ -52,7 +52,8 @@ describe('Prime presentation', () => {
   });
 
   it('shows the thinking indicator only for the existing empty-streaming condition', () => {
-    expect(prime).toMatch(/\{isThisStreaming && isEmpty \? \(\s*\/\/[^\n]*\n\s*<ThinkingIndicator color=\{AGENT_COLORS\[agentForMsg\]\} label=\{`\$\{agentForMsg\} is thinking…`\} \/>/);
+    // P-UI-4: the label now comes from thinkingLabelFor (whitelisted activity or "<Agent> is thinking…").
+    expect(prime).toMatch(/\{isThisStreaming && isEmpty \? \(\s*\/\/[^\n]*\n\s*<ThinkingIndicator color=\{AGENT_COLORS\[agentForMsg\]\} label=\{thinkingLabelFor\(agentForMsg, /);
     expect(prime).not.toMatch(/width: 6, height: 6, borderRadius: "50%", background: THEME\.accent/);
   });
 });
