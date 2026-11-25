@@ -224,18 +224,23 @@ describe('T-LIVE-01 — search totals (a partial sample presented as a total, re
       { id: 'b', amount: -20, merchant_name: 'TIM HORTONS #123', date: '2026-03-02' },
       { id: 'c', amount: -500, merchant_name: 'VISA PAYMENT', date: '2026-03-03' },
       { id: 'd', amount: 700, merchant_name: 'ACME', date: '2026-03-04' },
+      { id: 'e', amount: 300, merchant_name: 'TFR FROM SAVINGS', date: '2026-03-04' },
+      { id: 'f', amount: 200, merchant_name: 'PAYMENT THANK YOU', date: '2026-03-04' },
     ];
     const cls = new Map([
       ['a', { type: 'expense', category: 'Dining', subcategory: null }],
       ['b', { type: 'expense', category: 'Dining', subcategory: null }],
       ['c', { type: 'expense', category: 'Credit Card Payments', subcategory: null }],
       ['d', { type: 'income', category: 'Income', subcategory: null }],
+      ['e', { type: 'income', category: 'Transfers', subcategory: null }],
+      ['f', { type: 'income', category: 'Credit Card Payments', subcategory: null }], // D-1: debt repayment received
     ]);
-    const r = summarizeSearchTotals({ rows: all, totalMatches: 4, classification: cls, currency: 'CAD', filtersLabel: 'all dates' });
+    const r = summarizeSearchTotals({ rows: all, totalMatches: 6, classification: cls, currency: 'CAD', filtersLabel: 'all dates' });
     expect(r.complete).toBe(true);
     expect(r.text).toContain('Spending: $30.00 across 2 transactions');
-    expect(r.text).toContain('Transfers / debt payments / savings (not spending): $500.00');
-    expect(r.text).toContain('Money in: $700.00');
+    // An incoming transfer is internal movement, never money in (T-LIVE-01 / D-1 direction).
+    expect(r.text).toContain('Transfers / debt payments / savings, in or out (not spending, not income): $1,000.00 across 3 transactions');
+    expect(r.text).toContain('Money in: $700.00 across 1 transaction');
     expect(r.text).toContain('2026-03-01 to 2026-03-04');
     expect(r.text).not.toMatch(/employer|salary/i);
   });
