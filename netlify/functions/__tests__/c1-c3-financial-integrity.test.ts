@@ -124,7 +124,8 @@ describe('C1 — legacy income-to-expense conversion is disabled by default', ()
 
   it('normal categorization still runs when disabled, and the response contract is unchanged', async () => {
     const { json } = await invoke();
-    expect(Object.keys(json).sort()).toEqual(['ok', 'reclassified', 'total', 'typeEnforced', 'updated'].sort());
+    // C4 Batch 1 (owner GO 2026-11-25) adds `skippedProtected` (protected rows reported, not changed).
+    expect(Object.keys(json).sort()).toEqual(['ok', 'reclassified', 'skippedProtected', 'total', 'typeEnforced', 'updated'].sort());
     expect(json.ok).toBe(true);
     expect(json.total).toBe(1);
     const catUpdates = txUpdates().filter((c) => c.filters.some(([k, v]) => k === 'id' && v === 'tx-unc'));

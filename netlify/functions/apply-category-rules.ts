@@ -19,6 +19,11 @@ import { safeLog } from './_shared/safeLog.js';
 import { normalizeMerchant } from './_shared/merchantUtils.js';
 import { matchMerchantMap } from './_shared/merchantCategoryMap.js';
 import { applyDefaultRules } from './_shared/tagDefaultRules.js';
+import { TAG_CATEGORIES } from './_shared/tagCategories.js';
+import {
+  partitionAutoWritable, isImportWritable,
+  AUTO_UPDATE_CATEGORY_FILTER, AUTO_UPDATE_SOURCE_FILTER, IMPORT_UPDATE_CATEGORY_FILTER,
+} from './_shared/categorySource.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -218,10 +223,16 @@ const CANONICAL: Record<string, string> = {
   'travel': 'Travel',
 };
 
-function normalizeCanonicalCategory(cat: string): string {
-  if (!cat) return 'Needs Review';
+/**
+ * A4 (owner GO 2026-11-25): a rule / memory category resolves to a canonical category or is
+ * UNRESOLVED (null → the row goes to Needs Review). It used to write any unknown text as a category
+ * (title-cased) — an invented category the customer never chose.
+ */
+function normalizeCanonicalCategory(cat: string): string | null {
+  if (!cat) return null;
   const lower = cat.toLowerCase().trim();
-  return CANONICAL[lower] || cat.charAt(0).toUpperCase() + cat.slice(1);
+  if (CANONICAL[lower]) return CANONICAL[lower];
+  return (TAG_CATEGORIES as readonly string[]).find(c => c.toLowerCase() === lower) ?? null;
 }
 
 function normalizeVendorKey(raw: string): string {
@@ -257,7 +268,8 @@ function applyInlineRules(merchant: string): string | null {
   const lowerCompact = lower.replace(/[\s\-]+/g, '');
   for (const rule of RULES) {
     if (rule.contains.some(k => lower.includes(k) || lowerCompact.includes(k.replace(/[\s\-]+/g, '')))) {
-      return normalizeCanonicalCategory(rule.category);
+      const c = normalizeCanonicalCategory(rule.category);
+      if (c) return c;
     }
   }
   return null;
@@ -379,8 +391,10 @@ function applyDbRules(
   if (candidates.length === 0) return null;
   candidates.sort((a, b) => b.score - a.score);
   const best = candidates[0].rule;
+  const bestCategory = normalizeCanonicalCategory(best.category);
+  if (!bestCategory) return null;
   return {
-    category: normalizeCanonicalCategory(best.category),
+    category: bestCategory,
     subcategory: best.subcategory || null,
     rulePattern: normalizeMerchant(best.match_value),
   };
@@ -450,7 +464,7 @@ export const handler: Handler = async (event) => {
   // client, regardless of category filter. If this returns 0, the issue is the
   // user_id or table reference. If it returns rows, the issue is the category filter.
   console.log('[apply-category-rules] DEBUG query', {
-    userId,
+    uidPrefix,
     categoryFilter: ['Other', null, 'Uncategorized', 'Needs Review'],
     table: 'transactions',
   });
@@ -461,7 +475,7 @@ export const handler: Handler = async (event) => {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId);
     console.log('[apply-category-rules] DEBUG unfiltered count', {
-      userId,
+      uidPrefix,
       unfilteredCount,
       error: unfilteredErr?.message,
       errorCode: (unfilteredErr as any)?.code,
@@ -482,7 +496,6 @@ export const handler: Handler = async (event) => {
         category: t.category,
         category_source: t.category_source,
         import_id: t.import_id,
-        merchant: t.merchant_name,
       })),
     });
   } catch (debugErr: any) {
@@ -501,11 +514,25 @@ export const handler: Handler = async (event) => {
   // JS-side filter - guarantees no .or() syntax issues block matching
   // Also re-process any transaction where category_source='ai' — smart-import-sync
   // auto-assigns AI categories that may be wrong; hardcoded overrides should always win.
-  const NEEDS_CATEGORIZATION = new Set(['', 'other', 'uncategorized', 'needs review', 'business income']);
-  const needsCategorization = (row: { category?: unknown; category_source?: unknown }): boolean => {
-    if (row.category == null) return true;
-    if (row.category_source === 'ai') return true; // always let rules override AI-assigned cats
-    return NEEDS_CATEGORIZATION.has(String(row.category).trim().toLowerCase());
+  // Owner GO 2026-11-25 / C4 Batch 1: automatic rule application never overwrites a customer-confirmed,
+  // possibly-approved or unknown-provenance classification (an approved "Other" included).
+  //  - import-scoped (right after upload): the new import's gap rows and rows only the import pipeline
+  //    categorized (machine source) may take the customer's rules;
+  //  - unscoped: gaps only, last 90 days. No automatic whole-history recategorization (the old
+  //    "always re-process AI categories" across all history is gone).
+  let skippedProtected = 0;
+  // True while the rows come from the import itself; false after the guarded 90-day fallback.
+  let scopedRun = !!importId;
+  const sinceIso = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const selectWritable = (rowsIn: Array<Record<string, unknown>>, scopedToImport: boolean) => {
+    if (scopedToImport) {
+      const writable = rowsIn.filter(r => isImportWritable(r as { category?: string | null; category_source?: string | null }));
+      skippedProtected += rowsIn.length - writable.length;
+      return writable;
+    }
+    const part = partitionAutoWritable(rowsIn as Array<{ category?: string | null; category_source?: string | null }>);
+    skippedProtected += part.skippedProtected;
+    return part.writable as Array<Record<string, unknown>>;
   };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -518,8 +545,10 @@ export const handler: Handler = async (event) => {
 
     if (importId) {
       query = query.eq('import_id', importId);
+    } else {
+      query = query.gte('posted_at', sinceIso);
     }
-    // No category filter - filter in JS below
+    // No category filter - the protection rule is applied in code below (NULL-safe)
 
     const { data: rows, error } = await query;
 
@@ -530,7 +559,9 @@ export const handler: Handler = async (event) => {
     }
 
     const allRows = rows || [];
-    txs = importId ? allRows : allRows.filter(r => needsCategorization(r));
+    skippedProtected = 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    txs = selectWritable(allRows, !!importId) as any;
     console.log('[apply-category-rules] FETCHED', { uidPrefix, importId, attempt, fetched: allRows.length, afterFilter: txs.length });
 
     if (txs.length > 0) break;
@@ -545,18 +576,21 @@ export const handler: Handler = async (event) => {
   // filter and run cleanup mode for the whole user (handles duplicate-hash case
   // where commit lands under a different import_id than the one we were given).
   if (txs.length === 0 && importId) {
-    console.warn('[apply-category-rules] importId returned 0 rows - falling back to user-wide cleanup', { uidPrefix, importId });
+    console.warn('[apply-category-rules] importId returned 0 rows - falling back to the guarded 90-day gap mode', { uidPrefix, importId });
     const { data: fallbackRows, error: fallbackErr } = await supabase
       .from('transactions')
       .select('id, merchant_name, merchant, amount, description, category, category_source')
       .eq('user_id', userId)
+      .gte('posted_at', sinceIso)
       .order('posted_at', { ascending: false })
       .limit(limit);
     if (fallbackErr) {
       console.error('[apply-category-rules] FALLBACK FETCH ERROR', { uidPrefix, error: fallbackErr.message });
     } else {
       const all = fallbackRows || [];
-      txs = all.filter(r => needsCategorization(r));
+      scopedRun = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      txs = selectWritable(all, false) as any;
       console.log('[apply-category-rules] FALLBACK FETCHED', { uidPrefix, fetched: all.length, afterFilter: txs.length });
     }
   }
@@ -620,8 +654,9 @@ export const handler: Handler = async (event) => {
 
     // Priority 0: User vendor memory (learned corrections) — user intent wins
     const memoryCat = key ? memoryMap.get(key) : undefined;
-    if (memoryCat) {
-      updates.push({ id: tx.id, category: normalizeCanonicalCategory(memoryCat), source: 'learned' });
+    const memoryResolved = memoryCat ? normalizeCanonicalCategory(memoryCat) : null;
+    if (memoryResolved) {
+      updates.push({ id: tx.id, category: memoryResolved, source: 'learned' });
       continue;
     }
 
@@ -630,10 +665,9 @@ export const handler: Handler = async (event) => {
     if (dbRuleMatch) {
       updates.push({
         id: tx.id,
-        category: normalizeCanonicalCategory(dbRuleMatch.category),
+        category: dbRuleMatch.category,
         subcategory: dbRuleMatch.subcategory,
         source: 'tag_rule',
-        normalizedMerchant: dbRuleMatch.rulePattern || null,
       });
       continue;
     }
@@ -710,22 +744,21 @@ export const handler: Handler = async (event) => {
           payload.subcategory = u.subcategory ?? null;
           if (u.subcategory) payload.subcategory_source = u.source;
         }
-        // Write back normalized merchant_name only when we matched a user
-        // DB rule (source === 'tag_rule' + normalizedMerchant present).
-        // This collapses "7-ELEVEN STORE 33535" -> "7 ELEVEN" so future
-        // imports hit the same rule.
-        if ((u as any).normalizedMerchant && u.source === 'tag_rule') {
-          payload.merchant_name = (u as any).normalizedMerchant;
-        }
+        // Owner requirement 4: the imported merchant text is never rewritten (merchant_name used to be
+        // collapsed to the rule pattern here). The protection is re-checked inside the update so a
+        // customer edit landing after the select is never overwritten.
         return supabase
           .from('transactions')
           .update(payload)
           .eq('id', u.id)
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .or(importId && scopedRun ? IMPORT_UPDATE_CATEGORY_FILTER : AUTO_UPDATE_CATEGORY_FILTER)
+          .or(AUTO_UPDATE_SOURCE_FILTER)
+          .select('id');
       })
     );
     for (const r of results) {
-      if (r.status === 'fulfilled' && !r.value.error) {
+      if (r.status === 'fulfilled' && !r.value.error && Array.isArray(r.value.data) && r.value.data.length === 1) {
         updated++;
       } else if (r.status === 'fulfilled' && r.value.error) {
         updateErrors.push(r.value.error.message);
@@ -741,6 +774,6 @@ export const handler: Handler = async (event) => {
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({ ok: true, updated, total: txs.length, skipped, duplicatesRemoved }),
+    body: JSON.stringify({ ok: true, updated, total: txs.length, skipped, duplicatesRemoved, skippedProtected }),
   };
 };
