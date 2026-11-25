@@ -13,6 +13,7 @@ import {
   restoreSessionMessages, type RestoredMessage,
 } from "@/lib/conversationStore";
 import { newClientMessageId, tagReplyOutcome, legacyTagTranscript } from "@/lib/tagConversation";
+import { buildActionConversation, interpretActionResponse, isRejection, ACTION_UNKNOWN_OUTCOME, type ActionTurnResult } from "@/lib/tagActionConversation";
 import toast from "react-hot-toast";
 import { THEME } from "@/pages/CategoriesV2/categoryConfig";
 import { Reveal } from "@/pages/PrimeChatV2/Reveal";
@@ -674,59 +675,79 @@ export function TagCopilotPanel({
   // Anthropic tools API, server runs the DB write, server returns the
   // verified outcome. No client-side proposal extraction needed.
 
-  const commitPendingProposal = async (proposal: NonNullable<typeof pendingProposal>) => {
+  // T-H1b (Tag HQ): action turns go to tag-action WITH the conversation, so the customer's words,
+  // Tag's server-written reply and the server receipt (proposed / completed / failed / cancelled)
+  // are saved in the same Tag conversation. The panel never composes "Done" itself.
+  const postTagAction = async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const supabase = getSupabase();
+    const { data: { session } } = await supabase!.auth.getSession();
+    const token = session?.access_token ?? '';
+    const res = await fetch('/.netlify/functions/tag-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  };
+
+  const actionConversation = (customerText: string) => buildActionConversation({
+    sessionId: tagSessionIdRef.current,
+    clientMessageId: newClientMessageId(),
+    customerText,
+    startNewConversation: startNewConversationRef.current,
+  });
+
+  // Show Tag's server reply and keep the T-H2 session / save notice in step with tag-copilot turns.
+  const applyActionTurn = (r: ActionTurnResult, customerText: string, clientMessageId: string) => {
+    if (r.sessionId) { setTagSessionId(r.sessionId); startNewConversationRef.current = false; }
+    if (r.kind === 'conflict') setSaveNotice({ kind: 'conflict' });
+    else if (r.kind === 'not_saved') setSaveNotice({ kind: 'not_saved', text: customerText, clientMessageId });
+    setMessages(prev => [...prev, { role: 'assistant', content: r.reply }]);
+  };
+
+  const commitPendingProposal = async (proposal: NonNullable<typeof pendingProposal>, customerText: string) => {
     setIsLoading(true);
+    setSaveNotice(null);
+    const conversation = actionConversation(customerText);
     try {
-      const supabase = getSupabase();
-      const { data: { session } } = await supabase!.auth.getSession();
-      const token = session?.access_token ?? '';
-
-      // Preview (gets count + ids)
-      const previewRes = await fetch('/.netlify/functions/tag-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          intent: 'preview',
-          matchValue: proposal.matchValue,
-          targetCategory: proposal.targetCategory,
-          matchType: proposal.matchType,
-        }),
+      // The server matches the transactions itself and honours this confirmation only for the
+      // proposal it recorded as Tag's previous reply.
+      const data = await postTagAction({
+        intent: 'commit',
+        matchValue: proposal.matchValue,
+        targetCategory: proposal.targetCategory,
+        matchType: proposal.matchType,
+        conversation,
       });
-      const preview = await previewRes.json();
-      if (!preview.ok || !preview.matchCount) {
-        setMessages(prev => [...prev, { role: 'assistant', content: `I couldn't find any transactions matching "${proposal.matchValue}" to change. Can you describe them differently?` }]);
-        setPendingProposal(null);
-        return;
-      }
-
-      // Commit
-      const commitRes = await fetch('/.netlify/functions/tag-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          intent: 'commit',
-          matchValue: proposal.matchValue,
-          targetCategory: proposal.targetCategory,
-          matchType: proposal.matchType,
-          affectedIds: preview.affectedIds,
-        }),
-      });
-      const commit = await commitRes.json();
-      if (commit.ok) {
-        const count = commit.updatedCount ?? preview.matchCount ?? 0;
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `Done. Moved ${count} transaction${count !== 1 ? 's' : ''} to ${proposal.targetCategory} and saved a rule so future "${proposal.matchValue}" transactions auto-categorize.`,
-        }]);
-        toast.success(`${count} transactions updated`);
+      const r = interpretActionResponse(data, "I couldn't make that change, so nothing was moved.");
+      applyActionTurn(r, customerText, conversation.clientMessageId);
+      if (r.completed) {
+        toast.success(`${r.affectedCount} transaction${r.affectedCount !== 1 ? 's' : ''} updated`);
         // Refresh transactions list + badges
-        try { window.dispatchEvent(new Event('transactions:refresh')); } catch { /* noop */ }
-      } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: `Hit a snag: ${commit.error || 'commit failed'}. Try rephrasing?` }]);
+        try {
+          window.dispatchEvent(new Event('transactions:refresh'));
+          window.dispatchEvent(new Event('tag:stats-refresh'));
+        } catch { /* noop */ }
+        void fetchLearnedRules();
       }
-    } catch (e: any) {
-      console.error('[Tag] commitPendingProposal error:', e);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Something went wrong on my end. Try again?" }]);
+    } catch {
+      // The request itself failed: the outcome is unknown. No automatic or chat-path retry.
+      setMessages(prev => [...prev, { role: 'assistant', content: ACTION_UNKNOWN_OUTCOME }]);
+    } finally {
+      setPendingProposal(null);
+      setIsLoading(false);
+    }
+  };
+
+  const cancelPendingProposal = async (customerText: string) => {
+    setIsLoading(true);
+    setSaveNotice(null);
+    const conversation = actionConversation(customerText);
+    try {
+      const data = await postTagAction({ intent: 'cancel_proposal', conversation });
+      applyActionTurn(interpretActionResponse(data, "Okay, I won't change anything."), customerText, conversation.clientMessageId);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: "Okay, I won't change anything." }]);
     } finally {
       setPendingProposal(null);
       setIsLoading(false);
@@ -757,27 +778,27 @@ export function TagCopilotPanel({
     return null;
   };
 
-  // Preview directly against tag-action; return data to caller without committing.
-  const previewAction = async (intent: { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' }): Promise<{ matchCount: number; samples: any[]; affectedIds: string[] } | null> => {
+  // Preview against tag-action WITH the conversation: the server records the customer's request and
+  // Tag's proposal (receipt 'proposed') or "no matches" (receipt 'failed'). Nothing is changed.
+  const previewAction = async (
+    intent: { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' },
+    customerText: string,
+  ): Promise<{ result: ActionTurnResult; clientMessageId: string } | null> => {
+    const conversation = actionConversation(customerText);
     try {
-      const supabase = getSupabase();
-      const { data: { session } } = await supabase!.auth.getSession();
-      const token = session?.access_token ?? '';
-      const res = await fetch('/.netlify/functions/tag-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          intent: 'preview',
-          matchValue: intent.matchValue,
-          targetCategory: intent.targetCategory,
-          matchType: intent.matchType,
-        }),
+      const data = await postTagAction({
+        intent: 'preview',
+        matchValue: intent.matchValue,
+        targetCategory: intent.targetCategory,
+        matchType: intent.matchType,
+        conversation,
       });
-      const data = await res.json();
-      if (!data.ok) return null;
-      return { matchCount: data.matchCount, samples: data.samples || [], affectedIds: data.affectedIds || [] };
-    } catch (e) {
-      console.error('[Tag] previewAction error:', e);
+      const result = interpretActionResponse(
+        data,
+        `I searched your transactions but didn't find any matching "${intent.matchValue}". Want to try a different keyword, or tell me the merchant name you see in your list?`,
+      );
+      return { result, clientMessageId: conversation.clientMessageId };
+    } catch {
       return null;
     }
   };
@@ -794,7 +815,15 @@ export function TagCopilotPanel({
     if (!retryClientMessageId && pendingProposal && isConfirmation(text)) {
       setInputValue("");
       setMessages(prev => [...prev, { role: 'user', content: text }]);
-      await commitPendingProposal(pendingProposal);
+      await commitPendingProposal(pendingProposal, text);
+      return;
+    }
+
+    // INTERCEPTOR 1b (T-H1b): the customer declines the pending proposal — record the cancellation.
+    if (!retryClientMessageId && pendingProposal && isRejection(text)) {
+      setInputValue("");
+      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      await cancelPendingProposal(text);
       return;
     }
 
@@ -807,28 +836,18 @@ export function TagCopilotPanel({
       setInputValue("");
       setMessages(prev => [...prev, { role: 'user', content: text }]);
       setIsLoading(true);
+      setSaveNotice(null);
       try {
-        const preview = await previewAction(userIntent);
-        if (!preview || preview.matchCount === 0) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `I searched your transactions but didn't find any matching "${userIntent.matchValue}". Want to try a different keyword, or tell me the merchant name you see in your list?`,
-          }]);
+        const preview = await previewAction(userIntent, text);
+        if (!preview) {
+          setMessages(prev => [...prev, { role: 'assistant', content: "Something went wrong checking your transactions, so nothing has changed. Try again?" }]);
+          setPendingProposal(null);
         } else {
-          const sampleText = preview.samples
-            .slice(0, 3)
-            .map((s: any) => `- ${s.merchant_name} - $${Math.abs(Number(s.amount || 0)).toFixed(2)} (currently: ${s.current_category || 'Uncategorized'})`)
-            .join('\n');
-          const extra = preview.matchCount > 3 ? `\n...and ${preview.matchCount - 3} more` : '';
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `I found **${preview.matchCount}** transaction${preview.matchCount !== 1 ? 's' : ''} matching "${userIntent.matchValue}". Here's a sample:\n\n${sampleText}${extra}\n\nMove all ${preview.matchCount} to **${userIntent.targetCategory}** and save a rule for future imports? Say yes to confirm.`,
-          }]);
-          setPendingProposal(userIntent);
+          // Tag's proposal text comes from the server; a "yes" is honoured only for a proposal the
+          // server recorded (receipt 'proposed').
+          applyActionTurn(preview.result, text, preview.clientMessageId);
+          setPendingProposal(preview.result.proposalPending ? userIntent : null);
         }
-      } catch (e) {
-        console.error('[Tag] action preview error:', e);
-        setMessages(prev => [...prev, { role: 'assistant', content: "Something went wrong checking your transactions. Try again?" }]);
       } finally {
         setIsLoading(false);
       }

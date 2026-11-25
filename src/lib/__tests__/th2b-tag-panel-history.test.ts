@@ -73,8 +73,9 @@ describe('TagCopilotPanel', () => {
     expect(panel).not.toMatch(/setTimeout\([^)]*handleSend/); // never automatic
   });
 
-  it('Tag-owned action code is untouched', () => {
-    expect(panel).toMatch(/await commitPendingProposal\(pendingProposal\);/);
-    expect(panel).toMatch(/const preview = await previewAction\(userIntent\);/);
+  it('Tag-owned action code is reached through its own interceptors (T-H1b wiring, Tag HQ)', () => {
+    expect(panel).toMatch(/await commitPendingProposal\(pendingProposal, text\);/);
+    expect(panel).toMatch(/await cancelPendingProposal\(text\);/);
+    expect(panel).toMatch(/const preview = await previewAction\(userIntent, text\);/);
   });
 });
