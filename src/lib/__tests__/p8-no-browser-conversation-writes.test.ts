@@ -5,7 +5,8 @@
  *
  * Known legacy writers are NOT rendered in the live app (verified 2026-11-25) and are allow-listed
  * only so this guard can land before they are removed:
- * - components/chat/UnifiedAssistantChat.tsx (chat_threads insert) — imported, never rendered.
+ * - components/chat/UnifiedAssistantChat.tsx (chat_threads insert) — commented out in DashboardLayout;
+ *   rendered inline only by pages/dashboard/TransactionsPage, which no live route renders.
  * - services/smartImportConversation.ts (chat_sessions insert/update) — used only by
  *   _legacy/ByteDocumentChat.tsx, rendered only by a test page whose route is commented out.
  * - agent/tools/impl/merchant_analysis_refine.ts — runs server-side inside the chat function.
@@ -53,7 +54,9 @@ describe('browser code never writes conversation tables', () => {
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '');
     expect(live('layouts/DashboardLayout.tsx')).not.toMatch(/<UnifiedAssistantChat[\s/>]/);
-    expect(live('pages/dashboard/TransactionsPage.tsx')).not.toMatch(/<UnifiedAssistantChat[\s/>]/);
+    // The old pages/dashboard/TransactionsPage renders UnifiedAssistantChat inline, but no live route
+    // renders that page (App.tsx only lazy-declares it). Fail if it ever becomes routed.
+    expect(live('App.tsx')).not.toMatch(/<Route[^>]*element=\{[^}]*<TransactionsPage[\s/>]/);
     expect(live('App.tsx')).not.toMatch(/<Route[^>]*PrimeAITestPage/);
     expect(live('pages/dashboard/SmartImportAIPage.tsx')).not.toMatch(/<ByteDocumentChat[\s/>]/);
   });
