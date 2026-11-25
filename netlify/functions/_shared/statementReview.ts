@@ -52,11 +52,19 @@ const cleanDocText = (s: unknown, max = 80) =>
   stripMarkers(maskPII(stripMarkers(String(s ?? '')), 'last4').masked)
     .split('').map(ch => { const c = ch.charCodeAt(0); return c < 32 || c === 127 ? ' ' : ch; }).join('').replace(/\s+/g, ' ').trim().slice(0, max);
 
-/** Document-derived date: accepted only as YYYY-MM-DD (optionally followed by a time), else null. */
-function isoDateOrNull(v: unknown): string | null {
+/**
+ * Document-derived date: accepted only as a REAL calendar date in YYYY-MM-DD form (optionally
+ * followed by a time), else null. "2025-02-31", "2025-13-01" and "0000-01-01" are rejected.
+ */
+export function isoDateOrNull(v: unknown): string | null {
   if (typeof v !== 'string') return null;
-  const m = /^(\d{4}-\d{2}-\d{2})(?:$|T)/.exec(v.trim());
-  return m ? m[1] : null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(v.trim());
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || d < 1) return null;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${m[1]}-${m[2]}-${m[3]}`;
 }
 
 export function parseReviewImportId(pageContext: unknown): string | null {

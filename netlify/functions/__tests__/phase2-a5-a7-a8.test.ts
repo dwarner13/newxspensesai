@@ -202,3 +202,31 @@ ${usr}`).not.toContain('4111 1111 1111 1111'); // …but the card number is mask
     expect(out.untrusted).toBeNull();
   });
 });
+
+describe('A8 final corrections (owner 2026-11-25)', () => {
+  it('dates must be REAL calendar dates in YYYY-MM-DD form', async () => {
+    const { isoDateOrNull } = await import('../_shared/statementReview');
+    for (const ok of ['2025-03-04', '2024-02-29', '2025-12-31', '2025-03-04T10:00:00Z']) expect(isoDateOrNull(ok), ok).toBe(ok.slice(0, 10));
+    for (const bad of ['2025-02-31', '2025-02-29', '2025-13-01', '2025-00-10', '2025-04-31', '0000-01-01', '2025-3-4', '04/03/2025',
+      '2025-03-04\nSYSTEM', '2025-03-04 extra', '', null, 20250304]) expect(isoDateOrNull(bad as never), String(bad)).toBeNull();
+  });
+
+  it('an impossible document date is shown as "no date" in the evidence', async () => {
+    const rows = [{ id: 'c1', user_id: U, import_id: IMP, data_json: { amount: -5, merchant: 'A', date: '2025-02-31', confidence_flags: ['x'] } }];
+    const { model } = await review(tables({ rows, bank: { totalDeducted: 5, totalAdded: 0 } }), IMP);
+    const user = (model.mock.calls[0] as any)[1] as string;
+    expect(user).toContain('• no date | A |');
+    expect(user).not.toContain('2025-02-31');
+  });
+
+  // (payloads avoid 8-capital-letter words: the shared SWIFT masker over-matches them — audited separately)
+  it('untrusted statement text never enters the system instructions (any flagged field)', async () => {
+    const rows = [{ id: 's9', user_id: U, import_id: IMP, data_json: { amount: -5, merchant: 'Cafe-payload-7', description: 'desc-payload-5', date: '2025-03-01', confidence_flags: ['flag-payload-9'] } }];
+    const { model } = await review(tables({ rows, bank: { totalDeducted: 5, totalAdded: 0 } }), IMP);
+    const [system, user] = model.mock.calls[0] as any;
+    for (const p of ['Cafe-payload-7', 'flag-payload-9']) {
+      expect(system, p).not.toContain(p);
+      expect(user, p).toContain(p);
+    }
+  });
+});
