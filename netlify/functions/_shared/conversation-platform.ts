@@ -19,7 +19,9 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createHash } from 'crypto';
 import { ensureSession, getRecentMessages } from './session.js';
+import { ensureThread } from './ensureThread.js';
 import { maskSpecificPII, getCriticalDetectors } from './pii.js';
 import {
   canonicalEmployeeSlug,
@@ -188,14 +190,37 @@ export async function resolveEmployeeKey(sb: SupabaseClient, slug: ConversationE
 }
 
 /**
- * Columns written (live schema per owner P-1/P-2): session_id, user_id, thread_id, employee_key,
- * role, content (masked customer text / reply), tokens, metadata, and client_message_id on the
- * customer row only. NO redacted_content (the column does not exist live).
- * thread_id = session id, the same fallback chat.ts uses for receipts — pending owner P-4/P-5
- * verification of any chat_threads foreign key.
+ * Live schema (owner P-1..P-5): chat_messages.thread_id has a FOREIGN KEY to chat_threads(id)
+ * ON DELETE CASCADE, and chat_threads is UNIQUE(user_id, assistant_key): ONE thread per customer and
+ * employee. Architecture (same as chat.ts): the THREAD is the employee-level container
+ * (ensureThread), each SESSION is one independent conversation. Every message carries both.
+ * Never put a session id in thread_id. Never delete a thread to delete a conversation — the cascade
+ * would remove every conversation with that employee (see deleteEmployeeConversation).
  */
-function baseRow(p: { sessionId: string; userId: string; employeeKey: string }) {
-  return { session_id: p.sessionId, user_id: p.userId, thread_id: p.sessionId, employee_key: p.employeeKey };
+async function resolveThread(sb: SupabaseClient, userId: string, employeeKey: string): Promise<string> {
+  try {
+    return await ensureThread(sb, userId, employeeKey);
+  } catch {
+    // Concurrent first messages: the other request created the thread (UNIQUE user_id+assistant_key
+    // rejected ours). Look again — ensureThread returns the existing thread.
+    return ensureThread(sb, userId, employeeKey);
+  }
+}
+
+function baseRow(p: { sessionId: string; userId: string; employeeKey: string; threadId: string }) {
+  return { session_id: p.sessionId, user_id: p.userId, thread_id: p.threadId, employee_key: p.employeeKey };
+}
+
+/**
+ * Deterministic message_uid for a customer message (live UNIQUE index on chat_messages.message_uid;
+ * client_message_id has NO unique index). Derived from customer + session + client message id, so a
+ * concurrent duplicate insert is rejected by the database (23505) instead of creating a second row.
+ * UUID-formatted (version 5 / RFC 4122 variant bits) so it is valid for a uuid or text column.
+ */
+export function deterministicMessageUid(userId: string, sessionId: string, clientMessageId: string): string {
+  const h = createHash('sha256').update(`chat_messages:user:${userId}:${sessionId}:${clientMessageId}`).digest('hex');
+  const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
 export type TurnClaim =
@@ -216,8 +241,9 @@ export type TurnClaim =
  *   act and should ask the customer to resend.
  * - 'unsaved': the claim could not be written for another reason; the caller may answer but must
  *   report persisted:false. Without a valid clientMessageId there is no retry protection.
- * Concurrency: if two requests store the same id, the earliest row owns the turn. A unique index
- * (owner-gated migration, scope pending P-4/P-5) makes this airtight.
+ * Concurrency: the customer row carries a deterministic message_uid (live unique index), so of two
+ * concurrent requests with the same client message id exactly one insert succeeds; the other gets
+ * 23505 and is resolved by READING what is stored (never assumed).
  */
 export async function claimConversationTurn(
   sb: SupabaseClient,
@@ -232,8 +258,15 @@ export async function claimConversationTurn(
   }
 
   const employeeKey = await resolveEmployeeKey(sb, params.employeeSlug);
+  let threadId: string;
+  try {
+    threadId = await resolveThread(sb, params.userId, employeeKey);
+  } catch {
+    return { status: 'unsaved', maskedUserText };
+  }
   const res = await sb.from('chat_messages').insert({
-    ...baseRow({ sessionId: params.sessionId, userId: params.userId, employeeKey }),
+    ...baseRow({ sessionId: params.sessionId, userId: params.userId, employeeKey, threadId }),
+    ...(clientMessageId ? { message_uid: deterministicMessageUid(params.userId, params.sessionId, clientMessageId) } : {}),
     role: 'user',
     content: maskedUserText,
     tokens: Math.ceil(maskedUserText.length / 4),
@@ -250,22 +283,6 @@ export async function claimConversationTurn(
     return { status: 'unsaved', maskedUserText };
   }
   const insertedId = (res.data as { id?: string } | null)?.id ?? null;
-
-  if (clientMessageId) {
-    const { data: rows } = await sb
-      .from('chat_messages')
-      .select('id, created_at')
-      .eq('session_id', params.sessionId)
-      .eq('user_id', params.userId)
-      .eq('role', 'user')
-      .eq('metadata->>client_message_id', clientMessageId)
-      .order('created_at', { ascending: true })
-      .limit(5);
-    if (Array.isArray(rows) && rows.length > 1) {
-      const first = [...rows].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)))[0];
-      if (first && first.id !== insertedId) return { status: 'duplicate', reply: null, actionOutcome: null };
-    }
-  }
 
   const title = deriveConversationTitle(maskedUserText);
   if (title) {
@@ -287,8 +304,9 @@ export async function completeConversationTurn(
   const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
   const assistantText = String(params.assistantText ?? '');
   const employeeKey = await resolveEmployeeKey(sb, params.employeeSlug);
+  const threadId = await resolveThread(sb, params.userId, employeeKey);
   const { error } = await sb.from('chat_messages').insert({
-    ...baseRow({ sessionId: params.sessionId, userId: params.userId, employeeKey }),
+    ...baseRow({ sessionId: params.sessionId, userId: params.userId, employeeKey, threadId }),
     role: 'assistant',
     content: assistantText,
     tokens: Math.ceil(assistantText.length / 4),
@@ -318,4 +336,31 @@ export async function recordConversationTurn(
   if (claim.status !== 'claimed') throw new Error('Failed to save conversation message');
   await completeConversationTurn(sb, params);
   return { duplicate: false, maskedUserText: claim.maskedUserText };
+}
+
+/**
+ * Delete ONE conversation (customer-controlled deletion; not yet wired to any endpoint or UI).
+ * Removes only this session's messages and the session row, scoped to the verified customer and the
+ * employee. NEVER deletes the chat_threads row: its ON DELETE CASCADE would erase every conversation
+ * the customer has with that employee. Returns false when the session is not this customer's
+ * conversation with this employee (nothing is deleted).
+ */
+export async function deleteEmployeeConversation(
+  sb: SupabaseClient,
+  params: { userId: string; employeeSlug: string; sessionId: string },
+): Promise<boolean> {
+  const employee = canonicalEmployeeSlug(params.employeeSlug);
+  if (!employee) return false;
+  const { data: session } = await sb
+    .from('chat_sessions')
+    .select('id, employee_slug')
+    .eq('id', params.sessionId)
+    .eq('user_id', params.userId)
+    .maybeSingle();
+  if (!session || canonicalEmployeeSlug((session as { employee_slug?: unknown }).employee_slug) !== employee) return false;
+  const { error: msgErr } = await sb.from('chat_messages').delete().eq('session_id', params.sessionId).eq('user_id', params.userId);
+  if (msgErr) throw new Error('Failed to delete conversation messages');
+  const { error: sesErr } = await sb.from('chat_sessions').delete().eq('id', params.sessionId).eq('user_id', params.userId);
+  if (sesErr) throw new Error('Failed to delete conversation');
+  return true;
 }

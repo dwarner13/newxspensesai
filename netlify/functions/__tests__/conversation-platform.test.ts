@@ -3,7 +3,7 @@
  * The real ensureSession / getRecentMessages code runs; only the database is simulated.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { openEmployeeConversation, loadConversationHistory, recordConversationTurn, claimConversationTurn, completeConversationTurn, maskCustomerTextForModel, findRecentEmployeeConversation } from '../_shared/conversation-platform';
+import { openEmployeeConversation, loadConversationHistory, recordConversationTurn, claimConversationTurn, completeConversationTurn, maskCustomerTextForModel, findRecentEmployeeConversation, deterministicMessageUid, deleteEmployeeConversation } from '../_shared/conversation-platform';
 import { canonicalEmployeeSlug, isTagSlug, deriveConversationTitle, toModelHistory, isValidClientMessageId } from '../../../src/shared/conversation-identity';
 
 // The in-memory Supabase fake is intentionally untyped (rows and chained builder).
@@ -15,7 +15,7 @@ const get = (row: Row, col: string) => (col.includes('->>') ? (row[col.split('->
 
 function builder(table: string) {
   const filters: Array<[string, unknown]> = [];
-  let op: 'select' | 'insert' | 'update' = 'select';
+  let op: 'select' | 'insert' | 'update' | 'delete' = 'select';
   let payload: Row | null = null;
   let order: { col: string; asc: boolean } | null = null;
   let lim = Infinity;
@@ -26,11 +26,17 @@ function builder(table: string) {
       const injected = hooks.beforeInsert?.(table, payload!);
       if (injected) return { data: null, error: injected };
       if (table === 'chat_sessions' && rows().some(r => r.id === payload!.id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
+      // live constraints (owner P-3..P-5): message_uid unique; thread_id FK -> chat_threads(id); one thread per (user_id, assistant_key)
+      if (table === 'chat_messages' && payload!.message_uid && rows().some(r => r.message_uid === payload!.message_uid)) return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint message_uid' } };
+      if (table === 'chat_messages' && payload!.thread_id && !(db.chat_threads || []).some(t => t.id === payload!.thread_id)) return { data: null, error: { code: '23503', message: 'violates foreign key constraint chat_messages_thread_fk' } };
+      if (table === 'chat_threads' && rows().some(r => r.user_id === payload!.user_id && r.assistant_key === payload!.assistant_key)) return { data: null, error: { code: '23505', message: 'duplicate' } };
+      if (table === 'chat_threads' && !payload!.id) payload = { ...payload, id: 'thread-' + rows().length };
       const row = { created_at: new Date(Date.now() + rows().length).toISOString(), ...payload };
       rows().push(row);
       return { data: row, error: null };
     }
     if (op === 'update') { const m = matches(); m.forEach(r => Object.assign(r, payload)); return { data: m, error: null }; }
+    if (op === 'delete') { const m = matches(); db[table] = rows().filter(r => !m.includes(r)); return { data: m, error: null }; }
     let m = matches();
     if (order) m = [...m].sort((a, b) => (order!.asc ? 1 : -1) * String(a[order!.col]).localeCompare(String(b[order!.col])));
     return { data: m.slice(0, lim), error: null };
@@ -42,6 +48,7 @@ function builder(table: string) {
     limit: (n: number) => { lim = n; return b; },
     insert: (r: Row) => { op = 'insert'; payload = r; return b; },
     update: (p: Row) => { op = 'update'; payload = p; return b; },
+    delete: () => { op = 'delete'; return b; },
     maybeSingle: async () => { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] ?? null : r.data, error: r.error }; },
     single: async () => { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] ?? null : r.data, error: r.error }; },
     then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(run()).then(res, rej),
@@ -156,7 +163,7 @@ describe('Prime HQ review of T-H1: claim-first retries, masking, schema, resume'
       // simulate the competing request inserting the same client id just before this one
       if (!injected && table === 'chat_messages' && row.role === 'user') {
         injected = true;
-        db.chat_messages.push({ id: 'competitor', created_at: '2000-01-01T00:00:00.000Z', session_id: c.sessionId, user_id: ALICE, role: 'user', content: 'x', metadata: { client_message_id: 'msg_race0001' } });
+        db.chat_messages.push({ id: 'competitor', created_at: '2000-01-01T00:00:00.000Z', session_id: c.sessionId, user_id: ALICE, role: 'user', content: 'x', message_uid: deterministicMessageUid(ALICE, c.sessionId, 'msg_race0001'), metadata: { client_message_id: 'msg_race0001' } });
       }
       return null;
     };
@@ -189,7 +196,11 @@ describe('Prime HQ review of T-H1: claim-first retries, masking, schema, resume'
     expect(a.employee_key).toBe('tag');
     expect(u.client_message_id).toBe('msg_schema01');
     expect('client_message_id' in a).toBe(false);
-    expect(u.thread_id).toBe(c.sessionId);
+    // thread_id is the employee's chat_threads row (FK), never the session id
+    expect(u.thread_id).not.toBe(c.sessionId);
+    expect(db.chat_threads.find(t => t.id === u.thread_id)).toMatchObject({ user_id: ALICE, employee_key: 'tag', assistant_key: 'tag' });
+    expect(u.message_uid).toBe(deterministicMessageUid(ALICE, c.sessionId, 'msg_schema01'));
+    expect('message_uid' in a).toBe(false);
   });
   it('employee_key comes from the employee_profiles registry when present; Custodian is attributed correctly', async () => {
     db.employee_profiles = [{ slug: 'custodian', employee_key: 'custodian' }];
@@ -223,5 +234,56 @@ describe('Prime HQ review of T-H1: claim-first retries, masking, schema, resume'
     // idle beyond the window: not resumed implicitly, but nothing is deleted
     expect(await findRecentEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai', now: now + 7 * 3600_000 })).toBeNull();
     expect(db.chat_sessions).toHaveLength(4);
+  });
+});
+
+describe('owner P-3..P-5: threads, message_uid, safe deletion', () => {
+  it('multiple independent conversations with one employee share ONE thread (UNIQUE user_id+assistant_key)', async () => {
+    const a = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    await recordConversationTurn(sb, { userId: ALICE, employeeSlug: 'tag-ai', sessionId: a.sessionId, userText: 'first', assistantText: '1' });
+    const b = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    await recordConversationTurn(sb, { userId: ALICE, employeeSlug: 'tag-ai', sessionId: b.sessionId, userText: 'second', assistantText: '2' });
+    expect(a.sessionId).not.toBe(b.sessionId);
+    expect(db.chat_threads.filter(t => t.user_id === ALICE && t.assistant_key === 'tag')).toHaveLength(1);
+    expect(new Set(db.chat_messages.map(m => m.thread_id)).size).toBe(1);
+    expect(await loadConversationHistory(sb, { sessionId: a.sessionId, userId: ALICE })).toEqual([{ role: 'user', content: 'first' }, { role: 'assistant', content: '1' }]);
+  });
+  it('different employees get different threads; Prime and Tag never share messages', async () => {
+    const t = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    const p = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'prime-boss' });
+    await recordConversationTurn(sb, { userId: ALICE, employeeSlug: 'tag-ai', sessionId: t.sessionId, userText: 'x', assistantText: 'y' });
+    await recordConversationTurn(sb, { userId: ALICE, employeeSlug: 'prime-boss', sessionId: p.sessionId, userText: 'x', assistantText: 'y' });
+    expect(db.chat_threads.map(r => r.assistant_key).sort()).toEqual(['prime', 'tag']);
+  });
+  it('message_uid is deterministic per customer+session+client id, UUID-shaped, and differs across customers', () => {
+    const u1 = deterministicMessageUid(ALICE, 's1', 'msg_abcdefgh');
+    expect(u1).toBe(deterministicMessageUid(ALICE, 's1', 'msg_abcdefgh'));
+    expect(u1).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(deterministicMessageUid(BOB, 's1', 'msg_abcdefgh')).not.toBe(u1);
+    expect(deterministicMessageUid(ALICE, 's2', 'msg_abcdefgh')).not.toBe(u1);
+  });
+  it('a concurrent duplicate is rejected by the message_uid unique index (one row only)', async () => {
+    const c = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    const p = { userId: ALICE, employeeSlug: 'tag-ai' as const, sessionId: c.sessionId, userText: 'apply rule', clientMessageId: 'msg_conc0001' };
+    const [r1, r2] = await Promise.all([claimConversationTurn(sb, p), claimConversationTurn(sb, p)]);
+    expect([r1.status, r2.status].sort()).toEqual(['claimed', 'duplicate']);
+    expect(db.chat_messages.filter(m => m.role === 'user')).toHaveLength(1);
+  });
+  it('deleting one conversation keeps the thread and every other conversation', async () => {
+    const a = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    await recordConversationTurn(sb, { userId: ALICE, employeeSlug: 'tag-ai', sessionId: a.sessionId, userText: 'keep me', assistantText: 'k' });
+    const b = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    await recordConversationTurn(sb, { userId: ALICE, employeeSlug: 'tag-ai', sessionId: b.sessionId, userText: 'delete me', assistantText: 'd' });
+    expect(await deleteEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai', sessionId: b.sessionId })).toBe(true);
+    expect(db.chat_threads).toHaveLength(1);
+    expect(db.chat_messages.map(m => m.content)).toEqual(['keep me', 'k']);
+    expect(db.chat_sessions.map(r => r.id)).toEqual([a.sessionId]);
+  });
+  it('deletion refuses a conversation that belongs to another customer or another employee', async () => {
+    const a = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    await recordConversationTurn(sb, { userId: ALICE, employeeSlug: 'tag-ai', sessionId: a.sessionId, userText: 'x', assistantText: 'y' });
+    expect(await deleteEmployeeConversation(sb, { userId: BOB, employeeSlug: 'tag-ai', sessionId: a.sessionId })).toBe(false);
+    expect(await deleteEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'prime-boss', sessionId: a.sessionId })).toBe(false);
+    expect(db.chat_messages).toHaveLength(2);
   });
 });

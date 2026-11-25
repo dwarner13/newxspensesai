@@ -28,7 +28,7 @@ function tableBuilder(table: string) {
       if (table === 'chat_messages' && failures.insertChatMessages) return { data: null, error: { message: 'insert failed' } };
       if (table === 'chat_messages' && failures.uniqueConflict && payload!.client_message_id) return { data: null, error: { code: '23505', message: 'duplicate key' } };
       if (table === 'chat_sessions' && rows().some(r => r.id === payload!.id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
-      const row = { created_at: new Date(Date.now() + rows().length).toISOString(), ...payload };
+      const row = { created_at: new Date(Date.now() + rows().length).toISOString(), ...(table === 'chat_threads' && !payload!.id ? { id: 'thread-' + rows().length } : {}), ...payload };
       rows().push(row);
       return { data: row, error: null };
     }
@@ -65,7 +65,7 @@ function emptyQuery(): unknown {
   return proxy;
 }
 const fakeClient = {
-  from: (t: string) => (t === 'chat_sessions' || t === 'chat_messages' ? tableBuilder(t) : emptyQuery()),
+  from: (t: string) => (t === 'chat_sessions' || t === 'chat_messages' || t === 'chat_threads' ? tableBuilder(t) : emptyQuery()),
   rpc: () => emptyQuery(),
 };
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => fakeClient }));
