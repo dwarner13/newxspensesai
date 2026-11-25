@@ -73,6 +73,7 @@ vi.mock('../_shared/verifyAuth.js', () => ({
 
 process.env.SUPABASE_URL = 'http://localhost';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service';
+process.env.CONVERSATION_SIGNING_SECRET = 'test-signing-secret-not-real-0123456789abcdef'; // P-8: dedicated reply-signing key
 
 type Res = { statusCode: number; body: string };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

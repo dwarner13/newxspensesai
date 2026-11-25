@@ -119,15 +119,19 @@ export async function findRecentEmployeeConversation(
 // Live grants let a signed-in customer insert/update their own chat_messages, so an "assistant"
 // row or action receipt in the database is NOT proof the server wrote it. Every employee reply the
 // platform stores carries metadata.server_sig = HMAC over (customer, session, reply_to, content,
-// actionReceipt), keyed from a server-only secret. Readers trust a reply/receipt ONLY when the
+// actionReceipt), keyed from a dedicated server-only secret (CONVERSATION_SIGNING_SECRET). Readers trust a reply/receipt ONLY when the
 // signature verifies; anything else is treated as "not recorded". This holds even before the
 // least-privilege migration, and keeps holding after it (defence in depth).
 
 const SIG_CONTEXT = 'xspensesai/conversation-reply/v1';
 
 function serverReplyKey(): Buffer | null {
-  const secret = process.env.CONVERSATION_SIGNING_SECRET || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!secret) return null;
+  // Dedicated secret only (Tag HQ review): never reuse the database service-role key as an HMAC key.
+  // FAIL CLOSED: if it is missing (or too short), nothing is signed and nothing is trusted — replies
+  // are still saved, but no receipt can bind a confirmation and retries report "not recorded".
+  // CONVERSATION_SIGNING_SECRET is a release prerequisite (owner P-8 checklist).
+  const secret = process.env.CONVERSATION_SIGNING_SECRET;
+  if (!secret || secret.length < 32) return null;
   // Domain-separated derivation: the stored signature never reveals or reuses the raw secret.
   return createHmac('sha256', secret).update(SIG_CONTEXT).digest();
 }

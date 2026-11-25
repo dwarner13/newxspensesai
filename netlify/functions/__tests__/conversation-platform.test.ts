@@ -60,7 +60,7 @@ const sb: any = { from: (t: string) => builder(t) };
 
 // Server-only signing secret for employee replies (owner P-8); production derives it from the
 // service-role secret. Set here so signing is active in tests.
-process.env.CONVERSATION_SIGNING_SECRET = 'test-signing-secret-not-real';
+process.env.CONVERSATION_SIGNING_SECRET = 'test-signing-secret-not-real-0123456789abcdef';
 const ALICE = '11111111-1111-4111-8111-111111111111';
 const BOB = '22222222-2222-4222-8222-222222222222';
 beforeEach(() => { for (const k of Object.keys(db)) delete db[k]; hooks.beforeInsert = undefined; });
@@ -350,5 +350,20 @@ describe('owner P-8: replies and receipts are server-authoritative (signed)', ()
     const copy = { ...db.chat_messages.find(m => m.role === 'assistant')!, id: 'copy', session_id: other.sessionId };
     db.chat_messages.push(copy);
     expect(await findLatestActionReceipt(sb, { sessionId: other.sessionId, userId: ALICE })).toBeNull();
+  });
+});
+
+describe('P-8: dedicated signing secret, fail closed', () => {
+  it('without CONVERSATION_SIGNING_SECRET nothing is signed or trusted (no service-role fallback)', () => {
+    const saved = process.env.CONVERSATION_SIGNING_SECRET;
+    try {
+      delete process.env.CONVERSATION_SIGNING_SECRET;
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key-must-not-be-used-as-hmac-key';
+      expect(signServerReply({ userId: ALICE, sessionId: 's', replyTo: null, content: 'x', actionReceipt: null })).toBeNull();
+      process.env.CONVERSATION_SIGNING_SECRET = 'too-short';
+      expect(signServerReply({ userId: ALICE, sessionId: 's', replyTo: null, content: 'x', actionReceipt: null })).toBeNull();
+    } finally {
+      process.env.CONVERSATION_SIGNING_SECRET = saved;
+    }
   });
 });

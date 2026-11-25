@@ -113,6 +113,7 @@ vi.mock('../_shared/txSearchCore.js', () => ({ searchTransactions: async () => (
 process.env.ANTHROPIC_API_KEY = 'test-key';
 process.env.SUPABASE_URL = 'http://localhost';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service';
+process.env.CONVERSATION_SIGNING_SECRET = 'test-signing-secret-not-real-0123456789abcdef'; // P-8: dedicated reply-signing key
 
 type Res = { statusCode: number; body: string };
 async function callTag(body: Record<string, unknown>) {
