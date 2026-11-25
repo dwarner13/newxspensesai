@@ -123,7 +123,7 @@ import {
 } from './_shared/primePolicy.js';
 import { buildPrimePersonalityMessage } from './_shared/primePersonality.js';
 import { resolvePreferredName } from '../../src/shared/preferred-name';
-import { canonicalEmployeeSlug } from '../../src/shared/conversation-identity';
+import { canonicalEmployeeSlug, isPrimeConversationSlug } from '../../src/shared/conversation-identity';
 import { pagedSelectAll } from '../../src/shared/paged-select';
 import { classifyCashFlow, amountToCents } from '../../src/shared/financial-taxonomy';
 import { buildCategoryBreakdownVisual, type FinancialVisual } from '../../src/shared/prime-financial-visual';
@@ -236,6 +236,8 @@ import {
 // P3.1A.1: Canonical temporal scope (observational only — does not change runtime behavior)
 import { buildTemporalScope, buildTemporalScopeTelemetry, inheritedTemporalScope } from '../../src/shared/prime-temporal-scope';
 import { applyCustomerScope, negatedPeriodNote, ALL_HISTORY_SCOPE_NOTE, type TemporalScopeLike } from '../../src/shared/prime-request-scope';
+import { runStatementReview } from './_shared/statementReview';
+import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
 // P3.1C: Controlled read-only evidence execution
 import {
@@ -6347,6 +6349,37 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
+    // ── A8 (owner 2026-11-25): Custodian statement review — server-verified, not persisted ──
+    // Contract: A8_STATEMENT_REVIEW_CONTRACT.md. Handled here, BEFORE any session/thread/history
+    // work, so a review never creates a conversation turn. Only Custodian may receive it.
+    if ((pageContextRaw as { kind?: unknown } | null)?.kind === 'statement_review') {
+      const jsonHeaders = { ...baseHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+      if (canonicalEmployeeSlug(employeeSlug) !== 'custodian' && !String(employeeSlug || '').toLowerCase().startsWith('custodian')) {
+        return { statusCode: 403, headers: jsonHeaders, body: JSON.stringify({ ok: false, error: 'not_allowed_for_employee' }) };
+      }
+      const reviewSb = admin();
+      const result = await runStatementReview({
+        sb: reviewSb,
+        userId,
+        pageContext: pageContextRaw,
+        currency: await loadProfileCurrency(reviewSb, userId),
+        rateLimit: async (uid) => {
+          const rl = await import('./_shared/rate-limit.js');
+          if (rl.assertWithinRateLimit) await rl.assertWithinRateLimit(uid, 20);
+        },
+        callModel: async (system, user) => {
+          if (!openai) throw new Error('model_unavailable');
+          const r = await openai.chat.completions.create({
+            model: process.env.CUSTODIAN_REVIEW_MODEL || 'gpt-4o-mini',
+            temperature: 0.2,
+            messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          });
+          return r.choices?.[0]?.message?.content?.trim() || '';
+        },
+      });
+      return { statusCode: result.statusCode, headers: jsonHeaders, body: JSON.stringify(result.body) };
+    }
+
     const messageTrimmed = message.trim();
     const primeIntent = detectPrimeIntent(messageTrimmed);
     const statusPrefixes = [
@@ -7418,7 +7451,10 @@ export const handler: Handler = async (event, context) => {
     // were hijacking Prime's messages and preventing brain/tool use. Now all Prime messages
     // flow through to the LLM with full brain + prompt + tools. Small-talk fast-lane is the
     // only exception - legitimately cheap, handles "hi/hello/thanks" without cost.
-    const isPrimeBossRequest = (employeeSlug === 'prime-boss' || employeeSlug === 'prime');
+    // A7 (owner 2026-11-25): decide on the RESOLVED employee identity (alias-aware), not only the raw
+    // request slug. Slug-less or alias-cased requests routed to Prime previously still ran the
+    // retired Prime shortcut lanes. Non-Prime employees are unchanged (O-7).
+    const isPrimeBossRequest = isPrimeConversationSlug(finalEmployeeSlug) || isPrimeConversationSlug(employeeSlug);
     const skipPrimeFastLanes = isPrimeBossRequest; // all Prime messages bypass deterministic routing
 
     const pipelineReuseIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? null : detectPipelineReuseIntent(masked);
@@ -11406,7 +11442,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
 
 ESCALATION: If the user asks about financial strategy, tax advice, deduction optimization, budgeting goals, or anything beyond categorization - do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my categorization expertise - let me bring in Prime for that."
 
-RULE-SETTING: You can set categorization rules. When a user says "mark X as business" or "X should be categorized as Y", insert into category_rules table: { user_id, merchant_pattern (the match_value), category, is_business, match_type: "contains", is_active: true }. Then confirm: "Rule saved - all future X transactions will be categorized as Y." Use the tag-learn function or direct Supabase insert via tag_upsert_rule if available.`,
+RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categorization rules from this chat, and no rule tool exists here. When the user wants a rule ("mark X as business", "X should always be Y"), tell them Tag will prepare it as a proposal in the Tag panel for them to confirm; Tag saves it only after their explicit confirmation. Never say a rule was saved, applied or learned unless a server receipt in this conversation confirms it.`,
           }
         : null;
 
@@ -12560,7 +12596,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
 
 ESCALATION: If the user asks about financial strategy, tax advice, deduction optimization, budgeting goals, or anything beyond categorization - do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my categorization expertise - let me bring in Prime for that."
 
-RULE-SETTING: You can set categorization rules. When a user says "mark X as business" or "X should be categorized as Y", insert into category_rules table: { user_id, merchant_pattern (the match_value), category, is_business, match_type: "contains", is_active: true }. Then confirm: "Rule saved - all future X transactions will be categorized as Y." Use the tag-learn function or direct Supabase insert via tag_upsert_rule if available.`,
+RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categorization rules from this chat, and no rule tool exists here. When the user wants a rule ("mark X as business", "X should always be Y"), tell them Tag will prepare it as a proposal in the Tag panel for them to confirm; Tag saves it only after their explicit confirmation. Never say a rule was saved, applied or learned unless a server receipt in this conversation confirms it.`,
             });
           }
           // Inject Byte context if handing to Byte
@@ -14250,7 +14286,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
 ESCALATION: If the user asks about financial strategy, tax advice, deduction optimization, budgeting goals, or anything beyond categorization - do NOT guess. Use request_employee_handoff to escalate to prime-boss with context. Say: "That's outside my categorization expertise - let me bring in Prime for that."
 
-RULE-SETTING: You can set categorization rules. When a user says "mark X as business" or "X should be categorized as Y", insert into category_rules table: { user_id, merchant_pattern (the match_value), category, is_business, match_type: "contains", is_active: true }. Then confirm: "Rule saved - all future X transactions will be categorized as Y." Use the tag-learn function or direct Supabase insert via tag_upsert_rule if available.`,
+RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categorization rules from this chat, and no rule tool exists here. When the user wants a rule ("mark X as business", "X should always be Y"), tell them Tag will prepare it as a proposal in the Tag panel for them to confirm; Tag saves it only after their explicit confirmation. Never say a rule was saved, applied or learned unless a server receipt in this conversation confirms it.`,
                 });
               }
               if ((finalEmployeeSlug === 'byte-docs' || finalEmployeeSlug === 'byte') && byteContextHint) {
