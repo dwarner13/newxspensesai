@@ -160,6 +160,91 @@ export async function findRecordedTurn(
   return { found: true, reply, actionOutcome: receipt };
 }
 
+// ─── Shared action-receipt contract (T-H1b, Tag HQ; reusable by every employee) ───────────────
+// Receipts are written ONLY by the server from the verified outcome of an action; browser text is
+// never stored as an employee reply or receipt. Shared history never grants another employee's
+// permissions: each employee still authorises and executes its own actions.
+// Lifecycle: proposed (server-verified matches, awaiting confirmation) → the customer's confirming
+// message carries metadata.actionIntent.state = 'confirmed' → completed | failed; or cancelled.
+
+export const ACTION_STATES = ['proposed', 'confirmed', 'completed', 'failed', 'cancelled'] as const;
+export type ActionState = typeof ACTION_STATES[number];
+
+export interface ActionReceipt {
+  v: 1;
+  /** Canonical slug of the employee that owns the action. */
+  employee: ConversationEmployeeSlug;
+  /** Employee-specific action name, e.g. 'recategorize_by_merchant'. */
+  action: string;
+  state: ActionState;
+  /** Non-secret parameters the action is about, e.g. { matchValue, targetCategory }. */
+  subject?: Record<string, string | number | null>;
+  /** Server-verified counts. */
+  result?: { affectedCount?: number; matchCount?: number };
+  /** Machine reason for failed / cancelled states, e.g. 'no_matches'. */
+  reason?: string;
+  /** Client message id of the turn whose reply carried the proposal this receipt resolves. */
+  proposalRef?: string | null;
+  /** Prime HQ's outcome fields (tool, success, count), mirrored for every employee. */
+  tool?: string;
+  success?: boolean;
+  count?: number;
+}
+
+/** Validate a stored receipt (metadata comes from the database). Null when malformed. */
+export function parseActionReceipt(raw: unknown): ActionReceipt | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (r.v !== 1 || typeof r.action !== 'string' || !ACTION_STATES.includes(r.state as ActionState)) return null;
+  const employee = canonicalEmployeeSlug(r.employee);
+  if (!employee) return null;
+  return { ...(r as unknown as ActionReceipt), employee };
+}
+
+/**
+ * The newest action receipt among the last `lookback` employee replies in a conversation, with the
+ * client message id of the turn it answered. Used to bind a confirmation to the proposal the SERVER
+ * recorded (never to a proposal the browser claims was made).
+ */
+export async function findLatestActionReceipt(
+  sb: SupabaseClient,
+  params: { sessionId: string; userId: string; lookback?: number },
+): Promise<{ receipt: ActionReceipt; replyTo: string | null } | null> {
+  const { data, error } = await sb
+    .from('chat_messages')
+    .select('metadata, created_at')
+    .eq('session_id', params.sessionId)
+    .eq('user_id', params.userId)
+    .eq('role', 'assistant')
+    .order('created_at', { ascending: false })
+    .limit(params.lookback ?? 5);
+  if (error || !Array.isArray(data)) return null;
+  for (const row of data as Array<{ metadata?: Record<string, unknown> | null }>) {
+    const receipt = parseActionReceipt(row?.metadata?.actionReceipt);
+    if (receipt) {
+      const replyTo = typeof row.metadata?.reply_to === 'string' ? (row.metadata.reply_to as string) : null;
+      return { receipt, replyTo };
+    }
+  }
+  return null;
+}
+
+/**
+ * The conversation an employee endpoint should use: the requested one (when owned and this
+ * employee's); otherwise — unless the customer asked for a new conversation — their recent one
+ * (temporary compatibility, see findRecentEmployeeConversation); otherwise a new one.
+ */
+export async function resolveEmployeeConversation(
+  sb: SupabaseClient,
+  params: { userId: string; employeeSlug: string; requestedSessionId?: string | null; newConversation?: boolean },
+): Promise<OpenedConversation> {
+  let requested = params.requestedSessionId || null;
+  if (!requested && params.newConversation !== true) {
+    requested = await findRecentEmployeeConversation(sb, { userId: params.userId, employeeSlug: params.employeeSlug });
+  }
+  return openEmployeeConversation(sb, { userId: params.userId, employeeSlug: params.employeeSlug, requestedSessionId: requested });
+}
+
 export interface RecordedTurn {
   duplicate: boolean;
   maskedUserText: string;
@@ -247,7 +332,11 @@ export type TurnClaim =
  */
 export async function claimConversationTurn(
   sb: SupabaseClient,
-  params: { sessionId: string; userId: string; employeeSlug: ConversationEmployeeSlug; userText: string; clientMessageId?: string | null },
+  params: {
+    sessionId: string; userId: string; employeeSlug: ConversationEmployeeSlug; userText: string; clientMessageId?: string | null;
+    /** Extra metadata for the customer row, e.g. { actionIntent: { state: 'confirmed', ... } } (T-H1b). */
+    metadata?: Record<string, unknown>;
+  },
 ): Promise<TurnClaim> {
   const maskedUserText = maskCustomerTextForModel(params.userText);
   const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
@@ -271,7 +360,7 @@ export async function claimConversationTurn(
     content: maskedUserText,
     tokens: Math.ceil(maskedUserText.length / 4),
     ...(clientMessageId ? { client_message_id: clientMessageId } : {}),
-    metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { client_message_id: clientMessageId } : {}) },
+    metadata: { ...(params.metadata ?? {}), employee_slug: params.employeeSlug, ...(clientMessageId ? { client_message_id: clientMessageId } : {}) },
   }).select('id, created_at').single();
 
   if (res.error) {
