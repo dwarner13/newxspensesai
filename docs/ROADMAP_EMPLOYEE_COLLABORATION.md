@@ -5,6 +5,24 @@ candidate (9275ddb, b706405). Current security work and staging acceptance come 
 Server architecture: Prime HQ. Customer-facing experience: UI/UX Studio. Each employee's
 capability: the owning HQ.
 
+## Status: design direction APPROVED (Development HQ, 2026-11-25)
+Accepted as the product design direction (commit 1d6c92e). Implementation and
+subscription-plan allocation are **not** authorized yet. Prime HQ reviews the server
+architecture after staging acceptance. Launch target: **February 2027** (Canadian tax
+season). Before advanced employee capabilities, prioritize the core Byte, Tag,
+Transactions and Prime experience.
+
+Additional accepted requirements:
+- The **original employee stays responsible** for the customer experience; the specialist works behind it.
+- Consultations feel **fast and seamless** (time budgets; no blocking spinners).
+- "Dive deeper" buttons **never interrupt** the current conversation: optional and inline, they never move focus or auto-open.
+- Specialists recall completed consultations **even if the button was never clicked**.
+- **Conversational memory and verified completed work are distinct.** A consultation record (inputs, assumptions, sources, result, timestamp, status) is not chat memory and is shown as completed work.
+- The **original calculation, assumptions and source information are preserved** unchanged; a recalculation is a new record, never an edit.
+- **Stale calculations are never presented as current.** Reuse only when the data fingerprint matches; otherwise label as earlier ("from Nov 25, your data has changed since") or recalculate.
+- Customer isolation, memory controls and subscription entitlements are enforced (server-side).
+- **Successful, incomplete and failed** consultations are clearly distinguished in the UI (status on every consultation card).
+
 ## Requirements (as given)
 1. Internal specialist consultation is the default; the customer stays in the current conversation.
 2. An optional "Dive deeper with [employee]" button.
