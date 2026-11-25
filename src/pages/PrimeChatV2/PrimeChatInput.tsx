@@ -100,10 +100,11 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", user
         </div>
       )}
       <div
+        className="chat-composer"
         style={{
           display: "flex",
           alignItems: "flex-end",
-          gap: 6,
+          gap: 4,
           background: THEME.surface,
           borderRadius: 18,
           border: `1px solid ${THEME.borderLight}`,
@@ -153,6 +154,7 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", user
           onKeyDown={handleKey}
           placeholder="Ask Prime anything..."
           aria-label="Message Prime"
+          data-composer=""
           style={{
             flex: 1,
             minWidth: 0,
@@ -164,7 +166,8 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", user
             // 16px+ on mobile prevents iOS focus zoom; 17px desktop per the visual standard.
             fontSize: Math.max(PANEL.inputFontSize, chatTextSize(isMobile)),
             lineHeight: 1.5,
-            padding: "10px 4px 10px 8px",
+            // CHAT-POLISH: text sits clear of the frame and the attach button.
+            padding: "11px 10px 11px 10px",
             maxHeight: COMPOSER_MAX_HEIGHT_PX,
             overflowY: "hidden",
             fontFamily: "inherit",

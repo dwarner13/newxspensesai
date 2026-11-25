@@ -1882,10 +1882,11 @@ export function TagCopilotPanel({
             background: T.surface,
             borderRadius: 14,
             border: `1px solid ${T.borderHi}`,
-            padding: "8px 8px 8px 16px",
+            padding: "8px 8px 8px 14px",
             boxShadow: "0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03)",
-          }}>
+          }} className="chat-composer">
             <textarea
+              data-composer=""
               ref={composerRef}
               className="tag-input"
               rows={1}
@@ -1910,7 +1911,7 @@ export function TagCopilotPanel({
                 // Anything below 16px triggers the zoom-to-input behavior that breaks layout.
                 fontSize: isMobile ? 16 : 15,
                 // Vertical padding centres a single line against the 38px Send button.
-                padding: "7px 8px 7px 0",
+                padding: "7px 8px 7px 4px",
                 fontFamily: "inherit", resize: "none", lineHeight: 1.55,
                 maxHeight: COMPOSER_MAX_HEIGHT_PX,
                 overflowY: "hidden",

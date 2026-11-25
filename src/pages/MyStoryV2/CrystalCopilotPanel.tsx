@@ -110,8 +110,8 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
         </div>
 
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${T.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: "4px 6px 4px 16px" }}>
-            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Crystal about trends..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: PANEL.inputFontSize, padding: "10px 0", fontFamily: "inherit" }} />
+          <div className="chat-composer" style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: "4px 6px 4px 14px" }}>
+            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Crystal about trends..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: PANEL.inputFontSize, padding: "10px 4px", fontFamily: "inherit" }} data-composer="" />
             <button onClick={() => { if (input.trim()) { sendMessage(input.trim()); setInput(""); } }} style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${PURPLE}, #7c3aed)`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="#0b1220" /></svg>
             </button>
