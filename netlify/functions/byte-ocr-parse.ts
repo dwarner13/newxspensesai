@@ -6,6 +6,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
+import { localDebugEnabled } from './_shared/isDev.js';
 import { admin } from './_shared/supabase.js';
 import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 import OpenAI from 'openai';
@@ -66,8 +67,8 @@ export const handler: Handler = async (event, context) => {
       filename
     } = body;
     const includeCleanedTextDebug =
-      process.env.NODE_ENV !== 'production' &&
-      (process.env.OCR_DEBUG_INCLUDE_CLEANED_TEXT === '1' || body?.debugIncludeCleanedText === true);
+      // Security hardening: local `netlify dev` + explicit env flag only; never a request field.
+      localDebugEnabled('OCR_DEBUG_INCLUDE_CLEANED_TEXT');
 
     let ocrTextToParse: string | null = null;
     const effectiveUserId = verifiedUserId;

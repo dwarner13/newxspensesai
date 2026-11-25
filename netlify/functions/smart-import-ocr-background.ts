@@ -9,6 +9,7 @@
  */
 
 import { Handler } from '@netlify/functions';
+import { localDebugEnabled } from './_shared/isDev.js';
 import { createHash } from 'crypto';
 import { admin, markDocStatus } from './_shared/upload.js';
 import { authorizeJobRequest, claimedUserIdMatches, type OwnershipClient } from './_shared/internalJobAuth.js';
@@ -2196,8 +2197,8 @@ export const handler: Handler = async (event, context) => {
     const traceIdHeader = event.headers['x-trace-id'] || event.headers['X-Trace-Id'];
     const traceId = body.traceId || traceIdHeader || 'no-trace';
     const includeCleanedTextDebug =
-      process.env.NODE_ENV !== 'production' &&
-      (process.env.OCR_DEBUG_INCLUDE_CLEANED_TEXT === '1' || body?.debugIncludeCleanedText === true);
+      // Security hardening: local `netlify dev` + explicit env flag only; never a request field.
+      localDebugEnabled('OCR_DEBUG_INCLUDE_CLEANED_TEXT');
     // P0-C1b: internal-only. Requires an ocr.run job token issued by smart-import-finalize or
     // prime-router after verifying the user's JWT and document ownership. Identity, document and
     // retry permission come ONLY from the token (re-checked against the database here); body

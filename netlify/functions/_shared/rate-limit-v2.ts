@@ -27,6 +27,7 @@
  */
 
 import { safeLog } from "./guardrail-log";
+import { isLocalDev } from './isDev.js';
 
 // ============================================================================
 // TYPES
@@ -226,7 +227,7 @@ async function checkTokenBucketDb(
       const message = err?.message ?? '';
       // Part C: Silence optional dev features when tables/columns are missing
       if (
-        process.env.NODE_ENV !== 'production' &&
+        isLocalDev() &&
         (message.includes('does not exist') || 
          message.includes('schema cache') ||
          message.includes('column') ||
@@ -243,7 +244,7 @@ async function checkTokenBucketDb(
       const message = error?.message ?? '';
       // Part C: Silence optional dev features when tables/columns are missing
       if (
-        process.env.NODE_ENV !== 'production' &&
+        isLocalDev() &&
         (message.includes('does not exist') || 
          message.includes('schema cache') ||
          message.includes('column') ||
@@ -383,6 +384,15 @@ export function withRateLimit(
         if (dbResult) {
           [isAllowed, retryAfter] = dbResult;
           source = "db";
+        } else if (!isLocalDev()) {
+          // Security hardening: a hosted endpoint that requires the shared DB limiter must not
+          // proceed when that limiter is unavailable (fail closed).
+          safeLog("error", "rate_limit_db_unavailable_denied", { endpoint: key });
+          return {
+            statusCode: 503,
+            headers: { "Content-Type": "application/json", "Retry-After": "30" },
+            body: JSON.stringify({ ok: false, error: "Service temporarily unavailable" }),
+          };
         } else {
           // Fall back to memory cache
           const [allowed, retry, state] = checkTokenBucket(
