@@ -6,6 +6,14 @@ import { logAiActivity } from './_shared/logAiActivity.js';
 import { TAG_CATEGORIES } from './_shared/tagCategories.js';
 import { searchTransactions } from './_shared/txSearchCore.js';
 import { resolveFocusedTransaction } from './_shared/tagFocusedTransaction.js';
+import {
+  openEmployeeConversation,
+  loadConversationHistory,
+  recordConversationTurn,
+  findRecordedTurn,
+  findRecentEmployeeConversation,
+  maskCustomerTextForModel,
+} from './_shared/conversation-platform.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -368,7 +376,11 @@ export const handler: Handler = async (event) => {
   // nobody to rate-limit.
 
   const body = JSON.parse(event.body || '{}');
-  const { message, history = [], importId, focusedTransaction } = body;
+  // T-H1: conversation history comes ONLY from the server (shared conversation platform).
+  // A browser-supplied `history` array is ignored: it could contain fabricated Tag turns.
+  const { message, importId, focusedTransaction } = body;
+  const requestedSessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
+  const clientMessageId = typeof body.clientMessageId === 'string' ? body.clientMessageId : null;
   // C2-G2: Tag's instructions are server-owned. A browser-supplied systemPromptOverride is
   // ignored (it used to REPLACE the server prompt, bypassing the two-step confirmation and
   // tool rules). Structural log only — never the override's content.
@@ -378,6 +390,7 @@ export const handler: Handler = async (event) => {
 
   if (!message) return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
 
+  let conversationId: string | null = null;
   try {
     const supabase = createClient(
       process.env.SUPABASE_URL!,
@@ -387,6 +400,60 @@ export const handler: Handler = async (event) => {
         global: { headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}` } },
       }
     );
+
+    // T-H1: open (or resume) this customer's own Tag conversation. Ownership and employee identity
+    // are enforced by the platform; a foreign or non-Tag session id yields a fresh Tag session.
+    // With no session id (older cached clients) resume the customer's recent Tag conversation, unless
+    // the customer explicitly started a new one (`newConversation: true`).
+    try {
+      let sessionToUse = requestedSessionId;
+      if (!sessionToUse && body.newConversation !== true) {
+        sessionToUse = await findRecentEmployeeConversation(supabase, { userId: auth.userId, employeeSlug: 'tag-ai' });
+      }
+      const opened = await openEmployeeConversation(supabase, {
+        userId: auth.userId, employeeSlug: 'tag-ai', requestedSessionId: sessionToUse,
+      });
+      conversationId = opened.sessionId;
+    } catch {
+      conversationId = null;
+      console.warn('[tag-copilot] conversation could not be opened; this turn will not be saved');
+    }
+
+    // Retry of an already-stored message: return the stored reply. Never re-run the model or tools.
+    if (conversationId && clientMessageId) {
+      try {
+        const prior = await findRecordedTurn(supabase, { sessionId: conversationId, userId: auth.userId, clientMessageId });
+        if (prior.found) {
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              reply: prior.reply ?? "I already received that message, but my reply to it wasn't saved. If you still need it, please send it again as a new message.",
+              action: null,
+              sessionId: conversationId,
+              persisted: prior.reply !== null,
+              duplicate: true,
+            }),
+          };
+        }
+      } catch {
+        console.warn('[tag-copilot] retry check failed; continuing');
+      }
+    }
+
+    // Customer text sent to the model is PII-masked (the same critical detectors chat.ts uses).
+    const modelMessage = maskCustomerTextForModel(message);
+
+    // Stored conversation history is the model context (AI context limit applied by the platform).
+    let storedHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+    if (conversationId) {
+      try {
+        storedHistory = await loadConversationHistory(supabase, { sessionId: conversationId, userId: auth.userId });
+      } catch {
+        storedHistory = [];
+        console.warn('[tag-copilot] stored history could not be loaded');
+      }
+    }
 
     // 1. Load learned rules
     const { data: rulesData } = await supabase
@@ -575,11 +642,8 @@ If there are zero other matching transactions (other count = 0), the server will
       system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }) + merchantDataBlock + focusedTransactionBlock,
       tools: TAG_TOOLS,
       messages: [
-        ...history.map((m: { role: string; content: string }) => ({
-          role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-          content: m.content,
-        })),
-        { role: 'user', content: message },
+        ...storedHistory,
+        { role: 'user', content: modelMessage },
       ],
     });
 
@@ -1019,11 +1083,8 @@ REQUIREMENTS:
               max_tokens: 600,
               system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }) + merchantDataBlock + focusedTransactionBlock,
               messages: [
-                ...history.map((m: { role: string; content: string }) => ({
-                  role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-                  content: m.content,
-                })),
-                { role: 'user', content: message },
+                ...storedHistory,
+                { role: 'user', content: modelMessage },
                 {
                   role: 'assistant',
                   content: [
@@ -1121,17 +1182,43 @@ REQUIREMENTS:
     const finalReply = (replyText + confirmationLine).trim()
       || (toolUseBlock ? confirmationLine.trim() : "Sorry, I couldn't process that.");
 
+    // T-H1: save the customer's (masked) message and Tag's reply. `persisted` is true ONLY when
+    // the save succeeded; a failed save still returns the reply and the client shows "not saved".
+    let persisted = false;
+    if (conversationId) {
+      try {
+        await recordConversationTurn(supabase, {
+          sessionId: conversationId,
+          userId: auth.userId,
+          employeeSlug: 'tag-ai',
+          userText: modelMessage,
+          assistantText: finalReply,
+          clientMessageId,
+          assistantMetadata: action
+            ? { actionReceipt: { tool: String(action.tool || 'unknown'), success: Boolean(action.applied) } }
+            : undefined,
+        });
+        persisted = true;
+      } catch {
+        console.warn('[tag-copilot] conversation turn was not saved');
+      }
+    }
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ reply: finalReply, action }),
+      body: JSON.stringify({ reply: finalReply, action, sessionId: conversationId, persisted }),
     };
   } catch (err) {
     console.error('[tag-copilot] handler error:', err);
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ reply: "I ran into a brief issue loading your data. Try again in a moment." }),
+      body: JSON.stringify({
+        reply: "I ran into a brief issue loading your data. Try again in a moment.",
+        sessionId: conversationId,
+        persisted: false,
+      }),
     };
   }
 };

@@ -20,7 +20,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ensureSession, getRecentMessages } from './session.js';
-import { maskPII } from './pii.js';
+import { maskPII, maskSpecificPII, getCriticalDetectors } from './pii.js';
 import {
   canonicalEmployeeSlug,
   deriveConversationTitle,
@@ -61,6 +61,92 @@ export async function loadConversationHistory(
 ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
   const rows = await getRecentMessages(sb, params.sessionId, params.userId, params.maxTokens ?? 4000, params.maxMessages ?? 50);
   return toModelHistory(rows);
+}
+
+/**
+ * Customer text as it may be sent to an employee's model: the CRITICAL PII detectors only (card
+ * numbers, SSN/SIN, bank accounts, email, phone). This is the same default set chat.ts applies
+ * through guardrails (getCriticalDetectors), without that module's network client or event writes.
+ * Merchant names, store numbers, dates and amounts are kept so categorization still works.
+ * (Added by Tag HQ for T-H1; Prime HQ owns this file and reviews it.)
+ */
+export function maskCustomerTextForModel(text: unknown): string {
+  return maskSpecificPII(String(text ?? ''), getCriticalDetectors().map(d => d.name)).masked;
+}
+
+/** A conversation idle longer than this is not resumed implicitly (it is kept, never deleted). */
+export const IMPLICIT_RESUME_IDLE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * The customer's most recent conversation with this employee that was active within the idle
+ * window, or null. Used when a client sends no session id (older cached app versions), so turns
+ * keep their context instead of each opening a new conversation. Ownership: user_id filter on the
+ * verified user; employee identity: alias-aware slug match. Never deletes or modifies anything.
+ * (Added by Tag HQ for T-H1; Prime HQ owns this file and reviews it.)
+ */
+export async function findRecentEmployeeConversation(
+  sb: SupabaseClient,
+  params: { userId: string; employeeSlug: string; now?: number; maxIdleMs?: number },
+): Promise<string | null> {
+  const employee = canonicalEmployeeSlug(params.employeeSlug);
+  if (!employee) return null;
+  const { data, error } = await sb
+    .from('chat_sessions')
+    .select('id, employee_slug, created_at, last_message_at')
+    .eq('user_id', params.userId)
+    .order('created_at', { ascending: false })
+    .limit(25);
+  if (error || !Array.isArray(data)) return null;
+  const now = params.now ?? Date.now();
+  const maxIdle = params.maxIdleMs ?? IMPLICIT_RESUME_IDLE_MS;
+  let best: { id: string; at: number } | null = null;
+  for (const s of data as Array<{ id?: unknown; employee_slug?: unknown; created_at?: unknown; last_message_at?: unknown }>) {
+    if (typeof s.id !== 'string' || canonicalEmployeeSlug(s.employee_slug) !== employee) continue;
+    const at = Math.max(Date.parse(String(s.last_message_at ?? '')) || 0, Date.parse(String(s.created_at ?? '')) || 0);
+    if (!at || now - at > maxIdle) continue;
+    if (!best || at > best.at) best = { id: s.id, at };
+  }
+  return best?.id ?? null;
+}
+
+export interface PriorTurn {
+  /** A customer message with this client message id is already stored in this session. */
+  found: boolean;
+  /** The stored employee reply to it, or null if the reply was not saved. */
+  reply: string | null;
+}
+
+/**
+ * Retry check BEFORE an employee runs its model or tools: if this client message id was already
+ * stored, return the stored reply so a retry never re-executes actions or double-charges usage.
+ * (Added by Tag HQ for T-H1; Prime HQ owns this file and reviews it.)
+ */
+export async function findRecordedTurn(
+  sb: SupabaseClient,
+  params: { sessionId: string; userId: string; clientMessageId?: string | null },
+): Promise<PriorTurn> {
+  if (!isValidClientMessageId(params.clientMessageId)) return { found: false, reply: null };
+  const id = params.clientMessageId;
+  const { data: userRows, error: userErr } = await sb
+    .from('chat_messages')
+    .select('id')
+    .eq('session_id', params.sessionId)
+    .eq('user_id', params.userId)
+    .eq('role', 'user')
+    .eq('metadata->>client_message_id', id)
+    .limit(1);
+  if (userErr) throw new Error('Failed to check for a previous message');
+  if (!Array.isArray(userRows) || userRows.length === 0) return { found: false, reply: null };
+  const { data: replyRows } = await sb
+    .from('chat_messages')
+    .select('content')
+    .eq('session_id', params.sessionId)
+    .eq('user_id', params.userId)
+    .eq('role', 'assistant')
+    .eq('metadata->>reply_to', id)
+    .limit(1);
+  const reply = Array.isArray(replyRows) && typeof replyRows[0]?.content === 'string' ? replyRows[0].content : null;
+  return { found: true, reply };
 }
 
 export interface RecordedTurn {
