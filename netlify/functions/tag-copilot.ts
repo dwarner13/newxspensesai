@@ -6,6 +6,7 @@ import { logAiActivity } from './_shared/logAiActivity.js';
 import { TAG_CATEGORIES } from './_shared/tagCategories.js';
 import { searchTransactions } from './_shared/txSearchCore.js';
 import { resolveFocusedTransaction } from './_shared/tagFocusedTransaction.js';
+import { buildSingleProposal, TAG_SINGLE_ACTION } from './_shared/tagSingleTransaction.js';
 import {
   loadTagSpendingSummary,
   loadCategorizationProgress,
@@ -48,7 +49,7 @@ const TAG_TOOLS = [
   {
     name: 'update_single_transaction',
     description:
-      "Change the category (and optionally subcategory) on ONE specific transaction. Use this when the user is focused on a particular transaction and wants to change just that one — not all transactions for the merchant, no rule for future imports. Always the FIRST step when a focused transaction is in context. After this fires, OFFER (don't auto-execute) to extend the change via set_category_rule. ALWAYS confirm with the user before calling.",
+      "PROPOSE changing the category (and optionally subcategory) of ONE specific transaction — the focused one. This does NOT change anything: the server shows the customer a proposal and changes the transaction only after the customer explicitly confirms it. Call it as soon as the customer asks to change the focused transaction (\"change this to …\", \"this should be …\"). Never say the change is done.",
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -273,27 +274,21 @@ SEARCH RESULTS DISPLAY RULES — CRITICAL:
     update_single_transaction if the user wants to change a category.
 
 ═══════════════════════════════════════════════════════════════════════
-TWO-STEP FLOW WHEN A FOCUSED TRANSACTION IS PRESENT
+FOCUSED TRANSACTION: ONE TRANSACTION, PROPOSED BY THE SERVER
 ═══════════════════════════════════════════════════════════════════════
 
 If the system prompt contains a FOCUSED TRANSACTION block, the user is looking
-at ONE specific transaction in the UI (drawer, detail view, etc). DEFAULT to
-changing only that one transaction first. Then ASK whether to extend.
+at ONE specific transaction in the UI (drawer, detail view, etc). "this",
+"it", "this one", "this expense", "this transaction" mean THAT transaction —
+never a merchant name, never a search term.
 
-Step 1 — Confirm change to THIS transaction only:
-  - Reply: "Got it — change this **<merchant>** on **<date>** to <category>/<subcategory>?"
-  - Wait for "yes" / "go ahead" / etc. DO NOT call any tool yet.
-
-Step 2 — On confirmation, call update_single_transaction with the focused
-  transaction's ID. The system writes a "✓ Updated this transaction" line.
-
-Step 3 — In your SAME reply (after the tool fires), ASK about extending:
-  - "Want me to update the other <N> <merchant> transactions and save a rule for future imports?"
-  - <N> is the count of OTHER matching transactions (excluding the one you just updated).
-  - If there are no other matching transactions, just say "No other <merchant> transactions to update — done."
-
-Step 4 — On second confirmation, call set_category_rule with applyToExisting=true.
-  This applies to all matching transactions including future imports.
+When the customer asks to change it ("change this to food and beverage",
+"this should be Groceries"), call update_single_transaction right away with the
+focused transaction's ID and the category they named. That tool only PROPOSES:
+the server writes the proposal ("Change this … to …? Say yes to confirm"), and
+the change happens only after the customer explicitly says yes. Never say it is
+done. Never extend it to other transactions or save a rule unless the customer
+separately asks for that.
 
 ═══════════════════════════════════════════════════════════════════════
 ONE-STEP FLOW WHEN NO FOCUSED TRANSACTION
@@ -310,8 +305,9 @@ Turn 2: User confirms → call set_category_rule.
 GENERAL RULES
 ═══════════════════════════════════════════════════════════════════════
 
-NEVER call a tool on the same turn the user makes the request. NEVER call a tool
-without explicit confirmation ("yes" / "go ahead" / "do it" / "confirm").
+Except update_single_transaction (which only proposes), NEVER call a tool on the
+same turn the user makes the request, and NEVER call one without explicit
+confirmation ("yes" / "go ahead" / "do it" / "confirm").
 
 If the user names a category not in the canonical list, ask them to pick one.
 Do not silently substitute.
@@ -619,13 +615,10 @@ FOCUSED TRANSACTION (the user is looking at this specific transaction)
   Current subcategory: ${ftSubcategory}
   Other transactions for this merchant: ${otherCount}
 
-When the user wants to change a category, FOLLOW THE TWO-STEP FLOW:
-  Step 1: confirm change to THIS transaction only ("change this MERCHANT on DATE to CAT/SUB?")
-  Step 2: on user "yes", call update_single_transaction with transaction_id="${ft.id}"
-  Step 3: SERVER appends a confirmation AND a follow-up question asking whether to extend to the other ${otherCount} ${ftMerchant} transactions. You do NOT write this follow-up yourself — emit ONLY the tool call (and optionally a brief acknowledgment text). The system appends the rest.
-  Step 4: on the next user "yes", call set_category_rule with vendor="${ftMerchant}" and the SAME category/subcategory you used in step 2. CRITICAL: do not drop subcategory between calls — re-pass the exact value.
-
-If there are zero other matching transactions (other count = 0), the server will say so — still don't write a follow-up yourself.`;
+When the customer asks to change THIS transaction ("this", "it", "this expense" …), call
+update_single_transaction with transaction_id="${ft.id}" and the category they named. It only proposes;
+the server asks the customer to confirm. Do not write your own confirmation or say it is done, and do
+not touch the other ${otherCount} ${ftMerchant} transactions unless the customer separately asks.`;
     }
 
     // 4. Call Claude with tools
@@ -668,134 +661,34 @@ If there are zero other matching transactions (other count = 0), the server will
       } catch { /* non-blocking */ }
     }
 
+    // T-LIVE-02: set when Tag proposed a single-transaction change (no write happened).
+    let singleProposalOutcome: Awaited<ReturnType<typeof buildSingleProposal>> | null = null;
+
     // 6. Execute the tool the model called.
     if (toolUseBlock) {
       action = { tool: toolUseBlock.name, ...toolUseBlock.input, applied: false };
 
       try {
         if (toolUseBlock.name === 'update_single_transaction') {
+          // T-LIVE-02: Tag's tool never writes. The server re-reads the transaction scoped to this user,
+          // resolves the category and records a signed 'proposed' receipt; the change happens only in
+          // tag-action commit_single after the customer's explicit "yes" binds to this proposal.
           const transactionId = String(toolUseBlock.input.transaction_id || '').trim();
-          const category = String(toolUseBlock.input.category || '');
-          const subcategory = toolUseBlock.input.subcategory
-            ? String(toolUseBlock.input.subcategory).trim()
-            : null;
-
-          if (!transactionId || !category) {
-            confirmationLine = `\n\n⚠ Could not update transaction — missing id or category.`;
+          const category = String(toolUseBlock.input.category || '').trim();
+          const subcategory = toolUseBlock.input.subcategory ? String(toolUseBlock.input.subcategory).trim() : '';
+          const outcome = await buildSingleProposal(
+            supabase as unknown as Parameters<typeof buildSingleProposal>[0], auth.userId, transactionId,
+            subcategory ? `${category} > ${subcategory}` : category,
+          );
+          singleProposalOutcome = outcome;
+          action = { tool: toolUseBlock.name, applied: false, proposalOnly: true };
+          if (outcome.state === 'proposed') {
+            action.proposal = { ...outcome.subject, action: TAG_SINGLE_ACTION };
           } else {
-            // Ownership-scoped update. .eq('user_id') is the access control —
-            // a malicious tool call with a foreign transaction_id will match
-            // zero rows because the user_id won't align.
-            const txUpdate: Record<string, unknown> = {
-              category,
-              category_source: 'tag_single',
-              updated_at: new Date().toISOString(),
-            };
-            if (subcategory) {
-              txUpdate.subcategory = subcategory;
-              txUpdate.subcategory_source = 'tag_single';
-            }
-            const { error: updErr, data: updRows } = await supabase
-              .from('transactions')
-              .update(txUpdate)
-              .eq('id', transactionId)
-              .eq('user_id', auth.userId)
-              .select('id, merchant_name, category, subcategory');
-
-            if (updErr) {
-              console.error('[tag-copilot] single-tx update failed', updErr.message);
-              confirmationLine = `\n\n⚠ Could not update transaction: ${updErr.message}`;
-            } else if (!updRows || updRows.length === 0) {
-              // Either the id doesn't exist or doesn't belong to this user.
-              confirmationLine = `\n\n⚠ Transaction not found or not accessible.`;
-            } else {
-              const row = updRows[0];
-              const catLabel = row.subcategory
-                ? `${row.category} / ${row.subcategory}`
-                : row.category;
-              action.applied = true;
-              action.affectedCount = 1;
-              action.verification = {
-                transactionId: row.id,
-                merchant: row.merchant_name,
-                category: row.category,
-                subcategory: row.subcategory ?? null,
-              };
-              confirmationLine = `\n\n✓ Updated this transaction: **${row.merchant_name}** → **${catLabel}**.`;
-
-              // ─── Follow-up question: extend to merchant + save rule? ──────
-              // Count other matching transactions for the merchant. If 0, no
-              // follow-up needed — say so and stop. If >0, ask the user.
-              //
-              // Strategy A (multi-turn): second API call lets the model write
-              // a natural follow-up in Tag's voice that includes the category
-              // and subcategory params explicitly. Embedding the params in
-              // the question text means they're in conversation history when
-              // the user says "yes" — the next turn's set_category_rule call
-              // sees them and carries them forward correctly.
-              //
-              // Strategy B (template): if A errors / times out / returns
-              // empty, fall back to a deterministic templated question that
-              // also explicitly contains the params. Either way, "yes" on
-              // the next turn fires set_category_rule with full context.
-              try {
-                const merchantName = row.merchant_name;
-                const { count: otherCount } = await supabase
-                  .from('transactions')
-                  .select('id', { count: 'exact', head: true })
-                  .eq('user_id', auth.userId)
-                  .ilike('merchant_name', `%${merchantName}%`)
-                  .neq('id', row.id);
-                const others = otherCount || 0;
-
-                if (others === 0) {
-                  confirmationLine += ` No other ${merchantName} transactions to update — done.`;
-                } else {
-                  // Build the templated fallback first (ground truth).
-                  const templateQuestion = `Want me to update the other **${others}** ${merchantName} transaction${others !== 1 ? 's' : ''} and save a rule for **${catLabel}**? Say yes to extend.`;
-
-                  // Try multi-turn (Strategy A) — wrap in 3s timeout.
-                  let naturalQuestion = '';
-                  try {
-                    const followupAbort = new AbortController();
-                    const followupTimer = setTimeout(() => followupAbort.abort(), 3000);
-                    const followup = await anthropic.messages.create({
-                      model: 'claude-haiku-4-5-20251001',
-                      max_tokens: 120,
-                      system: `You are Tag. You just updated ONE transaction (${merchantName}) to ${catLabel}. The user has ${others} other matching ${merchantName} transactions. Ask if they want to update those too and save a rule.
-
-REQUIREMENTS:
-- ONE sentence, casual.
-- MUST mention the count: ${others}.
-- MUST mention the merchant: ${merchantName}.
-- MUST mention the category and subcategory exactly: ${catLabel}.
-- End with a yes-prompt.
-- No greetings, no preamble. Just the question.`,
-                      messages: [{ role: 'user', content: 'Write the follow-up question.' }],
-                    }, { signal: followupAbort.signal as any });
-                    clearTimeout(followupTimer);
-                    const block = followup.content.find((b: any) => b.type === 'text') as { text: string } | undefined;
-                    const text = (block?.text || '').trim();
-                    // Sanity-check the model's answer contains the critical
-                    // params. If it dropped the count or category, fall back.
-                    if (text
-                        && text.includes(String(others))
-                        && text.toLowerCase().includes(merchantName.toLowerCase().slice(0, 8))
-                        && (text.includes(category) || text.toLowerCase().includes(category.toLowerCase()))) {
-                      naturalQuestion = text;
-                    }
-                  } catch (followupErr: any) {
-                    console.error('[tag-copilot] followup multi-turn failed:', followupErr?.message);
-                  }
-
-                  confirmationLine += `\n\n${naturalQuestion || templateQuestion}`;
-                }
-              } catch (countErr: any) {
-                console.error('[tag-copilot] follow-up count failed:', countErr?.message);
-                // Don't block the success message on this — just skip the follow-up.
-              }
-            }
+            action.error = outcome.reason;
           }
+          // Tag's words for this turn are the server's proposal (the model's own text could claim "done").
+          confirmationLine = outcome.reply;
         } else if (toolUseBlock.name === 'set_category_rule') {
           const vendor = String(toolUseBlock.input.vendor || '').trim();
           const category = String(toolUseBlock.input.category || '');
@@ -1215,8 +1108,10 @@ REQUIREMENTS:
       }).catch(() => { /* fire and forget */ });
     }
 
-    const finalReply = (replyText + confirmationLine).trim()
-      || (toolUseBlock ? confirmationLine.trim() : "Sorry, I couldn't process that.");
+    const finalReply = singleProposalOutcome
+      ? singleProposalOutcome.reply
+      : ((replyText + confirmationLine).trim()
+        || (toolUseBlock ? confirmationLine.trim() : "Sorry, I couldn't process that."));
 
     // T-H1: save Tag's reply to the claimed turn. `persisted` is true ONLY when both the claim and
     // the reply were saved; a failed save still returns the reply and the client shows "not saved".
@@ -1230,7 +1125,15 @@ REQUIREMENTS:
           assistantText: finalReply,
           clientMessageId,
           // Server-verified outcome of a tool Tag executed (shared v1 action receipt).
-          assistantMetadata: action
+          assistantMetadata: singleProposalOutcome
+            // T-LIVE-02: the signed proposal tag-action commit_single binds to (no tool/success/count:
+            // nothing was executed).
+            ? {
+              actionReceipt: singleProposalOutcome.state === 'proposed'
+                ? { v: 1, employee: 'tag-ai', action: TAG_SINGLE_ACTION, state: 'proposed', subject: singleProposalOutcome.subject, result: { matchCount: 1 } }
+                : { v: 1, employee: 'tag-ai', action: TAG_SINGLE_ACTION, state: 'failed', reason: singleProposalOutcome.reason },
+            }
+            : action
             ? {
               // Authoritative outcome from the database result (Prime contract: tool, success, count),
               // in the shared v1 receipt shape.
@@ -1257,7 +1160,13 @@ REQUIREMENTS:
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ reply: finalReply, action, sessionId: conversationId, persisted }),
+      body: JSON.stringify({
+        reply: finalReply,
+        action,
+        sessionId: conversationId,
+        persisted,
+        ...(singleProposalOutcome?.state === 'proposed' && persisted ? { proposal: { kind: 'single', ...singleProposalOutcome.subject } } : {}),
+      }),
     };
   } catch (err) {
     console.error('[tag-copilot] handler error:', err);

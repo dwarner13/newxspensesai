@@ -971,6 +971,14 @@ export function TagCopilotPanel({
       // T-H2: a duplicate (already handled) or conflict (nothing ran) reply is display-only:
       // nothing is applied or refreshed again.
       if (!outcome.mayApply) return;
+      // T-LIVE-02: Tag proposed a change to ONE transaction (nothing was written). Hold it so the
+      // customer's explicit "yes" goes to tag-action commit_single, which binds to the server-signed
+      // proposal. Only a proposal the server saved (`proposal` is present only when persisted) counts.
+      const p = data.proposal;
+      if (p && p.kind === 'single' && typeof p.transactionId === 'string' && typeof p.targetCategory === 'string') {
+        setPendingProposal({ kind: 'single', transactionId: p.transactionId, targetCategory: p.targetCategory, targetSubcategory: typeof p.targetSubcategory === 'string' ? p.targetSubcategory : null });
+        return;
+      }
       const actionFired = !!(data.action?.applied || data.rule_saved || (data.backfill_count || 0) > 0);
       if (actionFired) {
         setPendingProposal(null);
@@ -978,7 +986,7 @@ export function TagCopilotPanel({
 
       // If Tag performed any write (rule saved, bulk apply, correction),
       // tell the transactions list + badge to refresh.
-      if (data.rule_saved || data.action || (data.backfill_count || 0) > 0) {
+      if (data.rule_saved || data.action?.applied || (data.backfill_count || 0) > 0) {
         try {
           window.dispatchEvent(new Event("transactions:refresh"));
           window.dispatchEvent(new Event("tag:stats-refresh"));

@@ -76,3 +76,14 @@ describe('T-LIVE-02 — panel routing (source guarantees)', () => {
     expect(panel).not.toContain('const detectUserActionIntent =');
   });
 });
+
+describe('T-LIVE-02 — chat-path proposals', () => {
+  const panel = readFileSync(resolve(__dirname, '../../components/transactions/TagCopilotPanel.tsx'), 'utf8');
+  it('a single-transaction proposal from Tag chat is held so "yes" goes to tag-action commit_single', () => {
+    expect(panel).toContain("if (p && p.kind === 'single' && typeof p.transactionId === 'string'");
+    expect(panel).toContain("setPendingProposal({ kind: 'single', transactionId: p.transactionId");
+  });
+  it('a proposal (nothing written) does not trigger a transactions refresh', () => {
+    expect(panel).toContain('if (data.rule_saved || data.action?.applied || (data.backfill_count || 0) > 0) {');
+  });
+});

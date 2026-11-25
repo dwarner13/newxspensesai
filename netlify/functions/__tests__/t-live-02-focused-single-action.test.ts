@@ -20,6 +20,8 @@ function builder(table: string) {
   let onConflict: string[] = [];
   let order: { col: string; asc: boolean } | null = null;
   let lim = Infinity;
+  let rng: [number, number] | null = null;
+  let head = false;
   const rows = () => (db[table] ||= []);
   const matches = () => rows().filter(r => filters.every(f => f(r)));
   const run = () => {
@@ -43,11 +45,26 @@ function builder(table: string) {
     }
     let m = matches();
     if (order) m = [...m].sort((a, b) => (order!.asc ? 1 : -1) * String(a[order!.col]).localeCompare(String(b[order!.col])));
-    return { data: m.slice(0, lim), error: null };
+    const count = m.length;
+    if (rng) m = m.slice(rng[0], rng[1] + 1);
+    return { data: head ? null : m.slice(0, lim), error: null, count };
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const b: any = {
-    select: () => b,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    select: (_c?: string, o?: any) => { if (o?.head) head = true; return b; },
+    neq: (c: string, v: unknown) => { filters.push(r => get(r, c) !== v); return b; },
+    gte: (c: string, v: string) => { filters.push(r => r[c] != null && r[c] >= v); return b; },
+    lte: (c: string, v: string) => { filters.push(r => r[c] != null && r[c] <= v); return b; },
+    is: (c: string, v: unknown) => { filters.push(r => (r[c] ?? null) === v); return b; },
+    ilike: (c: string, pat: string) => {
+      const re = new RegExp('^' + pat.split('%').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$', 'i');
+      filters.push(r => re.test(String(r[c] ?? '')));
+      return b;
+    },
+    or: () => b,
+    not: () => b,
+    range: (a: number, z: number) => { rng = [a, z]; return b; },
     eq: (c: string, v: unknown) => { filters.push(r => get(r, c) === v); return b; },
     in: (c: string, vs: unknown[]) => { filters.push(r => vs.includes(get(r, c))); return b; },
     order: (col: string, o?: { ascending?: boolean }) => { order = { col, asc: o?.ascending !== false }; return b; },
@@ -237,5 +254,78 @@ describe('T-LIVE-02 — category resolution (never a silent substitution)', () =
     const { json } = await act({ intent: 'preview', matchValue: 'SAMPLE EVENTS', targetCategory: 'Pizza', ...convo('change all SAMPLE EVENTS to pizza', 'msg_single_0019') });
     expect(json.conversation.receipt).toMatchObject({ state: 'failed', reason: 'category_unresolved' });
     expect(json.conversation.reply).not.toContain('**Other**');
+  });
+});
+
+// ─── Tag's chat path: update_single_transaction only PROPOSES; "yes" goes through tag-action ─────
+const modelPlan: unknown[] = [];
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: class {
+    messages = {
+      create: vi.fn(async () => modelPlan.shift() ?? { content: [{ type: 'text', text: 'Sure thing.' }] }),
+    };
+  },
+}));
+vi.mock('../_shared/logAiActivity.js', () => ({ logAiActivity: async () => undefined }));
+vi.mock('../_shared/txSearchCore.js', () => ({ searchTransactions: async () => ({ transactions: [], totalMatches: 0, returnedCount: 0 }) }));
+process.env.ANTHROPIC_API_KEY = 'test-key';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function chat(message: string, extra: Record<string, unknown> = {}): Promise<any> {
+  const { handler } = await import('../tag-copilot');
+  const res = await (handler as unknown as (e: unknown, c: unknown) => Promise<Res>)(
+    { httpMethod: 'POST', headers: { authorization: 'Bearer test' }, body: JSON.stringify({ message, focusedTransaction: { id: FOCUS }, ...extra }) }, {},
+  );
+  return JSON.parse(res.body);
+}
+const toolCall = (transaction_id: string, category: string, text = 'Done! I changed it for you.') => ({
+  content: [
+    { type: 'text', text },
+    { type: 'tool_use', id: 'tu_single', name: 'update_single_transaction', input: { transaction_id, category } },
+  ],
+});
+
+describe('T-LIVE-02 — Tag chat tool is proposal-only (server-enforced confirmation)', () => {
+  beforeEach(() => { modelPlan.length = 0; });
+
+  it('the model calling update_single_transaction changes NOTHING and shows the server proposal (never "Done")', async () => {
+    modelPlan.push(toolCall(FOCUS, 'Food & Dining'));
+    const out = await chat(OWNER_TEXT, { clientMessageId: 'msg_chat_0001' });
+    expect(txUpdateCalls).toBe(0);
+    expect(tx(FOCUS).category).toBe('Shopping');
+    expect(out.reply).not.toMatch(/Done!|I changed it/);
+    expect(out.reply).toContain('Change this **SAMPLE EVENTS CO** transaction ($12.34 on 2026-11-03) from **Shopping** to **Food & Dining**?');
+    expect(out.proposal).toEqual({ kind: 'single', transactionId: FOCUS, targetCategory: 'Food & Dining', targetSubcategory: null });
+    expect(out.action).toMatchObject({ tool: 'update_single_transaction', applied: false, proposalOnly: true });
+    const stored = msgs(out.sessionId).filter(m => m.role === 'assistant').pop();
+    expect(stored.metadata.actionReceipt).toMatchObject({ action: 'recategorize_single_transaction', state: 'proposed', subject: { transactionId: FOCUS, targetCategory: 'Food & Dining' } });
+    expect(stored.metadata.actionReceipt.success).toBeUndefined();
+  });
+
+  it('the customer\'s "yes" (tag-action commit_single) then changes exactly that one transaction', async () => {
+    modelPlan.push(toolCall(FOCUS, 'Food & Dining'));
+    const out = await chat(OWNER_TEXT, { clientMessageId: 'msg_chat_0002' });
+    const { json } = await confirmFocused('msg_chat_0003', out.sessionId);
+    expect(json.conversation.receipt).toMatchObject({ state: 'completed', count: 1 });
+    expect(tx(FOCUS)).toMatchObject({ category: 'Food & Dining', category_source: 'tag_chat' });
+    expect(tx(SAME_MERCHANT).category).toBe('Shopping');
+    expect(db.category_rules ?? []).toHaveLength(0);
+  });
+
+  it('a tool call naming another customer\'s transaction proposes nothing', async () => {
+    modelPlan.push(toolCall(BOBS, 'Food & Dining'));
+    const out = await chat('change this to food', { clientMessageId: 'msg_chat_0004' });
+    expect(out.proposal).toBeUndefined();
+    expect(out.reply).toBe("I can't find that transaction in your account, so nothing has changed.");
+    expect(txUpdateCalls).toBe(0);
+  });
+
+  it('an ordinary Tag reply after the proposal voids it: a later "yes" changes nothing', async () => {
+    modelPlan.push(toolCall(FOCUS, 'Food & Dining'));
+    const out = await chat(OWNER_TEXT, { clientMessageId: 'msg_chat_0005' });
+    await chat('actually, what is this merchant?', { clientMessageId: 'msg_chat_0006', sessionId: out.sessionId });
+    const { json } = await confirmFocused('msg_chat_0007', out.sessionId);
+    expect(json.conversation.receipt.reason).toBe('no_matching_proposal');
+    expect(txUpdateCalls).toBe(0);
   });
 });

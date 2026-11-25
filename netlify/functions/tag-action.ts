@@ -25,6 +25,7 @@ import {
   type ActionReceipt,
 } from './_shared/conversation-platform.js';
 import { resolveCategoryRequest, TAG_CATEGORIES } from './_shared/tagCategories.js';
+import { TAG_SINGLE_ACTION, UUID_RE, loadOwnedTransaction, buildSingleProposal, catLabel } from './_shared/tagSingleTransaction.js';
 
 const CORS = {
   'Content-Type': 'application/json',
@@ -450,39 +451,8 @@ async function runCommit(
 // immediately preceding Tag reply. Claim-first: the customer message is stored before anything runs,
 // and a duplicate (retry / concurrent / partial failure) never runs the action again.
 const TAG_ACTION = 'recategorize_by_merchant';
-/** T-LIVE-02: one verified transaction (the panel's focused transaction). Never a rule, never others. */
-const TAG_SINGLE_ACTION = 'recategorize_single_transaction';
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-interface OwnedTx { id: string; merchant_name: string | null; amount: unknown; posted_at: string | null; date: string | null; category: string | null; subcategory: string | null }
-
-/** The transaction, ONLY if it belongs to this user (server-side ownership check). */
-async function loadOwnedTransaction(supabase: TagSupabase, userId: string, transactionId: string): Promise<OwnedTx | null> {
-  if (!UUID_RE.test(transactionId)) return null;
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('id, merchant_name, amount, posted_at, date, category, subcategory')
-    .eq('id', transactionId)
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (error) throw new Error('lookup_failed');
-  return (data as OwnedTx | null) ?? null;
-}
-
-const catLabel = (c: string | null, sub: string | null) => (sub ? `${c || 'Uncategorized'} / ${sub}` : (c || 'Uncategorized'));
-
-export function singleProposalText(
-  tx: OwnedTx,
-  target: { category: string; subcategory: string | null; closestTo?: string | null },
-): string {
-  const merchant = tx.merchant_name || 'this';
-  const date = String(tx.posted_at || tx.date || '').slice(0, 10);
-  const note = target.closestTo ? `There's no "${target.closestTo}" category — the closest is **${target.category}**.\n\n` : '';
-  const clearsSub = !!tx.subcategory && !target.subcategory && target.category !== tx.category
-    ? ` Its subcategory (${tx.subcategory}) will be cleared.` : '';
-  return `${note}Change this **${merchant}** transaction (${money(tx.amount)}${date ? ` on ${date}` : ''}) from **${catLabel(tx.category, tx.subcategory)}** to **${catLabel(target.category, target.subcategory)}**?`
-    + `${clearsSub} Only this one transaction changes — no rule is saved and no other transactions are touched. Say yes to confirm.`;
-}
+// T-LIVE-02: single-transaction proposal / ownership helpers live in _shared/tagSingleTransaction.ts
+// (shared with tag-copilot's update_single_transaction tool).
 
 interface ConversationFields {
   sessionId: string | null;
@@ -620,35 +590,14 @@ async function handleConversationalAction(
 
   if (intent === 'preview_single' && ctx.single) {
     // T-LIVE-02: a proposal for ONE verified transaction. Nothing is changed here.
-    try {
-      const tx = await loadOwnedTransaction(supabase, userId, ctx.single.transactionId);
-      const res = resolveCategoryRequest(ctx.single.targetPhrase || '');
-      if (!tx) {
-        legacy = { ok: false, error: 'not_found' };
-        receipt = { ...base, state: 'failed', reason: 'not_found' };
-        reply = "I can't find that transaction in your account, so nothing has changed.";
-      } else if (res.status === 'ambiguous') {
-        legacy = { ok: false, error: 'category_ambiguous', candidates: res.candidates };
-        receipt = { ...base, state: 'failed', reason: 'category_ambiguous' };
-        reply = `"${res.requested}" could mean ${res.candidates.map(c => `**${c}**`).join(' or ')}. Which one should this **${tx.merchant_name || ''}** transaction go in?`;
-      } else if (res.status === 'unknown') {
-        legacy = { ok: false, error: 'category_unknown' };
-        receipt = { ...base, state: 'failed', reason: 'category_unknown' };
-        reply = `I don't have a "${res.requested}" category. Which of these fits best: ${TAG_CATEGORIES.filter(c => c !== 'Income' && c !== 'Transfers').join(', ')}?`;
-      } else if (res.category === (tx.category || '') && (res.subcategory ?? null) === null) {
-        legacy = { ok: false, error: 'already_in_category' };
-        receipt = { ...base, state: 'failed', reason: 'already_in_category' };
-        reply = `This **${tx.merchant_name || ''}** transaction is already in **${res.category}**, so there's nothing to change.`;
-      } else {
-        const subject = { transactionId: tx.id, targetCategory: res.category, targetSubcategory: res.subcategory };
-        receipt = { ...base, subject, state: 'proposed', result: { matchCount: 1 } };
-        reply = singleProposalText(tx, { category: res.category, subcategory: res.subcategory, closestTo: res.status === 'closest' ? res.requested : null });
-        legacy = { ok: true, transactionId: tx.id, targetCategory: res.category, targetSubcategory: res.subcategory, matchCount: 1, resolution: res.status };
-      }
-    } catch {
-      legacy = { ok: false, error: 'preview_failed' };
-      receipt = { ...base, state: 'failed', reason: 'preview_error' };
-      reply = 'Something went wrong checking that transaction, so nothing has changed. Try again?';
+    const outcome = await buildSingleProposal(supabase, userId, ctx.single.transactionId, ctx.single.targetPhrase || '');
+    reply = outcome.reply;
+    if (outcome.state === 'proposed') {
+      receipt = { ...base, subject: outcome.subject, state: 'proposed', result: { matchCount: 1 } };
+      legacy = { ok: true, transactionId: outcome.subject.transactionId, targetCategory: outcome.subject.targetCategory, targetSubcategory: outcome.subject.targetSubcategory, matchCount: 1, resolution: outcome.resolution };
+    } else {
+      receipt = { ...base, state: 'failed', reason: outcome.reason };
+      legacy = { ok: false, error: outcome.reason === 'preview_error' ? 'preview_failed' : outcome.reason, ...(outcome.candidates ? { candidates: outcome.candidates } : {}) };
     }
   } else if (intent === 'commit_single' && ctx.single) {
     const subject = { transactionId: ctx.single.transactionId, targetCategory: ctx.single.targetCategory ?? null, targetSubcategory: ctx.single.targetSubcategory ?? null };
