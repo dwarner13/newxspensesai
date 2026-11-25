@@ -6,6 +6,7 @@ import { usePrimeState } from '../contexts/usePrimeState';
 import { log, warn } from '../lib/logger';
 import { getSupabase } from '../lib/supabase';
 import { validateFinancialVisual } from '../shared/prime-financial-visual';
+import { activityLabelForTool } from '../shared/prime-activity-labels';
 
 type ChatRole = 'user' | 'assistant' | 'system';
 
@@ -281,6 +282,11 @@ export function usePrimeChat(
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [headers, setHeaders] = useState<ChatHeaders>({});
   const [toolCalls, setToolCalls] = useState<ToolCallDebug[]>([]);
+  // P-UI-4: safe, whitelisted activity label ("Reviewing your transactions"); never args or results.
+  const [activeToolLabel, setActiveToolLabel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isStreaming) setActiveToolLabel(null);
+  }, [isStreaming]);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [guardrailsStatus, setGuardrailsStatus] = useState<{
     enabled: boolean;
@@ -1033,6 +1039,8 @@ export function usePrimeChat(
               warn(`[usePrimeChat] 🚫 Auto-handoff tool disabled. Ignoring tool: ${j.tool}`);
               return { aiText, hasContent };
             }
+            // P-UI-4: whitelisted label only (unknown tools → null).
+            setActiveToolLabel(activityLabelForTool(j.tool));
             if (import.meta.env.DEV) {
               const toolCallDebug: ToolCallDebug = {
                 tool: j.tool,
@@ -1044,8 +1052,12 @@ export function usePrimeChat(
             }
           }
           
+          // P-UI-4: the tool finished — clear the activity label.
+          if (j.type === 'tool_result') setActiveToolLabel(null);
+
           // PART C: Handle done event - finalize requestId and extract thread_id
           if (j.type === 'done') {
+            setActiveToolLabel(null);
             // Mark request as finalized to prevent late chunks (if requestId provided)
             if (requestId) {
               finalizedRequestIdsRef.current.add(requestId);
@@ -1087,8 +1099,10 @@ export function usePrimeChat(
           let frag = '';
           if (j.type === 'text' && typeof j.content === 'string') {
             frag = j.content;
+            if (frag) setActiveToolLabel(null); // P-UI-4
           } else if (j.type === 'delta' && typeof j.delta === 'string') {
             frag = j.delta;
+            if (frag) setActiveToolLabel(null); // P-UI-4: first answer text replaces the label
           } else if (j.role === 'assistant' && typeof j.content === 'string') {
             frag = j.content;
           } else {
@@ -2516,6 +2530,7 @@ export function usePrimeChat(
     uploads,
     headers, // Grade 4: Expose headers so components can show them (like X-Employee, X-Memory-Hit)
     toolCalls: import.meta.env.DEV ? toolCalls : [], // Dev-only tool call tracking
+    activeToolLabel, // P-UI-4: whitelisted plain-language activity label, or null
     activeEmployeeSlug: activeEmployeeSlug || headers.employee, // Current active employee (from handoff or header)
     pendingConfirmation, // Confirmation state for tool execution
     confirmToolExecution, // Method to confirm tool execution
