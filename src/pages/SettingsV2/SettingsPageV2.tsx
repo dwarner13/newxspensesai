@@ -295,9 +295,12 @@ export default function SettingsPageV2() {
                 <button onClick={() => toast("Contact support to delete account")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.22)", color: "#f87171", cursor: "pointer" }}>Delete Account</button>
               </div>
               <div style={{ marginTop: 24, padding: "20px", borderRadius: 14, background: "rgba(248,113,113,0.04)", border: "1px solid rgba(248,113,113,0.15)" }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#f87171", marginBottom: 6 }}>{"\u26A0\uFE0F"} Reset All Financial Data</div>
-                <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6, marginBottom: 14 }}>Permanently deletes ALL transactions, statements, imports, chat history, goals, debts, and scores. Your account and profile are preserved. Cannot be undone.</div>
-                <button onClick={async () => { if (!window.confirm("Are you SURE? This deletes ALL your financial data.")) return; if (!window.confirm("LAST CHANCE. This cannot be undone.")) return; try { const sb = getSupabase(); if (!sb || !userId) return; for (const t of ["chat_messages","chat_sessions","chat_threads","score_history","goals","debts","transactions_staging","transactions","import_summaries","ai_activity_events","user_documents","imports"]) { await sb.from(t).delete().eq("user_id", userId).catch(() => {}); } toast.success("All financial data deleted."); setDataStats("0 statements, 0 transactions"); } catch { toast.error("Failed to delete some data."); } }} style={{ padding: "10px 24px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171", cursor: "pointer" }}>{"\u2622\uFE0F"} Nuke All Financial Data</button>
+                {/* Owner, 2026-11-25: the browser-side "Nuke All Financial Data" was removed. It deleted nothing
+                    (Supabase builders have no .catch(), so it threw before any request) yet could report
+                    success. Reset and deletion will be secure, server-side operations; until then this is
+                    an honest pointer to support. Do not reintroduce destructive browser code here. */}
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#f87171", marginBottom: 6 }}>Reset or delete your data</div>
+                <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6 }}>Resetting your financial data or deleting your account isn't available in the app yet. To do either, please contact support. They'll confirm it's you and explain exactly what will be removed. Nothing is deleted from this page.</div>
               </div>
             </div></Reveal>
           )}

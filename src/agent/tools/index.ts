@@ -93,13 +93,13 @@ export interface ToolContext {
 const toolModules: Map<string, ToolModule> = new Map([
   ['delete_my_data', {
     id: 'delete_my_data',
-    description: 'Permanently delete all user data from the system',
+    description: 'Disabled: account and data deletion are not available from chat (never deletes anything; tells the customer to contact support).',
     inputSchema: deleteMyData.inputSchema,
     outputSchema: deleteMyData.outputSchema,
     run: deleteMyData.execute,
     meta: {
-      requiresConfirm: true,
-      mutates: true,
+      requiresConfirm: false, // disabled tool: nothing to confirm
+      mutates: false, // never deletes (owner, 2026-11-25)
       timeout: 30000,
       rateLimit: { perMinute: 1 },
     },

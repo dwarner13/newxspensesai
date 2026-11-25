@@ -1,6 +1,19 @@
 import { z } from 'zod';
-import { Result, Ok, Err } from '../../../types/result';
-import { deleteUserData } from '../../../server/db';
+import { Result, Ok } from '../../../types/result';
+
+/**
+ * delete_my_data — DESTRUCTIVE CAPABILITY DISABLED (owner, 2026-11-25).
+ *
+ * The previous implementation let an AI employee call deleteUserData() after the model itself
+ * supplied { confirm: true }, i.e. an AI-generated message could stand in for the customer's
+ * explicit authorization, and the deletion targeted mostly legacy tables with no truthful report.
+ * No employee may run unrestricted account deletion or bulk financial-data destruction.
+ *
+ * Until a separately reviewed server-side deletion design ships (individual conversation deletion,
+ * financial-data reset, permanent account deletion — each authenticated, re-authenticated,
+ * explicitly confirmed by the customer in the app, retry-safe and truthfully reported), this tool
+ * deletes NOTHING and gives the customer an honest next step.
+ */
 
 export const id = 'delete_my_data';
 
@@ -16,41 +29,19 @@ export const outputSchema = z.object({
 export type Input = z.infer<typeof inputSchema>;
 export type Output = z.infer<typeof outputSchema>;
 
-export async function execute(
-  input: Input,
-  context: { userId: string }
-): Promise<Result<Output>> {
-  try {
-    // Validate input
-    const parsed = inputSchema.parse(input);
-    
-    if (!parsed.confirm) {
-      return Ok({
-        ok: false,
-        message: 'Data deletion requires confirmation. Please send {confirm: true} to proceed. This action is irreversible.',
-      });
-    }
-    
-    // Execute deletion
-    const result = await deleteUserData(context.userId);
-    
-    if (!result.ok) {
-      return Err(new Error(`Deletion failed: ${result.error.message}`));
-    }
-    
-    return Ok({
-      ok: true,
-      message: 'All your data has been successfully deleted. This action has been logged for compliance.',
-    });
-  } catch (error) {
-    return Err(error as Error);
-  }
+export const DELETE_UNAVAILABLE_MESSAGE =
+  "I can't delete your account or data from chat. Nothing has been deleted. To delete your account or your data, please contact XspensesAI support — they'll confirm it's you and tell you exactly what will be removed.";
+
+export async function execute(_input: Input, _context: { userId: string }): Promise<Result<Output>> {
+  void _input;
+  void _context;
+  return Ok({ ok: false, message: DELETE_UNAVAILABLE_MESSAGE });
 }
 
 export const metadata = {
-  name: 'Delete My Data',
-  description: 'Permanently delete all user data (GDPR compliance)',
-  requiresConfirmation: true,
-  dangerous: true,
+  name: 'Delete My Data (disabled)',
+  description: 'Disabled: data and account deletion are not available from chat. Never deletes anything.',
+  requiresConfirmation: false,
+  dangerous: false,
   category: 'data_management',
 };
