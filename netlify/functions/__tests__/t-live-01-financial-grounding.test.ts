@@ -54,7 +54,7 @@ const LEDGER: FakeRow[] = [
   tx('2026-01-20', -2000, 'expense', 'Transfers', 'TFR TO SAVINGS ACCT'),     // transfer out 200000
   tx('2026-01-20', 2000, 'income', 'Transfers', 'TFR FROM CHEQUING', 'imp-sav'), // transfer in 200000
   tx('2026-01-25', -1500, 'expense', 'Credit Card Payments', 'VISA PAYMENT'), // debt payment 150000
-  tx('2026-01-25', 1500, 'income', 'Credit Card Payments', 'PAYMENT THANK YOU', 'imp-card'), // income + conflict (D-1)
+  tx('2026-01-25', 1500, 'income', 'Credit Card Payments', 'PAYMENT THANK YOU', 'imp-card'), // D-1: debt repayment received (not income)
   tx('2026-01-05', -1000, 'expense', 'Groceries', 'SAVE ON FOODS', 'imp-card'), // spending 100000
   tx('2026-01-06', -500, 'expense', 'Dining', 'CACTUS CLUB', 'imp-card'),       // spending 50000
   tx('2026-01-07', 50, 'income', 'Shopping', 'AMAZON REFUND', 'imp-card'),      // income 5000, possible refund
@@ -82,9 +82,12 @@ describe('T-LIVE-01 — shared engine verified against deterministic fixtures', 
     expect(agg.cents.debtPayments).toBe(150000);          // bank-side card payment is not spending
     expect(agg.cents.savingsInvestment).toBe(40000);
     expect(agg.cents.classificationConflict).toBe(3000);
-    // Income = payroll + Employment Income + refund + card-side payment (documented engine design, D-1).
-    expect(agg.cents.income).toBe(500000 + 100000 + 5000 + 150000);
-    expect(agg.completeness.conflicts.non_spend_category_on_inflow).toBe(1);
+    // D-1 (owner-approved 2026-11-25, engine 4c7e3023): the card-side payment received is a debt
+    // repayment — visible, never income, never spending. Income = payroll + Employment Income + refund.
+    expect(agg.cents.income).toBe(500000 + 100000 + 5000);
+    expect(agg.cents.debtRepaymentsIn).toBe(150000);
+    expect(agg.cents.totalInflow).toBe(500000 + 100000 + 5000 + 200000 + 150000);
+    expect(agg.completeness.conflicts.non_spend_category_on_inflow).toBe(0);
     expect(agg.completeness.conflicts.income_category_on_outflow).toBe(1);
     expect(agg.completeness.authoritative).toBe(true);
   });
