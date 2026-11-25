@@ -46,18 +46,16 @@ describe('every mutating tool is classified (a new one fails until reviewed)', (
   });
 });
 
-describe('non-Tag employees never receive transaction-modifying tools', () => {
+describe('no employee (Tag included) receives a transaction-modifying tool in chat.ts', () => {
   const all = ['tx_search', 'tag_status', ...TRANSACTION_MUTATION_TOOLS, 'create_goal'];
-  for (const slug of ['prime-boss', 'prime', 'crystal-analytics', 'finley-ai', 'goalie-goals', 'ledger-tax', 'byte-docs', 'custodian', undefined]) {
+  for (const slug of ['prime-boss', 'prime', 'tag-ai', 'tag', 'crystal-analytics', 'finley-ai', 'goalie-goals', 'ledger-tax', 'byte-docs', 'custodian', undefined]) {
     it(`${slug ?? '(no slug)'}: all removed, others kept`, () => {
       const r = stripTransactionMutationTools(slug, all);
       expect(r.tools).toEqual(['tx_search', 'tag_status', 'create_goal']);
       expect(new Set(r.removed)).toEqual(new Set(TRANSACTION_MUTATION_TOOLS));
     });
   }
-  it('Tag keeps its tools (its writes go through the signed proposal architecture)', () => {
-    for (const slug of ['tag-ai', 'tag']) expect(stripTransactionMutationTools(slug, all).removed).toEqual([]);
-  });
+  // Tag's writes go only through tag-copilot proposals → tag-action commit_single / commit_proposal.
   it('chat.ts applies the guard after the database tool list is loaded and before tools are used', () => {
     const chat = fs.readFileSync(path.join(root, 'netlify/functions/chat.ts'), 'utf8');
     const iGuard = chat.indexOf('const safe = stripTransactionMutationTools(finalEmployeeSlug, employeeTools);');

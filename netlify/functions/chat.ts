@@ -7120,10 +7120,10 @@ export const handler: Handler = async (event, context) => {
       // Continue without tools if loading fails - chat will still work with router's persona
     }
 
-    // ── TAG ACTION SAFETY (owner 2026-11-25): only Tag may receive transaction-modifying tools ──
-    // Prime and every other employee hand off to Tag, whose signed proposal → explicit "yes" →
-    // tag-action commit is the only path that changes a transaction. Enforced in code because the
-    // database tool list (tools_allowed) is not versioned.
+    // ── TAG ACTION SAFETY (owner 2026-11-25): NO employee receives a transaction-modifying tool here ──
+    // The only path that changes a transaction is Tag's signed proposal → explicit "yes" →
+    // tag-action commit_single / commit_proposal. Applies to Tag too (one contract). Enforced in
+    // code because the database tool list (tools_allowed) is not versioned.
     {
       const safe = stripTransactionMutationTools(finalEmployeeSlug, employeeTools);
       if (safe.removed.length > 0) {

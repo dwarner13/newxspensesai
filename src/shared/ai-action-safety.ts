@@ -5,12 +5,15 @@
  *  proposal, explicit customer confirmation and signed receipt architecture. No AI tool may bypass
  *  confirmation based solely on prompt instructions."
  *
- * The authoritative architecture is Tag's: a server-built proposal stored as a signed receipt,
- * the customer's explicit "yes", and tag-action committing exactly what was signed. Prime and the
- * other employees never modify transactions themselves; they hand off to Tag (or tell the customer
- * to ask Tag). This module removes every transaction-modifying tool from any non-Tag employee's
- * tool list in chat.ts, whatever the database tool list says (tools_allowed is not in git, so code
- * must enforce it).
+ * The authoritative architecture is Tag's: a server-built proposal stored as a signed receipt
+ * (tag-copilot / typed preview), the customer's explicit "yes", and tag-action commit_single /
+ * commit_proposal committing exactly what was signed.
+ *
+ * chat.ts therefore gives NO employee a transaction-modifying tool — including Tag (owner rule:
+ * one action-safety contract however a change is initiated; Tag HQ, 2026-11-25). chat.ts's own
+ * signed token confirmation (TOOL_CONFIRM_SECRET) remains for other mutating tools (goals,
+ * reminders…) but is no longer a path for transaction changes. Enforced in code because
+ * employee_profiles.tools_allowed is not versioned.
  */
 
 /** Every registered tool that creates, changes or deletes a transaction. */
@@ -22,19 +25,15 @@ export const TRANSACTION_MUTATION_TOOLS: ReadonlySet<string> = new Set([
   'bulk_categorize',
 ]);
 
-export function isTagEmployeeSlug(slug: string | null | undefined): boolean {
-  return slug === 'tag-ai' || slug === 'tag';
-}
-
 /**
- * The tool list an employee may actually receive in chat.ts. Non-Tag employees never receive a
- * transaction-modifying tool. Returns the filtered list and what was removed (for logging).
+ * The tool list an employee may actually receive in chat.ts: never a transaction-modifying tool,
+ * for any employee. Returns the filtered list and what was removed (for logging).
  */
 export function stripTransactionMutationTools(
-  employeeSlug: string | null | undefined,
+  _employeeSlug: string | null | undefined,
   tools: readonly string[],
 ): { tools: string[]; removed: string[] } {
-  if (isTagEmployeeSlug(employeeSlug)) return { tools: [...tools], removed: [] };
+  void _employeeSlug; // kept for call-site stability and logging; the rule applies to every employee
   const removed = tools.filter(t => TRANSACTION_MUTATION_TOOLS.has(t));
   return { tools: tools.filter(t => !TRANSACTION_MUTATION_TOOLS.has(t)), removed };
 }
