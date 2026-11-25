@@ -39,8 +39,8 @@ describe('ThinkingIndicator', () => {
 
 describe('Prime presentation', () => {
   it('uses the header, welcome and message tokens', () => {
-    expect(prime).toMatch(/width: CHAT_VISUALS\.headerLogo, height: CHAT_VISUALS\.headerLogo/);
-    expect(prime).toMatch(/fontSize: CHAT_VISUALS\.headerName/);
+    // TB-2: the universal ChatToolbar replaced Prime's individual header buttons.
+    expect(prime).toMatch(/<ChatIdentity\s+isMobile=\{isMobileWidth\}\s+renderLogo=\{\(px\) => <PrimeLogoBadge size=\{px\} \/>\}/);
     expect(prime).toMatch(/<AgentDot agent="Prime" size=\{CHAT_VISUALS\.welcomeLogo\} \/>/);
     expect(prime).toMatch(/<AgentDot agent=\{agentForMsg\} size=\{CHAT_VISUALS\.messageAvatar\} \/>/);
     expect(prime.match(/fontSize: chatTextSize\(isMobileWidth\)/g)?.length).toBe(2);
@@ -48,7 +48,9 @@ describe('Prime presentation', () => {
   });
 
   it('History button meets the touch target', () => {
-    expect(prime).toMatch(/height: CHAT_VISUALS\.touchTarget, padding: "0 12px"/);
+    // TB-2: the universal ChatToolbar replaced Prime's individual header buttons.
+    // The toolbar uses 44px buttons on phones (tb1-chat-header.test.ts renders it).
+    expect(prime).toMatch(/<ChatToolbar\s+employeeName="Prime"[\s\S]*?isMobile=\{isMobileWidth\}/);
   });
 
   it('shows the thinking indicator only for the existing empty-streaming condition', () => {

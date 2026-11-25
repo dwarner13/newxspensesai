@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { THEME, AGENT_COLORS, AGENT_BG } from "./agentConfig";
+import { THEME, AGENT_COLORS } from "./agentConfig";
 import { AgentDot } from "./AgentDot";
 import { AgentCallout } from "./AgentCallout";
 import { TaxDeductionsCard } from "./TaxDeductionsCard";
@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { verifyOwnedSession } from "@/lib/conversationStore";
 import { useAtom, useAtomValue } from "jotai";
 import { primeRequestedSessionIdAtom, primeChatModeAtom } from "@/lib/uiStore";
-import { nextExpandMode, workspaceSideGutter } from "@/lib/primeChatMode";
+import { workspaceSideGutter } from "@/lib/primeChatMode";
 import {
   primeSessionStorageKey, storePrimeSessionId,
   selectResumeCandidate, readResumeState, writeResumeState, primeConversationFallbackTitle,
@@ -50,6 +50,8 @@ import { validateFinancialVisual } from "@/shared/prime-financial-visual";
 import { thinkingLabelFor } from "@/lib/primeActivity";
 import { ConversationHistoryDrawer } from "@/components/chat/ConversationHistoryDrawer";
 import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
+import { PrimeLogoBadge } from "@/components/branding/PrimeLogoBadge";
+import { ChatIdentity, ChatToolbar } from "@/components/chat/ChatHeader";
 
 /* ── File upload helpers ── */
 
@@ -652,6 +654,27 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     setSessionsOpen(false);
     if (id && id !== sessionId) setRequestedSessionId(id);
   }, [sessionId, setRequestedSessionId]);
+  // PW-1: in the full Workspace (desktop) the conversation history is a collapsible sidebar
+  // (the same ConversationHistoryDrawer, sidebar variant), open by default.
+  const [workspaceHistoryOpen, setWorkspaceHistoryOpen] = useState(true);
+  const workspaceSidebar = chatMode === 'workspace' && !isMobileWidth;
+  useEffect(() => {
+    if (workspaceSidebar && workspaceHistoryOpen) void loadHistorySessions();
+  }, [workspaceSidebar, workspaceHistoryOpen, loadHistorySessions]);
+  // One display-mode control: Quick / Expanded / Full screen (same mounted conversation).
+  const selectPrimeMode = useCallback((target: 'quick' | 'expanded' | 'workspace') => {
+    if (target === chatMode) return;
+    if (target === 'workspace') { navigate('/dashboard/chat/prime'); return; }
+    if (chatMode === 'workspace') {
+      // Leave the Workspace route and reopen Prime in the chosen panel width.
+      setChatMode(target);
+      try { sessionStorage.setItem('returnToConversation', '1'); } catch { /* noop */ }
+      if (window.history.length > 1) navigate(-1); else navigate('/dashboard');
+      return;
+    }
+    setChatMode(target);
+  }, [chatMode, navigate, setChatMode]);
+
   const toggleSessionsOpen = useCallback(() => {
     setSessionsOpen(open => {
       if (!open) void loadHistorySessions();
@@ -852,13 +875,30 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       style={{
         fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
         background: THEME.bg, color: THEME.text, width: "100%", height: "100%",
-        display: "flex", flexDirection: "column", position: "relative",
+        display: "flex", flexDirection: "row", position: "relative",
       }}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* PW-1: Workspace history sidebar (keyed, so the main column never remounts). */}
+      {workspaceSidebar && workspaceHistoryOpen && (
+        <ConversationHistoryDrawer
+          key="prime-history-sidebar"
+          variant="sidebar"
+          open
+          onClose={() => setWorkspaceHistoryOpen(false)}
+          items={primeHistory.map(h => ({ id: h.id, title: h.title, lastActivity: h.last_message_at || h.created_at }))}
+          loading={historyLoading}
+          currentId={sessionId}
+          onSelect={handleOpenHistorySession}
+          onNewChat={handleNewChat}
+          accent={THEME.accent}
+          fallbackTitle="Prime conversation"
+        />
+      )}
+      <div key="prime-main" style={{ flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column", position: "relative" }}>
       {/* Drop zone overlay */}
       {isDragging && (
         <div style={{
@@ -890,26 +930,20 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       />
       {/* HEADER */}
       <div style={{
-        padding: "14px 16px 12px", display: "flex", alignItems: "center", gap: 10,
+        padding: isMobileWidth ? "8px 8px 8px 12px" : "10px 16px", display: "flex", alignItems: "center", gap: isMobileWidth ? 8 : 10,
         borderBottom: `1px solid ${THEME.border}`,
         background: `linear-gradient(180deg, ${THEME.surface} 0%, ${THEME.bg} 100%)`,
         flexShrink: 0,
       }}>
-        <div style={{
-          width: CHAT_VISUALS.headerLogo, height: CHAT_VISUALS.headerLogo, borderRadius: "50%", flexShrink: 0,
-          background: `linear-gradient(135deg, ${THEME.accent}, #a08030)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: `0 0 24px ${THEME.accent}33`, fontSize: 24,
-        }} aria-hidden="true">{"\u2655"}</div>
-        <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: CHAT_VISUALS.headerName, fontWeight: 800, letterSpacing: 0.2 }}>Prime</span>
-            {employeeStops.length > 1 && (
-              <HistoryDropdownTrigger onClick={toggleHistoryDropdown} isOpen={historyDropdownOpen} />
-            )}
-          </div>
-          <div style={{ fontSize: CHAT_VISUALS.headerSubtitle, color: THEME.textMuted }}>Your Financial Assistant</div>
-          {/* Desktop dropdown */}
+        {/* TB-2: the universal chat header. Identity (brand crown, name, subtitle) is separate
+            from the compact toolbar; the employee-stops dropdown stays beside the name. */}
+        <div style={{ flex: 1, position: "relative", minWidth: 0, display: "flex", alignItems: "center" }}>
+          <ChatIdentity
+            isMobile={isMobileWidth}
+            renderLogo={(px) => <PrimeLogoBadge size={px} />}
+            name={<span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>Prime{employeeStops.length > 1 && <HistoryDropdownTrigger onClick={toggleHistoryDropdown} isOpen={historyDropdownOpen} />}</span>}
+            subtitle={isMobileWidth ? undefined : "Your Financial Assistant"}
+          />
           {!isMobileWidth && (
             <ConversationHistoryDropdown
               stops={employeeStops}
@@ -920,118 +954,17 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             />
           )}
         </div>
-        <div style={{
-          padding: "3px 9px", borderRadius: 20,
-          background: `${THEME.green}0e`, border: `1px solid ${THEME.green}22`,
-          display: "flex", alignItems: "center", gap: 4,
-        }}>
-          <div style={{ width: 5, height: 5, borderRadius: "50%", background: THEME.green }} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: THEME.green }}>Secured</span>
-        </div>
-        {/* LIVE-UI-03: Workspace was reachable only by typing /dashboard/chat/prime. A labelled
-            control now opens it (desktop), and Workspace offers a labelled way back. Same route,
-            same single mounted chat and conversation. */}
-        {!isMobileWidth && (
-          <button
-            type="button"
-            onClick={() => {
-              if (chatMode === 'workspace') {
-                if (window.history.length > 1) navigate(-1); else navigate('/dashboard');
-              } else {
-                navigate('/dashboard/chat/prime');
-              }
-            }}
-            aria-label={chatMode === 'workspace' ? "Exit full screen" : "Open Prime full screen"}
-            title={chatMode === 'workspace' ? "Exit full screen" : "Full screen"}
-            style={{
-              minHeight: CHAT_VISUALS.touchTarget, padding: "0 12px", borderRadius: 10, flexShrink: 0,
-              background: "transparent", border: `1px solid ${THEME.border}`, color: THEME.textMuted,
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {chatMode === 'workspace'
-                ? <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
-                : <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />}
-            </svg>
-            <span>{chatMode === 'workspace' ? "Exit full screen" : "Full screen"}</span>
-          </button>
-        )}
-        {/* UX-P2a: Quick ↔ Expanded on the same mounted chat (desktop only; not in Workspace,
-            where Close returns to the dashboard). */}
-        {!isMobileWidth && chatMode !== 'workspace' && (
-          <button
-            type="button"
-            onClick={() => setChatMode(nextExpandMode(chatMode))}
-            aria-pressed={chatMode !== 'quick'}
-            aria-label={chatMode === 'quick' ? "Expand chat" : "Collapse chat"}
-            title={chatMode === 'quick' ? "Expand chat" : "Collapse chat"}
-            style={{
-              width: CHAT_VISUALS.touchTarget, height: CHAT_VISUALS.touchTarget, borderRadius: 10, flexShrink: 0,
-              background: chatMode !== 'quick' ? THEME.surface : "transparent", border: `1px solid ${THEME.border}`,
-              color: THEME.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {chatMode === 'quick'
-                ? <path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />
-                : <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />}
-            </svg>
-          </button>
-        )}
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <button
-            onClick={toggleSessionsOpen}
-            title="Chat history"
-            aria-label="Chat history"
-            aria-haspopup="dialog"
-            aria-expanded={sessionsOpen}
-            style={{
-              height: CHAT_VISUALS.touchTarget, padding: "0 12px", borderRadius: 10, fontSize: 13, fontWeight: 600,
-              background: sessionsOpen ? THEME.surface : "transparent", border: `1px solid ${THEME.border}`,
-              color: THEME.textMuted, cursor: "pointer",
-            }}
-          >
-            History
-          </button>
-        </div>
-        <button
-          onClick={handleNewChat}
-          title="New chat"
-          aria-label="New chat"
-          style={{
-            width: CHAT_VISUALS.touchTarget, height: CHAT_VISUALS.touchTarget, borderRadius: 10,
-            background: "transparent", border: `1px solid ${THEME.border}`,
-            color: THEME.textMuted, cursor: "pointer", display: "flex",
-            alignItems: "center", justifyContent: "center", flexShrink: 0,
-            transition: "all 0.15s",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = THEME.surface; e.currentTarget.style.color = THEME.text; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = THEME.textMuted; }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
-          </svg>
-        </button>
-        {onClose && (
-          <button
-            onClick={onClose}
-            aria-label="Close Prime"
-            style={{
-              width: CHAT_VISUALS.touchTarget, height: CHAT_VISUALS.touchTarget, borderRadius: 10,
-              background: "transparent", border: `1px solid ${THEME.border}`,
-              color: THEME.textMuted, cursor: "pointer", display: "flex",
-              alignItems: "center", justifyContent: "center", flexShrink: 0,
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = THEME.surface; e.currentTarget.style.color = THEME.text; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = THEME.textMuted; }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        )}
+        <ChatToolbar
+          employeeName="Prime"
+          accent={THEME.accent}
+          isMobile={isMobileWidth}
+          onNew={handleNewChat}
+          history={workspaceSidebar
+            ? { open: workspaceHistoryOpen, onToggle: () => setWorkspaceHistoryOpen(v => !v) }
+            : { open: sessionsOpen, onToggle: toggleSessionsOpen }}
+          modes={{ current: chatMode, supported: ['quick', 'expanded', 'workspace'], onSelect: selectPrimeMode }}
+          onClose={onClose}
+        />
       </div>
 
       {/* Mobile history panel — full-width below header */}
@@ -1419,9 +1352,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                 <div key={msg.id} id={`msg-${msg.id}`} style={{ display: "flex", gap: 10, marginBottom: CHAT_VISUALS.messageGap }}>
                   <AgentDot agent={agentForMsg} size={CHAT_VISUALS.messageAvatar} />
                   <div style={{
-                    maxWidth: "85%", padding: "12px 16px", borderRadius: 16,
-                    borderBottomLeftRadius: 4,
-                    background: AGENT_BG[agentForMsg], borderLeft: `3px solid ${AGENT_COLORS[agentForMsg]}44`,
+                    // PW-1: replies read as text on the page (thin accent line, faint tint), not
+                    // heavy grey bubbles; full column width in the Workspace.
+                    flex: 1, maxWidth: chatMode === 'workspace' ? "100%" : "92%", padding: "4px 4px 4px 14px", borderRadius: 0,
+                    background: "transparent", borderLeft: `2px solid ${AGENT_COLORS[agentForMsg]}55`,
                     fontSize: chatTextSize(isMobileWidth), color: THEME.text, lineHeight: CHAT_VISUALS.lineHeight, minWidth: 40,
                   }}>
                     {isThisStreaming && isEmpty ? (
@@ -1501,6 +1435,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             { icon: "\uD83D\uDCC8", label: "Trends", action: () => { onClose?.(); navigate("/dashboard/analytics-ai"); } },          ]} />
         </div>
         <PrimeChatInput onSend={handleSend} onFileSelected={handleFileSelected} userId={userId} sessionId={sessionId} />
+      </div>
       </div>
     </div>
   );

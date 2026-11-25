@@ -140,8 +140,11 @@ describe('F2 — Chat History in the Prime panel', () => {
   });
 
   it('the header has a visible History control next to New chat', () => {
-    const header = v2.slice(v2.indexOf('onClick={toggleSessionsOpen}'), v2.indexOf('onClick={handleNewChat}'));
-    expect(header).toContain('title="Chat history"');
+    // TB-2 (UI/UX): the universal ChatToolbar renders History right after New conversation
+    // (labels and order are rendered in src/lib/__tests__/tb1-chat-header.test.ts).
+    const toolbar = v2.slice(v2.indexOf('<ChatToolbar'), v2.indexOf('/>', v2.indexOf('<ChatToolbar')));
+    expect(toolbar).toContain('onNew={handleNewChat}');
+    expect(toolbar).toContain('onToggle: toggleSessionsOpen');
     // P1-e: rows moved from the header popover into ConversationHistoryDrawer, which calls
     // onSelect(id) → handleOpenHistorySession (same ownership-verified path).
     expect(v2).toContain('onSelect={handleOpenHistorySession}');
