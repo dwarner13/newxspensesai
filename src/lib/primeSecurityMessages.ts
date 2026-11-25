@@ -70,7 +70,10 @@ export async function emitSecurityMessage(
     // Log guardrail event
     const supabase = getSupabase();
     if (supabase) {
-      await supabase.from('guardrail_events').insert({
+      // Supabase builders return { error } and have no .catch(); calling .catch() threw a TypeError
+      // here, so emitSecurityMessage returned false AFTER the message had been emitted.
+      // Logging is best-effort and never changes the result.
+      const { error: logError } = await supabase.from('guardrail_events').insert({
         user_id: userId,
         event_type: event,
         severity: 'info',
@@ -79,10 +82,8 @@ export async function emitSecurityMessage(
           message,
         },
         created_at: new Date().toISOString(),
-      }).catch((err) => {
-        // Don't fail if logging fails
-        console.warn('[emitSecurityMessage] Failed to log event:', err);
       });
+      if (logError) console.warn('[emitSecurityMessage] Failed to log event:', logError);
     }
 
     return true;

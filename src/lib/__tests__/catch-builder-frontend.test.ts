@@ -22,3 +22,12 @@ describe('frontend: no .catch() chained on Supabase query builders in these flow
     expect(src).toMatch(/const \{ error: notifyErr \} = await sb\.from\('user_notifications'\)\.insert\(/);
   });
 });
+
+describe('primeSecurityMessages: guardrail_events logging no longer uses .catch() on a builder', () => {
+  it('reads { error } instead of chaining .catch()', () => {
+    const src = readFileSync(resolve(__dirname, '../primeSecurityMessages.ts'), 'utf8');
+    const live = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(live).not.toMatch(/from\('guardrail_events'\)\.insert\([\s\S]{0,400}?\}\)\.catch\(/);
+    expect(live).toMatch(/const \{ error: logError \} = await supabase\.from\('guardrail_events'\)\.insert\(/);
+  });
+});
