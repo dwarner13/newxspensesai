@@ -113,16 +113,18 @@ describe('R2b agreement — real R1-validated V2 reaches the R2a adapter', () =>
 // 2. Known live defect — regression
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('regression: three-month spending misclassification is surfaced, not adopted', () => {
-  it('live plans a 3-row tx_search; the shadow plans a 3-month cash-flow total; reported as disagreement', async () => {
+// D1 (owner 2026-11-25): previously pinned as a surfaced disagreement (live: 3-row tx_search).
+// Inverted per the acceptance criterion: live and shadow now AGREE on a 3-month cash-flow total.
+describe('three-month spending: live and shadow agree (D1 fixed)', () => {
+  it('live plans a 3-month cash_flow_summary; the shadow agrees; no tx_search row list', async () => {
     const message = 'How much did I spend in the last 3 months?';
     const lv = live(message);
-    expect(lv.plan!.steps.find(s => s.mode === 'tool')).toMatchObject({ tool: 'tx_search', params: { limit: 3 } });
+    expect(lv.plan!.steps.find(s => s.mode === 'tool')).toMatchObject({ tool: 'cash_flow_summary', params: { startDate: '2026-07-02', endDate: '2026-10-01' } });
     const c = await compare(message, R({ operation: 'total', measures: ['spending'], period: { kind: 'rolling', count: 3, unit: 'month' } }));
-    expect(c).toMatchObject({ agreement: 'disagree', liveTools: ['tx_search'], shadowTools: ['cash_flow_summary'] });
-    expect(c.dimensions).toEqual(expect.arrayContaining(['tools', 'evidence_kinds']));
-    // the live plan object is untouched by the comparison
-    expect(lv.plan!.steps.find(s => s.mode === 'tool')?.tool).toBe('tx_search');
+    expect(c).toMatchObject({ agreement: 'agree', liveTools: ['cash_flow_summary'], shadowTools: ['cash_flow_summary'] });
+    expect(c.dimensions).toEqual([]);
+    // "Show my last 3 transactions" is still a 3-row list (the count path is unchanged)
+    expect(live('Show my last 3 transactions').intent.financialClassification.requestedCount).toBe(3);
   });
 });
 

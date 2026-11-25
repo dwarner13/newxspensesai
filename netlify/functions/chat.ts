@@ -14671,6 +14671,8 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         fallbackUsed = true;
       }
 
+      // D3 (5): set when the grounding fallback replaced the model's reply (persisted in metadata).
+      let groundingFallback: { validation: string; retryBlocked: boolean; evidenceGrounded: boolean } | null = null;
       // ── PHASE 1B.2: False-Zero Hard Stop ────────────────────────────────
       // If Prime's answer claims zero/none for a financial query but we have
       // no verified_zero evidence, reject the answer and retry once with
@@ -14679,7 +14681,23 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       // (including a valid empty period), so the legacy false-zero check must not override it. Every
       // other financial answer keeps the safeguard.
       const tagEvidenceGrounds = primeCategorizationReview && tagConsultationAnswered(tagConsultationResult);
-      if (isPrime && financialClassification?.requiresGrounding && !tagEvidenceGrounds) {
+      // D3 (owner 2026-11-25), interim until the TurnEvidenceLedger:
+      //  (1) validate only when the FINAL author is Prime — after a handoff the reply is the
+      //      specialist's and must not be judged (or replaced) by Prime's rules;
+      //  (2) the model's own complete tool results this turn (p31dAccumulatedEvidence: resolved or
+      //      successful_empty) are evidence — a correct "no expenses in September" after an empty
+      //      cash_flow_summary is no longer a "false zero";
+      //  (5) a fallback that replaces the reply is recorded in the message metadata.
+      const finalAuthorIsPrime = isPrimeConversationSlug(finalEmployeeSlug);
+      if (finalAuthorIsPrime && !financialEvidence.grounded && p31dAccumulatedEvidence.size > 0) {
+        const entries = Array.from(p31dAccumulatedEvidence.values());
+        financialEvidence = {
+          grounded: true,
+          toolName: entries[0].tool,
+          queryStatus: entries.some(e => e.status === 'resolved') ? 'verified' : 'verified_zero',
+        };
+      }
+      if (isPrime && finalAuthorIsPrime && financialClassification?.requiresGrounding && !tagEvidenceGrounds) {
         const validationResult = validateGroundedAnswer(assistantContent, financialEvidence as any, financialClassification);
 
         if (validationResult === 'false_zero_ungrounded' || validationResult === 'false_zero_without_evidence') {
@@ -14742,12 +14760,24 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                 const evidenceMsg = buildEvidenceSystemMessage(plan.toolName, retryResult, financialClassification, plan.toolArgs);
                 messages.push(
                   { role: 'assistant', content: assistantContent },
-                  { role: 'system', content: `CORRECTION: Your previous answer claimed zero/no data but the database query found results. Here is the actual evidence:\n\n${evidenceMsg}\n\nPlease rewrite your answer using this verified data. Do NOT claim zero unless the evidence shows zero.` }
+                  // D3 (3): the correction states what the query ACTUALLY returned — never "found results" when it was empty.
+                  { role: 'system', content: retryQs === 'verified_zero'
+                    ? `CORRECTION: The database query for this request returned NO matching transactions for the scope below. Here is the verified evidence:\n\n${evidenceMsg}\n\nRewrite your answer from this evidence: state clearly that no matching transactions were found for that scope, and name the scope.`
+                    : `CORRECTION: Your previous answer claimed zero/no data but the database query found results. Here is the actual evidence:\n\n${evidenceMsg}\n\nPlease rewrite your answer using this verified data. Do NOT claim zero unless the evidence shows zero.` }
                 );
 
+                // D3 (4): retry with the same model configuration the final reply was produced with.
+                let retryModelConfig = modelConfig;
+                try {
+                  retryModelConfig = applyPrimeChatStyleModelConfig(await getEmployeeModelConfig(finalEmployeeSlug), {
+                    employeeSlug: finalEmployeeSlug,
+                    qualityMode: shouldPreferPrimeQualityMode,
+                    preferLongForm: true,
+                  });
+                } catch { /* keep modelConfig */ }
                 const retryAbort = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
                 const retryCompletion = await withTimeout(
-                  openai.chat.completions.create(buildModelCallParams(modelConfig, messages, {
+                  openai.chat.completions.create(buildModelCallParams(retryModelConfig, messages, {
                     stream: false,
                   }) as any),
                   resolveOpenAiTimeoutMs(),
@@ -14786,6 +14816,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               ? "I wasn't able to confirm a reliable result for that period from your imported data, so I can't give you a total right now. Could you try asking again?"
               : "I found financial data for that request, but I wasn't able to produce a reliable summary from it. Could you try asking again?";
             console.warn('[FinancialGrounding] false-zero retry failed — returning grounded fallback');
+            groundingFallback = { validation: validationResult, retryBlocked: retryBlockedByP31C, evidenceGrounded: !!financialEvidence.grounded };
           }
         }
       }
@@ -14835,6 +14866,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         // L-A: persist genuine consultations so the marker survives a reload.
         if (specialistConsultations.length > 0) assistantMsgMetadata.specialistConsultations = specialistConsultations;
         if (financialVisual) assistantMsgMetadata.financialVisual = financialVisual;
+        if (groundingFallback) assistantMsgMetadata.groundingFallback = groundingFallback;
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
           user_id: userId,
