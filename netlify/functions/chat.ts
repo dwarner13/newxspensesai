@@ -236,6 +236,7 @@ import {
 // P3.1A.1: Canonical temporal scope (observational only — does not change runtime behavior)
 import { buildTemporalScope, buildTemporalScopeTelemetry, inheritedTemporalScope } from '../../src/shared/prime-temporal-scope';
 import { applyCustomerScope, negatedPeriodNote, ALL_HISTORY_SCOPE_NOTE, type TemporalScopeLike } from '../../src/shared/prime-request-scope';
+import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
 // P3.1C: Controlled read-only evidence execution
 import {
   executeEvidencePlan as executeEvidencePlanP31C,
@@ -7117,6 +7118,19 @@ export const handler: Handler = async (event, context) => {
       // Router's persona and system prompt will be used instead
       console.log(`[Chat] Continuing with ${finalEmployeeSlug} using router persona due to profile loading error`);
       // Continue without tools if loading fails - chat will still work with router's persona
+    }
+
+    // ── TAG ACTION SAFETY (owner 2026-11-25): only Tag may receive transaction-modifying tools ──
+    // Prime and every other employee hand off to Tag, whose signed proposal → explicit "yes" →
+    // tag-action commit is the only path that changes a transaction. Enforced in code because the
+    // database tool list (tools_allowed) is not versioned.
+    {
+      const safe = stripTransactionMutationTools(finalEmployeeSlug, employeeTools);
+      if (safe.removed.length > 0) {
+        employeeTools = safe.tools;
+        toolModules = pickTools(employeeTools);
+        console.warn(`[Chat] ACTION SAFETY: removed ${safe.removed.length} transaction-modifying tool(s) from ${finalEmployeeSlug}: ${safe.removed.join(', ')}`);
+      }
     }
 
     // ========================================================================
