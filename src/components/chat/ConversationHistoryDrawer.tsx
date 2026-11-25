@@ -9,7 +9,7 @@ export type { HistoryDrawerItem };
  *
  * Presentational only. The caller owns loading, selection and New chat; selecting a row
  * calls onSelect(id), which in Prime goes through the existing ownership-verified switch
- * (setRequestedSessionId → verifyOwnedPrimeSession). Titles render as plain text.
+ * (setRequestedSessionId → verifyOwnedSession). Titles render as plain text.
  */
 
 interface ConversationHistoryDrawerProps {

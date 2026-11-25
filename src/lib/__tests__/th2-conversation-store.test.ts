@@ -81,6 +81,21 @@ describe('verifyOwnedSession', () => {
     expect(await verifyOwnedSession(db(), U, 'not-a-uuid', 'tag-ai')).toBe(false);
     expect(await verifyOwnedSession(fakeClient({}, { error: true }), U, S1, 'tag-ai')).toBe(false);
   });
+
+  it("Prime: legacy 'prime' still resumes; a Tag session is refused", async () => {
+    const c = fakeClient({ chat_sessions: [
+      { id: S1, user_id: U, employee_slug: 'prime' },
+      { id: S2, user_id: U, employee_slug: 'tag-ai' },
+    ] });
+    expect(await verifyOwnedSession(c, U, S1, 'prime-boss')).toBe(true);
+    expect(await verifyOwnedSession(c, U, S2, 'prime-boss')).toBe(false);
+  });
+
+  it('PrimeChatV2 resumes through the shared check', () => {
+    const v2 = fs.readFileSync(path.resolve(__dirname, '../../pages/PrimeChatV2/PrimeChatV2.tsx'), 'utf8');
+    expect(v2).toMatch(/const owned = await verifyOwnedSession\(getSupabase\(\), userId, target, 'prime-boss'\);/);
+    expect(v2).not.toMatch(/verifyOwnedPrimeSession\(/);
+  });
 });
 
 describe('restoreSessionMessages', () => {

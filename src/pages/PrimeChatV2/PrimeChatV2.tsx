@@ -8,11 +8,12 @@ import { QuickActionChips } from "./QuickActionChips";
 import { PrimeChatInput } from "./PrimeChatInput";
 import { resolvePreferredName } from "@/shared/preferred-name";
 import { useAuth } from "@/contexts/AuthContext";
+import { verifyOwnedSession } from "@/lib/conversationStore";
 import { useAtom, useAtomValue } from "jotai";
 import { primeRequestedSessionIdAtom, primeChatModeAtom } from "@/lib/uiStore";
 import { nextExpandMode, workspaceSideGutter } from "@/lib/primeChatMode";
 import {
-  primeSessionStorageKey, storePrimeSessionId, verifyOwnedPrimeSession, type SessionOwnershipClient,
+  primeSessionStorageKey, storePrimeSessionId,
   selectResumeCandidate, readResumeState, writeResumeState, primeConversationFallbackTitle,
   type RecentActivityRow, type SessionRow, isPrimeSlug,
 } from "@/lib/primeChatSession";
@@ -613,7 +614,8 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     sessionSwitchInFlightRef.current = target;
     (async () => {
       try {
-        const owned = await verifyOwnedPrimeSession(getSupabase() as unknown as SessionOwnershipClient, userId, target);
+        // T-H2: owned by this user AND a Prime conversation (alias-aware, so legacy 'prime' still resumes).
+        const owned = await verifyOwnedSession(getSupabase(), userId, target, 'prime-boss');
         if (!owned) {
           console.warn('[PrimeChatV2] requested conversation is not available for this user — keeping the current conversation');
           return;
@@ -874,7 +876,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
       )}
       {/* P1-e: full-height conversation history drawer (replaces the 280px popover).
           Selection still goes through handleOpenHistorySession → setRequestedSessionId →
-          verifyOwnedPrimeSession; titles render as plain text. */}
+          verifyOwnedSession (user + Prime); titles render as plain text. */}
       <ConversationHistoryDrawer
         open={sessionsOpen}
         onClose={() => setSessionsOpen(false)}
