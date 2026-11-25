@@ -41,6 +41,20 @@ never retry automatically; `duplicate` / `conflict` replies are display-only.
 | 5 | Ledger | `src/pages/TaxBusinessV2/LedgerCopilotPanel.tsx` | `ledger-tax` | `ledger-tax` |
 | — | Future employees | any panel on `useUnifiedChatEngine` | — | add to `CONVERSATION_EMPLOYEES` |
 
+## Rollout inventory (updated 2026-11-25)
+
+| Employee | Panel (live) | Status |
+|---|---|---|
+| Prime | `PrimeChatV2` | Done (own restore + history; `796a017`, `aef2845`) |
+| Tag | `TagCopilotPanel` | Done (`34e14cf` + Tag HQ `4ae4e6e`) |
+| Crystal | `CrystalCopilotPanel` | Done: shared hook (`4f1e2f0`) |
+| Goalie | `GoalieCopilotPanel` | Done: shared hook |
+| Byte | `ByteCopilotPanel` | Done: shared hook, **history only** (no document access) |
+| Ledger | `LedgerCopilotPanel` | Done: shared hook |
+| Custodian | `CustodianPanel` (`components/onboarding/CustodianPanelChat.tsx`, opened from Settings) | Done: keeps its own `custodian-chat` endpoint (Prime HQ `0b71326`: same contract as Tag); restore, history, New conversation, notices via the shared `useEndpointConversation` hook. Read-only, no tools. |
+| Finley, Liberty, Chime, Blitz | No live panel found; `src/pages/chat/*` are legacy, with routes commented out in `App.tsx` | Unverified. Wire when a live panel exists and Prime HQ verifies the server side. |
+| Any employee via `/dashboard/chat/:employeeId` (`EmployeeChatPage`) | Generic route | To audit: which employees reach it, and whether it should use the shared hook. |
+
 Server checks per employee (Prime HQ):
 1. `/chat` saves a `chat_sessions` row whose `employee_slug` canonicalizes to that employee.
 2. The reply returns `sessionId` and `persisted`.

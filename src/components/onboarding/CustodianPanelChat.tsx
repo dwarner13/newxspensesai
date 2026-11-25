@@ -3,47 +3,81 @@ import { useNavigate } from 'react-router-dom';
 import { X, Send } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { PANEL } from '../../pages/PrimeChatV2/panelConfig';
+import { useEndpointConversation } from '@/hooks/useEndpointConversation';
+import { ConversationControls, UnsavedReplyNotice } from '@/components/chat/ConversationControls';
 
 interface ChatMsg {
   role: 'user' | 'custodian';
   text: string;
   action?: { type: string; path: string };
+  /** The server could not save this reply (persisted:false). */
+  unsaved?: boolean;
+  /** Notice for a reply that ran nothing (conflict): ask to resend. */
+  resend?: boolean;
 }
+
+const GREETING: ChatMsg = { role: 'custodian', text: "Hey - I'm Custodian, your system guide. Ask me how to use any feature, where to find something, or how the AI team works. For financial questions, Prime's your guy." };
 
 export function CustodianPanel({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'custodian', text: "Hey - I'm Custodian, your system guide. Ask me how to use any feature, where to find something, or how the AI team works. For financial questions, Prime's your guy." },
-  ]);
+  // Universal conversation history (owner GO): the shared endpoint-conversation hook —
+  // restore, resume across devices, History, New conversation. custodian-chat keeps the
+  // conversation; client history is no longer sent.
+  const convo = useEndpointConversation('custodian');
+  const [messages, setMessages] = useState<ChatMsg[]>([GREETING]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<{ text: string; clientMessageId: string } | null>(null);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => { const h = () => setIsMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  const send = async () => {
-    const text = input.trim();
+  // Restored or switched conversation → show it (the greeting only when it is empty).
+  useEffect(() => {
+    if (!convo.restored) return;
+    const list = convo.restored.messages.map<ChatMsg>(m => ({ role: m.role === 'user' ? 'user' : 'custodian', text: m.content }));
+    setMessages(list.length > 0 ? list : [GREETING]);
+    setFailed(null);
+  }, [convo.restored]);
+
+  // Account-scoped cache of the real turns (not the greeting).
+  const { cache } = convo;
+  useEffect(() => {
+    cache(messages.filter(m => m !== GREETING).map((m, i) => ({ id: `c${i}`, role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.text, createdAt: '' })));
+  }, [messages, cache]);
+
+  const send = async (retry?: { text: string; clientMessageId: string }) => {
+    const text = (retry?.text ?? input).trim();
     if (!text || busy) return;
-    setInput('');
-    setMessages(m => [...m, { role: 'user', text }]);
+    const fields = convo.requestFields(retry?.clientMessageId);
+    if (!retry) { setInput(''); setMessages(m => [...m, { role: 'user', text }]); }
+    setFailed(null);
     setBusy(true);
     try {
       const sb = getSupabase(); if (!sb) throw new Error('No client');
       const { data: { session } } = await sb.auth.getSession();
       const token = session?.access_token ?? '';
-      const history = messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
       const res = await fetch('/.netlify/functions/custodian-chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: text, history, currentPath: window.location.pathname }),
+        body: JSON.stringify({ message: text, currentPath: window.location.pathname, ...fields }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setMessages(m => [...m, { role: 'custodian', text: data.reply, action: data.action }]);
+      const outcome = convo.onReply(data);
+      setMessages(m => [...m, {
+        role: 'custodian',
+        text: data.reply,
+        // duplicate / conflict replies are display-only: no navigation action is offered.
+        action: outcome.mayApply ? data.action : undefined,
+        unsaved: outcome.kind === 'not_saved',
+        resend: outcome.kind === 'conflict',
+      }]);
     } catch {
-      setMessages(m => [...m, { role: 'custodian', text: 'Something went wrong - try again.' }]);
+      // Never retried automatically; Retry resends the same message with the same id.
+      setFailed({ text, clientMessageId: fields.clientMessageId });
     }
     setBusy(false);
   };
@@ -71,12 +105,17 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid #1e2d4a', flexShrink: 0 }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{'\uD83D\uDEE1\uFE0F'}</div>
-          <div>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{'🛡️'}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#e8ecf4' }}>Custodian</div>
             <div style={{ fontSize: 13, color: '#7b8ba5' }}>IT Manager</div>
           </div>
-          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#c8d0e0', padding: 4, display: 'flex' }}>
+          <ConversationControls
+            employeeName="Custodian" accent="#a78bfa" border="#1e2d4a" color="#c8d0e0"
+            items={convo.history.items} loading={convo.history.loading} currentId={convo.sessionId}
+            onLoad={convo.history.load} onOpen={convo.openConversation} onNew={convo.startNewConversation}
+          />
+          <button onClick={onClose} aria-label="Close Custodian" style={{ width: 44, height: 44, flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: '#c8d0e0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X style={{ width: 18, height: 18 }} />
           </button>
         </div>
@@ -100,16 +139,29 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
                     style={{ marginTop: 8, padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700,
                     background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)',
                     color: '#a78bfa', cursor: 'pointer' }}>
-                    {'\u2192'} Go there
+                    {'→'} Go there
                   </button>
+                )}
+                {m.unsaved && <UnsavedReplyNotice />}
+                {m.resend && (
+                  <div role="status" style={{ marginTop: 8, fontSize: 13, color: '#fde68a' }}>Nothing was changed. Please send that again.</div>
                 )}
               </div>
             </div>
           ))}
           {busy && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(167,139,250,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>{'\uD83D\uDEE1\uFE0F'}</div>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(167,139,250,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>{'🛡️'}</div>
               <div style={{ fontSize: 13, color: '#e8ecf4' }}>Thinking...</div>
+            </div>
+          )}
+          {failed && !busy && (
+            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.35)', fontSize: 14, color: '#fde68a' }}>
+              <span style={{ flex: 1 }}>That message didn&apos;t go through.</span>
+              <button type="button" onClick={() => void send(failed)}
+                style={{ minHeight: 40, padding: '0 12px', borderRadius: 10, border: '1px solid rgba(251,191,36,0.45)', background: 'transparent', color: '#fcd34d', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                Retry
+              </button>
             </div>
           )}
           <div ref={bottomRef} />
@@ -123,10 +175,11 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void send(); } }}
             placeholder="Ask Custodian anything..."
+            aria-label="Message Custodian"
             style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', fontSize: PANEL.inputFontSize, color: '#e8ecf4', outline: 'none', fontFamily: 'inherit' }}
           />
-          <button onClick={() => void send()} disabled={busy || !input.trim()}
-            style={{ width: 36, height: 36, borderRadius: 10, background: busy ? 'rgba(167,139,250,0.08)' : 'rgba(167,139,250,0.2)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: busy ? 'default' : 'pointer', color: '#a78bfa', flexShrink: 0 }}>
+          <button onClick={() => void send()} disabled={busy || !input.trim()} aria-label="Send message"
+            style={{ width: 44, height: 44, borderRadius: 10, background: busy ? 'rgba(167,139,250,0.08)' : 'rgba(167,139,250,0.2)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: busy ? 'default' : 'pointer', color: '#a78bfa', flexShrink: 0 }}>
             <Send style={{ width: 15, height: 15 }} />
           </button>
         </div>
@@ -136,7 +189,7 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
           <div style={{ textAlign: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 4 }}>
               <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.5)', flexShrink: 0 }} />
-              <span style={{ fontSize: 10, color: '#475569', letterSpacing: '0.03em' }}>Custodian AI {'\u2022'} Guardrails + PII protection active</span>
+              <span style={{ fontSize: 10, color: '#475569', letterSpacing: '0.03em' }}>Custodian AI {'•'} Guardrails + PII protection active</span>
             </div>
             <div style={{ fontSize: 9, color: '#334155', lineHeight: 1.4, maxWidth: 320, margin: '0 auto' }}>Not financial, tax, or legal advice. Consult your accountant for professional guidance.</div>
           </div>
