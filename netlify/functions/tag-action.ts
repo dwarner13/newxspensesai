@@ -16,6 +16,14 @@ import type { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { safeLog } from './_shared/safeLog.js';
+import {
+  resolveEmployeeConversation,
+  findLatestActionReceipt,
+  claimConversationTurn,
+  completeConversationTurn,
+  parseActionReceipt,
+  type ActionReceipt,
+} from './_shared/conversation-platform.js';
 
 const CORS = {
   'Content-Type': 'application/json',
@@ -362,6 +370,292 @@ export function classifyTagIntent(message: string): {
   };
 }
 
+// ── Shared cores for PREVIEW and COMMIT (used by the legacy and conversational paths) ─────────
+type TagSupabase = ReturnType<typeof createClient>;
+type PreviewRow = { id: string; merchant_name: string | null; amount: number | null; posted_at: string | null; category: string | null };
+
+/** Owner-scoped merchant match over the customer's recent transactions (read only). */
+async function runPreview(
+  supabase: TagSupabase, userId: string,
+  opts: { normalized: string; matchType: string; importId?: string | null },
+): Promise<PreviewRow[]> {
+  let query = supabase
+    .from('transactions')
+    .select('id, merchant_name, amount, posted_at, category')
+    .eq('user_id', userId)
+    .order('posted_at', { ascending: false })
+    .limit(500);
+  if (opts.importId) query = query.eq('import_id', opts.importId);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  const rows = (data || []) as PreviewRow[];
+  return rows.filter((tx) => {
+    const haystack = (tx.merchant_name || '').toUpperCase();
+    return opts.matchType === 'exact' ? haystack === opts.normalized : haystack.includes(opts.normalized);
+  });
+}
+
+/**
+ * Recategorize the given (owner-scoped) transactions and save the merchant rule + memory. The
+ * returned count is what the database ACTUALLY updated, not what the request asked for.
+ * Categorization behaviour is unchanged (category_source 'tag_chat', rule upsert, memory upsert).
+ */
+async function runCommit(
+  supabase: TagSupabase, userId: string,
+  opts: { ids: string[]; normalized: string; matchType: string; parsedTarget: { category: string; subcategory: string | null } },
+): Promise<{ updatedCount: number; ruleSaved: boolean }> {
+  const { data: updatedRows, error: txError } = await supabase
+    .from('transactions')
+    .update({
+      category: opts.parsedTarget.category, subcategory: opts.parsedTarget.subcategory,
+      category_source: 'tag_chat', updated_at: new Date().toISOString(),
+    })
+    .in('id', opts.ids)
+    .eq('user_id', userId)
+    .select('id');
+  if (txError) throw new Error(txError.message);
+  const updatedCount = Array.isArray(updatedRows) ? updatedRows.length : 0;
+
+  const { error: crError } = await supabase.from('category_rules').upsert(
+    {
+      user_id: userId, match_type: opts.matchType, merchant_pattern: opts.normalized, match_value: opts.normalized,
+      category: encodeRuleCategory(opts.parsedTarget.category, opts.parsedTarget.subcategory),
+      is_active: true, updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,merchant_pattern' }
+  );
+  if (crError) console.error('[tag-action.commit] category_rules upsert failed');
+
+  // vendor_category_memory only has: id, user_id, vendor_key, category, subcategory, created_at,
+  // updated_at. Keep the upsert to what the schema actually supports and surface any error.
+  const { error: vcmError } = await supabase.from('vendor_category_memory').upsert(
+    {
+      user_id: userId, vendor_key: opts.normalized.toLowerCase(),
+      category: opts.parsedTarget.category, subcategory: opts.parsedTarget.subcategory,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,vendor_key' }
+  );
+  if (vcmError) console.error('[tag-action.commit] vendor_category_memory upsert failed');
+
+  return { updatedCount, ruleSaved: !crError };
+}
+
+// ── T-H1b: conversational preview / confirmation / cancellation with SERVER receipts ─────────
+// The browser sends `conversation: { sessionId?, clientMessageId, customerText, newConversation? }`.
+// Tag's replies and receipts are composed here from verified results; browser text is never stored
+// as Tag's words. A confirmation is honoured only for the proposal the server recorded as the
+// immediately preceding Tag reply. Claim-first: the customer message is stored before anything runs,
+// and a duplicate (retry / concurrent / partial failure) never runs the action again.
+const TAG_ACTION = 'recategorize_by_merchant';
+
+interface ConversationFields {
+  sessionId: string | null;
+  clientMessageId: string | null;
+  customerText: string;
+  newConversation: boolean;
+}
+
+function parseConversationFields(raw: unknown): ConversationFields | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const customerText = typeof r.customerText === 'string' ? r.customerText.trim().slice(0, 4000) : '';
+  if (!customerText) return null;
+  return {
+    sessionId: typeof r.sessionId === 'string' ? r.sessionId : null,
+    clientMessageId: typeof r.clientMessageId === 'string' ? r.clientMessageId : null,
+    customerText,
+    newConversation: r.newConversation === true,
+  };
+}
+
+const plural = (n: number) => (n === 1 ? '' : 's');
+const money = (v: unknown) => `$${Math.abs(Number(v || 0)).toFixed(2)}`;
+
+export function proposalText(matchValue: string, targetCategory: string, matches: PreviewRow[]): string {
+  const n = matches.length;
+  const sample = matches.slice(0, 3)
+    .map((s) => `- ${s.merchant_name} - ${money(s.amount)} (currently: ${s.category || 'Uncategorized'})`)
+    .join('\n');
+  const extra = n > 3 ? `\n...and ${n - 3} more` : '';
+  return `I found **${n}** transaction${plural(n)} matching "${matchValue}". Here's a sample:\n\n${sample}${extra}\n\n`
+    + `Move all ${n} to **${targetCategory}** and save a rule for future imports? Say yes to confirm.`;
+}
+
+type Subject = { matchValue: string; targetCategory: string; targetSubcategory: string | null; matchType: string };
+const sameSubject = (a: ActionReceipt['subject'] | undefined, b: Subject) => !!a
+  && a.matchValue === b.matchValue && a.targetCategory === b.targetCategory
+  && (a.targetSubcategory ?? null) === b.targetSubcategory && a.matchType === b.matchType;
+
+async function handleConversationalAction(
+  supabase: TagSupabase,
+  userId: string,
+  intent: 'preview' | 'commit' | 'cancel_proposal',
+  convo: ConversationFields,
+  ctx: { subject: Subject | null; importId?: string | null; affectedIds?: unknown; parsedTarget?: { category: string; subcategory: string | null } },
+) {
+  // 1. The customer's own Tag conversation.
+  let sessionId: string | null = null;
+  try {
+    sessionId = (await resolveEmployeeConversation(supabase as never, {
+      userId, employeeSlug: 'tag-ai', requestedSessionId: convo.sessionId, newConversation: convo.newConversation,
+    })).sessionId;
+  } catch {
+    sessionId = null;
+    console.warn('[tag-action] conversation could not be opened; this turn will not be saved');
+  }
+
+  // 2. The proposal the server recorded as Tag's immediately preceding reply (read before the claim).
+  let pending: { receipt: ActionReceipt; replyTo: string | null } | null = null;
+  if (sessionId && intent !== 'preview') {
+    try {
+      const latest = await findLatestActionReceipt(supabase as never, { sessionId, userId, lookback: 1 });
+      if (latest && latest.receipt.state === 'proposed' && latest.receipt.action === TAG_ACTION) pending = latest;
+    } catch { pending = null; }
+  }
+  const proposalMatches = !!pending && !!ctx.subject && sameSubject(pending.receipt.subject, ctx.subject);
+
+  // 3. Claim-first: store the customer message (with its confirmed / cancelled intent) before acting.
+  let claimed = false;
+  if (sessionId) {
+    const actionIntent = intent === 'commit'
+      ? { action: TAG_ACTION, state: 'confirmed', proposalRef: pending?.replyTo ?? null, matchesProposal: proposalMatches }
+      : intent === 'cancel_proposal'
+        ? { action: TAG_ACTION, state: 'cancelled', proposalRef: pending?.replyTo ?? null }
+        : undefined;
+    let claim: Awaited<ReturnType<typeof claimConversationTurn>> | null = null;
+    try {
+      claim = await claimConversationTurn(supabase as never, {
+        sessionId, userId, employeeSlug: 'tag-ai', userText: convo.customerText, clientMessageId: convo.clientMessageId,
+        ...(actionIntent ? { metadata: { actionIntent } } : {}),
+      });
+    } catch { claim = null; }
+    if (claim?.status === 'duplicate') {
+      // Already stored: report the STORED reply and outcome; never run the action again and never
+      // say "done" when the outcome was not recorded.
+      return ok({
+        ok: true, intent, duplicate: true, executed: false,
+        conversation: {
+          sessionId,
+          persisted: claim.reply !== null,
+          reply: claim.reply ?? "I already received that message, but its outcome wasn't recorded. Nothing was run again — please check your transactions before trying again.",
+          receipt: parseActionReceipt(claim.actionOutcome),
+        },
+      });
+    }
+    if (claim?.status === 'conflict') {
+      // Unique conflict with nothing stored in this session: assume nothing, act on nothing.
+      return ok({
+        ok: false, intent, error: 'conflict', executed: false,
+        conversation: {
+          sessionId, persisted: false, conflict: true, receipt: null,
+          reply: "I couldn't safely record that message, so I didn't change anything. Please send it again.",
+        },
+      });
+    }
+    claimed = claim?.status === 'claimed';
+  }
+
+  // 4. Run the action and compose Tag's reply + receipt from the VERIFIED outcome.
+  const base = { v: 1 as const, employee: 'tag-ai' as const, action: TAG_ACTION, ...(ctx.subject ? { subject: ctx.subject } : {}) };
+  let receipt: ActionReceipt;
+  let reply: string;
+  let executed = false;
+  let legacy: Record<string, unknown> = {};
+
+  if (intent === 'preview' && ctx.subject) {
+    try {
+      const matches = await runPreview(supabase, userId, { normalized: ctx.subject.matchValue, matchType: ctx.subject.matchType, importId: ctx.importId });
+      legacy = {
+        ok: true, matchValue: ctx.subject.matchValue, targetCategory: ctx.subject.targetCategory,
+        targetSubcategory: ctx.subject.targetSubcategory, matchType: ctx.subject.matchType, matchCount: matches.length,
+        samples: matches.slice(0, 5).map((tx) => ({ id: tx.id, merchant_name: tx.merchant_name, amount: tx.amount, posted_at: tx.posted_at, current_category: tx.category || 'Uncategorized' })),
+        affectedIds: matches.map((tx) => tx.id),
+      };
+      if (matches.length > 0) {
+        receipt = { ...base, state: 'proposed', result: { matchCount: matches.length } };
+        reply = proposalText(ctx.subject.matchValue, ctx.subject.targetCategory, matches);
+      } else {
+        receipt = { ...base, state: 'failed', reason: 'no_matches', result: { matchCount: 0 } };
+        reply = `I searched your transactions but didn't find any matching "${ctx.subject.matchValue}". Want to try a different keyword, or tell me the merchant name you see in your list?`;
+      }
+    } catch {
+      legacy = { ok: false, error: 'preview_failed' };
+      receipt = { ...base, state: 'failed', reason: 'preview_error' };
+      reply = 'Something went wrong checking your transactions, so nothing has changed. Try again?';
+    }
+  } else if (intent === 'commit' && ctx.subject && ctx.parsedTarget) {
+    if (sessionId && !proposalMatches) {
+      // Never act on a confirmation the server cannot tie to the proposal it just made.
+      legacy = { ok: false, error: 'no_matching_proposal' };
+      receipt = { ...base, state: 'failed', reason: 'no_matching_proposal', proposalRef: pending?.replyTo ?? null };
+      reply = "There's no pending change matching that confirmation, so I haven't changed anything. Tell me what you'd like to move and I'll check it first.";
+    } else {
+      try {
+        // Only transactions the server itself matches now (intersected with the previewed ids, if sent).
+        const matches = await runPreview(supabase, userId, { normalized: ctx.subject.matchValue, matchType: ctx.subject.matchType, importId: ctx.importId });
+        const requested = Array.isArray(ctx.affectedIds) ? new Set(ctx.affectedIds.map(String)) : null;
+        const ids = matches.map((m) => m.id).filter((id) => !requested || requested.has(id));
+        if (ids.length === 0) {
+          legacy = { ok: false, error: 'nothing_to_update' };
+          receipt = { ...base, state: 'failed', reason: 'nothing_to_update', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
+          reply = `I couldn't find those "${ctx.subject.matchValue}" transactions anymore, so nothing was moved.`;
+        } else {
+          const r = await runCommit(supabase, userId, { ids, normalized: ctx.subject.matchValue, matchType: ctx.subject.matchType, parsedTarget: ctx.parsedTarget });
+          executed = r.updatedCount > 0;
+          legacy = { ok: executed, matchValue: ctx.subject.matchValue, targetCategory: ctx.subject.targetCategory, targetSubcategory: ctx.subject.targetSubcategory, matchType: ctx.subject.matchType, updatedCount: r.updatedCount, ...(executed ? {} : { error: 'nothing_updated' }) };
+          if (executed) {
+            receipt = { ...base, state: 'completed', proposalRef: pending?.replyTo ?? null, result: { affectedCount: r.updatedCount }, ...(r.ruleSaved ? {} : { reason: 'rule_not_saved' }) };
+            reply = `Done. Moved ${r.updatedCount} transaction${plural(r.updatedCount)} to ${ctx.subject.targetCategory}`
+              + (r.ruleSaved
+                ? ` and saved a rule so future "${ctx.subject.matchValue}" transactions auto-categorize.`
+                : `. I couldn't save the rule for future "${ctx.subject.matchValue}" transactions, so new imports won't be categorized automatically yet.`);
+          } else {
+            receipt = { ...base, state: 'failed', reason: 'nothing_updated', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
+            reply = "I couldn't update those transactions, so nothing was moved. Please try again.";
+          }
+        }
+      } catch {
+        legacy = { ok: false, error: 'commit_failed' };
+        receipt = { ...base, state: 'failed', reason: 'commit_error', proposalRef: pending?.replyTo ?? null };
+        reply = "I couldn't make that change, so nothing was moved. Please try again.";
+      }
+    }
+  } else {
+    // cancel_proposal: nothing is executed.
+    legacy = { ok: true };
+    if (pending) {
+      receipt = { v: 1, employee: 'tag-ai', action: TAG_ACTION, state: 'cancelled', subject: pending.receipt.subject, proposalRef: pending.replyTo };
+      reply = "Okay, I won't change anything.";
+    } else {
+      receipt = { v: 1, employee: 'tag-ai', action: TAG_ACTION, state: 'cancelled', reason: 'no_pending_proposal' };
+      reply = "There's nothing waiting for your confirmation, so nothing has changed.";
+    }
+  }
+
+  // Prime HQ's authoritative-outcome fields (tool, success, count) on executed / attempted actions.
+  if (receipt.state === 'completed' || (intent === 'commit' && receipt.state === 'failed')) {
+    receipt = { ...receipt, tool: TAG_ACTION, success: receipt.state === 'completed', count: receipt.result?.affectedCount ?? 0 };
+  }
+
+  // 5. Store Tag's reply with the receipt. `persisted` is true only when claim AND reply were saved.
+  let persisted = false;
+  if (sessionId && claimed) {
+    try {
+      await completeConversationTurn(supabase as never, {
+        sessionId, userId, employeeSlug: 'tag-ai', assistantText: reply, clientMessageId: convo.clientMessageId,
+        assistantMetadata: { actionReceipt: receipt },
+      });
+      persisted = true;
+    } catch {
+      console.warn('[tag-action] conversation reply was not saved');
+    }
+  }
+
+  safeLog('tag-action.conversation', { userId, intent, state: receipt.state, executed, persisted });
+  return ok({ ...legacy, intent, executed, conversation: { sessionId, persisted, duplicate: false, reply, receipt } });
+}
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS, body: '' };
@@ -626,6 +920,14 @@ export const handler: Handler = async (event) => {
     }
   }
 
+  // ── T-H1b: conversational turns (server-composed replies and receipts) ─────
+  const conversation = body.conversation !== undefined ? parseConversationFields(body.conversation) : null;
+  if (body.conversation !== undefined && !conversation) return err('conversation.customerText is required');
+  if (intent === 'cancel_proposal') {
+    if (!conversation) return err('cancel_proposal requires conversation');
+    return handleConversationalAction(supabase, userId, 'cancel_proposal', conversation, { subject: null });
+  }
+
   // ── Remaining intents require matchValue + targetCategory ─────────────────
   if (!matchValue || !targetCategory) return err('Missing matchValue or targetCategory');
   const parsedTargetRaw = parseCategoryInput(String(targetCategory));
@@ -636,32 +938,21 @@ export const handler: Handler = async (event) => {
 
   const normalized = matchValue.trim().toUpperCase();
 
+  if (conversation && (intent === 'preview' || intent === 'commit')) {
+    return handleConversationalAction(supabase, userId, intent, conversation, {
+      subject: { matchValue: normalized, targetCategory: parsedTarget.category, targetSubcategory: parsedTarget.subcategory, matchType: String(matchType) },
+      importId, affectedIds: body.affectedIds, parsedTarget,
+    });
+  }
+
   // ── PREVIEW ────────────────────────────────────────────────────────────────
   if (intent === 'preview') {
     try {
-      let query = supabase
-        .from('transactions')
-        .select('id, merchant_name, amount, posted_at, category')
-        .eq('user_id', userId)
-        .order('posted_at', { ascending: false })
-        .limit(500);
-
-      if (importId) query = query.eq('import_id', importId);
-
-      const { data, error } = await query;
-      if (error) return err(error.message, 500);
-
-      const rows = (data || []) as any[];
-      const matching = rows.filter((tx) => {
-        const haystack = (tx.merchant_name || '').toUpperCase();
-        return matchType === 'exact' ? haystack === normalized : haystack.includes(normalized);
-      });
-
+      const matching = await runPreview(supabase, userId, { normalized, matchType: String(matchType), importId });
       const samples = matching.slice(0, 5).map((tx) => ({
         id: tx.id, merchant_name: tx.merchant_name, amount: tx.amount,
         posted_at: tx.posted_at, current_category: tx.category || 'Uncategorized',
       }));
-
       return ok({
         ok: true, intent: 'preview', matchValue: normalized,
         targetCategory: parsedTarget.category, targetSubcategory: parsedTarget.subcategory,
@@ -681,53 +972,18 @@ export const handler: Handler = async (event) => {
     }
 
     try {
-      const { error: txError } = await supabase
-        .from('transactions')
-        .update({
-          category: parsedTarget.category, subcategory: parsedTarget.subcategory,
-          category_source: 'tag_chat', updated_at: new Date().toISOString(),
-        })
-        .in('id', affectedIds)
-        .eq('user_id', userId);
-      if (txError) return err(txError.message, 500);
-
-      const { error: crError } = await supabase.from('category_rules').upsert(
-        {
-          user_id: userId, match_type: matchType, merchant_pattern: normalized, match_value: normalized,
-          category: encodeRuleCategory(parsedTarget.category, parsedTarget.subcategory),
-          is_active: true, updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,merchant_pattern' }
-      );
-      if (crError) {
-        console.error('[tag-action.commit] category_rules upsert failed:', crError.message);
-      }
-
-      // vendor_category_memory only has: id, user_id, vendor_key, category,
-      // subcategory, created_at, updated_at. Earlier versions wrote source /
-      // confidence / times_confirmed which silently errored out. Keep the
-      // upsert to what the schema actually supports and surface any error.
-      const { error: vcmError } = await supabase.from('vendor_category_memory').upsert(
-        {
-          user_id: userId, vendor_key: normalized.toLowerCase(),
-          category: parsedTarget.category, subcategory: parsedTarget.subcategory,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,vendor_key' }
-      );
-      if (vcmError) {
-        console.error('[tag-action.commit] vendor_category_memory upsert failed:', vcmError.message);
-      }
+      const r = await runCommit(supabase, userId, { ids: affectedIds.map(String), normalized, matchType: String(matchType), parsedTarget });
 
       safeLog('tag-action.commit', {
         userId, matchValue: normalized, targetCategory: parsedTarget.category,
-        targetSubcategory: parsedTarget.subcategory, matchType, updatedCount: affectedIds.length,
+        targetSubcategory: parsedTarget.subcategory, matchType, updatedCount: r.updatedCount,
       });
 
+      // updatedCount is the number of rows the database actually updated (was: the request size).
       return ok({
         ok: true, intent: 'commit', matchValue: normalized,
         targetCategory: parsedTarget.category, targetSubcategory: parsedTarget.subcategory,
-        matchType, updatedCount: affectedIds.length,
+        matchType, updatedCount: r.updatedCount,
       });
     } catch (e: any) {
       return err(e.message, 500);
