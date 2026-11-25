@@ -215,6 +215,12 @@ export type CashFlowPurpose =
   /** Ordinary consumption outflow. */
   | 'spending'
   | 'transfer_in'
+  /**
+   * D-1 (owner, 2026-11-25): a payment RECEIVED on the customer's own credit card / loan
+   * account (inflow carrying a debt-payment category or subcategory). Internal money movement:
+   * neither income nor spending, kept visible as a repayment.
+   */
+  | 'debt_repayment_in'
   | 'transfer_out'
   /** Outflow to debt / loan / credit-card payment. */
   | 'debt_payment'
@@ -350,7 +356,13 @@ const OUTFLOW_PURPOSE: Readonly<Record<Exclude<NonSpendPurpose, 'income_category
  * Purpose precedence (within the type-decided direction):
  *   outflow: income category → classification_conflict; else category purpose;
  *            else subcategory purpose; else spending.
- *   inflow:  transfer category or subcategory → transfer_in; else income.
+ *   inflow:  transfer category or subcategory → transfer_in;
+ *            debt-payment category or subcategory → debt_repayment_in (D-1: a payment received on
+ *            the customer's own card/loan — neither income nor spending);
+ *            else income (savings/investment categories on an inflow stay income with the
+ *            non_spend_category_on_inflow conflict, unchanged).
+ *   Interest charged, fees and bank fees (outflow, no non-spend category) are spending; interest
+ *   earned (inflow) is income. Direction is NEVER taken from the sign or the size of the amount.
  */
 export function classifyCashFlow(tx: {
   type?: string | null;
@@ -374,6 +386,9 @@ export function classifyCashFlow(tx: {
   if (direction === 'inflow') {
     if (categoryPurpose === 'transfer' || (!categoryPurpose && subcategoryPurpose === 'transfer')) {
       purpose = 'transfer_in';
+    } else if (categoryPurpose === 'debt_payment' || (!categoryPurpose && subcategoryPurpose === 'debt_payment')) {
+      // D-1: a card/loan payment received on the customer's own account is internal, not income.
+      purpose = 'debt_repayment_in';
     } else {
       purpose = 'income';
       const nonSpend = categoryPurpose ?? subcategoryPurpose;

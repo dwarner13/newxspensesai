@@ -50,7 +50,17 @@ describe('classifyCashFlow — type decides direction, category/subcategory deci
     ['Purchase', 100, 'Employment Income', '', 'outflow', 'classification_conflict', 10000, ['income_category_on_outflow']],
     ['income', 100, 'Shopping', '', 'inflow', 'income', 10000, []],
     ['income', 100, 'Employment Income', '', 'inflow', 'income', 10000, []],
-    ['income', 100, 'Debt Payments', '', 'inflow', 'income', 10000, ['non_spend_category_on_inflow']],
+    // D-1 (owner 2026-11-25): a payment RECEIVED on the customer's own card/loan is internal,
+    // not income (was: income + non_spend_category_on_inflow conflict).
+    ['income', 100, 'Debt Payments', '', 'inflow', 'debt_repayment_in', 10000, []],
+    ['income', 100, 'Credit Card Payments', '', 'inflow', 'debt_repayment_in', 10000, []],
+    ['income', 100, 'Transportation', 'Car Loan', 'inflow', 'debt_repayment_in', 10000, []],
+    // never by amount alone: interest earned is income, interest charged and fees are spending
+    ['income', 3, 'Interest', '', 'inflow', 'income', 300, []],
+    ['expense', 25, 'Interest', '', 'outflow', 'spending', 2500, []],
+    ['expense', 5, 'Bank Fees', '', 'outflow', 'spending', 500, []],
+    // a refund stays income (flagged separately by the integrity signals), never debt repayment
+    ['income', 40, 'Shopping', '', 'inflow', 'income', 4000, []],
     ['expense', 0, 'Groceries', '', 'outflow', 'spending', 0, []],
     // subcategory decides purpose within the type-decided direction
     ['expense', 100, 'Banking', 'TFSA', 'outflow', 'savings_investment', 10000, []],
@@ -168,6 +178,7 @@ describe('buildPeriodAggregate', () => {
       transferIn: 57000,              // 500 Transfers + 70 E-Transfer subcategory
       transferOut: 44000,             // 400 Transfers + 40 ATM Withdrawal subcategory (canonically a transfer)
       debtPayments: 31000,            // 250 Debt Payments + 60 Car Loan subcategory
+      debtRepaymentsIn: 0,            // D-1 bucket: none in this fixture
       savingsInvestment: 30000,       // 100 Savings + 200 TFSA subcategory
       otherNonSpend: 0,               // reserved; no canonical entry maps here
       classificationConflict: 4510,   // 10.10 Income + 30 Business Income + 5 Employment Income (outflows)
@@ -205,7 +216,7 @@ describe('buildPeriodAggregate', () => {
     expect(c.totalOutflow).toBe(c.spending + c.transferOut + c.debtPayments + c.savingsInvestment + c.otherNonSpend + c.classificationConflict);
     expect(agg.counts).toEqual({
       included: 16, income: 2, spending: 3, transferIn: 2, transferOut: 2,
-      debtPayments: 2, savingsInvestment: 2, otherNonSpend: 0, classificationConflict: 3,
+      debtPayments: 2, debtRepaymentsIn: 0, savingsInvestment: 2, otherNonSpend: 0, classificationConflict: 3,
     });
   });
 

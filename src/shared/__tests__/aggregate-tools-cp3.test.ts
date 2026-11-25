@@ -140,6 +140,7 @@ describe('cash_flow_summary — authoritative period aggregate', () => {
       transferIn: 50000,
       transferOut: 45500,            // 400 + 40 ATM + 15 Points Redemption
       debtPayments: 31000,           // 250 + 60 Car Loan
+      debtRepaymentsIn: 0,           // D-1 bucket: none in this fixture
       savingsInvestment: 30000,      // 100 Savings + 200 Investments
       otherNonSpend: 0,
       classificationConflict: 1010,  // 10.10 expense + "Income"

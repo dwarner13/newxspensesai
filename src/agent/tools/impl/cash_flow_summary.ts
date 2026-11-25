@@ -24,6 +24,8 @@ const centsSchema = z.object({
   transferIn: z.number(),
   transferOut: z.number(),
   debtPayments: z.number(),
+  /** D-1: payments received on the customer's own card/loan (internal; not income). */
+  debtRepaymentsIn: z.number(),
   savingsInvestment: z.number(),
   otherNonSpend: z.number(),
   classificationConflict: z.number(),
@@ -56,6 +58,8 @@ export const outputSchema = z.object({
   error: z.string().optional(),
   // ── Authoritative facts (present unless queryStatus = 'query_error') ──
   debtPayments: z.number().optional(),
+  /** D-1: card/loan payments received on the customer's own account — not income, not spending. */
+  debtRepaymentsIn: z.number().optional(),
   transfersIn: z.number().optional(),
   transfersOut: z.number().optional(),
   savingsInvestment: z.number().optional(),
@@ -151,6 +155,7 @@ export function toCashFlowOutput(input: Input, agg: PeriodAggregate): Output {
     nonSpendTransactionCount: nonSpendCount,
     queryStatus: aggregateQueryStatus(agg),
     debtPayments: centsToDollars(c.debtPayments),
+    debtRepaymentsIn: centsToDollars(c.debtRepaymentsIn),
     transfersIn: centsToDollars(c.transferIn),
     transfersOut: centsToDollars(c.transferOut),
     savingsInvestment: centsToDollars(c.savingsInvestment),

@@ -25,7 +25,7 @@ export const inputSchema = z.object({
 });
 
 const PURPOSES = [
-  'income', 'spending', 'transfer_in', 'transfer_out', 'debt_payment',
+  'income', 'spending', 'transfer_in', 'debt_repayment_in', 'transfer_out', 'debt_payment',
   'savings_investment', 'other_non_spend', 'classification_conflict',
 ] as const;
 type Purpose = typeof PURPOSES[number];

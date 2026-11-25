@@ -63,13 +63,15 @@ export interface PeriodAggregate {
     transferIn: number;
     transferOut: number;
     debtPayments: number;
+    /** D-1: payments received on the customer's own card/loan (inflow). Internal; not income. */
+    debtRepaymentsIn: number;
     /** Outflow to savings / investments (incl. TFSA/RRSP) — internal money movement. */
     savingsInvestment: number;
     /** Other canonical non-spend outflow (reserved; no canonical entry maps here today). */
     otherNonSpend: number;
     /** Outflow whose category contradicts its type (e.g. expense + "Income"). */
     classificationConflict: number;
-    /** income + transferIn */
+    /** income + transferIn + debtRepaymentsIn */
     totalInflow: number;
     /** spending + transferOut + debtPayments + savingsInvestment + otherNonSpend + classificationConflict */
     totalOutflow: number;
@@ -94,6 +96,7 @@ export interface PeriodAggregate {
     transferIn: number;
     transferOut: number;
     debtPayments: number;
+    debtRepaymentsIn: number;
     savingsInvestment: number;
     otherNonSpend: number;
     classificationConflict: number;
@@ -198,6 +201,7 @@ const BUCKET_KEY: Record<Bucket, keyof PeriodAggregate['counts'] & keyof PeriodA
   transfer_in: 'transferIn',
   transfer_out: 'transferOut',
   debt_payment: 'debtPayments',
+  debt_repayment_in: 'debtRepaymentsIn',
   savings_investment: 'savingsInvestment',
   other_non_spend: 'otherNonSpend',
   classification_conflict: 'classificationConflict',
@@ -211,11 +215,11 @@ export function buildPeriodAggregate(
   const period = opts.period ?? null;
   const sums = {
     income: 0, spending: 0, transferIn: 0, transferOut: 0,
-    debtPayments: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
+    debtPayments: 0, debtRepaymentsIn: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
   };
   const counts: PeriodAggregate['counts'] = {
     included: 0, income: 0, spending: 0, transferIn: 0, transferOut: 0,
-    debtPayments: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
+    debtPayments: 0, debtRepaymentsIn: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
   };
   const excluded = { missingAmount: 0, missingDate: 0, outOfPeriod: 0, unclassifiedType: 0 };
   let unclassifiedCents = 0;
@@ -262,7 +266,7 @@ export function buildPeriodAggregate(
     }
   }
 
-  const totalInflow = sums.income + sums.transferIn;
+  const totalInflow = sums.income + sums.transferIn + sums.debtRepaymentsIn;
   const totalOutflow = sums.spending + sums.transferOut + sums.debtPayments
     + sums.savingsInvestment + sums.otherNonSpend + sums.classificationConflict;
   const categories = [...categoryMap.values()].sort((a, b) =>
