@@ -6391,13 +6391,19 @@ export const handler: Handler = async (event, context) => {
             success: !isToolError,
           };
           const contentForPersist = typeof result === 'string' ? result : JSON.stringify(result);
+          // Owner P-3..P-5: thread_id has an FK to chat_threads, so it is the employee's OWN thread
+          // (ensureThread verifies a client-sent thread id belongs to this user; never a session id).
+          // employee_key is always explicit (the live default is 'user').
+          const receiptEmployeeKey = await getEmployeeKeyFromSlug(sb, employeeSlugForConfirm);
+          const receiptThreadId = await ensureThread(sb, userId, receiptEmployeeKey, requestThreadId || undefined);
           await sb.from('chat_messages').insert({
             session_id: sessionId || null,
             user_id: userId,
             role: 'assistant',
             content: contentForPersist,
             tokens: Math.ceil((contentForPersist || '').length / 4),
-            thread_id: requestThreadId || sessionId || null,
+            thread_id: receiptThreadId,
+            employee_key: receiptEmployeeKey,
             metadata: { actionReceipt: sanitizedReceipt },
           });
         } catch (persistErr) {
@@ -6443,13 +6449,16 @@ export const handler: Handler = async (event, context) => {
 
               // Persist specialist_complete system message
               const completeMsg = `${employeeSlugForConfirm} ${outcome === 'success' ? 'finished' : outcome === 'failed' ? 'encountered an issue' : 'completed'}. Returning to ${originSlug}.`;
+              const completeEmployeeKey = await getEmployeeKeyFromSlug(sb, employeeSlugForConfirm);
+              const completeThreadId = await ensureThread(sb, userId, completeEmployeeKey, requestThreadId || undefined);
               await sb.from('chat_messages').insert({
                 session_id: activeSessionId,
                 user_id: userId,
                 role: 'system',
                 content: completeMsg,
                 tokens: Math.ceil(completeMsg.length / 4),
-                thread_id: requestThreadId || activeSessionId || null,
+                thread_id: completeThreadId,
+                employee_key: completeEmployeeKey,
                 metadata: {
                   lifecycle: {
                     type: 'specialist_complete',
@@ -8130,6 +8139,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -8140,6 +8150,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
 
@@ -8663,6 +8674,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -8673,6 +8685,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
       } catch (persistError: any) {
@@ -8765,6 +8778,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -8775,6 +8789,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
       } catch (persistError: any) {
@@ -8864,6 +8879,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -8874,6 +8890,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
       } catch (persistError: any) {
@@ -8977,6 +8994,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -8987,6 +9005,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
       } catch (persistError: any) {
@@ -9076,6 +9095,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -9086,6 +9106,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
       } catch (persistError: any) {
@@ -9175,6 +9196,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -9185,6 +9207,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
       } catch (persistError: any) {
@@ -9274,6 +9297,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -9284,6 +9308,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
       } catch (persistError: any) {
@@ -9373,6 +9398,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
         });
 
@@ -9383,6 +9409,7 @@ export const handler: Handler = async (event, context) => {
           content: assistantContent,
           tokens: estimateTokens(assistantContent),
           thread_id: threadId,
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
         });
       } catch (persistError: any) {
@@ -13590,6 +13617,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
               content: handoffMessage,
               tokens: estimateTokens(handoffMessage),
               thread_id: threadId,
+              employee_key: employeeKey, // owner P-2: live default is 'user'
               metadata: {
                 lifecycle: {
                   type: 'employee_handoff',
@@ -14606,6 +14634,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           content: assistantContent,
           tokens: completionTokens,
           thread_id: threadId, // CRITICAL: thread_id is always required
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: Object.keys(assistantMsgMetadata).length > 0 ? assistantMsgMetadata : undefined,
         });
         console.log(`[Chat] Inserting assistant message (non-streaming) with thread_id: ${threadId}`);
