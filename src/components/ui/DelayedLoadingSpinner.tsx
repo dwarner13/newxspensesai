@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useDelayedFlag } from '../../hooks/useDelayedFlag';
+import { AppSplash } from './AppSplash';
 
 interface DelayedLoadingSpinnerProps {
   isLoading?: boolean;
@@ -20,15 +21,11 @@ export function DelayedLoadingSpinner({
 
   const shouldShow = useDelayedFlag(isLoading, showDelayMs, minDisplayMs);
 
-  return (
-    <div style={{ minHeight: "calc(100vh - 120px)", background: "#0b1220", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {shouldShow && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 36, height: 36, borderRadius: "50%", border: "2px solid #1e2d4a", borderTopColor: "#c8a64e", animation: "xai-spin 0.9s linear infinite" }} />
-          <span style={{ fontSize: 11, color: "#4a5f7a", letterSpacing: 1.5, fontWeight: 600, textTransform: "uppercase" as const, fontFamily: "inherit" }}>Loading</span>
-          <style>{`@keyframes xai-spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      )}
-    </div>
-  );
+  // LD-1: the same full-screen AppSplash as sign-in and workspace preparation (no second
+  // spinner at a different height). The existing show delay / minimum display still apply,
+  // so quick page loads show nothing at all.
+  // Inside the dashboard the layout (sidebar) is already on screen: show it in the content
+  // area. Elsewhere (sign-in, first load) it is the full-screen startup splash.
+  const inDashboard = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
+  return <AppSplash stage="loading" showRing={shouldShow} inline={inDashboard} />;
 }
