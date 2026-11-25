@@ -47,6 +47,21 @@ export function ChatIdentity({
   );
 }
 
+/**
+ * TB-4: the lettered employee mark (Crystal "C", Goalie "G", Byte "B", Ledger "L"…), drawn
+ * at the size ChatIdentity gives it, with the letter at half the circle (was ~37%).
+ */
+export function LetterLogo({ size, letter, color }: { size: number; letter: string; color: string }) {
+  return (
+    <span style={{
+      width: size, height: size, borderRadius: "50%", flexShrink: 0,
+      background: `${color}20`, border: `1.5px solid ${color}55`, boxShadow: `0 0 16px ${color}33`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: Math.round(size * 0.5), fontWeight: 800, color, lineHeight: 1,
+    }}>{letter}</span>
+  );
+}
+
 export interface ChatToolbarMoreItem { label: string; onSelect: () => void }
 
 export function ChatToolbar({

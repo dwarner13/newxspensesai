@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { PANEL } from '../../pages/PrimeChatV2/panelConfig';
 import { useEndpointConversation } from '@/hooks/useEndpointConversation';
 import { ConversationControls, UnsavedReplyNotice } from '@/components/chat/ConversationControls';
+import { ChatIdentity } from '@/components/chat/ChatHeader';
 
 interface ChatMsg {
   role: 'user' | 'custodian';
@@ -104,20 +105,22 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
         boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
       }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid #1e2d4a', flexShrink: 0 }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{'🛡️'}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#e8ecf4' }}>Custodian</div>
-            <div style={{ fontSize: 13, color: '#7b8ba5' }}>IT Manager</div>
-          </div>
+        {/* TB-4: universal chat header — identity separate from the compact toolbar. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? '10px 8px 10px 14px' : '12px 16px 12px 20px', borderBottom: '1px solid #1e2d4a', flexShrink: 0 }}>
+          <ChatIdentity
+            isMobile={isMobile}
+            renderLogo={(px) => (
+              <span style={{ width: px, height: px, borderRadius: '50%', background: 'rgba(167,139,250,0.15)', border: '1.5px solid rgba(167,139,250,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(px * 0.55), lineHeight: 1 }}>{'🛡️'}</span>
+            )}
+            name="Custodian"
+            subtitle={isMobile ? undefined : 'IT Manager'}
+          />
           <ConversationControls
-            employeeName="Custodian" accent="#a78bfa" border="#1e2d4a" color="#c8d0e0"
+            employeeName="Custodian" accent="#a78bfa" isMobile={isMobile}
             items={convo.history.items} loading={convo.history.loading} currentId={convo.sessionId}
             onLoad={convo.history.load} onOpen={convo.openConversation} onNew={convo.startNewConversation}
+            onClose={onClose}
           />
-          <button onClick={onClose} aria-label="Close Custodian" style={{ width: 44, height: 44, flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: '#c8d0e0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X style={{ width: 18, height: 18 }} />
-          </button>
         </div>
 
         {/* Messages */}

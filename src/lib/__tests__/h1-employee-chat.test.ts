@@ -61,9 +61,12 @@ describe('useEmployeeChat: one implementation for every employee', () => {
 
 describe('ConversationControls', () => {
   it('44px History and New conversation, the shared drawer, honest unsaved notice', () => {
-    expect(controls).toMatch(/width: 44, height: 44/);
-    expect(controls).toMatch(/aria-label=\{`Previous \$\{employeeName\} conversations`\}/);
-    expect(controls).toMatch(/aria-label="New conversation"/);
+    // TB-4: rendered as the universal ChatToolbar (38px desktop / 44px phones; labels and
+    // sizes are covered by tb1-chat-header.test.ts).
+    expect(controls).toMatch(/<ChatToolbar/);
+    expect(controls).toMatch(/onNew=\{onNew\}/);
+    expect(controls).toMatch(/history=\{\{ open, onToggle:/);
+    expect(controls).toMatch(/onClose=\{onClose\}/);
     expect(controls).toMatch(/<ConversationHistoryDrawer/);
     expect(controls).toMatch(/That conversation isn't available\./);
     expect(controls).toMatch(/This conversation couldn&apos;t be saved/);

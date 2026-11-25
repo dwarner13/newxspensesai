@@ -3,6 +3,7 @@ import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useEmployeeChat } from "@/hooks/useEmployeeChat";
 import { ConversationControls, UnsavedReplyNotice } from "@/components/chat/ConversationControls";
+import { ChatIdentity, LetterLogo } from "@/components/chat/ChatHeader";
 import { isUnsavedReply } from "@/lib/employeeChat";
 import { PANEL } from "../PrimeChatV2/panelConfig";
 import type { StoryData } from "./useStoryData";
@@ -59,15 +60,21 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
     <>
       <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", opacity: open ? 1 : 0, transition: "opacity 0.3s", zIndex: 998, backdropFilter: "blur(4px)" }} />
       <div style={{ position: "fixed", top: isMobile ? "auto" : 0, bottom: 0, right: 0, left: isMobile ? 0 : "auto", width: isMobile ? "100%" : 520, height: isMobile ? "90vh" : "100%", borderRadius: isMobile ? "20px 20px 0 0" : 0, borderLeft: isMobile ? "none" : "1px solid rgba(167,139,250,0.2)", borderTop: isMobile ? "1px solid rgba(167,139,250,0.2)" : "none", background: T.bg, transform: open ? "translateX(0)" : (isMobile ? "translateY(100%)" : "translateX(100%)"), transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
-        <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${PURPLE}20`, border: `1.5px solid ${PURPLE}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: PURPLE, boxShadow: `0 0 16px ${PURPLE}33` }}>C</div>
-          <div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Crystal <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></span><span style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", letterSpacing: "0.05em" }}>SECURED</span></div><div style={{ fontSize: 11, color: T.dim }}>Analytics & Trends</div></div>
+        <div style={{ padding: isMobile ? "10px 8px 10px 14px" : "12px 16px 12px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          {/* TB-4: universal chat header — identity separate from the compact toolbar. The
+              duplicate SECURED tag is gone; the footer still states the protections. */}
+          <ChatIdentity
+            isMobile={isMobile}
+            renderLogo={(px) => <LetterLogo size={px} letter="C" color={PURPLE} />}
+            name={isMobile ? "Crystal" : <>Crystal <span style={{ fontWeight: 500, color: T.muted }}>Copilot</span></>}
+            subtitle={isMobile ? undefined : "Analytics & Trends"}
+          />
           <ConversationControls
-            employeeName="Crystal" accent={PURPLE} border={T.border} color={T.muted}
+            employeeName="Crystal" accent={PURPLE} isMobile={isMobile}
             items={history.items} loading={history.loading} currentId={sessionId}
             onLoad={history.load} onOpen={openConversation} onNew={startNewConversation}
+            onClose={handleClose}
           />
-          <button onClick={handleClose} aria-label="Close Crystal" style={{ width: 44, height: 44, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px 24px 140px" }}>

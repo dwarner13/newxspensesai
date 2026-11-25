@@ -4,6 +4,7 @@ import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useImportList, type ImportListItem } from "@/hooks/useImportList";
 import { useEmployeeChat } from "@/hooks/useEmployeeChat";
 import { ConversationControls, UnsavedReplyNotice } from "@/components/chat/ConversationControls";
+import { ChatIdentity, LetterLogo } from "@/components/chat/ChatHeader";
 import { isUnsavedReply } from "@/lib/employeeChat";
 import { PANEL } from "../PrimeChatV2/panelConfig";
 import { useSetAtom } from "jotai";
@@ -77,15 +78,21 @@ export function ByteCopilotPanel({ onClose }: ByteCopilotPanelProps) {
       <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", opacity: open ? 1 : 0, transition: "opacity 0.3s", zIndex: 998, backdropFilter: "blur(4px)" }} />
       <div style={{ position: "fixed", top: isMobile ? "auto" : 0, bottom: 0, right: 0, left: isMobile ? 0 : "auto", width: isMobile ? "100%" : PANEL.panelWidthDesktop, height: isMobile ? PANEL.panelHeightMobile : "100%", borderRadius: isMobile ? "20px 20px 0 0" : 0, paddingTop: isMobile ? "env(safe-area-inset-top, 0px)" : 0, background: T.bg, borderLeft: isMobile ? "none" : `1px solid ${T.border}`, borderTop: isMobile ? `1px solid ${T.border}` : "none", transform: open ? "translateX(0)" : (isMobile ? "translateY(100%)" : "translateX(100%)"), transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
         {/* Header */}
-        <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${GREEN}20`, border: `1.5px solid ${GREEN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: GREEN, boxShadow: `0 0 16px ${GREEN}33` }}>B</div>
-          <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Byte <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></div><div style={{ fontSize: 11, color: T.dim }}>Smart Import Assistant</div></div>
+        <div style={{ padding: isMobile ? "10px 8px 10px 14px" : "12px 16px 12px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          {/* TB-4: universal chat header — identity separate from the compact toolbar. The
+              duplicate SECURED tag is gone; the footer still states the protections. */}
+          <ChatIdentity
+            isMobile={isMobile}
+            renderLogo={(px) => <LetterLogo size={px} letter="B" color={GREEN} />}
+            name={isMobile ? "Byte" : <>Byte <span style={{ fontWeight: 500, color: T.muted }}>Copilot</span></>}
+            subtitle={isMobile ? undefined : "Smart Import Assistant"}
+          />
           <ConversationControls
-            employeeName="Byte" accent={GREEN} border={T.border} color={T.muted}
+            employeeName="Byte" accent={GREEN} isMobile={isMobile}
             items={history.items} loading={history.loading} currentId={sessionId}
             onLoad={history.load} onOpen={openConversation} onNew={startNewConversation}
+            onClose={handleClose}
           />
-          <button onClick={handleClose} aria-label="Close Byte" style={{ width: 44, height: 44, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
         {/* Body */}

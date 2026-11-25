@@ -1,45 +1,42 @@
 import { useState } from "react";
-import { History as HistoryIcon, SquarePen } from "lucide-react";
+import { ChatToolbar } from "@/components/chat/ChatHeader";
 import { ConversationHistoryDrawer } from "@/components/chat/ConversationHistoryDrawer";
 import type { HistoryDrawerItem } from "@/lib/historyDrawer";
 
 /**
- * Universal employee conversation history — the shared header controls (History +
- * New conversation, 44px) and the shared history drawer. Render it inside the panel's
+ * Universal employee conversation history — the shared header controls, rendered as the
+ * universal ChatToolbar (TB-4: New conversation, History, Close), and the shared history drawer. Render it inside the panel's
  * positioned root; the drawer covers the panel (full screen on phones, as the panels are).
  * Nothing here deletes anything.
  */
 export function ConversationControls({
-  employeeName, accent, border, color,
-  items, loading, currentId, onLoad, onOpen, onNew,
+  employeeName, accent, isMobile = false,
+  items, loading, currentId, onLoad, onOpen, onNew, onClose,
 }: {
   employeeName: string;
   accent: string;
-  border: string;
-  color: string;
+  isMobile?: boolean;
   items: HistoryDrawerItem[];
   loading: boolean;
   currentId: string | null | undefined;
   onLoad: () => void | Promise<void>;
   onOpen: (id: string) => Promise<boolean>;
   onNew: () => void;
+  /** Close the employee panel (shown as the toolbar's last button). */
+  onClose?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const btn = {
-    width: 44, height: 44, flexShrink: 0, borderRadius: 10, background: "transparent",
-    border: `1px solid ${border}`, color, cursor: "pointer",
-    display: "flex", alignItems: "center", justifyContent: "center",
-  } as const;
   return (
     <>
-      <button type="button" style={btn} aria-label={`Previous ${employeeName} conversations`} title="History"
-        onClick={() => { setError(null); setOpen(true); void onLoad(); }}>
-        <HistoryIcon size={18} aria-hidden="true" />
-      </button>
-      <button type="button" style={btn} aria-label="New conversation" title="New conversation" onClick={onNew}>
-        <SquarePen size={18} aria-hidden="true" />
-      </button>
+      <ChatToolbar
+        employeeName={employeeName}
+        accent={accent}
+        isMobile={isMobile}
+        onNew={onNew}
+        history={{ open, onToggle: () => { if (!open) { setError(null); void onLoad(); } setOpen(v => !v); } }}
+        onClose={onClose}
+      />
       <ConversationHistoryDrawer
         open={open}
         onClose={() => setOpen(false)}
