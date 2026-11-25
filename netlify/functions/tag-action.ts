@@ -26,6 +26,7 @@ import {
 } from './_shared/conversation-platform.js';
 import { resolveCategoryRequest, TAG_CATEGORIES } from './_shared/tagCategories.js';
 import { TAG_SINGLE_ACTION, UUID_RE, loadOwnedTransaction, buildSingleProposal, catLabel } from './_shared/tagSingleTransaction.js';
+import { TAG_PROPOSAL_ACTIONS, sameProposalSubject, executeActionProposal, type ProposalSubject } from './_shared/tagProposals.js';
 
 const CORS = {
   'Content-Type': 'application/json',
@@ -496,7 +497,7 @@ const sameSubject = (a: ActionReceipt['subject'] | undefined, b: Subject) => !!a
 async function handleConversationalAction(
   supabase: TagSupabase,
   userId: string,
-  intent: 'preview' | 'commit' | 'cancel_proposal' | 'preview_single' | 'commit_single',
+  intent: 'preview' | 'commit' | 'cancel_proposal' | 'preview_single' | 'commit_single' | 'commit_proposal',
   convo: ConversationFields,
   ctx: {
     subject: Subject | null; importId?: string | null; affectedIds?: unknown; parsedTarget?: { category: string; subcategory: string | null };
@@ -506,10 +507,13 @@ async function handleConversationalAction(
     categoryIssue?: string | null;
     /** Merchant path: the customer's words when the category is only the closest match. */
     closestTo?: string | null;
+    /** T-ACT-SAFE: confirmation of a rule / bulk move / rename proposal Tag made (client echo). */
+    generic?: { action: string; subject: ProposalSubject };
   },
 ) {
   const isSingle = intent === 'preview_single' || intent === 'commit_single';
-  const actionName = isSingle ? TAG_SINGLE_ACTION : TAG_ACTION;
+  const isGeneric = intent === 'commit_proposal';
+  const actionName = isSingle ? TAG_SINGLE_ACTION : isGeneric && ctx.generic ? ctx.generic.action : TAG_ACTION;
   // 1. The customer's own Tag conversation.
   let sessionId: string | null = null;
   try {
@@ -527,10 +531,16 @@ async function handleConversationalAction(
     try {
       const latest = await findLatestActionReceipt(supabase, { sessionId, userId, lookback: 1 });
       if (latest && latest.receipt.state === 'proposed'
-        && (latest.receipt.action === TAG_ACTION || latest.receipt.action === TAG_SINGLE_ACTION)) pending = latest;
+        && (latest.receipt.action === TAG_ACTION || latest.receipt.action === TAG_SINGLE_ACTION
+          || TAG_PROPOSAL_ACTIONS.includes(latest.receipt.action))) pending = latest;
     } catch { pending = null; }
   }
   const proposalMatches = !pending ? false
+    : isGeneric
+      // The confirmation binds only to Tag's immediately preceding signed proposal with the SAME action
+      // and EVERY subject field (scope fingerprint included) — a tampered or different echo matches nothing.
+      ? !!ctx.generic && pending.receipt.action === ctx.generic.action
+        && sameProposalSubject(pending.receipt.subject, ctx.generic.subject)
     : isSingle
       // A confirmation binds only to Tag's immediately preceding SINGLE proposal for this exact
       // transaction and category.
@@ -543,7 +553,7 @@ async function handleConversationalAction(
   // 3. Claim-first: store the customer message (with its confirmed / cancelled intent) before acting.
   let claimed = false;
   if (sessionId) {
-    const actionIntent = intent === 'commit' || intent === 'commit_single'
+    const actionIntent = intent === 'commit' || intent === 'commit_single' || intent === 'commit_proposal'
       ? { action: actionName, state: 'confirmed', proposalRef: pending?.replyTo ?? null, matchesProposal: proposalMatches }
       : intent === 'cancel_proposal'
         ? { action: pending?.receipt.action ?? TAG_ACTION, state: 'cancelled', proposalRef: pending?.replyTo ?? null }
@@ -598,6 +608,28 @@ async function handleConversationalAction(
     } else {
       receipt = { ...base, state: 'failed', reason: outcome.reason };
       legacy = { ok: false, error: outcome.reason === 'preview_error' ? 'preview_failed' : outcome.reason, ...(outcome.candidates ? { candidates: outcome.candidates } : {}) };
+    }
+  } else if (intent === 'commit_proposal' && ctx.generic) {
+    // T-ACT-SAFE: execute a rule / bulk move / rename the customer explicitly confirmed. The SIGNED
+    // proposal's subject (not the client's echo) drives execution; the scope is re-read and a stale
+    // scope changes nothing.
+    if (!sessionId || !proposalMatches || !pending) {
+      legacy = { ok: false, error: 'no_matching_proposal' };
+      receipt = { ...base, state: 'failed', reason: 'no_matching_proposal', proposalRef: pending?.replyTo ?? null };
+      reply = "There's no pending change matching that confirmation, so I haven't changed anything. Tell me what you'd like to change and I'll check it first.";
+    } else {
+      const signedSubject = pending.receipt.subject as ProposalSubject;
+      const outcome = await executeActionProposal(supabase, userId, pending.receipt.action, signedSubject);
+      executed = outcome.state === 'completed';
+      reply = outcome.reply;
+      legacy = { ok: executed, action: outcome.action, updatedCount: outcome.count, ...(executed ? {} : { error: outcome.reason }) };
+      receipt = {
+        ...base, subject: signedSubject, state: outcome.state, proposalRef: pending.replyTo ?? null,
+        result: { affectedCount: outcome.count }, ...(outcome.reason ? { reason: outcome.reason } : {}),
+      };
+      if (outcome.log) {
+        await logTagActivity(supabase, { user_id: userId, ...outcome.log, created_at: new Date().toISOString() });
+      }
     }
   } else if (intent === 'commit_single' && ctx.single) {
     const subject = { transactionId: ctx.single.transactionId, targetCategory: ctx.single.targetCategory ?? null, targetSubcategory: ctx.single.targetSubcategory ?? null };
@@ -718,7 +750,7 @@ async function handleConversationalAction(
   }
 
   // Prime HQ's authoritative-outcome fields (tool, success, count) on executed / attempted actions.
-  if (receipt.state === 'completed' || ((intent === 'commit' || intent === 'commit_single') && receipt.state === 'failed')) {
+  if (receipt.state === 'completed' || ((intent === 'commit' || intent === 'commit_single' || intent === 'commit_proposal') && receipt.state === 'failed')) {
     receipt = { ...receipt, tool: actionName, success: receipt.state === 'completed', count: receipt.result?.affectedCount ?? 0 };
   }
 
@@ -1023,6 +1055,20 @@ export const handler: Handler = async (event) => {
   if (intent === 'cancel_proposal') {
     if (!conversation) return err('cancel_proposal requires conversation');
     return handleConversationalAction(supabase, userId, 'cancel_proposal', conversation, { subject: null });
+  }
+
+  // ── T-ACT-SAFE: confirm a rule / bulk move / rename proposal (conversation required) ──
+  if (intent === 'commit_proposal') {
+    if (!conversation) return err('commit_proposal requires conversation');
+    const action = typeof body.action === 'string' ? body.action : '';
+    if (!TAG_PROPOSAL_ACTIONS.includes(action)) return err('Unknown proposal action');
+    const raw = body.subject && typeof body.subject === 'object' && !Array.isArray(body.subject) ? body.subject as Record<string, unknown> : null;
+    if (!raw) return err('Missing subject');
+    const subject: ProposalSubject = {};
+    for (const [k, v] of Object.entries(raw).slice(0, 20)) {
+      if (typeof v === 'string' || typeof v === 'number' || v === null) subject[k] = typeof v === 'string' ? v.slice(0, 200) : v;
+    }
+    return handleConversationalAction(supabase, userId, 'commit_proposal', conversation, { subject: null, generic: { action, subject } });
   }
 
   // ── T-LIVE-02: single focused transaction (proposal → confirmation), conversation required ──

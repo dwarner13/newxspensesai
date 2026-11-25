@@ -516,6 +516,8 @@ export function TagCopilotPanel({
   const [pendingProposal, setPendingProposal] = useState<
     | { kind?: 'merchant'; matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' }
     | { kind: 'single'; transactionId: string; targetCategory: string; targetSubcategory: string | null }
+    // T-ACT-SAFE: a rule / bulk move / rename Tag proposed; echoed back exactly as the server signed it.
+    | { kind: 'action'; action: string; subject: Record<string, string | number | null> }
     | null
   >(null);
   const [greetingText, setGreetingText] = useState("");
@@ -715,7 +717,9 @@ export function TagCopilotPanel({
     try {
       // The server matches the transactions itself and honours this confirmation only for the
       // proposal it recorded as Tag's previous reply.
-      const data = proposal.kind === 'single'
+      const data = proposal.kind === 'action'
+        ? await postTagAction({ intent: 'commit_proposal', action: proposal.action, subject: proposal.subject, conversation })
+        : proposal.kind === 'single'
         ? await postTagAction({
           intent: 'commit_single',
           transactionId: proposal.transactionId,
@@ -977,6 +981,11 @@ export function TagCopilotPanel({
       const p = data.proposal;
       if (p && p.kind === 'single' && typeof p.transactionId === 'string' && typeof p.targetCategory === 'string') {
         setPendingProposal({ kind: 'single', transactionId: p.transactionId, targetCategory: p.targetCategory, targetSubcategory: typeof p.targetSubcategory === 'string' ? p.targetSubcategory : null });
+        return;
+      }
+      // T-ACT-SAFE: Tag proposed a rule / bulk move / rename (nothing written). "yes" → commit_proposal.
+      if (p && p.kind === 'action' && typeof p.action === 'string' && p.subject && typeof p.subject === 'object') {
+        setPendingProposal({ kind: 'action', action: p.action, subject: p.subject });
         return;
       }
       const actionFired = !!(data.action?.applied || data.rule_saved || (data.backfill_count || 0) > 0);

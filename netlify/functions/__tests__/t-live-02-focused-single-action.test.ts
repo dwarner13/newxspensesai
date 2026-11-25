@@ -4,7 +4,6 @@
  * Harness copied from t-h1b-tag-action-conversation.test.ts.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;

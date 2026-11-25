@@ -87,3 +87,11 @@ describe('T-LIVE-02 — chat-path proposals', () => {
     expect(panel).toContain('if (data.rule_saved || data.action?.applied || (data.backfill_count || 0) > 0) {');
   });
 });
+
+describe('T-ACT-SAFE — panel holds rule / bulk / rename proposals for commit_proposal', () => {
+  const panel = readFileSync(resolve(__dirname, '../../components/transactions/TagCopilotPanel.tsx'), 'utf8');
+  it('holds the signed proposal exactly as sent and confirms through tag-action commit_proposal', () => {
+    expect(panel).toContain("setPendingProposal({ kind: 'action', action: p.action, subject: p.subject });");
+    expect(panel).toContain("postTagAction({ intent: 'commit_proposal', action: proposal.action, subject: proposal.subject, conversation })");
+  });
+});

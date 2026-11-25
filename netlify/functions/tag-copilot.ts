@@ -7,6 +7,7 @@ import { TAG_CATEGORIES } from './_shared/tagCategories.js';
 import { searchTransactions } from './_shared/txSearchCore.js';
 import { resolveFocusedTransaction } from './_shared/tagFocusedTransaction.js';
 import { buildSingleProposal, TAG_SINGLE_ACTION } from './_shared/tagSingleTransaction.js';
+import { buildActionProposal, TOOL_TO_ACTION } from './_shared/tagProposals.js';
 import {
   loadTagSpendingSummary,
   loadCategorizationProgress,
@@ -74,7 +75,7 @@ const TAG_TOOLS = [
   {
     name: 'set_category_rule',
     description:
-      "Save a permanent category rule for a merchant and apply it to all matching transactions. Use when the user wants to categorize a specific merchant (e.g. \"Smitty's is Food & Dining\", \"always categorize Shell as Transportation\", \"Yo Yo Massage should be Personal Care, subcategory Massage\"). The rule auto-applies to future transactions matching this merchant. ALWAYS confirm the change with the user in plain language BEFORE calling this tool — wait for an explicit \"yes\" / \"go ahead\" / \"do it\" before emitting the call.",
+      "PROPOSE a category rule for a merchant (future imports). This does NOT change anything: the server shows the customer the exact rule and how many transactions are affected, and saves it only after the customer explicitly confirms. Call it as soon as the customer asks (e.g. \"always categorize Shell as Transportation\"). Set applyToExisting=true ONLY if the customer explicitly asked to change their existing transactions too. Never say it is done.",
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -97,7 +98,7 @@ const TAG_TOOLS = [
         applyToExisting: {
           type: 'boolean',
           description:
-            'Whether to update all existing transactions matching this merchant. Defaults to true unless the user said otherwise.',
+            'true ONLY when the customer explicitly asked to also change their EXISTING transactions for this merchant. Default false: a rule applies to future imports only.',
         },
       },
       required: ['vendor', 'category'],
@@ -106,7 +107,7 @@ const TAG_TOOLS = [
   {
     name: 'bulk_recategorize',
     description:
-      'Move ALL transactions in one category to another category. Use when the user wants to reclassify an entire bucket (e.g. "move all Other to Food & Dining", "everything in Transfers should be Income"). Does NOT create a rule — only updates existing transactions. ALWAYS confirm before calling.',
+      'PROPOSE moving the existing transactions in one category to another (e.g. "move all Other to Food & Dining"). This does NOT change anything: the server shows the exact move and count (transactions the customer categorized themselves are kept) and moves them only after the customer explicitly confirms. No rule is created. Never say it is done.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -127,7 +128,7 @@ const TAG_TOOLS = [
   {
     name: 'rename_merchant',
     description:
-      'Fix a mangled or incorrect merchant name on all matching transactions. Use ONLY when the user explicitly wants to fix an OCR error or rename a merchant (e.g. "Unknown" → "Gordon Food Service", "GFS PAY" → "Gordon Food Service"). Updates merchant_name on every transaction whose current name matches from_name exactly (case-insensitive). ALWAYS confirm before calling. If from_name is ambiguous (user says "rename this one" without naming it), ASK which merchant before emitting.',
+      'PROPOSE renaming a merchant on every transaction whose current name matches from_name exactly (case-insensitive), e.g. "SQ *COFFEE 123" → "Corner Coffee". This does NOT change anything: the server shows the exact rename and count and renames only after the customer explicitly confirms; the original imported description is always kept. Use ONLY when the customer explicitly asks to rename a merchant; if from_name is ambiguous, ASK first. Never say it is done.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -291,23 +292,23 @@ done. Never extend it to other transactions or save a rule unless the customer
 separately asks for that.
 
 ═══════════════════════════════════════════════════════════════════════
-ONE-STEP FLOW WHEN NO FOCUSED TRANSACTION
+RULES, BULK MOVES AND RENAMES (NO FOCUSED TRANSACTION)
 ═══════════════════════════════════════════════════════════════════════
 
-If there's no FOCUSED TRANSACTION block, the user is in a general context.
-Use set_category_rule directly with the standard two-turn confirm pattern:
-
-Turn 1: "Want me to set <merchant> to <category>/<subcategory> and apply to
-all <N> matching transactions plus future imports?"
-Turn 2: User confirms → call set_category_rule.
+set_category_rule, bulk_recategorize and rename_merchant only PROPOSE. When the
+customer asks for one, call the tool straight away: the server shows the exact
+change and how many transactions it affects, and makes it only after the
+customer explicitly says yes. A rule is for FUTURE imports; set
+applyToExisting=true only if the customer explicitly asked to change their
+existing transactions too. Never say a change is done.
 
 ═══════════════════════════════════════════════════════════════════════
 GENERAL RULES
 ═══════════════════════════════════════════════════════════════════════
 
-Except update_single_transaction (which only proposes), NEVER call a tool on the
-same turn the user makes the request, and NEVER call one without explicit
-confirmation ("yes" / "go ahead" / "do it" / "confirm").
+Every tool that changes data only PROPOSES; the server asks the customer to
+confirm and makes the change only after an explicit yes. Never claim a change
+is done, and never write your own confirmation question for it.
 
 If the user names a category not in the canonical list, ask them to pick one.
 Do not silently substitute.
@@ -663,6 +664,8 @@ not touch the other ${otherCount} ${ftMerchant} transactions unless the customer
 
     // T-LIVE-02: set when Tag proposed a single-transaction change (no write happened).
     let singleProposalOutcome: Awaited<ReturnType<typeof buildSingleProposal>> | null = null;
+    // T-ACT-SAFE: set when Tag proposed a rule / bulk move / rename (no write happened).
+    let actionProposalOutcome: Awaited<ReturnType<typeof buildActionProposal>> | null = null;
 
     // 6. Execute the tool the model called.
     if (toolUseBlock) {
@@ -689,229 +692,18 @@ not touch the other ${otherCount} ${ftMerchant} transactions unless the customer
           }
           // Tag's words for this turn are the server's proposal (the model's own text could claim "done").
           confirmationLine = outcome.reply;
-        } else if (toolUseBlock.name === 'set_category_rule') {
-          const vendor = String(toolUseBlock.input.vendor || '').trim();
-          const category = String(toolUseBlock.input.category || '');
-          let subcategory: string | null = toolUseBlock.input.subcategory
-            ? String(toolUseBlock.input.subcategory).trim()
-            : null;
-          const applyToExisting = toolUseBlock.input.applyToExisting !== false;
-
-          if (!vendor || !category) {
-            confirmationLine = `\n\n⚠ Could not save rule — missing vendor or category.`;
-          } else {
-            const vendorKey = vendor.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-            const merchantPattern = vendor.toUpperCase();
-
-            // ─── Subcategory preservation ───────────────────────────────────
-            // If the model omitted subcategory but a row already exists with
-            // one, KEEP the existing value. The model often drops subcategory
-            // on the second tool call (after update_single_transaction), and
-            // an upsert with subcategory absent overwrites it to NULL.
-            // Read existing rule first; preserve any subcategory that's there.
-            if (!subcategory) {
-              try {
-                const { data: existingRule } = await supabase
-                  .from('category_rules')
-                  .select('subcategory')
-                  .eq('user_id', auth.userId)
-                  .ilike('merchant_pattern', merchantPattern)
-                  .limit(1)
-                  .maybeSingle();
-                if (existingRule?.subcategory) {
-                  subcategory = existingRule.subcategory;
-                  console.log(`[tag-copilot] preserving existing subcategory "${subcategory}" for ${merchantPattern} (model omitted it)`);
-                }
-              } catch (e: any) {
-                console.error('[tag-copilot] existing-rule read failed:', e?.message);
-              }
-            }
-
-            // ─── Write 1: vendor_category_memory ─────────────────────────────
-            // Surfacing this error too — used to be a silent await with no
-            // capture. The two-table dual-write needs both halves to land.
-            const vcmRow: Record<string, unknown> = {
-              user_id: auth.userId,
-              vendor_key: vendorKey,
-              category,
-              updated_at: new Date().toISOString(),
-            };
-            if (subcategory) vcmRow.subcategory = subcategory;
-            const { error: vcmErr } = await supabase
-              .from('vendor_category_memory')
-              .upsert(vcmRow, { onConflict: 'user_id,vendor_key' });
-            if (vcmErr) console.error('[tag-copilot] vendor_category_memory upsert failed:', vcmErr.message);
-
-            // ─── Write 2: category_rules ─────────────────────────────────────
-            // Writes BOTH merchant_pattern (canonical) AND match_value (legacy).
-            // Conflict on user_id+merchant_pattern matches the unique constraint.
-            const ruleRow: Record<string, unknown> = {
-              user_id: auth.userId,
-              match_type: 'contains',
-              merchant_pattern: merchantPattern,
-              match_value: merchantPattern,
-              category,
-              is_active: true,
-              updated_at: new Date().toISOString(),
-            };
-            if (subcategory) ruleRow.subcategory = subcategory;
-            const { error: ruleErr } = await supabase
-              .from('category_rules')
-              .upsert(ruleRow, { onConflict: 'user_id,merchant_pattern' });
-
-            // ─── Read-back verification ──────────────────────────────────────
-            // Truth-mode: confirmation string is built from what's actually in
-            // the DB after writes. Detects silent failures (RLS, constraint
-            // violations, dual-write split where one table writes and the
-            // other doesn't) and surfaces them to the user instead of lying.
-            const { data: verifyRow } = await supabase
-              .from('category_rules')
-              .select('category, subcategory')
-              .eq('user_id', auth.userId)
-              .ilike('merchant_pattern', merchantPattern)
-              .limit(1)
-              .maybeSingle();
-
-            // ─── Apply to existing transactions ──────────────────────────────
-            // Count matched rows BEFORE the update — see top of this branch
-            // for full reasoning on why we don't use chained .update().select().
-            let updatedCount = 0;
-            let existingUpdateFailed = false;
-            if (applyToExisting) {
-              const { count: matchedCount } = await supabase
-                .from('transactions')
-                .select('id', { count: 'exact', head: true })
-                .eq('user_id', auth.userId)
-                .ilike('merchant_name', `%${vendor}%`);
-              updatedCount = matchedCount || 0;
-
-              const txUpdate: Record<string, unknown> = {
-                category,
-                category_source: 'tag_rule',
-                updated_at: new Date().toISOString(),
-              };
-              if (subcategory) {
-                txUpdate.subcategory = subcategory;
-                txUpdate.subcategory_source = 'tag_rule';
-              }
-              const { error: updErr } = await supabase
-                .from('transactions')
-                .update(txUpdate)
-                .eq('user_id', auth.userId)
-                .ilike('merchant_name', `%${vendor}%`);
-              if (updErr) {
-                // Authoritative outcome: a failed update changed nothing.
-                console.error('[tag-copilot] transactions update failed');
-                updatedCount = 0;
-                existingUpdateFailed = true;
-              }
-            }
-
-            // ─── Build confirmation: truth-mode ──────────────────────────────
-            // verifyRow null = rule write failed. Surface it. No lying.
-            if (!verifyRow) {
-              const reason = ruleErr?.message || 'no row found after upsert';
-              action.applied = false;
-              action.error = `rule_persist_failed: ${reason}`;
-              confirmationLine = `\n\n⚠ Couldn't save the rule for **${vendor}**: ${reason}. ${updatedCount > 0 ? `(${updatedCount} transactions WERE updated, but future imports won't auto-categorize.)` : ''}`;
-            } else {
-              const catLabel = verifyRow.subcategory
-                ? `${verifyRow.category} / ${verifyRow.subcategory}`
-                : verifyRow.category;
-              action.applied = true;
-              action.affectedCount = updatedCount;
-              action.verification = {
-                rule: { category: verifyRow.category, subcategory: verifyRow.subcategory ?? null },
-                transactionsUpdated: updatedCount,
-                ...(existingUpdateFailed ? { existingUpdateFailed: true } : {}),
-              };
-              confirmationLine = existingUpdateFailed
-                ? `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. ⚠ I couldn't update your existing transactions, so they were not changed.`
-                : `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. Updated **${updatedCount}** transaction${updatedCount !== 1 ? 's' : ''}.`;
-            }
-          }
-        } else if (toolUseBlock.name === 'bulk_recategorize') {
-          const fromCat = String(toolUseBlock.input.from_category || '').trim();
-          const toCat = String(toolUseBlock.input.to_category || '').trim();
-
-          if (!fromCat || !toCat) {
-            confirmationLine = `\n\n⚠ Could not bulk recategorize — missing source or destination category.`;
-          } else if (fromCat === toCat) {
-            confirmationLine = `\n\n⚠ Source and destination are the same (${fromCat}) — nothing to do.`;
-          } else {
-            // Count matched rows BEFORE the update — see set_category_rule
-            // above for full reasoning. Bulk moves are guaranteed to change
-            // values (we already filtered fromCat !== toCat above), so this
-            // matters less here, but consistent semantics across all branches
-            // is worth one extra query.
-            const { count: matchedCount } = await supabase
-              .from('transactions')
-              .select('id', { count: 'exact', head: true })
-              .eq('user_id', auth.userId)
-              .eq('category', fromCat);
-            const n = matchedCount || 0;
-
-            const { error: updErr } = await supabase
-              .from('transactions')
-              .update({ category: toCat, category_source: 'tag_bulk', updated_at: new Date().toISOString() })
-              .eq('user_id', auth.userId)
-              .eq('category', fromCat);
-            if (updErr) {
-              // Authoritative outcome: a failed update changed nothing — never report it as moved.
-              console.error('[tag-copilot] bulk update failed');
-              action.applied = false;
-              action.affectedCount = 0;
-              action.error = 'update_failed';
-              confirmationLine = `\n\n⚠ I couldn't move those transactions, so nothing was changed. Please try again.`;
-            } else {
-              action.applied = true;
-              action.affectedCount = n;
-              action.verification = { transactionsUpdated: n };
-              confirmationLine = `\n\n✓ Moved **${n}** transaction${n !== 1 ? 's' : ''} from **${fromCat}** to **${toCat}**.`;
-            }
-          }
-        } else if (toolUseBlock.name === 'rename_merchant') {
-          const fromName = String(toolUseBlock.input.from_name || '').trim();
-          const toName = String(toolUseBlock.input.to_name || '').trim();
-
-          if (!fromName || !toName) {
-            confirmationLine = `\n\n⚠ Could not rename merchant — missing source or destination name.`;
-          } else {
-            // Case-insensitive EXACT match (ilike without wildcards).
-            // Precision over recall — we don't want "Rogers" → "Rogers Wireless"
-            // to also rename rows that happen to contain "Rogers".
-            //
-            // Count matched rows BEFORE the update for the same reason as
-            // set_category_rule above. Edge case: if user renames "ROGERS"
-            // → "ROGERS" (same casing post-normalization, no change), the
-            // chained-count would return 0; matched count returns the real
-            // number of transactions touched.
-            const { count: matchedCount } = await supabase
-              .from('transactions')
-              .select('id', { count: 'exact', head: true })
-              .eq('user_id', auth.userId)
-              .ilike('merchant_name', fromName);
-            const n = matchedCount || 0;
-
-            const { error: updErr } = await supabase
-              .from('transactions')
-              .update({ merchant_name: toName, updated_at: new Date().toISOString() })
-              .eq('user_id', auth.userId)
-              .ilike('merchant_name', fromName);
-            if (updErr) {
-              // Authoritative outcome: a failed update changed nothing — never report it as renamed.
-              console.error('[tag-copilot] rename update failed');
-              action.applied = false;
-              action.affectedCount = 0;
-              action.error = 'update_failed';
-              confirmationLine = `\n\n⚠ I couldn't rename those transactions, so nothing was changed. Please try again.`;
-            } else {
-              action.applied = true;
-              action.affectedCount = n;
-              action.verification = { transactionsUpdated: n };
-              confirmationLine = `\n\n✓ Renamed **${n}** transaction${n !== 1 ? 's' : ''} from **${fromName}** to **${toName}**.`;
-            }
-          }
+        } else if (TOOL_TO_ACTION[toolUseBlock.name]) {
+          // T-ACT-SAFE: rules, bulk moves and renames only PROPOSE. The server computes the exact
+          // action and verified count and stores a signed 'proposed' receipt; tag-action
+          // commit_proposal executes it after the customer's explicit "yes".
+          const outcome = await buildActionProposal(
+            supabase as unknown as Parameters<typeof buildActionProposal>[0], auth.userId, toolUseBlock.name, toolUseBlock.input,
+          );
+          actionProposalOutcome = outcome;
+          action = { tool: toolUseBlock.name, applied: false, proposalOnly: true };
+          if (outcome.state === 'proposed') action.proposal = { action: outcome.action, ...outcome.subject };
+          else action.error = outcome.reason;
+          confirmationLine = outcome.reply;
         } else if (toolUseBlock.name === 'search_transactions') {
           // READ-ONLY tool — userId injected server-side, never from model input.
           // The model provides search filters only; user_id is NOT in the schema.
@@ -1110,6 +902,8 @@ not touch the other ${otherCount} ${ftMerchant} transactions unless the customer
 
     const finalReply = singleProposalOutcome
       ? singleProposalOutcome.reply
+      : actionProposalOutcome
+      ? actionProposalOutcome.reply
       : ((replyText + confirmationLine).trim()
         || (toolUseBlock ? confirmationLine.trim() : "Sorry, I couldn't process that."));
 
@@ -1132,6 +926,13 @@ not touch the other ${otherCount} ${ftMerchant} transactions unless the customer
               actionReceipt: singleProposalOutcome.state === 'proposed'
                 ? { v: 1, employee: 'tag-ai', action: TAG_SINGLE_ACTION, state: 'proposed', subject: singleProposalOutcome.subject, result: { matchCount: 1 } }
                 : { v: 1, employee: 'tag-ai', action: TAG_SINGLE_ACTION, state: 'failed', reason: singleProposalOutcome.reason },
+            }
+            : actionProposalOutcome
+            // T-ACT-SAFE: signed proposal (nothing executed: no tool / success / count).
+            ? {
+              actionReceipt: actionProposalOutcome.state === 'proposed'
+                ? { v: 1, employee: 'tag-ai', action: actionProposalOutcome.action, state: 'proposed', subject: actionProposalOutcome.subject, result: { matchCount: Number(actionProposalOutcome.subject.affected ?? 0) } }
+                : { v: 1, employee: 'tag-ai', action: actionProposalOutcome.action, state: 'failed', reason: actionProposalOutcome.reason },
             }
             : action
             ? {
@@ -1166,6 +967,8 @@ not touch the other ${otherCount} ${ftMerchant} transactions unless the customer
         sessionId: conversationId,
         persisted,
         ...(singleProposalOutcome?.state === 'proposed' && persisted ? { proposal: { kind: 'single', ...singleProposalOutcome.subject } } : {}),
+        ...(actionProposalOutcome?.state === 'proposed' && persisted
+          ? { proposal: { kind: 'action', action: actionProposalOutcome.action, subject: actionProposalOutcome.subject } } : {}),
       }),
     };
   } catch (err) {
