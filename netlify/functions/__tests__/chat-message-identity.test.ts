@@ -57,3 +57,17 @@ describe('chat.ts chat_messages inserts', () => {
     expect(chat).toContain('const completeThreadId = await ensureThread(sb, userId, completeEmployeeKey, requestThreadId || undefined);');
   });
 });
+
+describe('chat.ts universal conversation identity (owner): one conversation, one employee', () => {
+  const block = chat.slice(chat.indexOf('if (sessionEmployeeSlug !== finalEmployeeSlug) {'), chat.indexOf("if (!finalSessionId) {\n        throw new Error('Failed to get session ID from ensureSession');"));
+  it('aliases of the same employee continue the conversation without relabelling', () => {
+    expect(block).toMatch(/const sameEmployee = sessionCanonical !== null && sessionCanonical === canonicalEmployeeSlug\(finalEmployeeSlug\);/);
+  });
+  it("another employee's conversation is never relabelled unless it is a genuine handoff conversation", () => {
+    expect(block).toMatch(/\.from\('handoffs'\)[\s\S]{0,200}\.eq\('session_id', finalSessionId\)[\s\S]{0,80}\.eq\('user_id', userId\)/);
+    expect(block).toMatch(/else if \(shouldRespectRequestedEmployee && !isHandoffConversation\) \{[\s\S]{0,400}const fresh = await ensureSession\(sb, userId, undefined, finalEmployeeSlug\);/);
+    // the relabel branches come only after the no-handoff guard
+    expect(block.indexOf('!isHandoffConversation')).toBeLessThan(block.indexOf(".update({ employee_slug: finalEmployeeSlug })"));
+    expect(block.indexOf('!isHandoffConversation')).toBeLessThan(block.indexOf(".update({ employee_slug: 'prime-boss' })"));
+  });
+});

@@ -123,6 +123,7 @@ import {
 } from './_shared/primePolicy.js';
 import { buildPrimePersonalityMessage } from './_shared/primePersonality.js';
 import { resolvePreferredName } from '../../src/shared/preferred-name';
+import { canonicalEmployeeSlug } from '../../src/shared/conversation-identity';
 import { buildCategoryBreakdownVisual, type FinancialVisual } from '../../src/shared/prime-financial-visual';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
@@ -7112,7 +7113,34 @@ export const handler: Handler = async (event, context) => {
         const isPrimeRequested = explicitlyRequestedEmployee === 'prime-boss';
         
         if (sessionEmployeeSlug !== finalEmployeeSlug) {
-          if (shouldRespectRequestedEmployee && !isPrimeRequested) {
+          // Universal conversation identity (owner): a conversation belongs to ONE employee. A session id
+          // sent by one employee's panel must never relabel another employee's conversation. Relabelling
+          // stays only for genuine handoff conversations (a handoffs row exists for this session), where
+          // Prime and a specialist intentionally share one conversation.
+          const sessionCanonical = canonicalEmployeeSlug(sessionEmployeeSlug);
+          const sameEmployee = sessionCanonical !== null && sessionCanonical === canonicalEmployeeSlug(finalEmployeeSlug);
+          let isHandoffConversation = false;
+          if (!sameEmployee && shouldRespectRequestedEmployee) {
+            const { data: handoffRow } = await sb
+              .from('handoffs')
+              .select('id')
+              .eq('session_id', finalSessionId)
+              .eq('user_id', userId)
+              .limit(1)
+              .maybeSingle();
+            isHandoffConversation = Boolean(handoffRow);
+          }
+          if (sameEmployee) {
+            // Alias of the same employee (e.g. 'goalie-agent' vs 'goalie-goals'): continue, no relabel.
+            sessionEmployeeSlug = finalEmployeeSlug;
+          } else if (shouldRespectRequestedEmployee && !isHandoffConversation) {
+            // Another employee's conversation and no handoff: leave it untouched; open a fresh
+            // conversation for the requested employee.
+            console.warn(`[Chat] Session belongs to ${sessionEmployeeSlug}, not ${finalEmployeeSlug}; opening a new ${finalEmployeeSlug} conversation (no relabel)`);
+            const fresh = await ensureSession(sb, userId, undefined, finalEmployeeSlug);
+            finalSessionId = fresh.sessionId;
+            sessionEmployeeSlug = finalEmployeeSlug;
+          } else if (shouldRespectRequestedEmployee && !isPrimeRequested) {
             // Employee was explicitly requested (not auto-routed) - respect it, don't override
             console.log(`[Chat] Respecting explicitly requested employee ${finalEmployeeSlug} over session employee ${sessionEmployeeSlug}`);
             // Update session to match requested employee (fixes sticky handoff)
