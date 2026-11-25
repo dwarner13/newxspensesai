@@ -62,8 +62,8 @@ describe('Prime presentation', () => {
 
 describe('Tag presentation', () => {
   it('uses the header and message tokens', () => {
-    expect(tag).toMatch(/<TagAvatar size=\{CHAT_VISUALS\.headerLogo\} \/>/);
-    expect(tag).toMatch(/fontSize: CHAT_VISUALS\.headerName/);
+    // TB-3: header identity is the universal ChatIdentity (48 / 44px box, artwork ~85%).
+    expect(tag).toMatch(/renderLogo=\{\(px\) => <TagAvatar size=\{px\} letterRatio=\{0\.5\} \/>\}/);
     expect(tag).not.toMatch(/<TagAvatar size=\{28\} \/>/);
     expect(tag).not.toMatch(/var\(--chat-text-size\)/);
     expect(tag.match(/fontSize: chatTextSize\(isMobile\)/g)?.length).toBe(3);

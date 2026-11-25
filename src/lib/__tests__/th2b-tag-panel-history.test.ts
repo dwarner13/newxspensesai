@@ -53,8 +53,10 @@ describe('TagCopilotPanel', () => {
   it('History uses the shared drawer with Tag conversations only; New conversation deletes nothing', () => {
     expect(panel).toMatch(/<ConversationHistoryDrawer/);
     expect(panel).toMatch(/useChatSessions\(\{ employee: "tag-ai"/);
-    expect(panel).toMatch(/aria-label="Previous Tag conversations"/);
-    expect(panel).toMatch(/aria-label="New conversation"/);
+    // TB-3: History and New conversation are in the shared ChatToolbar ("Conversation
+    // history", "New conversation" — rendered in tb1-chat-header.test.ts).
+    expect(panel).toMatch(/onNew=\{startNewConversation\}/);
+    expect(panel).toMatch(/history=\{\{ open: historyOpen, onToggle: \(\) => \{ if \(!historyOpen\) void loadTagHistory\(\); setHistoryOpen\(v => !v\); \} \}\}/);
     const fn = panel.slice(panel.indexOf('const startNewConversation = () => {'), panel.indexOf('// T-H2: open a previous conversation'));
     expect(fn).not.toMatch(/delete|removeItem/);
     expect(fn).toMatch(/setTagSessionId\(null\);/);

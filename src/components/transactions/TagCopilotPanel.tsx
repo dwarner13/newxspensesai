@@ -4,8 +4,9 @@ import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
 import { formatCalendarDate } from "@/lib/calendarDate";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
-import { Trash2, RefreshCw, History as HistoryIcon, SquarePen } from "lucide-react";
+import { Trash2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { ChatIdentity, ChatToolbar } from "@/components/chat/ChatHeader";
 import { ConversationHistoryDrawer } from "@/components/chat/ConversationHistoryDrawer";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import {
@@ -184,7 +185,7 @@ function AmountAnomalyCard({ issue }: { issue: any }) {
   );
 }
 
-function TagAvatar({ size = 36 }: { size?: number }) {
+function TagAvatar({ size = 36, letterRatio = 0.36 }: { size?: number; letterRatio?: number }) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       <div style={{
@@ -192,7 +193,7 @@ function TagAvatar({ size = 36 }: { size?: number }) {
         background: "radial-gradient(circle at 35% 35%, rgba(34,211,238,0.35) 0%, rgba(34,211,238,0.06) 100%)",
         border: "1.5px solid rgba(34,211,238,0.35)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: size * 0.36, fontWeight: 700, color: T.cyan,
+        fontSize: size * letterRatio, fontWeight: 700, color: T.cyan,
         animation: "tagRing 2.4s ease-out infinite",
         boxShadow: "0 0 0 0 rgba(34,211,238,0.4), inset 0 1px 0 rgba(34,211,238,0.2)",
       }}>T</div>
@@ -493,6 +494,7 @@ export function TagCopilotPanel({
   const [isLoading, setIsLoading] = useState(false);
   // T-H2: server conversation (sessionId), save notices and history.
   const { userId } = useAuth();
+  const navigateTo = useNavigate();
   const [tagSessionId, setTagSessionId] = useState<string | null>(null);
   const tagSessionIdRef = useRef<string | null>(null);
   tagSessionIdRef.current = tagSessionId;
@@ -1184,68 +1186,41 @@ export function TagCopilotPanel({
         {/* Header — UX-C1: clears the iPhone status bar in the installed app
             (index.html uses viewport-fit=cover); env() is 0 elsewhere. */}
         <div style={{
-          padding: "calc(18px + env(safe-area-inset-top, 0px)) 20px 16px",
+          padding: isMobile ? "calc(8px + env(safe-area-inset-top, 0px)) 8px 8px 12px" : "calc(12px + env(safe-area-inset-top, 0px)) 16px 12px",
           borderBottom: `1px solid ${T.border}`,
-          display: "flex", alignItems: "center", gap: 12,
+          display: "flex", alignItems: "center", gap: isMobile ? 8 : 10,
           background: "linear-gradient(180deg, rgba(13,21,38,0.95) 0%, rgba(8,15,28,0.8) 100%)",
           backdropFilter: "blur(12px)",
           flexShrink: 0,
         }}>
-          <TagAvatar size={CHAT_VISUALS.headerLogo} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: CHAT_VISUALS.headerName, fontWeight: 800, color: T.text, letterSpacing: 0.2, lineHeight: 1.2 }}>
-              Tag <span style={{ fontWeight: 500, color: T.textMuted }}>Copilot</span>
-            </div>
-            <div style={{ fontSize: CHAT_VISUALS.headerSubtitle, color: T.textMuted, marginTop: 2, letterSpacing: 0.1 }}>Categorization intelligence</div>
-          </div>
-          <div style={{
-            padding: "4px 10px", borderRadius: 20,
-            background: "rgba(52,211,153,0.08)",
-            border: "1px solid rgba(52,211,153,0.2)",
-            display: "flex", alignItems: "center", gap: 5,
-          }}>
-            <div style={{
-              width: 5, height: 5, borderRadius: "50%", background: T.green,
-              animation: "tagGlow 2s ease-in-out infinite",
-              boxShadow: `0 0 6px ${T.green}`,
-            }} />
-            <span style={{ fontSize: 10, fontWeight: 600, color: T.green }}>LIVE</span>
-          </div>
-          {/* T-H2: History (previous Tag conversations) and New conversation. Nothing is deleted. */}
-          <button
-            type="button"
-            onClick={() => { setHistoryOpen(true); void loadTagHistory(); }}
-            aria-label="Previous Tag conversations"
-            title="History"
-            style={{ width: 44, height: 44, background: "none", border: `1px solid ${T.border}`, cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10, flexShrink: 0 }}
-          >
-            <HistoryIcon size={18} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={startNewConversation}
-            aria-label="New conversation"
-            title="New conversation"
-            style={{ width: 44, height: 44, background: "none", border: `1px solid ${T.border}`, cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10, flexShrink: 0 }}
-          >
-            <SquarePen size={18} aria-hidden="true" />
-          </button>
+          {/* TB-3: the universal chat header — identity separate from the compact toolbar. */}
+          <ChatIdentity
+            isMobile={isMobile}
+            renderLogo={(px) => <TagAvatar size={px} letterRatio={0.5} />}
+            name={isMobile ? "Tag" : <>Tag <span style={{ fontWeight: 500, color: T.textMuted }}>Copilot</span></>}
+            subtitle={isMobile ? undefined : "Categorization intelligence"}
+          />
           {onBackToPrime && (
             <button
               type="button"
               onClick={onBackToPrime}
               aria-label="Back to Prime"
               data-testid="tag-back-to-prime"
-              style={{ height: 30, padding: "0 10px", borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+              style={{ minHeight: isMobile ? 44 : 38, padding: "0 12px", borderRadius: 999, background: T.surface, border: `1px solid ${T.border}`, color: T.textMuted, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
             >
-              {"← Back to Prime"}
+              {"← Prime"}
             </button>
           )}
-          <button
-            className="tag-close"
-            onClick={handleClose}
-            style={{ width: 30, height: 30, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.textMuted, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
-          >{"x"}</button>
+          {/* T-H2 functions (History, New conversation) now live in the shared toolbar. Nothing is deleted. */}
+          <ChatToolbar
+            employeeName="Tag"
+            accent={T.cyan}
+            isMobile={isMobile}
+            onNew={startNewConversation}
+            history={{ open: historyOpen, onToggle: () => { if (!historyOpen) void loadTagHistory(); setHistoryOpen(v => !v); } }}
+            more={[{ label: "Tag rules", onSelect: () => { handleClose(); navigateTo('/dashboard/categories/rules'); } }]}
+            onClose={handleClose}
+          />
         </div>
 
         {/* Focused-transaction pill - shows when Tag was opened from a drawer
