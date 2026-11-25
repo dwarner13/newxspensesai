@@ -294,18 +294,10 @@ export default function SettingsPageV2() {
                 <button onClick={() => toast("Data export coming soon")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, background: THEME.surfaceLight, border: `1px solid ${THEME.border}`, color: THEME.textMuted, cursor: "pointer" }}>Export All Data</button>
                 <button onClick={() => toast("Contact support to delete account")} style={{ padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.22)", color: "#f87171", cursor: "pointer" }}>Delete Account</button>
               </div>
-              {/* Owner decision (2026-11-25): the browser-side "Nuke All Financial Data" button is
-                  removed. It deleted tables one by one from the browser and could fail part-way.
-                  Removal stays a support request until secure server-side deletion exists. */}
-              <div style={{ marginTop: 24, padding: "20px", borderRadius: 14, background: THEME.surfaceLight, border: `1px solid ${THEME.border}` }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: THEME.text, marginBottom: 6 }}>Remove your financial data</div>
-                <div style={{ fontSize: 14, color: THEME.textMuted, lineHeight: 1.6, marginBottom: 14 }}>
-                  Deleting your transactions, statements and chat history isn't available in the app yet. Our support team can do it for you securely.
-                </div>
-                <a href="mailto:support@xspensesai.com?subject=Remove%20my%20financial%20data"
-                  style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 18px", borderRadius: 10, fontSize: 14, fontWeight: 600, background: "transparent", border: `1px solid ${THEME.border}`, color: THEME.text, textDecoration: "none" }}>
-                  Contact support
-                </a>
+              <div style={{ marginTop: 24, padding: "20px", borderRadius: 14, background: "rgba(248,113,113,0.04)", border: "1px solid rgba(248,113,113,0.15)" }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#f87171", marginBottom: 6 }}>{"\u26A0\uFE0F"} Reset All Financial Data</div>
+                <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6, marginBottom: 14 }}>Permanently deletes ALL transactions, statements, imports, chat history, goals, debts, and scores. Your account and profile are preserved. Cannot be undone.</div>
+                <button onClick={async () => { if (!window.confirm("Are you SURE? This deletes ALL your financial data.")) return; if (!window.confirm("LAST CHANCE. This cannot be undone.")) return; try { const sb = getSupabase(); if (!sb || !userId) return; for (const t of ["chat_messages","chat_sessions","chat_threads","score_history","goals","debts","transactions_staging","transactions","import_summaries","ai_activity_events","user_documents","imports"]) { await sb.from(t).delete().eq("user_id", userId).catch(() => {}); } toast.success("All financial data deleted."); setDataStats("0 statements, 0 transactions"); } catch { toast.error("Failed to delete some data."); } }} style={{ padding: "10px 24px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171", cursor: "pointer" }}>{"\u2622\uFE0F"} Nuke All Financial Data</button>
               </div>
             </div></Reveal>
           )}
