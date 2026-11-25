@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useImportList, type ImportListItem } from "@/hooks/useImportList";
-import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
+import { useEmployeeChat } from "@/hooks/useEmployeeChat";
+import { ConversationControls, UnsavedReplyNotice } from "@/components/chat/ConversationControls";
+import { isUnsavedReply } from "@/lib/employeeChat";
 import { PANEL } from "../PrimeChatV2/panelConfig";
 import { useSetAtom } from "jotai";
 import { isUploadModalOpenAtom } from "@/lib/uiStore";
@@ -46,7 +48,8 @@ interface ByteCopilotPanelProps { onClose: () => void; }
 
 export function ByteCopilotPanel({ onClose }: ByteCopilotPanelProps) {
   const { imports } = useImportList();
-  const { messages, sendMessage, isStreaming } = useUnifiedChatEngine({ employeeSlug: "byte-docs" });
+  // Universal conversation history: the shared hook (restore, resume, history, New conversation).
+  const { messages, sendMessage, isStreaming, sessionId, history, openConversation, startNewConversation } = useEmployeeChat("byte-docs", { employeeSlug: "byte-docs" });
   const setUploadOpen = useSetAtom(isUploadModalOpenAtom);
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -77,7 +80,12 @@ export function ByteCopilotPanel({ onClose }: ByteCopilotPanelProps) {
         <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${GREEN}20`, border: `1.5px solid ${GREEN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: GREEN, boxShadow: `0 0 16px ${GREEN}33` }}>B</div>
           <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Byte <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></div><div style={{ fontSize: 11, color: T.dim }}>Smart Import Assistant</div></div>
-          <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
+          <ConversationControls
+            employeeName="Byte" accent={GREEN} border={T.border} color={T.muted}
+            items={history.items} loading={history.loading} currentId={sessionId}
+            onLoad={history.load} onOpen={openConversation} onNew={startNewConversation}
+          />
+          <button onClick={handleClose} aria-label="Close Byte" style={{ width: 44, height: 44, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
         {/* Body */}
@@ -131,8 +139,9 @@ export function ByteCopilotPanel({ onClose }: ByteCopilotPanelProps) {
           {chatMsgs.length > 0 && (
             <div style={{ marginTop: 24, borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
               {chatMsgs.map(m => (
-                <div key={m.id} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 10 }}>
+                <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 10 }}>
                   <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: 12, background: m.role === "user" ? T.surface : `${GREEN}06`, borderLeft: m.role === "assistant" ? `3px solid ${GREEN}44` : "none", fontSize: PANEL.messageFontSize, color: T.muted, lineHeight: 1.5 }}>{m.content}</div>
+                  {isUnsavedReply(m) && <div style={{ maxWidth: "80%" }}><UnsavedReplyNotice /></div>}
                 </div>
               ))}
             </div>
