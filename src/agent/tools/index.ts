@@ -505,14 +505,14 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tag_status', {
     id: 'tag_status',
-    description: 'READ-ONLY. Ask Tag about categorization quality for the customer: category counts by source (customer-confirmed / automatic / needs review / unknown), needs-review count, recent corrections, and suspected misclassifications from Tag\'s review rules. Scope order: startDate/endDate (YYYY-MM-DD) the customer asked about (periodSource "requested"); else importId for a statement the customer referenced; else the period established in this conversation (periodSource "conversation"); else the current calendar month. Never combine a requested period with a statement. It never changes categories.',
+    description: 'READ-ONLY. Ask Tag about categorization quality for the customer: category counts by source (customer-confirmed / automatic / needs review / unknown), needs-review count, recent corrections, and suspected misclassifications from Tag\'s review rules. Scope order: startDate/endDate (YYYY-MM-DD) the customer asked about (periodSource "requested"); else importId for a statement the customer referenced; else the period established in this conversation (periodSource "conversation"); with no period or statement it covers ALL imported transactions (entire history). Set allHistory:true when the customer asks about everything they have ever uploaded, their entire history or all time — that beats a conversation period. Never combine a requested period with a statement. Never ask permission to run or widen it: it is read-only. It never changes categories.',
     inputSchema: tagStatus.inputSchema,
     outputSchema: tagStatus.outputSchema,
     run: tagStatus.execute,
     meta: {
       mutates: false,
       requiresConfirm: false,
-      timeout: 10000,
+      timeout: 20000, // P-LIVE-02: complete paged read of the whole history
       rateLimit: { perMinute: 10 },
     },
   }],

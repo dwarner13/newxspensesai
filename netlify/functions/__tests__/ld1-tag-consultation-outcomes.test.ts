@@ -22,7 +22,9 @@ import { summarizeTagStatus, resolveTagStatusScope, type TagStatusRow } from '..
 
 const OWNER_Q = 'Are my transactions categorized correctly?';
 const NOW = new Date('2026-11-24T15:00:00Z');
-const NOV = resolveTagStatusScope({}, NOW);
+// P-LIVE-02: with no period the scope is all history, so an empty month now only happens when the
+// customer explicitly asks for that month. The empty-period OFFER behaviour is unchanged.
+const NOV = resolveTagStatusScope({ startDate: '2026-11-01', endDate: '2026-11-30', periodSource: 'requested' }, NOW);
 
 function status(rows: TagStatusRow[] | null, opts: { failed?: boolean; capped?: boolean; latest?: string | null; anyData?: boolean } = {}) {
   return summarizeTagStatus({
@@ -67,7 +69,7 @@ describe('L-D1 empty current month: explain clearly and OFFER the most recent im
   it('states no transactions in November 2026, gives the latest date, and offers June 2026 without running it', () => {
     const ev = formatTagConsultationEvidence(status([]));
     expect(ev).toMatch(/Outcome: no transactions/);
-    expect(ev).toMatch(/There are no imported transactions in November 2026 \(current month — no period was given\)\. The most recent imported transaction is dated 2026-06-16\./);
+    expect(ev).toMatch(/There are no imported transactions in 2026-11-01 through 2026-11-30\. The most recent imported transaction is dated 2026-06-16\./);
     expect(ev).toMatch(/OFFER \(do not do it automatically\): "Would you like me to have Tag review June 2026, your most recent imported month\?" Do not widen the period on your own\./);
   });
   it('no imported data at all → nothing to review, no offer', () => {

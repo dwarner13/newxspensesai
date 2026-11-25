@@ -235,6 +235,7 @@ import {
 } from '../../src/shared/merchant-analysis-context';
 // P3.1A.1: Canonical temporal scope (observational only — does not change runtime behavior)
 import { buildTemporalScope, buildTemporalScopeTelemetry, inheritedTemporalScope } from '../../src/shared/prime-temporal-scope';
+import { applyCustomerScope, negatedPeriodNote, ALL_HISTORY_SCOPE_NOTE, type TemporalScopeLike } from '../../src/shared/prime-request-scope';
 // P3.1C: Controlled read-only evidence execution
 import {
   executeEvidencePlan as executeEvidencePlanP31C,
@@ -2716,7 +2717,11 @@ function routePrime(
     };
   }
 
-  const groundedFactsIntent = detectGroundedFactsIntent(sanitizedUserText);
+  // P-LIVE-02: categorization status goes to the Tag consultation, not the snapshot count.
+  const groundedFactsIntentRaw = detectGroundedFactsIntent(sanitizedUserText);
+  const groundedFactsIntent = groundedFactsIntentRaw === 'uncategorized_count' && isCategorizationReviewQuestion(String(sanitizedUserText || ''))
+    ? null
+    : groundedFactsIntentRaw;
   if (groundedFactsIntent && !meta.hasAttachments) {
     return {
       lane: 'deterministic',
@@ -8969,7 +8974,12 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    const groundedFactsIntent = detectGroundedFactsIntent(masked);
+    // P-LIVE-02: categorization status is answered by the Tag consultation (one authoritative count,
+    // completed work, scope), never by the snapshot fast lane with its own definition of "uncategorized".
+    const groundedFactsIntentRaw = detectGroundedFactsIntent(masked);
+    const groundedFactsIntent = groundedFactsIntentRaw === 'uncategorized_count' && isCategorizationReviewQuestion(String(masked || ''))
+      ? null
+      : groundedFactsIntentRaw;
     const isPrimeEmployeeForGroundedFacts = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
     // FST-1 / P-G2: the deterministic fast lanes below quote amounts. Give them the server
     // snapshot (shared engine) instead of browser numbers, only when one of them will run.
@@ -10194,8 +10204,36 @@ export const handler: Handler = async (event, context) => {
     // Only when this message states no period of its own and continues the same subject
     // (resolveInheritedPeriod). The inherited period is re-queried through the normal verified
     // evidence path below; an explicit date always wins; a different subject never inherits.
+    // ── P-LIVE-02: the customer's explicit scope beats every default ──
+    // "I don't mean November" must never become November (the parser sees the month name), and
+    // "all the transactions I've ever uploaded" means every imported transaction. Applied BEFORE
+    // M1b, and when the customer redirected the scope nothing is inherited from the conversation.
+    let customerAllHistory = false;
+    let customerScopeOverride = false;
+    if (isPrime) {
+      try {
+        const decision = applyCustomerScope(
+          temporalScope as unknown as TemporalScopeLike | null,
+          String(masked || ''),
+          (text) => buildTemporalScope(text, { timezone: effectiveTimezone, referenceDate: new Date() }, shadowIntentResult?.financialClassification?.years) as unknown as TemporalScopeLike | null,
+        );
+        customerAllHistory = decision.allHistory;
+        customerScopeOverride = decision.overridesConversation;
+        if (decision.droppedNegatedPeriod || decision.allHistory) {
+          temporalScope = decision.temporalScope as typeof temporalScope;
+        }
+        if (decision.negated.length > 0) systemMessages.push({ role: 'system', content: negatedPeriodNote(decision.negated) });
+        if (decision.allHistory) systemMessages.push({ role: 'system', content: ALL_HISTORY_SCOPE_NOTE });
+        if (customerScopeOverride) {
+          console.log(`[P-LIVE-02] customer scope allHistory=${decision.allHistory} droppedNegated=${decision.droppedNegatedPeriod} negated=${decision.negated.length}`);
+        }
+      } catch {
+        // never breaks the request
+      }
+    }
+
     let m1bDecision: InheritDecision | null = null;
-    if (m1bEnabled && shadowIntentResult) {
+    if (m1bEnabled && shadowIntentResult && !customerScopeOverride) {
       try {
         m1bDecision = resolveInheritedPeriod({
           message: String(masked || ''),
@@ -10663,7 +10701,8 @@ export const handler: Handler = async (event, context) => {
     let tagConsultationResult: TagStatus | null = null;
     if (primeCategorizationReview) {
       try {
-        const tagInput = tagStatusInputFromScope(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision?.apply);
+        // P-LIVE-02: all history when asked, or when no narrower period was requested in this message.
+        const tagInput = tagStatusInputFromScope(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision?.apply, { allHistory: customerAllHistory });
         // Same enforcement point as model tool calls: a Prime consultation never bypasses entitlements.
         const tagCap = await authorizeCapability({ userId, actingEmployee: finalEmployeeSlug, toolId: 'tag_status', via: 'prime_consultation' });
         const tagResult = tagCap.allowed

@@ -8,12 +8,16 @@
  *  - Never silently widen an empty period. Zero matching transactions, no imported data, a period
  *    outside the imported coverage, a capped (partial) read and a query failure are distinct.
  *  - Read-only: findings are proposals; customer-confirmed categories are never proposed for change.
+ *
+ * P-LIVE-02 (owner, 2026-11-25): categorization status is about OUTSTANDING work, so with no
+ * explicit period or statement the scope is ALL imported transactions ('all_history'), never the
+ * current month. An explicit all-history request also beats a conversation period.
  *  - Until C4, category-source labels are not fully reliable and must be disclosed as such.
  */
 
 import { detectReviewIssues, type ReviewTx } from './tag-review-rules';
 
-export type ScopeSource = 'requested_period' | 'conversation_period' | 'document' | 'default_current_month';
+export type ScopeSource = 'requested_period' | 'conversation_period' | 'document' | 'all_history' | 'default_current_month';
 export type Provenance = 'customer_confirmed' | 'possibly_customer_approved' | 'automatic' | 'needs_review' | 'unknown';
 export type TagStatusResult =
   | 'ok'
@@ -55,29 +59,23 @@ export function classifyCategorySource(source: unknown): Provenance {
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function monthBounds(today: Date): { startDate: string; endDate: string; label: string } {
-  const y = today.getUTCFullYear();
-  const m = today.getUTCMonth();
-  const start = new Date(Date.UTC(y, m, 1));
-  const end = new Date(Date.UTC(y, m + 1, 0));
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const label = start.toLocaleDateString('en-CA', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  return { startDate: iso(start), endDate: iso(end), label };
-}
-
 /**
  * Resolve the scope (owner precedence, Phase 2 authorization 2026-11-23):
  *   1. explicit customer-requested period (periodSource 'requested', the default for dates);
- *   2. explicitly referenced document (importId);
- *   3. period established in the conversation (periodSource 'conversation');
- *   4. current calendar month.
+ *   2. an explicit all-history request (allHistory) — P-LIVE-02, beats 3 and 4;
+ *   3. explicitly referenced document (importId);
+ *   4. period established in the conversation (periodSource 'conversation');
+ *   5. otherwise ALL imported transactions (P-LIVE-02; was: current calendar month).
  * When an explicit period AND a document are both given they are never silently combined: the
  * requested period is used and `conflict` explains the distinction so Prime can clarify.
  */
 export function resolveTagStatusScope(
-  input: { startDate?: string; endDate?: string; periodSource?: 'requested' | 'conversation'; importId?: string },
-  today: Date,
+  input: { startDate?: string; endDate?: string; periodSource?: 'requested' | 'conversation'; importId?: string; allHistory?: boolean },
+  _today: Date,
 ): TagStatusScope {
+  // P-LIVE-02: the date no longer decides the scope (no current-month fallback); the parameter is
+  // kept so existing callers are unchanged.
+  void _today;
   const s = input.startDate && ISO.test(input.startDate) ? input.startDate : undefined;
   const e = input.endDate && ISO.test(input.endDate) ? input.endDate : undefined;
   const hasPeriod = !!(s && e && s <= e);
@@ -92,15 +90,21 @@ export function resolveTagStatusScope(
       ...(hasDocument ? { conflict: 'Both a period and a specific statement were referenced. Results cover the requested period only, not the statement; ask which one the customer meant if it matters.' } : {}),
     };
   }
+  // An explicit all-history request beats a statement or a period carried over from the conversation.
+  if (input.allHistory) {
+    return { source: 'all_history', label: ALL_HISTORY_LABEL };
+  }
   if (hasDocument) {
     return { source: 'document', importId: input.importId, label: 'the selected imported statement' };
   }
   if (hasPeriod) {
     return { source: 'conversation_period', startDate: s, endDate: e, label: `${s} through ${e}` };
   }
-  const m = monthBounds(today);
-  return { source: 'default_current_month', startDate: m.startDate, endDate: m.endDate, label: `${m.label} (current month — no period was given)` };
+  // P-LIVE-02: no period and no statement → all outstanding work (all imported transactions).
+  return { source: 'all_history', label: ALL_HISTORY_LABEL };
 }
+
+export const ALL_HISTORY_LABEL = 'all imported transactions (entire history)';
 
 export interface TagStatusRow {
   id: string;
@@ -127,7 +131,11 @@ export interface TagStatus {
   provenance: Record<Provenance, number>;
   needsReviewCount: number;
   protectedFromProposals: number;
-  recentCorrections: { available: boolean; count: number; topMerchants: string[] };
+  /**
+   * Completed corrections recorded by Tag (tag_category_feedback). windowDays null = all time.
+   * These are stored correction records, separate from conversation history.
+   */
+  recentCorrections: { available: boolean; count: number; topMerchants: string[]; windowDays?: number | null };
   anomalies: TagStatusAnomaly[];
   coverage: { earliestDate: string | null; latestDate: string | null } | null;
   caveats: string[];
@@ -153,6 +161,8 @@ export function summarizeTagStatus(input: {
   userHasAnyTransactions: boolean | null;
   coverage: { earliestDate: string | null; latestDate: string | null } | null;
   feedbackMerchants: string[] | null;
+  /** Window of the correction records: days, or null for all time. */
+  feedbackWindowDays?: number | null;
 }): TagStatus {
   const { scope } = input;
   const empty: TagStatus = {
@@ -232,8 +242,9 @@ export function summarizeTagStatus(input: {
     caveats.push('Only part of this period was scanned (row limit reached); counts are minimums.');
   }
   if (scope.source === 'default_current_month') caveats.push('No period was given, so the current calendar month was used. Say so.');
+  if (scope.source === 'all_history') caveats.push('Scope is every imported transaction (entire history). Say so; do not narrow it to a month or ask permission to widen it.');
   if (scope.conflict) caveats.push(scope.conflict);
-  if (feedback === null) caveats.push('Recent correction history could not be retrieved.');
+  if (feedback === null) caveats.push("Tag's correction history could not be retrieved, so completed corrections cannot be listed. Customer-confirmed categories stored on the transactions are still counted. Say this limitation plainly.");
 
   return {
     status,
@@ -242,7 +253,7 @@ export function summarizeTagStatus(input: {
     provenance,
     needsReviewCount: provenance.needs_review,
     protectedFromProposals: provenance.customer_confirmed + provenance.possibly_customer_approved,
-    recentCorrections: { available: feedback !== null, count: feedback?.length ?? 0, topMerchants },
+    recentCorrections: { available: feedback !== null, count: feedback?.length ?? 0, topMerchants, windowDays: input.feedbackWindowDays === undefined ? 90 : input.feedbackWindowDays },
     anomalies,
     coverage: input.coverage,
     caveats,
