@@ -60,7 +60,8 @@ describe('summary strip and overview', () => {
     expect(page).toMatch(/id="tx-overview-content" className=\{`grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 \$\{overviewOpen \? '' : 'hidden'\}`\}/);
     expect(page).toContain('Spending by category');
     expect(page).toContain('AI insights');
-    expect(page).not.toMatch(/hidden md:grid/);
+    // the overview is no longer forced open on desktop
+    expect(page).not.toMatch(/overviewOpen \? '' : 'hidden md:grid'/);
   });
 
   it('page actions are 44px', () => {

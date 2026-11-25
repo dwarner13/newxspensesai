@@ -730,6 +730,13 @@ export default function TransactionsPageV2() {
     ];
   }, [filtered, catData, catTotal]);
 
+  // X-2: account name for each row, from the same account grouping as the toolbar and cards.
+  const accountNameByImport = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of accounts) for (const id of a.importIds) m.set(id, a.name);
+    return m;
+  }, [accounts]);
+
   // Date groups
   const dateGroups = useMemo(() => {
     const visible = filtered.slice(0, visibleCount);
@@ -1197,42 +1204,60 @@ export default function TransactionsPageV2() {
               No transactions found. Upload a statement to get started.
             </div>
           )}
+          {/* X-2: desktop column header (rows keep their date groups on phones) */}
+          {dateGroups.length > 0 && (
+            <div aria-hidden="true" className="hidden md:grid grid-cols-[108px_minmax(0,1fr)_150px_190px_120px_16px] gap-4 px-5 py-2.5 border-b border-slate-800/60 text-[12px] font-bold uppercase tracking-[0.08em] text-slate-400">
+              <span>Date</span><span>Merchant</span><span>Account</span><span>Category</span><span className="text-right">Amount</span><span />
+            </div>
+          )}
           {dateGroups.map(g => (
             <div key={g.date}>
-              <div className="flex items-center gap-3 pt-6 pb-2 px-5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 whitespace-nowrap">{g.label}</span>
+              <div className="md:hidden flex items-center gap-3 pt-5 pb-2 px-4">
+                <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400 whitespace-nowrap">{g.label}</span>
                 <div className="flex-1 h-px bg-slate-800/60" />
-                <span className="text-[11px] text-slate-600">{g.txs.length}</span>
+                <span className="text-[12px] text-slate-500">{g.txs.length}</span>
               </div>
               {g.txs.map(t => {
                 const cat = t.category || 'Uncategorized';
                 const isUncat = !t.category || t.category === 'Uncategorized';
                 const isIncome = isIncomeTx(t);
                 const isDupe = isDuplicate(t);
-                const c = colorFor(cat);
+                const accountName = t.import_id ? accountNameByImport.get(t.import_id) || null : null;
+                const dayText = formatCalendarDate(calendarDayOfTx(t), 'medium') || '';
+                const amountText = `${isIncome ? '+' : '-'}$${fmt(Math.abs(t.amount))}`;
+                const categoryText = isUncat ? 'Needs a category' : `${cat}${t.subcategory ? ` \u00b7 ${t.subcategory}` : ''}`;
                 return (
-                  <button key={t.id} data-tx-id={t.id} aria-current={highlightTxId === t.id ? 'true' : undefined} onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }} className="w-full flex items-center gap-4 px-5 py-4 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left" style={highlightTxId === t.id ? { background: 'rgba(34,211,238,0.12)', boxShadow: 'inset 3px 0 0 #22d3ee', outline: '1px solid rgba(34,211,238,0.45)', outlineOffset: -1 } : lastEditedTxId === t.id ? { background: 'rgba(52,211,153,0.10)', boxShadow: 'inset 3px 0 0 #34d399' } : isDupe ? { background: 'rgba(248,113,113,0.08)', borderLeft: '3px solid rgba(248,113,113,0.55)' } : undefined}>
+                  <button key={t.id} data-tx-id={t.id} aria-current={highlightTxId === t.id ? 'true' : undefined}
+                    aria-label={`${t.merchant_name || 'Unknown'}, ${amountText}, ${dayText}${accountName ? `, ${accountName}` : ''}, ${categoryText}${isDupe ? ', marked duplicate' : ''}. Open details`}
+                    onClick={() => { setSelectedTx(t); setTagInsight(null); void fetchTagInsight(t); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 min-h-[64px] md:grid md:grid-cols-[108px_minmax(0,1fr)_150px_190px_120px_16px] md:gap-4 md:px-5 md:py-2.5 md:min-h-[52px] border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-left"
+                    style={highlightTxId === t.id ? { background: 'rgba(34,211,238,0.12)', boxShadow: 'inset 3px 0 0 #22d3ee', outline: '1px solid rgba(34,211,238,0.45)', outlineOffset: -1 } : lastEditedTxId === t.id ? { background: 'rgba(52,211,153,0.10)', boxShadow: 'inset 3px 0 0 #34d399' } : isDupe ? { background: 'rgba(248,113,113,0.08)', borderLeft: '3px solid rgba(248,113,113,0.55)' } : undefined}>
                     {highlightTxId === t.id && <span className="sr-only">Selected for review with Tag. </span>}
-                    <div className="relative flex items-center justify-center h-[44px] w-[44px] rounded-xl shrink-0" style={{ background: c + '2e', border: `1px solid ${c}40` }}>
-                      <span className="text-base">{iconFor(cat)}</span>
-                      {isUncat && <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-2.5 w-2.5 rounded-full bg-amber-400" /></span>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[15px] font-semibold text-slate-100 truncate flex items-center gap-2">
+                    {/* Date (desktop column) */}
+                    <span aria-hidden="true" className="hidden md:block text-[14px] text-slate-300 tabular-nums">{dayText}</span>
+                    {/* Merchant; on phones the second line carries category and account */}
+                    <span aria-hidden="true" className="flex-1 min-w-0">
+                      <span className="flex items-center gap-2 text-[16px] md:text-[15px] font-semibold text-slate-100">
                         <span className="truncate">{t.merchant_name || 'Unknown'}</span>
-                        {isDupe && <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'rgba(248,113,113,0.18)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171', letterSpacing: 0.5, flexShrink: 0 }}>DUPE</span>}
-                      </div>
-                      {isUncat ? <div className="text-[12px] text-amber-400 flex items-center gap-1"><span className="relative flex h-1.5 w-1.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-1.5 w-1.5 rounded-full bg-amber-400" /></span>Needs category</div>
-                        : <div className="text-[12px] text-slate-500">{cat}{t.subcategory ? ` \u00b7 ${t.subcategory}` : ''}</div>}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className={`text-[16px] font-bold tabular-nums ${isDupe ? 'text-red-400 line-through opacity-60' : isIncome ? 'text-emerald-400' : 'text-slate-200'}`}>{isIncome ? '+' : '-'}${fmt(Math.abs(t.amount))}</div>
-                      <div className="text-[11px] text-slate-500">{(t.date || t.posted_at || '').slice(0, 10)}</div>
-                    </div>
-                    {(t as any).category_source === 'user_chat' && (
-                      <span title="Tag changed this category" style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</span>
-                    )}
-                    <ChevronRight className="h-3.5 w-3.5 text-slate-700 shrink-0" />
+                        {isDupe && <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'rgba(248,113,113,0.18)', border: '1px solid rgba(248,113,113,0.4)', color: '#fca5a5', letterSpacing: 0.5, flexShrink: 0 }}>DUPLICATE</span>}
+                        {(t as any).category_source === 'user_chat' && (
+                          <span title="Tag changed this category" style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(34,211,153,0.15)', border: '1px solid rgba(34,211,153,0.3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</span>
+                        )}
+                      </span>
+                      <span className={`md:hidden block truncate text-[13px] ${isUncat ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
+                        {categoryText}{accountName ? ` \u00b7 ${accountName}` : ''}
+                      </span>
+                    </span>
+                    {/* Account (desktop column) */}
+                    <span aria-hidden="true" className="hidden md:block truncate text-[14px] text-slate-300">{accountName || '\u2014'}</span>
+                    {/* Category (desktop column) */}
+                    <span aria-hidden="true" className={`hidden md:flex items-center gap-2 min-w-0 text-[14px] ${isUncat ? 'text-amber-300 font-semibold' : 'text-slate-200'}`}>
+                      {!isUncat && <span className="text-[13px] shrink-0">{iconFor(cat)}</span>}
+                      <span className="truncate">{categoryText}</span>
+                    </span>
+                    {/* Amount */}
+                    <span aria-hidden="true" className={`shrink-0 text-right text-[16px] md:text-[15px] font-bold tabular-nums ${isDupe ? 'text-red-400 line-through opacity-60' : isIncome ? 'text-emerald-400' : 'text-slate-100'}`}>{amountText}</span>
+                    <ChevronRight aria-hidden="true" className="h-4 w-4 text-slate-500 shrink-0" />
                   </button>
                 );
               })}
