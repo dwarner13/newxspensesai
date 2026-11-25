@@ -514,8 +514,9 @@ export function TagCopilotPanel({
   // transaction. Both were recorded by the server as Tag's previous reply; a "yes" is honoured only
   // for that recorded proposal.
   const [pendingProposal, setPendingProposal] = useState<
-    | { kind?: 'merchant'; matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' }
     | { kind: 'single'; transactionId: string; targetCategory: string; targetSubcategory: string | null }
+    // T-ACT-SAFE: a rule / bulk move / rename Tag proposed; echoed back exactly as the server signed it.
+    | { kind: 'action'; action: string; subject: Record<string, string | number | null> }
     | null
   >(null);
   const [greetingText, setGreetingText] = useState("");
@@ -715,19 +716,13 @@ export function TagCopilotPanel({
     try {
       // The server matches the transactions itself and honours this confirmation only for the
       // proposal it recorded as Tag's previous reply.
-      const data = proposal.kind === 'single'
-        ? await postTagAction({
+      const data = proposal.kind === 'action'
+        ? await postTagAction({ intent: 'commit_proposal', action: proposal.action, subject: proposal.subject, conversation })
+        : await postTagAction({
           intent: 'commit_single',
           transactionId: proposal.transactionId,
           targetCategory: proposal.targetCategory,
           targetSubcategory: proposal.targetSubcategory,
-          conversation,
-        })
-        : await postTagAction({
-          intent: 'commit',
-          matchValue: proposal.matchValue,
-          targetCategory: proposal.targetCategory,
-          matchType: proposal.matchType,
           conversation,
         });
       const r = interpretActionResponse(data, "I couldn't make that change, so nothing was moved.");
@@ -773,7 +768,7 @@ export function TagCopilotPanel({
   const previewAction = async (
     intent: { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' },
     customerText: string,
-  ): Promise<{ result: ActionTurnResult; clientMessageId: string } | null> => {
+  ): Promise<{ result: ActionTurnResult; clientMessageId: string; data: Record<string, unknown> } | null> => {
     const conversation = actionConversation(customerText);
     try {
       const data = await postTagAction({
@@ -787,7 +782,7 @@ export function TagCopilotPanel({
         data,
         `I searched your transactions but didn't find any matching "${intent.matchValue}". Want to try a different keyword, or tell me the merchant name you see in your list?`,
       );
-      return { result, clientMessageId: conversation.clientMessageId };
+      return { result, clientMessageId: conversation.clientMessageId, data };
     } catch {
       return null;
     }
@@ -882,7 +877,12 @@ export function TagCopilotPanel({
           // Tag's proposal text comes from the server; a "yes" is honoured only for a proposal the
           // server recorded (receipt 'proposed').
           applyActionTurn(preview.result, text, preview.clientMessageId);
-          setPendingProposal(preview.result.proposalPending ? { kind: 'merchant', ...userIntent } : null);
+          // T-ACT-FINAL: the typed request is the same signed proposal contract — hold exactly what the
+          // server signed; "yes" confirms it through commit_proposal.
+          const tp = preview.data.proposal as { kind?: string; action?: unknown; subject?: unknown } | undefined;
+          setPendingProposal(preview.result.proposalPending && tp && tp.kind === 'action' && typeof tp.action === 'string' && tp.subject && typeof tp.subject === 'object'
+            ? { kind: 'action', action: tp.action, subject: tp.subject as Record<string, string | number | null> }
+            : null);
         }
       } finally {
         setIsLoading(false);
@@ -971,6 +971,19 @@ export function TagCopilotPanel({
       // T-H2: a duplicate (already handled) or conflict (nothing ran) reply is display-only:
       // nothing is applied or refreshed again.
       if (!outcome.mayApply) return;
+      // T-LIVE-02: Tag proposed a change to ONE transaction (nothing was written). Hold it so the
+      // customer's explicit "yes" goes to tag-action commit_single, which binds to the server-signed
+      // proposal. Only a proposal the server saved (`proposal` is present only when persisted) counts.
+      const p = data.proposal;
+      if (p && p.kind === 'single' && typeof p.transactionId === 'string' && typeof p.targetCategory === 'string') {
+        setPendingProposal({ kind: 'single', transactionId: p.transactionId, targetCategory: p.targetCategory, targetSubcategory: typeof p.targetSubcategory === 'string' ? p.targetSubcategory : null });
+        return;
+      }
+      // T-ACT-SAFE: Tag proposed a rule / bulk move / rename (nothing written). "yes" → commit_proposal.
+      if (p && p.kind === 'action' && typeof p.action === 'string' && p.subject && typeof p.subject === 'object') {
+        setPendingProposal({ kind: 'action', action: p.action, subject: p.subject });
+        return;
+      }
       const actionFired = !!(data.action?.applied || data.rule_saved || (data.backfill_count || 0) > 0);
       if (actionFired) {
         setPendingProposal(null);
@@ -978,7 +991,7 @@ export function TagCopilotPanel({
 
       // If Tag performed any write (rule saved, bulk apply, correction),
       // tell the transactions list + badge to refresh.
-      if (data.rule_saved || data.action || (data.backfill_count || 0) > 0) {
+      if (data.rule_saved || data.action?.applied || (data.backfill_count || 0) > 0) {
         try {
           window.dispatchEvent(new Event("transactions:refresh"));
           window.dispatchEvent(new Event("tag:stats-refresh"));

@@ -76,3 +76,22 @@ describe('T-LIVE-02 — panel routing (source guarantees)', () => {
     expect(panel).not.toContain('const detectUserActionIntent =');
   });
 });
+
+describe('T-LIVE-02 — chat-path proposals', () => {
+  const panel = readFileSync(resolve(__dirname, '../../components/transactions/TagCopilotPanel.tsx'), 'utf8');
+  it('a single-transaction proposal from Tag chat is held so "yes" goes to tag-action commit_single', () => {
+    expect(panel).toContain("if (p && p.kind === 'single' && typeof p.transactionId === 'string'");
+    expect(panel).toContain("setPendingProposal({ kind: 'single', transactionId: p.transactionId");
+  });
+  it('a proposal (nothing written) does not trigger a transactions refresh', () => {
+    expect(panel).toContain('if (data.rule_saved || data.action?.applied || (data.backfill_count || 0) > 0) {');
+  });
+});
+
+describe('T-ACT-SAFE — panel holds rule / bulk / rename proposals for commit_proposal', () => {
+  const panel = readFileSync(resolve(__dirname, '../../components/transactions/TagCopilotPanel.tsx'), 'utf8');
+  it('holds the signed proposal exactly as sent and confirms through tag-action commit_proposal', () => {
+    expect(panel).toContain("setPendingProposal({ kind: 'action', action: p.action, subject: p.subject });");
+    expect(panel).toContain("postTagAction({ intent: 'commit_proposal', action: proposal.action, subject: proposal.subject, conversation })");
+  });
+});

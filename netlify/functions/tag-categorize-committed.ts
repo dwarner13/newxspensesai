@@ -15,6 +15,7 @@ import { verifyAuth } from './_shared/verifyAuth.js';
 import { safeLog } from './_shared/safeLog.js';
 import { normalizeMerchant } from './_shared/merchantUtils.js';
 import { matchMerchantMap } from './_shared/merchantCategoryMap.js';
+import { partitionAutoWritable, isAutoWritable, AUTO_UPDATE_CATEGORY_FILTER, AUTO_UPDATE_SOURCE_FILTER } from './_shared/categorySource.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -24,7 +25,7 @@ const headers = {
 };
 
 const RULES: Array<{ contains: string[]; category: string }> = [
-  { contains: ['gordon food ser pay', 'gordon foods pay'], category: 'Income' },
+  // FST-2 S7 (owner GO 2026-11-25): rules built for ONE customer (their employer payroll / business) applied to every customer and were removed. Personal rules live in that customer's own category_rules.
   { contains: ['celtic group'], category: 'Housing' },
   { contains: ['b/m payt', 'b/m pay', 'b/mpayt', 'b/mpay', 'mtg/hyp'], category: 'Housing' },
   { contains: ['td loan'], category: 'Transportation' },
@@ -114,21 +115,25 @@ function normalizeCategoryKey(input: string): string {
     .replace(/\s+/g, ' ');
 }
 
-function normalizeCanonicalCategory(input: string): string {
+/**
+ * A4 (owner GO 2026-11-25): an unknown category is UNRESOLVED (null) — the row then goes to Needs
+ * Review — never silently "Other". "Other" is returned only when a rule / memory explicitly says so.
+ */
+function normalizeCanonicalCategory(input: string): string | null {
   const key = normalizeCategoryKey(input);
-  if (!key) return 'Other';
+  if (!key) return null;
   const direct = CANONICAL_CATEGORIES.find((c) => normalizeCategoryKey(c) === key);
   if (direct) return direct;
-  return CATEGORY_ALIASES[key] || 'Other';
+  return CATEGORY_ALIASES[key] || null;
 }
 
-function parseRuleCategory(value: string): { category: string; subcategory: string | null } {
+function parseRuleCategory(value: string): { category: string | null; subcategory: string | null } {
   const raw = String(value || '').trim();
-  if (!raw) return { category: 'Other', subcategory: null };
+  if (!raw) return { category: null, subcategory: null };
   const delimiter = '::';
   const idx = raw.indexOf(delimiter);
   if (idx === -1) return { category: normalizeCanonicalCategory(raw), subcategory: null };
-  const category = normalizeCanonicalCategory(raw.slice(0, idx).trim() || 'Other');
+  const category = normalizeCanonicalCategory(raw.slice(0, idx).trim());
   const subcategory = raw.slice(idx + delimiter.length).trim() || null;
   return { category, subcategory };
 }
@@ -144,7 +149,10 @@ function normalizeVendorKey(s: string): string {
 function applyRules(merchant: string): string | null {
   const lower = merchant.toLowerCase();
   for (const rule of RULES) {
-    if (rule.contains.some((k) => lower.includes(k))) return normalizeCanonicalCategory(rule.category);
+    if (rule.contains.some((k) => lower.includes(k))) {
+      const c = normalizeCanonicalCategory(rule.category);
+      if (c) return c;
+    }
   }
   return null;
 }
@@ -185,7 +193,7 @@ export const handler: Handler = async (event) => {
   // 1. Fetch uncategorized committed transactions (newest first, large batch)
   const { data: rows, error } = await supabase
     .from('transactions')
-    .select('id, merchant_name, merchant, amount, description, type')
+    .select('id, merchant_name, merchant, amount, description, type, category, category_source')
     .eq('user_id', userId)
     .or('category.is.null,category.eq.Uncategorized,category.eq.Other')
     .order('posted_at', { ascending: false })
@@ -196,9 +204,11 @@ export const handler: Handler = async (event) => {
     return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: error.message }) };
   }
 
-  const txs = rows || [];
+  // C4 Batch 1 / owner GO 2026-11-25: customer-confirmed, possibly-approved (tag_rule / tag_chat) and
+  // unknown-provenance classifications — including an approved "Other" — are never touched.
+  const { writable: txs, skippedProtected } = partitionAutoWritable(rows || []);
   if (txs.length === 0) {
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0 }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, updated: 0, total: 0, skippedProtected }) };
   }
 
   // 2. Build vendor keys for memory lookup
@@ -238,7 +248,7 @@ export const handler: Handler = async (event) => {
     /* table may not exist yet - skip */
   }
 
-  function applyDbRules(merchant: string, amount?: number): { category: string; subcategory: string | null } | null {
+  function applyDbRules(merchant: string, amount?: number): { category: string | null; subcategory: string | null } | null {
     const lower = merchant.toLowerCase();
     // First pass: try amount-specific rules
     // Second pass: try rules with no amount thresholds
@@ -278,18 +288,20 @@ export const handler: Handler = async (event) => {
     const key = vendorKeys[i];
 
     const memoryCat = key ? memoryMap.get(key) : undefined;
-    if (memoryCat) {
-      updates.push({ id: tx.id, category: normalizeCanonicalCategory(memoryCat), source: 'learned' });
+    const memoryResolved = memoryCat ? normalizeCanonicalCategory(memoryCat) : null;
+    if (memoryResolved) {
+      updates.push({ id: tx.id, category: memoryResolved, source: 'learned' });
       continue;
     }
 
     const merchant = tx.merchant_name || tx.merchant || tx.description || '';
     const txAmount = Number(tx.amount || 0);
     const dbRuleMatch = applyDbRules(merchant, txAmount);
-    if (dbRuleMatch) {
+    const dbRuleCategory = dbRuleMatch?.category ? normalizeCanonicalCategory(dbRuleMatch.category) : null;
+    if (dbRuleMatch && dbRuleCategory) {
       updates.push({
         id: tx.id,
-        category: normalizeCanonicalCategory(dbRuleMatch.category),
+        category: dbRuleCategory,
         subcategory: dbRuleMatch.subcategory,
         source: 'tag_rule',
       });
@@ -344,15 +356,20 @@ export const handler: Handler = async (event) => {
           payload.subcategory = u.subcategory ?? null;
           if (u.subcategory) payload.subcategory_source = u.source;
         }
+        // The same protection is re-checked inside the update, so a customer edit that lands after
+        // the select is never overwritten; only rows the database actually updated are counted.
         return supabase
           .from('transactions')
           .update(payload)
           .eq('id', u.id)
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .or(AUTO_UPDATE_CATEGORY_FILTER)
+          .or(AUTO_UPDATE_SOURCE_FILTER)
+          .select('id');
       })
     );
     updated = results.filter(
-      (r) => r.status === 'fulfilled' && !r.value.error
+      (r) => r.status === 'fulfilled' && !r.value.error && Array.isArray(r.value.data) && r.value.data.length === 1
     ).length;
   }
 
@@ -364,12 +381,14 @@ export const handler: Handler = async (event) => {
   try {
     const { data: otherTxs } = await supabase
       .from('transactions')
-      .select('id, merchant_name, description')
+      .select('id, merchant_name, description, category, category_source')
       .eq('user_id', userId)
       .eq('category', 'Other')
       .limit(500);
-    if (otherTxs && otherTxs.length > 0) {
-      for (const tx of otherTxs) {
+    // Only an "Other" that automation assigned; a customer's / possibly-approved / unknown "Other" stays.
+    const replaceableOther = (otherTxs || []).filter(isAutoWritable);
+    if (replaceableOther.length > 0) {
+      for (const tx of replaceableOther) {
         const mapMatch = matchMerchantMap(tx.merchant_name || tx.description || '');
         if (mapMatch) {
           const payload: Record<string, unknown> = {
@@ -381,12 +400,16 @@ export const handler: Handler = async (event) => {
             payload.subcategory = mapMatch.subcategory;
             payload.subcategory_source = 'merchant_map';
           }
-          await supabase.from('transactions').update(payload).eq('id', tx.id).eq('user_id', userId);
-          reclassified++;
+          const { data: done, error: upErr } = await supabase.from('transactions').update(payload)
+            .eq('id', tx.id).eq('user_id', userId)
+            .or(AUTO_UPDATE_CATEGORY_FILTER).or(AUTO_UPDATE_SOURCE_FILTER)
+            .select('id');
+          if (!upErr && Array.isArray(done) && done.length === 1) reclassified++;
         } else {
           await supabase.from('transactions').update({
             category: 'Needs Review', category_source: 'needs_review', updated_at: new Date().toISOString(),
-          }).eq('id', tx.id).eq('user_id', userId);
+          }).eq('id', tx.id).eq('user_id', userId)
+            .or(AUTO_UPDATE_CATEGORY_FILTER).or(AUTO_UPDATE_SOURCE_FILTER);
         }
       }
       if (reclassified > 0) safeLog('info', `[tag-categorize-committed] Reclassified ${reclassified} Other -> real categories`, { userId });
@@ -403,7 +426,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ ok: true, updated, reclassified, typeEnforced, total: txs.length }),
+      body: JSON.stringify({ ok: true, updated, reclassified, typeEnforced, total: txs.length, skippedProtected }),
     };
   }
   // Runs a SEPARATE query — txs above only contains null/Other/Uncategorized.

@@ -61,7 +61,14 @@ describe('TagCopilotPanel', () => {
   });
 
   it('duplicate / conflict replies apply and refresh nothing', () => {
-    expect(panel).toMatch(/if \(!outcome\.mayApply\) return;\s*const actionFired/);
+    // T-LIVE-02 (Tag HQ): the single-transaction proposal hold sits between the early return and the
+    // action effects; both still come AFTER `if (!outcome.mayApply) return;`, so a duplicate / conflict
+    // reply neither holds a proposal nor refreshes anything.
+    const ret = panel.indexOf('if (!outcome.mayApply) return;');
+    expect(ret).toBeGreaterThan(0);
+    expect(panel.indexOf('const p = data.proposal;', ret)).toBeGreaterThan(ret);
+    expect(panel.indexOf('const actionFired', ret)).toBeGreaterThan(panel.indexOf('const p = data.proposal;', ret));
+    expect(panel.slice(ret, panel.indexOf('const actionFired', ret))).not.toMatch(/dispatchEvent|toast\./);
   });
 
   it('retry reuses the same clientMessageId, only for an unanswered message, and never re-enters the action path', () => {

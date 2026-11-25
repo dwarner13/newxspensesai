@@ -19,6 +19,8 @@ import { TransactionInsightDrawer } from '@/components/transactions/TransactionI
 import type { CommittedTransaction } from '@/types/transactions';
 import { formatCalendarDate } from '@/lib/calendarDate';
 import { getSupabase } from '@/lib/supabase';
+import toast from 'react-hot-toast';
+import { newClientMessageId } from '@/lib/tagConversation';
 import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
 import { AgentFloatingBubble } from '@/components/ui/AgentFloatingBubble';
 import { useProfile } from '@/hooks/useProfile';
@@ -291,17 +293,57 @@ export default function TransactionsPageV2() {
   useEffect(() => { try { window.dispatchEvent(new Event('tag:stats-refresh')); } catch { /* noop */ } }, []);
 
   // Sweep apply/dismiss
+  // Owner GO 2026-11-25 (Tag HQ): applying Tag's import suggestions is a bulk change, so it is a
+  // SERVER proposal (computed by the server, never the browser's id list) that the customer confirms;
+  // the change is tag-action commit_proposal. (It used to apply the browser's id list immediately.)
   const applySweepFromChat = useCallback(async (payload: any) => {
     try {
       const sb = getSupabase(); if (!sb) return;
       const { data: { session } } = await sb.auth.getSession(); if (!session) return;
-      const res = await fetch('/.netlify/functions/tag-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ intent: 'bulk_apply', groups: (payload.confident_groups ?? []).map((g: any) => ({ ids: g.ids, category: g.category })) }),
+      const importId = typeof payload?.import_id === 'string' ? payload.import_id : '';
+      if (!importId) { toast.error('Could not apply'); return; }
+      const post = async (body: Record<string, unknown>) => {
+        const res = await fetch('/.netlify/functions/tag-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify(body),
+        });
+        return res.json();
+      };
+      const prop = await post({
+        intent: 'propose_import_suggestions', importId,
+        conversation: { customerText: "Apply Tag's suggestions for this statement", clientMessageId: newClientMessageId() },
       });
-      const d = await res.json();
-      if (d.ok) { toast.success(`Tag categorized ${d.applied} transactions`); void dismissSweep(); void refetch(); void fetchTagInbox(); }
+      const reply = String(prop?.conversation?.reply || "Tag couldn't check those suggestions, so nothing has changed.").replace(/\*\*/g, '');
+      if (!prop?.proposal || prop?.conversation?.receipt?.state !== 'proposed') { toast(reply); return; }
+      const sessionId = prop?.conversation?.sessionId;
+      toast((t) => (
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span>{reply}</span>
+          <span style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  const d = await post({
+                    intent: 'commit_proposal', action: prop.proposal.action, subject: prop.proposal.subject,
+                    conversation: { customerText: 'yes', clientMessageId: newClientMessageId(), ...(sessionId ? { sessionId } : {}) },
+                  });
+                  const msg = String(d?.conversation?.reply || '').replace(/\*\*/g, '');
+                  if (d?.conversation?.receipt?.state === 'completed') {
+                    toast.success(msg || 'Done');
+                    void dismissSweep(); void refetch(); void fetchTagInbox();
+                  } else {
+                    toast.error(msg || 'Nothing was changed');
+                  }
+                } catch { toast.error("Couldn't confirm whether that went through - check your transactions before trying again"); }
+              }}
+              style={{ padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}
+            >Confirm</button>
+            <button onClick={() => toast.dismiss(t.id)} style={{ padding: '4px 10px', borderRadius: 8 }}>Cancel</button>
+          </span>
+        </span>
+      ), { duration: 30000 });
     } catch { toast.error('Could not apply'); }
   }, []);
   const dismissSweep = useCallback(async () => {

@@ -542,7 +542,12 @@ export function summarizeSearchTotals(input: {
     if (ISO_DATE.test(d)) dates.push(d);
     const c = classifyCashFlow({ type: cl?.type ?? null, category: cl?.category ?? null, subcategory: cl?.subcategory ?? null, amount: r.amount });
     if (!cl || c.amountCents === null || c.direction === 'unclassified') { unclassified++; continue; }
-    if (c.direction === 'inflow') { moneyIn += c.amountCents; inN++; continue; }
+    // Inflows: only the engine's 'income' purpose is money in. Transfers in (and, once D-1 lands in the
+    // engine, payments received on the customer's own card) are internal movements, never income.
+    if (c.direction === 'inflow') {
+      if (c.purpose === 'income') { moneyIn += c.amountCents; inN++; } else { moved += c.amountCents; movedN++; }
+      continue;
+    }
     if (c.purpose === 'spending') {
       spend += c.amountCents; spendN++;
       const label = String(r.merchant_name || '(no merchant name)').trim();
@@ -566,7 +571,7 @@ export function summarizeSearchTotals(input: {
       + (rest.length ? `; all other merchants (${rest.length}) ${formatCents(rest.reduce((s, m) => s + m.cents, 0))} (${rest.reduce((s, m) => s + m.count, 0)})` : '')
       + ` — these add up exactly to the spending figure.`);
   }
-  if (movedN > 0) lines.push(`Transfers / debt payments / savings (not spending): ${formatCents(moved)} across ${plural(movedN, 'transaction')}.`);
+  if (movedN > 0) lines.push(`Transfers / debt payments / savings, in or out (not spending, not income): ${formatCents(moved)} across ${plural(movedN, 'transaction')}.`);
   if (inN > 0) lines.push(`Money in: ${formatCents(moneyIn)} across ${plural(inN, 'transaction')} (not analysed by Tag; income questions go to Prime).`);
   if (unclassified > 0) lines.push(`${plural(unclassified, 'transaction')} could not be classified and are in no figure above.`);
   return { complete: true, text: lines.join('\n') };

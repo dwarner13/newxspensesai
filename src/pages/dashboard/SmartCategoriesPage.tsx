@@ -13,6 +13,7 @@ import { createCategoryRule } from '../../lib/categoryRules';
 import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
 import type { EmployeeStat } from '../../config/employeeDisplayConfig';
 import toast from 'react-hot-toast';
+import { newClientMessageId } from '@/lib/tagConversation';
 
 // Local Transaction type for Smart Categories page
 interface Transaction {
@@ -1160,98 +1161,120 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
     const { data } = await supabase.auth.getSession();
     return data.session?.access_token ?? null;
   };
-  const previewTagAction = async (matchValue: string, targetCategory: string, matchType: 'contains' | 'exact' = 'contains') => {
+  // T-ACT-FINAL (Tag HQ): Smart Categories uses the ONE action safety contract. The preview is a
+  // server proposal (verified affected set, customer-categorized rows kept, future rule + existing
+  // changes spelled out, signed receipt in the Tag conversation); the change happens only through
+  // tag-action commit_proposal after the customer confirms what the server proposed.
+  type TagProposal = { action: string; subject: Record<string, string | number | null>; sessionId: string | null; reply: string; affected: number };
+  const proposeTagRule = async (matchValue: string, targetCategory: string, matchType: 'contains' | 'exact'): Promise<{ proposal: TagProposal | null; reply: string }> => {
     const token = await getAccessToken();
     if (!token) throw new Error('Session expired - please refresh');
     const res = await fetch('/.netlify/functions/tag-action', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        intent: 'preview',
-        matchValue,
-        targetCategory,
-        matchType,
-        importId: selectedImportFilter || null,
+        intent: 'preview', matchValue, targetCategory, matchType,
+        conversation: { customerText: `Smart Categories: apply ${targetCategory} to ${matchValue}`, clientMessageId: newClientMessageId() },
       }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || data?.ok === false) {
-      throw new Error(String(data?.error || 'Preview failed'));
+    const reply = String(data?.conversation?.reply || data?.error || 'Tag could not check those transactions, so nothing has changed.');
+    const p = data?.proposal;
+    if (res.ok && p && p.kind === 'action' && data?.conversation?.receipt?.state === 'proposed') {
+      return { reply, proposal: { action: String(p.action), subject: p.subject, sessionId: data.conversation.sessionId ?? null, reply, affected: Number(p.subject?.affected ?? 0) } };
     }
-    return data as {
-      ok: boolean;
-      matchCount: number;
-      affectedIds: string[];
-      targetCategory: string;
-      targetSubcategory?: string | null;
-    };
+    return { reply, proposal: null };
   };
-  const commitTagAction = async (payload: {
-    matchValue: string;
-    targetCategory: string;
-    matchType: 'contains' | 'exact';
-    affectedIds: string[];
-  }) => {
+  const confirmTagProposal = async (proposal: TagProposal): Promise<{ completed: boolean; count: number; reply: string }> => {
     const token = await getAccessToken();
     if (!token) throw new Error('Session expired - please refresh');
     const res = await fetch('/.netlify/functions/tag-action', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        intent: 'commit',
-        ...payload,
+        intent: 'commit_proposal', action: proposal.action, subject: proposal.subject,
+        conversation: { customerText: 'yes', clientMessageId: newClientMessageId(), ...(proposal.sessionId ? { sessionId: proposal.sessionId } : {}) },
       }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || data?.ok === false) {
-      throw new Error(String(data?.error || 'Commit failed'));
-    }
-    return data as { ok: boolean; updatedCount: number; targetCategory: string; targetSubcategory?: string | null };
+    const receipt = data?.conversation?.receipt;
+    return {
+      completed: receipt?.state === 'completed',
+      count: typeof receipt?.count === 'number' ? receipt.count : 0,
+      reply: String(data?.conversation?.reply || "Couldn't confirm whether that went through - check your transactions before trying again."),
+    };
   };
   const applyMerchantSuggestion = async (merchant: string, forcedTargetCategory?: string) => {
     const targetCategory = forcedTargetCategory || merchantTargets[merchant] || inferStarterCategory(merchant);
     setIsMerchantApplying(merchant);
     try {
-      const preview = await previewTagAction(merchant, targetCategory, 'exact');
-      if (!preview.matchCount) {
-        toast('No matching rows found for this merchant');
-        return;
-      }
-      const committed = await commitTagAction({
-        matchValue: merchant,
-        targetCategory,
-        matchType: 'exact',
-        affectedIds: preview.affectedIds,
-      });
-      toast.success(`Updated ${committed.updatedCount} ${merchant} transaction${committed.updatedCount === 1 ? '' : 's'}`);
-      categoryRules.refresh();
-      await fetchTransactions();
+      const { proposal, reply } = await proposeTagRule(merchant, targetCategory, 'exact');
+      if (!proposal) { toast(reply); return; }
+      // Show the server's exact proposal; nothing changes until the customer confirms it.
+      toast((t) => (
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span>{proposal.reply.replace(/\*\*/g, '')}</span>
+          <span style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  const r = await confirmTagProposal(proposal);
+                  if (r.completed) {
+                    toast.success(r.reply.replace(/\*\*/g, ''));
+                    categoryRules.refresh();
+                    await fetchTransactions();
+                  } else {
+                    toast.error(r.reply.replace(/\*\*/g, ''));
+                  }
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : 'Failed to apply merchant rule');
+                }
+              }}
+              style={{ padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}
+            >Confirm</button>
+            <button onClick={() => toast.dismiss(t.id)} style={{ padding: '4px 10px', borderRadius: 8 }}>Cancel</button>
+          </span>
+        </span>
+      ), { duration: 30000 });
     } catch (err: any) {
       toast.error(err?.message || 'Failed to apply merchant rule');
     } finally {
       setIsMerchantApplying(null);
     }
   };
+  // Several merchants at once: preview them all, confirm the verified totals once, then for each
+  // merchant re-propose and commit it only if its scope is still exactly what the customer saw.
+  const applyMerchantSuggestionsConfirmed = async (items: Array<{ merchant: string; category: string }>, verb: string) => {
+    const seen: Array<{ merchant: string; category: string; fingerprint: unknown; affected: number }> = [];
+    for (const item of items) {
+      const { proposal } = await proposeTagRule(item.merchant, item.category, 'exact');
+      if (proposal) seen.push({ ...item, fingerprint: proposal.subject.fingerprint, affected: proposal.affected });
+    }
+    if (seen.length === 0) { toast('Nothing to change'); return; }
+    const total = seen.reduce((n, x) => n + x.affected, 0);
+    const confirmed = window.confirm(
+      `${verb} ${seen.length} merchant rule${seen.length === 1 ? '' : 's'} for future imports and change ${total} existing transaction${total === 1 ? '' : 's'} now? Transactions you categorized yourself are kept.`
+    );
+    if (!confirmed) return;
+    let done = 0; let changed = 0; let skipped = 0;
+    for (const item of seen) {
+      const { proposal } = await proposeTagRule(item.merchant, item.category, 'exact');
+      if (!proposal || proposal.subject.fingerprint !== item.fingerprint) { skipped++; continue; }
+      const r = await confirmTagProposal(proposal);
+      if (r.completed) { done++; changed += r.count; } else { skipped++; }
+    }
+    toast.success(`${verb === 'Approve' ? 'Approved' : 'Saved'} ${done} rule${done === 1 ? '' : 's'}; ${changed} transaction${changed === 1 ? '' : 's'} changed${skipped ? `; ${skipped} skipped because they changed or failed` : ''}`);
+    categoryRules.refresh();
+    await fetchTransactions();
+  };
   const handleClassifyConfidentMerchants = async () => {
     if (confidentMerchantSuggestions.length === 0) {
       toast('No confident merchant groups ready yet');
       return;
     }
-    const confirmed = window.confirm(
-      `Let Tag classify ${confidentMerchantSuggestions.length} merchant group${confidentMerchantSuggestions.length === 1 ? '' : 's'} now?`
-    );
-    if (!confirmed) return;
     try {
-      for (const item of confidentMerchantSuggestions) {
-        await applyMerchantSuggestion(item.merchant, item.suggestedCategory);
-      }
-      toast.success(`Tag classified ${confidentMerchantSuggestions.length} merchant group${confidentMerchantSuggestions.length === 1 ? '' : 's'}`);
+      await applyMerchantSuggestionsConfirmed(confidentMerchantSuggestions.map(i => ({ merchant: i.merchant, category: i.suggestedCategory })), 'Save');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to classify all merchants');
     }
@@ -1261,15 +1284,8 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
       toast('No suggested rules to approve');
       return;
     }
-    const confirmed = window.confirm(
-      `Approve ${confidentMerchantSuggestions.length} suggested Tag rule${confidentMerchantSuggestions.length === 1 ? '' : 's'} now?`
-    );
-    if (!confirmed) return;
     try {
-      for (const item of confidentMerchantSuggestions) {
-        await applyMerchantSuggestion(item.merchant, merchantTargets[item.merchant] || item.suggestedCategory);
-      }
-      toast.success(`Approved ${confidentMerchantSuggestions.length} suggested rules`);
+      await applyMerchantSuggestionsConfirmed(confidentMerchantSuggestions.map(i => ({ merchant: i.merchant, category: merchantTargets[i.merchant] || i.suggestedCategory })), 'Approve');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to approve suggested rules');
     }

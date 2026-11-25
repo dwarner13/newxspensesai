@@ -7,7 +7,7 @@
 import type { Handler } from '@netlify/functions';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
-import { normalizeMerchant } from './_shared/merchantUtils.js';
+import { computeImportSuggestions } from './_shared/tagImportSuggestions.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -31,90 +31,17 @@ export const handler: Handler = async (event) => {
   if (!importId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'importId required' }) };
 
   try {
-    // 1. Fetch Needs Review transactions from this import
-    const { data: txs } = await sb
-      .from('transactions')
-      .select('id, merchant_name, amount, category')
-      .eq('user_id', userId)
-      .eq('import_id', importId)
-      .or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null')
-      .limit(500);
-
-    if (!txs || txs.length === 0) {
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, confident_count: 0, unsure_count: 0, confident_groups: [], unsure_merchants: [] }) };
+    // 1-5. Owner GO 2026-11-25: one suggestion engine (shared with the signed "apply suggestions"
+    // proposal). Suggestions come only from the customer's own rules / history; protected rows are
+    // never suggested; reads are complete. NOTHING is applied here — applying is a confirmed proposal.
+    const sug = await computeImportSuggestions(sb as unknown as Parameters<typeof computeImportSuggestions>[0], userId, importId);
+    if (!sug.complete || (sug.groups.length === 0 && sug.unsure.length === 0)) {
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, confident_count: 0, unsure_count: 0, confident_groups: [], unsure_merchants: [], complete: sug.complete }) };
     }
-
-    // 2. Fetch user's category rules
-    let rules: any[] = [];
-    try {
-      const { data } = await sb.from('category_rules').select('*').eq('user_id', userId);
-      rules = data ?? [];
-    } catch { /* table may not exist */ }
-
-    // 3. Build merchant confidence from history
-    const { data: history } = await sb
-      .from('transactions')
-      .select('merchant_name, category')
-      .eq('user_id', userId)
-      .not('category', 'eq', 'Needs Review')
-      .not('category', 'eq', 'Other')
-      .not('category', 'eq', 'Uncategorized')
-      .not('category', 'is', null)
-      .limit(1000);
-
-    const merchantCats: Record<string, Record<string, number>> = {};
-    for (const tx of history ?? []) {
-      const key = normalizeMerchant(tx.merchant_name);
-      if (!key) continue;
-      if (!merchantCats[key]) merchantCats[key] = {};
-      merchantCats[key][tx.category] = (merchantCats[key][tx.category] || 0) + 1;
-    }
-
-    // 4. Classify each transaction
-    const confident: Array<{ id: string; merchant_name: string; category: string }> = [];
-    const unsureMap: Record<string, { merchant_name: string; count: number }> = {};
-
-    for (const tx of txs) {
-      const normalized = normalizeMerchant(tx.merchant_name);
-
-      // Check rules first
-      const rule = rules.find(r => {
-        const p = normalizeMerchant(r.match_value || r.merchant_pattern || '');
-        return (r.match_type === 'exact') ? normalized === p : normalized.includes(p);
-      });
-      if (rule) {
-        confident.push({ id: tx.id, merchant_name: tx.merchant_name, category: rule.category });
-        continue;
-      }
-
-      // Check merchant history confidence
-      const cats = merchantCats[normalized];
-      if (cats) {
-        const total = Object.values(cats).reduce((s, n) => s + n, 0);
-        const topCat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
-        const confidence = topCat[1] / total;
-        if (confidence >= 0.8 && total >= 3) {
-          confident.push({ id: tx.id, merchant_name: tx.merchant_name, category: topCat[0] });
-          continue;
-        }
-      }
-
-      // Unsure
-      if (!unsureMap[normalized]) unsureMap[normalized] = { merchant_name: tx.merchant_name, count: 0 };
-      unsureMap[normalized].count++;
-    }
-
-    // 5. Group confident by merchant+category
-    const groupMap: Record<string, { merchant_name: string; category: string; ids: string[]; count: number }> = {};
-    for (const tx of confident) {
-      const key = `${normalizeMerchant(tx.merchant_name)}|${tx.category}`;
-      if (!groupMap[key]) groupMap[key] = { merchant_name: tx.merchant_name, category: tx.category, ids: [], count: 0 };
-      groupMap[key].ids.push(tx.id);
-      groupMap[key].count++;
-    }
-
-    const confidentGroups = Object.values(groupMap);
-    const unsureMerchants = Object.values(unsureMap);
+    const confidentGroups = sug.groups.map(g => ({ merchant_name: g.merchant_name, category: g.category, subcategory: g.subcategory, ids: g.ids, count: g.count }));
+    const confident = confidentGroups.flatMap(g => g.ids);
+    const unsureMerchants = sug.unsure;
+    const unsureMap = Object.fromEntries(sug.unsure.map(u => [u.merchant_name, u]));
 
     // 6. Build statement completion report + persist to user_notifications
     try {
@@ -158,7 +85,8 @@ export const handler: Handler = async (event) => {
         `I finished processing your ${month} statement (${filename}).`,
         '',
         `${totalCount} transactions reviewed:`,
-        `   \u2705 ${autoCount} categorized automatically`,
+        // Nothing has been applied yet: these are suggestions awaiting the customer's confirmation.
+        `   \u2728 ${autoCount} ready to categorize from your own rules and history (confirm to apply)`,
         needsInputCount > 0 ? `   \u26A0\uFE0F  ${needsInputCount} need your input` : '   \u2705 All categorized',
         '',
         topCategories.length > 0 ? `Top spending:\n${catLines}` : '',
