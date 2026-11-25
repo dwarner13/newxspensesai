@@ -99,12 +99,23 @@ export default function GoalsDebtPageV2() {
         </div>
       </Reveal>
 
+      {data.unavailable && (
+        <div role="status" style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 12, background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.35)", color: "#bfdbfe", fontSize: 14 }}>
+          Goal and debt tracking isn&apos;t set up yet, so there is nothing to show. No example figures are used.
+        </div>
+      )}
+      {data.loadError && !data.unavailable && (
+        <div role="status" style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 12, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)", color: "#fde68a", fontSize: 14 }}>
+          Your goals and debts couldn&apos;t be loaded right now. Nothing shown here is an estimate.
+        </div>
+      )}
+
       {/* Stats */}
       <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 12, marginBottom: 24 }}>
         {[
           { label: "Goal Progress", value: `${goalPct}%`, sub: `$${data.totalGoalCurrent.toLocaleString()} / $${data.totalGoalTarget.toLocaleString()}`, color: "#34d399", icon: "\uD83C\uDFAF" },
           { label: "Total Debt", value: `$${data.totalDebt.toLocaleString()}`, sub: `${data.debts.length} accounts`, color: "#f87171", icon: "\uD83D\uDCB3" },
-          { label: "Monthly Savings", value: `$${data.monthlySavings}`, sub: "+12% vs last month", color: "#60a5fa", icon: "\uD83D\uDCB0" },
+          { label: "Monthly Savings", value: `$${data.monthlySavings}`, sub: "Latest month", color: "#60a5fa", icon: "\uD83D\uDCB0" },
           { label: "Debt-Free Date", value: `${data.debtFreeMonths > 0 ? Math.ceil(data.debtFreeMonths / 12) > 1 ? `${data.debtFreeMonths} mo` : `${data.debtFreeMonths} mo` : "N/A"}`, sub: "At current pace", color: "#a78bfa", icon: "\uD83D\uDCC5" },
         ].map((s, i) => (
           <Reveal key={s.label} delay={100 + i * 60} style={{ flex: isMobile ? "1 1 calc(50% - 6px)" : 1 }}>

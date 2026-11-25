@@ -26,7 +26,10 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
   const handleClose = () => { setOpen(false); setTimeout(onClose, 300); };
 
   const goalPct = data.totalGoalTarget > 0 ? Math.round((data.totalGoalCurrent / data.totalGoalTarget) * 100) : 0;
-  const statusText = `You're ${goalPct}% toward your total goal target of $${data.totalGoalTarget.toLocaleString()}. ${data.totalDebt > 0 ? `You also have $${data.totalDebt.toLocaleString()} in total debt.` : ""} ${data.monthlySavings > 0 ? `At $${data.monthlySavings.toLocaleString()}/mo savings, you're making progress.` : "Let\'s work on building your savings rate."}`;
+  const hasPlan = data.goals.length > 0 || data.debts.length > 0;
+  const statusText = !hasPlan
+    ? (data.unavailable ? "Goal and debt tracking isn't set up yet, so I have nothing of yours to summarise. I won't use example figures." : data.loadError ? "I couldn't load your goals and debts just now, so I won't guess at them. Please try again shortly." : "You haven't added any goals or debts yet. Add one on this page and I'll help you plan for it.")
+    : `You're ${goalPct}% toward your total goal target of $${data.totalGoalTarget.toLocaleString()}. ${data.totalDebt > 0 ? `You also have $${data.totalDebt.toLocaleString()} in total debt.` : ""} ${data.monthlySavings > 0 ? `At $${data.monthlySavings.toLocaleString()}/mo savings, you're making progress.` : "Let\'s work on building your savings rate."}`;
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [typed, messages.length]);
@@ -61,7 +64,7 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
             </div>
           </div>
 
-          {typeDone && (
+          {typeDone && hasPlan && (
             <Reveal delay={0} style={{ marginLeft: 38, marginBottom: 24 }}>
               {/* M-OVF: two columns on phones (four tiles overflowed the 390px panel). */}
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: 8 }}>
