@@ -51,11 +51,23 @@ function seed() {
 function query(table: string) {
   const call: Call = { table, ops: [], filters: [] };
   calls.push(call);
-  const matches = () => (db[table] || []).filter((r) => call.filters.every(([k, v]) => (k.startsWith('in:') ? (v as unknown[]).includes(r[k.slice(3)]) : r[k] === v)));
+  // FST-2: generate-tax-report now pages (.range) with date bounds (.gte/.lte) and verifies the
+  // row count (select(..., { count: 'exact', head: true })). The fake honours those; the identity
+  // assertions below are unchanged (every query must still be filtered by the verified user).
+  let range: [number, number] | null = null;
+  let head = false;
+  const bounds: Array<[string, 'gte' | 'lte', unknown]> = [];
+  const matches = () => (db[table] || []).filter((r) =>
+    call.filters.every(([k, v]) => (k.startsWith('in:') ? (v as unknown[]).includes(r[k.slice(3)]) : r[k] === v))
+    // date bounds only for the paged/count reads (the authoritative ledger); other functions'
+    // queries keep the original fake semantics so their existing assertions are unchanged
+    && (!(range || head) || bounds.every(([k, op, v]) => (op === 'gte' ? String(r[k] ?? '') >= String(v) : String(r[k] ?? '') <= String(v)))));
   const run = () => {
     if (call.ops.includes('insert')) { (db[table] ||= []).push({ id: `${table}-${(db[table] || []).length + 1}`, ...(call.payload as Row) }); return { data: null, error: null }; }
     if (call.ops.includes('update')) { matches().forEach((r) => Object.assign(r, call.payload)); return { data: null, error: null }; }
-    return { data: matches(), error: null };
+    const all = matches();
+    if (head) return { data: null, error: null, count: all.length };
+    return { data: range ? all.slice(range[0], range[1] + 1) : all, error: null };
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic chain via Proxy
   const proxy: any = new Proxy({}, {
@@ -66,6 +78,9 @@ function query(table: string) {
         call.ops.push(prop);
         if (prop === 'eq') call.filters.push([String(args[0]), args[1]]);
         if (prop === 'in') call.filters.push([`in:${String(args[0])}`, args[1]]);
+        if (prop === 'gte' || prop === 'lte') bounds.push([String(args[0]), prop, args[1]]);
+        if (prop === 'range') range = [Number(args[0]), Number(args[1])];
+        if (prop === 'select' && (args[1] as { head?: boolean } | undefined)?.head) head = true;
         if (prop === 'insert' || prop === 'update' || prop === 'upsert') call.payload = args[0];
         return proxy;
       };

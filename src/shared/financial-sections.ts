@@ -64,7 +64,7 @@
  */
 
 import type { ClassifiableTransaction } from './financial-taxonomy';
-import { isIncomeStrict } from './financial-taxonomy';
+import { isIncomeStrict, classifyCashFlow, type CashFlowPurpose } from './financial-taxonomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -99,14 +99,44 @@ export interface SectionResult {
 // TAX SECTIONS — CANONICAL ORDERING
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// CRITICAL: Income MUST be first. First-match-wins prevents double-counting.
+// CRITICAL: Internal movement, then Income, come first. First-match-wins prevents double-counting.
 //
 // Regression fixture:
 //   { type: "income", category: "Income", subcategory: "Gas & Fuel", amount: 2149.84 }
 //   → Income section claims it. Vehicle/Gas Fuel MUST NOT claim it.
 //   → 2025 Gas/Fuel total = $6,472.65 (not $8,622.49)
 
-export const TAX_SECTIONS: readonly TaxSectionDef[] = [
+/**
+ * FST-2: purposes that are internal money movement under the shared engine (D-1 included).
+ * They are never income and never an expense in any tax section.
+ */
+export const INTERNAL_MOVEMENT_PURPOSES: ReadonlySet<CashFlowPurpose> = new Set<CashFlowPurpose>([
+  'transfer_in', 'transfer_out', 'debt_payment', 'debt_repayment_in', 'savings_investment',
+]);
+
+export function isInternalMovement(tx: ClassifiableTransaction): boolean {
+  return INTERNAL_MOVEMENT_PURPOSES.has(classifyCashFlow(tx as Parameters<typeof classifyCashFlow>[0]).purpose);
+}
+
+/**
+ * FST-2: an expense section may only claim an OUTFLOW (type 'expense'/'purchase'). A row whose type
+ * has no established direction (e.g. 'Credit') is claimed by no section and disclosed as
+ * unsectioned — never guessed into an expense by its category.
+ */
+export function isOutflowTx(tx: ClassifiableTransaction): boolean {
+  return classifyCashFlow(tx as Parameters<typeof classifyCashFlow>[0]).direction === 'outflow';
+}
+
+const EXPENSE_SECTION_IDS = new Set(['vehicle', 'home', 'meals', 'business', 'personal', 'other']);
+
+const TAX_SECTIONS_BASE: readonly TaxSectionDef[] = [
+  {
+    // FST-2: claimed FIRST so transfers, card/loan payments (both sides) and savings movements
+    // are never reported as income or as an expense (same definitions as the shared engine).
+    id: 'internal',
+    title: 'Transfers, debt repayments & savings (internal — not income or expenses)',
+    matchFn: (tx) => isInternalMovement(tx),
+  },
   {
     id: 'income',
     title: 'Income',
@@ -187,6 +217,10 @@ export const TAX_SECTIONS: readonly TaxSectionDef[] = [
     matchFn: (tx) => (tx.type || '').toLowerCase() === 'expense',
   },
 ];
+
+export const TAX_SECTIONS: readonly TaxSectionDef[] = TAX_SECTIONS_BASE.map(sec =>
+  EXPENSE_SECTION_IDS.has(sec.id) ? { ...sec, matchFn: (tx: ClassifiableTransaction) => isOutflowTx(tx) && sec.matchFn(tx) } : sec,
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BUCKET DEFINITIONS

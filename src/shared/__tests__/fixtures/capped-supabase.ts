@@ -18,6 +18,8 @@ export interface CappedClientOptions {
   failOnRequest?: number;
   /** Restrict failOnRequest counting to one table (Nth request to that table). */
   failTable?: string;
+  /** Called before every request (1-based global count, table): simulate concurrent changes. */
+  onRequest?: (n: number, table: string) => void;
 }
 
 export function makeCappedClient(tables: Record<string, FakeRow[]>, opts: CappedClientOptions = {}) {
@@ -36,6 +38,7 @@ export function makeCappedClient(tables: Record<string, FakeRow[]>, opts: Capped
     const exec = () => {
       requests++;
       perTable.set(table, (perTable.get(table) || 0) + 1);
+      opts.onRequest?.(requests, table);
       log.push({ table, range, limit, ordered: orders.length > 0 });
       const nth = opts.failTable ? (opts.failTable === table ? perTable.get(table)! : -1) : requests;
       if (opts.failOnRequest && nth === opts.failOnRequest) {
