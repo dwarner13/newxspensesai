@@ -9,8 +9,8 @@ import { resolveFocusedTransaction } from './_shared/tagFocusedTransaction.js';
 import {
   openEmployeeConversation,
   loadConversationHistory,
-  recordConversationTurn,
-  findRecordedTurn,
+  claimConversationTurn,
+  completeConversationTurn,
   findRecentEmployeeConversation,
   maskCustomerTextForModel,
 } from './_shared/conversation-platform.js';
@@ -419,32 +419,11 @@ export const handler: Handler = async (event) => {
       console.warn('[tag-copilot] conversation could not be opened; this turn will not be saved');
     }
 
-    // Retry of an already-stored message: return the stored reply. Never re-run the model or tools.
-    if (conversationId && clientMessageId) {
-      try {
-        const prior = await findRecordedTurn(supabase, { sessionId: conversationId, userId: auth.userId, clientMessageId });
-        if (prior.found) {
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-              reply: prior.reply ?? "I already received that message, but my reply to it wasn't saved. If you still need it, please send it again as a new message.",
-              action: null,
-              sessionId: conversationId,
-              persisted: prior.reply !== null,
-              duplicate: true,
-            }),
-          };
-        }
-      } catch {
-        console.warn('[tag-copilot] retry check failed; continuing');
-      }
-    }
-
     // Customer text sent to the model is PII-masked (the same critical detectors chat.ts uses).
     const modelMessage = maskCustomerTextForModel(message);
 
     // Stored conversation history is the model context (AI context limit applied by the platform).
+    // Loaded BEFORE the claim below, so the current message is not in the history twice.
     let storedHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
     if (conversationId) {
       try {
@@ -453,6 +432,53 @@ export const handler: Handler = async (event) => {
         storedHistory = [];
         console.warn('[tag-copilot] stored history could not be loaded');
       }
+    }
+
+    // CLAIM-FIRST (Prime HQ review): store the customer message BEFORE the model or any tool runs.
+    // Only the request that owns the claim may act. A duplicate (retry, concurrent request, or a retry
+    // after a partial failure) returns the stored reply — the model and tools never run again.
+    let claimed = false;
+    if (conversationId) {
+      let claim: Awaited<ReturnType<typeof claimConversationTurn>> | null = null;
+      try {
+        claim = await claimConversationTurn(supabase, {
+          sessionId: conversationId, userId: auth.userId, employeeSlug: 'tag-ai', userText: message, clientMessageId,
+        });
+      } catch {
+        claim = null;
+        console.warn('[tag-copilot] conversation claim failed; this turn will not be saved');
+      }
+      if (claim?.status === 'duplicate') {
+        // Already stored: report the STORED reply and outcome. Never run the model or tools again,
+        // and never say "done" when the outcome was not recorded.
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            reply: claim.reply ?? "I already received that message, but its outcome wasn't recorded. Nothing was run again — please check your transactions before trying again.",
+            action: null,
+            actionOutcome: claim.actionOutcome ?? null,
+            sessionId: conversationId,
+            persisted: claim.reply !== null,
+            duplicate: true,
+          }),
+        };
+      }
+      if (claim?.status === 'conflict') {
+        // A unique conflict with no matching stored message: assume nothing, act on nothing.
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            reply: "I couldn't safely record that message, so I didn't do anything. Please send it again.",
+            action: null,
+            sessionId: conversationId,
+            persisted: false,
+            conflict: true,
+          }),
+        };
+      }
+      claimed = claim?.status === 'claimed';
     }
 
     // 1. Load learned rules
@@ -889,6 +915,7 @@ REQUIREMENTS:
             // Count matched rows BEFORE the update — see top of this branch
             // for full reasoning on why we don't use chained .update().select().
             let updatedCount = 0;
+            let existingUpdateFailed = false;
             if (applyToExisting) {
               const { count: matchedCount } = await supabase
                 .from('transactions')
@@ -911,7 +938,12 @@ REQUIREMENTS:
                 .update(txUpdate)
                 .eq('user_id', auth.userId)
                 .ilike('merchant_name', `%${vendor}%`);
-              if (updErr) console.error('[tag-copilot] transactions update failed', updErr.message);
+              if (updErr) {
+                // Authoritative outcome: a failed update changed nothing.
+                console.error('[tag-copilot] transactions update failed');
+                updatedCount = 0;
+                existingUpdateFailed = true;
+              }
             }
 
             // ─── Build confirmation: truth-mode ──────────────────────────────
@@ -930,8 +962,11 @@ REQUIREMENTS:
               action.verification = {
                 rule: { category: verifyRow.category, subcategory: verifyRow.subcategory ?? null },
                 transactionsUpdated: updatedCount,
+                ...(existingUpdateFailed ? { existingUpdateFailed: true } : {}),
               };
-              confirmationLine = `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. Updated **${updatedCount}** transaction${updatedCount !== 1 ? 's' : ''}.`;
+              confirmationLine = existingUpdateFailed
+                ? `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. ⚠ I couldn't update your existing transactions, so they were not changed.`
+                : `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. Updated **${updatedCount}** transaction${updatedCount !== 1 ? 's' : ''}.`;
             }
           }
         } else if (toolUseBlock.name === 'bulk_recategorize') {
@@ -960,12 +995,19 @@ REQUIREMENTS:
               .update({ category: toCat, category_source: 'tag_bulk', updated_at: new Date().toISOString() })
               .eq('user_id', auth.userId)
               .eq('category', fromCat);
-            if (updErr) console.error('[tag-copilot] bulk update failed', updErr.message);
-
-            action.applied = true;
-            action.affectedCount = n;
-            action.verification = { transactionsUpdated: n };
-            confirmationLine = `\n\n✓ Moved **${n}** transaction${n !== 1 ? 's' : ''} from **${fromCat}** to **${toCat}**.`;
+            if (updErr) {
+              // Authoritative outcome: a failed update changed nothing — never report it as moved.
+              console.error('[tag-copilot] bulk update failed');
+              action.applied = false;
+              action.affectedCount = 0;
+              action.error = 'update_failed';
+              confirmationLine = `\n\n⚠ I couldn't move those transactions, so nothing was changed. Please try again.`;
+            } else {
+              action.applied = true;
+              action.affectedCount = n;
+              action.verification = { transactionsUpdated: n };
+              confirmationLine = `\n\n✓ Moved **${n}** transaction${n !== 1 ? 's' : ''} from **${fromCat}** to **${toCat}**.`;
+            }
           }
         } else if (toolUseBlock.name === 'rename_merchant') {
           const fromName = String(toolUseBlock.input.from_name || '').trim();
@@ -995,12 +1037,19 @@ REQUIREMENTS:
               .update({ merchant_name: toName, updated_at: new Date().toISOString() })
               .eq('user_id', auth.userId)
               .ilike('merchant_name', fromName);
-            if (updErr) console.error('[tag-copilot] rename update failed', updErr.message);
-
-            action.applied = true;
-            action.affectedCount = n;
-            action.verification = { transactionsUpdated: n };
-            confirmationLine = `\n\n✓ Renamed **${n}** transaction${n !== 1 ? 's' : ''} from **${fromName}** to **${toName}**.`;
+            if (updErr) {
+              // Authoritative outcome: a failed update changed nothing — never report it as renamed.
+              console.error('[tag-copilot] rename update failed');
+              action.applied = false;
+              action.affectedCount = 0;
+              action.error = 'update_failed';
+              confirmationLine = `\n\n⚠ I couldn't rename those transactions, so nothing was changed. Please try again.`;
+            } else {
+              action.applied = true;
+              action.affectedCount = n;
+              action.verification = { transactionsUpdated: n };
+              confirmationLine = `\n\n✓ Renamed **${n}** transaction${n !== 1 ? 's' : ''} from **${fromName}** to **${toName}**.`;
+            }
           }
         } else if (toolUseBlock.name === 'search_transactions') {
           // READ-ONLY tool — userId injected server-side, never from model input.
@@ -1182,20 +1231,34 @@ REQUIREMENTS:
     const finalReply = (replyText + confirmationLine).trim()
       || (toolUseBlock ? confirmationLine.trim() : "Sorry, I couldn't process that.");
 
-    // T-H1: save the customer's (masked) message and Tag's reply. `persisted` is true ONLY when
-    // the save succeeded; a failed save still returns the reply and the client shows "not saved".
+    // T-H1: save Tag's reply to the claimed turn. `persisted` is true ONLY when both the claim and
+    // the reply were saved; a failed save still returns the reply and the client shows "not saved".
     let persisted = false;
-    if (conversationId) {
+    if (conversationId && claimed) {
       try {
-        await recordConversationTurn(supabase, {
+        await completeConversationTurn(supabase, {
           sessionId: conversationId,
           userId: auth.userId,
           employeeSlug: 'tag-ai',
-          userText: modelMessage,
           assistantText: finalReply,
           clientMessageId,
+          // Server-verified outcome of a tool Tag executed (shared v1 action receipt).
           assistantMetadata: action
-            ? { actionReceipt: { tool: String(action.tool || 'unknown'), success: Boolean(action.applied) } }
+            ? {
+              // Authoritative outcome from the database result (Prime contract: tool, success, count),
+              // in the shared v1 receipt shape.
+              actionReceipt: {
+                v: 1,
+                employee: 'tag-ai',
+                action: String(action.tool || 'unknown'),
+                tool: String(action.tool || 'unknown'),
+                success: action.applied === true,
+                count: typeof action.affectedCount === 'number' ? action.affectedCount : 0,
+                state: action.applied === true ? 'completed' : 'failed',
+                result: { affectedCount: typeof action.affectedCount === 'number' ? action.affectedCount : 0 },
+                ...(action.applied === true ? {} : { reason: String(action.error || 'not_applied').slice(0, 40) }),
+              },
+            }
             : undefined,
         });
         persisted = true;

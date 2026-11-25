@@ -51,11 +51,17 @@ function tableBuilder(table: string) {
   return b;
 }
 
-// Every other table: chainable, thenable, always an empty successful result.
-function emptyQuery(): unknown {
-  const result = { data: [], error: null, count: 0 };
+// Every other table: chainable, thenable, an empty successful result. For 'transactions' the fake
+// records update calls, can fail them (tools.txUpdateFails) and reports tools.txCount for counts.
+const tools = { txUpdateFails: false, txCount: 0, txUpdates: 0 };
+function emptyQuery(table = ''): unknown {
+  let isUpdate = false;
   const proxy: unknown = new Proxy(function () { /* callable */ }, {
     get(_t, prop) {
+      if (prop === 'update' && table === 'transactions') { isUpdate = true; tools.txUpdates++; }
+      const result = table === 'transactions' && isUpdate && tools.txUpdateFails
+        ? { data: null, error: { message: 'tx update failed' }, count: null }
+        : { data: [], error: null, count: table === 'transactions' ? tools.txCount : 0 };
       if (prop === 'then') return (res: (v: unknown) => void) => res(result);
       if (prop === 'maybeSingle' || prop === 'single') return () => Promise.resolve({ data: null, error: null });
       return () => proxy;
@@ -64,18 +70,31 @@ function emptyQuery(): unknown {
   });
   return proxy;
 }
+const otherTablesUsed: string[] = [];
 const fakeClient = {
-  from: (t: string) => (t === 'chat_sessions' || t === 'chat_messages' || t === 'chat_threads' ? tableBuilder(t) : emptyQuery()),
+  from: (t: string) => {
+    if (t === 'chat_sessions' || t === 'chat_messages' || t === 'chat_threads') return tableBuilder(t);
+    otherTablesUsed.push(t);
+    return emptyQuery(t);
+  },
   rpc: () => emptyQuery(),
 };
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => fakeClient }));
 
 const modelCalls: Array<{ messages: Array<{ role: string; content: unknown }> }> = [];
+// Planned model responses (e.g. a tool_use block); otherwise a plain text reply.
+const modelPlan: unknown[] = [];
+const bulkMove = () => ({ content: [
+  { type: 'text', text: 'Moving them now.' },
+  { type: 'tool_use', id: 'tu_1', name: 'bulk_recategorize', input: { from_category: 'Travel', to_category: 'Transportation' } },
+] });
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class {
     messages = {
       create: vi.fn(async (args: { messages: Array<{ role: string; content: unknown }> }) => {
         modelCalls.push({ messages: args.messages });
+        const planned = modelPlan.shift();
+        if (planned) return planned;
         return { content: [{ type: 'text', text: `Tag reply ${modelCalls.length}` }] };
       }),
     };
@@ -113,6 +132,9 @@ beforeEach(() => {
   failures.chatSessions = false;
   failures.uniqueConflict = false;
   modelCalls.length = 0;
+  modelPlan.length = 0;
+  otherTablesUsed.length = 0;
+  Object.assign(tools, { txUpdateFails: false, txCount: 0, txUpdates: 0 });
   authState.userId = ALICE;
   logged = [];
   for (const m of ['log', 'warn', 'error', 'info'] as const) {
@@ -280,6 +302,63 @@ describe('T-H1 — Tag Copilot conversation persistence', () => {
     await callTag({ message: 'SECRET-LOG-MARKER-91 question', clientMessageId: 'msg_logs_00001' });
     expect(logged.join('\n')).not.toContain('SECRET-LOG-MARKER-91');
     expect(logged.join('\n')).not.toContain('Tag reply');
+  });
+});
+
+describe('T-H1 claim-first (Prime HQ review): duplicates and conflicts run no tool; receipts are authoritative', () => {
+  it('a stored claim without a reply (partial failure) → duplicate: no model, no tool, no data access, never "done"', async () => {
+    db.chat_sessions = [{ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', user_id: ALICE, employee_slug: 'tag-ai', title: 'New Chat', created_at: new Date().toISOString() }];
+    db.chat_messages = [{ id: 'm1', session_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', user_id: ALICE, role: 'user', content: 'yes move all Travel', created_at: new Date().toISOString(), metadata: { client_message_id: 'msg_claimed_01' } }];
+    modelPlan.push(bulkMove());
+    const { json } = await callTag({ message: 'yes move all Travel', sessionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', clientMessageId: 'msg_claimed_01' });
+    expect(modelCalls).toHaveLength(0);
+    expect(tools.txUpdates).toBe(0);
+    expect(otherTablesUsed).toEqual([]);
+    expect(json).toMatchObject({ action: null, actionOutcome: null, persisted: false, duplicate: true });
+    expect(String(json.reply)).toContain("outcome wasn't recorded");
+    expect(String(json.reply)).not.toMatch(/\bdone\b|moved/i);
+  });
+
+  it('a retry of a completed tool turn returns the stored reply and authoritative outcome without re-running the tool', async () => {
+    tools.txCount = 3;
+    modelPlan.push(bulkMove());
+    const first = await callTag({ message: 'yes move all Travel', clientMessageId: 'msg_tool_00001' });
+    expect(tools.txUpdates).toBe(1);
+    const retry = await callTag({ message: 'yes move all Travel', sessionId: first.json.sessionId, clientMessageId: 'msg_tool_00001' });
+    expect(tools.txUpdates).toBe(1);
+    expect(modelCalls).toHaveLength(1);
+    expect(retry.json).toMatchObject({ duplicate: true, persisted: true, reply: first.json.reply, actionOutcome: { tool: 'bulk_recategorize', success: true, count: 3, state: 'completed' } });
+  });
+
+  it('a conflict (unique key, nothing stored in this session) runs no model and no tool and asks to resend', async () => {
+    failures.uniqueConflict = true;
+    modelPlan.push(bulkMove());
+    const { json } = await callTag({ message: 'yes move all Travel', clientMessageId: 'msg_conflict01' });
+    expect(modelCalls).toHaveLength(0);
+    expect(tools.txUpdates).toBe(0);
+    expect(json).toMatchObject({ conflict: true, persisted: false, action: null });
+    expect(String(json.reply)).toContain('send it again');
+  });
+
+  it('the stored receipt is the DATABASE outcome: a failed bulk update is recorded as failed with count 0', async () => {
+    tools.txCount = 4;
+    tools.txUpdateFails = true;
+    modelPlan.push(bulkMove());
+    const { json } = await callTag({ message: 'yes move all Travel', clientMessageId: 'msg_failupd_01' });
+    expect(json.action).toMatchObject({ applied: false, affectedCount: 0 });
+    expect(String(json.reply)).toContain("couldn't move those transactions");
+    expect(String(json.reply)).not.toContain('✓ Moved');
+    const stored = messagesOf(json.sessionId).find(m => m.role === 'assistant');
+    expect(stored.metadata.actionReceipt).toMatchObject({ tool: 'bulk_recategorize', success: false, count: 0, state: 'failed', reason: 'update_failed' });
+  });
+
+  it('a successful bulk update stores a completed receipt with the verified count', async () => {
+    tools.txCount = 4;
+    modelPlan.push(bulkMove());
+    const { json } = await callTag({ message: 'yes move all Travel', clientMessageId: 'msg_okupd_0001' });
+    const stored = messagesOf(json.sessionId).find(m => m.role === 'assistant');
+    expect(stored.metadata.actionReceipt).toMatchObject({ v: 1, employee: 'tag-ai', tool: 'bulk_recategorize', success: true, count: 4, state: 'completed' });
+    expect(json.persisted).toBe(true);
   });
 });
 
