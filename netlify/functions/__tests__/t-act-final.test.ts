@@ -150,7 +150,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 describe('T-ACT-FINAL — customer-typed "change all X to Y" uses the same contract', () => {
   it('proposal keeps customer-confirmed rows and states the exact count; "yes" changes exactly those; the legacy commit is gone', async () => {
     const p = await act({ intent: 'preview', matchValue: 'corner coffee', targetCategory: 'Food & Dining', ...convo('change all corner coffee to food & dining', 'msg_fin_0001') });
-    expect(p.json.conversation.reply).toContain('AND change **1** of your **existing** "corner coffee" transaction to **Food & Dining** now (1 transaction you\'ve already categorized yourself will stay as they are)');
+    expect(p.json.conversation.reply).toContain('AND change **1** of your **existing** "corner coffee" transaction to **Food & Dining** now (1 transaction with a protected category (set by you, or of unverified origin) will stay as they are)');
     expect(txUpdateCalls).toBe(0);
     const legacy = await act({ intent: 'commit', matchValue: 'corner coffee', targetCategory: 'Food & Dining', affectedIds: [id(1), id(2)], ...convo('yes', 'msg_fin_0002', { sessionId: p.json.conversation.sessionId }) });
     expect(legacy.res.statusCode).toBe(410);

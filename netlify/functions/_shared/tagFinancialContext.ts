@@ -92,7 +92,7 @@ export interface CategorizationProgress {
   needsReview: number;
   /** Other not confirmed by the customer (automatic or unknown source). */
   otherUnconfirmed: number;
-  /** Other kept by the customer: a customer decision, never "unfinished". */
+  /** Protected Other (customer-set or origin unverified): never "unfinished". */
   otherKeptByCustomer: number;
   /** null when counts are unavailable: no completeness claim may be made. */
   allCategorized: boolean | null;
@@ -322,8 +322,9 @@ export const TAG_FINANCIAL_RULES = `FINANCIAL FIGURES — HARD RULES
   from its name. Describe deposits only by their recorded category.
 - No tax advice: never say whether something is tax-deductible or how to treat it for tax. You can categorize it;
   tax questions go to the Tax Summary page or a tax professional.
-- Only say everything is categorized when CATEGORIZATION PROGRESS says so. "Other" kept by the customer is their
-  decision, never unfinished work.`;
+- Only say everything is categorized when CATEGORIZATION PROGRESS says so. A protected "Other" is never unfinished
+  work. Protected does NOT mean customer-approved: call it "protected (origin unverified)" unless the
+  progress block says the customer confirmed it.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Categorization progress (exact counts, full scope)
@@ -360,7 +361,7 @@ export function formatProgressBlock(p: CategorizationProgress): string {
     `  Uncategorized: ${p.uncategorized}`,
     `  Needs Review: ${p.needsReview}`,
     `  "Other" not yet confirmed by the customer: ${p.otherUnconfirmed}`,
-    `  "Other" kept by the customer: ${p.otherKeptByCustomer} (the customer's decision; never count as unfinished and never propose changing)`,
+    `  "Other" protected (set by the customer or origin unverified — never call it customer-approved): ${p.otherKeptByCustomer} (never count as unfinished and never propose changing)`,
     p.allCategorized
       ? `  Status: everything in this scope is categorized.`
       : `  Status: ${plural(p.unfinished, 'transaction')} still need a category. Do NOT say everything is categorized.`,
