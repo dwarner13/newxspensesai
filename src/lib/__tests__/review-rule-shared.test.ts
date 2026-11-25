@@ -21,11 +21,11 @@ describe('needsCategory', () => {
 });
 
 describe('every count, filter and banner uses it', () => {
-  it('Transactions: strip / banner count, toolbar filter, rows, insights and account cards', () => {
+  it('Transactions: strip / banner count, toolbar filter, rows and account totals', () => {
     expect(tx).toMatch(/const uncategorizedCount = countNeedsCategory\(filtered\);/);
     expect(tx).toMatch(/if \(needsCategoryOnly\) list = list\.filter\(t => needsCategory\(t\.category\)\);/);
     expect(tx).toMatch(/const isUncat = needsCategory\(t\.category\);/);
-    expect(tx).toMatch(/const uncatCount = countNeedsCategory\(filtered\);/);
+    // TX-FIRST: the AI insights card (and its uncatCount) was removed with the dashboard blocks.
     expect(tx).toMatch(/if \(needsCategory\(t\.category\)\) \{/);
     expect(tx).not.toMatch(/=== 'Other'/);
     expect(tx).not.toMatch(/t\.category === 'Uncategorized'/);
