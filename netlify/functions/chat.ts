@@ -6014,6 +6014,8 @@ Return JSON format:
 // ============================================================================
 
 export const handler: Handler = async (event, context) => {
+  // Owner: conversation-save failures are reported to the customer (persisted:false), never silent.
+  let conversationPersisted = true;
   if (context && typeof context.callbackWaitsForEmptyEventLoop === 'boolean') {
     context.callbackWaitsForEmptyEventLoop = false;
   }
@@ -6405,8 +6407,9 @@ export const handler: Handler = async (event, context) => {
             thread_id: receiptThreadId,
             employee_key: receiptEmployeeKey,
             metadata: { actionReceipt: sanitizedReceipt },
-          });
+          }).throwOnError();
         } catch (persistErr) {
+          conversationPersisted = false;
           console.error('[Chat] Receipt persistence failed (non-fatal):', persistErr);
         }
 
@@ -6467,7 +6470,7 @@ export const handler: Handler = async (event, context) => {
                     outcome,
                   },
                 },
-              });
+              }).throwOnError();
 
               specialistComplete = {
                 from_employee: employeeSlugForConfirm,
@@ -6477,6 +6480,7 @@ export const handler: Handler = async (event, context) => {
             }
           }
         } catch (returnErr) {
+          conversationPersisted = false;
           console.error('[Chat] Return-to-origin failed (non-fatal):', returnErr);
         }
 
@@ -8141,7 +8145,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -8152,7 +8156,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
 
         if (primeDecision.deterministic_path === 'payoff_engine' && payoffRawForSnapshot) {
           const payoffHash = computeWorkerOutputHash(payoffRawForSnapshot);
@@ -8182,6 +8186,7 @@ export const handler: Handler = async (event, context) => {
           orchCtx.pipeline_snapshot_saved = orchCtx.pipeline_snapshot_saved || persisted;
         }
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist deterministic router response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -8225,7 +8230,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -8676,7 +8681,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -8687,8 +8692,9 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist worker-chain response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -8730,7 +8736,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -8780,7 +8786,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -8791,8 +8797,9 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist deterministic temporal response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -8833,7 +8840,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -8881,7 +8888,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -8892,8 +8899,9 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist deterministic grounded facts response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -8934,7 +8942,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -8996,7 +9004,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -9007,8 +9015,9 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist deterministic clarification response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -9049,7 +9058,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -9097,7 +9106,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -9108,8 +9117,9 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist deterministic coaching response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -9150,7 +9160,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -9198,7 +9208,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -9209,8 +9219,9 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist deterministic financial insight response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -9251,7 +9262,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -9299,7 +9310,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -9310,8 +9321,9 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist deterministic predictive response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -9352,7 +9364,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -9400,7 +9412,7 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        });
+        }).throwOnError();
 
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
@@ -9411,8 +9423,9 @@ export const handler: Handler = async (event, context) => {
           thread_id: threadId,
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: request_id ? { request_id } : undefined,
-        });
+        }).throwOnError();
       } catch (persistError: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to persist deterministic automation response (non-fatal):', persistError?.message || persistError);
       }
 
@@ -9453,7 +9466,7 @@ export const handler: Handler = async (event, context) => {
             'Connection': 'keep-alive',
             'X-Chat-Backend': 'v2',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
 
@@ -11561,11 +11574,12 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         content: masked, // Store masked version
         tokens: estimateTokens(masked),
         thread_id: threadId, // CRITICAL: thread_id is always required
+        employee_key: employeeKey, // owner P-2: live default is 'user'
         metadata: withAttachmentRefs((client_message_id || safeHidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(safeHidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
       };
       console.log(`[Chat] Inserting user message with thread_id: ${threadId}`);
       const _tUserMessageInsert = Date.now(); // V1-A CP4.3
-      await sb.from('chat_messages').insert(messageData);
+      await sb.from('chat_messages').insert(messageData).throwOnError();
       timingLogs.user_message_insert = Date.now() - _tUserMessageInsert;
       
       // Log AI activity event (non-blocking, uses RLS with auth.uid())
@@ -11601,6 +11615,7 @@ RULE-SETTING: You can set categorization rules. When a user says "mark X as busi
         }
       }
     } catch (error: any) {
+      conversationPersisted = false;
       console.warn('[Chat] Failed to save user message:', error);
       // Continue even if save fails
     }
@@ -12904,19 +12919,6 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       // P-1 item 4: verified financial visual (typed data only; the client re-validates).
       if (financialVisual) writeSSE({ type: 'financial_visual', financialVisual });
 
-      // Send completion signal after all post-generation rewrites
-      const guardrailsMetadata = {
-        status: guardrailResult?.ok ? 'active' : 'blocked',
-        blocked: !guardrailResult?.ok,
-        reasons: guardrailResult?.blockedReason ? [guardrailResult.blockedReason] : [],
-        pii_masked: (guardrailResult?.signals?.pii || piiFound.length > 0) ? true : false,
-        events_count: guardrailResult?.events?.length || 0,
-      };
-      const donePayload = { type: 'done', guardrails: guardrailsMetadata, thread_id: threadId };
-      writeSSE(donePayload);
-      if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
-        console.log('[CHAT SSE OUT]', donePayload.type, 'thread_id:', threadId);
-      }
 
       // ── P3.1D: Post-stream evidence violation detection (TELEMETRY ONLY) ──
       // Does NOT modify, suppress, or replace the response — user already saw it.
@@ -12959,10 +12961,11 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           content: assistantContent,
           tokens: completionTokens,
           thread_id: threadId, // CRITICAL: thread_id is always required
+          employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: Object.keys(streamMsgMetadata).length > 0 ? streamMsgMetadata : undefined,
         };
         console.log(`[Chat] Inserting assistant message with thread_id: ${threadId}`);
-        await sb.from('chat_messages').insert(messageData);
+        await sb.from('chat_messages').insert(messageData).throwOnError();
         
         // DEV: Verify single persistence (prove no double write)
         if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
@@ -12992,8 +12995,23 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           });
         }
       } catch (error: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to save assistant message:', error);
         // Continue even if save fails
+      }
+
+      // Send completion signal after the reply is saved, so it reports persisted (owner: no silent save failures)
+      const guardrailsMetadata = {
+        status: guardrailResult?.ok ? 'active' : 'blocked',
+        blocked: !guardrailResult?.ok,
+        reasons: guardrailResult?.blockedReason ? [guardrailResult.blockedReason] : [],
+        pii_masked: (guardrailResult?.signals?.pii || piiFound.length > 0) ? true : false,
+        events_count: guardrailResult?.events?.length || 0,
+      };
+      const donePayload = { type: 'done', guardrails: guardrailsMetadata, thread_id: threadId, persisted: conversationPersisted };
+      writeSSE(donePayload);
+      if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
+        console.log('[CHAT SSE OUT]', donePayload.type, 'thread_id:', threadId);
       }
 
       // Log usage metrics (non-blocking)
@@ -13626,9 +13644,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   reason: reason || undefined,
                 },
               },
-            });
+            }).throwOnError();
             console.log(`[Chat] Inserted handoff system message (${sourceLabel}) with thread_id: ${threadId}`);
           } catch (error: any) {
+            conversationPersisted = false;
             console.warn(`[Chat] Failed to insert handoff system message (${sourceLabel}):`, error);
           }
 
@@ -14636,7 +14655,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           thread_id: threadId, // CRITICAL: thread_id is always required
           employee_key: employeeKey, // owner P-2: live default is 'user'
           metadata: Object.keys(assistantMsgMetadata).length > 0 ? assistantMsgMetadata : undefined,
-        });
+        }).throwOnError();
         console.log(`[Chat] Inserting assistant message (non-streaming) with thread_id: ${threadId}`);
         
         // DEV: Verify single persistence (prove no double write)
@@ -14648,6 +14667,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           });
         }
       } catch (error: any) {
+        conversationPersisted = false;
         console.warn('[Chat] Failed to save assistant message:', error);
         // Continue even if save fails
       }
@@ -14823,6 +14843,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             employeeSlug: finalEmployeeSlug,
             sessionId: finalSessionId,
             thread_id: threadId, // CRITICAL: Return thread_id for frontend to store
+            persisted: conversationPersisted, // owner: save failures are reported, never silent
             guardrails: guardrailsStatusNonStream,
             ...(handoffMeta && { meta: { handoff: handoffMeta } }),
             ...(pendingConfirmationPayload && { pendingConfirmation: pendingConfirmationPayload }),

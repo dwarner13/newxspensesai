@@ -1,33 +1,58 @@
 /**
- * Owner P-2..P-5: every chat_messages row written by chat.ts carries an explicit employee_key (the
- * live column defaults to 'user') and a thread_id from ensureThread (FK to chat_threads) — never a
- * session id.
+ * Owner P-2..P-5 and "no silent save failures": every chat_messages insert in chat.ts
+ * (object literal or a prepared `messageData`) sets an explicit employee_key (live default 'user'),
+ * uses an employee thread id (FK to chat_threads, never a session id), surfaces database errors
+ * (.throwOnError(), so the surrounding catch runs) and marks the request as not persisted on failure.
  */
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const chat = fs.readFileSync(path.resolve(__dirname, '../chat.ts'), 'utf8');
-const inserts = (() => {
-  const lines = chat.split('\n');
-  const out: string[] = [];
-  lines.forEach((l, i) => { if (/from\('chat_messages'\)\.insert\(\{/.test(l)) out.push(lines.slice(i, i + 15).join('\n')); });
-  return out;
-})();
+const lines = chat.split('\n');
+const sites = lines.map((l, i) => (/from\('chat_messages'\)\.insert\(/.test(l) ? i : -1)).filter(i => i >= 0);
+
+/** The row literal for an insert: the object passed inline, or the `messageData` built just before. */
+function rowFor(i: number): string {
+  if (/\.insert\(\{\s*$/.test(lines[i])) return lines.slice(i, i + 16).join('\n');
+  const start = lines.slice(Math.max(0, i - 25), i).map((l, k) => ({ l, k: Math.max(0, i - 25) + k })).reverse().find(x => /const messageData: any = \{/.test(x.l));
+  expect(start, `messageData literal before line ${i + 1}`).toBeDefined();
+  return lines.slice(start!.k, i + 1).join('\n');
+}
 
 describe('chat.ts chat_messages inserts', () => {
-  it('there are inserts to check', () => expect(inserts.length).toBeGreaterThanOrEqual(20));
+  it('finds every insert site (object literal and messageData forms)', () => {
+    expect(sites.length).toBeGreaterThanOrEqual(24);
+    expect(sites.filter(i => /insert\(messageData\)/.test(lines[i]))).toHaveLength(2);
+  });
   it('every insert sets employee_key explicitly', () => {
-    for (const block of inserts) expect(block).toMatch(/employee_key: (employeeKey|receiptEmployeeKey|completeEmployeeKey)/);
+    for (const i of sites) expect(rowFor(i), `line ${i + 1}`).toMatch(/employee_key: (employeeKey|receiptEmployeeKey|completeEmployeeKey)/);
   });
   it('no insert writes a session id into thread_id', () => {
-    for (const block of inserts) {
-      const m = block.match(/thread_id: ([^,\n]+)/);
-      expect(m).not.toBeNull();
-      expect(m![1]).not.toMatch(/sessionId|activeSessionId/);
+    for (const i of sites) {
+      const m = rowFor(i).match(/thread_id: ([^,\n]+)/);
+      expect(m, `line ${i + 1}`).not.toBeNull();
+      expect(m![1]).not.toMatch(/sessionId|activeSessionId|finalSessionId/);
     }
   });
-  it('the receipt and specialist_complete rows resolve the employee thread via ensureThread', () => {
+  it('every insert surfaces database errors (.throwOnError) instead of failing silently', () => {
+    for (const i of sites) {
+      // the insert statement up to its terminating ';' (nested metadata can be long)
+      const end = lines.findIndex((l, k) => k >= i && /;\s*$/.test(l));
+      expect(lines.slice(i, end + 1).join('\n'), `line ${i + 1}`).toMatch(/\.throwOnError\(\)/);
+    }
+  });
+  it('save failures mark the request not persisted, and every reply payload reports it', () => {
+    expect(chat).toContain('let conversationPersisted = true;');
+    expect((chat.match(/conversationPersisted = false;/g) || []).length).toBeGreaterThanOrEqual(15);
+    expect(chat).toContain("const donePayload = { type: 'done', guardrails: guardrailsMetadata, thread_id: threadId, persisted: conversationPersisted };");
+    expect((chat.match(/content: assistantContent, persisted: conversationPersisted,/g) || []).length).toBe(9);
+    expect(chat).toContain('persisted: conversationPersisted, // owner: save failures are reported, never silent');
+  });
+  it("streaming 'done' is sent after the reply save (so it can report persisted)", () => {
+    expect(chat.indexOf("Send completion signal after the reply is saved")).toBeGreaterThan(chat.indexOf('Inserting assistant message with thread_id'));
+  });
+  it('receipt and specialist_complete rows resolve the employee thread via ensureThread', () => {
     expect(chat).toContain('const receiptThreadId = await ensureThread(sb, userId, receiptEmployeeKey, requestThreadId || undefined);');
     expect(chat).toContain('const completeThreadId = await ensureThread(sb, userId, completeEmployeeKey, requestThreadId || undefined);');
   });
