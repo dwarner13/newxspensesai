@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CHAT_VISUALS, chatTextSize } from '../chatVisualStandards';
+import { CHAT_HEADER } from '../chatToolbar';
 
 const root = path.resolve(__dirname, '../../..');
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -16,8 +17,10 @@ const thinking = read('src/components/chat/ThinkingIndicator.tsx');
 
 describe('visual standard tokens', () => {
   it('match the owner-approved values', () => {
-    expect(CHAT_VISUALS.headerLogo).toBe(48);
-    expect(CHAT_VISUALS.welcomeLogo).toBeGreaterThan(CHAT_VISUALS.headerLogo);
+    // TB-5 W2: the header logo size moved to the universal header (CHAT_HEADER).
+    expect(CHAT_HEADER.logoDesktop).toBe(48);
+    expect(CHAT_VISUALS.welcomeLogo).toBeGreaterThan(CHAT_HEADER.logoDesktop);
+    expect('headerLogo' in CHAT_VISUALS).toBe(false);
     expect(CHAT_VISUALS.thinkingDot).toBeGreaterThanOrEqual(10);
     expect(CHAT_VISUALS.thinkingDot).toBeLessThanOrEqual(12);
     expect(CHAT_VISUALS.touchTarget).toBeGreaterThanOrEqual(44);

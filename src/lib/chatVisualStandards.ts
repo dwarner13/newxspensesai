@@ -4,8 +4,8 @@
  * turquoise).
  */
 export const CHAT_VISUALS = {
-  /** Agent logo in a chat panel header. */
-  headerLogo: 48,
+  // TB-5 W2: header logo / name / subtitle sizes now live in CHAT_HEADER
+  // (src/lib/chatToolbar.ts), used by the universal ChatIdentity.
   /** Agent logo on loading / welcome screens. */
   welcomeLogo: 64,
   /** Agent logo in welcome and briefing rows. */
@@ -16,9 +16,6 @@ export const CHAT_VISUALS = {
   textDesktop: 17,
   textMobile: 16,
   lineHeight: 1.65,
-  /** Header name and subtitle. */
-  headerName: 19,
-  headerSubtitle: 13,
   /** Thinking-indicator dot diameter. */
   thinkingDot: 10,
   thinkingLabel: 15,
