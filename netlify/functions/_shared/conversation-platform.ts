@@ -118,18 +118,21 @@ export interface PriorTurn {
   found: boolean;
   /** The stored employee reply to it, or null if the reply was not saved. */
   reply: string | null;
+  /** The recorded outcome of any action taken for that turn (assistant metadata), or null if unknown. */
+  actionOutcome: Record<string, unknown> | null;
 }
 
 /**
  * Retry check BEFORE an employee runs its model or tools: if this client message id was already
- * stored, return the stored reply so a retry never re-executes actions or double-charges usage.
- * (Added by Tag HQ for T-H1; Prime HQ owns this file and reviews it.)
+ * stored in THIS session for THIS customer, return the stored reply and action outcome, so a retry
+ * never re-executes actions. (Added by Tag HQ for T-H1; extended by Prime HQ.)
  */
 export async function findRecordedTurn(
   sb: SupabaseClient,
   params: { sessionId: string; userId: string; clientMessageId?: string | null },
 ): Promise<PriorTurn> {
-  if (!isValidClientMessageId(params.clientMessageId)) return { found: false, reply: null };
+  const none: PriorTurn = { found: false, reply: null, actionOutcome: null };
+  if (!isValidClientMessageId(params.clientMessageId)) return none;
   const id = params.clientMessageId;
   const { data: userRows, error: userErr } = await sb
     .from('chat_messages')
@@ -140,17 +143,19 @@ export async function findRecordedTurn(
     .eq('metadata->>client_message_id', id)
     .limit(1);
   if (userErr) throw new Error('Failed to check for a previous message');
-  if (!Array.isArray(userRows) || userRows.length === 0) return { found: false, reply: null };
+  if (!Array.isArray(userRows) || userRows.length === 0) return none;
   const { data: replyRows } = await sb
     .from('chat_messages')
-    .select('content')
+    .select('content, metadata')
     .eq('session_id', params.sessionId)
     .eq('user_id', params.userId)
     .eq('role', 'assistant')
     .eq('metadata->>reply_to', id)
     .limit(1);
-  const reply = Array.isArray(replyRows) && typeof replyRows[0]?.content === 'string' ? replyRows[0].content : null;
-  return { found: true, reply };
+  const row = Array.isArray(replyRows) ? (replyRows[0] as { content?: unknown; metadata?: Record<string, unknown> } | undefined) : undefined;
+  const reply = typeof row?.content === 'string' ? row.content : null;
+  const receipt = row?.metadata && typeof row.metadata.actionReceipt === 'object' ? (row.metadata.actionReceipt as Record<string, unknown>) : null;
+  return { found: true, reply, actionOutcome: receipt };
 }
 
 export interface RecordedTurn {
@@ -159,36 +164,60 @@ export interface RecordedTurn {
 }
 
 /**
- * Insert one chat_messages row. `redacted_content` is written when the live schema has it; if the
- * column is missing (PostgREST PGRST204), the row is written without it — never failing the save.
- * Pending owner read-only check of the live schema (see TAG/UNIVERSAL plan, prerequisite SQL).
+ * chat_messages.employee_key for an employee. The live column is NOT NULL with a default of 'user'
+ * (owner P-2), so it is ALWAYS set explicitly. Same order as chat.ts: the employee_profiles registry
+ * row for the canonical slug first, else the slug prefix. Never 'user'. Aliases are already resolved by
+ * canonicalEmployeeSlug, so the registry's resolve_employee_slug RPC (which recurses without a
+ * guard) is not used here.
  */
-async function insertMessageRow(sb: SupabaseClient, row: Record<string, unknown>): Promise<{ id: string | null; error: unknown }> {
-  let res = await sb.from('chat_messages').insert(row).select('id, created_at').single();
-  if (res.error && (res.error as { code?: string }).code === 'PGRST204' && String((res.error as { message?: string }).message || '').includes('redacted_content')) {
-    const { redacted_content: _omit, ...rest } = row;
-    void _omit;
-    res = await sb.from('chat_messages').insert(rest).select('id, created_at').single();
-  }
-  const data = res.data as { id?: string } | null;
-  return { id: data?.id ?? null, error: res.error ?? null };
+export function employeeKeyForSlug(slug: ConversationEmployeeSlug): string {
+  return slug.split('-')[0] || slug;
+}
+const employeeKeyCache = new Map<string, string>();
+export async function resolveEmployeeKey(sb: SupabaseClient, slug: ConversationEmployeeSlug): Promise<string> {
+  const cached = employeeKeyCache.get(slug);
+  if (cached) return cached;
+  let key = employeeKeyForSlug(slug);
+  try {
+    const { data } = await sb.from('employee_profiles').select('employee_key').eq('slug', slug).maybeSingle();
+    const fromRegistry = (data as { employee_key?: unknown } | null)?.employee_key;
+    if (typeof fromRegistry === 'string' && /^[a-z][a-z0-9_-]{0,40}$/.test(fromRegistry) && fromRegistry !== 'user') key = fromRegistry;
+  } catch { /* registry unavailable: slug prefix, as chat.ts falls back */ }
+  employeeKeyCache.set(slug, key);
+  return key;
+}
+
+/**
+ * Columns written (live schema per owner P-1/P-2): session_id, user_id, thread_id, employee_key,
+ * role, content (masked customer text / reply), tokens, metadata, and client_message_id on the
+ * customer row only. NO redacted_content (the column does not exist live).
+ * thread_id = session id, the same fallback chat.ts uses for receipts — pending owner P-4/P-5
+ * verification of any chat_threads foreign key.
+ */
+function baseRow(p: { sessionId: string; userId: string; employeeKey: string }) {
+  return { session_id: p.sessionId, user_id: p.userId, thread_id: p.sessionId, employee_key: p.employeeKey };
 }
 
 export type TurnClaim =
   | { status: 'claimed'; maskedUserText: string; userMessageId: string | null }
-  | { status: 'duplicate'; reply: string | null }
+  | { status: 'duplicate'; reply: string | null; actionOutcome: Record<string, unknown> | null }
+  | { status: 'conflict' }
   | { status: 'unsaved'; maskedUserText: string };
 
 /**
- * CLAIM-FIRST retry protection (Prime HQ review of T-H1). Store the customer message BEFORE the
- * employee runs its model or any tool. Only the request that owns the claim may run actions:
- * - this client message id already stored (retry, or a retry after a partial failure) → 'duplicate'
- *   with the stored reply (or null): the caller must NOT run the model or tools again;
- * - two concurrent requests with the same id → both insert, then the earliest row wins; the other
- *   gets 'duplicate'. (A database unique index — owner-gated migration — makes this airtight;
- *   until then the race window is the few milliseconds between the two inserts.)
- * - the claim could not be written → 'unsaved': the caller may answer, but must report
- *   persisted:false. Without a valid clientMessageId there is no retry protection at all.
+ * CLAIM-FIRST retry protection. Store the customer message BEFORE the employee runs its model or
+ * any tool; only the request that owns the claim may act.
+ * - 'duplicate': this client message id is ALREADY STORED in this session for this customer —
+ *   verified by reading the stored customer message (and its reply / action outcome if saved).
+ *   The caller must not run the model or tools; it reports the stored reply, or — when the reply
+ *   or outcome was not saved — that the outcome is unknown (never "done").
+ * - 'conflict': the insert hit a unique-key conflict (23505) but no matching customer message
+ *   exists in this session (e.g. the id is used elsewhere). Nothing is assumed: the caller must not
+ *   act and should ask the customer to resend.
+ * - 'unsaved': the claim could not be written for another reason; the caller may answer but must
+ *   report persisted:false. Without a valid clientMessageId there is no retry protection.
+ * Concurrency: if two requests store the same id, the earliest row owns the turn. A unique index
+ * (owner-gated migration, scope pending P-4/P-5) makes this airtight.
  */
 export async function claimConversationTurn(
   sb: SupabaseClient,
@@ -199,19 +228,30 @@ export async function claimConversationTurn(
 
   if (clientMessageId) {
     const prior = await findRecordedTurn(sb, { sessionId: params.sessionId, userId: params.userId, clientMessageId });
-    if (prior.found) return { status: 'duplicate', reply: prior.reply };
+    if (prior.found) return { status: 'duplicate', reply: prior.reply, actionOutcome: prior.actionOutcome };
   }
 
-  const inserted = await insertMessageRow(sb, {
-    session_id: params.sessionId, user_id: params.userId, thread_id: params.sessionId,
-    role: 'user', content: maskedUserText, redacted_content: maskedUserText,
+  const employeeKey = await resolveEmployeeKey(sb, params.employeeSlug);
+  const res = await sb.from('chat_messages').insert({
+    ...baseRow({ sessionId: params.sessionId, userId: params.userId, employeeKey }),
+    role: 'user',
+    content: maskedUserText,
     tokens: Math.ceil(maskedUserText.length / 4),
+    ...(clientMessageId ? { client_message_id: clientMessageId } : {}),
     metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { client_message_id: clientMessageId } : {}) },
-  });
-  if (inserted.error) return { status: 'unsaved', maskedUserText };
+  }).select('id, created_at').single();
+
+  if (res.error) {
+    if (clientMessageId && (res.error as { code?: string }).code === '23505') {
+      // Never assume completion from a unique conflict: verify what is actually stored.
+      const prior = await findRecordedTurn(sb, { sessionId: params.sessionId, userId: params.userId, clientMessageId });
+      return prior.found ? { status: 'duplicate', reply: prior.reply, actionOutcome: prior.actionOutcome } : { status: 'conflict' };
+    }
+    return { status: 'unsaved', maskedUserText };
+  }
+  const insertedId = (res.data as { id?: string } | null)?.id ?? null;
 
   if (clientMessageId) {
-    // Concurrency: if another request stored the same client id, the earliest row owns the turn.
     const { data: rows } = await sb
       .from('chat_messages')
       .select('id, created_at')
@@ -223,7 +263,7 @@ export async function claimConversationTurn(
       .limit(5);
     if (Array.isArray(rows) && rows.length > 1) {
       const first = [...rows].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)))[0];
-      if (first && first.id !== inserted.id) return { status: 'duplicate', reply: null };
+      if (first && first.id !== insertedId) return { status: 'duplicate', reply: null, actionOutcome: null };
     }
   }
 
@@ -232,28 +272,34 @@ export async function claimConversationTurn(
     await sb.from('chat_sessions').update({ title })
       .eq('id', params.sessionId).eq('user_id', params.userId).eq('title', DEFAULT_SESSION_TITLE);
   }
-  return { status: 'claimed', maskedUserText, userMessageId: inserted.id };
+  return { status: 'claimed', maskedUserText, userMessageId: insertedId };
 }
 
-/** Store the employee's reply to a claimed turn. Throws on failure (caller reports persisted:false). */
+/**
+ * Store the employee's reply to a claimed turn. Put the AUTHORITATIVE action outcome (what the tool
+ * actually did, e.g. { actionReceipt: { tool, success, count } }) in assistantMetadata so a retry
+ * reports the real outcome. Throws on failure (caller reports persisted:false).
+ */
 export async function completeConversationTurn(
   sb: SupabaseClient,
   params: { sessionId: string; userId: string; employeeSlug: ConversationEmployeeSlug; assistantText: string; clientMessageId?: string | null; assistantMetadata?: Record<string, unknown> },
 ): Promise<void> {
   const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
   const assistantText = String(params.assistantText ?? '');
-  const res = await insertMessageRow(sb, {
-    session_id: params.sessionId, user_id: params.userId, thread_id: params.sessionId,
-    role: 'assistant', content: assistantText, redacted_content: assistantText,
+  const employeeKey = await resolveEmployeeKey(sb, params.employeeSlug);
+  const { error } = await sb.from('chat_messages').insert({
+    ...baseRow({ sessionId: params.sessionId, userId: params.userId, employeeKey }),
+    role: 'assistant',
+    content: assistantText,
     tokens: Math.ceil(assistantText.length / 4),
     metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { reply_to: clientMessageId } : {}), ...(params.assistantMetadata ?? {}) },
   });
-  if (res.error) throw new Error('Failed to save conversation reply');
+  if (error) throw new Error('Failed to save conversation reply');
 }
 
 /**
  * Persist a customer turn and the reply in one call (for paths that run no tools). Paths that can
- * run actions must use claimConversationTurn BEFORE acting and completeConversationTurn after.
+ * run actions must call claimConversationTurn BEFORE acting and completeConversationTurn after.
  */
 export async function recordConversationTurn(
   sb: SupabaseClient,
@@ -269,7 +315,7 @@ export async function recordConversationTurn(
 ): Promise<RecordedTurn> {
   const claim = await claimConversationTurn(sb, params);
   if (claim.status === 'duplicate') return { duplicate: true, maskedUserText: maskCustomerTextForModel(params.userText) };
-  if (claim.status === 'unsaved') throw new Error('Failed to save conversation message');
+  if (claim.status !== 'claimed') throw new Error('Failed to save conversation message');
   await completeConversationTurn(sb, params);
   return { duplicate: false, maskedUserText: claim.maskedUserText };
 }

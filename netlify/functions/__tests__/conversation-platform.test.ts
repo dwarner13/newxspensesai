@@ -140,14 +140,14 @@ describe('Prime HQ review of T-H1: claim-first retries, masking, schema, resume'
     expect(first.status).toBe('claimed');
     // (tool runs here; reply save fails → completeConversationTurn never stored)
     const retry = await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'recategorize Uber', clientMessageId: 'msg_partial01' });
-    expect(retry).toEqual({ status: 'duplicate', reply: null });
+    expect(retry).toEqual({ status: 'duplicate', reply: null, actionOutcome: null });
   });
   it('a retry after a completed turn returns the stored reply', async () => {
     const c = await openEmployeeConversation(sb, T);
     await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'hi', clientMessageId: 'msg_done0001' });
     await completeConversationTurn(sb, { ...T, sessionId: c.sessionId, assistantText: 'Done — moved 3 rides.', clientMessageId: 'msg_done0001' });
     expect(await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'hi', clientMessageId: 'msg_done0001' }))
-      .toEqual({ status: 'duplicate', reply: 'Done — moved 3 rides.' });
+      .toEqual({ status: 'duplicate', reply: 'Done — moved 3 rides.', actionOutcome: null });
   });
   it('concurrent duplicates: when another request stored the same id first, this one does not act', async () => {
     const c = await openEmployeeConversation(sb, T);
@@ -180,12 +180,36 @@ describe('Prime HQ review of T-H1: claim-first retries, masking, schema, resume'
     expect(db.chat_messages[0].content).toBe(maskCustomerTextForModel(text));
     expect(db.chat_messages[0].content).toContain('COSTCO WHSE #0542');
   });
-  it('redacted_content missing in the live schema → the row is still saved without it', async () => {
+  it('live schema: never writes redacted_content; employee_key always explicit (never the "user" default); client_message_id on the customer row only', async () => {
     const c = await openEmployeeConversation(sb, T);
-    hooks.beforeInsert = (table, row) => (table === 'chat_messages' && 'redacted_content' in row ? { code: 'PGRST204', message: "Could not find the 'redacted_content' column" } : null);
-    await recordConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'hello', assistantText: 'hi' });
-    expect(db.chat_messages).toHaveLength(2);
-    expect('redacted_content' in db.chat_messages[0]).toBe(false);
+    await recordConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'hello', assistantText: 'hi', clientMessageId: 'msg_schema01' });
+    const [u, a] = db.chat_messages;
+    expect('redacted_content' in u || 'redacted_content' in a).toBe(false);
+    expect(u.employee_key).toBe('tag');
+    expect(a.employee_key).toBe('tag');
+    expect(u.client_message_id).toBe('msg_schema01');
+    expect('client_message_id' in a).toBe(false);
+    expect(u.thread_id).toBe(c.sessionId);
+  });
+  it('employee_key comes from the employee_profiles registry when present; Custodian is attributed correctly', async () => {
+    db.employee_profiles = [{ slug: 'custodian', employee_key: 'custodian' }];
+    const c = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'custodian' });
+    await recordConversationTurn(sb, { userId: ALICE, employeeSlug: 'custodian', sessionId: c.sessionId, userText: 'reset my password', assistantText: 'ok' });
+    expect(db.chat_messages.map(m => m.employee_key)).toEqual(['custodian', 'custodian']);
+    expect(db.chat_sessions[0].employee_slug).toBe('custodian');
+  });
+  it('a 23505 conflict is verified, not assumed: stored turn → duplicate with outcome; nothing stored → conflict (no action)', async () => {
+    const c = await openEmployeeConversation(sb, T);
+    hooks.beforeInsert = (table, row) => (table === 'chat_messages' && row.role === 'user' ? { code: '23505', message: 'duplicate key' } : null);
+    expect(await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'apply', clientMessageId: 'msg_dup23505' })).toEqual({ status: 'conflict' });
+    hooks.beforeInsert = undefined;
+    db.chat_messages.push(
+      { id: 'u1', created_at: '2026-01-01T00:00:00Z', session_id: c.sessionId, user_id: ALICE, role: 'user', content: 'apply', metadata: { client_message_id: 'msg_dup23506' } },
+      { id: 'a1', created_at: '2026-01-01T00:00:01Z', session_id: c.sessionId, user_id: ALICE, role: 'assistant', content: 'Moved 3.', metadata: { reply_to: 'msg_dup23506', actionReceipt: { tool: 'bulk_recategorize', success: true, count: 3 } } },
+    );
+    hooks.beforeInsert = (table, row) => (table === 'chat_messages' && row.role === 'user' ? { code: '23505', message: 'duplicate key' } : null);
+    expect(await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'apply', clientMessageId: 'msg_dup23506' }))
+      .toEqual({ status: 'duplicate', reply: 'Moved 3.', actionOutcome: { tool: 'bulk_recategorize', success: true, count: 3 } });
   });
   it('implicit resume (temporary, no session id): most recently ACTIVE Tag conversation, owner-scoped', async () => {
     const now = Date.parse('2026-11-25T12:00:00Z');
