@@ -131,6 +131,13 @@ describe('account-scoped cache', () => {
   });
 });
 
+describe('safety: sessions only, no thread reads, no deletes', () => {
+  it('conversationStore never touches chat_threads, thread_id or delete', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../conversationStore.ts'), 'utf8');
+    expect(src).not.toMatch(/chat_threads|thread_id|\.delete\(/);
+  });
+});
+
 describe('useChatSessions', () => {
   const hook = fs.readFileSync(path.resolve(__dirname, '../../hooks/useChatSessions.ts'), 'utf8');
   it('takes an employee and uses the shared loader; default behaviour unchanged', () => {
