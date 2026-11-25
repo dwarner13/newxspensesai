@@ -575,6 +575,103 @@ describe('getInternalBaseUrl / buildInternalFunctionUrl', () => {
   });
 });
 
+// ── BYTE-LIVE-01: build-time deploy metadata (hosted runtime has no DEPLOY_URL/CONTEXT) ──
+
+describe('getInternalBaseUrl with build-time deploy metadata (BYTE-LIVE-01)', () => {
+  const { getInternalBaseUrl, getInternalBaseUrlSource, buildInternalFunctionUrl, InternalBaseUrlError, validateBuildDeployMetadata } = urls;
+  const ID = 'f00dfacef00dfacef00dface';
+  const ORIGIN = `https://${ID}--synthetic-staging.netlify.app`;
+  const META = { context: 'production', deployId: ID, siteName: 'synthetic-staging', deployUrl: ORIGIN, siteUrl: 'https://synthetic-staging.netlify.app' };
+  // What hosted Functions actually see: URL, no DEPLOY_URL, no CONTEXT.
+  const HOSTED = { URL: 'https://synthetic-staging.netlify.app' };
+
+  it('reproduces the staging failure: hosted runtime env without metadata fails closed', () => {
+    expect(() => getInternalBaseUrl(HOSTED, null)).toThrow(InternalBaseUrlError);
+    expect(getInternalBaseUrlSource(HOSTED, null)).toBe('none');
+  });
+
+  it('hosted runtime env + valid metadata → this exact deploy', () => {
+    expect(getInternalBaseUrl(HOSTED, META)).toBe(ORIGIN);
+    expect(getInternalBaseUrlSource(HOSTED, META)).toBe('build_deploy_url');
+    expect(buildInternalFunctionUrl('normalize-transactions', HOSTED, META)).toBe(`${ORIGIN}/.netlify/functions/normalize-transactions`);
+  });
+
+  it('runtime DEPLOY_URL still wins (existing behaviour unchanged)', () => {
+    expect(getInternalBaseUrl({ ...HOSTED, DEPLOY_URL: 'https://abc--site.netlify.app' }, META)).toBe('https://abc--site.netlify.app');
+  });
+
+  it('deploy-preview and branch-deploy builds use their own deploy, never the main URL', () => {
+    for (const context of ['deploy-preview', 'branch-deploy']) {
+      expect(getInternalBaseUrl({ ...HOSTED, CONTEXT: context }, { ...META, context })).toBe(ORIGIN);
+    }
+    // Without usable metadata, previews still never fall back to URL.
+    expect(() => getInternalBaseUrl({ ...HOSTED, CONTEXT: 'deploy-preview' }, { ...META, context: 'deploy-preview', deployUrl: 'nope' }))
+      .toThrow(InternalBaseUrlError);
+  });
+
+  it('a production-context build file never enables the URL fallback when its own deploy URL is unusable', () => {
+    expect(() => getInternalBaseUrl(HOSTED, { ...META, deployUrl: 'https://attacker.example' })).toThrow(InternalBaseUrlError);
+  });
+
+  it.each([
+    ['not an object', 'https://x'],
+    ['array', [META]],
+    ['dev context', { ...META, context: 'dev' }],
+    ['unknown context', { ...META, context: 'staging' }],
+    ['short deploy id', { ...META, deployId: '0', deployUrl: 'https://0--synthetic-staging.netlify.app' }],
+    ['uppercase site name', { ...META, siteName: 'Synthetic' }],
+    ['deploy URL of another deploy', { ...META, deployUrl: 'https://0123456789abcdef01234567--synthetic-staging.netlify.app' }],
+    ['deploy URL of another site', { ...META, deployUrl: `https://${ID}--other-site.netlify.app` }],
+    ['arbitrary external address', { ...META, deployUrl: 'https://attacker.example' }],
+    ['plain http', { ...META, deployUrl: `http://${ID}--synthetic-staging.netlify.app` }],
+    ['credentials', { ...META, deployUrl: `https://u:p@${ID}--synthetic-staging.netlify.app` }],
+    ['path', { ...META, deployUrl: `${ORIGIN}/evil` }],
+    ['query', { ...META, deployUrl: `${ORIGIN}?x=1` }],
+    ['malformed siteUrl', { ...META, siteUrl: 'javascript:alert(1)' }],
+  ])('rejects metadata: %s', (_l, meta) => {
+    expect(validateBuildDeployMetadata(meta, HOSTED)).toBeNull();
+    expect(() => getInternalBaseUrl(HOSTED, meta)).toThrow(InternalBaseUrlError);
+  });
+
+  it.each([
+    ['runtime SITE_NAME differs (bundle reused on another site)', { ...HOSTED, SITE_NAME: 'xspensesai-production' }],
+    ['runtime URL differs from the build siteUrl', { URL: 'https://custom.example' }],
+    ['runtime netlify.app URL belongs to another site', { URL: 'https://other-site.netlify.app' }],
+  ])('rejects metadata inconsistent with the runtime: %s', (_l, env) => {
+    expect(validateBuildDeployMetadata(META, env)).toBeNull();
+    expect(() => getInternalBaseUrl(env, META)).toThrow(InternalBaseUrlError);
+  });
+
+  it('custom-domain sites: matching runtime URL and build siteUrl are accepted', () => {
+    const meta = { ...META, siteUrl: 'https://app.example.com' };
+    expect(getInternalBaseUrl({ URL: 'https://app.example.com' }, meta)).toBe(ORIGIN);
+  });
+
+  it('NETLIFY_URL and request-shaped data are still never consulted', () => {
+    expect(() => getInternalBaseUrl({ NETLIFY_URL: 'https://attacker.example' }, null)).toThrow(InternalBaseUrlError);
+    expect(getInternalBaseUrl({ NETLIFY_URL: 'https://attacker.example', ...HOSTED }, META)).toBe(ORIGIN);
+    expect(() => getInternalBaseUrl({ headers: 'host: attacker.example' } as never, null)).toThrow(InternalBaseUrlError);
+  });
+
+  it('logs only the resolution source, never the URL or ids', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      getInternalBaseUrl(HOSTED, META);
+      const text = spy.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(text).not.toContain(ID);
+      expect(text).not.toContain('synthetic-staging');
+      for (const line of spy.mock.calls.map((c) => String(c[0]))) expect(line).toMatch(/^\[internal-base-url\] source=[a-z_]+$/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('the committed build metadata is the null placeholder (no deploy identity is ever committed)', async () => {
+    const generated = await import('../_shared/deployMetadata.generated');
+    expect(generated.BUILD_DEPLOY_METADATA).toBeNull();
+  });
+});
+
 // ── browser exposure guards (static) ─────────────────────────────────────────
 
 describe('server-only guarantees (static source checks)', () => {

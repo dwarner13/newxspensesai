@@ -1,5 +1,7 @@
 [build]
-  command = "pnpm install --no-frozen-lockfile && pnpm build"
+  # BYTE-LIVE-01: record this deploy's own address for server-to-server calls (DEPLOY_URL and
+  # CONTEXT exist only at build time). Netlify builds only; never part of `pnpm build`.
+  command = "pnpm install --no-frozen-lockfile && node scripts/write-deploy-metadata.mjs && pnpm build"
   publish = "dist"
   functions = "netlify/functions"
 

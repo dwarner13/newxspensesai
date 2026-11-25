@@ -103,6 +103,26 @@ const fakeClient = {
 
 const activity = { log: vi.fn(async () => undefined), fluency: vi.fn(async () => undefined) };
 vi.mock('../_shared/supabase', () => ({ admin: () => fakeClient, serverSupabase: () => fakeClient }));
+
+// BYTE-LIVE-01: build-time deploy metadata as hosted Functions see it (null unless a test sets it).
+const buildMeta = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+vi.mock('../_shared/deployMetadata.generated', () => ({
+  get BUILD_DEPLOY_METADATA() {
+    return buildMeta.current;
+  },
+}));
+const HOSTED_ORIGIN = 'https://f00dfacef00dfacef00dface--synthetic-staging.netlify.app';
+const HOSTED_META = { context: 'production', deployId: 'f00dfacef00dfacef00dface', siteName: 'synthetic-staging', deployUrl: HOSTED_ORIGIN, siteUrl: null };
+/** Exactly what hosted staging Functions see: URL and the job secret, no DEPLOY_URL or CONTEXT. */
+function hostedRuntime(meta: Record<string, unknown> | null = { ...HOSTED_META }) {
+  delete process.env.DEPLOY_URL;
+  delete process.env.CONTEXT;
+  process.env.URL = 'https://synthetic-staging.netlify.app';
+  buildMeta.current = meta;
+}
+afterEach(() => {
+  buildMeta.current = null;
+});
 vi.mock('../../../src/lib/ai/userActivity', () => ({
   logUserEvent: (...a: unknown[]) => activity.log(...a),
   recalcFluency: (...a: unknown[]) => activity.fluency(...a),
@@ -310,6 +330,26 @@ describe('tx-update-category learning calls', () => {
     expect(r.statusCode).toBe(200);
     expect(r.json.learned).toMatchObject({ applied: false });
     expect(seen).toHaveLength(0);
+  });
+
+  it('BYTE-LIVE-01: reproduces the silent skip in the hosted runtime without metadata (category saved, no learning)', async () => {
+    hostedRuntime(null);
+    const seen = stubFetch();
+    const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json.learned).toMatchObject({ applied: false });
+    expect(seen).toHaveLength(0);
+  });
+
+  it('BYTE-LIVE-01: with build metadata, Tag learning resumes on this exact deploy with the verified identity', async () => {
+    hostedRuntime();
+    const seen = stubFetch();
+    const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json.learned).toMatchObject({ applied: true, method: 'tag-learn' });
+    expect(seen[0].url).toBe(`${HOSTED_ORIGIN}/.netlify/functions/tag-learn`);
+    expect(seen[0].headers.authorization).toBe(`Bearer ${TOKEN_A}`);
+    expect(seen[0].body.userId).toBe(USER_A);
   });
 });
 
