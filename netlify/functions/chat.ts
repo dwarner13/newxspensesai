@@ -124,6 +124,8 @@ import {
 import { buildPrimePersonalityMessage } from './_shared/primePersonality.js';
 import { resolvePreferredName } from '../../src/shared/preferred-name';
 import { canonicalEmployeeSlug } from '../../src/shared/conversation-identity';
+import { pagedSelectAll } from '../../src/shared/paged-select';
+import { classifyCashFlow, amountToCents } from '../../src/shared/financial-taxonomy';
 import { buildCategoryBreakdownVisual, type FinancialVisual } from '../../src/shared/prime-financial-visual';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
@@ -2802,6 +2804,36 @@ function shouldUseHelpFastLane(messageText: string): { use: boolean; intent?: st
   return detectPrimeHelpFastLaneIntent(messageText);
 }
 
+/**
+ * FST-1 / P-G2: replace the (sanitized, amount-free) browser snapshot with the server
+ * snapshot built by the shared engine. Amounts are passed through ONLY when every
+ * transaction was read; otherwise they are omitted and the responders say the figure
+ * is not available rather than quoting a partial number.
+ */
+async function withServerFinancialSnapshot(
+  sb: any,
+  userId: string,
+  primeContext: ChatRequest['prime_context'],
+  timezone: string | null,
+): Promise<ChatRequest['prime_context']> {
+  const hydrated = await buildFinancialSnapshot(sb, userId, timezone);
+  const complete = hydrated?.dataComplete === true;
+  return {
+    ...(primeContext || {}),
+    currency: primeContext?.currency || 'CAD',
+    financialSnapshot: {
+      hasTransactions: Boolean(hydrated?.hasTransactions),
+      uncategorizedCount: Number(hydrated?.uncategorizedCount || 0),
+      monthlySpend: complete && typeof hydrated?.monthlySpend === 'number' ? hydrated.monthlySpend : undefined,
+      topCategories: complete
+        ? (hydrated?.topCategories || []).map((c: any) => ({ name: String(c?.category || 'Other'), amount: Number(c?.totalAmount || 0) }))
+        : [],
+      hasDebt: hydrated?.hasDebt === 'yes',
+      hasGoals: hydrated?.hasGoals === 'yes',
+    },
+  } as any;
+}
+
 function isPrimeSnapshotThin(primeContext: ChatRequest['prime_context']): boolean {
   const fs = primeContext?.financialSnapshot;
   if (!fs) return true;
@@ -3941,7 +3973,10 @@ async function loadMerchantSpendForLatestImportBestEffort(
   userId: string,
   importId: string,
   merchantNeedle: string
-): Promise<{ total: number; count: number; matches: string[] }> {
+): Promise<{ total: number; count: number; matches: string[]; complete: boolean; refundCount: number; refundTotal: number }> {
+  // FST-1 / P-G5: the statement is read completely (paged, ordered) instead of a 500-row cap,
+  // and only outflows count as spend; inflows from the same merchant are reported as refunds
+  // instead of being added to the spend with Math.abs.
   const isMatch = (merchantValue: unknown, descriptionValue: unknown, needle: string, tokens: string[]) => {
     const merchant = String(merchantValue || '').toLowerCase();
     const description = String(descriptionValue || '').toLowerCase();
@@ -3951,35 +3986,40 @@ async function loadMerchantSpendForLatestImportBestEffort(
     return tokens.some((token) => merchant.includes(token) || description.includes(token));
   };
   try {
-    const { data } = await sb
+    const committed = await pagedSelectAll<any>(() => (sb as any)
       .from('transactions')
-      .select('amount, merchant, description')
+      .select('id, amount, type, merchant, merchant_name, description')
       .eq('user_id', userId)
       .eq('import_id', importId)
-      .limit(500);
-    const rows = Array.isArray(data) ? data : [];
+      .order('date', { ascending: true })
+      .order('id', { ascending: true }));
+    const rows = committed.rows;
+    let complete = !committed.error && committed.complete;
     const needle = String(merchantNeedle || '').toLowerCase().trim();
     const needleTokens = needle
       .split(/[^a-z0-9]+/g)
       .map((t) => t.trim())
       .filter((t) => t.length >= 3);
-    let matched = rows.filter((row: any) => isMatch(row?.merchant, row?.description, needle, needleTokens));
-    let total = matched.reduce((sum: number, row: any) => sum + Math.abs(Number(row?.amount || 0)), 0);
+    const allMatched = rows.filter((row: any) => isMatch(row?.merchant_name || row?.merchant, row?.description, needle, needleTokens));
+    let matched = allMatched.filter((row: any) => classifyCashFlow(row).direction !== 'inflow');
+    const refunds = allMatched.filter((row: any) => classifyCashFlow(row).direction === 'inflow');
+    const refundTotal = refunds.reduce((sum: number, row: any) => sum + (amountToCents(row?.amount) ?? 0), 0) / 100;
+    let total = matched.reduce((sum: number, row: any) => sum + (amountToCents(row?.amount) ?? 0), 0) / 100;
     let matches = Array.from(
       new Set(
         matched
-          .map((row: any) => String(row?.merchant || row?.description || '').trim())
+          .map((row: any) => String(row?.merchant_name || row?.merchant || row?.description || '').trim())
           .filter(Boolean)
       )
     ).slice(0, 4);
     if (matched.length === 0) {
-      const { data: staged } = await sb
+      const staged = await pagedSelectAll<any>(() => (sb as any)
         .from('transactions_staging')
-        .select('data_json')
+        .select('id, data_json')
         .eq('user_id', userId)
         .eq('import_id', importId)
-        .limit(800);
-      const stagedRows = Array.isArray(staged) ? staged : [];
+        .order('id', { ascending: true }));
+      const stagedRows = staged.rows;
       const stagedMatched = stagedRows.filter((row: any) =>
         isMatch(
           row?.data_json?.merchant || row?.data_json?.vendor || row?.data_json?.description,
@@ -3989,6 +4029,7 @@ async function loadMerchantSpendForLatestImportBestEffort(
         )
       );
       if (stagedMatched.length > 0) {
+        complete = !staged.error && staged.complete;
         matched = stagedMatched as any[];
         total = stagedMatched.reduce((sum: number, row: any) => sum + Math.abs(Number(row?.data_json?.amount || 0)), 0);
         matches = Array.from(
@@ -4008,10 +4049,18 @@ async function loadMerchantSpendForLatestImportBestEffort(
         ).slice(0, 4);
       }
     }
-    return { total, count: matched.length, matches };
+    return { total, count: matched.length, matches, complete, refundCount: refunds.length, refundTotal };
   } catch {
-    return { total: 0, count: 0, matches: [] };
+    return { total: 0, count: 0, matches: [], complete: false, refundCount: 0, refundTotal: 0 };
   }
+}
+
+/** FST-1 / P-G5: honest qualifiers for a merchant spend answer (partial read, refunds). */
+function merchantSpendNotes(ms: { complete: boolean; refundCount: number; refundTotal: number }, currency: string): string[] {
+  const notes: string[] = [];
+  if (!ms.complete) notes.push('This is a partial figure: not every transaction on the statement could be read, so the real total may be higher.');
+  if (ms.refundCount > 0) notes.push(`There ${ms.refundCount === 1 ? 'was also 1 refund or credit' : `were also ${ms.refundCount} refunds or credits`} from this merchant (${formatCurrency(ms.refundTotal, currency)}), not included above.`);
+  return notes;
 }
 
 async function loadLatestImportFactsBestEffort(
@@ -4775,11 +4824,25 @@ function inferStatementQaMode(message: string): StatementQaMode {
   return 'general';
 }
 
+type StatementQaScope = 'import' | 'all_statements';
+/** FST-1 / P-G6: rows plus what they cover. */
+type StatementQaRows = StatementQaRow[] & { complete: boolean; scope: StatementQaScope };
+
+/** Honest qualifiers for a statement Q&A answer. */
+function statementQaNotes(rows: { complete: boolean; scope: StatementQaScope }, hadImport: boolean): string {
+  const notes: string[] = [];
+  if (hadImport && rows.scope === 'all_statements') notes.push('I could not find these on that statement, so this covers all your imported statements.');
+  if (!rows.complete) notes.push('This is partial: not every transaction could be read, so totals may be higher.');
+  return notes.length ? `
+
+_${notes.join(' ')}_` : '';
+}
+
 async function loadStatementQaRows(
   sb: SupabaseClient,
   userId: string,
   req: StatementQaRequest
-): Promise<StatementQaRow[]> {
+): Promise<StatementQaRows> {
   const matchText = (value: unknown, queryText: string): boolean => {
     const hay = String(value || '').toLowerCase();
     return hay.includes(queryText.toLowerCase());
@@ -4790,7 +4853,7 @@ async function loadStatementQaRows(
     return normalized || null;
   };
 
-  const rows: StatementQaRow[] = [];
+  const rows: StatementQaRows = Object.assign([] as StatementQaRow[], { complete: true, scope: 'import' as StatementQaScope });
 
   // Helper: filter fetched transaction rows by the request criteria.
   // When filterByImport is true, only rows matching req.importId are kept.
@@ -4830,37 +4893,47 @@ async function loadStatementQaRows(
     return out;
   };
 
+  // FST-1 / P-G6: complete paged reads (ordered date, id) instead of the 800 most recently
+  // created rows. The statement is read by import_id on the server; only when it has no
+  // committed rows does the answer widen to all statements, and the scope says so.
+  const readCommitted = (byImport: boolean) => pagedSelectAll<any>(() => {
+    let q = (sb as any).from('transactions').select('*').eq('user_id', userId);
+    if (byImport && req.importId) q = q.eq('import_id', req.importId);
+    return q.order('date', { ascending: true }).order('id', { ascending: true });
+  });
   try {
-    const { data, error } = await sb
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(800);
-    if (!error && Array.isArray(data)) {
-      // First try filtering by import_id if one was resolved
-      const filtered = filterTxRows(data, true);
+    const first = await readCommitted(true);
+    if (!first.error) {
+      const filtered = filterTxRows(first.rows, true);
+      if (!first.complete) rows.complete = false;
       if (filtered.length > 0) {
         rows.push(...filtered);
+        if (!req.importId) rows.scope = 'all_statements';
       } else if (req.importId) {
-        // import_id filter returned 0 rows - fall back to ALL user transactions
-        // This handles cases where the resolved import_id doesn't match committed rows
-        const unfiltered = filterTxRows(data, false);
-        rows.push(...unfiltered);
-      }
-    }
+        // The resolved import has no committed rows: widen to all statements (scope disclosed).
+        const wide = await readCommitted(false);
+        if (!wide.error) {
+          rows.push(...filterTxRows(wide.rows, false));
+          rows.scope = 'all_statements';
+          if (!wide.complete) rows.complete = false;
+        } else rows.complete = false;
+      } else rows.scope = 'all_statements';
+    } else rows.complete = false;
   } catch {
+    rows.complete = false;
     // Non-blocking; fall through to staged rows if available.
   }
 
   if (req.includePending) {
     try {
-      const { data: staged, error: stagedError } = await sb
+      const stagedRead = await pagedSelectAll<any>(() => (sb as any)
         .from('transactions_staging')
         .select('id,import_id,data_json')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(800);
+        .order('id', { ascending: true }));
+      const staged = stagedRead.rows;
+      const stagedError = stagedRead.error;
+      if (!stagedRead.complete) rows.complete = false;
       if (!stagedError && Array.isArray(staged)) {
         const filterStagedRows = (stagedData: any[], filterByImport: boolean): StatementQaRow[] => {
           const out: StatementQaRow[] = [];
@@ -4902,6 +4975,7 @@ async function loadStatementQaRows(
           rows.push(...filteredStaged);
         } else if (req.importId) {
           rows.push(...filterStagedRows(staged, false));
+          rows.scope = 'all_statements';
         }
       }
     } catch {
@@ -7688,6 +7762,7 @@ export const handler: Handler = async (event, context) => {
                   `I checked ${statementLabelFromContext || 'your latest uploaded statement'}: ${String(queryHint).toUpperCase()} totals ${formatCurrency(merchantSpend.total, facts?.currency || 'CAD')}.`,
                   `I matched ${merchantSpend.count} transaction${merchantSpend.count === 1 ? '' : 's'}.`,
                   ...(merchantSpend.matches.length > 0 ? [`Matches: ${merchantSpend.matches.join(', ')}.`] : []),
+                  ...merchantSpendNotes(merchantSpend, facts?.currency || 'CAD'),
                 ].join(' '),
               };
             }
@@ -7734,7 +7809,7 @@ export const handler: Handler = async (event, context) => {
           lane: 'deterministic',
           deterministic_path: 'statement_qa',
           deterministic_intent: `statement_qa_${mode}`,
-          assistantText: renderStatementQaAnswer(masked, qaRequest, qaRows),
+          assistantText: renderStatementQaAnswer(masked, qaRequest, qaRows) + statementQaNotes(qaRows, Boolean(qaRequest.importId)),
         };
       }
     }
@@ -7765,6 +7840,7 @@ export const handler: Handler = async (event, context) => {
               `On ${statementLabelFromContext || 'your latest statement'}, you spent ${formatCurrency(merchantSpend.total, facts?.currency || 'CAD')} with ${merchantNeedleForTurn}.`,
               `That came from ${merchantSpend.count} transaction${merchantSpend.count === 1 ? '' : 's'}.`,
               ...(merchantSpend.matches.length > 0 ? [`Matches I used: ${merchantSpend.matches.join(', ')}.`] : []),
+              ...merchantSpendNotes(merchantSpend, facts?.currency || 'CAD'),
             ].join(' '),
           };
         } else {
@@ -7856,6 +7932,7 @@ export const handler: Handler = async (event, context) => {
               `- Total spend: ${formatCurrency(merchantSpend.total, facts.currency)}`,
               `- Transactions matched: ${merchantSpend.count}`,
               ...(merchantSpend.matches.length > 0 ? [`- Merchant match: ${merchantSpend.matches.join(', ')}`] : []),
+              ...merchantSpendNotes(merchantSpend, facts.currency).map(n => `- ${n}`),
             ].join('\n');
           } else {
             assistantText = `I checked your latest uploaded statement and found no transactions matching "${merchantNeedle}".`;
@@ -8894,6 +8971,18 @@ export const handler: Handler = async (event, context) => {
 
     const groundedFactsIntent = detectGroundedFactsIntent(masked);
     const isPrimeEmployeeForGroundedFacts = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
+    // FST-1 / P-G2: the deterministic fast lanes below quote amounts. Give them the server
+    // snapshot (shared engine) instead of browser numbers, only when one of them will run.
+    if (
+      isPrimeEmployeeForGroundedFacts && !hasAttachments && !skipPrimeFastLanes && !masked.startsWith('[PRIME_GREETING]')
+      && (groundedFactsIntent || detectCoachingIntent(masked) || detectInsightIntent(masked) || detectPredictiveIntent(masked))
+    ) {
+      try {
+        effectivePrimeContext = await withServerFinancialSnapshot(sb, userId, effectivePrimeContext, effectivePrimeContext?.timezone || null);
+      } catch (snapErr: any) {
+        console.warn('[Chat] FST-1 server snapshot failed; fast lanes get no amounts:', snapErr?.message || snapErr);
+      }
+    }
     if (!masked.startsWith('[PRIME_GREETING]') && groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments && !skipPrimeFastLanes) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildGroundedFactsResponse(groundedFactsIntent, effectivePrimeContext),
@@ -9825,30 +9914,12 @@ export const handler: Handler = async (event, context) => {
     if (isPrimeEmployeeForHydration && primeIntent.isBreakdownReport && snapshotThinBeforeHydration) {
       try {
         const _tFinancialSnapshot = Date.now(); // V1-A CP4.3
-        const hydrated = await buildFinancialSnapshot(sb, userId, userProfile?.timezone || effectivePrimeContext?.timezone || null);
+        // PHASE 2.1: other frontend-supplied fields are preserved (spread inside the helper).
+        // FST-1: amounts come from the shared engine and only when the read was complete.
+        effectivePrimeContext = await withServerFinancialSnapshot(
+          sb, userId, effectivePrimeContext, userProfile?.timezone || effectivePrimeContext?.timezone || null,
+        );
         timingLogs.financial_snapshot = Date.now() - _tFinancialSnapshot;
-        // PHASE 2.1 FIX (Apr 2026): Preserve all frontend-supplied fields (taxSummary, totalIncome,
-        // teamActivitySummary, categorySummary, etc.) via spread. Previously this block REPLACED
-        // effectivePrimeContext with a narrow snapshot object, wiping everything PrimeChatV2 sent.
-        effectivePrimeContext = {
-          ...(effectivePrimeContext || {}),
-          displayName: effectivePrimeContext?.displayName || null,
-          timezone: effectivePrimeContext?.timezone || null,
-          currency: effectivePrimeContext?.currency || 'CAD',
-          currentStage: effectivePrimeContext?.currentStage || null,
-          financialSnapshot: {
-            hasTransactions: Boolean(hydrated?.hasTransactions),
-            uncategorizedCount: Number(hydrated?.uncategorizedCount || 0),
-            monthlySpend: typeof hydrated?.monthlySpend === 'number' ? hydrated.monthlySpend : undefined,
-            topCategories: (hydrated?.topCategories || []).map((c: any) => ({
-              name: String(c?.category || 'Other'),
-              amount: Number(c?.totalAmount || 0),
-            })),
-            hasDebt: hydrated?.hasDebt === 'yes',
-            hasGoals: hydrated?.hasGoals === 'yes',
-          },
-          memorySummary: effectivePrimeContext?.memorySummary || null,
-        } as any;
       } catch (hydrationError: any) {
         console.warn('[Chat] Snapshot hydration failed:', hydrationError?.message || hydrationError);
       }
@@ -10790,10 +10861,9 @@ export const handler: Handler = async (event, context) => {
         console.log(`[ChatTiming] request=${requestId.slice(0,12)} stage=financial_position_end durationMs=${Date.now() - _tFpStart} elapsedMs=${Date.now() - requestStartTime} chars=${financialPositionText.length} missing=[${financialPositionMissing.join(', ')}]`);
       } catch (fpErr: any) {
         console.warn('[Chat] Financial Position build failed (non-fatal, continuing with legacy context):', fpErr?.message);
-        // Fallback: include legacy totals if Financial Position failed
-        if (typeof pc.totalIncome === 'number') primeContextMessage += `Total Income: ${pc.totalIncome}\n`;
-        if (typeof pc.totalSpent === 'number') primeContextMessage += `Total Spent: ${pc.totalSpent}\n`;
-        if (typeof pc.transactionCount === 'number') primeContextMessage += `Transactions: ${pc.transactionCount}\n`;
+        // FST-1 / P-G2: browser-supplied totals are NEVER financial facts. If the verified
+        // position cannot be built, say so; do not fall back to numbers the page computed.
+        primeContextMessage += '\nFINANCIAL POSITION: unavailable right now (verified figures could not be computed). Do not state totals; use the financial tools, or tell the customer the figures could not be loaded and offer to retry.\n';
       }
 
       if (typeof pc.pendingImports === 'number' && pc.pendingImports > 0) {
@@ -10841,7 +10911,9 @@ export const handler: Handler = async (event, context) => {
       // follow-up questions and to compare documents when the user asks about specific statements.
       if (pc.recentImportSummaries && pc.recentImportSummaries.length > 0) {
         const summaries = pc.recentImportSummaries;
-        primeContextMessage += `\nRECENT IMPORT SUMMARIES (${summaries.length} document${summaries.length > 1 ? 's' : ''} I displayed this session - reference the correct one when answering follow-up questions):\n`;
+        // FST-1 / P-G7: these figures come from the browser (what the page displayed). They are
+        // display context only, never verified totals.
+        primeContextMessage += `\nRECENT IMPORT SUMMARIES: BROWSER-SUPPLIED DISPLAY CONTEXT, NOT VERIFIED (${summaries.length} document${summaries.length > 1 ? 's' : ''} shown this session). Use them only to recognise which document the customer means; for any amount, total or count use the financial tools or the stored statement breakdown, and never present these numbers as verified:\n`;
         summaries.forEach((rs, i) => {
           primeContextMessage += `\n[Document ${i + 1}${rs.label ? `: ${rs.label}` : ''}]\n`;
           primeContextMessage += `- Total spend: $${rs.totalSpend.toFixed(2)}\n`;
@@ -10859,7 +10931,7 @@ export const handler: Handler = async (event, context) => {
           const totalSpendAll = summaries.reduce((sum, s) => sum + s.totalSpend, 0);
           const totalIncomeAll = summaries.reduce((sum, s) => sum + s.totalIncome, 0);
           const totalTxAll = summaries.reduce((sum, s) => sum + s.txCount, 0);
-          primeContextMessage += `\n[Combined across all ${summaries.length} documents]\n`;
+          primeContextMessage += `\n[Combined across all ${summaries.length} documents: browser-supplied, not verified; overlapping statements may double count]\n`;
           primeContextMessage += `- Total spend: $${totalSpendAll.toFixed(2)}\n`;
           if (totalIncomeAll > 0) primeContextMessage += `- Total income: $${totalIncomeAll.toFixed(2)}\n`;
           primeContextMessage += `- Total transactions: ${totalTxAll}\n`;

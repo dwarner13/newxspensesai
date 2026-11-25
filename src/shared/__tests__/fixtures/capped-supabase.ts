@@ -16,11 +16,14 @@ export interface CappedClientOptions {
   shuffleUnordered?: boolean;
   /** Fail the Nth request (1-based) with an error. */
   failOnRequest?: number;
+  /** Restrict failOnRequest counting to one table (Nth request to that table). */
+  failTable?: string;
 }
 
 export function makeCappedClient(tables: Record<string, FakeRow[]>, opts: CappedClientOptions = {}) {
   const cap = opts.cap ?? 1000;
   let requests = 0;
+  const perTable = new Map<string, number>();
   const log: Array<{ table: string; range?: [number, number]; limit?: number; ordered: boolean }> = [];
 
   function builder(table: string) {
@@ -32,8 +35,10 @@ export function makeCappedClient(tables: Record<string, FakeRow[]>, opts: Capped
 
     const exec = () => {
       requests++;
+      perTable.set(table, (perTable.get(table) || 0) + 1);
       log.push({ table, range, limit, ordered: orders.length > 0 });
-      if (opts.failOnRequest && requests === opts.failOnRequest) {
+      const nth = opts.failTable ? (opts.failTable === table ? perTable.get(table)! : -1) : requests;
+      if (opts.failOnRequest && nth === opts.failOnRequest) {
         return Promise.resolve({ data: null, error: { message: 'simulated failure' }, count: null });
       }
       let rows = (tables[table] || []).filter(r => filters.every(f => f(r)));
@@ -72,6 +77,11 @@ export function makeCappedClient(tables: Record<string, FakeRow[]>, opts: Capped
       order(col: string, o: { ascending: boolean }) { orders.push({ col, asc: o?.ascending !== false }); return q; },
       range(a: number, b: number) { range = [a, b]; return q; },
       limit(n: number) { limit = n; return q; },
+      insert(payload: FakeRow | FakeRow[]) {
+        (tables[table] ||= []).push(...(Array.isArray(payload) ? payload : [payload]));
+        const done = Promise.resolve({ data: null, error: null });
+        return { select: () => done, then: (res: any, rej: any) => done.then(res, rej) };
+      },
       maybeSingle() { return exec().then(r => ({ ...r, data: Array.isArray(r.data) ? r.data[0] ?? null : null })); },
       single() { return q.maybeSingle(); },
       then(res: any, rej: any) { return exec().then(res, rej); },
