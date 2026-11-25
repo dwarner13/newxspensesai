@@ -9,6 +9,7 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { safePartialMarkdown, nextRevealIndex } from './typingReveal';
+import { parseMessageBlocks, isNumericCell } from '@/lib/messageBlocks';
 
 interface TypingMessageProps {
   /** Full message content */
@@ -194,42 +195,85 @@ export function FormattedMessageText({ text }: { text: string }) {
     return out;
   };
 
-  const lines = String(text || '').split('\n');
+  // Prime reply formatting (owner GO): headings 1–4, dividers, bullets, numbered steps, pipe
+  // tables and paragraphs, from lib/messageBlocks.ts. React text nodes only; links still go
+  // through renderInlineRich (app routes only).
+  const blocks = parseMessageBlocks(text);
+  const headingClass: Record<number, string> = {
+    1: 'mt-3 mb-1.5 text-[1.15em] font-extrabold tracking-tight text-white',
+    2: 'mt-3 mb-1.5 text-[1.08em] font-bold tracking-tight text-slate-50',
+    3: 'mt-2.5 mb-1 font-semibold text-slate-100',
+    4: 'mt-2 mb-1 text-[0.92em] font-semibold uppercase tracking-wider text-slate-300',
+  };
   return (
     <div className="break-words">
-      {lines.map((line, idx) => {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          return <div key={`line-${idx}`} className="h-2" />;
+      {blocks.map((b, idx) => {
+        switch (b.type) {
+          case 'blank':
+            return <div key={`b-${idx}`} className="h-3" aria-hidden="true" />;
+          case 'heading': {
+            const Tag = (['h3', 'h4', 'h5', 'h6'] as const)[b.level - 1];
+            return (
+              <Tag key={`h-${idx}`} className={headingClass[b.level]}>
+                {renderInlineRich(b.text, `h-${idx}`)}
+              </Tag>
+            );
+          }
+          case 'divider':
+            return <hr key={`hr-${idx}`} className="my-3 border-0 border-t border-slate-600/50" />;
+          case 'bullet':
+            return (
+              <div key={`li-${idx}`} className="mb-1.5 flex items-start gap-2">
+                <span aria-hidden="true" className="text-slate-400">•</span>
+                <span className="min-w-0">{renderInlineRich(b.text, `li-${idx}`)}</span>
+              </div>
+            );
+          case 'numbered':
+            return (
+              <div key={`ol-${idx}`} className="mb-1.5 flex items-start gap-2">
+                <span className="min-w-[1.6em] text-right font-semibold tabular-nums text-slate-300">{b.marker}</span>
+                <span className="min-w-0">{renderInlineRich(b.text, `ol-${idx}`)}</span>
+              </div>
+            );
+          case 'table': {
+            const cols = Math.max(b.header?.length ?? 0, ...b.rows.map((r) => r.length));
+            const numericCol = Array.from({ length: cols }, (_, c) => b.rows.length > 0 && b.rows.every((r) => !r[c] || isNumericCell(r[c])));
+            return (
+              <div key={`t-${idx}`} className="my-2 max-w-full overflow-x-auto rounded-lg border border-slate-700/60" role="region" aria-label="Table" tabIndex={0}>
+                <table className="w-full border-collapse text-[0.92em]">
+                  {b.header && (
+                    <thead>
+                      <tr className="bg-slate-800/60">
+                        {Array.from({ length: cols }, (_, c) => (
+                          <th key={c} scope="col" className={`whitespace-nowrap px-3 py-2 font-semibold text-slate-200 ${numericCol[c] ? 'text-right' : 'text-left'}`}>
+                            {renderInlineRich(b.header?.[c] ?? '', `t-${idx}-h-${c}`)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {b.rows.map((r, ri) => (
+                      <tr key={ri} className="border-t border-slate-700/50">
+                        {Array.from({ length: cols }, (_, c) => (
+                          <td key={c} className={`px-3 py-2 align-top ${numericCol[c] ? 'whitespace-nowrap text-right tabular-nums' : 'text-left'}`}>
+                            {renderInlineRich(r[c] ?? '', `t-${idx}-${ri}-${c}`)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          }
+          default:
+            return (
+              <p key={`p-${idx}`} className="m-0 mb-1.5 whitespace-pre-wrap">
+                {renderInlineRich(b.text, `p-${idx}`)}
+              </p>
+            );
         }
-        if (trimmed.startsWith('## ')) {
-          return (
-            <div key={`line-${idx}`} className="mt-2 mb-1 font-semibold tracking-wide text-slate-100">
-              {renderInlineRich(trimmed.slice(3), `h2-${idx}`)}
-            </div>
-          );
-        }
-        if (trimmed.startsWith('### ')) {
-          return (
-            <div key={`line-${idx}`} className="mt-2 mb-1 font-semibold text-slate-100">
-              {renderInlineRich(trimmed.slice(4), `h3-${idx}`)}
-            </div>
-          );
-        }
-        if (/^[-\u2013\u2014*\u2022]\s+/.test(trimmed)) {
-          const body = trimmed.replace(/^[-\u2013\u2014*\u2022]\s+/, '');
-          return (
-            <div key={`line-${idx}`} className="mb-1 flex items-start gap-2">
-              <span className="text-slate-300">-</span>
-              <span>{renderInlineRich(body, `li-${idx}`)}</span>
-            </div>
-          );
-        }
-        return (
-          <div key={`line-${idx}`} className="mb-1 whitespace-pre-wrap">
-            {renderInlineRich(line, `p-${idx}`)}
-          </div>
-        );
       })}
     </div>
   );
