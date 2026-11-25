@@ -59,7 +59,7 @@ export type SingleProposalOutcome =
   }
   | {
     state: 'failed';
-    reason: 'not_found' | 'category_ambiguous' | 'category_unknown' | 'already_in_category' | 'preview_error';
+    reason: 'not_found' | 'not_focused' | 'category_ambiguous' | 'category_unknown' | 'already_in_category' | 'preview_error';
     reply: string;
     candidates?: string[];
   };

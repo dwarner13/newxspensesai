@@ -679,10 +679,18 @@ not touch the other ${otherCount} ${ftMerchant} transactions unless the customer
           const transactionId = String(toolUseBlock.input.transaction_id || '').trim();
           const category = String(toolUseBlock.input.category || '').trim();
           const subcategory = toolUseBlock.input.subcategory ? String(toolUseBlock.input.subcategory).trim() : '';
-          const outcome = await buildSingleProposal(
-            supabase as unknown as Parameters<typeof buildSingleProposal>[0], auth.userId, transactionId,
-            subcategory ? `${category} > ${subcategory}` : category,
-          );
+          // Only the server-verified FOCUSED transaction can be proposed (never an arbitrary id the model
+          // picked, even one the customer owns).
+          const focusedId = focused.row ? String(focused.row.id) : null;
+          const outcome: Awaited<ReturnType<typeof buildSingleProposal>> = focusedId && transactionId === focusedId
+            ? await buildSingleProposal(
+              supabase as unknown as Parameters<typeof buildSingleProposal>[0], auth.userId, transactionId,
+              subcategory ? `${category} > ${subcategory}` : category,
+            )
+            : {
+              state: 'failed', reason: 'not_focused',
+              reply: "I can only change the transaction you have open. Open the one you'd like to change (or tap it in your list) and ask me again.",
+            };
           singleProposalOutcome = outcome;
           action = { tool: toolUseBlock.name, applied: false, proposalOnly: true };
           if (outcome.state === 'proposed') {

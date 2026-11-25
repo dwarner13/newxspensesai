@@ -316,7 +316,17 @@ describe('T-LIVE-02 — Tag chat tool is proposal-only (server-enforced confirma
     modelPlan.push(toolCall(BOBS, 'Food & Dining'));
     const out = await chat('change this to food', { clientMessageId: 'msg_chat_0004' });
     expect(out.proposal).toBeUndefined();
-    expect(out.reply).toBe("I can't find that transaction in your account, so nothing has changed.");
+    expect(out.reply).toBe("I can only change the transaction you have open. Open the one you'd like to change (or tap it in your list) and ask me again.");
+    expect(txUpdateCalls).toBe(0);
+  });
+
+  it('a tool call naming ANOTHER of the customer\'s own transactions (not the focused one) proposes nothing', async () => {
+    modelPlan.push(toolCall(SAME_MERCHANT, 'Food & Dining'));
+    const out = await chat('change this to food', { clientMessageId: 'msg_chat_0008' });
+    expect(out.proposal).toBeUndefined();
+    expect(out.reply).toContain('I can only change the transaction you have open.');
+    const stored = msgs(out.sessionId).filter(m => m.role === 'assistant').pop();
+    expect(stored.metadata.actionReceipt).toMatchObject({ action: 'recategorize_single_transaction', state: 'failed', reason: 'not_focused' });
     expect(txUpdateCalls).toBe(0);
   });
 
