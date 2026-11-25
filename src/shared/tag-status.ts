@@ -136,6 +136,11 @@ export interface TagStatus {
    * These are stored correction records, separate from conversation history.
    */
   recentCorrections: { available: boolean; count: number; topMerchants: string[]; windowDays?: number | null };
+  /**
+   * Completed Tag actions recorded by tag-action (tag_activity_log): counts by action type only.
+   * Customer-isolated; no ids, amounts or conversation content. Absent when not read.
+   */
+  completedActions?: { available: boolean; count: number; byType: Record<string, number>; windowDays: number | null };
   anomalies: TagStatusAnomaly[];
   coverage: { earliestDate: string | null; latestDate: string | null } | null;
   caveats: string[];
@@ -163,6 +168,8 @@ export function summarizeTagStatus(input: {
   feedbackMerchants: string[] | null;
   /** Window of the correction records: days, or null for all time. */
   feedbackWindowDays?: number | null;
+  /** Action types of completed Tag actions in the window; null = could not be read; undefined = not read. */
+  completedActionTypes?: string[] | null;
 }): TagStatus {
   const { scope } = input;
   const empty: TagStatus = {
@@ -254,6 +261,14 @@ export function summarizeTagStatus(input: {
     needsReviewCount: provenance.needs_review,
     protectedFromProposals: provenance.customer_confirmed + provenance.possibly_customer_approved,
     recentCorrections: { available: feedback !== null, count: feedback?.length ?? 0, topMerchants, windowDays: input.feedbackWindowDays === undefined ? 90 : input.feedbackWindowDays },
+    ...(input.completedActionTypes === undefined ? {} : {
+      completedActions: {
+        available: input.completedActionTypes !== null,
+        count: input.completedActionTypes?.length ?? 0,
+        byType: (input.completedActionTypes ?? []).reduce<Record<string, number>>((m, t) => { m[t] = (m[t] || 0) + 1; return m; }, {}),
+        windowDays: input.feedbackWindowDays === undefined ? 90 : input.feedbackWindowDays,
+      },
+    }),
     anomalies,
     coverage: input.coverage,
     caveats,

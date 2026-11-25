@@ -56,6 +56,7 @@ export const outputSchema = z.object({
   needsReviewCount: z.number(),
   protectedFromProposals: z.number(),
   recentCorrections: z.object({ available: z.boolean(), count: z.number(), topMerchants: z.array(z.string()), windowDays: z.number().nullable().optional() }),
+  completedActions: z.object({ available: z.boolean(), count: z.number(), byType: z.record(z.number()), windowDays: z.number().nullable() }).optional(),
   anomalies: z.array(anomalySchema),
   coverage: z.object({ earliestDate: z.string().nullable(), latestDate: z.string().nullable() }).nullable(),
   caveats: z.array(z.string()),
@@ -119,6 +120,19 @@ export async function execute(
     feedbackMerchants = fb.rows.map(r => (typeof r.merchant === 'string' ? r.merchant : '')).filter(Boolean);
   }
 
+  // Completed Tag actions (owner 2026-11-25: authoritative, customer-isolated correction history).
+  // tag-action records every confirmed change in tag_activity_log. Only the action TYPE is read and
+  // only counts leave this function: no transaction ids, amounts or conversation content.
+  let completedActionTypes: string[] | null = null;
+  const act = await pagedSelectAll<{ id?: unknown; action_type?: unknown }>(() => {
+    let q = sb.from('tag_activity_log').select('id, action_type').eq('user_id', userId);
+    if (feedbackWindowDays !== null) q = q.gte('created_at', since);
+    return q.order('created_at', { ascending: true }).order('id', { ascending: true });
+  }, { maxRows: MAX_ROWS });
+  if (!act.error) {
+    completedActionTypes = act.rows.map(r => (typeof r.action_type === 'string' && r.action_type ? r.action_type : 'other'));
+  }
+
   const coverage = rows && rows.length === 0 ? await fetchTransactionCoverage(sb as unknown as CoverageClient, userId) : null;
 
   const status = summarizeTagStatus({
@@ -130,6 +144,7 @@ export async function execute(
     coverage: coverage ? { earliestDate: coverage.earliestDate, latestDate: coverage.latestDate } : null,
     feedbackMerchants,
     feedbackWindowDays,
+    completedActionTypes,
   });
 
   // Counts and status only — never merchant names or amounts.

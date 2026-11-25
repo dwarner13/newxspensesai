@@ -153,6 +153,16 @@ export function formatTagConsultationEvidence(s: TagStatus): string {
     } else {
       lines.push("- Tag's correction history could not be read this time, so recorded corrections cannot be counted. Say this plainly; the customer-confirmed count above still stands.");
     }
+    // Confirmed Tag actions (tag-action → tag_activity_log): counts by type only, customer-isolated.
+    if (s.completedActions) {
+      const window = s.completedActions.windowDays == null ? 'all time' : `last ${s.completedActions.windowDays} days`;
+      if (s.completedActions.available) {
+        const types = Object.entries(s.completedActions.byType).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t.replace(/_/g, ' ')} ${n}`).join(', ');
+        lines.push(`- Changes the customer confirmed through Tag (${window}): ${s.completedActions.count}${types ? ` (${types})` : ''}`);
+      } else {
+        lines.push("- Tag's confirmed-action log could not be read this time. Say this plainly; do not guess how many changes were confirmed.");
+      }
+    }
     if (s.anomalies.length > 0) {
       lines.push('- Suspected categorization issues (proposals only):');
       for (const a of s.anomalies) {

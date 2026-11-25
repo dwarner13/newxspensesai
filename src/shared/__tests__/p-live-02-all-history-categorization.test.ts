@@ -221,3 +221,44 @@ describe('P-LIVE-02 wiring and safeguards (source guards)', () => {
     expect(rule).toContain('read-only');
   });
 });
+
+describe('Completed correction history: authoritative, customer-isolated, no conversation content', () => {
+  const OTHER = 'u-someone-else';
+  const withActivity = () => {
+    const l = ledger() as Record<string, FakeRow[]>;
+    l.tag_activity_log = [
+      // own: 3 confirmed actions, one older than 90 days
+      { id: 'a1', user_id: USER, action_type: 'recategorize_single_transaction', merchant_name: 'M', old_value: 'Dining', new_value: 'Groceries', note: 'secret note', created_at: new Date(NOW.getTime() - 3 * 86_400_000).toISOString() },
+      { id: 'a2', user_id: USER, action_type: 'save_merchant_rule', merchant_name: 'M', created_at: new Date(NOW.getTime() - 10 * 86_400_000).toISOString() },
+      { id: 'a3', user_id: USER, action_type: 'recategorize_single_transaction', merchant_name: 'M', created_at: new Date(NOW.getTime() - 400 * 86_400_000).toISOString() },
+      // another customer: never counted
+      { id: 'b1', user_id: OTHER, action_type: 'bulk_move_category', merchant_name: 'OTHER SECRET', created_at: NOW.toISOString() },
+    ];
+    return l;
+  };
+
+  it('all-history: every confirmed Tag action of THIS customer, counted by type only', async () => {
+    state.client = makeCappedClient(withActivity());
+    const t = await primeTurn(OWNER_MESSAGE);
+    expect(t.tag.completedActions).toEqual({ available: true, count: 3, byType: { recategorize_single_transaction: 2, save_merchant_rule: 1 }, windowDays: null });
+    expect(t.evidence).toContain('Changes the customer confirmed through Tag (all time): 3 (recategorize single transaction 2, save merchant rule 1)');
+    const s = JSON.stringify(t.tag);
+    expect(s).not.toContain('OTHER SECRET');
+    expect(s).not.toContain('bulk_move_category');
+    expect(s).not.toContain('secret note'); // no notes, old/new values or ids leave the tool
+    expect(s).not.toContain('"a1"');
+  });
+
+  it('a narrower requested period uses the 90-day window', async () => {
+    state.client = makeCappedClient(withActivity());
+    const t = await primeTurn('How many uncategorized transactions in March 2024?');
+    expect(t.tag.completedActions).toMatchObject({ available: true, count: 2, windowDays: 90 });
+  });
+
+  it('log unavailable: stated honestly, never guessed', async () => {
+    state.client = makeCappedClient(withActivity(), { failOnRequest: 1, failTable: 'tag_activity_log' });
+    const t = await primeTurn(OWNER_MESSAGE);
+    expect(t.tag.completedActions.available).toBe(false);
+    expect(t.evidence).toContain("Tag's confirmed-action log could not be read this time");
+  });
+});
