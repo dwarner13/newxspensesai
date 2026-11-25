@@ -657,6 +657,19 @@ async function handleConversationalAction(
   return ok({ ...legacy, intent, executed, conversation: { sessionId, persisted, duplicate: false, reply, receipt } });
 }
 
+// Non-blocking audit log. Supabase query builders have NO .catch(): the old
+// `insert(...).catch(() => {})` threw a TypeError after the transaction update had already
+// succeeded, so fix_type / fix_type_bulk / bulk_normalize_subcategory returned 500 for completed
+// changes and never wrote the log. A failed log write must never fail the customer's action.
+async function logTagActivity(supabase: SupabaseClient, row: Record<string, unknown>): Promise<void> {
+  try {
+    const { error } = await supabase.from('tag_activity_log').insert(row);
+    if (error) console.warn('[tag-action] activity log write failed');
+  } catch {
+    console.warn('[tag-action] activity log write failed');
+  }
+}
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS, body: '' };
@@ -744,7 +757,7 @@ export const handler: Handler = async (event) => {
         .eq('user_id', userId);
       if (error) return err(error.message, 500);
 
-      await supabase.from('tag_activity_log').insert({
+      await logTagActivity(supabase, {
         user_id: userId,
         action_type: 'type_fix',
         merchant_name: current?.merchant_name || null,
@@ -753,7 +766,7 @@ export const handler: Handler = async (event) => {
         new_value: newType,
         note: `Type changed: ${oldType} → ${newType}${newType === 'income' ? ' (category set to Income)' : ''}`,
         created_at: new Date().toISOString(),
-      }).catch(() => {});
+      });
 
       safeLog('tag-action.fix_type', { userId, transactionId, oldType, newType });
       return ok({ ok: true, intent: 'fix_type', transactionId, oldType, newType });
@@ -822,13 +835,13 @@ export const handler: Handler = async (event) => {
         .eq('user_id', userId);
       if (updateErr) return err(updateErr.message, 500);
 
-      await supabase.from('tag_activity_log').insert({
+      await logTagActivity(supabase, {
         user_id: userId, action_type: 'fix_type_bulk',
         merchant_name: matchValue || filterCategory || null,
         old_value: matchValue || filterCategory || 'mixed', new_value: newType,
         note: `Bulk type fix → ${newType}: ${affectedIds.length} transactions${filterCategory ? ` in category "${filterCategory}"` : ''}${matchValue ? ` matching "${matchValue}"` : ''}`,
         created_at: new Date().toISOString(),
-      }).catch(() => {});
+      });
 
       safeLog('tag-action.fix_type_bulk', { userId, newType, matchValue, filterCategory, count: affectedIds.length });
 
@@ -902,13 +915,13 @@ export const handler: Handler = async (event) => {
         }
       }
 
-      await supabase.from('tag_activity_log').insert({
+      await logTagActivity(supabase, {
         user_id: userId, action_type: 'bulk_normalize_subcategory', merchant_name: null,
         old_value: filterCategory || 'all categories',
         new_value: `${written} subcategories assigned`,
         note: `Bulk subcategory normalization: ${written} updated, ${skipped} skipped${filterCategory ? ` (scoped to "${filterCategory}")` : ''}`,
         created_at: new Date().toISOString(),
-      }).catch(() => {});
+      });
 
       safeLog('tag-action.bulk_normalize_subcategory', { userId, filterCategory, written, skipped, overwrite });
 

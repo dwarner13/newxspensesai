@@ -6,11 +6,13 @@
  * database is an in-memory fake (transactions, rules, memory, chat_sessions, chat_messages).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 const db: Record<string, Row[]> = {};
-const faults = { txUpdate: false, assistantInsert: false, uniqueOnClaim: false };
+const faults = { txUpdate: false, assistantInsert: false, uniqueOnClaim: false, activityLog: false };
 let txUpdateCalls = 0;
 const get = (row: Row, col: string) => (col.includes('->>') ? (row[col.split('->>')[0]] || {})[col.split('->>')[1]] : row[col]);
 
@@ -25,6 +27,7 @@ function builder(table: string) {
   const matches = () => rows().filter(r => filters.every(f => f(r)));
   const run = () => {
     if (op === 'insert') {
+      if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
       if (table === 'chat_messages' && faults.uniqueOnClaim && payload!.role === 'user' && payload!.client_message_id) return { data: null, error: { code: '23505', message: 'duplicate key' } };
       if (table === 'chat_messages' && faults.assistantInsert && payload!.role === 'assistant') return { data: null, error: { code: '500', message: 'down' } };
       if (table === 'chat_sessions' && rows().some(r => r.id === payload!.id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
@@ -95,7 +98,7 @@ const msgs = (sessionId: unknown) => (db.chat_messages || []).filter(m => m.sess
 let logged: string[] = [];
 beforeEach(() => {
   for (const k of Object.keys(db)) delete db[k];
-  Object.assign(faults, { txUpdate: false, assistantInsert: false, uniqueOnClaim: false });
+  Object.assign(faults, { txUpdate: false, assistantInsert: false, uniqueOnClaim: false, activityLog: false });
   txUpdateCalls = 0;
   authState.userId = ALICE;
   db.transactions = [
@@ -322,5 +325,27 @@ describe('T-H1b — ownership, masking, restoration, compatibility', () => {
     const { res } = await act({ intent: 'commit', matchValue: 'uber', targetCategory: 'Transportation', conversation: { clientMessageId: 'msg_bad_00001' } });
     expect(res.statusCode).toBe(400);
     expect(txUpdateCalls).toBe(0);
+  });
+});
+
+describe('tag-action audit log (non-blocking)', () => {
+  it('fix_type succeeds and writes the activity log (the old .catch() threw a TypeError and returned 500)', async () => {
+    const { res, json } = await act({ intent: 'fix_type', transactionId: 't1', newType: 'income' });
+    expect(res.statusCode).toBe(200);
+    expect(json).toMatchObject({ ok: true, intent: 'fix_type', newType: 'income' });
+    expect(tx('t1')).toMatchObject({ type: 'income', category: 'Income', category_source: 'user_type_fix' });
+    expect(db.tag_activity_log).toHaveLength(1);
+    expect(db.tag_activity_log[0]).toMatchObject({ user_id: ALICE, action_type: 'type_fix', transaction_id: 't1' });
+  });
+  it("a failed log write never fails the customer's change", async () => {
+    faults.activityLog = true;
+    const { res, json } = await act({ intent: 'fix_type', transactionId: 't2', newType: 'income' });
+    expect(res.statusCode).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(tx('t2').type).toBe('income');
+  });
+  it('no Supabase query in tag-action chains .catch() (builders are thenables without catch)', () => {
+    const src = readFileSync(resolve(__dirname, '../tag-action.ts'), 'utf8');
+    expect(src).not.toMatch(/\}\)\.catch\(\(\) => \{\}\);/);
   });
 });
