@@ -7,6 +7,15 @@ import { TAG_CATEGORIES } from './_shared/tagCategories.js';
 import { searchTransactions } from './_shared/txSearchCore.js';
 import { resolveFocusedTransaction } from './_shared/tagFocusedTransaction.js';
 import {
+  loadTagSpendingSummary,
+  loadCategorizationProgress,
+  formatSpendingBlock,
+  formatProgressBlock,
+  summarizeSearchTotals,
+  isSmallTalk,
+  TAG_FINANCIAL_RULES,
+} from './_shared/tagFinancialContext.js';
+import {
   openEmployeeConversation,
   loadConversationHistory,
   claimConversationTurn,
@@ -26,12 +35,6 @@ interface LearnedRule {
   vendor_key: string;
   category: string;
   updated_at: string;
-}
-
-interface CategorySummary {
-  category: string;
-  count: number;
-  total: number;
 }
 
 // ─── Tool definitions ──────────────────────────────────────────────────────
@@ -194,41 +197,38 @@ const TAG_TOOLS = [
   },
 ];
 
-function buildSystemPrompt(
+/**
+ * T-LIVE-01: Tag's system prompt. It carries NO income, total-spent or cash-flow figure. Money figures
+ * reach Tag only through the server-calculated VERIFIED SPENDING TOTALS block (with its scope), which
+ * the caller appends — and never for a pure greeting (`smallTalk`).
+ */
+export function buildSystemPrompt(
   learnedRules: LearnedRule[],
-  categorySummary: CategorySummary[],
-  uncategorizedCount: number,
   flaggedMerchants: { merchant: string; amount: number; category: string }[],
-  yearTotal: { spent: number; income: number }
+  progressBlock: string,
+  smallTalk = false,
 ): string {
   const rulesText = learnedRules.length > 0
     ? learnedRules.map(r => `  ${r.vendor_key} → ${r.category}`).join('\n')
     : '  No rules learned yet';
 
-  const catText = categorySummary
-    .slice(0, 8)
-    .map(c => `  ${c.category}: ${c.count} txns, $${c.total.toLocaleString()}`)
-    .join('\n');
-
   const flaggedText = flaggedMerchants.length > 0
     ? flaggedMerchants.slice(0, 5).map(f => `  ${f.merchant} $${f.amount.toFixed(2)} (currently: ${f.category})`).join('\n')
     : '  None';
 
-  return `You are Tag — XspensesAI's sharp, friendly categorization expert. You are speaking with the user from the Categories dashboard. You have full visibility into their spending categories and the rules you have learned.
-
-USER'S FINANCES (recent activity — up to 1500 most recent transactions):
-- Total spent: $${yearTotal.spent.toLocaleString()}
-- Total income: $${yearTotal.income.toLocaleString()}
-- Uncategorized transactions: ${uncategorizedCount}
-
-SPENDING CATEGORIES:
-${catText}
+  const contextBlock = smallTalk
+    ? `THIS MESSAGE IS A GREETING OR PLEASANTRY. Reply warmly and briefly like a friend would (one or two short sentences), and at most offer to help with categorizing. Do NOT mention any amount, total, count, category breakdown or opinion about their finances.`
+    : `${progressBlock}
 
 RULES I HAVE LEARNED (vendor → category):
 ${rulesText}
 
-TRANSACTIONS NEEDING REVIEW:
-${flaggedText}
+TRANSACTIONS NEEDING A CATEGORY (newest):
+${flaggedText}`;
+
+  return `You are Tag — XspensesAI's sharp, friendly categorization expert. You are speaking with the user from the Categories dashboard. Your job is categorization: categories, subcategories, merchant names and the rules you have learned.
+
+${contextBlock}
 
 ═══════════════════════════════════════════════════════════════════════
 HOW YOU MAKE CHANGES — READ CAREFULLY
@@ -259,8 +259,11 @@ SEARCH RESULTS DISPLAY RULES — CRITICAL:
   - The search returns { totalMatches, returnedCount, transactions[] }.
   - NEVER dump raw transaction rows into chat. Users don't want a wall of text.
   - Default limit is 25. Use 10-25 for normal requests.
-  - When results arrive, SUMMARIZE first: "I found **47** Subscriptions
-    transactions totaling **$1,200**. Here are the **10 most recent**:"
+  - When results arrive, SUMMARIZE first using ONLY the server's figures in
+    the result. If the result says COMPLETE you may quote its totals with
+    their scope; if it says SAMPLE ONLY, give the count shown and the total
+    count, never a dollar total ("Here are the **10 most recent** of **47**").
+  - Never add up, average or re-total the rows yourself.
   - Show a USEFUL SUBSET (10-25 rows), formatted cleanly.
   - When totalMatches > returnedCount, ALWAYS tell the user:
     "There are **37 more** — want me to narrow by date, merchant, or amount?"
@@ -329,7 +332,12 @@ YOUR PERSONALITY AND VOICE
 - HARD LIMIT: Maximum 2 sentences, then ONE question. No bullet points, no lists, no headers.
 - When proposing a change, the second sentence is your confirmation question.
 - After a tool fires, the system writes the confirmation — you don't speak.
-- Example: "Transfers are eating **44%** of your spend — that's unusually high. What are those payments going to?"
+- Greetings get a natural, friendly reply — no numbers, no financial summary, no unsolicited assessment.
+  Example: user "hi tag how are you" → "Doing great, thanks for asking! Want me to tidy up anything in your categories today?"
+- Example (categorization): "Those **12** Uber charges are sitting in Shopping — want me to move them to Transportation?"
+
+═══════════════════════════════════════════════════════════════════════
+${TAG_FINANCIAL_RULES}
 
 FORMATTING:
 - Wrap key numbers in **double asterisks**: dollar amounts, counts, percentages, dates.
@@ -348,7 +356,7 @@ When flagging:
 - State it's high-interest lending + rough APR range (e.g. "30-40%+")
 - Confirm you're categorizing as Debt Payments
 - Offer to loop in Goalie for a payoff plan
-- Example: "Lend Direct is a Canadian alternative lender — APRs typically **30-45%**. I see **8** payments totaling **$331**. Want me to loop in Goalie?"
+- Example: "Lend Direct is a Canadian alternative lender — APRs typically **30-45%**. Want me to loop in Goalie?" (Only quote a payment total if it appears in VERIFIED SPENDING TOTALS or a COMPLETE search result.)
 
 Do NOT flag: prime banks (RBC, TD, BMO, Scotia, CIBC), credit unions, mortgages, auto loans from major lenders, student loans, regular credit card payments.
 
@@ -490,120 +498,80 @@ export const handler: Handler = async (event) => {
       .limit(50);
     const learnedRules: LearnedRule[] = rulesData || [];
 
-    // 2. Load transactions (cap at 1500, ordered by recency).
-    // Order-by-date + 1500 covers ~6-12 months for most users — wide enough
-    // that mid-range merchants like Urban Kids or Sportsnet stay visible.
-    let txQuery = supabase
-      .from('transactions')
-      .select('amount, category, merchant_name, posted_at, date, import_id, subcategory')
-      .eq('user_id', auth.userId)
-      .order('posted_at', { ascending: false, nullsFirst: false });
-    if (importId) txQuery = txQuery.eq('import_id', importId);
-    const { data: allTxs } = await txQuery.limit(1500);
+    // 2. T-LIVE-01: verified financial context. A pure greeting gets none of it (no financial
+    // figures can be volunteered). Otherwise money figures come only from the shared engine
+    // (complete paged fetch, spending purpose, reconciled breakdowns, scope line) and
+    // categorization progress from exact counts over the full scope.
+    const smallTalk = isSmallTalk(message);
+    let progressBlock = '';
+    let merchantDataBlock = '';
+    let flaggedMerchants: { merchant: string; amount: number; category: string }[] = [];
+    let accountCurrency = 'CAD';
+    if (!smallTalk) {
+      const [spendingSummary, progress] = await Promise.all([
+        loadTagSpendingSummary(supabase, auth.userId, { importId: importId || null }),
+        loadCategorizationProgress(supabase, auth.userId, importId || null),
+      ]);
+      progressBlock = formatProgressBlock(progress);
+      accountCurrency = spendingSummary.scope.currency;
 
-    // 2b. Source attribution: resolve import_id → statement display label.
-    const importIds = Array.from(new Set((allTxs || []).map(t => t.import_id).filter(Boolean))) as string[];
-    const importMap: Record<string, { label: string; issuer: string | null }> = {};
-    if (importIds.length > 0) {
-      try {
-        const { data: impData } = await supabase
-          .from('imports')
-          .select('id, filename, issuer')
-          .in('id', importIds);
-        for (const imp of impData || []) {
-          const baseName = String(imp.filename || '').replace(/\.(pdf|csv|xlsx?|txt)$/i, '').trim();
-          const issuer = imp.issuer ? String(imp.issuer) : null;
-          const label = issuer && baseName
-            ? `${issuer} · ${baseName}`
-            : (issuer || baseName || '(unknown statement)');
-          importMap[imp.id] = { label, issuer };
-        }
-      } catch (e: any) {
-        console.error('[tag-copilot] imports lookup failed:', e?.message);
-      }
-    }
+      // Recent rows (row facts, not totals) with source attribution.
+      let recentQuery = supabase
+        .from('transactions')
+        .select('amount, category, merchant_name, posted_at, date, import_id')
+        .eq('user_id', auth.userId)
+        .order('posted_at', { ascending: false, nullsFirst: false });
+      if (importId) recentQuery = recentQuery.eq('import_id', importId);
+      const { data: recentData } = await recentQuery.limit(20);
+      const recentTxs = recentData || [];
 
-    // 3. Aggregate by category
-    const catMap: Record<string, { count: number; total: number }> = {};
-    let yearSpent = 0;
-    let yearIncome = 0;
-    for (const t of allTxs || []) {
-      const amt = Math.abs(Number(t.amount || 0));
-      const cat = t.category || 'Other';
-      if (cat === 'Income') { yearIncome += amt; continue; }
-      yearSpent += amt;
-      if (!catMap[cat]) catMap[cat] = { count: 0, total: 0 };
-      catMap[cat].count++;
-      catMap[cat].total += amt;
-    }
-    const categorySummary: CategorySummary[] = Object.entries(catMap)
-      .sort((a, b) => b[1].total - a[1].total)
-      .map(([category, d]) => ({ category, count: d.count, total: Math.round(d.total) }));
-
-    const flaggedMerchants = (allTxs || [])
-      .filter(t => !t.category || t.category === 'Uncategorized' || t.category === 'Other')
-      .slice(0, 5)
-      .map(t => ({
+      let flaggedQuery = supabase
+        .from('transactions')
+        .select('amount, category, merchant_name')
+        .eq('user_id', auth.userId)
+        .or('category.is.null,category.eq.,category.eq.Uncategorized,category.eq.Needs Review')
+        .order('posted_at', { ascending: false, nullsFirst: false });
+      if (importId) flaggedQuery = flaggedQuery.eq('import_id', importId);
+      const { data: flaggedData } = await flaggedQuery.limit(5);
+      flaggedMerchants = (flaggedData || []).map(t => ({
         merchant: t.merchant_name || 'Unknown',
         amount: Math.abs(Number(t.amount || 0)),
         category: t.category || 'Uncategorized',
       }));
-    const uncategorizedCount = (allTxs || []).filter(
-      t => !t.category || t.category === 'Uncategorized'
-    ).length;
 
-    // 3b. Merchant-level data so Tag can answer "how much at Rogers?"
-    const merchantMap: Record<string, { count: number; total: number; category: string; lastDate: string }> = {};
-    for (const t of allTxs || []) {
-      const m = String(t.merchant_name || 'Unknown').trim();
-      if (!m || m === 'Unknown') continue;
-      const amt = Math.abs(Number(t.amount || 0));
-      const d = t.posted_at || t.date || '';
-      if (!merchantMap[m]) {
-        merchantMap[m] = { count: 0, total: 0, category: t.category || 'Uncategorized', lastDate: d };
+      const importIds = Array.from(new Set(recentTxs.map(t => t.import_id).filter(Boolean))) as string[];
+      const importMap: Record<string, { label: string }> = {};
+      if (importIds.length > 0) {
+        try {
+          const { data: impData } = await supabase
+            .from('imports')
+            .select('id, filename, issuer')
+            .in('id', importIds);
+          for (const imp of impData || []) {
+            const baseName = String(imp.filename || '').replace(/\.(pdf|csv|xlsx?|txt)$/i, '').trim();
+            const issuer = imp.issuer ? String(imp.issuer) : null;
+            importMap[imp.id] = { label: issuer && baseName ? `${issuer} · ${baseName}` : (issuer || baseName || '(unknown statement)') };
+          }
+        } catch (e: any) {
+          console.error('[tag-copilot] imports lookup failed:', e?.message);
+        }
       }
-      merchantMap[m].count++;
-      merchantMap[m].total += amt;
-      if (d > merchantMap[m].lastDate) merchantMap[m].lastDate = d;
-    }
-    const topMerchants = Object.entries(merchantMap)
-      .sort((a, b) => b[1].total - a[1].total)
-      .slice(0, 30);
 
-    const recentTxs = [...(allTxs || [])]
-      .sort((a, b) => String(b.posted_at || b.date || '').localeCompare(String(a.posted_at || a.date || '')))
-      .slice(0, 20);
+      merchantDataBlock = `\n\n${formatSpendingBlock(spendingSummary)}
 
-    const totalCount = (allTxs || []).length;
-    const needsReviewCount = (allTxs || []).filter(t => t.category === 'Needs Review').length;
-    const categorizedCount = totalCount - uncategorizedCount - needsReviewCount;
-
-    const merchantDataBlock = `\n\nMERCHANT DATA (real numbers from the user's actual transactions)${importId ? ' — SCOPED TO ONE STATEMENT' : ''}:
-
-TOP MERCHANTS BY TOTAL:
-${topMerchants.length > 0
-  ? topMerchants.map(([m, d]) => `  ${m}: $${d.total.toFixed(2)} across ${d.count} txn${d.count !== 1 ? 's' : ''} (last: ${d.lastDate || 'unknown'}, cat: ${d.category})`).join('\n')
-  : '  (none)'}
-
-RECENT TRANSACTIONS (newest first):
+RECENT TRANSACTIONS (newest first; individual rows, not totals):
 ${recentTxs.length > 0
   ? recentTxs.map(t => {
       const src = t.import_id && importMap[t.import_id] ? ` from ${importMap[t.import_id].label}` : '';
       return `  ${t.posted_at || t.date || '?'} ${t.merchant_name || 'Unknown'} $${Math.abs(Number(t.amount || 0)).toFixed(2)} [${t.category || 'Uncategorized'}]${src}`;
     }).join('\n')
   : '  (none)'}
-
-TRANSACTION COUNTS${importId ? ' (this statement only)' : ''}:
-  Total: ${totalCount}
-  Categorized: ${categorizedCount}
-  Uncategorized: ${uncategorizedCount}
-  Needs Review: ${needsReviewCount}
 ${importId ? '\nSCOPE: You are looking at ONE specific statement (import_id: ' + importId + '). Answer questions about THIS statement unless the user explicitly asks about their overall picture.' : ''}
 
-RULES FOR USING MERCHANT DATA:
-- When the user asks about a specific merchant, search TOP MERCHANTS and RECENT TRANSACTIONS above. Quote the exact amounts and counts you find there.
-- If a merchant isn't in the lists, say so honestly — don't guess.
-- Never invent amounts. Every number in your reply must appear in the data above.`;
+RULES FOR USING THIS DATA:
+- For a merchant or category total, use VERIFIED SPENDING TOTALS only, with its scope line. If the merchant isn't listed there, say you don't have a verified total for it (offer to search).
+- Never invent amounts, and never compute one: every amount in your reply must appear verbatim above or in a tool result.`;
+    }
 
     // 3c. Focused transaction block. When the panel is opened from a drawer
     // or single-row context, the caller passes focusedTransaction with the
@@ -665,7 +633,7 @@ If there are zero other matching transactions (other count = 0), the server will
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
-      system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }) + merchantDataBlock + focusedTransactionBlock,
+      system: buildSystemPrompt(learnedRules, flaggedMerchants, progressBlock, smallTalk) + merchantDataBlock + focusedTransactionBlock,
       tools: TAG_TOOLS,
       messages: [
         ...storedHistory,
@@ -1079,7 +1047,39 @@ REQUIREMENTS:
           action.searchResults = result.transactions;
 
           // ── Two-turn pattern: feed results back to Claude ──────────
-          // Build machine-readable tool_result for the model (NOT user-facing).
+          // T-LIVE-01 F-6: the money figures in the tool result are server-calculated. Totals are given
+          // only when EVERY match was returned (split by the engine's classification of each row's
+          // stored type); a partial result is labelled a sample and carries no dollar total.
+          const classification = new Map<string, { type: string | null; category: string | null; subcategory: string | null }>();
+          if (result.returnedCount > 0 && result.returnedCount >= result.totalMatches) {
+            try {
+              const { data: typeRows } = await supabase
+                .from('transactions')
+                .select('id, type, category, subcategory')
+                .eq('user_id', auth.userId)
+                .in('id', result.transactions.map(r => r.id));
+              for (const t of typeRows || []) {
+                classification.set(String(t.id), { type: t.type ?? null, category: t.category ?? null, subcategory: t.subcategory ?? null });
+              }
+            } catch (e) {
+              console.error('[tag-copilot] search classification lookup failed:', e instanceof Error ? e.message : 'unknown');
+            }
+          }
+          const filtersLabel = [
+            searchParams.q ? `text "${searchParams.q}"` : '',
+            searchParams.category ? `category ${searchParams.category}` : '',
+            searchParams.uncategorizedOnly ? 'uncategorized only' : '',
+            searchParams.startDate || searchParams.endDate ? `dates ${searchParams.startDate || 'start'} to ${searchParams.endDate || 'latest'}` : 'all dates',
+            searchParams.importId ? 'one statement' : 'all accounts',
+          ].filter(Boolean).join(', ');
+          const searchTotals = summarizeSearchTotals({
+            rows: result.transactions,
+            totalMatches: result.totalMatches,
+            classification,
+            currency: accountCurrency,
+            filtersLabel,
+          });
+
           let toolResultContent: string;
           if (result.returnedCount === 0) {
             toolResultContent = 'No transactions found matching the search.';
@@ -1087,37 +1087,24 @@ REQUIREMENTS:
             const dataLines = result.transactions.map((r, i) =>
               `[${i + 1}] id:${r.id} | ${r.posted_at || r.date || '?'} | ${r.merchant_name || 'Unknown'} | $${Math.abs(r.amount).toFixed(2)} | ${r.category || 'Uncategorized'}${r.subcategory ? ' / ' + r.subcategory : ''}`
             );
-            const totalAmt = result.transactions.reduce((s, r) => s + Math.abs(r.amount), 0);
             toolResultContent = [
-              `${result.totalMatches} total matches, showing ${result.returnedCount} newest (total $${totalAmt.toFixed(2)}).`,
+              searchTotals.text,
+              'Rows (individual transactions; do not add them up):',
               ...dataLines,
-              result.totalMatches > result.returnedCount
-                ? `(${result.totalMatches - result.returnedCount} more matches not shown — offer to narrow by date, merchant, or amount.)`
-                : '',
             ].filter(Boolean).join('\n');
           }
 
-          // Build a deterministic fallback in case the second call fails/times out.
+          // Build a deterministic fallback in case the second call fails/times out (same figures).
           let fallbackSummary: string;
           if (result.returnedCount === 0) {
             fallbackSummary = 'No matching transactions found.';
+          } else if (!searchTotals.complete) {
+            fallbackSummary = `Found **${result.totalMatches}** matching transaction${result.totalMatches !== 1 ? 's' : ''}; here are the **${result.returnedCount}** most recent. I don't have a verified total for all of them — want me to narrow by date, merchant, or amount?`;
           } else {
-            const totalAmt = result.transactions.reduce((s, r) => s + Math.abs(r.amount), 0);
-            const topMerchants = Object.entries(
-              result.transactions.reduce<Record<string, number>>((m, r) => {
-                const key = r.merchant_name || 'Unknown';
-                m[key] = (m[key] || 0) + 1;
-                return m;
-              }, {})
-            ).sort((a, b) => b[1] - a[1]).slice(0, 5);
-            const merchantList = topMerchants.map(([name, count]) =>
-              `• ${name} (${count})`
-            ).join('\n');
-            fallbackSummary = `Found **${result.totalMatches}** transaction${result.totalMatches !== 1 ? 's' : ''} totaling **$${totalAmt.toFixed(2)}**.`
-              + `\n\nTop merchants:\n${merchantList}`
-              + (result.totalMatches > result.returnedCount
-                ? `\n\nShowing ${result.returnedCount} of ${result.totalMatches} — want me to narrow by date, merchant, or amount?`
-                : '');
+            fallbackSummary = searchTotals.text
+              .replace(/^COMPLETE: /, '')
+              .replace(/ — these add up exactly to the spending figure\./, '.')
+              .replace(/\(not analysed by Tag; income questions go to Prime\)/, '(income questions are best asked to Prime)');
           }
 
           // Second Claude call — same pattern as the follow-up question
@@ -1130,7 +1117,7 @@ REQUIREMENTS:
             const secondCall = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
               max_tokens: 600,
-              system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }) + merchantDataBlock + focusedTransactionBlock,
+              system: buildSystemPrompt(learnedRules, flaggedMerchants, progressBlock, smallTalk) + merchantDataBlock + focusedTransactionBlock,
               messages: [
                 ...storedHistory,
                 { role: 'user', content: modelMessage },

@@ -37,10 +37,10 @@ export const C4_PROVENANCE_CAVEAT =
   'Category-source labels are not fully reliable yet: some categories labelled as Tag rules or Tag chat may have been approved by the customer, so they are counted as possibly customer-approved and never proposed for change. Treat customer-confirmed counts as a minimum, not a guarantee.';
 
 // Source groups follow the C4 inventory (C4_category_integrity_plan.md §0).
-const CUSTOMER_SOURCES = new Set(['manual', 'manual_edit', 'user_correction', 'user_chat', 'user_edit', 'user_split', 'user_type_fix', 'user_undo', 'user_confirmed']);
+export const CUSTOMER_SOURCES: ReadonlySet<string> = new Set(['manual', 'manual_edit', 'user_correction', 'user_chat', 'user_edit', 'user_split', 'user_type_fix', 'user_undo', 'user_confirmed']);
 // Written both by customer-approved Tag actions AND by automatic writers. Until C4 separates them,
 // they are treated as possibly customer-approved: counted separately and never proposed for change.
-const AMBIGUOUS_SOURCES = new Set(['tag_chat', 'tag_rule']);
+export const AMBIGUOUS_SOURCES: ReadonlySet<string> = new Set(['tag_chat', 'tag_rule']);
 const AUTOMATIC_SOURCES = new Set(['ai', 'hardcoded', 'rule', 'merchant_map', 'merchant_sweep', 'sign_conflict', 'bulk_fix', 'xlsx-spreadsheet', 'learned', 'tag_single', 'tag_bulk', 'tag_conversation', 'tag_assisted']);
 
 export function classifyCategorySource(source: unknown): Provenance {

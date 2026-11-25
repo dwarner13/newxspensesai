@@ -105,7 +105,8 @@ describe('C2-G2 — source guarantees', () => {
   it('no code path reads the override into the prompt; both model calls use buildSystemPrompt', () => {
     expect(src).not.toMatch(/systemPromptOverride\s*\|\|/);
     expect(src).not.toMatch(/const \{[^}]*systemPromptOverride[^}]*\} = body;/);
-    expect(src.match(/system: buildSystemPrompt\(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, \{ spent: yearSpent, income: yearIncome \}\)/g)?.length).toBe(2);
+    // T-LIVE-01: the prompt no longer takes income / total-spent figures (verified spending is appended server-side).
+    expect(src.match(/system: buildSystemPrompt\(learnedRules, flaggedMerchants, progressBlock, smallTalk\)/g)?.length).toBe(2);
   });
   it('two-step confirmation and user-scoped writes are intact', () => {
     expect(src).toContain('FOLLOW THE TWO-STEP FLOW');
