@@ -37,3 +37,10 @@ describe('usePrimeChat wiring', () => {
     expect(hook).not.toMatch(/setActiveToolLabel\([^)]*args/);
   });
 });
+
+describe('usePrimeChat: save-failure reporting (owner: never silent)', () => {
+  it('a persisted:false done event or payload marks the reply meta.persisted = false', () => {
+    expect(hook).toMatch(/if \(j\.persisted === false && messageId\)[\s\S]{0,400}extraMeta: \{ persisted: false \}/);
+    expect(hook).toContain('if (payload?.persisted === false) extraMetaFromPayload.persisted = false;');
+  });
+});

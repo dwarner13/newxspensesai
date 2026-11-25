@@ -1058,6 +1058,17 @@ export function usePrimeChat(
           // PART C: Handle done event - finalize requestId and extract thread_id
           if (j.type === 'done') {
             setActiveToolLabel(null);
+            // Owner: a failed conversation save is reported, never silent (server sends persisted:false).
+            if (j.persisted === false && messageId) {
+              upsertAssistantMessage({
+                messageId,
+                requestId,
+                content: textByRequestRef.current.get(requestId) || aiText || '',
+                isStreaming: false,
+                employeeKey: employeeSlugToSend,
+                extraMeta: { persisted: false },
+              });
+            }
             // Mark request as finalized to prevent late chunks (if requestId provided)
             if (requestId) {
               finalizedRequestIdsRef.current.add(requestId);
@@ -1830,6 +1841,7 @@ export function usePrimeChat(
               extraMetaFromPayload.specialistConsultations = payload.specialistConsultations;
             }
             // P-1 item 4: verified financial visual, re-validated client-side.
+            if (payload?.persisted === false) extraMetaFromPayload.persisted = false; // owner: no silent save failures
             const financialVisual = validateFinancialVisual(payload?.financialVisual);
             if (financialVisual) extraMetaFromPayload.financialVisual = financialVisual;
             upsertAssistantMessage({
