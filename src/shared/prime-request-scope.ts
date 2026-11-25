@@ -156,8 +156,11 @@ export function applyCustomerScope<T extends TemporalScopeLike>(
   }
   const hasExplicitPeriod = !!remaining?.primary;
   const strong = hasStrongAllHistoryPhrase(message);
-  const weak = hasWeakAllHistoryPhrase(message);
-  const allHistory = !hasExplicitPeriod && (strong || weak);
+  // Only explicit all-history wording switches scope. Weak words ("overall", "in total", "all my
+  // transactions") do NOT: CP4 family 18 forbids a silent all-history answer to an unscoped total
+  // (owner decision O-5 pending, AI Architecture HQ 2026-11-25). Categorization status already
+  // defaults to all history in tag_status, so weak words add nothing there.
+  const allHistory = !hasExplicitPeriod && strong;
   return {
     temporalScope: allHistory ? null : remaining,
     allHistory,

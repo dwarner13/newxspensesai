@@ -262,3 +262,15 @@ describe('Completed correction history: authoritative, customer-isolated, no con
     expect(t.evidence).toContain("Tag's confirmed-action log could not be read this time");
   });
 });
+
+describe('CP4 family 18 preserved: weak words never switch scope to all history (O-5 pending)', () => {
+  for (const m of ['How much did I spend in total?', 'What is my income overall?', 'Show all my transactions']) {
+    it(m, () => {
+      const parsed = buildTemporalScope(m, { timezone: TZ, referenceDate: NOW }) as any;
+      expect(applyCustomerScope(parsed, m).allHistory).toBe(false);
+    });
+  }
+  it('but a categorization question with no period still covers all outstanding work', () => {
+    expect(tagStatusInputFromScope(null, false)).toEqual({ allHistory: true });
+  });
+});
