@@ -16,7 +16,8 @@
  */
 
 import type { Handler } from '@netlify/functions';
-import { admin } from './_shared/supabase.js';
+// SECURITY: no module-level import of the Supabase client. The denial below must run before any
+// dependency loads, so a deployed site always answers with an explicit 404, never a crash.
 
 export const handler: Handler = async (event, context) => {
   // SECURITY (P-1 memory audit): this endpoint reads any user's memory with the admin client and
@@ -30,6 +31,7 @@ export const handler: Handler = async (event, context) => {
       body: JSON.stringify({ error: 'Not found' }),
     };
   }
+  const { admin } = await import('./_shared/supabase.js');
 
   // Only allow GET requests
   if (event.httpMethod !== 'GET') {
