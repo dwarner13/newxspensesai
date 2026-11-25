@@ -1,7 +1,7 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
-import { getInternalBaseUrl } from './_shared/internalBaseUrl.js';
+import { learnFromCorrection } from './_shared/tag-learning.js';
 
 type RequestBody = {
   id?: string;
@@ -13,7 +13,16 @@ type RequestBody = {
   disableLearning?: boolean;
 };
 
-type LearnedResult = { applied: boolean; method?: string; vendor?: string | null };
+type LearnedResult = { applied: boolean; method?: string; vendor?: string | null; memory?: 'saved' | 'failed' | 'skipped' };
+
+/**
+ * Reliability round 2 (owner GO 2026-11-25), item 3: this endpoint is the CUSTOMER's manual category
+ * edit (transaction drawer, category drawer). It records the genuine customer source 'user_edit'.
+ * An AI tool must never use it to claim customer approval: server-side AI callers identify themselves
+ * with this header and are refused (AI changes go through Tag's signed proposal → customer "yes").
+ */
+export const AI_ORIGIN_HEADER = 'x-xai-origin';
+export const CUSTOMER_EDIT_SOURCE = 'user_edit';
 type Row = Record<string, any>;
 
 const headers = {
@@ -33,85 +42,27 @@ function pickVendor(bodyVendor: unknown, row: Row, table: 'transactions' | 'tran
   return String(data.merchant || data.description || data.memo || '').trim() || null;
 }
 
-function buildVendorLearningPayload(vendor: string | null, category: string, subcategory?: string | null): {
-  vendor: string | null;
-  category: string;
-  subcategory: string | null;
-} {
-  return {
-    vendor: vendor ? String(vendor).trim() : null,
-    category: String(category || '').trim(),
-    subcategory: subcategory ?? null,
-  };
-}
 
 async function tryVendorLearning(args: {
+  sb: ReturnType<typeof admin>;
   userId: string;
   txId: string;
   vendor: string | null;
   oldCategory: string | null;
   category: string;
-  subcategory?: string | null;
-  authHeader: string;
 }): Promise<LearnedResult> {
-  const { userId, txId, vendor, oldCategory, category, subcategory, authHeader } = args;
-  if (!vendor) return { applied: false, vendor: null };
-  const learningPayload = buildVendorLearningPayload(vendor, category, subcategory);
-
-  // P0-C2c: same-deploy origin for the JWT-forwarding learning calls. If it cannot be
-  // established, skip learning (the category change itself has already succeeded).
-  let baseUrl: string;
+  const { sb, userId, txId, vendor, oldCategory, category } = args;
+  if (!vendor) return { applied: false, vendor: null, memory: 'skipped' };
+  // One shared learning implementation (no HTTP hop to tag-learn, no legacy update-vendor-category
+  // fallback). applied === true only when the merchant memory was actually saved.
   try {
-    baseUrl = getInternalBaseUrl();
-  } catch {
-    return { applied: false, vendor };
-  }
-
-  // Prefer tag-learn first.
-  try {
-    const tagLearnRes = await fetch(`${baseUrl}/.netlify/functions/tag-learn`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: authHeader,
-        'x-user-id': userId,
-      },
-      body: JSON.stringify({
-        userId,
-        transactionId: txId,
-        vendor: learningPayload.vendor,
-        category: learningPayload.category,
-        subcategory: learningPayload.subcategory,
-        merchant: learningPayload.vendor,
-        oldCategory: oldCategory || 'Uncategorized',
-        newCategory: learningPayload.category,
-      }),
+    const outcome = await learnFromCorrection(sb as unknown as Parameters<typeof learnFromCorrection>[0], {
+      userId, transactionId: txId, merchant: vendor, oldCategory: oldCategory || 'Uncategorized', newCategory: category,
     });
-    if (tagLearnRes.ok) return { applied: true, method: 'tag-learn', vendor };
+    return { applied: outcome.memory === 'saved', method: 'tag-learning', vendor, memory: outcome.memory };
   } catch {
-    // fall through to update-vendor-category
+    return { applied: false, method: 'tag-learning', vendor, memory: 'failed' };
   }
-
-  try {
-    const updateVendorRes = await fetch(`${baseUrl}/.netlify/functions/update-vendor-category`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: authHeader,
-      },
-      body: JSON.stringify({
-        userId,
-        vendor: learningPayload.vendor,
-        category: learningPayload.category,
-        subcategory: learningPayload.subcategory,
-      }),
-    });
-    if (updateVendorRes.ok) return { applied: true, method: 'update-vendor-category', vendor };
-  } catch {
-    // no-op
-  }
-
-  return { applied: false, vendor };
 }
 
 export const handler: Handler = async (event) => {
@@ -123,6 +74,10 @@ export const handler: Handler = async (event) => {
   const auth = await verifyAuth(event);
   if (auth.error || !auth.userId) {
     return { statusCode: 401, headers, body: JSON.stringify({ error: auth.error || 'Unauthorized' }) };
+  }
+  const origin = String(event.headers?.[AI_ORIGIN_HEADER] || event.headers?.['X-Xai-Origin'] || '').trim().toLowerCase();
+  if (origin && origin !== 'customer') {
+    return { statusCode: 403, headers, body: JSON.stringify({ error: 'ai_origin_refused', message: "AI changes can't be recorded as your own edit. Ask Tag; it will show you the change and wait for your yes." }) };
   }
 
   try {
@@ -137,7 +92,6 @@ export const handler: Handler = async (event) => {
     }
 
     const sb = admin();
-    const authHeader = event.headers?.authorization || event.headers?.Authorization || '';
 
     if (table === 'transactions') {
       const { data: existing, error: existingError } = await sb
@@ -151,17 +105,20 @@ export const handler: Handler = async (event) => {
         return { statusCode: 404, headers, body: JSON.stringify({ error: 'Transaction not found' }) };
       }
 
-      let updatePayload: Record<string, any> = { category };
+      const updatePayload: Record<string, any> = { category, category_source: CUSTOMER_EDIT_SOURCE, updated_at: new Date().toISOString() };
       if (Object.prototype.hasOwnProperty.call(body, 'subcategory')) {
         updatePayload.subcategory = body.subcategory ?? null;
+        updatePayload.subcategory_source = CUSTOMER_EDIT_SOURCE;
       }
 
       let updateError: any = null;
-      ({ error: updateError } = await sb
+      let updatedRows: unknown = null;
+      ({ error: updateError, data: updatedRows } = await sb
         .from('transactions')
         .update(updatePayload)
         .eq('id', id)
-        .eq('user_id', auth.userId));
+        .eq('user_id', auth.userId)
+        .select('id'));
 
       if (updateError) {
         const code = String(updateError.code || '').trim();
@@ -179,6 +136,10 @@ export const handler: Handler = async (event) => {
         }
       }
       if (updateError) throw updateError;
+      if (!Array.isArray(updatedRows) || updatedRows.length !== 1) {
+        // Never report a change the database did not make.
+        return { statusCode: 409, headers, body: JSON.stringify({ error: 'not_updated' }) };
+      }
 
       const vendor = pickVendor(body.vendor, existing, table);
       const shouldLearnVendor =
@@ -186,15 +147,12 @@ export const handler: Handler = async (event) => {
       const learned =
         shouldLearnVendor
           ? await tryVendorLearning({
+              sb,
               userId: auth.userId,
               txId: id,
               vendor,
               oldCategory: String(existing.category || '').trim() || null,
               category,
-              subcategory: Object.prototype.hasOwnProperty.call(updatePayload, 'subcategory')
-                ? (updatePayload.subcategory ?? null)
-                : undefined,
-              authHeader,
             })
         : { applied: false, vendor: null };
       if (shouldLearnVendor) {
@@ -237,6 +195,7 @@ export const handler: Handler = async (event) => {
       ? { ...existing.data_json }
       : {};
     dataJson.category = category;
+    dataJson.category_source = CUSTOMER_EDIT_SOURCE;
     if (Object.prototype.hasOwnProperty.call(body, 'subcategory')) {
       dataJson.subcategory = body.subcategory ?? null;
     }
@@ -254,13 +213,12 @@ export const handler: Handler = async (event) => {
     const learned =
       shouldLearnVendor
         ? await tryVendorLearning({
+            sb,
             userId: auth.userId,
             txId: id,
             vendor,
             oldCategory: String((existing.data_json || {}).category || '').trim() || null,
             category,
-            subcategory: Object.prototype.hasOwnProperty.call(body, 'subcategory') ? (body.subcategory ?? null) : undefined,
-            authHeader,
           })
         : { applied: false, vendor: null };
     if (shouldLearnVendor) {

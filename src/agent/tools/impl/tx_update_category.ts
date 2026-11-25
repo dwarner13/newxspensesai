@@ -47,6 +47,9 @@ export async function execute(
       headers: {
         'content-type': 'application/json',
         authorization: authHeader,
+        // Reliability round 2 (owner GO 2026-11-25): an AI tool identifies itself so its change is
+        // never recorded as the customer's own edit (tx-update-category refuses AI-origin requests).
+        'x-xai-origin': 'ai-tool',
       },
       body: JSON.stringify(input),
       signal: ctx.abortSignal,

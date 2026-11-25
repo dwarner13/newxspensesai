@@ -348,6 +348,23 @@ async function handleConversationalAction(
       if (outcome.log) {
         await logTagActivity(supabase, { user_id: userId, ...outcome.log, created_at: new Date().toISOString() });
       }
+      // Reliability round 2: the inbox / Prime briefing learn the SAVED result (the database-verified
+      // count), never the suggestion count. Non-blocking: a failed notification never fails the change.
+      if (executed && pending.receipt.action === TAG_SUGGESTIONS_ACTION && typeof signedSubject.importId === 'string') {
+        try {
+          const { error: nErr } = await supabase.from('user_notifications').insert({
+            user_id: userId, employee_slug: 'tag-ai', type: 'tag_suggestions_applied',
+            title: "Tag's suggestions applied",
+            message: `You confirmed Tag's suggestions: ${outcome.count} transaction${outcome.count === 1 ? '' : 's'} saved.`,
+            priority: 'normal',
+            payload: { import_id: signedSubject.importId, applied_count: outcome.count, verified: true },
+            sent_at: new Date().toISOString(),
+          });
+          if (nErr) console.warn('[tag-action] applied-suggestions notification not written');
+        } catch {
+          console.warn('[tag-action] applied-suggestions notification not written');
+        }
+      }
     }
   } else if (intent === 'commit_single' && ctx.single) {
     const subject = { transactionId: ctx.single.transactionId, targetCategory: ctx.single.targetCategory ?? null, targetSubcategory: ctx.single.targetSubcategory ?? null };

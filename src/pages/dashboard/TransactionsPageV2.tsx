@@ -1444,7 +1444,8 @@ export default function TransactionsPageV2() {
       {/* Sweep notification banner inside Tag panel */}
       {tagPanelOpen && pendingSweep && (() => {
         const p = pendingSweep.payload || {};
-        const lines = (p.confident_groups ?? []).slice(0, 4).map((g: any) => `\u2713 ${g.merchant_name} \u00d7${g.count} \u2192 ${g.category}`);
+        // Reliability round 2: these are SUGGESTIONS (nothing saved yet) \u2014 no "done" checkmark.
+        const lines = (p.confident_groups ?? []).slice(0, 4).map((g: any) => `Suggested: ${g.merchant_name} \u00d7${g.count} \u2192 ${g.category}`);
         return (
           <div style={{ position: 'fixed', top: 0, right: 0, width: 380, zIndex: 72, padding: '12px 16px', background: '#0d1a2d', borderBottom: '1px solid rgba(34,211,238,0.2)', borderLeft: '1px solid rgba(34,211,153,0.15)' }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>

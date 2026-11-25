@@ -290,25 +290,24 @@ describe('tx-update-category learning calls', () => {
     return seen;
   }
 
-  it('forwards the verified JWT and the verified user id to tag-learn on this same deploy', async () => {
+  // Reliability round 2 (owner GO 2026-11-25): learning now runs IN-PROCESS through the shared
+  // tag-learning module for the verified user — there is no network hop, so no token or user id is
+  // forwarded anywhere and a deploy-preview URL cannot redirect it (stronger than the old guarantee).
+  it('learning runs in-process for the verified user: no network call, no token forwarding', async () => {
     process.env.DEPLOY_URL = DEPLOY;
     const seen = stubFetch();
     const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
     expect(r.statusCode).toBe(200);
-    expect(r.json.learned).toMatchObject({ applied: true, method: 'tag-learn' });
-    expect(seen[0].url).toBe(`${DEPLOY}/.netlify/functions/tag-learn`);
-    expect(seen[0].headers.authorization).toBe(`Bearer ${TOKEN_A}`);
-    expect(seen[0].headers['x-user-id']).toBe(USER_A);
-    expect(seen[0].body.userId).toBe(USER_A);
+    expect(r.json.learned).toMatchObject({ method: 'tag-learning' });
+    expect(seen).toHaveLength(0);
   });
 
-  it('without a same-deploy URL (deploy preview) the category still updates but learning is skipped', async () => {
+  it('on a deploy preview the category still updates and nothing is sent over the network', async () => {
     process.env.CONTEXT = 'deploy-preview';
     process.env.URL = 'https://xspensesai-staging.netlify.app';
     const seen = stubFetch();
     const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
     expect(r.statusCode).toBe(200);
-    expect(r.json.learned).toMatchObject({ applied: false });
     expect(seen).toHaveLength(0);
   });
 });

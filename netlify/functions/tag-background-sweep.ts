@@ -8,6 +8,7 @@ import type { Handler } from '@netlify/functions';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { computeImportSuggestions } from './_shared/tagImportSuggestions.js';
+import { isAutoWritable } from './_shared/categorySource.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -55,7 +56,7 @@ export const handler: Handler = async (event) => {
 
       // All transactions from this import for breakdown
       const { data: allImportTxs } = await sb
-        .from('transactions').select('id, category, amount, merchant_name').eq('user_id', userId).eq('import_id', importId);
+        .from('transactions').select('id, category, category_source, amount, merchant_name').eq('user_id', userId).eq('import_id', importId);
 
       const totalCount = allImportTxs?.length ?? 0;
 
@@ -77,8 +78,12 @@ export const handler: Handler = async (event) => {
       for (const tx of allImportTxs ?? []) { const m = tx.merchant_name || 'Unknown'; merchantMap[m] = (merchantMap[m] || 0) + 1; }
       const topMerchant = Object.entries(merchantMap).sort((a, b) => b[1] - a[1])[0] ?? null;
 
-      const autoCount = confident.length;
-      const needsInputCount = allImportTxs?.filter(t => !t.category || t.category === 'Needs Review' || t.category === 'Other' || t.category === 'Uncategorized').length ?? 0;
+      // Owner GO 2026-11-25 (reliability round 2): suggestions are NOT saved changes. The sweep saves
+      // nothing, so its saved count is 0; the verified saved count is reported when the customer
+      // confirms (tag-action commit_proposal → 'tag_suggestions_applied' notification).
+      const suggestedCount = confident.length;
+      // Still needing a category: gap rows a customer did not choose (a customer-kept "Other" is done).
+      const needsInputCount = (allImportTxs ?? []).filter(t => isAutoWritable(t)).length;
 
       const catLines = topCategories.map(c => `   ${c.category} - $${c.total.toFixed(2)} (${c.count} txns)`).join('\n');
       const reportMessage = [
@@ -86,7 +91,7 @@ export const handler: Handler = async (event) => {
         '',
         `${totalCount} transactions reviewed:`,
         // Nothing has been applied yet: these are suggestions awaiting the customer's confirmation.
-        `   \u2728 ${autoCount} ready to categorize from your own rules and history (confirm to apply)`,
+        `   \u2728 ${suggestedCount} suggested from your own rules and history (not applied yet \u2014 confirm to apply)`,
         needsInputCount > 0 ? `   \u26A0\uFE0F  ${needsInputCount} need your input` : '   \u2705 All categorized',
         '',
         topCategories.length > 0 ? `Top spending:\n${catLines}` : '',
@@ -103,7 +108,9 @@ export const handler: Handler = async (event) => {
         priority: 'high',
         payload: {
           import_id: importId, filename, month, total_count: totalCount,
-          auto_count: autoCount, needs_input_count: needsInputCount,
+          // suggested_count = proposals awaiting confirmation; applied_count / auto_count = SAVED changes
+          // (0: the sweep saves nothing). auto_count is kept for existing readers, never a suggestion count.
+          suggested_count: suggestedCount, applied_count: 0, auto_count: 0, needs_input_count: needsInputCount,
           top_categories: topCategories,
           top_merchant: topMerchant ? { name: topMerchant[0], count: topMerchant[1] } : null,
           confident_groups: confidentGroups, unsure_count: Object.keys(unsureMap).length,

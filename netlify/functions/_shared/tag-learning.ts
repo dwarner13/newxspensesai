@@ -92,3 +92,105 @@ export async function getLearnedCategoryForTransaction(
   }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reliability round 2 (owner GO 2026-11-25): the ONE learning-from-correction implementation.
+// Used directly by tag-learn and tx-update-category (no HTTP hop, no legacy fallback). It reports
+// exactly what was persisted: Tag "learned" a merchant only when the vendor memory was saved.
+// Callers must have verified that the transaction belongs to userId. No merchant text is logged.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LearnOutcome = {
+  feedbackSaved: boolean;
+  feedbackId: string | null;
+  /** 'saved' = the merchant memory was persisted; 'failed' = it was not; 'skipped' = no merchant. */
+  memory: 'saved' | 'failed' | 'skipped';
+};
+
+export function normalizeVendorKey(input: string): string {
+  return String(input || '').toLowerCase().trim().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function vendorFromDataJson(dataJson: Record<string, unknown> | null | undefined): string {
+  const d = dataJson || {};
+  return String(d.description || d.merchant || d.vendor || d.payee || d.memo || d.name || d.details || '').trim();
+}
+
+async function countHistoricalVendorUses(supabase: SupabaseClient, userId: string, vendorKey: string): Promise<number> {
+  const pageSize = 1000;
+  let offset = 0;
+  let total = 0;
+  for (let page = 0; page < 10; page++) {
+    const { data, error } = await supabase.from('transactions_staging').select('data_json').eq('user_id', userId).range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const rows = (data || []) as Array<{ data_json?: Record<string, unknown> | null }>;
+    for (const row of rows) if (normalizeVendorKey(vendorFromDataJson(row?.data_json)) === vendorKey) total += 1;
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+  return total;
+}
+
+/** Staging rows still awaiting review (tag_status 'needs_review') for this vendor. Non-blocking. */
+async function applyMemoryToNeedsReviewStaging(supabase: SupabaseClient, userId: string, vendorKey: string, category: string): Promise<void> {
+  const pageSize = 500;
+  let offset = 0;
+  for (let page = 0; page < 10; page++) {
+    const { data, error } = await supabase.from('transactions_staging').select('id, data_json, tag_status')
+      .eq('user_id', userId).eq('tag_status', 'needs_review').range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const rows = (data || []) as Array<{ id: string; data_json?: Record<string, unknown> | null }>;
+    if (rows.length === 0) break;
+    for (const row of rows) {
+      if (normalizeVendorKey(vendorFromDataJson(row?.data_json)) !== vendorKey) continue;
+      await supabase.from('transactions_staging').update({
+        tag_category: category, tag_rule_source: 'vendor_memory', tag_confidence: 0.95, tag_status: 'auto',
+        tag_reason: 'Learned from confirmed correction', tag_version: 'v1', tag_updated_at: new Date().toISOString(),
+      }).eq('id', row.id).eq('user_id', userId).eq('tag_status', 'needs_review');
+    }
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+}
+
+export async function learnFromCorrection(
+  supabase: SupabaseClient,
+  input: { userId: string; transactionId: string; merchant?: string | null; description?: string | null; oldCategory: string; newCategory: string },
+): Promise<LearnOutcome> {
+  const { userId, transactionId, merchant, description, oldCategory, newCategory } = input;
+  const { data, error } = await supabase.from('tag_category_feedback').insert({
+    user_id: userId, transaction_id: transactionId, merchant: merchant || null, description: description || null,
+    old_category: oldCategory, new_category: newCategory,
+  }).select().single();
+  if (error) return { feedbackSaved: false, feedbackId: null, memory: 'skipped' };
+  const feedbackId = (data as { id?: string } | null)?.id ?? null;
+
+  const vendorKey = merchant ? normalizeVendorKey(String(merchant)) : '';
+  if (!vendorKey) return { feedbackSaved: true, feedbackId, memory: 'skipped' };
+  try {
+    const historicalUseCount = await countHistoricalVendorUses(supabase, userId, vendorKey);
+    const { data: existingRow, error: existingErr } = await supabase.from('vendor_category_memory')
+      .select('metadata').eq('user_id', userId).eq('vendor_key', vendorKey).maybeSingle();
+    const existingMetadata = !existingErr && existingRow && typeof (existingRow as { metadata?: unknown }).metadata === 'object'
+      ? ((existingRow as { metadata?: Record<string, unknown> }).metadata ?? {}) : {};
+    const now = new Date().toISOString();
+    let { error: memoryError } = await supabase.from('vendor_category_memory').upsert({
+      user_id: userId, vendor_key: vendorKey, category: newCategory, subcategory: null,
+      metadata: { ...existingMetadata, memory_confidence: historicalUseCount >= 3 ? 'high' : 'learning', historical_use_count: historicalUseCount, learned_from: 'tag_learn', learned_at: now },
+      updated_at: now,
+    }, { onConflict: 'user_id,vendor_key' });
+    if (memoryError) {
+      // Fallback where the metadata column is unavailable.
+      ({ error: memoryError } = await supabase.from('vendor_category_memory').upsert({
+        user_id: userId, vendor_key: vendorKey, category: newCategory, subcategory: null, updated_at: now,
+      }, { onConflict: 'user_id,vendor_key' }));
+    }
+    if (memoryError) return { feedbackSaved: true, feedbackId, memory: 'failed' };
+    applyMemoryToNeedsReviewStaging(supabase, userId, vendorKey, newCategory).catch(() => {
+      console.warn('[tag-learning] retroactive staging apply failed (non-blocking)');
+    });
+    return { feedbackSaved: true, feedbackId, memory: 'saved' };
+  } catch {
+    return { feedbackSaved: true, feedbackId, memory: 'failed' };
+  }
+}
