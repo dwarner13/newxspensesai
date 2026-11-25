@@ -7,6 +7,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
 import { groupImportsIntoAccounts } from '@/lib/accountGroups';
+import { needsCategory, countNeedsCategory } from '@/lib/needsCategory';
 import { calendarDayOfTx, inDateRange, isRangeActive } from '@/lib/categoryPeriod';
 import { readTxToolbarParams, writeTxToolbarParams } from '@/lib/txToolbar';
 import { TX_LIST_POSITION_KEY, parsePosition, serializePosition, scrollContainer } from '@/lib/txListPosition';
@@ -603,7 +604,7 @@ export default function TransactionsPageV2() {
       if (t.import_id) importsWithActivity.add(t.import_id);
       if (isIncomeTx(t)) a.totalIncome += Math.abs(t.amount);
       else a.totalSpent += Math.abs(t.amount);
-      if (!t.category || t.category === 'Uncategorized' || t.category === 'Other') {
+      if (needsCategory(t.category)) {
         a.uncategorizedCount += 1;
       }
     });
@@ -662,7 +663,7 @@ export default function TransactionsPageV2() {
         list = list.filter(t => ids.has(t.import_id || ''));
       }
     }
-    if (needsCategoryOnly) list = list.filter(t => !t.category || t.category === 'Uncategorized');
+    if (needsCategoryOnly) list = list.filter(t => needsCategory(t.category));
     if (tagCategoryFilter) {
       list = list.filter(t => (t.category || '').toLowerCase() === tagCategoryFilter.toLowerCase());
     }
@@ -742,7 +743,7 @@ export default function TransactionsPageV2() {
 
   // AI insights — from filtered
   const insights = useMemo(() => {
-    const uncatCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
+    const uncatCount = countNeedsCategory(filtered);
     const catCount = filtered.length - uncatCount;
     const topCat = catData[0];
     const topPct = topCat && catTotal > 0 ? ((topCat.value / catTotal) * 100).toFixed(0) : '0';
@@ -806,7 +807,8 @@ export default function TransactionsPageV2() {
   }, []);
   useRevealReviewedTransaction({ highlightTxId, transactions, filtered, visibleCount, setVisibleCount, applyFilters: applyRevealFilters });
 
-  const uncategorizedCount = filtered.filter(t => !t.category || t.category === 'Uncategorized').length;
+  // Owner rule: one shared predicate for the strip, banner, toolbar filter and rows.
+  const uncategorizedCount = countNeedsCategory(filtered);
   const isStatementMode = statementFilter !== 'all';
   const activeStatement = isStatementMode ? stmtOptions.find(s => s.id === statementFilter) : null;
   const activeStatementLabel = activeStatement?.label || 'Statement';
@@ -1262,7 +1264,7 @@ export default function TransactionsPageV2() {
               </div>
               {g.txs.map(t => {
                 const cat = t.category || 'Uncategorized';
-                const isUncat = !t.category || t.category === 'Uncategorized';
+                const isUncat = needsCategory(t.category);
                 const isIncome = isIncomeTx(t);
                 const isDupe = isDuplicate(t);
                 const accountName = t.import_id ? accountNameByImport.get(t.import_id) || null : null;

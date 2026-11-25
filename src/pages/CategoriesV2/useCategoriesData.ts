@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useTransactions } from "@/hooks/useTransactions";
 import type { CategoryData, SubcategoryChip } from "./categoryConfig";
 import { getCategoryMeta } from "./categoryConfig";
+import { needsCategory, countNeedsCategory } from "@/lib/needsCategory";
 import { calendarDayOfTx, periodKeyOf, yearOf, inDateRange, isRangeActive, type DateRange } from "@/lib/categoryPeriod";
 
 const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
@@ -261,20 +262,17 @@ export function useCategoriesData(selectedPeriod?: string, selectedYear?: number
     const totalSpent = categories.filter(c => c.name !== "Transfers").reduce((s, c) => s + c.spent, 0);
     const totalBudget = categories.reduce((s, c) => s + c.budget, 0);
 
-    const uncategorizedCount = periodFiltered.filter(
-      t => !t.category || t.category === "Uncategorized" || t.category === "Other"
-    ).length;
+    // Owner rule (2026-11-25): uncategorized only; a customer-approved 'Other' is not counted.
+    const uncategorizedCount = countNeedsCategory(periodFiltered);
 
     const flaggedTransactions: FlaggedTransaction[] = periodFiltered
-      .filter(t => !t.category || t.category === "Uncategorized" || t.category === "Other")
+      .filter(t => needsCategory(t.category))
       .slice(0, 5)
       .map(t => ({
         id: t.id,
         merchant: t.merchant_name || "Unknown",
         amount: `$${Math.abs(t.amount).toFixed(2)}`,
-        issue: !t.category || t.category === "Uncategorized"
-          ? "Uncategorized \u2014 Tag needs your input"
-          : "Categorized as Other \u2014 can you be more specific?",
+        issue: "Uncategorized \u2014 Tag needs your input",
         category: t.category || "Uncategorized",
       }));
 

@@ -35,7 +35,7 @@ describe('position helpers', () => {
 
 describe('page wiring', () => {
   it('"Needs category" uses the existing uncategorized check and is a pressed-state toggle', () => {
-    expect(page).toMatch(/if \(needsCategoryOnly\) list = list\.filter\(t => !t\.category \|\| t\.category === 'Uncategorized'\);/);
+    expect(page).toMatch(/if \(needsCategoryOnly\) list = list\.filter\(t => needsCategory\(t\.category\)\);/);
     expect(page).toMatch(/aria-pressed=\{needsCategoryOnly\} onClick=\{\(\) => setNeedsCategoryOnly\(v => !v\)\}/);
   });
 
