@@ -251,6 +251,21 @@ export function isInventoryQuestion(msg: string): boolean {
 }
 /** F2: words that end a multi-word merchant name after "at/from X". */
 const MERCHANT_CONNECTOR_WORDS = new Set(['in', 'on', 'for', 'during', 'from', 'to', 'this', 'last', 'and', 'or', 'with', 'i', 'my']);
+/**
+ * D2 (owner 2026-11-25): ordinary words that follow "at/from" but are never a merchant
+ * ("from the beginning", "at least $50", "from last month", "from all my accounts").
+ */
+const PREPOSITIONAL_STOPWORDS = new Set([
+  'the', 'a', 'an', 'least', 'most', 'all', 'any', 'some', 'every', 'each', 'both', 'once', 'first', 'next', 'past',
+  'previous', 'current', 'beginning', 'start', 'end', 'now', 'then', 'home', 'work', 'our', 'your', 'their', 'his', 'her',
+  'its', 'that', 'these', 'those', 'what', 'which', 'where', 'when', 'about', 'around', 'over', 'under', 'between',
+  'before', 'after', 'since', 'until', 'today', 'yesterday', 'tomorrow', 'week', 'month', 'year', 'quarter', 'time',
+]);
+/** D2: a captured "merchant" whose first word is a stopword is not a merchant hint. */
+function isStopwordCapture(capture: string): boolean {
+  const first = capture.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+  return NON_MERCHANT_WORDS.has(first) || MERCHANT_CONNECTOR_WORDS.has(first) || PREPOSITIONAL_STOPWORDS.has(first);
+}
 
 export function extractMerchantHint(msg: string): string | undefined {
   return extractMerchantHintWithSource(msg)?.hint;
@@ -266,7 +281,9 @@ export function extractMerchantHintWithSource(msg: string): { hint: string; sour
   // phrases like "talk to if", "go to for". Compound forms (paid to, sent to)
   // are retained because they strongly signal a merchant/payee context.
   const match = msg.match(/\b(?:at|from|paid to|sent to|spent at|bought at|purchased at|charges? from)\s+([A-Z][a-zA-Z0-9'&-]{1,30})\b/i);
-  if (match?.[1]) {
+  // D2: a stopword capture ("the", "least", "last"…) is not a merchant; fall through to the
+  // secondary patterns instead of producing a merchant hint / tx_search q=<stopword>.
+  if (match?.[1] && !isStopwordCapture(match[1])) {
     // F2: multi-word merchant names ("at Peace Hills") — extend with up to two following
     // Capitalized words (case-sensitive), never month names or connector words.
     const after = msg.slice((match.index ?? 0) + match[0].length);
@@ -364,8 +381,10 @@ function extractExactAmount(msg: string): number | undefined {
  * followed by a 1-2 digit number. Rejects dollar amounts, dates, and years.
  */
 function extractRequestedCount(msg: string): number | undefined {
+  // D1 (owner 2026-11-25): "last 3 months" / "past 2 weeks" is a PERIOD, not a row count.
+  // The negative lookahead rejects a number followed by a period unit; "last 3 transactions" still counts.
   const match = msg.match(
-    /\b(?:last|show(?:\s+me)?|top|first|recent|latest|newest|oldest)\s+(\d{1,2})\b/i
+    /\b(?:last|show(?:\s+me)?|top|first|recent|latest|newest|oldest)\s+(\d{1,2})\b(?!\s*(?:days?|weeks?|wks?|months?|mos?|quarters?|qtrs?|years?|yrs?)\b)/i
   );
   if (!match) return undefined;
   const n = parseInt(match[1], 10);

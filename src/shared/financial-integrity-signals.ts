@@ -48,7 +48,10 @@ export interface FinancialIntegritySignals {
 }
 
 /** Categories that are not ordinary spending on an inflow (no refund signal). */
-const NOT_A_REFUND_CATEGORY = new Set(['', 'uncategorized', 'other', 'income', 'business income', 'employment income']);
+// Income-like categories are never refund signals (interest earned, dividends, benefits…).
+const NOT_A_REFUND_CATEGORY = new Set(['', 'uncategorized', 'other', 'income', 'business income', 'employment income',
+  'interest', 'interest income', 'interest earned', 'dividends', 'dividend', 'investment income', 'rental income',
+  'government benefits', 'benefits', 'pension', 'cashback', 'rewards']);
 
 function normaliseText(row: SignalRow): string {
   return String(row.merchant_name || row.merchant || row.description || '')

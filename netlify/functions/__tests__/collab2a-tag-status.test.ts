@@ -77,7 +77,7 @@ beforeEach(() => {
     transactions: [
       tx('a1', USER_A, '7-ELEVEN STORE', 'Transfers', 'ai', '2026-11-03'),
       tx('a2', USER_A, '7-ELEVEN STORE', 'Transfers', 'tag_rule', '2026-11-04'),
-      tx('a3', USER_A, 'SOBEYS', 'Business Income', 'manual', '2026-11-05'),          // customer-confirmed → never proposed
+      tx('a3', USER_A, 'SOBEYS', 'Business Income', 'manual', '2026-11-05'),          // protected (origin unverified) → never proposed
       tx('a4', USER_A, 'NETFLIX', 'Subscriptions', 'user_correction', '2026-11-06'),
       tx('a5', USER_A, 'MYSTERY', 'Uncategorized', null, '2026-11-07'),
       tx('a6', USER_A, 'SOMEWHERE', 'Other', 'needs_review', '2026-11-08'),
@@ -142,8 +142,11 @@ describe('scope precedence (owner decision)', () => {
 
 describe('category source classification (C4 caveat)', () => {
   it.each([
-    ['manual', 'customer_confirmed'], ['manual_edit', 'customer_confirmed'], ['user_correction', 'customer_confirmed'], ['user_chat', 'customer_confirmed'], ['user_edit', 'customer_confirmed'],
-    ['tag_rule', 'possibly_customer_approved'], ['tag_chat', 'possibly_customer_approved'],
+    // Owner GO 2026-11-25 item 3: only in-app customer actions are verified; the rest is protected (origin unverified).
+    ['user_edit', 'verified_customer'], ['user_split', 'verified_customer'], ['user_type_fix', 'verified_customer'],
+    ['manual', 'protected_unverified'], ['manual_edit', 'protected_unverified'], ['user_correction', 'protected_unverified'], ['user_chat', 'protected_unverified'],
+    ['user_undo', 'protected_unverified'], ['user_confirmed', 'protected_unverified'],
+    ['tag_rule', 'protected_unverified'], ['tag_chat', 'protected_unverified'],
     ['ai', 'automatic'], ['bulk_fix', 'automatic'], ['merchant_sweep', 'automatic'], ['learned', 'automatic'], ['tag_single', 'automatic'], ['hardcoded', 'automatic'],
     ['needs_review', 'needs_review'], [null, 'unknown'], ['something_new', 'unknown'],
   ])('%s → %s', (src, want) => { expect(classifyCategorySource(src)).toBe(want); });
@@ -156,7 +159,7 @@ describe('tag_status tool', () => {
     expect(v.scope.source).toBe('all_history');
     // a7 (May) is included: outstanding work is never limited to the current month
     expect(v.totals).toEqual({ transactionCount: 7, categorized: 6, uncategorized: 1, otherCount: 1 });
-    expect(v.provenance).toEqual({ customer_confirmed: 2, possibly_customer_approved: 1, automatic: 2, needs_review: 1, unknown: 1 });
+    expect(v.provenance).toEqual({ verified_customer: 0, protected_unverified: 3, automatic: 2, needs_review: 1, unknown: 1 });
     expect(v.needsReviewCount).toBe(1);
     expect(v.protectedFromProposals).toBe(3);
     // all-history scope → the whole correction log (incl. the one older than 90 days)
@@ -271,7 +274,8 @@ describe('read-only guarantees and wiring', () => {
     const msg = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasDocs: false, hasSnapshot: false });
     expect(msg).toContain('TAG CONSULTATION (code-owned; read-only):');
     expect(msg).toMatch(/Findings are PROPOSALS\. Never say a category was changed/);
-    expect(msg).toMatch(/Never propose changing customer-confirmed or possibly customer-approved categories/);
+    expect(msg).toMatch(/Never propose changing protected categories, verified or not/);
+    expect(msg).toMatch(/Call a category customer-approved ONLY if it is in the verified customer count/);
     expect(msg).toMatch(/Never widen the period on your own/);
   });
 });

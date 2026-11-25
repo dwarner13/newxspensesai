@@ -156,12 +156,14 @@ describe('P-LIVE-02 multi-turn reproduction (staging conversation)', () => {
     expect(t2.tag.totals.transactionCount).toBe(expected.total);
     expect(t2.tag.totals.uncategorized).toBe(expected.uncategorized);
     // completed work = stored records; all-time correction log
-    expect(t2.tag.provenance.customer_confirmed).toBe(expected.customerConfirmed);
+    expect(t2.tag.provenance.verified_customer).toBe(0);
+    expect(t2.tag.provenance.protected_unverified).toBe(expected.customerConfirmed);
     expect(t2.tag.recentCorrections).toMatchObject({ available: true, count: 30, windowDays: null });
     const ev = t2.evidence!;
     expect(ev).toContain('all imported transactions (entire history)');
     expect(ev).toContain(`Transactions in scope: ${expected.total}; uncategorized: ${expected.uncategorized}`);
-    expect(ev).toContain(`Completed work you can see (stored records, not chat history): ${expected.customerConfirmed} transactions have a customer-confirmed category`);
+    expect(ev).toContain(`Completed work you can see (stored records, not chat history): 0 transactions have a category the customer set in the app (verified); ${expected.customerConfirmed} more are protected from automatic change but their origin is not verified`);
+    expect(ev).not.toMatch(/customer-confirmed/);
     expect(ev).toContain('Corrections recorded by Tag (all time): 30');
     expect(ev).toContain('never ask permission to check or widen the scope');
     expect(ev).not.toMatch(/November/);
@@ -176,13 +178,13 @@ describe('P-LIVE-02 multi-turn reproduction (staging conversation)', () => {
     expect(t3.tag.recentCorrections.count).toBe(10);
   });
 
-  it('correction history unavailable: the limitation is stated honestly; customer-confirmed still counted', async () => {
+  it('correction history unavailable: the limitation is stated honestly; protected categories still counted', async () => {
     const l = ledger();
     state.client = makeCappedClient(l, { failOnRequest: 1, failTable: 'tag_category_feedback' });
     const t = await primeTurn(OWNER_MESSAGE);
     expect(t.tag.recentCorrections.available).toBe(false);
     expect(t.evidence).toContain("Tag's correction history could not be read this time");
-    expect(t.evidence).toContain(`${expected.customerConfirmed} transactions have a customer-confirmed category`);
+    expect(t.evidence).toContain(`${expected.customerConfirmed} more are protected from automatic change but their origin is not verified`);
     expect(t.tag.caveats.join(' ')).toContain('Say this limitation plainly');
   });
 

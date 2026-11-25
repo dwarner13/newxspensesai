@@ -17,10 +17,10 @@ export function buildPrimeTagConsultationRule(): string {
     '- Scope, in this order: the period the customer asked for (periodSource "requested"); otherwise a specific imported statement the customer referenced (importId); otherwise the period already established in this conversation (periodSource "conversation"); otherwise omit dates and ALL imported transactions are used. When the customer asks about everything they have ever uploaded, their entire history or all time, set allHistory:true (that beats a conversation period). Always state the period or statement used. If both a period and a statement were referenced, do not combine them — explain the difference or ask which one they meant.',
     '- Status: "no_transactions_in_period" means zero matching transactions; "no_imported_data" means nothing is imported; "outside_imported_coverage" means the period is outside the imported data; "partial" means counts are minimums; "query_error" means Tag data is unavailable — never guess. Never widen the period on your own.',
     "- Findings are PROPOSALS. Never say a category was changed. Offer: \"Want Tag to review these?\" Any change goes through Tag with the customer's explicit confirmation.",
-    '- Never propose changing customer-confirmed or possibly customer-approved categories (both are excluded from tag_status findings).',
+    '- Never propose changing protected categories, verified or not (both are excluded from tag_status findings). Call a category customer-approved ONLY if it is in the verified customer count; the other protected categories are "protected (origin unverified)".',
     '- Always disclose the caveats tag_status returns, including that category-source labels are not fully reliable yet.',
     '- P-LIVE-02: tag_status is read-only and the customer already asked. Never ask permission to run it, to widen it, or to "review the entire history"; never ask them to repeat or confirm the request. Answer with the counts.',
-    '- Completed work is the stored record, not chat memory: customer-confirmed categories on the transactions, and the corrections Tag has recorded. Report both counts. Conversation history is separate; if the correction history is unavailable, say so plainly.',
+    '- Completed work is the stored record, not chat memory: verified customer categories on the transactions, and the corrections Tag has recorded. Report both counts. Conversation history is separate; if the correction history is unavailable, say so plainly.',
   ].join('\n');
 }
 
@@ -143,15 +143,15 @@ export function formatTagConsultationEvidence(s: TagStatus): string {
   }
   if (s.status !== 'query_error') {
     lines.push(`- Transactions in scope: ${s.totals.transactionCount}; uncategorized: ${s.totals.uncategorized}; "Other": ${s.totals.otherCount}; needs review: ${s.needsReviewCount}`);
-    lines.push(`- Category sources: customer-confirmed ${s.provenance.customer_confirmed}, possibly customer-approved ${s.provenance.possibly_customer_approved}, automatic ${s.provenance.automatic}, needs review ${s.provenance.needs_review}, unknown ${s.provenance.unknown}`);
+    lines.push(`- Category sources: set by the customer in the app (verified) ${s.provenance.verified_customer}, protected (origin unverified) ${s.provenance.protected_unverified}, automatic ${s.provenance.automatic}, needs review ${s.provenance.needs_review}, unknown ${s.provenance.unknown}`);
     // P-LIVE-02: completed work = stored records on the transactions and Tag's correction log,
     // never conversation history.
-    lines.push(`- Completed work you can see (stored records, not chat history): ${s.provenance.customer_confirmed} transactions have a customer-confirmed category; ${s.provenance.possibly_customer_approved} more were set by Tag rules or Tag chat and may have been approved by the customer.`);
+    lines.push(`- Completed work you can see (stored records, not chat history): ${s.provenance.verified_customer} transactions have a category the customer set in the app (verified); ${s.provenance.protected_unverified} more are protected from automatic change but their origin is not verified (older corrections, manual entries, Tag rules or Tag chat) — never call these customer-approved.`);
     if (s.recentCorrections.available) {
       const window = s.recentCorrections.windowDays == null ? 'all time' : `last ${s.recentCorrections.windowDays} days`;
       lines.push(`- Corrections recorded by Tag (${window}): ${s.recentCorrections.count}`);
     } else {
-      lines.push("- Tag's correction history could not be read this time, so recorded corrections cannot be counted. Say this plainly; the customer-confirmed count above still stands.");
+      lines.push("- Tag's correction history could not be read this time, so recorded corrections cannot be counted. Say this plainly; the verified customer count above still stands.");
     }
     // Confirmed Tag actions (tag-action → tag_activity_log): counts by type only, customer-isolated.
     if (s.completedActions) {

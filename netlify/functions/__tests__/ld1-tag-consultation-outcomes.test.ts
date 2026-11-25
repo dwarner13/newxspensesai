@@ -91,7 +91,8 @@ describe('L-D1 chat.ts: narrow bypass of the legacy false-zero safeguard', () =>
   const chat = fs.readFileSync(path.resolve(__dirname, '../chat.ts'), 'utf8');
   it('skips the legacy check ONLY for a categorization question that Tag actually answered', () => {
     expect(chat).toMatch(/const tagEvidenceGrounds = primeCategorizationReview && tagConsultationAnswered\(tagConsultationResult\);/);
-    expect(chat).toMatch(/if \(isPrime && financialClassification\?\.requiresGrounding && !tagEvidenceGrounds\) \{/);
+    // D3 (owner 2026-11-25) adds "final author is Prime"; the Tag bypass itself is unchanged.
+    expect(chat).toMatch(/if \(isPrime && finalAuthorIsPrime && financialClassification\?\.requiresGrounding && !tagEvidenceGrounds\) \{/);
   });
   it('every other financial answer keeps the safeguard (no other bypass added)', () => {
     expect(chat.match(/!tagEvidenceGrounds/g)?.length).toBe(1);

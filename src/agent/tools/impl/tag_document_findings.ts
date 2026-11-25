@@ -21,7 +21,7 @@ export const inputSchema = z.object({
   question: z.string().max(500).optional(),
 }).strict();
 
-const provenance = z.enum(['customer_confirmed', 'possibly_customer_approved', 'automatic', 'needs_review', 'unknown']);
+const provenance = z.enum(['verified_customer', 'protected_unverified', 'automatic', 'needs_review', 'unknown']);
 
 export const outputSchema = z.object({
   status: z.enum(['ok', 'partial_extraction', 'no_amount_lines', 'document_not_ready', 'document_unavailable', 'no_documents_in_conversation', 'query_error']),

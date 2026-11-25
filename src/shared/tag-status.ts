@@ -18,7 +18,14 @@
 import { detectReviewIssues, type ReviewTx } from './tag-review-rules';
 
 export type ScopeSource = 'requested_period' | 'conversation_period' | 'document' | 'all_history' | 'default_current_month';
-export type Provenance = 'customer_confirmed' | 'possibly_customer_approved' | 'automatic' | 'needs_review' | 'unknown';
+/**
+ * Owner GO 2026-11-25 (FINAL RELIABILITY CORRECTIONS item 3; shared definitions agreed with Tag HQ
+ * and AI Architecture HQ): PROTECTED is not the same as CUSTOMER-APPROVED.
+ *  - verified_customer: set by the customer directly in the app (single edit, split, type fix).
+ *  - protected_unverified: protected from automatic change, but the origin is not verified
+ *    (historical corrections, manual entries, Tag rules, Tag chat). Never described as customer-approved.
+ */
+export type Provenance = 'verified_customer' | 'protected_unverified' | 'automatic' | 'needs_review' | 'unknown';
 export type TagStatusResult =
   | 'ok'
   | 'no_transactions_in_period'
@@ -38,19 +45,36 @@ export interface TagStatusScope {
 }
 
 export const C4_PROVENANCE_CAVEAT =
-  'Category-source labels are not fully reliable yet: some categories labelled as Tag rules or Tag chat may have been approved by the customer, so they are counted as possibly customer-approved and never proposed for change. Treat customer-confirmed counts as a minimum, not a guarantee.';
+  'Only categories the customer set directly in the app (an edit, a split or a type fix) count as verified customer choices. Other protected categories (older corrections, manual entries, Tag rules, Tag chat) are never changed automatically or proposed for change, but their origin is not verified: never describe them as customer-approved. The verified count is a minimum, not a guarantee.';
 
+// Shared provenance definitions (owner GO 2026-11-25; Tag HQ + AI Architecture HQ concur).
+/** Written only by a customer action in the app, verified server-side. */
+export const VERIFIED_CUSTOMER_SOURCES: ReadonlySet<string> = new Set(['user_edit', 'user_split', 'user_type_fix']);
+/** Never changed by automatic writers. Superset of VERIFIED; the rest is "protected (origin unverified)". */
+export const PROTECTED_SOURCES: ReadonlySet<string> = new Set([
+  ...VERIFIED_CUSTOMER_SOURCES,
+  'tag_rule', 'tag_chat', 'user_correction', 'user_chat', 'user_undo', 'manual', 'manual_edit', 'user_confirmed',
+]);
+/** True when a category source must never be changed automatically or proposed for change. */
+export function isProtectedSource(source: unknown): boolean {
+  return typeof source === 'string' && PROTECTED_SOURCES.has(source.trim().toLowerCase());
+}
+
+// DEPRECATED aliases (no behaviour change; CUSTOMER_SOURCES ∪ AMBIGUOUS_SOURCES === PROTECTED_SOURCES).
+// Use PROTECTED_SOURCES for protection and VERIFIED_CUSTOMER_SOURCES for "customer-approved" wording.
 // Source groups follow the C4 inventory (C4_category_integrity_plan.md §0).
+/** @deprecated use PROTECTED_SOURCES / VERIFIED_CUSTOMER_SOURCES */
 export const CUSTOMER_SOURCES: ReadonlySet<string> = new Set(['manual', 'manual_edit', 'user_correction', 'user_chat', 'user_edit', 'user_split', 'user_type_fix', 'user_undo', 'user_confirmed']);
 // Written both by customer-approved Tag actions AND by automatic writers. Until C4 separates them,
 // they are treated as possibly customer-approved: counted separately and never proposed for change.
+/** @deprecated use PROTECTED_SOURCES */
 export const AMBIGUOUS_SOURCES: ReadonlySet<string> = new Set(['tag_chat', 'tag_rule']);
 const AUTOMATIC_SOURCES = new Set(['ai', 'hardcoded', 'rule', 'merchant_map', 'merchant_sweep', 'sign_conflict', 'bulk_fix', 'xlsx-spreadsheet', 'learned', 'tag_single', 'tag_bulk', 'tag_conversation', 'tag_assisted']);
 
 export function classifyCategorySource(source: unknown): Provenance {
   const s = typeof source === 'string' ? source.trim().toLowerCase() : '';
-  if (CUSTOMER_SOURCES.has(s)) return 'customer_confirmed';
-  if (AMBIGUOUS_SOURCES.has(s)) return 'possibly_customer_approved';
+  if (VERIFIED_CUSTOMER_SOURCES.has(s)) return 'verified_customer';
+  if (PROTECTED_SOURCES.has(s)) return 'protected_unverified';
   if (AUTOMATIC_SOURCES.has(s)) return 'automatic';
   if (s === 'needs_review') return 'needs_review';
   return 'unknown';
@@ -176,7 +200,7 @@ export function summarizeTagStatus(input: {
     status: 'query_error',
     scope,
     totals: { transactionCount: 0, categorized: 0, uncategorized: 0, otherCount: 0 },
-    provenance: { customer_confirmed: 0, possibly_customer_approved: 0, automatic: 0, needs_review: 0, unknown: 0 },
+    provenance: { verified_customer: 0, protected_unverified: 0, automatic: 0, needs_review: 0, unknown: 0 },
     needsReviewCount: 0,
     protectedFromProposals: 0,
     recentCorrections: { available: false, count: 0, topMerchants: [] },
@@ -190,7 +214,7 @@ export function summarizeTagStatus(input: {
   }
 
   const rows = input.rows;
-  const provenance: Record<Provenance, number> = { customer_confirmed: 0, possibly_customer_approved: 0, automatic: 0, needs_review: 0, unknown: 0 };
+  const provenance: Record<Provenance, number> = { verified_customer: 0, protected_unverified: 0, automatic: 0, needs_review: 0, unknown: 0 };
   let uncategorized = 0;
   let otherCount = 0;
   for (const r of rows) {
@@ -200,10 +224,10 @@ export function summarizeTagStatus(input: {
     else if (c === 'other') otherCount++;
   }
 
-  // Customer-confirmed and possibly-customer-approved rows are never proposed for change (owner rule;
-  // C4 will make the distinction authoritative).
+  // Protected rows (verified customer choices AND protected rows of unverified origin) are never
+  // proposed for change (owner rule).
   const proposable: ReviewTx[] = rows
-    .filter(r => { const p = classifyCategorySource(r.category_source); return p !== 'customer_confirmed' && p !== 'possibly_customer_approved'; })
+    .filter(r => { const p = classifyCategorySource(r.category_source); return p !== 'verified_customer' && p !== 'protected_unverified'; })
     .map(r => ({
       id: r.id,
       merchant_name: r.merchant_name ?? '',
@@ -259,7 +283,7 @@ export function summarizeTagStatus(input: {
     totals: { transactionCount: rows.length, categorized: rows.length - uncategorized, uncategorized, otherCount },
     provenance,
     needsReviewCount: provenance.needs_review,
-    protectedFromProposals: provenance.customer_confirmed + provenance.possibly_customer_approved,
+    protectedFromProposals: provenance.verified_customer + provenance.protected_unverified,
     recentCorrections: { available: feedback !== null, count: feedback?.length ?? 0, topMerchants, windowDays: input.feedbackWindowDays === undefined ? 90 : input.feedbackWindowDays },
     ...(input.completedActionTypes === undefined ? {} : {
       completedActions: {
