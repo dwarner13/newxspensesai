@@ -69,7 +69,9 @@ export const handler: Handler = async (event) => {
         // 9. Recent activity feed
         supabase.from('ai_activity_events').select('*, profiles!left(email, display_name, first_name)').order('created_at', { ascending: false }).limit(50),
         // 10. Error count last 24hrs
-        supabase.from('error_log').select('id', { count: 'exact', head: true }).gte('created_at', oneDayAgo).catch(() => ({ count: 0 })),
+        // Query builders are thenables without .catch(); wrap in a real Promise so a missing table
+        // degrades to 0 instead of throwing a TypeError that fails the whole admin request.
+        Promise.resolve(supabase.from('error_log').select('id', { count: 'exact', head: true }).gte('created_at', oneDayAgo)).catch(() => ({ count: 0 })),
       ]);
 
       // Aggregate plan breakdown
