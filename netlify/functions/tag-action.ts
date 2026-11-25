@@ -24,6 +24,7 @@ import {
   parseActionReceipt,
   type ActionReceipt,
 } from './_shared/conversation-platform.js';
+import { resolveCategoryRequest, TAG_CATEGORIES } from './_shared/tagCategories.js';
 
 const CORS = {
   'Content-Type': 'application/json',
@@ -449,6 +450,39 @@ async function runCommit(
 // immediately preceding Tag reply. Claim-first: the customer message is stored before anything runs,
 // and a duplicate (retry / concurrent / partial failure) never runs the action again.
 const TAG_ACTION = 'recategorize_by_merchant';
+/** T-LIVE-02: one verified transaction (the panel's focused transaction). Never a rule, never others. */
+const TAG_SINGLE_ACTION = 'recategorize_single_transaction';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface OwnedTx { id: string; merchant_name: string | null; amount: unknown; posted_at: string | null; date: string | null; category: string | null; subcategory: string | null }
+
+/** The transaction, ONLY if it belongs to this user (server-side ownership check). */
+async function loadOwnedTransaction(supabase: TagSupabase, userId: string, transactionId: string): Promise<OwnedTx | null> {
+  if (!UUID_RE.test(transactionId)) return null;
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('id, merchant_name, amount, posted_at, date, category, subcategory')
+    .eq('id', transactionId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw new Error('lookup_failed');
+  return (data as OwnedTx | null) ?? null;
+}
+
+const catLabel = (c: string | null, sub: string | null) => (sub ? `${c || 'Uncategorized'} / ${sub}` : (c || 'Uncategorized'));
+
+export function singleProposalText(
+  tx: OwnedTx,
+  target: { category: string; subcategory: string | null; closestTo?: string | null },
+): string {
+  const merchant = tx.merchant_name || 'this';
+  const date = String(tx.posted_at || tx.date || '').slice(0, 10);
+  const note = target.closestTo ? `There's no "${target.closestTo}" category — the closest is **${target.category}**.\n\n` : '';
+  const clearsSub = !!tx.subcategory && !target.subcategory && target.category !== tx.category
+    ? ` Its subcategory (${tx.subcategory}) will be cleared.` : '';
+  return `${note}Change this **${merchant}** transaction (${money(tx.amount)}${date ? ` on ${date}` : ''}) from **${catLabel(tx.category, tx.subcategory)}** to **${catLabel(target.category, target.subcategory)}**?`
+    + `${clearsSub} Only this one transaction changes — no rule is saved and no other transactions are touched. Say yes to confirm.`;
+}
 
 interface ConversationFields {
   sessionId: string | null;
@@ -473,13 +507,14 @@ function parseConversationFields(raw: unknown): ConversationFields | null {
 const plural = (n: number) => (n === 1 ? '' : 's');
 const money = (v: unknown) => `$${Math.abs(Number(v || 0)).toFixed(2)}`;
 
-export function proposalText(matchValue: string, targetCategory: string, matches: PreviewRow[]): string {
+export function proposalText(matchValue: string, targetCategory: string, matches: PreviewRow[], closestTo?: string | null): string {
   const n = matches.length;
+  const note = closestTo ? `There's no "${closestTo}" category — the closest is **${targetCategory}**.\n\n` : '';
   const sample = matches.slice(0, 3)
     .map((s) => `- ${s.merchant_name} - ${money(s.amount)} (currently: ${s.category || 'Uncategorized'})`)
     .join('\n');
   const extra = n > 3 ? `\n...and ${n - 3} more` : '';
-  return `I found **${n}** transaction${plural(n)} matching "${matchValue}". Here's a sample:\n\n${sample}${extra}\n\n`
+  return `${note}I found **${n}** transaction${plural(n)} matching "${matchValue}". Here's a sample:\n\n${sample}${extra}\n\n`
     + `Move all ${n} to **${targetCategory}** and save a rule for future imports? Say yes to confirm.`;
 }
 
@@ -491,10 +526,20 @@ const sameSubject = (a: ActionReceipt['subject'] | undefined, b: Subject) => !!a
 async function handleConversationalAction(
   supabase: TagSupabase,
   userId: string,
-  intent: 'preview' | 'commit' | 'cancel_proposal',
+  intent: 'preview' | 'commit' | 'cancel_proposal' | 'preview_single' | 'commit_single',
   convo: ConversationFields,
-  ctx: { subject: Subject | null; importId?: string | null; affectedIds?: unknown; parsedTarget?: { category: string; subcategory: string | null } },
+  ctx: {
+    subject: Subject | null; importId?: string | null; affectedIds?: unknown; parsedTarget?: { category: string; subcategory: string | null };
+    /** T-LIVE-02 single-transaction request (transactionId is re-verified server-side). */
+    single?: { transactionId: string; targetPhrase?: string; targetCategory?: string; targetSubcategory?: string | null };
+    /** Merchant path: the requested category could not be resolved (Tag asks instead of proposing). */
+    categoryIssue?: string | null;
+    /** Merchant path: the customer's words when the category is only the closest match. */
+    closestTo?: string | null;
+  },
 ) {
+  const isSingle = intent === 'preview_single' || intent === 'commit_single';
+  const actionName = isSingle ? TAG_SINGLE_ACTION : TAG_ACTION;
   // 1. The customer's own Tag conversation.
   let sessionId: string | null = null;
   try {
@@ -511,18 +556,27 @@ async function handleConversationalAction(
   if (sessionId && intent !== 'preview') {
     try {
       const latest = await findLatestActionReceipt(supabase, { sessionId, userId, lookback: 1 });
-      if (latest && latest.receipt.state === 'proposed' && latest.receipt.action === TAG_ACTION) pending = latest;
+      if (latest && latest.receipt.state === 'proposed'
+        && (latest.receipt.action === TAG_ACTION || latest.receipt.action === TAG_SINGLE_ACTION)) pending = latest;
     } catch { pending = null; }
   }
-  const proposalMatches = !!pending && !!ctx.subject && sameSubject(pending.receipt.subject, ctx.subject);
+  const proposalMatches = !pending ? false
+    : isSingle
+      // A confirmation binds only to Tag's immediately preceding SINGLE proposal for this exact
+      // transaction and category.
+      ? pending.receipt.action === TAG_SINGLE_ACTION && !!ctx.single
+        && pending.receipt.subject?.transactionId === ctx.single.transactionId
+        && pending.receipt.subject?.targetCategory === (ctx.single.targetCategory ?? null)
+        && (pending.receipt.subject?.targetSubcategory ?? null) === (ctx.single.targetSubcategory ?? null)
+      : pending.receipt.action === TAG_ACTION && !!ctx.subject && sameSubject(pending.receipt.subject, ctx.subject);
 
   // 3. Claim-first: store the customer message (with its confirmed / cancelled intent) before acting.
   let claimed = false;
   if (sessionId) {
-    const actionIntent = intent === 'commit'
-      ? { action: TAG_ACTION, state: 'confirmed', proposalRef: pending?.replyTo ?? null, matchesProposal: proposalMatches }
+    const actionIntent = intent === 'commit' || intent === 'commit_single'
+      ? { action: actionName, state: 'confirmed', proposalRef: pending?.replyTo ?? null, matchesProposal: proposalMatches }
       : intent === 'cancel_proposal'
-        ? { action: TAG_ACTION, state: 'cancelled', proposalRef: pending?.replyTo ?? null }
+        ? { action: pending?.receipt.action ?? TAG_ACTION, state: 'cancelled', proposalRef: pending?.replyTo ?? null }
         : undefined;
     let claim: Awaited<ReturnType<typeof claimConversationTurn>> | null = null;
     try {
@@ -558,13 +612,93 @@ async function handleConversationalAction(
   }
 
   // 4. Run the action and compose Tag's reply + receipt from the VERIFIED outcome.
-  const base = { v: 1 as const, employee: 'tag-ai' as const, action: TAG_ACTION, ...(ctx.subject ? { subject: ctx.subject } : {}) };
+  const base = { v: 1 as const, employee: 'tag-ai' as const, action: actionName, ...(ctx.subject ? { subject: ctx.subject } : {}) };
   let receipt: ActionReceipt;
   let reply: string;
   let executed = false;
   let legacy: Record<string, unknown> = {};
 
-  if (intent === 'preview' && ctx.subject) {
+  if (intent === 'preview_single' && ctx.single) {
+    // T-LIVE-02: a proposal for ONE verified transaction. Nothing is changed here.
+    try {
+      const tx = await loadOwnedTransaction(supabase, userId, ctx.single.transactionId);
+      const res = resolveCategoryRequest(ctx.single.targetPhrase || '');
+      if (!tx) {
+        legacy = { ok: false, error: 'not_found' };
+        receipt = { ...base, state: 'failed', reason: 'not_found' };
+        reply = "I can't find that transaction in your account, so nothing has changed.";
+      } else if (res.status === 'ambiguous') {
+        legacy = { ok: false, error: 'category_ambiguous', candidates: res.candidates };
+        receipt = { ...base, state: 'failed', reason: 'category_ambiguous' };
+        reply = `"${res.requested}" could mean ${res.candidates.map(c => `**${c}**`).join(' or ')}. Which one should this **${tx.merchant_name || ''}** transaction go in?`;
+      } else if (res.status === 'unknown') {
+        legacy = { ok: false, error: 'category_unknown' };
+        receipt = { ...base, state: 'failed', reason: 'category_unknown' };
+        reply = `I don't have a "${res.requested}" category. Which of these fits best: ${TAG_CATEGORIES.filter(c => c !== 'Income' && c !== 'Transfers').join(', ')}?`;
+      } else if (res.category === (tx.category || '') && (res.subcategory ?? null) === null) {
+        legacy = { ok: false, error: 'already_in_category' };
+        receipt = { ...base, state: 'failed', reason: 'already_in_category' };
+        reply = `This **${tx.merchant_name || ''}** transaction is already in **${res.category}**, so there's nothing to change.`;
+      } else {
+        const subject = { transactionId: tx.id, targetCategory: res.category, targetSubcategory: res.subcategory };
+        receipt = { ...base, subject, state: 'proposed', result: { matchCount: 1 } };
+        reply = singleProposalText(tx, { category: res.category, subcategory: res.subcategory, closestTo: res.status === 'closest' ? res.requested : null });
+        legacy = { ok: true, transactionId: tx.id, targetCategory: res.category, targetSubcategory: res.subcategory, matchCount: 1, resolution: res.status };
+      }
+    } catch {
+      legacy = { ok: false, error: 'preview_failed' };
+      receipt = { ...base, state: 'failed', reason: 'preview_error' };
+      reply = 'Something went wrong checking that transaction, so nothing has changed. Try again?';
+    }
+  } else if (intent === 'commit_single' && ctx.single) {
+    const subject = { transactionId: ctx.single.transactionId, targetCategory: ctx.single.targetCategory ?? null, targetSubcategory: ctx.single.targetSubcategory ?? null };
+    if (!sessionId || !proposalMatches) {
+      // Never act without a server-recorded, signed proposal for exactly this transaction and category.
+      legacy = { ok: false, error: 'no_matching_proposal' };
+      receipt = { ...base, subject, state: 'failed', reason: 'no_matching_proposal', proposalRef: pending?.replyTo ?? null };
+      reply = "There's no pending change matching that confirmation, so I haven't changed anything. Tell me what you'd like to change and I'll check it first.";
+    } else {
+      try {
+        const tx = await loadOwnedTransaction(supabase, userId, ctx.single.transactionId);
+        if (!tx) {
+          legacy = { ok: false, error: 'not_found' };
+          receipt = { ...base, subject, state: 'failed', reason: 'not_found', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
+          reply = "I can't find that transaction anymore, so nothing was changed.";
+        } else {
+          // Exactly one row, owner-scoped. No rule, no merchant memory, no other transaction.
+          const { data: updated, error: upErr } = await supabase
+            .from('transactions')
+            .update({
+              category: subject.targetCategory, subcategory: subject.targetSubcategory,
+              category_source: 'tag_chat', updated_at: new Date().toISOString(),
+            })
+            .eq('id', tx.id)
+            .eq('user_id', userId)
+            .select('id');
+          if (upErr) throw new Error('update_failed');
+          const n = Array.isArray(updated) ? updated.length : 0;
+          executed = n === 1;
+          legacy = { ok: executed, transactionId: tx.id, targetCategory: subject.targetCategory, targetSubcategory: subject.targetSubcategory, updatedCount: n, ...(executed ? {} : { error: 'nothing_updated' }) };
+          if (executed) {
+            receipt = { ...base, subject, state: 'completed', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 1 } };
+            reply = `Done — this **${tx.merchant_name || ''}** transaction is now in **${catLabel(subject.targetCategory, subject.targetSubcategory)}**. No other transactions or rules were changed.`;
+          } else {
+            receipt = { ...base, subject, state: 'failed', reason: 'nothing_updated', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
+            reply = "I couldn't update that transaction, so nothing was changed. Please try again.";
+          }
+        }
+      } catch {
+        legacy = { ok: false, error: 'commit_failed' };
+        receipt = { ...base, subject, state: 'failed', reason: 'commit_error', proposalRef: pending?.replyTo ?? null };
+        reply = "I couldn't make that change, so nothing was changed. Please try again.";
+      }
+    }
+  } else if (intent === 'preview' && ctx.subject && ctx.categoryIssue) {
+    // T-LIVE-02: never propose a silently substituted category (it used to become "Other").
+    legacy = { ok: false, error: 'category_unresolved' };
+    receipt = { ...base, state: 'failed', reason: 'category_unresolved' };
+    reply = ctx.categoryIssue;
+  } else if (intent === 'preview' && ctx.subject) {
     try {
       const matches = await runPreview(supabase, userId, { normalized: ctx.subject.matchValue, matchType: ctx.subject.matchType, importId: ctx.importId });
       legacy = {
@@ -575,7 +709,7 @@ async function handleConversationalAction(
       };
       if (matches.length > 0) {
         receipt = { ...base, state: 'proposed', result: { matchCount: matches.length } };
-        reply = proposalText(ctx.subject.matchValue, ctx.subject.targetCategory, matches);
+        reply = proposalText(ctx.subject.matchValue, ctx.subject.targetCategory, matches, ctx.closestTo ?? null);
       } else {
         receipt = { ...base, state: 'failed', reason: 'no_matches', result: { matchCount: 0 } };
         reply = `I searched your transactions but didn't find any matching "${ctx.subject.matchValue}". Want to try a different keyword, or tell me the merchant name you see in your list?`;
@@ -626,7 +760,7 @@ async function handleConversationalAction(
     // cancel_proposal: nothing is executed.
     legacy = { ok: true };
     if (pending) {
-      receipt = { v: 1, employee: 'tag-ai', action: TAG_ACTION, state: 'cancelled', subject: pending.receipt.subject, proposalRef: pending.replyTo };
+      receipt = { v: 1, employee: 'tag-ai', action: pending.receipt.action, state: 'cancelled', subject: pending.receipt.subject, proposalRef: pending.replyTo };
       reply = "Okay, I won't change anything.";
     } else {
       receipt = { v: 1, employee: 'tag-ai', action: TAG_ACTION, state: 'cancelled', reason: 'no_pending_proposal' };
@@ -635,8 +769,8 @@ async function handleConversationalAction(
   }
 
   // Prime HQ's authoritative-outcome fields (tool, success, count) on executed / attempted actions.
-  if (receipt.state === 'completed' || (intent === 'commit' && receipt.state === 'failed')) {
-    receipt = { ...receipt, tool: TAG_ACTION, success: receipt.state === 'completed', count: receipt.result?.affectedCount ?? 0 };
+  if (receipt.state === 'completed' || ((intent === 'commit' || intent === 'commit_single') && receipt.state === 'failed')) {
+    receipt = { ...receipt, tool: actionName, success: receipt.state === 'completed', count: receipt.result?.affectedCount ?? 0 };
   }
 
   // 5. Store Tag's reply with the receipt. `persisted` is true only when claim AND reply were saved.
@@ -942,6 +1076,22 @@ export const handler: Handler = async (event) => {
     return handleConversationalAction(supabase, userId, 'cancel_proposal', conversation, { subject: null });
   }
 
+  // ── T-LIVE-02: single focused transaction (proposal → confirmation), conversation required ──
+  if (intent === 'preview_single' || intent === 'commit_single') {
+    if (!conversation) return err(`${intent} requires conversation`);
+    const transactionId = typeof body.transactionId === 'string' ? body.transactionId.trim() : '';
+    if (!UUID_RE.test(transactionId)) return err('Missing or invalid transactionId');
+    if (intent === 'preview_single') {
+      const targetPhrase = typeof body.targetPhrase === 'string' ? body.targetPhrase.trim().slice(0, 120) : '';
+      if (!targetPhrase) return err('Missing targetPhrase');
+      return handleConversationalAction(supabase, userId, 'preview_single', conversation, { subject: null, single: { transactionId, targetPhrase } });
+    }
+    const targetCategory = typeof body.targetCategory === 'string' ? body.targetCategory : '';
+    if (!targetCategory) return err('Missing targetCategory');
+    const targetSubcategory = typeof body.targetSubcategory === 'string' && body.targetSubcategory.trim() ? body.targetSubcategory.trim() : null;
+    return handleConversationalAction(supabase, userId, 'commit_single', conversation, { subject: null, single: { transactionId, targetCategory, targetSubcategory } });
+  }
+
   // ── Remaining intents require matchValue + targetCategory ─────────────────
   if (!matchValue || !targetCategory) return err('Missing matchValue or targetCategory');
   const parsedTargetRaw = parseCategoryInput(String(targetCategory));
@@ -953,9 +1103,21 @@ export const handler: Handler = async (event) => {
   const normalized = matchValue.trim().toUpperCase();
 
   if (conversation && (intent === 'preview' || intent === 'commit')) {
+    // T-LIVE-02: resolve against the available categories; the same deterministic resolution is
+    // applied to the preview and to the confirmation, so they bind to the same subject.
+    const res = resolveCategoryRequest(String(targetCategory));
+    const resolvedTarget = res.status === 'exact' || res.status === 'closest'
+      ? { category: res.category as string, subcategory: res.subcategory }
+      : parsedTarget;
+    const categoryIssue = res.status === 'ambiguous'
+      ? `"${res.requested}" could mean ${res.candidates.map(c => `**${c}**`).join(' or ')}. Which one should I use?`
+      : res.status === 'unknown'
+        ? `I don't have a "${res.requested}" category. Which of these fits best: ${TAG_CATEGORIES.filter(c => c !== 'Income' && c !== 'Transfers').join(', ')}?`
+        : null;
     return handleConversationalAction(supabase, userId, intent, conversation, {
-      subject: { matchValue: normalized, targetCategory: parsedTarget.category, targetSubcategory: parsedTarget.subcategory, matchType: String(matchType) },
-      importId, affectedIds: body.affectedIds, parsedTarget,
+      subject: { matchValue: normalized, targetCategory: resolvedTarget.category, targetSubcategory: resolvedTarget.subcategory, matchType: String(matchType) },
+      importId, affectedIds: body.affectedIds, parsedTarget: resolvedTarget,
+      categoryIssue, closestTo: res.status === 'closest' ? res.requested : null,
     });
   }
 

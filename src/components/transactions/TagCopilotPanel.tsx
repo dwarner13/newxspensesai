@@ -13,7 +13,7 @@ import {
   restoreSessionMessages, type RestoredMessage,
 } from "@/lib/conversationStore";
 import { newClientMessageId, tagReplyOutcome, legacyTagTranscript } from "@/lib/tagConversation";
-import { buildActionConversation, interpretActionResponse, isRejection, ACTION_UNKNOWN_OUTCOME, type ActionTurnResult } from "@/lib/tagActionConversation";
+import { buildActionConversation, interpretActionResponse, isRejection, ACTION_UNKNOWN_OUTCOME, detectUserActionIntent, detectFocusedChangeRequest, type ActionTurnResult } from "@/lib/tagActionConversation";
 import toast from "react-hot-toast";
 import { THEME } from "@/pages/CategoriesV2/categoryConfig";
 import { Reveal } from "@/pages/PrimeChatV2/Reveal";
@@ -510,11 +510,14 @@ export function TagCopilotPanel({
   // Captured from Tag's previous reply; fires commit when user confirms
   // ("yes" / "confirm" / "do it" / "go ahead"). Bypasses LLM to guarantee
   // the action runs even if Tag forgets to re-emit JSON.
-  const [pendingProposal, setPendingProposal] = useState<{
-    matchValue: string;
-    targetCategory: string;
-    matchType: 'contains' | 'exact';
-  } | null>(null);
+  // T-LIVE-02: a pending proposal is either merchant-wide (preview of all matches) or ONE focused
+  // transaction. Both were recorded by the server as Tag's previous reply; a "yes" is honoured only
+  // for that recorded proposal.
+  const [pendingProposal, setPendingProposal] = useState<
+    | { kind?: 'merchant'; matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' }
+    | { kind: 'single'; transactionId: string; targetCategory: string; targetSubcategory: string | null }
+    | null
+  >(null);
   const [greetingText, setGreetingText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -712,13 +715,21 @@ export function TagCopilotPanel({
     try {
       // The server matches the transactions itself and honours this confirmation only for the
       // proposal it recorded as Tag's previous reply.
-      const data = await postTagAction({
-        intent: 'commit',
-        matchValue: proposal.matchValue,
-        targetCategory: proposal.targetCategory,
-        matchType: proposal.matchType,
-        conversation,
-      });
+      const data = proposal.kind === 'single'
+        ? await postTagAction({
+          intent: 'commit_single',
+          transactionId: proposal.transactionId,
+          targetCategory: proposal.targetCategory,
+          targetSubcategory: proposal.targetSubcategory,
+          conversation,
+        })
+        : await postTagAction({
+          intent: 'commit',
+          matchValue: proposal.matchValue,
+          targetCategory: proposal.targetCategory,
+          matchType: proposal.matchType,
+          conversation,
+        });
       const r = interpretActionResponse(data, "I couldn't make that change, so nothing was moved.");
       applyActionTurn(r, customerText, conversation.clientMessageId);
       if (r.completed) {
@@ -754,29 +765,8 @@ export function TagCopilotPanel({
     }
   };
 
-  // Detect user-typed action intents BEFORE sending to tag-copilot LLM.
-  // tag-copilot's prompt only has category summaries, not merchant names,
-  // so Tag refuses to propose changes for merchants he can't verify.
-  // This function short-circuits that: runs a preview against real data,
-  // then either proposes with real numbers or reports honestly.
-  const detectUserActionIntent = (msg: string): { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' } | null => {
-    const t = msg.trim().toLowerCase();
-    // "change/move/categorize [all] X to/as [category Y]"
-    const patterns = [
-      /(?:can you\s+)?(?:change|move|set|mark|categorize|recategorize|put|tag|assign|update)\s+(?:all\s+)?["']?([^"']+?)["']?\s+(?:to|as|into)\s+(?:the\s+)?(?:category\s+)?["']?([^"'.,!?\n]+?)["']?\s*$/i,
-    ];
-    for (const re of patterns) {
-      const m = msg.match(re);
-      if (m) {
-        const matchValue = m[1].trim().replace(/^(all|every|my|the)\s+/i, '').trim();
-        const targetCategory = m[2].trim().replace(/\b\w/g, c => c.toUpperCase());
-        if (matchValue && targetCategory && matchValue.length > 1) {
-          return { matchValue, targetCategory, matchType: 'contains' };
-        }
-      }
-    }
-    return null;
-  };
+  // Merchant-wide typed intents are detected by detectUserActionIntent (lib/tagActionConversation),
+  // which never treats "this" / "it" / "this expense" as a merchant name (T-LIVE-02).
 
   // Preview against tag-action WITH the conversation: the server records the customer's request and
   // Tag's proposal (receipt 'proposed') or "no matches" (receipt 'failed'). Nothing is changed.
@@ -798,6 +788,24 @@ export function TagCopilotPanel({
         `I searched your transactions but didn't find any matching "${intent.matchValue}". Want to try a different keyword, or tell me the merchant name you see in your list?`,
       );
       return { result, clientMessageId: conversation.clientMessageId };
+    } catch {
+      return null;
+    }
+  };
+
+  // T-LIVE-02: preview a change to the FOCUSED transaction. Only its id and the customer's words are
+  // sent; tag-action re-verifies ownership, resolves the category against the available categories and
+  // writes Tag's proposal (receipt 'proposed') — or asks which category, without proposing anything.
+  const previewSingle = async (
+    transactionId: string,
+    targetPhrase: string,
+    customerText: string,
+  ): Promise<{ result: ActionTurnResult; clientMessageId: string; data: Record<string, unknown> } | null> => {
+    const conversation = actionConversation(customerText);
+    try {
+      const data = await postTagAction({ intent: 'preview_single', transactionId, targetPhrase, conversation });
+      const result = interpretActionResponse(data, "I couldn't check that transaction, so nothing has changed. Try again?");
+      return { result, clientMessageId: conversation.clientMessageId, data };
     } catch {
       return null;
     }
@@ -827,6 +835,34 @@ export function TagCopilotPanel({
       return;
     }
 
+    // INTERCEPTOR 1c (T-LIVE-02): a change request about the FOCUSED transaction ("change this to …",
+    // "this should be …"). Runs before the merchant interceptor, so "this" can never become a merchant
+    // search. One transaction only; never a rule, never other transactions.
+    const focusedChange = !retryClientMessageId && focusedTransaction?.id ? detectFocusedChangeRequest(text) : null;
+    if (focusedChange && focusedTransaction?.id) {
+      setInputValue("");
+      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      setIsLoading(true);
+      setSaveNotice(null);
+      try {
+        const preview = await previewSingle(focusedTransaction.id, focusedChange.targetPhrase, text);
+        if (!preview) {
+          setMessages(prev => [...prev, { role: 'assistant', content: "Something went wrong checking that transaction, so nothing has changed. Try again?" }]);
+          setPendingProposal(null);
+        } else {
+          applyActionTurn(preview.result, text, preview.clientMessageId);
+          const tc = typeof preview.data.targetCategory === 'string' ? preview.data.targetCategory : null;
+          const ts = typeof preview.data.targetSubcategory === 'string' ? preview.data.targetSubcategory : null;
+          setPendingProposal(preview.result.proposalPending && tc
+            ? { kind: 'single', transactionId: focusedTransaction.id, targetCategory: tc, targetSubcategory: ts }
+            : null);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     // INTERCEPTOR 2: Did the user ask for a categorization action?
     // If so, preview against real data BEFORE asking Tag. Tag's prompt
     // doesn't include merchant names, so he can't reliably confirm what
@@ -846,7 +882,7 @@ export function TagCopilotPanel({
           // Tag's proposal text comes from the server; a "yes" is honoured only for a proposal the
           // server recorded (receipt 'proposed').
           applyActionTurn(preview.result, text, preview.clientMessageId);
-          setPendingProposal(preview.result.proposalPending ? userIntent : null);
+          setPendingProposal(preview.result.proposalPending ? { kind: 'merchant', ...userIntent } : null);
         }
       } finally {
         setIsLoading(false);
