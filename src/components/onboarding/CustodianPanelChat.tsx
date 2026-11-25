@@ -106,7 +106,7 @@ export function CustodianPanel({ onClose }: { onClose: () => void }) {
       }}>
         {/* Header */}
         {/* TB-4: universal chat header — identity separate from the compact toolbar. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? '10px 8px 10px 14px' : '12px 16px 12px 20px', borderBottom: '1px solid #1e2d4a', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? '10px 6px 10px 12px' : '12px 16px 12px 20px', borderBottom: '1px solid #1e2d4a', flexShrink: 0 }}>
           <ChatIdentity
             isMobile={isMobile}
             renderLogo={(px) => (

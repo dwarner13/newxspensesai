@@ -63,14 +63,15 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
 
           {typeDone && (
             <Reveal delay={0} style={{ marginLeft: 38, marginBottom: 24 }}>
-              <div style={{ display: "flex", gap: 8 }}>
+              {/* M-OVF: two columns on phones (four tiles overflowed the 390px panel). */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: 8 }}>
                 {[
                   { label: "Goals", value: String(data.goals.length), color: YELLOW },
                   { label: "Debts", value: String(data.debts.length), color: "#f87171" },
                   { label: "Savings/mo", value: `$${data.monthlySavings.toLocaleString()}`, color: "#34d399" },
                   { label: "Progress", value: `${goalPct}%`, color: "#60a5fa" },
                 ].map(s => (
-                  <div key={s.label} style={{ flex: 1, padding: "10px 12px", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
+                  <div key={s.label} style={{ minWidth: 0, padding: "10px 12px", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
                     <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: T.dim, fontWeight: 700, marginBottom: 4 }}>{s.label}</div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</div>
                   </div>

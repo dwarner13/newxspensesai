@@ -30,7 +30,7 @@ export function ChatIdentity({
 }) {
   const box = logoSize(isMobile);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 12, minWidth: 0, flex: 1 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, minWidth: 0, flex: 1 }}>
       <span aria-hidden="true" style={{
         width: box, height: box, minWidth: box, flexShrink: 0, borderRadius: "50%",
         display: "flex", alignItems: "center", justifyContent: "center", background: logoBackground,
@@ -38,7 +38,7 @@ export function ChatIdentity({
         {renderLogo(artworkSize(isMobile))}
       </span>
       <span style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <span style={{ fontSize: isMobile ? 17 : 19, fontWeight: 800, color: C.text, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+        <span style={{ fontSize: isMobile ? 16 : 19, fontWeight: 800, color: C.text, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
         {subtitle && (
           <span style={{ fontSize: 13, color: C.muted, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitle}</span>
         )}
