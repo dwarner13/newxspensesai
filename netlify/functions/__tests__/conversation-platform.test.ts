@@ -3,13 +3,14 @@
  * The real ensureSession / getRecentMessages code runs; only the database is simulated.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { openEmployeeConversation, loadConversationHistory, recordConversationTurn } from '../_shared/conversation-platform';
+import { openEmployeeConversation, loadConversationHistory, recordConversationTurn, claimConversationTurn, completeConversationTurn, maskCustomerTextForModel, findRecentEmployeeConversation } from '../_shared/conversation-platform';
 import { canonicalEmployeeSlug, isTagSlug, deriveConversationTitle, toModelHistory, isValidClientMessageId } from '../../../src/shared/conversation-identity';
 
 // The in-memory Supabase fake is intentionally untyped (rows and chained builder).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 const db: Record<string, Row[]> = {};
+const hooks: { beforeInsert?: (table: string, row: Row) => { code: string; message: string } | null } = {};
 const get = (row: Row, col: string) => (col.includes('->>') ? (row[col.split('->>')[0]] || {})[col.split('->>')[1]] : row[col]);
 
 function builder(table: string) {
@@ -22,6 +23,8 @@ function builder(table: string) {
   const matches = () => rows().filter(r => filters.every(([c, v]) => get(r, c) === v));
   const run = () => {
     if (op === 'insert') {
+      const injected = hooks.beforeInsert?.(table, payload!);
+      if (injected) return { data: null, error: injected };
       if (table === 'chat_sessions' && rows().some(r => r.id === payload!.id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
       const row = { created_at: new Date(Date.now() + rows().length).toISOString(), ...payload };
       rows().push(row);
@@ -50,7 +53,7 @@ const sb: any = { from: (t: string) => builder(t) };
 
 const ALICE = '11111111-1111-4111-8111-111111111111';
 const BOB = '22222222-2222-4222-8222-222222222222';
-beforeEach(() => { for (const k of Object.keys(db)) delete db[k]; });
+beforeEach(() => { for (const k of Object.keys(db)) delete db[k]; hooks.beforeInsert = undefined; });
 
 describe('conversation identity (pure)', () => {
   it('canonical slugs, aliases, unknowns', () => {
@@ -126,5 +129,75 @@ describe('recordConversationTurn + loadConversationHistory', () => {
     await recordConversationTurn(sb, { sessionId: c.sessionId, userId: ALICE, employeeSlug: 'tag-ai', userText: 'Why is Uber in Travel?', assistantText: 'a' });
     await recordConversationTurn(sb, { sessionId: c.sessionId, userId: ALICE, employeeSlug: 'tag-ai', userText: 'second question', assistantText: 'b' });
     expect(db.chat_sessions[0].title).toBe('Why is Uber in Travel?');
+  });
+});
+
+describe('Prime HQ review of T-H1: claim-first retries, masking, schema, resume', () => {
+  const T = { userId: ALICE, employeeSlug: 'tag-ai' as const };
+  it('partial failure: action ran, reply not saved → a retry is a duplicate and must not act again', async () => {
+    const c = await openEmployeeConversation(sb, T);
+    const first = await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'recategorize Uber', clientMessageId: 'msg_partial01' });
+    expect(first.status).toBe('claimed');
+    // (tool runs here; reply save fails → completeConversationTurn never stored)
+    const retry = await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'recategorize Uber', clientMessageId: 'msg_partial01' });
+    expect(retry).toEqual({ status: 'duplicate', reply: null });
+  });
+  it('a retry after a completed turn returns the stored reply', async () => {
+    const c = await openEmployeeConversation(sb, T);
+    await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'hi', clientMessageId: 'msg_done0001' });
+    await completeConversationTurn(sb, { ...T, sessionId: c.sessionId, assistantText: 'Done — moved 3 rides.', clientMessageId: 'msg_done0001' });
+    expect(await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'hi', clientMessageId: 'msg_done0001' }))
+      .toEqual({ status: 'duplicate', reply: 'Done — moved 3 rides.' });
+  });
+  it('concurrent duplicates: when another request stored the same id first, this one does not act', async () => {
+    const c = await openEmployeeConversation(sb, T);
+    let injected = false;
+    hooks.beforeInsert = (table, row) => {
+      // simulate the competing request inserting the same client id just before this one
+      if (!injected && table === 'chat_messages' && row.role === 'user') {
+        injected = true;
+        db.chat_messages.push({ id: 'competitor', created_at: '2000-01-01T00:00:00.000Z', session_id: c.sessionId, user_id: ALICE, role: 'user', content: 'x', metadata: { client_message_id: 'msg_race0001' } });
+      }
+      return null;
+    };
+    const r = await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'apply rule', clientMessageId: 'msg_race0001' });
+    expect(r.status).toBe('duplicate');
+  });
+  it('claim not writable → unsaved (caller answers with persisted:false)', async () => {
+    const c = await openEmployeeConversation(sb, T);
+    hooks.beforeInsert = (table) => (table === 'chat_messages' ? { code: '500', message: 'down' } : null);
+    expect((await claimConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'x', clientMessageId: 'msg_down0001' })).status).toBe('unsaved');
+  });
+  it('masking keeps merchants, store numbers, dates, amounts and references; masks card numbers', () => {
+    const m = maskCustomerTextForModel('STARBUCKS #1234 on 2026-11-01 for $12.50, ref TX-99881, card 4111 1111 1111 1111');
+    for (const keep of ['STARBUCKS #1234', '2026-11-01', '$12.50', 'TX-99881']) expect(m).toContain(keep);
+    expect(m).not.toContain('4111 1111 1111 1111');
+  });
+  it('stored customer text uses the same masking as the model (no extra over-masking)', async () => {
+    const c = await openEmployeeConversation(sb, T);
+    const text = 'Why is COSTCO WHSE #0542 in Groceries? Amount $84.19 on Nov 3';
+    await recordConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: text, assistantText: 'ok' });
+    expect(db.chat_messages[0].content).toBe(maskCustomerTextForModel(text));
+    expect(db.chat_messages[0].content).toContain('COSTCO WHSE #0542');
+  });
+  it('redacted_content missing in the live schema → the row is still saved without it', async () => {
+    const c = await openEmployeeConversation(sb, T);
+    hooks.beforeInsert = (table, row) => (table === 'chat_messages' && 'redacted_content' in row ? { code: 'PGRST204', message: "Could not find the 'redacted_content' column" } : null);
+    await recordConversationTurn(sb, { ...T, sessionId: c.sessionId, userText: 'hello', assistantText: 'hi' });
+    expect(db.chat_messages).toHaveLength(2);
+    expect('redacted_content' in db.chat_messages[0]).toBe(false);
+  });
+  it('implicit resume (temporary, no session id): most recently ACTIVE Tag conversation, owner-scoped', async () => {
+    const now = Date.parse('2026-11-25T12:00:00Z');
+    db.chat_sessions = [
+      { id: 'old-active', user_id: ALICE, employee_slug: 'tag-ai', created_at: '2026-01-01T00:00:00Z', last_message_at: '2026-11-25T11:00:00Z' },
+      { id: 'new-idle', user_id: ALICE, employee_slug: 'tag-ai', created_at: '2026-11-24T00:00:00Z', last_message_at: '2026-11-24T00:10:00Z' },
+      { id: 'prime', user_id: ALICE, employee_slug: 'prime-boss', created_at: '2026-11-25T11:30:00Z', last_message_at: '2026-11-25T11:59:00Z' },
+      { id: 'bob', user_id: BOB, employee_slug: 'tag-ai', created_at: '2026-11-25T11:50:00Z', last_message_at: '2026-11-25T11:58:00Z' },
+    ];
+    expect(await findRecentEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai', now })).toBe('old-active');
+    // idle beyond the window: not resumed implicitly, but nothing is deleted
+    expect(await findRecentEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai', now: now + 7 * 3600_000 })).toBeNull();
+    expect(db.chat_sessions).toHaveLength(4);
   });
 });

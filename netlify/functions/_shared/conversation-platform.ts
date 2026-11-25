@@ -20,7 +20,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ensureSession, getRecentMessages } from './session.js';
-import { maskPII, maskSpecificPII, getCriticalDetectors } from './pii.js';
+import { maskSpecificPII, getCriticalDetectors } from './pii.js';
 import {
   canonicalEmployeeSlug,
   deriveConversationTitle,
@@ -74,7 +74,11 @@ export function maskCustomerTextForModel(text: unknown): string {
   return maskSpecificPII(String(text ?? ''), getCriticalDetectors().map(d => d.name)).masked;
 }
 
-/** A conversation idle longer than this is not resumed implicitly (it is kept, never deleted). */
+/**
+ * TEMPORARY backward compatibility (owner, 2026-11-25): only for clients that send no session id.
+ * A conversation idle longer than this is not resumed implicitly — it is KEPT, never deleted, and
+ * stays available in history. Remove once every client sends its session id.
+ */
 export const IMPLICIT_RESUME_IDLE_MS = 6 * 60 * 60 * 1000;
 
 /**
@@ -94,7 +98,7 @@ export async function findRecentEmployeeConversation(
     .from('chat_sessions')
     .select('id, employee_slug, created_at, last_message_at')
     .eq('user_id', params.userId)
-    .order('created_at', { ascending: false })
+    .order('last_message_at', { ascending: false, nullsFirst: false })
     .limit(25);
   if (error || !Array.isArray(data)) return null;
   const now = params.now ?? Date.now();
@@ -155,8 +159,101 @@ export interface RecordedTurn {
 }
 
 /**
- * Persist one customer turn and the employee's reply. Customer text is masked before storage.
- * With a valid clientMessageId, a retry of an already-stored turn is skipped (duplicate: true).
+ * Insert one chat_messages row. `redacted_content` is written when the live schema has it; if the
+ * column is missing (PostgREST PGRST204), the row is written without it — never failing the save.
+ * Pending owner read-only check of the live schema (see TAG/UNIVERSAL plan, prerequisite SQL).
+ */
+async function insertMessageRow(sb: SupabaseClient, row: Record<string, unknown>): Promise<{ id: string | null; error: unknown }> {
+  let res = await sb.from('chat_messages').insert(row).select('id, created_at').single();
+  if (res.error && (res.error as { code?: string }).code === 'PGRST204' && String((res.error as { message?: string }).message || '').includes('redacted_content')) {
+    const { redacted_content: _omit, ...rest } = row;
+    void _omit;
+    res = await sb.from('chat_messages').insert(rest).select('id, created_at').single();
+  }
+  const data = res.data as { id?: string } | null;
+  return { id: data?.id ?? null, error: res.error ?? null };
+}
+
+export type TurnClaim =
+  | { status: 'claimed'; maskedUserText: string; userMessageId: string | null }
+  | { status: 'duplicate'; reply: string | null }
+  | { status: 'unsaved'; maskedUserText: string };
+
+/**
+ * CLAIM-FIRST retry protection (Prime HQ review of T-H1). Store the customer message BEFORE the
+ * employee runs its model or any tool. Only the request that owns the claim may run actions:
+ * - this client message id already stored (retry, or a retry after a partial failure) → 'duplicate'
+ *   with the stored reply (or null): the caller must NOT run the model or tools again;
+ * - two concurrent requests with the same id → both insert, then the earliest row wins; the other
+ *   gets 'duplicate'. (A database unique index — owner-gated migration — makes this airtight;
+ *   until then the race window is the few milliseconds between the two inserts.)
+ * - the claim could not be written → 'unsaved': the caller may answer, but must report
+ *   persisted:false. Without a valid clientMessageId there is no retry protection at all.
+ */
+export async function claimConversationTurn(
+  sb: SupabaseClient,
+  params: { sessionId: string; userId: string; employeeSlug: ConversationEmployeeSlug; userText: string; clientMessageId?: string | null },
+): Promise<TurnClaim> {
+  const maskedUserText = maskCustomerTextForModel(params.userText);
+  const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
+
+  if (clientMessageId) {
+    const prior = await findRecordedTurn(sb, { sessionId: params.sessionId, userId: params.userId, clientMessageId });
+    if (prior.found) return { status: 'duplicate', reply: prior.reply };
+  }
+
+  const inserted = await insertMessageRow(sb, {
+    session_id: params.sessionId, user_id: params.userId, thread_id: params.sessionId,
+    role: 'user', content: maskedUserText, redacted_content: maskedUserText,
+    tokens: Math.ceil(maskedUserText.length / 4),
+    metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { client_message_id: clientMessageId } : {}) },
+  });
+  if (inserted.error) return { status: 'unsaved', maskedUserText };
+
+  if (clientMessageId) {
+    // Concurrency: if another request stored the same client id, the earliest row owns the turn.
+    const { data: rows } = await sb
+      .from('chat_messages')
+      .select('id, created_at')
+      .eq('session_id', params.sessionId)
+      .eq('user_id', params.userId)
+      .eq('role', 'user')
+      .eq('metadata->>client_message_id', clientMessageId)
+      .order('created_at', { ascending: true })
+      .limit(5);
+    if (Array.isArray(rows) && rows.length > 1) {
+      const first = [...rows].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)))[0];
+      if (first && first.id !== inserted.id) return { status: 'duplicate', reply: null };
+    }
+  }
+
+  const title = deriveConversationTitle(maskedUserText);
+  if (title) {
+    await sb.from('chat_sessions').update({ title })
+      .eq('id', params.sessionId).eq('user_id', params.userId).eq('title', DEFAULT_SESSION_TITLE);
+  }
+  return { status: 'claimed', maskedUserText, userMessageId: inserted.id };
+}
+
+/** Store the employee's reply to a claimed turn. Throws on failure (caller reports persisted:false). */
+export async function completeConversationTurn(
+  sb: SupabaseClient,
+  params: { sessionId: string; userId: string; employeeSlug: ConversationEmployeeSlug; assistantText: string; clientMessageId?: string | null; assistantMetadata?: Record<string, unknown> },
+): Promise<void> {
+  const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
+  const assistantText = String(params.assistantText ?? '');
+  const res = await insertMessageRow(sb, {
+    session_id: params.sessionId, user_id: params.userId, thread_id: params.sessionId,
+    role: 'assistant', content: assistantText, redacted_content: assistantText,
+    tokens: Math.ceil(assistantText.length / 4),
+    metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { reply_to: clientMessageId } : {}), ...(params.assistantMetadata ?? {}) },
+  });
+  if (res.error) throw new Error('Failed to save conversation reply');
+}
+
+/**
+ * Persist a customer turn and the reply in one call (for paths that run no tools). Paths that can
+ * run actions must use claimConversationTurn BEFORE acting and completeConversationTurn after.
  */
 export async function recordConversationTurn(
   sb: SupabaseClient,
@@ -170,51 +267,9 @@ export async function recordConversationTurn(
     assistantMetadata?: Record<string, unknown>;
   },
 ): Promise<RecordedTurn> {
-  const maskedUserText = maskPII(String(params.userText ?? '')).masked;
-  const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
-
-  if (clientMessageId) {
-    const { data: existing } = await sb
-      .from('chat_messages')
-      .select('id')
-      .eq('session_id', params.sessionId)
-      .eq('user_id', params.userId)
-      .eq('role', 'user')
-      .eq('metadata->>client_message_id', clientMessageId)
-      .limit(1);
-    if (Array.isArray(existing) && existing.length > 0) return { duplicate: true, maskedUserText };
-  }
-
-  const base = { session_id: params.sessionId, user_id: params.userId, thread_id: params.sessionId };
-  const { error: userErr } = await sb.from('chat_messages').insert({
-    ...base,
-    role: 'user',
-    content: maskedUserText,
-    redacted_content: maskedUserText,
-    tokens: Math.ceil(maskedUserText.length / 4),
-    metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { client_message_id: clientMessageId } : {}) },
-  });
-  if (userErr) throw new Error('Failed to save conversation message');
-
-  const assistantText = String(params.assistantText ?? '');
-  const { error: asstErr } = await sb.from('chat_messages').insert({
-    ...base,
-    role: 'assistant',
-    content: assistantText,
-    redacted_content: assistantText,
-    tokens: Math.ceil(assistantText.length / 4),
-    metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { reply_to: clientMessageId } : {}), ...(params.assistantMetadata ?? {}) },
-  });
-  if (asstErr) throw new Error('Failed to save conversation reply');
-
-  // Title from the first customer message (only while the session still has the default title).
-  const title = deriveConversationTitle(maskedUserText);
-  if (title) {
-    await sb.from('chat_sessions')
-      .update({ title })
-      .eq('id', params.sessionId)
-      .eq('user_id', params.userId)
-      .eq('title', DEFAULT_SESSION_TITLE);
-  }
-  return { duplicate: false, maskedUserText };
+  const claim = await claimConversationTurn(sb, params);
+  if (claim.status === 'duplicate') return { duplicate: true, maskedUserText: maskCustomerTextForModel(params.userText) };
+  if (claim.status === 'unsaved') throw new Error('Failed to save conversation message');
+  await completeConversationTurn(sb, params);
+  return { duplicate: false, maskedUserText: claim.maskedUserText };
 }
