@@ -1116,7 +1116,7 @@ export default function DashboardLayout() {
               onClick={() => setIsPrimeBriefingOpen(true)}
               aria-label="Ask Prime"
               data-testid="ask-prime-mobile"
-              className="ml-auto mr-2 px-3 py-1.5 rounded-lg text-xs font-bold"
+              className="ml-auto mr-2 px-3 min-h-[44px] shrink-0 whitespace-nowrap rounded-lg text-xs font-bold"
               style={{ background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.35)', color: '#e8cf86' }}
             >
               Ask Prime

@@ -122,6 +122,8 @@ export default function TransactionsPageV2() {
   const [initialToolbar] = useState(() => { try { return readTxToolbarParams(window.location.search); } catch { return readTxToolbarParams(''); } });
   const [rangeFrom, setRangeFrom] = useState<string>(initialToolbar.from);
   const [rangeTo, setRangeTo] = useState<string>(initialToolbar.to);
+  // M-TX: on phones the secondary filters fold behind one "Filters" button.
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   // X-3: 'Needs category' quick filter (same check as the page's existing review count).
   const [needsCategoryOnly, setNeedsCategoryOnly] = useState<boolean>(!!initialToolbar.needsCategory);
   const [tagFilterLabel, setTagFilterLabel] = useState('');
@@ -738,6 +740,9 @@ export default function TransactionsPageV2() {
       });
   }, [imports]);
   const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
+  const activeFilterCount =
+    (rangeFrom || rangeTo ? 1 : 0) + (yearFilter !== new Date().getFullYear() && !(rangeFrom || rangeTo) ? 1 : 0) +
+    (accountFilter !== 'all' ? 1 : 0) + (statementFilter !== 'all' ? 1 : 0) + (tagCategoryFilter ? 1 : 0);
   // X-1: categories present in the loaded transactions, for the toolbar filter.
   const categoryOptions = useMemo(() => Array.from(new Set(transactions.map(t => t.category || 'Uncategorized'))).sort((a, b) => a.localeCompare(b)), [transactions]);
 
@@ -842,7 +847,8 @@ export default function TransactionsPageV2() {
       <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         {/* X-1: header — title and page actions */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
-          <div className="min-w-0 flex-1">
+          {/* M-TX: on phones the title has its own row (actions wrap below it, never over it). */}
+          <div className="min-w-0 w-full sm:w-auto sm:flex-1">
             {isStatementMode && (
               <button
                 onClick={() => { setStatementFilter('all'); setAccountFilter('all'); }}
@@ -881,6 +887,14 @@ export default function TransactionsPageV2() {
             <span className="sr-only">Search transactions</span>
             <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) { setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); } }} placeholder="Search merchant, category or amount" className="flex-1 min-w-0 bg-transparent text-[16px] md:text-[14px] text-slate-200 placeholder:text-slate-500 outline-none" />
           </label>
+          <button type="button" className="md:hidden flex items-center gap-1.5 rounded-[10px] border px-3 text-[14px] font-semibold"
+            aria-expanded={mobileFiltersOpen} aria-controls="tx-filters"
+            onClick={() => setMobileFiltersOpen(v => !v)}
+            style={{ minHeight: 44, background: '#111a2e', borderColor: '#24365a', color: '#e8ecf4' }}>
+            Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+            <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${mobileFiltersOpen ? 'rotate-180' : ''}`} />
+          </button>
+          <div id="tx-filters" className={mobileFiltersOpen ? 'grid grid-cols-2 gap-2 w-full md:contents [&>*]:min-w-0 [&_select]:w-full md:[&_select]:w-auto' : 'hidden md:contents'}>
           <select aria-label="Year" value={yearFilter === 'all' ? 'all' : String(yearFilter)} disabled={!!(rangeFrom || rangeTo)}
             onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             style={{ minHeight: 44, padding: '0 12px', background: '#111a2e', border: '1px solid #24365a', borderRadius: 10, color: '#e8ecf4', fontSize: 14, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit' }}>
@@ -974,6 +988,7 @@ export default function TransactionsPageV2() {
             <option value="">All categories</option>
             {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          </div>
           <button type="button" aria-pressed={needsCategoryOnly} onClick={() => setNeedsCategoryOnly(v => !v)}
             className="flex items-center gap-1.5 rounded-[10px] border px-3 text-[14px] font-semibold transition-colors"
             style={{ minHeight: 44, background: needsCategoryOnly ? 'rgba(251,191,36,0.12)' : '#111a2e', borderColor: needsCategoryOnly ? 'rgba(251,191,36,0.45)' : '#24365a', color: needsCategoryOnly ? '#fcd34d' : '#e8ecf4' }}>

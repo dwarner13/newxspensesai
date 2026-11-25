@@ -317,7 +317,9 @@ export default function CategoriesPageV2() {
               <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, color: THEME.green }}>${fmt(data.totalIncome)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Expenses <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>(excl. transfers)</span></div>
+              {/* M-CAT: the note sits on its own line so the half-width phone tile never wraps mid-label. */}
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Expenses</div>
+              <div style={{ fontSize: 11, color: KA.dim, marginTop: 1 }}>Excludes transfers</div>
               <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, color: THEME.red }}>${fmt(data.totalSpent)}</div>
             </div>
             {!isMobile && (
