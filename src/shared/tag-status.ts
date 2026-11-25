@@ -66,7 +66,7 @@ export function isProtectedSource(source: unknown): boolean {
 /** @deprecated use PROTECTED_SOURCES / VERIFIED_CUSTOMER_SOURCES */
 export const CUSTOMER_SOURCES: ReadonlySet<string> = new Set(['manual', 'manual_edit', 'user_correction', 'user_chat', 'user_edit', 'user_split', 'user_type_fix', 'user_undo', 'user_confirmed']);
 // Written both by customer-approved Tag actions AND by automatic writers. Until C4 separates them,
-// they are treated as possibly customer-approved: counted separately and never proposed for change.
+// they are protected (origin unverified): counted separately, never proposed for change, never called customer-approved.
 /** @deprecated use PROTECTED_SOURCES */
 export const AMBIGUOUS_SOURCES: ReadonlySet<string> = new Set(['tag_chat', 'tag_rule']);
 const AUTOMATIC_SOURCES = new Set(['ai', 'hardcoded', 'rule', 'merchant_map', 'merchant_sweep', 'sign_conflict', 'bulk_fix', 'xlsx-spreadsheet', 'learned', 'tag_single', 'tag_bulk', 'tag_conversation', 'tag_assisted']);
