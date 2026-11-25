@@ -15,6 +15,8 @@ import {
   type SessionRow,
   type RecentActivityRow,
 } from '../lib/primeChatSession';
+import { loadEmployeeSessions } from '../lib/conversationStore';
+import type { ConversationEmployeeSlug } from '../shared/conversation-identity';
 
 export interface ChatSession {
   id: string;
@@ -34,12 +36,18 @@ interface UseChatSessionsOptions {
   limit?: number; // Total sessions to fetch (default: 50)
   perEmployee?: number; // Sessions per employee (default: 10)
   autoLoad?: boolean;
+  /**
+   * T-H2: one employee's own conversations (from chat_sessions, alias-aware via the shared
+   * conversation identity). Omitted = the existing all-employee list (unchanged).
+   */
+  employee?: ConversationEmployeeSlug;
 }
 
 export function useChatSessions({ 
   limit = 50, 
   perEmployee = 10,
-  autoLoad = true 
+  autoLoad = true,
+  employee,
 }: UseChatSessionsOptions = {}) {
   const { user, userId } = useAuth();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -59,6 +67,21 @@ export function useChatSessions({
     try {
       const supabase = getSupabase();
       if (!supabase) {
+        setIsLoading(false);
+        return;
+      }
+
+      if (employee) {
+        const rows = await loadEmployeeSessions(supabase, userId, employee, limit);
+        setSessions(rows.map(r => ({
+          id: r.id,
+          employee_slug: r.employee_slug,
+          title: r.title,
+          message_count: 0,
+          last_message_at: r.last_message_at,
+          last_message_preview: null,
+          created_at: r.created_at || r.last_message_at || '',
+        })));
         setIsLoading(false);
         return;
       }
@@ -223,7 +246,7 @@ export function useChatSessions({
     } finally {
       setIsLoading(false);
     }
-  }, [userId, limit, perEmployee]);
+  }, [userId, limit, perEmployee, employee]);
 
   // Auto-load on mount if enabled
   useEffect(() => {
