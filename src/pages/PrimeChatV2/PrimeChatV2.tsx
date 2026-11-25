@@ -44,6 +44,9 @@ import { TeamHandoffAnnouncement, SpecialistCompleteMessage, parseLifecycleMessa
 import { deriveEmployeeStops } from "@/components/chat/deriveEmployeeStops";
 import { ConversationHistoryDropdown, HistoryDropdownTrigger } from "@/components/chat/ConversationHistoryDropdown";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
+import { SpendingBreakdown } from "./SpendingBreakdown";
+import { validateFinancialVisual } from "@/shared/prime-financial-visual";
+import { thinkingLabelFor } from "@/lib/primeActivity";
 import { ConversationHistoryDrawer } from "@/components/chat/ConversationHistoryDrawer";
 import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
 
@@ -149,6 +152,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     pendingConfirmation,
     confirmToolExecution,
     cancelToolExecution,
+    activeToolLabel,
   } = useUnifiedChatEngine({
     employeeSlug: "prime-boss",
     initialMessages: history,
@@ -1420,12 +1424,14 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                   }}>
                     {isThisStreaming && isEmpty ? (
                       // Thinking indicator while waiting for the first token of a real request.
-                      <ThinkingIndicator color={AGENT_COLORS[agentForMsg]} label={`${agentForMsg} is thinking…`} />
+                      <ThinkingIndicator color={AGENT_COLORS[agentForMsg]} label={thinkingLabelFor(agentForMsg, agentForMsg === "Prime" ? activeToolLabel : null)} />
                     ) : (() => {
                       const metaAny = msg.meta as any;
                       const actionReceipt = parseActionReceipt(metaAny?.toolConfirmationResult) || parseActionReceipt(metaAny?.actionReceipt);
                       if (actionReceipt) return <ActionReceiptCard receipt={actionReceipt} />;
                       const txCandidates = parseTxCandidates(metaAny);
+                      // P-UI-3: server-verified category breakdown only (re-validated here, also for restored history).
+                      const financialVisual = msg.role === "assistant" ? validateFinancialVisual(metaAny?.financialVisual) : null;
                       // L-A: only for consultations the server recorded on this assistant message.
                       const consultations = parseSpecialistConsultations(metaAny, msg.role);
                       return (
@@ -1448,6 +1454,10 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                               animateReveal={typedMessageIds.has(msg.id) || !typedIdsRef.current.has(msg.id)}
                               onReviewWithTag={handleReviewWithTag}
                             />
+                          )}
+                          {/* P-UI-3: after the reply has finished typing (history shows it at once) */}
+                          {financialVisual && !isThisStreaming && (typedMessageIds.has(msg.id) || typedIdsRef.current.has(msg.id)) && (
+                            <SpendingBreakdown visual={financialVisual} />
                           )}
                         </>
                       );

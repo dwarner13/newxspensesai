@@ -358,6 +358,8 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
     pendingConfirmation: primeChat.pendingConfirmation,
     confirmToolExecution: primeChat.confirmToolExecution,
     cancelToolExecution: primeChat.cancelToolExecution,
+    // P-UI-4: whitelisted plain-language activity label from usePrimeChat (or null).
+    activeToolLabel: primeChat.activeToolLabel,
   };
 }
 
