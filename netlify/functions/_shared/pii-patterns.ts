@@ -201,37 +201,21 @@ const FINANCIAL_DETECTORS: PiiDetector[] = [
     name: 'swift_bic',
     description: 'SWIFT/BIC codes (8 or 11 characters)',
     rx: /\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?(?!\.\d)\b/g,
-    mask: (text, strategy) => {
+    // SWIFT-MASK (owner 2026-11-25; joint Prime + Attachments review): mask only a code that is
+    // STRUCTURALLY a BIC — positions 5-6 a real ISO 3166-1 country — AND either contains a digit in
+    // its location/branch code or sits near a banking cue (SWIFT, BIC, IBAN, wire, bank code…).
+    // Ordinary uppercase statement words (PREVIOUS, MORTGAGE, CONTACTLESS) stay readable. The old
+    // customer-specific allow-list and the repeated-character exemption (which let real BICs such
+    // as …TTT… through) are removed.
+    mask: (text, _strategy, context) => {
       const cleaned = text.toUpperCase().replace(/\s/g, '');
       if (cleaned.length !== 8 && cleaned.length !== 11) return text;
       if (text.includes('[REDACTED:') || text.includes(':REDACTED')) return text;
-      // Exclude common English words and merchant name fragments
-      const commonWords = new Set([
-        'ELEVENSTORE','STOREELEVEN','ELEVEN','STORE','CANADA',
-        'PURCHASE','DEBITCARD','TRANSFER','DEPOSIT','PAYMENT',
-        'BANKING','ACCOUNT','BALANCE','OPENING','CLOSING',
-        'LYNNWOOD','EDMONTON','ALBERTA','PREMIER','PREMIUM',
-        'HOLLICK','KENYON','NEWCASTLE','SCHOLFIELD',
-        'RIVERVIEW','SARATOGA','COLISEUM','BEARHILLS',
-        'TULIPGARDEN','SHADIFIED','LEWISMASSAGE',
-        'GORDONFOOD','KRISPYKREME','SAVEONFOODS',
-        'NATIONALMONEY','EASYFINANCIAL','CASHMONEY',
-        'NATIONAL','WESTLOCK','SILVERCREEK','TWINWILLOWS',
-        'ALBERTABEACH','LONESPRUCE','MONTGOMERY','GOLFZON',
-        'SANPIPER','LONGSHOTZ','BLACKJACKS','RIVERCREE',
-        'CASTLEDOWNS','BEAUMARIS','OBYRNES','CHOPPED',
-        'ROLLZICE','SECONDCUP','NISHKUESSO','NISKU',
-        'DANDTE','DANDTCATERING','FIVEGUYS','WINGSNOB',
-        'BORROWELL','CELTICGROUP','FLEXITI','INDALL',
-        'INDALLSAVING','TDLOAN','RAILWAY','RECURRING'
-      ]);
-      if (commonWords.has(cleaned)) return text;
-      // Must look like a real SWIFT: first 4 chars = bank code (letters only),
-      // next 2 = country code (letters only), next 2 = location code
-      if (!/^[A-Z]{6}/.test(cleaned)) return text;
-      // Reject if it contains sequential patterns common in merchant names
-      if (/(.)\1{2,}/.test(cleaned)) return text; // repeated chars
-      return fullTag('SWIFT')(text);
+      if (!/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(cleaned)) return text;
+      if (!ISO_3166_ALPHA2.has(cleaned.slice(4, 6))) return text;
+      const hasDigit = /\d/.test(cleaned.slice(6));
+      const cue = context ? hasBankingCue(context.source, context.index, text.length) : false;
+      return hasDigit || cue ? fullTag('SWIFT')(text) : text;
     },
     region: 'Global',
     compliance: ['GDPR'],
@@ -604,6 +588,23 @@ const ADDITIONAL_DETECTORS: PiiDetector[] = [
  * - Address: 4 detectors (street, postal, ZIP)
  * - Network: 3 detectors (URLs, MAC)
  */
+/** ISO 3166-1 alpha-2 country codes (positions 5-6 of a BIC). */
+const ISO_3166_ALPHA2 = new Set(('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ ' +
+  'CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH ' +
+  'GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB ' +
+  'LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM ' +
+  'PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG ' +
+  'TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW').split(' '));
+
+const BANKING_CUE = /\b(?:swift|bic|iban|wire|bank\s*code|bank\s*identifier|routing|transit|beneficiary|sort\s*code|correspondent|remittance)\b/i;
+
+/** A banking cue within 30 characters before or after the candidate. */
+function hasBankingCue(source: string, index: number, length: number): boolean {
+  const before = source.slice(Math.max(0, index - 30), index);
+  const after = source.slice(index + length, index + length + 30);
+  return BANKING_CUE.test(before) || BANKING_CUE.test(after);
+}
+
 export const PII_DETECTORS: PiiDetector[] = [
   ...FINANCIAL_DETECTORS,
   ...GOVERNMENT_DETECTORS,

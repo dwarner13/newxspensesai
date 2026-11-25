@@ -98,7 +98,7 @@ export function maskPII(text: string, strategy: MaskStrategy = 'last4'): MaskRes
       }
 
       // Apply masking using detector's mask function first to check if it's valid
-      const maskedValue = detector.mask(originalText, strategy);
+      const maskedValue = detector.mask(originalText, strategy, { source: masked, index });
       
       // Only record and replace if mask function actually changed the text
       // This ensures we don't record false positives that the mask function rejects
@@ -191,7 +191,7 @@ export function maskSpecificPII(
         index
       });
 
-      const maskedValue = detector.mask(originalText, strategy);
+      const maskedValue = detector.mask(originalText, strategy, { source: masked, index });
       masked = masked.replace(originalText, maskedValue);
     }
   }
