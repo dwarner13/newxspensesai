@@ -9,6 +9,7 @@ import { useImportList } from '@/hooks/useImportList';
 import { groupImportsIntoAccounts } from '@/lib/accountGroups';
 import { calendarDayOfTx, inDateRange, isRangeActive } from '@/lib/categoryPeriod';
 import { readTxToolbarParams, writeTxToolbarParams } from '@/lib/txToolbar';
+import { TX_LIST_POSITION_KEY, parsePosition, serializePosition, scrollContainer } from '@/lib/txListPosition';
 import { useUnifiedChatLauncher } from '@/hooks/useUnifiedChatLauncher';
 import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
 import { TAG_REVIEW_PARAM, isTransactionUuid, type TxListFilters } from '@/lib/tagReview';
@@ -120,11 +121,15 @@ export default function TransactionsPageV2() {
   const [initialToolbar] = useState(() => { try { return readTxToolbarParams(window.location.search); } catch { return readTxToolbarParams(''); } });
   const [rangeFrom, setRangeFrom] = useState<string>(initialToolbar.from);
   const [rangeTo, setRangeTo] = useState<string>(initialToolbar.to);
+  // X-3: 'Needs category' quick filter (same check as the page's existing review count).
+  const [needsCategoryOnly, setNeedsCategoryOnly] = useState<boolean>(!!initialToolbar.needsCategory);
   const [tagFilterLabel, setTagFilterLabel] = useState('');
   const [tagCategoryFilter, setTagCategoryFilter] = useState('');
   const [tagSubcategoryFilter, setTagSubcategoryFilter] = useState('');
   const txListRef = (typeof window !== 'undefined') ? { current: null } : { current: null };
   const [selectedTx, setSelectedTx] = useState<CommittedTransaction | null>(null);
+  const selectedTxRef = useRef<CommittedTransaction | null>(null);
+  selectedTxRef.current = selectedTx;
   const [tagInsight, setTagInsight] = useState<{ category?: string; categorySource?: string; confidence?: number; message?: string; accountLabel?: string | null } | null>(null);
   // D-6: display-only account label ("Issuer •••• 1234") for Tag's context card, captured from the
   // owner-scoped tag-explain result of the transaction handed to Tag. Never sent to Tag.
@@ -173,6 +178,18 @@ export default function TransactionsPageV2() {
 
   const [tagPanelTx, setTagPanelTx] = useState<CommittedTransaction | null>(null);
   const [visibleCount, setVisibleCount] = useState(100);
+  // X-3: remember how far down the list the customer was (rows loaded + scroll) for this
+  // session, and restore it on return to the same filters within 30 minutes.
+  const positionRestoredRef = useRef(false);
+  const visibleCountRef = useRef(visibleCount);
+  visibleCountRef.current = visibleCount;
+  useEffect(() => {
+    return () => {
+      try {
+        sessionStorage.setItem(TX_LIST_POSITION_KEY, serializePosition(window.location.search, visibleCountRef.current, scrollContainer().get(), Date.now()));
+      } catch { /* per-viewer convenience only */ }
+    };
+  }, []);
   const [tagBadgeCount, setTagBadgeCount] = useState(0);
   const [tagInboxData, setTagInboxData] = useState<any>(null);
   const [tagActivityOpen, setTagActivityOpen] = useState(false);
@@ -188,10 +205,10 @@ export default function TransactionsPageV2() {
   // X-1: date range and type <-> URL (other params kept)
   useEffect(() => {
     try {
-      const qs = writeTxToolbarParams(window.location.search, { from: rangeFrom, to: rangeTo, type: filter });
+      const qs = writeTxToolbarParams(window.location.search, { from: rangeFrom, to: rangeTo, type: filter, needsCategory: needsCategoryOnly });
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs ? '?' + qs : ''}`);
     } catch { /* non-fatal */ }
-  }, [rangeFrom, rangeTo, filter]);
+  }, [rangeFrom, rangeTo, filter, needsCategoryOnly]);
 
   // Year filter <-> URL sync
   useEffect(() => {
@@ -390,7 +407,15 @@ export default function TransactionsPageV2() {
   const handleDrawerClose = useCallback(() => {
     clearChatReturnContext();
     setChatReturnCtx(null);
+    // X-3: return keyboard focus (and view) to the row that was open, like "Done" does.
+    const id = selectedTxRef.current?.id;
     setSelectedTx(null);
+    if (id) {
+      requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>(`[data-tx-id="${CSS.escape(id)}"]`);
+        if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
+      });
+    }
   }, []);
 
   // D-3: "Done" after a confirmed correction — close the drawer and return to the same row:
@@ -637,6 +662,7 @@ export default function TransactionsPageV2() {
         list = list.filter(t => ids.has(t.import_id || ''));
       }
     }
+    if (needsCategoryOnly) list = list.filter(t => !t.category || t.category === 'Uncategorized');
     if (tagCategoryFilter) {
       list = list.filter(t => (t.category || '').toLowerCase() === tagCategoryFilter.toLowerCase());
     }
@@ -656,7 +682,7 @@ export default function TransactionsPageV2() {
       });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter, yearFilter, rangeFrom, rangeTo]);
+  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter, yearFilter, rangeFrom, rangeTo, needsCategoryOnly]);
 
   const handleExport = useCallback(() => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -760,11 +786,23 @@ export default function TransactionsPageV2() {
     return groups;
   }, [filtered, visibleCount]);
 
+  useEffect(() => {
+    if (positionRestoredRef.current || isLoading || transactions.length === 0) return;
+    positionRestoredRef.current = true;
+    let saved = null;
+    try { saved = parsePosition(sessionStorage.getItem(TX_LIST_POSITION_KEY), window.location.search, Date.now()); } catch { saved = null; }
+    // A deep link to a specific transaction (txId / tagTx) takes precedence over the saved place.
+    if (!saved || /[?&](txId|tagTx)=/.test(window.location.search)) return;
+    if (saved.visibleCount > visibleCount) setVisibleCount(saved.visibleCount);
+    const y = saved.scrollTop;
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollContainer().set(y)));
+  }, [isLoading, transactions.length, visibleCount]);
+
   // C2-E2A-F1: bring the reviewed transaction into view (filters, load-more, scroll).
   const applyRevealFilters = useCallback((f: TxListFilters) => {
     setYearFilter(f.year); setFilter(f.type); setStatementFilter(f.statement); setAccountFilter(f.account);
     setTagCategoryFilter(f.category); setTagSubcategoryFilter(f.subcategory); setSearchQuery(f.search);
-    setRangeFrom(''); setRangeTo('');
+    setRangeFrom(''); setRangeTo(''); setNeedsCategoryOnly(false);
   }, []);
   useRevealReviewedTransaction({ highlightTxId, transactions, filtered, visibleCount, setVisibleCount, applyFilters: applyRevealFilters });
 
@@ -934,6 +972,11 @@ export default function TransactionsPageV2() {
             <option value="">All categories</option>
             {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          <button type="button" aria-pressed={needsCategoryOnly} onClick={() => setNeedsCategoryOnly(v => !v)}
+            className="flex items-center gap-1.5 rounded-[10px] border px-3 text-[14px] font-semibold transition-colors"
+            style={{ minHeight: 44, background: needsCategoryOnly ? 'rgba(251,191,36,0.12)' : '#111a2e', borderColor: needsCategoryOnly ? 'rgba(251,191,36,0.45)' : '#24365a', color: needsCategoryOnly ? '#fcd34d' : '#e8ecf4' }}>
+            Needs category
+          </button>
           <div role="group" aria-label="Transaction type" className="flex p-1 rounded-[10px] bg-slate-800/40 border border-slate-700/30">
             {(['all', 'expenses', 'income'] as const).map(f => (
               <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`px-3.5 text-[13px] font-bold rounded-md transition-colors ${filter === f ? 'bg-slate-700/60 text-white' : 'text-slate-400 hover:text-slate-200'}`} style={{ minHeight: 36 }}>
@@ -1169,7 +1212,7 @@ export default function TransactionsPageV2() {
                 <span className="relative flex h-2.5 w-2.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-2.5 w-2.5 rounded-full bg-amber-400" /></span>
                 <span className="text-[13px] text-amber-200">Tag found <strong>{uncategorizedCount}</strong> transaction{uncategorizedCount !== 1 ? 's' : ''} that need review</span>
               </div>
-              <button onClick={() => setFilter('all')} className="px-3 py-1.5 text-[12px] font-bold text-amber-900 bg-amber-400 rounded-md hover:bg-amber-300 transition-colors">Review</button>
+              <button type="button" onClick={() => { setNeedsCategoryOnly(true); listRef.current?.scrollIntoView({ block: 'start' }); }} className="px-3 min-h-[40px] text-[13px] font-bold text-amber-900 bg-amber-400 rounded-md hover:bg-amber-300 transition-colors">Review</button>
             </div>
           )}
 
