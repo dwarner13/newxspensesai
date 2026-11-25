@@ -19,7 +19,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createHash } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { ensureSession, getRecentMessages } from './session.js';
 import { ensureThread } from './ensureThread.js';
 import { maskSpecificPII, getCriticalDetectors } from './pii.js';
@@ -115,6 +115,61 @@ export async function findRecentEmployeeConversation(
   return best?.id ?? null;
 }
 
+// ─── Server-authoritative employee replies (owner P-8 integrity finding) ──────────────────────
+// Live grants let a signed-in customer insert/update their own chat_messages, so an "assistant"
+// row or action receipt in the database is NOT proof the server wrote it. Every employee reply the
+// platform stores carries metadata.server_sig = HMAC over (customer, session, reply_to, content,
+// actionReceipt), keyed from a server-only secret. Readers trust a reply/receipt ONLY when the
+// signature verifies; anything else is treated as "not recorded". This holds even before the
+// least-privilege migration, and keeps holding after it (defence in depth).
+
+const SIG_CONTEXT = 'xspensesai/conversation-reply/v1';
+
+function serverReplyKey(): Buffer | null {
+  const secret = process.env.CONVERSATION_SIGNING_SECRET || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) return null;
+  // Domain-separated derivation: the stored signature never reveals or reuses the raw secret.
+  return createHmac('sha256', secret).update(SIG_CONTEXT).digest();
+}
+
+function stableStringify(v: unknown): string {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v ?? null);
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+  const o = v as Record<string, unknown>;
+  return `{${Object.keys(o).filter(k => o[k] !== undefined).sort().map(k => `${JSON.stringify(k)}:${stableStringify(o[k])}`).join(',')}}`;
+}
+
+interface ReplySigInput { userId: string; sessionId: string; replyTo: string | null; content: string; actionReceipt: unknown }
+
+/** Signature for a server-written employee reply, or null when no server secret is configured. */
+export function signServerReply(p: ReplySigInput): string | null {
+  const key = serverReplyKey();
+  if (!key) return null;
+  return createHmac('sha256', key)
+    .update(stableStringify({ u: p.userId, s: p.sessionId, r: p.replyTo, c: p.content, a: p.actionReceipt ?? null }))
+    .digest('hex');
+}
+
+/** True only when the stored reply was written by the server and has not been altered. */
+export function verifyServerReply(p: ReplySigInput & { sig: unknown }): boolean {
+  if (typeof p.sig !== 'string' || !/^[0-9a-f]{64}$/.test(p.sig)) return false;
+  const expected = signServerReply(p);
+  if (!expected) return false;
+  return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(p.sig, 'hex'));
+}
+
+function verifiedReplyRow(
+  row: { content?: unknown; metadata?: Record<string, unknown> | null } | undefined,
+  ctx: { userId: string; sessionId: string },
+): { content: string; actionReceipt: Record<string, unknown> | null; replyTo: string | null } | null {
+  if (!row || typeof row.content !== 'string') return null;
+  const md = (row.metadata ?? {}) as Record<string, unknown>;
+  const replyTo = typeof md.reply_to === 'string' ? md.reply_to : null;
+  const actionReceipt = md.actionReceipt && typeof md.actionReceipt === 'object' ? (md.actionReceipt as Record<string, unknown>) : null;
+  const ok = verifyServerReply({ userId: ctx.userId, sessionId: ctx.sessionId, replyTo, content: row.content, actionReceipt, sig: md.server_sig });
+  return ok ? { content: row.content, actionReceipt, replyTo } : null;
+}
+
 export interface PriorTurn {
   /** A customer message with this client message id is already stored in this session. */
   found: boolean;
@@ -153,11 +208,15 @@ export async function findRecordedTurn(
     .eq('user_id', params.userId)
     .eq('role', 'assistant')
     .eq('metadata->>reply_to', id)
-    .limit(1);
-  const row = Array.isArray(replyRows) ? (replyRows[0] as { content?: unknown; metadata?: Record<string, unknown> } | undefined) : undefined;
-  const reply = typeof row?.content === 'string' ? row.content : null;
-  const receipt = row?.metadata && typeof row.metadata.actionReceipt === 'object' ? (row.metadata.actionReceipt as Record<string, unknown>) : null;
-  return { found: true, reply, actionOutcome: receipt };
+    .limit(5);
+  // Only a SERVER-SIGNED reply counts (owner P-8): a customer-inserted "assistant" row is ignored, so
+  // the turn is reported as "reply/outcome not recorded" rather than trusting forged content.
+  const rows = Array.isArray(replyRows) ? (replyRows as Array<{ content?: unknown; metadata?: Record<string, unknown> }>) : [];
+  for (const r of rows) {
+    const v = verifiedReplyRow(r, { userId: params.userId, sessionId: params.sessionId });
+    if (v) return { found: true, reply: v.content, actionOutcome: v.actionReceipt };
+  }
+  return { found: true, reply: null, actionOutcome: null };
 }
 
 // ─── Shared action-receipt contract (T-H1b, Tag HQ; reusable by every employee) ───────────────
@@ -212,19 +271,19 @@ export async function findLatestActionReceipt(
 ): Promise<{ receipt: ActionReceipt; replyTo: string | null } | null> {
   const { data, error } = await sb
     .from('chat_messages')
-    .select('metadata, created_at')
+    .select('content, metadata, created_at')
     .eq('session_id', params.sessionId)
     .eq('user_id', params.userId)
     .eq('role', 'assistant')
     .order('created_at', { ascending: false })
     .limit(params.lookback ?? 5);
   if (error || !Array.isArray(data)) return null;
-  for (const row of data as Array<{ metadata?: Record<string, unknown> | null }>) {
-    const receipt = parseActionReceipt(row?.metadata?.actionReceipt);
-    if (receipt) {
-      const replyTo = typeof row.metadata?.reply_to === 'string' ? (row.metadata.reply_to as string) : null;
-      return { receipt, replyTo };
-    }
+  for (const row of data as Array<{ content?: unknown; metadata?: Record<string, unknown> | null }>) {
+    // Owner P-8: a receipt binds a confirmation ONLY if the server wrote it (signature verifies).
+    // Unsigned or altered rows are skipped and never authorize an action.
+    const v = verifiedReplyRow(row, { userId: params.userId, sessionId: params.sessionId });
+    const receipt = v ? parseActionReceipt(v.actionReceipt) : null;
+    if (receipt) return { receipt, replyTo: v!.replyTo };
   }
   return null;
 }
@@ -393,11 +452,15 @@ export async function completeConversationTurn(
   const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
   const assistantText = String(params.assistantText ?? '');
   const employeeKey = await resolveEmployeeKey(sb, params.employeeSlug);
+  const baseMetadata: Record<string, unknown> = { ...(params.assistantMetadata ?? {}), employee_slug: params.employeeSlug, ...(clientMessageId ? { reply_to: clientMessageId } : {}) };
+  delete baseMetadata.server_sig; // never accept a caller-supplied signature
+  const actionReceipt = baseMetadata.actionReceipt && typeof baseMetadata.actionReceipt === 'object' ? baseMetadata.actionReceipt : null;
+  const serverSig = signServerReply({ userId: params.userId, sessionId: params.sessionId, replyTo: clientMessageId, content: assistantText, actionReceipt });
   const row = {
     role: 'assistant',
     content: assistantText,
     tokens: Math.ceil(assistantText.length / 4),
-    metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { reply_to: clientMessageId } : {}), ...(params.assistantMetadata ?? {}) },
+    metadata: { ...baseMetadata, ...(serverSig ? { server_sig: serverSig } : {}) },
   };
   // Owner rule: when an action already succeeded, the conversation record is recovered SEPARATELY
   // and the action is never repeated. Retry the reply save (it carries the action receipt) before
