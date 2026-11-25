@@ -17,9 +17,9 @@
  *    disclosed, never silently removed (Prime HQ contract (f)).
  *  - Income, cash flow, net and financial-health assessments belong to Prime; Tag gets no income
  *    figure at all.
- *  - Categorization progress covers the full scope with exact counts. "Other" kept by the customer
- *    (customer-confirmed or possibly customer-approved per C4 provenance) is a customer decision and
- *    never counted as unfinished.
+ *  - Categorization progress covers the full scope with exact counts. A protected "Other" (a verified
+ *    customer choice, or protected (origin unverified)) is never counted as unfinished and never
+ *    described as customer-approved unless verified.
  *
  * No merchant names, amounts or transaction data are logged here.
  */
@@ -32,7 +32,7 @@ import {
 import { buildPeriodAggregate, toCompletenessOutput, type AggregateFetchCompleteness, type CompletenessOutput } from '../../../src/shared/period-aggregate';
 import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
 import { computeIntegritySignals, type FinancialIntegritySignals } from '../../../src/shared/financial-integrity-signals';
-import { CUSTOMER_SOURCES, AMBIGUOUS_SOURCES } from '../../../src/shared/tag-status';
+import { PROTECTED_SOURCES } from '../../../src/shared/tag-status';
 import { merchantGroupingKey } from './merchantNormalize';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -372,8 +372,8 @@ export function formatProgressBlock(p: CategorizationProgress): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CountClient = { from(table: string): any };
 
-/** The source values that mark a category as kept by the customer (C4 provenance). */
-export const CUSTOMER_KEPT_SOURCES: ReadonlyArray<string> = [...CUSTOMER_SOURCES, ...AMBIGUOUS_SOURCES];
+/** Protected category sources (PROTECTED_SOURCES: verified customer ∪ protected (origin unverified)). */
+export const CUSTOMER_KEPT_SOURCES: ReadonlyArray<string> = [...PROTECTED_SOURCES];
 
 export async function loadCategorizationProgress(
   sb: CountClient,

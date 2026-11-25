@@ -21,7 +21,7 @@
 import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { pagedSelectAll, type PagedQuery } from '../../../src/shared/paged-select';
-import { CUSTOMER_SOURCES, AMBIGUOUS_SOURCES } from '../../../src/shared/tag-status';
+import { PROTECTED_SOURCES } from '../../../src/shared/tag-status';
 import { resolveCategoryRequest, TAG_CATEGORIES } from './tagCategories.js';
 import { computeImportSuggestions } from './tagImportSuggestions.js';
 import { AUTO_UPDATE_SOURCE_FILTER, AUTO_UPDATE_CATEGORY_FILTER } from './categorySource.js';
@@ -56,7 +56,7 @@ export type ActionExecutionOutcome = {
   log?: { action_type: string; merchant_name: string | null; old_value: string | null; new_value: string | null; note: string };
 };
 
-const PROTECTED = new Set<string>([...CUSTOMER_SOURCES, ...AMBIGUOUS_SOURCES]);
+const PROTECTED = new Set<string>(PROTECTED_SOURCES);
 const isProtected = (source: unknown) => PROTECTED.has(String(source ?? '').trim().toLowerCase());
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const escLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -262,9 +262,9 @@ async function updateIds(
 ): Promise<{ count: number; error: boolean }> {
   let count = 0;
   for (let i = 0; i < ids.length; i += CHUNK) {
-    // A row that became customer-confirmed after the proposal is never overwritten (re-checked here).
+    // A row that became protected after the proposal is never overwritten (re-checked here).
     let q = sb.from('transactions').update(payload).in('id', ids.slice(i, i + CHUNK)).eq('user_id', userId);
-    // A rename never changes a category, so a customer-confirmed category is no reason to skip it.
+    // A rename never changes a category, so a protected category is no reason to skip it.
     if (!opts.renameOnly) q = q.or(AUTO_UPDATE_SOURCE_FILTER);
     if (opts.gapOnly) q = q.or(AUTO_UPDATE_CATEGORY_FILTER);
     const { data, error } = await q.select('id');
