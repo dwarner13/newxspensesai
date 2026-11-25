@@ -104,3 +104,54 @@ They inherit the shared infrastructure; nothing is duplicated.
 - **Tag HQ:** categorization capabilities and restrictions.
 - **Attachments HQ:** document access, extraction and employee document permissions (E1).
 - **UI/UX Studio:** the employee experience, availability indicators and upgrade presentation.
+
+## 8. Universal conversation persistence (owner, 2026-11-25) — mandatory commercial launch requirement
+
+**Principle:** one account, all devices, specialized employees, persistent conversations, shared
+infrastructure, protected premium capabilities.
+
+Persistent conversation history is mandatory for **every** customer-facing employee — Prime, Tag,
+Byte, Crystal, Goalie, Finley, Liberty, Ledger, Chime, Blitz, **Custodian** and every future
+employee. No exceptions for specialty or subscription level. It is a standard platform capability,
+not a premium feature.
+
+Every employee must support:
+1. Automatic, authenticated, server-side conversation saving.
+2. Conversation history, with titles.
+3. Reopening previous conversations.
+4. Cross-device synchronization (desktop and mobile behave the same).
+5. Starting a new conversation explicitly.
+6. Customer-controlled deletion; history is kept until the customer deletes it, subject to the
+   final approved privacy and retention policy.
+7. Relevant persistent memory, subject to the customer's preferences and the employee's permissions.
+8. A clear notice to the customer when a conversation could not be saved.
+
+**One implementation, inherited automatically.** All employees use the existing `chat_sessions` /
+`chat_messages` tables through the shared contract owned by Prime HQ:
+- `src/shared/conversation-identity.ts`: canonical employee identity (all slug aliases), titles,
+  stored-history rules.
+- `netlify/functions/_shared/conversation-platform.ts`: `openEmployeeConversation` (ownership +
+  employee identity), `loadConversationHistory` (model context from stored history only),
+  `recordConversationTurn` (PII-masked, de-duplicated retries, titles).
+- Endpoints on the shared `chat` function already persist; other endpoints call the platform.
+- UI/UX Studio owns the shared history drawer, restoration and New-conversation controls.
+
+No employee may keep its own conversation store. Browser storage is a recoverable cache only — never
+authoritative, never auto-deleted after a time window, never capped at N messages. Stored history is
+separate from AI context limits (the model receives a bounded slice) and from long-term memory
+processing (memory extraction remains a separate, customer-controlled, owner-gated pipeline).
+
+**Persistence never widens permissions.** Opening an old conversation does not grant tools,
+documents, collaboration or paid actions; every action still passes the employee's own capability
+and entitlement checks (§3–§4). A conversation belongs to exactly one employee: a customer's session
+with one employee is never continued by another.
+
+**Security:** ownership and employee identity are enforced server-side; foreign or other-employee
+session ids are rejected; client-supplied history is ignored; retries are de-duplicated; customer
+text is PII-masked before storage; private reasoning and system prompts are never stored for display.
+
+**Status (2026-11-25):** Prime ✅; Crystal, Goalie, Blitz persist server-side but do not restore in
+the UI; Tag (tag-copilot) and Custodian (Settings panel, custodian-chat) do not persist; Byte and
+Ledger panels exist but are not mounted; Finley, Chime, Liberty have no working chat. Tag is the
+first corrective integration; the remaining employees follow one at a time
+(`Desktop\xspensesai-security-evidence\UNIVERSAL_EMPLOYEE_PERSISTENCE_AUDIT_AND_PLAN.md`).
