@@ -287,3 +287,23 @@ describe('owner P-3..P-5: threads, message_uid, safe deletion', () => {
     expect(db.chat_messages).toHaveLength(2);
   });
 });
+
+describe('owner rule: a succeeded action is never repeated; the record is recovered separately', () => {
+  it('a transient reply-save failure is retried, so the action receipt is recorded', async () => {
+    const c = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    const t = { userId: ALICE, employeeSlug: 'tag-ai' as const, sessionId: c.sessionId, clientMessageId: 'msg_recover1' };
+    expect((await claimConversationTurn(sb, { ...t, userText: 'move my Uber rides' })).status).toBe('claimed');
+    let failures = 1;
+    hooks.beforeInsert = (table, row) => (table === 'chat_messages' && row.role === 'assistant' && failures-- > 0 ? { code: '500', message: 'blip' } : null);
+    await completeConversationTurn(sb, { ...t, assistantText: 'Moved 3 rides.', assistantMetadata: { actionReceipt: { tool: 'bulk_recategorize', success: true, count: 3 } } });
+    hooks.beforeInsert = undefined;
+    // a later retry of the same message reports the REAL outcome, so nothing is re-run
+    expect(await claimConversationTurn(sb, { ...t, userText: 'move my Uber rides' }))
+      .toEqual({ status: 'duplicate', reply: 'Moved 3 rides.', actionOutcome: { tool: 'bulk_recategorize', success: true, count: 3 } });
+  });
+  it('a persistent reply-save failure throws (caller reports the action outcome with persisted:false, no resend)', async () => {
+    const c = await openEmployeeConversation(sb, { userId: ALICE, employeeSlug: 'tag-ai' });
+    hooks.beforeInsert = (table, row) => (table === 'chat_messages' && row.role === 'assistant' ? { code: '500', message: 'down' } : null);
+    await expect(completeConversationTurn(sb, { userId: ALICE, employeeSlug: 'tag-ai', sessionId: c.sessionId, assistantText: 'x', clientMessageId: 'msg_recover2' })).rejects.toThrow(/Failed to save conversation reply/);
+  });
+});

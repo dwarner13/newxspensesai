@@ -304,15 +304,30 @@ export async function completeConversationTurn(
   const clientMessageId = isValidClientMessageId(params.clientMessageId) ? params.clientMessageId : null;
   const assistantText = String(params.assistantText ?? '');
   const employeeKey = await resolveEmployeeKey(sb, params.employeeSlug);
-  const threadId = await resolveThread(sb, params.userId, employeeKey);
-  const { error } = await sb.from('chat_messages').insert({
-    ...baseRow({ sessionId: params.sessionId, userId: params.userId, employeeKey, threadId }),
+  const row = {
     role: 'assistant',
     content: assistantText,
     tokens: Math.ceil(assistantText.length / 4),
     metadata: { employee_slug: params.employeeSlug, ...(clientMessageId ? { reply_to: clientMessageId } : {}), ...(params.assistantMetadata ?? {}) },
-  });
-  if (error) throw new Error('Failed to save conversation reply');
+  };
+  // Owner rule: when an action already succeeded, the conversation record is recovered SEPARATELY
+  // and the action is never repeated. Retry the reply save (it carries the action receipt) before
+  // giving up; the caller then reports the action's real outcome with persisted:false and must not
+  // ask the customer to resend.
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const threadId = await resolveThread(sb, params.userId, employeeKey);
+      const { error } = await sb.from('chat_messages').insert({ ...baseRow({ sessionId: params.sessionId, userId: params.userId, employeeKey, threadId }), ...row });
+      if (!error) return;
+      lastError = error;
+    } catch (e) {
+      lastError = e;
+    }
+    if (attempt < 2) await new Promise(r => setTimeout(r, 150 * (attempt + 1)));
+  }
+  void lastError;
+  throw new Error('Failed to save conversation reply');
 }
 
 /**
