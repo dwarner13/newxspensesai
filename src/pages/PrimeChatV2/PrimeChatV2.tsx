@@ -1457,6 +1457,12 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                               onReviewWithTag={handleReviewWithTag}
                             />
                           )}
+                          {/* T-H2: honest save status from the server (meta.persisted === false). Never retried. */}
+                          {msg.role === "assistant" && metaAny?.persisted === false && !isThisStreaming && (
+                            <div role="status" style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)", fontSize: 14, color: "#fde68a", lineHeight: 1.5 }}>
+                              This conversation couldn&apos;t be saved, so it won&apos;t appear in History or on your other devices.
+                            </div>
+                          )}
                           {/* P-UI-3: after the reply has finished typing (history shows it at once) */}
                           {financialVisual && !isThisStreaming && (typedMessageIds.has(msg.id) || typedIdsRef.current.has(msg.id)) && (
                             <SpendingBreakdown visual={financialVisual} />
