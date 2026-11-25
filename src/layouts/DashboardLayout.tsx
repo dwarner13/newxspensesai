@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { markAppShellMounted } from "@/components/ui/AppSplash";
 import React from "react";
 import { useLocation, Outlet, useNavigate } from "react-router-dom";
 import { AnimatedOutlet } from "../components/ui/AnimatedOutlet";
@@ -54,6 +55,10 @@ export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   
+  // SPLASH-1: the shell is on screen (committed — a render React discards while a page
+  // downloads must not count), so later page downloads use the in-app loader.
+  useEffect(() => { markAppShellMounted(); }, []);
+
   // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
   // All routes are now full-width - activity feed rail removed
