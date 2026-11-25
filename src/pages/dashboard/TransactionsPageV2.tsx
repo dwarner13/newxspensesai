@@ -1542,10 +1542,14 @@ export default function TransactionsPageV2() {
             if (action.saveRule && (action.merchant || selectedTx?.merchant_name)) {
               const pattern = (action.merchant || selectedTx?.merchant_name || '').toUpperCase();
               if (pattern) {
-                await sb.from('category_rules').upsert({
+                // Query builders have no .catch(): the old `.upsert(...).catch(...)` threw AFTER the
+                // category update succeeded, so the rule was never saved and the row flash / refresh /
+                // drawer update below were silently skipped (customer saw the old category).
+                const { error: ruleErr } = await sb.from('category_rules').upsert({
                   user_id: s.user.id, match_value: pattern, merchant_pattern: pattern, match_type: 'contains',
                   category: action.category, subcategory: action.subcategory || null, is_active: true, updated_at: new Date().toISOString(),
-                }, { onConflict: 'user_id,merchant_pattern' }).catch((e) => { console.error("[update_transaction] save rule failed:", e); });
+                }, { onConflict: 'user_id,merchant_pattern' });
+                if (ruleErr) console.error('[update_transaction] save rule failed');
               }
             }
             // Flash the row briefly

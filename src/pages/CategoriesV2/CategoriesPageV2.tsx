@@ -176,7 +176,9 @@ export default function CategoriesPageV2() {
         { onConflict: 'user_id,category' }
       );
       if (error) throw error;
-      await sb.from('user_notifications').insert({
+      // Non-blocking notification. Query builders have no .catch(): the old `.insert(...).catch()`
+      // threw AFTER the budget was saved, so customers saw "Failed to save budget" for a saved budget.
+      const { error: notifyErr } = await sb.from('user_notifications').insert({
         user_id: session.user.id,
         employee_slug: 'goalie-goals',
         type: 'budget_set',
@@ -184,7 +186,8 @@ export default function CategoriesPageV2() {
         message: `$${limit.toLocaleString()}/month limit locked in for ${budgetCategory}. I'll flag you when you hit 80%.`,
         priority: 'info',
         sent_at: new Date().toISOString(),
-      }).catch(() => {});
+      });
+      if (notifyErr) console.warn('[saveBudget] budget notification not saved');
       toast.success(`Goalie locked in $${limit}/mo for ${budgetCategory}`);
       setBudgetModal(false);
       setBudgetAmount("");
