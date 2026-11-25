@@ -32,7 +32,7 @@ describe('X-2 rows', () => {
   });
 
   it('review status is the existing data only, with no pinging indicators', () => {
-    expect(list).toMatch(/const isUncat = !t\.category \|\| t\.category === 'Uncategorized';/);
+    expect(list).toMatch(/const isUncat = needsCategory\(t\.category\);/);
     expect(list).toMatch(/'Needs a category'/);
     expect(list).not.toMatch(/animate-ping/);
     expect(list).not.toMatch(/confidence/i);

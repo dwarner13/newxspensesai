@@ -58,6 +58,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouteTransition } from '../../contexts/RouteTransitionContext';
 import { useAppBootStatus } from '../../hooks/useAppBootStatus';
+import { AppSplash } from '../ui/AppSplash';
 
 /**
  * Loading screen shown while waiting for auth + profile to resolve.
@@ -65,10 +66,7 @@ import { useAppBootStatus } from '../../hooks/useAppBootStatus';
  */
 function PreparingWorkspaceScreen() {
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b1220' }}>
-      <style>{`@keyframes authSpin{to{transform:rotate(360deg)}}`}</style>
-      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #1e2d4a', borderTopColor: '#c8a64e', animation: 'authSpin 0.9s linear infinite' }} />
-    </div>
+    <AppSplash stage="preparing" />
   );
 }
 

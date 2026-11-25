@@ -582,7 +582,7 @@ export function TransactionInsightDrawer({
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={() => { if (onDone) onDone(row.transaction.id); else onClose(); }} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: 'none', background: '#34d399', color: '#062018', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Done</button>
+                <button type="button" onClick={() => { if (onDone) onDone(row.transaction.id); else onClose(); }} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: 'none', background: '#c8a64e', color: '#0b1220', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Done</button>
                 <button type="button" onClick={() => setSavedNotice(null)} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#c8d0e0', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Keep editing</button>
               </div>
             </div>

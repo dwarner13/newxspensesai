@@ -464,7 +464,7 @@ export default function CategoriesPageV2() {
             <input type="number" placeholder="e.g. 500" value={budgetAmount} onChange={e => setBudgetAmount(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void saveBudget(); }} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "#0b1220", border: "1px solid #fbbf2433", color: "#e8ecf4", fontSize: 13, marginBottom: 20, boxSizing: "border-box" as const, fontFamily: "inherit" }} />
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setBudgetModal(false)} style={{ flex: 1, padding: 12, borderRadius: 10, background: "transparent", border: "1px solid #1e2d4a", color: "#9ba8bc", cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>Cancel</button>
-              <button onClick={() => void saveBudget()} disabled={budgetSaving || !budgetCategory || !budgetAmount} style={{ flex: 1, padding: 12, borderRadius: 10, background: "linear-gradient(135deg, #fbbf24, #d97706)", border: "none", color: "#0b1220", fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: budgetSaving ? 0.7 : 1, fontFamily: "inherit" }}>{budgetSaving ? "Saving..." : "Lock It In"}</button>
+              <button onClick={() => void saveBudget()} disabled={budgetSaving || !budgetCategory || !budgetAmount} style={{ flex: 1, padding: 12, borderRadius: 10, background: "#c8a64e", border: "none", color: "#0b1220", minHeight: 44, fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: budgetSaving ? 0.7 : 1, fontFamily: "inherit" }}>{budgetSaving ? "Saving..." : "Lock It In"}</button>
             </div>
           </div>
         </div>,
