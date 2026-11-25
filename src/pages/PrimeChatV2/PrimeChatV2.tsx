@@ -1354,7 +1354,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                   <div style={{
                     // PW-1: replies read as text on the page (thin accent line, faint tint), not
                     // heavy grey bubbles; full column width in the Workspace.
-                    flex: 1, maxWidth: chatMode === 'workspace' ? "100%" : "92%", padding: "4px 4px 4px 14px", borderRadius: 0,
+                    flex: 1, maxWidth: chatMode === 'workspace' ? "100%" : "92%", padding: "6px 10px 6px 16px", borderRadius: 0,
                     background: "transparent", borderLeft: `2px solid ${AGENT_COLORS[agentForMsg]}55`,
                     fontSize: chatTextSize(isMobileWidth), color: THEME.text, lineHeight: CHAT_VISUALS.lineHeight, minWidth: 40,
                   }}>
