@@ -34,7 +34,6 @@ export const TOOL_CAPABILITIES: Readonly<Record<string, CapabilitySpec>> = Objec
   tag_explain_category: { capability: 'tag.explain_category', ownerEmployee: 'tag', kind: 'read' },
   tag_merchant_insights: { capability: 'tag.merchant_insights', ownerEmployee: 'tag', kind: 'read' },
   tag_update_transaction_category: { capability: 'tag.change_category', ownerEmployee: 'tag', kind: 'write' },
-  tag_bulk_recategorize: { capability: 'tag.bulk_recategorize', ownerEmployee: 'tag', kind: 'write' },
   statement_coverage: { capability: 'byte.statement_inventory', ownerEmployee: 'byte', kind: 'read' },
   // Not a tool: server-loaded chat-document excerpts (Attachments E1 reads them through this hook).
   chat_document_context: { capability: 'byte.chat_document_context', ownerEmployee: 'byte', kind: 'read' },

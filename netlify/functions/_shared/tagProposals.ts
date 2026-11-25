@@ -22,11 +22,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { pagedSelectAll, type PagedQuery } from '../../../src/shared/paged-select';
 import { CUSTOMER_SOURCES, AMBIGUOUS_SOURCES } from '../../../src/shared/tag-status';
 import { resolveCategoryRequest, TAG_CATEGORIES } from './tagCategories.js';
+import { computeImportSuggestions } from './tagImportSuggestions.js';
+import { AUTO_UPDATE_SOURCE_FILTER, AUTO_UPDATE_CATEGORY_FILTER } from './categorySource.js';
 
 export const TAG_RULE_ACTION = 'save_merchant_rule';
 export const TAG_BULK_ACTION = 'bulk_move_category';
 export const TAG_RENAME_ACTION = 'rename_merchant';
-export const TAG_PROPOSAL_ACTIONS: ReadonlyArray<string> = [TAG_RULE_ACTION, TAG_BULK_ACTION, TAG_RENAME_ACTION];
+/** Owner GO 2026-11-25: "Apply suggestions" after an import is a confirmed bulk change. */
+export const TAG_SUGGESTIONS_ACTION = 'apply_import_suggestions';
+export const TAG_PROPOSAL_ACTIONS: ReadonlyArray<string> = [TAG_RULE_ACTION, TAG_BULK_ACTION, TAG_RENAME_ACTION, TAG_SUGGESTIONS_ACTION];
 
 /** Tool name (tag-copilot) → action name (receipt). */
 export const TOOL_TO_ACTION: Readonly<Record<string, string>> = {
@@ -215,6 +219,33 @@ export async function buildActionProposal(
   }
 }
 
+const suggestionFingerprint = (groups: Array<{ ids: string[]; category: string; subcategory: string | null }>) =>
+  scopeFingerprint(groups.flatMap(g => g.ids.map(id => `${id}:${g.category}:${g.subcategory ?? ''}`)));
+
+/**
+ * "Apply Tag's suggestions" for one import as a signed proposal: the server computes the suggestions
+ * itself (never the browser's id / category list), states the exact count, and fingerprints every
+ * id + target category so the confirmation re-checks the exact same change.
+ */
+export async function buildImportSuggestionsProposal(sb: SupabaseClient, userId: string, importId: string): Promise<ActionProposalOutcome> {
+  const action = TAG_SUGGESTIONS_ACTION;
+  try {
+    const sug = await computeImportSuggestions(sb, userId, importId);
+    if (!sug.complete) return failed(action, 'scope_incomplete', INCOMPLETE);
+    const affected = sug.groups.reduce((n, g) => n + g.count, 0);
+    if (affected === 0) return failed(action, 'nothing_to_apply', "There are no suggestions to apply for this statement, so nothing has changed.");
+    const kept = sug.skippedProtected > 0 ? ` ${plural(sug.skippedProtected, 'transaction')} you categorized yourself will stay as they are.` : '';
+    const top = sug.groups.slice(0, 3).map(g => `${g.merchant_name} → ${catLabel(g.category, g.subcategory)} (${g.count})`).join('; ');
+    return {
+      state: 'proposed', action, matched: affected,
+      reply: `Apply Tag's suggestions to **${affected}** ${affected === 1 ? 'transaction' : 'transactions'} from this statement (${plural(sug.groups.length, 'merchant')}: ${top}${sug.groups.length > 3 ? '; …' : ''})?${kept} No rules are saved. Say yes to confirm.`,
+      subject: { importId, affected, groups: sug.groups.length, fingerprint: suggestionFingerprint(sug.groups) },
+    };
+  } catch {
+    return failed(action, 'preview_error', 'Something went wrong checking your transactions, so nothing has changed. Try again?');
+  }
+}
+
 /** Same subject (every key and value), e.g. the client's echo vs the signed proposal. */
 export function sameProposalSubject(a: ProposalSubject | undefined, b: ProposalSubject | undefined): boolean {
   if (!a || !b) return false;
@@ -225,10 +256,17 @@ export function sameProposalSubject(a: ProposalSubject | undefined, b: ProposalS
 
 const CHUNK = 200;
 
-async function updateIds(sb: SupabaseClient, userId: string, ids: string[], payload: Record<string, unknown>): Promise<{ count: number; error: boolean }> {
+async function updateIds(
+  sb: SupabaseClient, userId: string, ids: string[], payload: Record<string, unknown>, opts: { gapOnly?: boolean; renameOnly?: boolean } = {},
+): Promise<{ count: number; error: boolean }> {
   let count = 0;
   for (let i = 0; i < ids.length; i += CHUNK) {
-    const { data, error } = await sb.from('transactions').update(payload).in('id', ids.slice(i, i + CHUNK)).eq('user_id', userId).select('id');
+    // A row that became customer-confirmed after the proposal is never overwritten (re-checked here).
+    let q = sb.from('transactions').update(payload).in('id', ids.slice(i, i + CHUNK)).eq('user_id', userId);
+    // A rename never changes a category, so a customer-confirmed category is no reason to skip it.
+    if (!opts.renameOnly) q = q.or(AUTO_UPDATE_SOURCE_FILTER);
+    if (opts.gapOnly) q = q.or(AUTO_UPDATE_CATEGORY_FILTER);
+    const { data, error } = await q.select('id');
     if (error) return { count, error: true };
     count += Array.isArray(data) ? data.length : 0;
   }
@@ -246,9 +284,40 @@ export async function executeActionProposal(
   action: string,
   subject: ProposalSubject,
 ): Promise<ActionExecutionOutcome> {
+  const now = new Date().toISOString();
+  if (action === TAG_SUGGESTIONS_ACTION) {
+    const importId = typeof subject.importId === 'string' ? subject.importId : '';
+    if (!importId) return { state: 'failed', action, reason: 'invalid_proposal', count: 0, reply: "I couldn't read that proposal, so nothing has changed." };
+    try {
+      const sug = await computeImportSuggestions(sb, userId, importId);
+      const affected = sug.groups.reduce((n, g) => n + g.count, 0);
+      if (!sug.complete) return { state: 'failed', action, reason: 'scope_incomplete', count: 0, reply: INCOMPLETE.replace("haven't proposed anything", "haven't changed anything") };
+      if (affected !== Number(subject.affected) || suggestionFingerprint(sug.groups) !== subject.fingerprint) {
+        return { state: 'failed', action, reason: 'stale', count: 0, reply: `Your transactions changed since I proposed this (it would now affect ${plural(affected, 'transaction')}, not ${subject.affected}), so I didn't change anything. Want me to check it again?` };
+      }
+      let count = 0;
+      for (const g of sug.groups) {
+        const payload: Record<string, unknown> = { category: g.category, category_source: 'tag_chat', updated_at: now };
+        if (g.subcategory) { payload.subcategory = g.subcategory; payload.subcategory_source = 'tag_chat'; }
+        const r = await updateIds(sb, userId, g.ids, payload, { gapOnly: true });
+        count += r.count;
+        if (r.error) {
+          return { state: 'failed', action, reason: count ? 'partial' : 'update_failed', count, reply: count ? `I applied ${count} of ${affected} before an error stopped me. Please check your transactions before trying again.` : "I couldn't apply those suggestions, so nothing was changed." };
+        }
+      }
+      return {
+        state: 'completed', action, count,
+        reply: count === affected
+          ? `Done — applied Tag's suggestions to **${count}** ${count === 1 ? 'transaction' : 'transactions'}. No rules were saved.`
+          : `Applied Tag's suggestions to **${count}** of ${affected} transactions; the rest changed in the meantime and were left as they are.`,
+        log: { action_type: TAG_SUGGESTIONS_ACTION, merchant_name: null, old_value: null, new_value: null, note: `Applied ${count} import suggestions (customer confirmed)` },
+      };
+    } catch {
+      return { state: 'failed', action, reason: 'commit_error', count: 0, reply: "I couldn't make that change, so nothing was changed. Please try again." };
+    }
+  }
   const p = paramsFromSubject(action, subject);
   if (!p) return { state: 'failed', action, reason: 'invalid_proposal', count: 0, reply: "I couldn't read that proposal, so nothing has changed." };
-  const now = new Date().toISOString();
   try {
     const needsRows = !(p.action === TAG_RULE_ACTION && !p.applyToExisting);
     let ids: string[] = [];
@@ -276,7 +345,7 @@ export async function executeActionProposal(
 
     if (p.action === TAG_RENAME_ACTION) {
       // merchant_name only: the imported `merchant` and `description` stay as the audit trail.
-      const r = await updateIds(sb, userId, ids, { merchant_name: p.toName, updated_at: now });
+      const r = await updateIds(sb, userId, ids, { merchant_name: p.toName, updated_at: now }, { renameOnly: true });
       if (r.error) return { state: 'failed', action, reason: r.count ? 'partial' : 'update_failed', count: r.count, reply: r.count ? `I renamed ${r.count} of ${ids.length} before an error stopped me. Please check your transactions before trying again.` : "I couldn't rename those transactions, so nothing was changed." };
       return {
         state: 'completed', action, count: r.count,

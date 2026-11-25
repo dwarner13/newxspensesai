@@ -26,7 +26,8 @@ import {
 } from './_shared/conversation-platform.js';
 import { resolveCategoryRequest } from './_shared/tagCategories.js';
 import { TAG_SINGLE_ACTION, UUID_RE, loadOwnedTransaction, buildSingleProposal, catLabel } from './_shared/tagSingleTransaction.js';
-import { TAG_PROPOSAL_ACTIONS, TAG_RULE_ACTION, sameProposalSubject, executeActionProposal, buildActionProposal, type ProposalSubject } from './_shared/tagProposals.js';
+import { TAG_PROPOSAL_ACTIONS, TAG_RULE_ACTION, TAG_SUGGESTIONS_ACTION, sameProposalSubject, executeActionProposal, buildActionProposal, buildImportSuggestionsProposal, type ProposalSubject } from './_shared/tagProposals.js';
+import { isAutoWritable, AUTO_UPDATE_CATEGORY_FILTER, AUTO_UPDATE_SOURCE_FILTER } from './_shared/categorySource.js';
 
 const CORS = {
   'Content-Type': 'application/json',
@@ -111,233 +112,8 @@ function normalizeCanonicalCategory(input: string): string {
   return CATEGORY_ALIASES[key] || 'Other';
 }
 
-/* ── Merchant keyword → canonical subcategory rules ──────────────────────────
-   Used by bulk_normalize_subcategory to sweep transactions and fill in
-   missing subcategory values without Tag needing to touch each one manually.
-   Rules are checked in order — first match wins.                              */
-
-interface SubcategoryRule {
-  keyword: string;    // lowercase, matched against merchant (case-insensitive contains)
-  category: string;   // expected DB category (used to scope rule to right section)
-  subcategory: string;
-}
-
-const MERCHANT_SUBCATEGORY_RULES: SubcategoryRule[] = [
-  // ── Transportation / Vehicle ─────────────────────────────────────────────
-  { keyword: 'petro', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'esso', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'shell', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'husky', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'pioneer', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'mobil', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'ultramar', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'co-op gas', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'fuel', category: 'Transportation', subcategory: 'Gas & Fuel' },
-  { keyword: 'impark', category: 'Transportation', subcategory: 'Parking' },
-  { keyword: 'parkade', category: 'Transportation', subcategory: 'Parking' },
-  { keyword: 'parking', category: 'Transportation', subcategory: 'Parking' },
-  { keyword: 'honk', category: 'Transportation', subcategory: 'Parking' },
-  { keyword: 'car wash', category: 'Transportation', subcategory: 'Car Wash' },
-  { keyword: 'autowash', category: 'Transportation', subcategory: 'Car Wash' },
-  { keyword: 'sparkle', category: 'Transportation', subcategory: 'Car Wash' },
-  { keyword: 'mr lube', category: 'Transportation', subcategory: 'Vehicle Maintenance' },
-  { keyword: 'jiffy lube', category: 'Transportation', subcategory: 'Vehicle Maintenance' },
-  { keyword: 'midas', category: 'Transportation', subcategory: 'Vehicle Maintenance' },
-  { keyword: 'oil change', category: 'Transportation', subcategory: 'Vehicle Maintenance' },
-  { keyword: 'canadian tire auto', category: 'Transportation', subcategory: 'Vehicle Maintenance' },
-  { keyword: 'napa auto', category: 'Transportation', subcategory: 'Vehicle Maintenance' },
-  { keyword: 'northtown registry', category: 'Transportation', subcategory: 'Vehicle Registration' },
-  { keyword: 'registry', category: 'Transportation', subcategory: 'Vehicle Registration' },
-  { keyword: 'td loan', category: 'Transportation', subcategory: 'Car Loan' },
-  { keyword: 'lns/pre', category: 'Transportation', subcategory: 'Car Loan' },
-
-  // ── Food & Dining ────────────────────────────────────────────────────────
-  { keyword: 'tim hortons', category: 'Food & Dining', subcategory: 'Coffee' },
-  { keyword: 'starbucks', category: 'Food & Dining', subcategory: 'Coffee' },
-  { keyword: 'booster juice', category: 'Food & Dining', subcategory: 'Coffee' },
-  { keyword: 'second cup', category: 'Food & Dining', subcategory: 'Coffee' },
-  { keyword: 'good earth', category: 'Food & Dining', subcategory: 'Coffee' },
-  { keyword: 'dutch bros', category: 'Food & Dining', subcategory: 'Coffee' },
-  { keyword: 'uber eats', category: 'Food & Dining', subcategory: 'Food Delivery' },
-  { keyword: 'doordash', category: 'Food & Dining', subcategory: 'Food Delivery' },
-  { keyword: 'skip the dishes', category: 'Food & Dining', subcategory: 'Food Delivery' },
-  { keyword: 'fantuan', category: 'Food & Dining', subcategory: 'Food Delivery' },
-  { keyword: 'mcdonalds', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'wendys', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'a&w', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'subway', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'kfc', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'popeyes', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'mr sub', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'five guys', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'chipotle', category: 'Food & Dining', subcategory: 'Fast Food' },
-  { keyword: 'boston pizza', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'earls', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'cactus', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'moxies', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'original joe', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'joey', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'smittys', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'montanas', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'halong bay', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'sushi', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'thai', category: 'Food & Dining', subcategory: 'Restaurants' },
-  { keyword: 'liquor', category: 'Food & Dining', subcategory: 'Alcohol' },
-  { keyword: 'econo liquor', category: 'Food & Dining', subcategory: 'Alcohol' },
-  { keyword: 'wine and beyond', category: 'Food & Dining', subcategory: 'Alcohol' },
-  { keyword: 'alcanna', category: 'Food & Dining', subcategory: 'Alcohol' },
-  { keyword: 'ls supplement', category: 'Food & Dining', subcategory: 'Supplements' },
-  { keyword: 'popeye supplement', category: 'Food & Dining', subcategory: 'Supplements' },
-  { keyword: 'gnc', category: 'Food & Dining', subcategory: 'Supplements' },
-
-  // ── Groceries ────────────────────────────────────────────────────────────
-  { keyword: 'sobeys', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'safeway', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'superstore', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'walmart', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'costco', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'save on', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'freshco', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'no frills', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'loblaws', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 'metro', category: 'Groceries', subcategory: 'Grocery Store' },
-  { keyword: 't&t', category: 'Groceries', subcategory: 'Grocery Store' },
-
-  // ── Subscriptions / Software ─────────────────────────────────────────────
-  { keyword: 'openai', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'anthropic', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'cursor', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'adobe', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'microsoft', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'canva', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'zoom', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'notion', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'dropbox', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'chatgpt', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'github', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'figma', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'grammarly', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'hubspot', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'everlance', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'ranked ai', category: 'Subscriptions', subcategory: 'Software Subscriptions' },
-  { keyword: 'dreamhost', category: 'Subscriptions', subcategory: 'Advertising / Marketing' },
-  { keyword: 'google ads', category: 'Subscriptions', subcategory: 'Advertising / Marketing' },
-  { keyword: 'facebook ads', category: 'Subscriptions', subcategory: 'Advertising / Marketing' },
-  { keyword: 'mailchimp', category: 'Subscriptions', subcategory: 'Advertising / Marketing' },
-
-  // ── Entertainment ────────────────────────────────────────────────────────
-  { keyword: 'netflix', category: 'Entertainment', subcategory: 'Streaming' },
-  { keyword: 'spotify', category: 'Entertainment', subcategory: 'Streaming' },
-  { keyword: 'youtube', category: 'Entertainment', subcategory: 'Streaming' },
-  { keyword: 'cineplex', category: 'Entertainment', subcategory: 'Movies' },
-  { keyword: 'landmark', category: 'Entertainment', subcategory: 'Movies' },
-
-  // ── Bank Fees ─────────────────────────────────────────────────────────────
-  { keyword: 'premium plan', category: 'Bank Fees', subcategory: 'Monthly Fee' },
-  { keyword: 'handling chg', category: 'Bank Fees', subcategory: 'Service Charge' },
-  { keyword: 'interest charge', category: 'Bank Fees', subcategory: 'Interest' },
-  { keyword: 'service charge', category: 'Bank Fees', subcategory: 'Service Charge' },
-  { keyword: 'nsf', category: 'Bank Fees', subcategory: 'NSF Fee' },
-  { keyword: 'overdraft', category: 'Bank Fees', subcategory: 'Overdraft Fee' },
-
-  // ── Utilities ─────────────────────────────────────────────────────────────
-  { keyword: 'epcor', category: 'Utilities', subcategory: 'Electricity' },
-  { keyword: 'enmax', category: 'Utilities', subcategory: 'Electricity' },
-  { keyword: 'hydro', category: 'Utilities', subcategory: 'Electricity' },
-  { keyword: 'atco', category: 'Utilities', subcategory: 'Natural Gas' },
-  { keyword: 'direct energy', category: 'Utilities', subcategory: 'Natural Gas' },
-  { keyword: 'fortis', category: 'Utilities', subcategory: 'Natural Gas' },
-  { keyword: 'telus', category: 'Utilities', subcategory: 'Internet' },
-  { keyword: 'shaw', category: 'Utilities', subcategory: 'Internet' },
-  { keyword: 'rogers', category: 'Utilities', subcategory: 'Internet' },
-  { keyword: 'bell', category: 'Utilities', subcategory: 'Internet' },
-  { keyword: 'fido', category: 'Utilities', subcategory: 'Internet' },
-  { keyword: 'koodo', category: 'Utilities', subcategory: 'Internet' },
-
-  // ── Transfers ─────────────────────────────────────────────────────────────
-  { keyword: 'interac etrnsfr', category: 'Transfers', subcategory: 'E-Transfer' },
-  { keyword: 'e-transfer', category: 'Transfers', subcategory: 'E-Transfer' },
-  { keyword: 'etransfer', category: 'Transfers', subcategory: 'E-Transfer' },
-
-  // ── Personal Care ─────────────────────────────────────────────────────────
-  { keyword: 'shadified', category: 'Personal Care', subcategory: 'Grooming' },
-  { keyword: 'salon', category: 'Personal Care', subcategory: 'Grooming' },
-  { keyword: 'barber', category: 'Personal Care', subcategory: 'Grooming' },
-  { keyword: 'great clips', category: 'Personal Care', subcategory: 'Grooming' },
-  { keyword: 'sport clips', category: 'Personal Care', subcategory: 'Grooming' },
-  { keyword: 'chatters', category: 'Personal Care', subcategory: 'Grooming' },
-  { keyword: 'massage', category: 'Personal Care', subcategory: 'Wellness' },
-  { keyword: 'spa', category: 'Personal Care', subcategory: 'Wellness' },
-  { keyword: 'ting ting', category: 'Personal Care', subcategory: 'Wellness' },
-  { keyword: 'yo yo', category: 'Personal Care', subcategory: 'Wellness' },
-  { keyword: 'tulip garden', category: 'Personal Care', subcategory: 'Wellness' },
-  { keyword: 'songblossom', category: 'Personal Care', subcategory: 'Wellness' },
-  { keyword: 'lewis massage', category: 'Personal Care', subcategory: 'Wellness' },
-
-  // ── Debt Payments ─────────────────────────────────────────────────────────
-  { keyword: 'easyfinancial', category: 'Debt Payments', subcategory: 'Loan Payment' },
-  { keyword: 'cash money', category: 'Debt Payments', subcategory: 'Loan Payment' },
-  { keyword: 'springfinancial', category: 'Debt Payments', subcategory: 'Loan Payment' },
-  { keyword: 'national money', category: 'Debt Payments', subcategory: 'Loan Payment' },
-  { keyword: 'borrowell', category: 'Debt Payments', subcategory: 'Loan Payment' },
-  { keyword: 'flexiti', category: 'Debt Payments', subcategory: 'Credit Card Payment' },
-  { keyword: 'capital one', category: 'Debt Payments', subcategory: 'Credit Card Payment' },
-
-  // ── Shopping ──────────────────────────────────────────────────────────────
-  { keyword: 'winners', category: 'Shopping', subcategory: 'Clothing & Home' },
-  { keyword: 'marshalls', category: 'Shopping', subcategory: 'Clothing & Home' },
-  { keyword: 'homesense', category: 'Shopping', subcategory: 'Home Goods' },
-  { keyword: 'dollar tree', category: 'Shopping', subcategory: 'General Merchandise' },
-  { keyword: 'shoppers drug mart', category: 'Shopping', subcategory: 'Pharmacy' },
-  { keyword: 'amazon', category: 'Shopping', subcategory: 'Online Shopping' },
-  { keyword: 'best buy', category: 'Shopping', subcategory: 'Electronics' },
-
-  // ── Healthcare ────────────────────────────────────────────────────────────
-  { keyword: 'rexall', category: 'Healthcare', subcategory: 'Pharmacy' },
-  { keyword: 'london drugs', category: 'Healthcare', subcategory: 'Pharmacy' },
-  { keyword: 'shoppers', category: 'Healthcare', subcategory: 'Pharmacy' },
-  { keyword: 'dental', category: 'Healthcare', subcategory: 'Dental' },
-  { keyword: 'dentist', category: 'Healthcare', subcategory: 'Dental' },
-  { keyword: 'optometrist', category: 'Healthcare', subcategory: 'Vision' },
-  { keyword: 'physio', category: 'Healthcare', subcategory: 'Physiotherapy' },
-  { keyword: 'chiro', category: 'Healthcare', subcategory: 'Chiropractic' },
-  { keyword: 'medicentre', category: 'Healthcare', subcategory: 'Medical' },
-  { keyword: 'clinic', category: 'Healthcare', subcategory: 'Medical' },
-
-  // ── Professional fees (Subscriptions / Business) ──────────────────────────
-  { keyword: 'ncube', category: 'Subscriptions', subcategory: 'Professional Fees' },
-  { keyword: '2nd site', category: 'Subscriptions', subcategory: 'Professional Fees' },
-  { keyword: 'imperial pfs', category: 'Subscriptions', subcategory: 'Business Insurance' },
-
-  // ── Income subcategories ──────────────────────────────────────────────────
-  // S7: one customer's business-name keyword removed (it applied to every customer).
-  { keyword: 'payroll', category: 'Income', subcategory: 'Salary / Payroll' },
-  { keyword: 'deposit', category: 'Income', subcategory: 'Deposit' },
-  { keyword: 'etrnsfr rcvd', category: 'Income', subcategory: 'E-Transfer Received' },
-];
-
-/**
- * Resolve subcategory for a transaction using MERCHANT_SUBCATEGORY_RULES.
- * Optionally scoped to a specific category.
- * Returns null if no rule matches.
- */
-function resolveSubcategory(
-  merchantRaw: string,
-  categoryRaw: string,
-  scopeToCategory?: string,
-): string | null {
-  const merchant = (merchantRaw || '').toLowerCase();
-  const category = (categoryRaw || '').toLowerCase();
-
-  for (const rule of MERCHANT_SUBCATEGORY_RULES) {
-    // If caller wants to scope by category, only apply rules for that category
-    if (scopeToCategory && rule.category.toLowerCase() !== scopeToCategory.toLowerCase()) continue;
-    if (merchant.includes(rule.keyword.toLowerCase())) {
-      return rule.subcategory;
-    }
-  }
-  return null;
-}
+/* Merchant keyword → subcategory rules were used only by the retired bulk_normalize_subcategory
+   intent (owner GO 2026-11-25) and were removed with it. */
 
 // ── Intent classifier ──────────────────────────────────────────────────────
 export function classifyTagIntent(message: string): {
@@ -435,7 +211,7 @@ const sameSubject = (a: ActionReceipt['subject'] | undefined, b: Subject) => !!a
 async function handleConversationalAction(
   supabase: TagSupabase,
   userId: string,
-  intent: 'preview' | 'commit' | 'cancel_proposal' | 'preview_single' | 'commit_single' | 'commit_proposal',
+  intent: 'preview' | 'commit' | 'cancel_proposal' | 'preview_single' | 'commit_single' | 'commit_proposal' | 'propose_import_suggestions',
   convo: ConversationFields,
   ctx: {
     subject: Subject | null; importId?: string | null; affectedIds?: unknown; parsedTarget?: { category: string; subcategory: string | null };
@@ -445,6 +221,8 @@ async function handleConversationalAction(
     generic?: { action: string; subject: ProposalSubject };
     /** T-ACT-FINAL: a customer-typed "change all X to Y" — proposed through the same tagProposals contract. */
     typed?: { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' };
+    /** "Apply Tag's suggestions" for one import (server-computed; never the browser's id list). */
+    suggestions?: { importId: string };
   },
 ) {
   const isSingle = intent === 'preview_single' || intent === 'commit_single';
@@ -452,7 +230,8 @@ async function handleConversationalAction(
   const actionName = isSingle ? TAG_SINGLE_ACTION
     : isGeneric && ctx.generic ? ctx.generic.action
       : intent === 'preview' && ctx.typed ? TAG_RULE_ACTION
-        : TAG_ACTION;
+        : intent === 'propose_import_suggestions' ? TAG_SUGGESTIONS_ACTION
+          : TAG_ACTION;
   // 1. The customer's own Tag conversation.
   let sessionId: string | null = null;
   try {
@@ -620,6 +399,16 @@ async function handleConversationalAction(
         reply = "I couldn't make that change, so nothing was changed. Please try again.";
       }
     }
+  } else if (intent === 'propose_import_suggestions' && ctx.suggestions) {
+    const outcome = await buildImportSuggestionsProposal(supabase, userId, ctx.suggestions.importId);
+    reply = outcome.reply;
+    if (outcome.state === 'proposed') {
+      receipt = { ...base, subject: outcome.subject, state: 'proposed', result: { matchCount: Number(outcome.subject.affected ?? 0) } };
+      legacy = { ok: true, matchCount: Number(outcome.subject.affected ?? 0), proposal: { kind: 'action', action: outcome.action, subject: outcome.subject } };
+    } else {
+      receipt = { ...base, state: 'failed', reason: outcome.reason };
+      legacy = { ok: false, error: outcome.reason };
+    }
   } else if (intent === 'preview' && ctx.typed) {
     // T-ACT-FINAL: "change all X to Y" typed by the customer is the SAME contract as Tag's own
     // proposals: verified scope (complete, owner-scoped), customer-confirmed rows kept, explicit
@@ -715,38 +504,46 @@ export const handler: Handler = async (event) => {
 
   if (!intent) return err('Missing intent (preview | commit | save_rule | undo | bulk_apply | fix_type | fix_type_bulk | bulk_normalize_subcategory)');
 
-  // ── BULK_APPLY ─────────────────────────────────────────────────────────────
+  // ── BULK_APPLY (INTERIM, owner GO 2026-11-25) ──────────────────────────────
+  // Bulk changes must go through the signed proposal (propose_import_suggestions → commit_proposal).
+  // Until the Upload page's "Apply all" moves over (Attachments HQ), this legacy entry is hardened:
+  // only unprotected gap rows of the caller's own account, real categories only (no invented / silent
+  // "Other"), the protection re-checked inside the update, the VERIFIED count reported, and recorded.
   if (intent === 'bulk_apply') {
     const { groups } = body;
     if (!Array.isArray(groups)) return err('Missing groups array');
     let total = 0;
-    for (const group of groups) {
-      if (!Array.isArray(group.ids) || !group.category) continue;
-      const updatePayload: Record<string, any> = { category: group.category, category_source: 'tag_rule', updated_at: new Date().toISOString() };
-      if (group.subcategory) { updatePayload.subcategory = group.subcategory; updatePayload.subcategory_source = 'tag_rule'; }
-      await supabase
-        .from('transactions')
-        .update(updatePayload)
-        .in('id', group.ids)
-        .eq('user_id', userId);
-      total += group.ids.length;
+    let skippedProtected = 0;
+    for (const group of groups.slice(0, 200)) {
+      if (!Array.isArray(group?.ids) || !group.category) continue;
+      const resolved = resolveCategoryRequest(String(group.category));
+      if (resolved.status !== 'exact') continue;
+      const ids = group.ids.map(String).slice(0, 1000);
+      const { data: current } = await supabase.from('transactions').select('id, category, category_source').in('id', ids).eq('user_id', userId);
+      const writable = (current ?? []).filter((r: { category: string | null; category_source: string | null }) => isAutoWritable(r)).map((r: { id: string }) => String(r.id));
+      skippedProtected += ids.length - writable.length;
+      if (writable.length === 0) continue;
+      const updatePayload: Record<string, unknown> = { category: resolved.category, category_source: 'tag_rule', updated_at: new Date().toISOString() };
+      const sub = group.subcategory ? String(group.subcategory) : resolved.subcategory;
+      if (sub) { updatePayload.subcategory = sub; updatePayload.subcategory_source = 'tag_rule'; }
+      const { data: done, error } = await supabase.from('transactions').update(updatePayload)
+        .in('id', writable).eq('user_id', userId)
+        .or(AUTO_UPDATE_CATEGORY_FILTER).or(AUTO_UPDATE_SOURCE_FILTER)
+        .select('id');
+      if (!error && Array.isArray(done)) total += done.length;
     }
-    return ok({ ok: true, intent: 'bulk_apply', applied: total });
+    if (total > 0) {
+      await logTagActivity(supabase, { user_id: userId, action_type: 'bulk_apply_legacy', merchant_name: null, old_value: null, new_value: null, note: `Applied ${total} suggestions (legacy button; protected rows skipped: ${skippedProtected})`, created_at: new Date().toISOString() });
+    }
+    return ok({ ok: true, intent: 'bulk_apply', applied: total, skippedProtected });
   }
 
-  // ── UNDO ────────────────────────────────────────────────────────────────────
-  if (intent === 'undo') {
-    const { affectedIds, previousCategory } = body;
-    if (!Array.isArray(affectedIds) || !previousCategory) return err('Missing affectedIds or previousCategory');
-    try {
-      const { error } = await supabase
-        .from('transactions')
-        .update({ category: previousCategory, category_source: 'user_undo', updated_at: new Date().toISOString() })
-        .in('id', affectedIds)
-        .eq('user_id', userId);
-      if (error) return err(error.message, 500);
-      return ok({ ok: true, intent: 'undo', reverted: affectedIds.length });
-    } catch (e: any) { return err(e.message, 500); }
+  // ── UNDO / FIX_TYPE_BULK / BULK_NORMALIZE_SUBCATEGORY: RETIRED (owner GO 2026-11-25) ──
+  // Bulk changes with no proposal or confirmation; none is reachable from the app (undo was only
+  // called from a dead panel handler; the other two have no caller). Single-transaction fix_type
+  // (ordinary manual editing in the drawer) stays.
+  if (intent === 'undo' || intent === 'fix_type_bulk' || intent === 'bulk_normalize_subcategory') {
+    return err('This bulk action was retired. Bulk changes are proposed by Tag and need your confirmation.', 410);
   }
 
   // ── FIX_TYPE (single transaction) ─────────────────────────────────────────
@@ -797,171 +594,20 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // ── FIX_TYPE_BULK ──────────────────────────────────────────────────────────
-  if (intent === 'fix_type_bulk') {
-    const { newType, filterCategory, previewOnly = false } = body;
-    if (!['income', 'expense'].includes(newType)) return err('newType must be "income" or "expense"');
-    if (!matchValue && !filterCategory) return err('Provide matchValue (merchant keyword) or filterCategory');
-
-    try {
-      let query = supabase
-        .from('transactions')
-        .select('id, merchant, merchant_name, amount, date, type, category')
-        .eq('user_id', userId)
-        .neq('type', newType);
-
-      if (filterCategory) {
-        query = query.eq('category', filterCategory);
-      }
-
-      const { data, error } = await query;
-      if (error) return err(error.message, 500);
-
-      let rows = (data || []) as any[];
-
-      if (matchValue) {
-        const normalized = matchValue.trim().toUpperCase();
-        rows = rows.filter((tx) => {
-          const haystack = (tx.merchant || tx.merchant_name || '').toUpperCase();
-          return matchType === 'exact' ? haystack === normalized : haystack.includes(normalized);
-        });
-      }
-
-      const samples = rows.slice(0, 5).map((tx) => ({
-        id: tx.id,
-        merchant: tx.merchant || tx.merchant_name,
-        amount: tx.amount,
-        date: tx.date,
-        current_type: tx.type,
-        current_category: tx.category,
-      }));
-
-      if (previewOnly || rows.length === 0) {
-        return ok({
-          ok: true, intent: 'fix_type_bulk', previewOnly: true,
-          matchCount: rows.length, newType, samples,
-          affectedIds: rows.map((tx) => tx.id),
-        });
-      }
-
-      const affectedIds = rows.map((tx) => tx.id);
-      const updatePayload: Record<string, any> = {
-        type: newType, category_source: 'user_type_fix', updated_at: new Date().toISOString(),
-      };
-      if (newType === 'income') { updatePayload.category = 'Income'; }
-
-      const { error: updateErr } = await supabase
-        .from('transactions')
-        .update(updatePayload)
-        .in('id', affectedIds)
-        .eq('user_id', userId);
-      if (updateErr) return err(updateErr.message, 500);
-
-      await logTagActivity(supabase, {
-        user_id: userId, action_type: 'fix_type_bulk',
-        merchant_name: matchValue || filterCategory || null,
-        old_value: matchValue || filterCategory || 'mixed', new_value: newType,
-        note: `Bulk type fix → ${newType}: ${affectedIds.length} transactions${filterCategory ? ` in category "${filterCategory}"` : ''}${matchValue ? ` matching "${matchValue}"` : ''}`,
-        created_at: new Date().toISOString(),
-      });
-
-      safeLog('tag-action.fix_type_bulk', { userId, newType, matchValue, filterCategory, count: affectedIds.length });
-
-      return ok({
-        ok: true, intent: 'fix_type_bulk', newType,
-        matchValue: matchValue || null, filterCategory: filterCategory || null,
-        updatedCount: affectedIds.length, samples,
-      });
-    } catch (e: any) {
-      return err(e.message, 500);
-    }
-  }
-
-  // ── BULK_NORMALIZE_SUBCATEGORY ─────────────────────────────────────────────
-  if (intent === 'bulk_normalize_subcategory') {
-    const { filterCategory, overwrite = false, previewOnly = false, limit = 2000 } = body;
-
-    try {
-      let query = supabase
-        .from('transactions')
-        .select('id, merchant, merchant_name, category, subcategory')
-        .eq('user_id', userId)
-        .eq('type', 'expense')
-        .limit(limit);
-
-      if (filterCategory) { query = query.eq('category', filterCategory); }
-      if (!overwrite) { query = query.or('subcategory.is.null,subcategory.eq.'); }
-
-      const { data, error } = await query;
-      if (error) return err(error.message, 500);
-
-      const rows = (data || []) as any[];
-      const updates: Array<{ id: string; subcategory: string; category: string }> = [];
-      const breakdown: Record<string, number> = {};
-      let skipped = 0;
-
-      for (const tx of rows) {
-        const merchant = tx.merchant || tx.merchant_name || '';
-        const category = tx.category || '';
-        const resolved = resolveSubcategory(merchant, category, filterCategory);
-        if (resolved) {
-          updates.push({ id: tx.id, subcategory: resolved, category });
-          breakdown[resolved] = (breakdown[resolved] || 0) + 1;
-        } else { skipped++; }
-      }
-
-      if (previewOnly || updates.length === 0) {
-        return ok({
-          ok: true, intent: 'bulk_normalize_subcategory', previewOnly: true,
-          wouldNormalize: updates.length, wouldSkip: skipped, breakdown,
-          filterCategory: filterCategory || 'all', overwrite,
-        });
-      }
-
-      const CHUNK = 100;
-      let written = 0;
-      for (let i = 0; i < updates.length; i += CHUNK) {
-        const chunk = updates.slice(i, i + CHUNK);
-        const bySub = new Map<string, string[]>();
-        for (const u of chunk) {
-          if (!bySub.has(u.subcategory)) bySub.set(u.subcategory, []);
-          bySub.get(u.subcategory)!.push(u.id);
-        }
-        for (const [sub, subIds] of bySub) {
-          await supabase
-            .from('transactions')
-            .update({ subcategory: sub, subcategory_source: 'tag_bulk_normalize', updated_at: new Date().toISOString() })
-            .in('id', subIds)
-            .eq('user_id', userId);
-          written += subIds.length;
-        }
-      }
-
-      await logTagActivity(supabase, {
-        user_id: userId, action_type: 'bulk_normalize_subcategory', merchant_name: null,
-        old_value: filterCategory || 'all categories',
-        new_value: `${written} subcategories assigned`,
-        note: `Bulk subcategory normalization: ${written} updated, ${skipped} skipped${filterCategory ? ` (scoped to "${filterCategory}")` : ''}`,
-        created_at: new Date().toISOString(),
-      });
-
-      safeLog('tag-action.bulk_normalize_subcategory', { userId, filterCategory, written, skipped, overwrite });
-
-      return ok({
-        ok: true, intent: 'bulk_normalize_subcategory',
-        filterCategory: filterCategory || 'all', normalized: written, skipped, breakdown, overwrite,
-      });
-    } catch (e: any) {
-      return err(e.message, 500);
-    }
-  }
-
   // ── T-H1b: conversational turns (server-composed replies and receipts) ─────
   const conversation = body.conversation !== undefined ? parseConversationFields(body.conversation) : null;
   if (body.conversation !== undefined && !conversation) return err('conversation.customerText is required');
   if (intent === 'cancel_proposal') {
     if (!conversation) return err('cancel_proposal requires conversation');
     return handleConversationalAction(supabase, userId, 'cancel_proposal', conversation, { subject: null });
+  }
+
+  // ── Owner GO 2026-11-25: "Apply suggestions" as a signed proposal (conversation required) ──
+  if (intent === 'propose_import_suggestions') {
+    if (!conversation) return err('propose_import_suggestions requires conversation');
+    const importIdIn = typeof body.importId === 'string' ? body.importId.trim() : '';
+    if (!importIdIn) return err('Missing importId');
+    return handleConversationalAction(supabase, userId, 'propose_import_suggestions', conversation, { subject: null, suggestions: { importId: importIdIn } });
   }
 
   // ── T-ACT-SAFE: confirm a rule / bulk move / rename proposal (conversation required) ──

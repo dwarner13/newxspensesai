@@ -19,7 +19,7 @@
 /** Every registered tool that creates, changes or deletes a transaction. */
 export const TRANSACTION_MUTATION_TOOLS: ReadonlySet<string> = new Set([
   'tag_update_transaction_category',
-  'tag_bulk_recategorize',
+  // 'tag_bulk_recategorize' retired and deleted (owner GO 2026-11-25; Tag HQ, Prime HQ agreed).
   'tag_create_manual_transaction',
   'tx_update_category',
   'bulk_categorize',

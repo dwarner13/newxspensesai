@@ -60,6 +60,8 @@ function builder(table: string) {
       return b;
     },
     range: (a: number, z: number) => { rng = [a, z]; return b; },
+    // Bulk updates re-check protection with PostgREST or() filters (evaluated in c4-customer-correction-protection).
+    or: () => b,
     eq: (c: string, v: unknown) => { filters.push(r => get(r, c) === v); return b; },
     in: (c: string, vs: unknown[]) => { filters.push(r => vs.includes(get(r, c))); return b; },
     order: (col: string, o?: { ascending?: boolean }) => { order = { col, asc: o?.ascending !== false }; return b; },
