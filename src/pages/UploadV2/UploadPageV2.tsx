@@ -13,7 +13,7 @@ import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import StatementProcessingOverlay, { StatementImportResult } from "@/components/upload/StatementProcessingOverlay";
 import { PrimeWelcomeModal } from "@/components/onboarding/PrimeWelcomeModal";
 import JSZip from "jszip";
-import { buildProposeBody, buildCommitBody, readProposeResponse, readCommitResponse, moreGroupsBeyondReply, UNKNOWN_OUTCOME_TEXT, type ImportProposal } from "@/lib/importSuggestionsFlow";
+import { buildProposeBody, buildCommitBody, readProposeResponse, readCommitResponse, moreGroupsBeyondReply, UNKNOWN_OUTCOME_TEXT, SIGNED_OUT_TEXT, SignedOutError, type ImportProposal } from "@/lib/importSuggestionsFlow";
 
 function buildStatementLabel(filename: string): string {
   const f = (filename || '').toLowerCase().replace(/[_\-]/g, ' ');
@@ -289,16 +289,17 @@ export default function UploadPageV2() {
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [sweepSuggestion, setSweepSuggestion] = useState<any>(null);
   // APPLY-ALL: Tag's signed proposal flow. phase: idle -> proposing -> confirm -> committing -> done | failed.
-  const [applyFlow, setApplyFlow] = useState<{ phase: "idle" | "proposing" | "confirm" | "committing" | "done" | "failed"; proposal?: ImportProposal; message?: string }>({ phase: "idle" });
+  const [applyFlow, setApplyFlow] = useState<{ phase: "idle" | "proposing" | "confirm" | "committing" | "done" | "failed"; proposal?: ImportProposal; message?: string; notice?: string }>({ phase: "idle" });
   const applyInFlightRef = useRef(false);
   const postTagAction = async (body: Record<string, unknown>) => {
     const token = session?.access_token;
-    if (!token) throw new Error("not signed in");
+    if (!token) throw new SignedOutError();
     const res = await fetch("/.netlify/functions/tag-action", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
     });
+    if (res.status === 401) throw new SignedOutError();
     return res.json();
   };
   // Step 1: ask Tag for a proposal for this statement. Nothing changes.
@@ -310,8 +311,8 @@ export default function UploadPageV2() {
     try {
       const r = readProposeResponse(await postTagAction(buildProposeBody(importId)));
       setApplyFlow(r.kind === "proposed" ? { phase: "confirm", proposal: r.proposal } : { phase: "failed", message: r.reply });
-    } catch {
-      setApplyFlow({ phase: "failed", message: "Tag couldn't check those suggestions, so nothing has changed." });
+    } catch (e) {
+      setApplyFlow({ phase: "failed", message: e instanceof SignedOutError ? SIGNED_OUT_TEXT : "Tag couldn't check those suggestions, so nothing has changed." });
     } finally { applyInFlightRef.current = false; }
   };
   // Step 2: only from the Confirm button. One request at a time; the proposal is used once.
@@ -323,16 +324,16 @@ export default function UploadPageV2() {
     try {
       const r = readCommitResponse(await postTagAction(buildCommitBody(proposal)));
       if (r.kind === "completed") {
-        setApplyFlow({ phase: "done", message: `Saved: ${r.count} transaction${r.count !== 1 ? "s" : ""} categorized.${r.reply ? " " + r.reply : ""}` });
+        setApplyFlow({ phase: "done", message: `Saved: ${r.count} transaction${r.count !== 1 ? "s" : ""} categorized.` });
         setHistoryRefreshKey(k => k + 1);
-      } else if (r.kind === "already") {
-        setApplyFlow({ phase: "done", message: r.reply || "This was already applied. Nothing new was changed." });
-        setHistoryRefreshKey(k => k + 1);
+      } else if (r.kind === "retry") {
+        // Conflict: nothing changed; the same proposal may be confirmed again (fresh message id).
+        setApplyFlow({ phase: "confirm", proposal, notice: r.reply });
       } else {
         setApplyFlow({ phase: "failed", message: r.reply });
       }
-    } catch {
-      setApplyFlow({ phase: "failed", message: UNKNOWN_OUTCOME_TEXT });
+    } catch (e) {
+      setApplyFlow({ phase: "failed", message: e instanceof SignedOutError ? SIGNED_OUT_TEXT : UNKNOWN_OUTCOME_TEXT });
     } finally { applyInFlightRef.current = false; }
   };
   const [bytePanelOpen, setBytePanelOpen] = useState(false);
@@ -1181,6 +1182,7 @@ export default function UploadPageV2() {
                   <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>and {moreGroupsBeyondReply(applyFlow.proposal!.groups)} more merchant group{moreGroupsBeyondReply(applyFlow.proposal!.groups) !== 1 ? 's' : ''}</div>
                 )}
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>Transactions you categorized yourself are not changed.</div>
+                {applyFlow.notice && <div role="status" style={{ fontSize: 13, color: '#fde68a', marginTop: 8 }}>{applyFlow.notice}</div>}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                   <button type="button" data-testid="apply-all-confirm-btn" onClick={() => void confirmImportSuggestions()} disabled={applyFlow.phase === "committing"} aria-busy={applyFlow.phase === "committing"}
                     style={{ minHeight: 44, padding: '0 20px', borderRadius: 22, fontSize: 13, fontWeight: 700, background: 'linear-gradient(135deg, #22d3ee, #0891b2)', border: 'none', color: '#0b1220', cursor: applyFlow.phase === "committing" ? 'wait' : 'pointer', opacity: applyFlow.phase === "committing" ? 0.7 : 1 }}>

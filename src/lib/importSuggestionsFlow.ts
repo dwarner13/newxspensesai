@@ -15,6 +15,9 @@ import { newClientMessageId, tagReplyOutcome } from '@/lib/tagConversation';
 export const APPLY_SUGGESTIONS_TEXT = "Apply Tag's suggestions for this statement";
 export const UNKNOWN_OUTCOME_TEXT = "Couldn't confirm whether that went through — check your transactions before trying again.";
 export const NOT_CHECKED_TEXT = "Tag couldn't check those suggestions, so nothing has changed.";
+/** 401: the request was refused before anything ran (Attachments HQ review note). */
+export const SIGNED_OUT_TEXT = "Your sign-in has expired, so nothing was changed. Please sign in again and retry.";
+export class SignedOutError extends Error {}
 
 type Json = Record<string, unknown>;
 const obj = (v: unknown): Json => (v && typeof v === 'object' ? (v as Json) : {});
@@ -82,11 +85,13 @@ export function buildCommitBody(p: ImportProposal, clientMessageId: string = new
 }
 
 export type CommitResult =
-  /** The server saved the changes; count is what it saved. */
+  /** The server saved the changes (also a repeated confirm whose earlier attempt completed);
+   *  count is what it saved. */
   | { kind: 'completed'; count: number; reply: string }
-  /** A repeated confirm: the earlier result stands; refresh and show it (no error). */
-  | { kind: 'already'; reply: string }
-  /** Anything else: nothing was changed by this request. */
+  /** Conflict: nothing was changed; the customer may confirm again (new message id). */
+  | { kind: 'retry'; reply: string }
+  /** Anything else (including a duplicate whose earlier attempt did not complete): nothing
+   *  was changed by this request. Show the server's reply; never claim it was applied. */
   | { kind: 'not_changed'; reply: string };
 
 export function readCommitResponse(data: unknown): CommitResult {
@@ -98,8 +103,10 @@ export function readCommitResponse(data: unknown): CommitResult {
     const count = Number(receipt.count);
     return { kind: 'completed', count: Number.isFinite(count) ? count : 0, reply };
   }
-  const outcome = tagReplyOutcome(conv);
-  if (outcome.kind === 'duplicate' || outcome.kind === 'conflict') return { kind: 'already', reply };
+  // Tag HQ (review of 0e7bfee3): duplicate is flagged at the top level of the response;
+  // conflict as error:'conflict' at the top and conflict:true inside conversation.
+  const conflict = d.error === 'conflict' || conv.conflict === true || tagReplyOutcome(d).kind === 'conflict';
+  if (conflict) return { kind: 'retry', reply: reply || 'Nothing was changed. Please confirm again.' };
   return { kind: 'not_changed', reply: reply || 'Nothing was changed.' };
 }
 

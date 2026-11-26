@@ -75,9 +75,24 @@ describe('reading the server', () => {
       .toStrictEqual({ kind: 'completed', count: 6, reply: 'Done.' });
   });
 
-  it('a repeated confirm shows the existing result, not an error', () => {
-    expect(readCommitResponse({ conversation: { duplicate: true, reply: 'Already applied.' } }).kind).toBe('already');
-    expect(readCommitResponse({ conversation: { conflict: true, reply: 'Already applied.' } }).kind).toBe('already');
+  // Tag HQ review of 0e7bfee3: exact response shapes (tag-action.ts).
+  it('duplicate whose earlier confirm completed: the stored receipt counts as done', () => {
+    expect(readCommitResponse({ ok: true, intent: 'commit_proposal', duplicate: true, executed: false,
+      conversation: { reply: 'Already saved.', receipt: { state: 'completed', success: true, count: 6 } } }))
+      .toStrictEqual({ kind: 'completed', count: 6, reply: 'Already saved.' });
+  });
+
+  it('duplicate whose earlier attempt did not complete: show the server reply, never "applied"', () => {
+    const r = readCommitResponse({ ok: true, duplicate: true, executed: false,
+      conversation: { persisted: false, receipt: null, reply: 'Nothing was run again. Please check your transactions.' } });
+    expect(r).toStrictEqual({ kind: 'not_changed', reply: 'Nothing was run again. Please check your transactions.' });
+    const f = readCommitResponse({ ok: true, duplicate: true, conversation: { receipt: { state: 'failed' }, reply: 'That did not complete.' } });
+    expect(f.kind).toBe('not_changed');
+  });
+
+  it('conflict: nothing changed; the customer may confirm again', () => {
+    expect(readCommitResponse({ ok: false, error: 'conflict', conversation: { conflict: true, reply: "I couldn't safely record that message. Please send it again." } }))
+      .toStrictEqual({ kind: 'retry', reply: "I couldn't safely record that message. Please send it again." });
   });
 
   it('anything else changed nothing', () => {
@@ -107,8 +122,18 @@ describe('UploadPageV2 wiring (source)', () => {
     expect(page.match(/confirmImportSuggestions\(\)/g)?.length).toBe(1);
   });
 
+  it('no "already applied" claim exists; conflict returns to Confirm with the same proposal', () => {
+    expect(page).not.toMatch(/already applied/i);
+    expect(page).toMatch(/else if \(r\.kind === "retry"\) \{[\s\S]{0,160}setApplyFlow\(\{ phase: "confirm", proposal, notice: r\.reply \}\);/);
+  });
+
+  it('a refused sign-in (401) says nothing changed and asks to sign in', () => {
+    expect(page).toMatch(/if \(res\.status === 401\) throw new SignedOutError\(\);/);
+    expect(page.match(/e instanceof SignedOutError \? SIGNED_OUT_TEXT/g)?.length).toBe(2);
+  });
+
   it('request failure shows the unknown-outcome message; success refreshes counts', () => {
-    expect(page).toMatch(/setApplyFlow\(\{ phase: "failed", message: UNKNOWN_OUTCOME_TEXT \}\)/);
+    expect(page).toMatch(/setApplyFlow\(\{ phase: "failed", message: e instanceof SignedOutError \? SIGNED_OUT_TEXT : UNKNOWN_OUTCOME_TEXT \}\)/);
     expect(page).toMatch(/if \(r\.kind === "completed"\) \{[\s\S]{0,200}setHistoryRefreshKey\(k => k \+ 1\);/);
     expect(UNKNOWN_OUTCOME_TEXT).toMatch(/^Couldn't confirm whether that went through/);
   });
