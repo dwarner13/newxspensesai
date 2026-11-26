@@ -322,11 +322,12 @@ interface ChatRequest {
     recentImportSummaries?: Array<{
       importId: string;
       label: string; // e.g. "BMO February 2026"
-      totalSpend: number;
-      totalIncome: number;
-      txCount: number;
-      topCategories: Array<{ name: string; amount: number }>;
-      topMerchants: Array<{ name: string; amount: number }>;
+      /** Removed by the sanitizer (owner 2026-11-26): browser money never reaches Prime. */
+      totalSpend?: number;
+      totalIncome?: number;
+      txCount?: number;
+      topCategories?: Array<{ name: string; amount: number }>;
+      topMerchants?: Array<{ name: string; amount: number }>;
       displayedAt: string;
     }> | null;
   } | null;
@@ -11010,25 +11011,8 @@ export const handler: Handler = async (event, context) => {
         primeContextMessage += `Pending Imports: ${pc.pendingImports}\n`;
       }
       
-      // PHASE 2.2 FIX: Tax-workspace mirror with authority instruction.
-      // Prime has been ignoring this data and calling tx_search instead. Strong directive added.
-      if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
-        // C2-F: this snapshot is computed in the browser (not verified server evidence) and is not
-        // scoped to the period the user asks about. It must never be presented as an authoritative total.
-        primeContextMessage += `\nDashboard snapshot (browser-computed, NOT verified, NOT period-specific — orientation only; never quote these as a verified or period total, and use your tools for any specific period or category):\n`;
-        for (const section of pc.taxSummary) {
-          if (!section || typeof section.total !== 'number') continue;
-          primeContextMessage += `- ${section.section}: ${section.total} (${section.count} txns)`;
-          if (Array.isArray(section.topSubcategories) && section.topSubcategories.length > 0) {
-            const subs = section.topSubcategories
-              .map((b: any) => `${b.name}=${b.amount}`)
-              .join(', ');
-            primeContextMessage += ` [${subs}]`;
-          }
-          primeContextMessage += `\n`;
-        }
-        primeContextMessage += `\nFor a specific period or category, rely on verified tool evidence; if you mention a snapshot figure, say it is an unverified dashboard snapshot.\n`;
-      }
+      // Owner GO 2026-11-26 (UNIFIED FINANCIAL ENGINE): the browser-computed dashboard tax snapshot is
+      // no longer accepted (primeContextSanitizer drops it); every figure comes from the shared engine.
       
       // Team activity summary (what other agents did recently)
       if (pc.teamActivitySummary) {
@@ -11053,29 +11037,12 @@ export const handler: Handler = async (event, context) => {
         const summaries = pc.recentImportSummaries;
         // FST-1 / P-G7: these figures come from the browser (what the page displayed). They are
         // display context only, never verified totals.
-        primeContextMessage += `\nRECENT IMPORT SUMMARIES: BROWSER-SUPPLIED DISPLAY CONTEXT, NOT VERIFIED (${summaries.length} document${summaries.length > 1 ? 's' : ''} shown this session). Use them only to recognise which document the customer means; for any amount, total or count use the financial tools or the stored statement breakdown, and never present these numbers as verified:\n`;
+        // Owner 2026-11-26: identity only (which document the customer is looking at). No browser
+        // figures; every amount, total or count comes from the shared engine via the financial tools.
+        primeContextMessage += `\nDOCUMENTS THE CUSTOMER VIEWED THIS SESSION (identity only, no figures; use the financial tools or the stored statement breakdown for any amount, total or count):\n`;
         summaries.forEach((rs, i) => {
-          primeContextMessage += `\n[Document ${i + 1}${rs.label ? `: ${rs.label}` : ''}]\n`;
-          primeContextMessage += `- Total spend: $${rs.totalSpend.toFixed(2)}\n`;
-          if (rs.totalIncome > 0) primeContextMessage += `- Total income: $${rs.totalIncome.toFixed(2)}\n`;
-          primeContextMessage += `- Transactions: ${rs.txCount}\n`;
-          if (rs.topCategories && rs.topCategories.length > 0) {
-            primeContextMessage += `- Top categories: ${rs.topCategories.slice(0, 5).map(c => `${c.name} ($${c.amount.toFixed(2)})`).join(', ')}\n`;
-          }
-          if (rs.topMerchants && rs.topMerchants.length > 0) {
-            primeContextMessage += `- Top merchants: ${rs.topMerchants.slice(0, 5).map(m => `${m.name} ($${m.amount.toFixed(2)})`).join(', ')}\n`;
-          }
+          primeContextMessage += `- [Document ${i + 1}${rs.label ? `: ${rs.label}` : ''}]\n`;
         });
-        // Aggregate totals across all documents if more than one
-        if (summaries.length > 1) {
-          const totalSpendAll = summaries.reduce((sum, s) => sum + s.totalSpend, 0);
-          const totalIncomeAll = summaries.reduce((sum, s) => sum + s.totalIncome, 0);
-          const totalTxAll = summaries.reduce((sum, s) => sum + s.txCount, 0);
-          primeContextMessage += `\n[Combined across all ${summaries.length} documents: browser-supplied, not verified; overlapping statements may double count]\n`;
-          primeContextMessage += `- Total spend: $${totalSpendAll.toFixed(2)}\n`;
-          if (totalIncomeAll > 0) primeContextMessage += `- Total income: $${totalIncomeAll.toFixed(2)}\n`;
-          primeContextMessage += `- Total transactions: ${totalTxAll}\n`;
-        }
       }
 
       // ── DOCUMENT/IMPORT CONTEXT (only for document-related conversations) ──

@@ -25,6 +25,22 @@ export const BUSINESS_EXPENSE_SECTIONS = ['vehicle', 'home', 'meals', 'business'
 export const POSSIBLE_BUSINESS_EXPENSES_WORDING =
   'Possible business expenses — needs your review (not a tax decision): {count} transactions, {amount}.';
 
+/**
+ * Owner decision 2026-11-26 (FINANCIAL CONTRACT DECISIONS): two separate signals.
+ *  - retrieval: every transaction in scope was read from the database (otherwise status 'partial'
+ *    and NO totals — this block only exists when retrieval is complete);
+ *  - statementCoverage: whether imported statements cover the whole requested range.
+ * Unknown / partial coverage prohibits comparisons and completeness claims, but NOT accurately
+ * labelled recorded totals.
+ */
+export type StatementCoverageState = 'complete' | 'partial' | 'unknown' | 'none';
+export const TOTALS_LABEL_WORDING: Readonly<Record<StatementCoverageState, string>> = {
+  complete: 'Complete for {range} (your imported statements cover this whole period).',
+  partial: 'Recorded transactions for {range}. Your imported statements do not cover the whole period, so this is not a complete picture.',
+  unknown: 'Recorded transactions for {range}. Statement coverage for this period is unknown, so this may not be a complete picture.',
+  none: 'Recorded transactions for {range}. No imported statement covers this period.',
+};
+
 export interface SummaryV2Row extends AggregateRow { import_id?: string | null; merchant_name?: string | null; merchant?: string | null }
 
 function labelsOf(agg: PeriodAggregate) {
@@ -89,6 +105,14 @@ export function buildSummaryV2(input: {
     return { ...periodRow(k, start, end, a), coverage: cov === 'complete' ? 'complete' as const : cov === 'unknown' ? 'unknown' as const : 'partial' as const, comparable: false as const };
   });
   const comparison = comparisonAllowed(coverage);
+  const rangeCov = coverageForPeriod(coverage, scope.startDate, scope.endDate).overall;
+  const statementCoverage: StatementCoverageState = rangeCov === 'complete' ? 'complete' : rangeCov === 'incomplete' ? 'partial' : rangeCov === 'none' ? 'none' : 'unknown';
+  const dataQuality = {
+    retrieval: 'complete' as const,
+    statementCoverage,
+    allowed: { recordedTotals: true, completenessClaims: statementCoverage === 'complete', comparisons: comparison.allowed },
+    totalsLabel: TOTALS_LABEL_WORDING[statementCoverage].replace('{range}', `${scope.startDate} to ${scope.endDate}`),
+  };
 
   // Per statement (import) within the range.
   const byImport = new Map<string, SummaryV2Row[]>();
@@ -126,6 +150,7 @@ export function buildSummaryV2(input: {
   }
 
   return {
+    dataQuality,
     labels: labelsOf(agg),
     netExcludingTransfersAndSavings: money(agg.cents.netExcludingTransfersAndSavings),
     spendingByCategory,

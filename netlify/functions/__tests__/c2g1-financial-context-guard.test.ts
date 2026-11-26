@@ -103,7 +103,9 @@ describe('3. the dashboard snapshot is never authoritative (C2-F alignment)', ()
     expect(chat).not.toContain('CONTEXT-FIRST: When a question can be answered from Tax Summary or Snapshot above');
     expect(chat).toContain('2. EVIDENCE-FIRST: Use verified evidence (server evidence blocks above or your tools) for any specific figure.');
     expect(chat).toContain('never answer from it as an authoritative or period total');
-    expect(chat).toContain('Dashboard snapshot (browser-computed, NOT verified, NOT period-specific');
+    // Owner 2026-11-26 (unified engine): stronger than labelling — the browser snapshot never reaches Prime.
+    expect(chat).not.toContain('Dashboard snapshot (browser-computed');
+    expect(chat).toContain('the browser-computed dashboard tax snapshot is');
   });
 });
 

@@ -102,8 +102,10 @@ describe('2. prime_context validation', () => {
     expect(out.timezone).toBeNull();
     expect(out.currency).toBeNull();
     expect(out.currentStage).toBeNull();
-    expect((out.taxSummary as unknown[]).length).toBe(30);
-    expect(((out.taxSummary as Array<{ topSubcategories: unknown[] }>)[0]).topSubcategories.length).toBe(10);
+    // Owner 2026-11-26 (unified engine): browser money never reaches Prime — the tax snapshot is dropped
+    // and document summaries keep identity only.
+    expect(out.taxSummary).toBeUndefined();
+    expect(Object.keys((out.recentImportSummaries as Record<string, unknown>[])[0]).sort()).toEqual(['displayedAt', 'importId', 'label']);
     expect((out.recentImportSummaries as unknown[]).length).toBe(10);
     expect((out.teamActivitySummary as string).length).toBeLessThanOrEqual(2000);
     expect(((out.memorySummary as { recentFacts: unknown[] }).recentFacts).length).toBe(5);
@@ -115,7 +117,9 @@ describe('2. prime_context validation', () => {
   });
 
   it('client financial figures can never become verified evidence (C2-F / C2-G2 still in force)', () => {
-    expect(chat).toContain('Dashboard snapshot (browser-computed, NOT verified, NOT period-specific');
+    // Owner 2026-11-26 (unified engine): stronger than labelling — the browser snapshot never reaches Prime.
+    expect(chat).not.toContain('Dashboard snapshot (browser-computed');
+    expect(chat).toContain('the browser-computed dashboard tax snapshot is');
     expect(chat).toContain("console.log('[FinancialGrounding] snapshot-only match ignored — continuing to the verified evidence path');");
   });
 });
