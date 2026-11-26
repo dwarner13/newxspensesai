@@ -15,6 +15,8 @@ import { verifyAuth } from './_shared/verifyAuth.js';
 import { fetchTransactionsInRange, type RangeFetchClient } from '../../src/shared/transaction-range-fetch';
 import { buildPeriodAggregate } from '../../src/shared/period-aggregate';
 import { countNeedsCategory } from '../../src/shared/needs-category-rule';
+import { gateReplyForCoverage } from '../../src/shared/comparison-claim-guard';
+import { loadStatementCoverage, type CoverageDbClient } from '../../src/shared/statement-coverage';
 
 // FST-1 / P-G3: totals come from the ONE shared engine (complete paged read +
 // buildPeriodAggregate / classifyCashFlow). The previous local classifier (merchant regex,
@@ -197,7 +199,10 @@ Write Prime's briefing. Be specific with the numbers given; never invent figures
     });
 
     const claudeData = await claudeRes.json();
-    const briefing = claudeData.content?.[0]?.text || 'Import processed successfully.';
+    // G11b (owner GO 2026-11-26): the model-written briefing may not compare periods without coverage.
+    const gatedBriefing = await gateReplyForCoverage(claudeData.content?.[0]?.text || 'Import processed successfully.',
+      () => loadStatementCoverage(sb as unknown as CoverageDbClient, userId));
+    const briefing = gatedBriefing.text;
 
     // 5. Save to notifications (never silently: a failed write is logged, the briefing still returns)
     const { error: saveError } = await sb.from('notifications').insert({

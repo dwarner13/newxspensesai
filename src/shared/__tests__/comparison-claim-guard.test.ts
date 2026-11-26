@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test doubles */
 /**
  * Coverage gate for comparison / trend / stability claims (owner GO 2026-11-26; Architecture G11).
  * The incident shapes: Crystal "stable spending patterns", "Housing … up 50% from last month".
@@ -46,5 +47,21 @@ describe('comparison-claim gate', () => {
     const block = chat.slice(Math.max(0, i - 900), i);
     expect(block).not.toMatch(/isPrime &&/);
     expect(chat.indexOf("await sb.from('chat_messages').insert({", i)).toBeGreaterThan(i);
+  });
+});
+
+describe('G11b: every LLM-reply endpoint uses the gate', () => {
+  it('async gate: allowed → unchanged; not allowed → claims removed; coverage read failure → fail closed', async () => {
+    const { gateReplyForCoverage } = await import('../comparison-claim-guard');
+    const t = 'Housing is up 50% from last month.';
+    const noCov = { status: 'ok', accounts: [], completedWithoutPeriod: 0, limitations: [], statusCounts: {}, lastUploadAttempt: null, lastCompletedImport: null, readOnly: true } as any;
+    expect((await gateReplyForCoverage(t, async () => noCov)).applied).toBe(true);
+    const failed = await gateReplyForCoverage(t, async () => { throw new Error('db'); });
+    expect(failed).toMatchObject({ applied: true, reason: 'statement coverage could not be read' });
+    expect((await gateReplyForCoverage('No comparison here.', async () => { throw new Error('never called'); })).applied).toBe(false);
+  });
+  it.each(['custodian-chat.ts', 'prime-briefing.ts'])('%s applies gateReplyForCoverage before replying/saving', (file) => {
+    const src = fs.readFileSync(path.join(__dirname, '../../../netlify/functions', file), 'utf8');
+    expect(src).toContain('gateReplyForCoverage(');
   });
 });

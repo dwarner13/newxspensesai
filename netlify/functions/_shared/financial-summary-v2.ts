@@ -45,9 +45,10 @@ export const TOTALS_LABEL_WORDING: Readonly<Record<StatementCoverageState, strin
 /** G9: one wording table, served with every response (screens render, never re-word). */
 export const SUMMARY_WORDING = {
   labels: {
-    deposits: 'Deposits', withdrawals: 'Withdrawals', netCashFlow: 'Net cash flow',
-    actualIncome: 'Actual income', actualSpending: 'Actual spending', refunds: 'Refunds',
-    netExcludingTransfersAndSavings: 'Net excluding transfers and savings',
+    // Owner's casing (2026-11-26 directive): Deposits, Withdrawals, Net Cash Flow, Actual Income, Actual Spending.
+    deposits: 'Deposits', withdrawals: 'Withdrawals', netCashFlow: 'Net Cash Flow',
+    actualIncome: 'Actual Income', actualSpending: 'Actual Spending', refunds: 'Refunds',
+    netExcludingTransfersAndSavings: 'Net Excluding Transfers and Savings',
   },
   insights: {
     trend_actual_spending: 'Actual spending is {direction} {percent}% compared with the previous statement period.',

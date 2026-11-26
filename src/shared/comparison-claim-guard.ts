@@ -5,6 +5,8 @@
  * and screens can never disagree. When comparisons are not allowed, sentences that make such a claim
  * are removed and one honest sentence is added. Deterministic; no model call.
  */
+import { comparisonAllowed } from './coverage-insights';
+import type { StatementCoverage } from './statement-coverage';
 const CLAIM_PATTERNS: ReadonlyArray<RegExp> = [
   // "up 50%", "increased by 12%", "down 8 percent"
   /\b(up|down|increased?|decreased?|rose|fell|grew|dropped|higher|lower|jumped|climbed)\b[^.!?\n]{0,40}\b\d+(?:\.\d+)?\s?(?:%|percent)/i,
@@ -43,4 +45,24 @@ export function applyComparisonGate(text: string, permission: { allowed: boolean
   const body = kept.filter((l, i, a) => !(l.trim() === '' && (i === 0 || a[i - 1].trim() === ''))).join('\n').trim();
   const note = NOT_ENOUGH_HISTORY_SENTENCE.replace('{reason}', permission.reason);
   return { text: body ? `${body}\n\n${note}` : note, removedSentences: removed, applied: true };
+}
+
+/**
+ * G11b (Architecture review): one async entry point for every LLM-reply endpoint (chat.ts,
+ * custodian-chat, prime-briefing, Tag endpoints). Coverage is loaded only when the text makes a
+ * comparison / trend / stability claim; the decision uses the same rule as financial-summary
+ * (coverage-insights.comparisonAllowed); a coverage read failure fails CLOSED.
+ */
+export async function gateReplyForCoverage(
+  text: string,
+  loadCoverage: () => Promise<StatementCoverage>,
+): Promise<ComparisonGateResult & { reason: string | null }> {
+  if (!text || !hasComparisonClaim(text)) return { text, removedSentences: 0, applied: false, reason: null };
+  try {
+    const permission = comparisonAllowed(await loadCoverage());
+    return { ...applyComparisonGate(text, permission), reason: permission.reason };
+  } catch {
+    const reason = 'statement coverage could not be read';
+    return { ...applyComparisonGate(text, { allowed: false, reason }), reason };
+  }
 }
