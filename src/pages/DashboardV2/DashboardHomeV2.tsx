@@ -6,7 +6,6 @@ import { THEME } from "./dashboardConfig";
 import { useDashboardData, buildRecapText } from "./useDashboardData";
 import { AgentBriefingCard } from "./AgentBriefingCard";
 import { SmartAction } from "./SmartAction";
-import { Sparkline } from "./Sparkline";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
@@ -53,11 +52,9 @@ export default function DashboardHomeV2() {
     );
   }
 
-  // Build sparkline data from real values
-  const incSpark = [Math.round(data.income * 0.65), Math.round(data.income * 0.74), Math.round(data.income * 0.8), Math.round(data.income * 0.87), Math.round(data.income * 0.94), data.income];
-  const expSpark = [Math.round(data.expenses * 0.68), Math.round(data.expenses * 0.75), Math.round(data.expenses * 0.83), Math.round(data.expenses * 0.9), Math.round(data.expenses * 0.96), data.expenses];
-  const netSpark = incSpark.map((v, i) => v - expSpark[i]);
-  const dedSpark = [Math.round(data.deductions * 0.56), Math.round(data.deductions * 0.65), Math.round(data.deductions * 0.74), Math.round(data.deductions * 0.84), Math.round(data.deductions * 0.92), data.deductions];
+  // HONEST-2: the four sparklines were invented (each was the current total scaled by fixed
+  // factors 0.56-0.96, so every card showed steady growth). There is no per-month series here,
+  // so no sparkline is drawn.
 
   return (
     <>
@@ -69,7 +66,7 @@ export default function DashboardHomeV2() {
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-start", gap: isMobile ? 12 : 0, marginBottom: 8 }}>
             <div>
               <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0, color: "white" }}>{greeting}, {firstName}</h1>
-              <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>Your AI team has been working while you were away.</p>
+              <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>{data.transactionCount > 0 ? "Here is where your accounts stand." : "Upload a statement to get started."}</p>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {/* Xspense Score widget - desktop only */}
@@ -138,10 +135,10 @@ export default function DashboardHomeV2() {
         {/* FINANCIAL PULSE */}
         <div style={{ display: "grid", gridTemplateColumns: isVerySmall ? "1fr" : isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: 28, padding: isMobile ? "0 2px" : 0 }}>
           {[
-            { label: "Income", value: `$${data.income.toLocaleString()}`, trend: data.incomeTrend !== 0 ? `${data.incomeTrend > 0 ? "+" : ""}${data.incomeTrend}%` : null, dir: data.incomeTrend >= 0 ? "up" as const : "down" as const, color: THEME.green, spark: incSpark, href: "/dashboard/transactions?filter=income" },
-            { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, trend: data.expenseTrend !== 0 ? `${data.expenseTrend > 0 ? "+" : ""}${data.expenseTrend}%` : null, dir: data.expenseTrend >= 0 ? "up" as const : "down" as const, color: "#f87171", spark: expSpark, href: "/dashboard/transactions?filter=expenses" },
-            { label: "Net Flow", value: `${data.netFlow >= 0 ? "+" : ""}$${data.netFlow.toLocaleString()}`, trend: null, dir: data.netFlow >= 0 ? "up" as const : "down" as const, color: data.netFlow >= 0 ? THEME.green : "#fb923c", spark: netSpark, href: "/dashboard/transactions" },
-            { label: "Deductions Found", value: `$${data.deductions.toLocaleString()}`, trend: null, dir: "up" as const, color: THEME.accent, spark: dedSpark, href: "/dashboard/tax-workspace" },
+            { label: "Income", value: `$${data.income.toLocaleString()}`, trend: data.incomeTrend !== 0 ? `${data.incomeTrend > 0 ? "+" : ""}${data.incomeTrend}%` : null, dir: data.incomeTrend >= 0 ? "up" as const : "down" as const, color: THEME.green, href: "/dashboard/transactions?filter=income" },
+            { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, trend: data.expenseTrend !== 0 ? `${data.expenseTrend > 0 ? "+" : ""}${data.expenseTrend}%` : null, dir: data.expenseTrend >= 0 ? "up" as const : "down" as const, color: "#f87171", href: "/dashboard/transactions?filter=expenses" },
+            { label: "Net Flow", value: `${data.netFlow >= 0 ? "+" : ""}$${data.netFlow.toLocaleString()}`, trend: null, dir: data.netFlow >= 0 ? "up" as const : "down" as const, color: data.netFlow >= 0 ? THEME.green : "#fb923c", href: "/dashboard/transactions" },
+            { label: "Deductions Found", value: `$${data.deductions.toLocaleString()}`, trend: null, dir: "up" as const, color: THEME.accent, href: "/dashboard/tax-workspace" },
           ].map((s, i) => (
             <Reveal key={s.label} delay={300 + i * 80} style={{ minWidth: 0 }}>
               <div
@@ -167,7 +164,6 @@ export default function DashboardHomeV2() {
                     )}
                   </div>
                 </div>
-                <Sparkline data={s.spark} color={s.color} />
               </div>
             </Reveal>
           ))}
@@ -200,10 +196,10 @@ export default function DashboardHomeV2() {
             urgency={data.uncategorizedCount > 0 ? "high" : null}
             title={data.uncategorizedCount > 0
               ? `${data.uncategorizedCount} transaction${data.uncategorizedCount !== 1 ? "s" : ""} need your review`
-              : "All transactions categorized"}
+              : data.transactionCount > 0 ? "All transactions categorized" : "No transactions yet"}
             body={data.uncategorizedCount > 0
               ? `Found ${data.uncategorizedCount} uncategorized or suspicious item${data.uncategorizedCount !== 1 ? "s" : ""}. Should take about ${Math.max(1, Math.ceil(data.uncategorizedCount / 3))} minute${data.uncategorizedCount > 3 ? "s" : ""} to resolve.`
-              : "Every transaction is categorized with high confidence. No action needed."}
+              : data.transactionCount > 0 ? "Every transaction has a category. No action needed." : "Upload a statement and Tag will categorize each transaction."}
             cta="Review Now" ctaColor={data.uncategorizedCount > 0 ? "#f87171" : undefined}
             onCtaClick={() => navigate("/dashboard/categories")}
           />
@@ -213,7 +209,7 @@ export default function DashboardHomeV2() {
             title={data.pendingImports > 0
               ? `${data.pendingImports} statement${data.pendingImports !== 1 ? "s" : ""} pending`
               : `${data.statementCount} statement${data.statementCount !== 1 ? "s" : ""} imported`}
-            body={`${data.transactionCount} transactions extracted across ${data.statementCount} statement${data.statementCount !== 1 ? "s" : ""}. All staged and ready.`}
+            body={data.statementCount > 0 ? `${data.transactionCount} transaction${data.transactionCount !== 1 ? "s" : ""} imported from ${data.statementCount} statement${data.statementCount !== 1 ? "s" : ""}.` : "No statements imported yet."}
             cta="View Imports"
             onCtaClick={() => navigate("/dashboard/transactions")}
           />

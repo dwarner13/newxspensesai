@@ -9,8 +9,6 @@ import { computeComposerHeight, COMPOSER_MAX_HEIGHT_PX } from "@/lib/chatCompose
 import { CHAT_VISUALS, chatTextSize } from "@/lib/chatVisualStandards";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
-const ACCEPT = ".pdf,.csv,.jpg,.jpeg,.png,.webp,application/pdf,text/csv,image/jpeg,image/png,image/webp";
-
 interface PrimeChatInputProps {
   onSend: (message: string) => void;
   onFileSelected?: (file: File) => void;
@@ -40,8 +38,6 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", user
   }, [key]);
   // Drafts of any other user are dropped when the signed-in user changes (logout / switch).
   useEffect(() => { setDrafts(d => keepOnlyUser(d, userId)); }, [userId, setDrafts]);
-  const [pendingFile, setPendingFile] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   // P1-c: multi-line composer that grows from one line up to COMPOSER_MAX_HEIGHT_PX, then scrolls.
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -71,39 +67,14 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", user
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onFileSelected) {
-      setPendingFile(file.name);
-      onFileSelected(file);
-      // Clear pill after 8s (upload should be done by then)
-      setTimeout(() => setPendingFile(null), 8000);
-    }
-    // Reset so the same file can be re-selected
-    if (fileRef.current) fileRef.current.value = "";
-  };
-
   return (
     <div>
-      {pendingFile && (
-        <div style={{
-          background: '#111a2e', border: '1px solid #1e2d4a', borderRadius: 8,
-          padding: '6px 12px', color: '#e8ecf4', fontSize: 13, marginBottom: 8,
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <span>{'\ud83d\udcce'} {pendingFile}</span>
-          <span style={{ color: '#9ba8bc', fontSize: 11 }}>Processing...</span>
-          <button onClick={() => setPendingFile(null)} style={{
-            marginLeft: 'auto', background: 'none', border: 'none',
-            color: '#9ba8bc', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1,
-          }}>{'\u00d7'}</button>
-        </div>
-      )}
       <div
+        className="chat-composer"
         style={{
           display: "flex",
           alignItems: "flex-end",
-          gap: 6,
+          gap: 4,
           background: THEME.surface,
           borderRadius: 18,
           border: `1px solid ${THEME.borderLight}`,
@@ -112,39 +83,6 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", user
       >
         {/* Attachment button with camera/gallery/file menu */}
         <ChatAttachmentButton onFileSelected={(file) => { if (onFileSelected) onFileSelected(file); }} />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          title="Attach a statement (PDF, CSV, image)"
-          style={{
-            display: "none", /* Hidden - replaced by ChatAttachmentButton */
-            width: 34,
-            height: 34,
-            borderRadius: 10,
-            background: "transparent",
-            border: `1px solid ${THEME.border}`,
-            color: THEME.textMuted,
-            cursor: "pointer",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            transition: "all 0.15s",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = THEME.accent; e.currentTarget.style.color = THEME.text; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = THEME.border; e.currentTarget.style.color = THEME.textMuted; }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-          </svg>
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept={ACCEPT}
-          onChange={handleFileChange}
-          style={{ display: "none" }}
-        />
-
         <textarea
           ref={textRef}
           rows={1}
@@ -153,6 +91,7 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", user
           onKeyDown={handleKey}
           placeholder="Ask Prime anything..."
           aria-label="Message Prime"
+          data-composer=""
           style={{
             flex: 1,
             minWidth: 0,
@@ -164,7 +103,8 @@ export function PrimeChatInput({ onSend, onFileSelected, initialValue = "", user
             // 16px+ on mobile prevents iOS focus zoom; 17px desktop per the visual standard.
             fontSize: Math.max(PANEL.inputFontSize, chatTextSize(isMobile)),
             lineHeight: 1.5,
-            padding: "10px 4px 10px 8px",
+            // CHAT-POLISH: text sits clear of the frame and the attach button.
+            padding: "11px 10px 11px 10px",
             maxHeight: COMPOSER_MAX_HEIGHT_PX,
             overflowY: "hidden",
             fontFamily: "inherit",

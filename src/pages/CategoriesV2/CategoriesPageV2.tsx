@@ -178,14 +178,17 @@ export default function CategoriesPageV2() {
       if (error) throw error;
       // Non-blocking notification. Query builders have no .catch(): the old `.insert(...).catch()`
       // threw AFTER the budget was saved, so customers saw "Failed to save budget" for a saved budget.
-      const { error: notifyErr } = await sb.from('user_notifications').insert({
+      // NOTIFY-1: `user_notifications` has none of employee_slug / message / priority / sent_at
+      // (live layout: id, user_id, type, title, body, href, meta, read_at, created_at), so this
+      // insert always failed. `notifications` has them, and the Inbox reads it
+      // (NOTIFICATIONS_SELECT). created_at records the time.
+      const { error: notifyErr } = await sb.from('notifications').insert({
         user_id: session.user.id,
         employee_slug: 'goalie-goals',
         type: 'budget_set',
         title: `Budget set \u2014 ${budgetCategory}`,
         message: `$${limit.toLocaleString()}/month limit locked in for ${budgetCategory}. I'll flag you when you hit 80%.`,
         priority: 'info',
-        sent_at: new Date().toISOString(),
       });
       if (notifyErr) console.warn('[saveBudget] budget notification not saved');
       toast.success(`Goalie locked in $${limit}/mo for ${budgetCategory}`);
@@ -317,7 +320,9 @@ export default function CategoriesPageV2() {
               <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, color: THEME.green }}>${fmt(data.totalIncome)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Expenses <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>(excl. transfers)</span></div>
+              {/* M-CAT: the note sits on its own line so the half-width phone tile never wraps mid-label. */}
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Expenses</div>
+              <div style={{ fontSize: 11, color: KA.dim, marginTop: 1 }}>Excludes transfers</div>
               <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, color: THEME.red }}>${fmt(data.totalSpent)}</div>
             </div>
             {!isMobile && (

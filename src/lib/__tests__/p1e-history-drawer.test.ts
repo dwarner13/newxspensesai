@@ -49,10 +49,10 @@ describe('groupHistoryItems', () => {
 
 describe('ConversationHistoryDrawer', () => {
   it('is an accessible full-height dialog with 44px controls and Escape to close', () => {
-    expect(drawer).toMatch(/role="dialog"/);
-    expect(drawer).toMatch(/aria-modal="true"/);
+    // PW-1: the overlay is still a modal dialog; a "sidebar" variant serves the Workspace.
+    expect(drawer).toMatch(/\{ role: "dialog", "aria-modal": true, "aria-label": "Conversations" \}/);
     expect(drawer).toMatch(/position: "absolute", inset: 0/);
-    expect(drawer).toMatch(/aria-label="Close conversations"/);
+    expect(drawer).toMatch(/aria-label=\{isSidebar \? "Hide conversations" : "Close conversations"\}/);
     expect(drawer).toMatch(/e\.key === "Escape"/);
     expect(drawer).toMatch(/minHeight: 56/);
     expect(drawer).toMatch(/aria-current=\{isCurrent \? "true" : undefined\}/);
@@ -86,8 +86,11 @@ describe('PrimeChatV2 wiring', () => {
   });
 
   it('header New chat and Close are 44px with names', () => {
-    expect(prime).toMatch(/aria-label="New chat"\s*style=\{\{\s*width: CHAT_VISUALS\.touchTarget, height: CHAT_VISUALS\.touchTarget/);
-    expect(prime).toMatch(/aria-label="Close Prime"\s*style=\{\{\s*width: CHAT_VISUALS\.touchTarget, height: CHAT_VISUALS\.touchTarget/);
-    expect(prime).toMatch(/aria-haspopup="dialog"/);
+    // TB-2: the universal ChatToolbar replaced Prime's individual header buttons.
+    // Labels / sizes ("New conversation", "Close Prime", 44px on phones) are rendered and
+    // asserted in tb1-chat-header.test.ts.
+    expect(prime).toMatch(/onNew=\{handleNewChat\}/);
+    expect(prime).toMatch(/onClose=\{onClose\}/);
+    expect(prime).toMatch(/: \{ open: sessionsOpen, onToggle: toggleSessionsOpen \}\}/);
   });
 });

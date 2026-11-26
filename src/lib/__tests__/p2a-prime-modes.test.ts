@@ -51,9 +51,10 @@ describe('single mount (no remount on mode change)', () => {
 
 describe('header toggle', () => {
   it('is desktop-only, 44px, aria-pressed and labelled', () => {
-    // P2-b: also hidden in Workspace mode.
-    expect(prime).toMatch(/\{!isMobileWidth && chatMode !== 'workspace' && \(\s*<button\s+type="button"\s+onClick=\{\(\) => setChatMode\(nextExpandMode\(chatMode\)\)\}/);
-    expect(prime).toMatch(/aria-pressed=\{chatMode !== 'quick'\}/);
-    expect(prime).toMatch(/aria-label=\{chatMode === 'quick' \? "Expand chat" : "Collapse chat"\}/);
+    // TB-2: the universal ChatToolbar replaced Prime's individual header buttons.
+    // One display-mode group (Quick / Expanded / Full Workspace), desktop only, aria-pressed;
+    // rendered and asserted in tb1-chat-header.test.ts.
+    expect(prime).toMatch(/modes=\{\{ current: chatMode, supported: \['quick', 'expanded', 'workspace'\], onSelect: selectPrimeMode \}\}/);
+    expect(prime).toMatch(/setChatMode\(target\);/);
   });
 });

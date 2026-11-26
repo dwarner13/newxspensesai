@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Send } from "lucide-react";
+import { X, Send, Pause, Play, XCircle, Camera } from "lucide-react";
 import { StatementHistory } from '../../components/upload/StatementHistory';
 import toast from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -1061,30 +1061,30 @@ export default function UploadPageV2() {
             padding: "12px 24px", borderRadius: 12, fontSize: 13, fontWeight: 600,
             background: T.surface, border: `1px solid ${T.border}`, color: T.muted,
             cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-            margin: "12px auto 0",
-          }}>{"\uD83D\uDCF7"} Take Photo of Receipt</button>
+            minHeight: 44, margin: "20px auto 0",
+          }}><Camera style={{ width: 16, height: 16 }} aria-hidden="true" /> Take photo of receipt</button>
         </Reveal>
 
-        {/* Queue controls */}
+        {/* Queue controls - RECEIPT-SPACING: its own section, clearly below the upload area */}
         {queue.length > 0 && (
           <Reveal delay={0}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 28, paddingTop: 20, borderTop: `1px solid ${T.border}`, marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: T.dim }}>
                 {stats.total} file{stats.total !== 1 ? "s" : ""} {"\u2022"} {stats.complete} complete {"\u2022"} {stats.processing} processing {"\u2022"} {stats.queued} queued
                 {stats.held > 0 && <span style={{ color: T.amber }}> {"\u2022"} {stats.held} held</span>}
                 {stats.failed > 0 && <span style={{ color: T.red }}> {"\u2022"} {stats.failed} failed</span>}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <button onClick={clearQueued} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.dim, cursor: "pointer" }}>Clear Queue</button>
                 <button onClick={() => fileRef.current?.click()} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, cursor: "pointer" }}>Add More</button>
                 {stats.processing > 0 && !isPaused && (
-                  <button onClick={() => { pausedRef.current = true; setIsPaused(true); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.amber}18`, border: `1px solid ${T.amber}40`, color: T.amber, cursor: "pointer" }}>? Pause</button>
+                  <button onClick={() => { pausedRef.current = true; setIsPaused(true); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.amber}18`, border: `1px solid ${T.amber}40`, color: T.amber, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36 }}><Pause style={{ width: 14, height: 14 }} aria-hidden="true" />Pause</button>
                 )}
                 {isPaused && (
-                  <button onClick={() => { pausedRef.current = false; setIsPaused(false); processAll(); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.green}18`, border: `1px solid ${T.green}40`, color: T.green, cursor: "pointer" }}>? Resume</button>
+                  <button onClick={() => { pausedRef.current = false; setIsPaused(false); processAll(); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.green}18`, border: `1px solid ${T.green}40`, color: T.green, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36 }}><Play style={{ width: 14, height: 14 }} aria-hidden="true" />Resume</button>
                 )}
                 {stats.processing > 0 && (
-                  <button onClick={() => { pausedRef.current = true; setIsPaused(false); setQueue(prev => prev.filter(q => q.status !== "queued")); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.red}18`, border: `1px solid ${T.red}40`, color: T.red, cursor: "pointer" }}>? Cancel Queued</button>
+                  <button onClick={() => { pausedRef.current = true; setIsPaused(false); setQueue(prev => prev.filter(q => q.status !== "queued")); }} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: `${T.red}18`, border: `1px solid ${T.red}40`, color: T.red, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36 }}><XCircle style={{ width: 14, height: 14 }} aria-hidden="true" />Cancel queued</button>
                 )}
                 {stats.queued > 0 && !isPaused && (
                   <button onClick={processAll} style={{ padding: "7px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: `linear-gradient(135deg, ${T.accent}, #a08030)`, border: "none", color: T.bg, cursor: "pointer", boxShadow: `0 4px 16px ${T.accent}35` }}>Process All {"\u2192"}</button>

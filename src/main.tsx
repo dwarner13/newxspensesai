@@ -36,13 +36,19 @@ console.info("[ChatContract]", CHAT_CONTRACT_VERSION);
 
 // Dev-only: StrictMode removed to reduce noisy double-invoked effects while stabilizing OCR.
 
-// Dev-only route classification self-check
+// Dev-only route classification self-check. The module was never committed (main.tsx has
+// imported it since 25bfb7a9), and a static import() of a missing file stops the Vite dev
+// server. import.meta.glob resolves to {} when the file is absent, so startup no longer
+// depends on it; if someone adds the file later, the check runs again.
 if (import.meta.env.DEV) {
-  import('./hooks/__tests__/routeClassificationSelfCheck').then(({ runRouteClassificationSelfCheck }) => {
-    runRouteClassificationSelfCheck();
-  }).catch(() => {
-    // Ignore if test file doesn't exist or fails to load
-  });
+  const selfCheck = import.meta.glob<{ runRouteClassificationSelfCheck?: () => void }>(
+    './hooks/__tests__/routeClassificationSelfCheck.{ts,tsx}',
+  );
+  for (const load of Object.values(selfCheck)) {
+    load().then((m) => m.runRouteClassificationSelfCheck?.()).catch(() => {
+      // Ignore if the self-check fails to load
+    });
+  }
 }
 
 // Import Montserrat font from Google Fonts

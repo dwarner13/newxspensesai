@@ -45,9 +45,10 @@ describe('C2-E1 — Ask Prime entry points open the existing Prime panel', () =>
     expect(mobile).toMatch(/onClick=\{\(\) => setIsPrimeBriefingOpen\(true\)\}\s+aria-label="Ask Prime"\s+data-testid="ask-prime-mobile"/);
   });
 
-  it('Transactions has a clearly visible Ask Prime that opens the same panel', () => {
-    expect(tx).toMatch(/const handleOpenPrime = useCallback\(\(\) => \{\s+setIsPrimeBriefingOpen\(true\);\s+\}, \[setIsPrimeBriefingOpen\]\);/);
-    expect(tx).toMatch(/onClick=\{handleOpenPrime\}\s+aria-label="Ask Prime about your transactions"\s+data-testid="ask-prime-transactions"/);
+  it('Transactions relies on the one shell Ask Prime (owner: remove duplicate page-level Ask Prime)', () => {
+    // TX-FIRST: the shell top bar's Ask Prime opens the same panel on every dashboard page.
+    expect(tx).not.toContain('data-testid="ask-prime-transactions"');
+    expect(tx).not.toMatch(/handleOpenPrime/);
   });
 
   it('Dashboard keeps its existing Prime launchers', () => {
@@ -60,9 +61,11 @@ describe('C2-E1 — one panel, one session, page stays visible', () => {
   it('the panel is an overlay portal over the current page (the page is not navigated away)', () => {
     expect(panel).toContain('createPortal(');
     // UX-P2a: width now follows primeChatModeAtom (560 Quick / 820 Expanded; full width on mobile).
-    expect(panel).toContain('className="fixed top-0 right-0 z-[51] h-full');
+    // PW-1: the stacking order moved to style (51; 120 in Workspace, above the app sidebar).
+    expect(panel).toContain('className="fixed top-0 right-0 h-full');
+    expect(panel).toContain('zIndex: mode === "workspace" ? 120 : 51,');
     expect(panel).toContain('width: isMobile ? "100%" : primePanelWidth(mode),');
-    for (const s of [header, slice(tx, 'data-testid="ask-prime-transactions"', 200)]) expect(s).not.toMatch(/navigate\(['"]\/dashboard\/prime|window\.location/);
+    for (const s of [header]) expect(s).not.toMatch(/navigate\(['"]\/dashboard\/prime|window\.location/);
   });
 
   it('exactly one PrimeBriefingPanel per layout branch (mobile / desktop) — no duplicate panels', () => {
@@ -81,8 +84,9 @@ describe('C2-E1 — one panel, one session, page stays visible', () => {
   });
 
   it('New Chat, History and cross-device resume stay wired in the panel', () => {
-    expect(v2).toContain('onClick={handleNewChat}');
-    expect(v2).toContain('onClick={toggleSessionsOpen}');
+    // TB-2: the universal ChatToolbar replaced Prime's individual header buttons.
+    expect(v2).toContain('onNew={handleNewChat}');
+    expect(v2).toContain('onToggle: toggleSessionsOpen');
     expect(v2).toContain('handleResumeContinue');
   });
 });

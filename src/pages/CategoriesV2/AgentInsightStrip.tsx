@@ -9,7 +9,7 @@ export function AgentInsightStrip({ data }: AgentInsightStripProps) {
   // Dynamic Tag insight
   const tagText = data.uncategorizedCount > 0
     ? `${data.uncategorizedCount} transaction${data.uncategorizedCount !== 1 ? "s" : ""} still need categorization. Review to improve accuracy.`
-    : "All transactions categorized. Tag confidence is high across the board.";
+    : data.categories.length > 0 ? "All transactions have a category." : "No transactions to categorize yet.";
 
   // Dynamic Crystal insight
   const top = data.categories[0];

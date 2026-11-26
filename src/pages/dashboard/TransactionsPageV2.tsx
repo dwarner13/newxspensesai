@@ -2,8 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
-import { Search, ChevronRight, ChevronDown, ArrowDownLeft, ArrowUpRight, TrendingDown, Hash, Upload, Download, Star } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { Search, ChevronRight, ChevronDown, Upload, Download } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useImportList } from '@/hooks/useImportList';
 import { groupImportsIntoAccounts } from '@/lib/accountGroups';
@@ -32,14 +31,7 @@ const CAT_COLORS: Record<string, string> = {
   Groceries: '#fbbf24', 'Food & Dining': '#fb923c', Transportation: '#38bdf8',
   Healthcare: '#f87171', 'Bank Fees': '#94a3b8', Income: '#34d399', Other: '#475569',
 };
-const CAT_ICONS: Record<string, string> = {
-  'Personal Care': '\u2728', Subscriptions: '\ud83d\udd01', Shopping: '\ud83d\udecd\ufe0f',
-  Groceries: '\ud83e\uded2', 'Food & Dining': '\ud83c\udf7d\ufe0f', Transportation: '\ud83d\ude97',
-  Healthcare: '\ud83c\udfe5', 'Bank Fees': '\ud83c\udfe6', Income: '\ud83d\udcb0',
-  Other: '\ud83d\udcc1', Uncategorized: '\u2753',
-};
 const colorFor = (c?: string) => CAT_COLORS[c || ''] || '#475569';
-const iconFor = (c?: string) => CAT_ICONS[c || ''] || '\ud83d\udcc1';
 
 const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
 function isIncomeTx(t: CommittedTransaction): boolean {
@@ -124,6 +116,8 @@ export default function TransactionsPageV2() {
   const [initialToolbar] = useState(() => { try { return readTxToolbarParams(window.location.search); } catch { return readTxToolbarParams(''); } });
   const [rangeFrom, setRangeFrom] = useState<string>(initialToolbar.from);
   const [rangeTo, setRangeTo] = useState<string>(initialToolbar.to);
+  // M-TX: on phones the secondary filters fold behind one "Filters" button.
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   // X-3: 'Needs category' quick filter (same check as the page's existing review count).
   const [needsCategoryOnly, setNeedsCategoryOnly] = useState<boolean>(!!initialToolbar.needsCategory);
   const [tagFilterLabel, setTagFilterLabel] = useState('');
@@ -161,21 +155,15 @@ export default function TransactionsPageV2() {
   // actions: the ?openTag handoff (initial state above), Review with Tag, Ask Tag about
   // this, and the floating Tag bubble.
 
-  // Overview section (stat cards + donut + AI insights) open/closed.
-  // First visit default: expanded on desktop (md+), collapsed on mobile —
-  // so mobile users see the transaction list above the fold immediately.
-  // Subsequent visits: respect the user's last choice via localStorage.
+  // TX-FIRST: the optional compact summary under the summary strip. Closed by default on
+  // every width so the transaction list is the first thing on the page; the last choice is
+  // remembered (new key — the old 'xai.overview.open' opened the dashboard-style overview).
   const [overviewOpen, setOverviewOpen] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem('xai.overview.open');
-      if (stored !== null) return stored === '1';
-      return window.matchMedia('(min-width: 768px)').matches;
-    } catch {
-      return true;
-    }
+    try { return window.localStorage.getItem('xai.tx.summary.open') === '1'; }
+    catch { return false; }
   });
   useEffect(() => {
-    try { window.localStorage.setItem('xai.overview.open', overviewOpen ? '1' : '0'); }
+    try { window.localStorage.setItem('xai.tx.summary.open', overviewOpen ? '1' : '0'); }
     catch { /* non-fatal */ }
   }, [overviewOpen]);
 
@@ -429,10 +417,6 @@ export default function TransactionsPageV2() {
   }, [openChat]);
 
   const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
-  const handleOpenPrime = useCallback(() => {
-    setIsPrimeBriefingOpen(true);
-  }, [setIsPrimeBriefingOpen]);
-
   // Back to Conversation: navigate to dashboard and reopen chat panel.
   // We cannot call setIsPrimeBriefingOpen(true) synchronously here because
   // DashboardLayout's route-change effect resets it to false when the path
@@ -755,7 +739,7 @@ export default function TransactionsPageV2() {
   const totalIncome = useMemo(() => filtered.reduce((s, t) => (isIncomeTx(t) && !isDuplicate(t)) ? s + Math.abs(t.amount) : s, 0), [filtered]);
   const netFlow = totalIncome - totalSpent;
 
-  // Category data for donut — duplicates excluded
+  // Spending by category for the compact summary — duplicates excluded
   const catData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(t => { if (!isIncomeTx(t) && !isDuplicate(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
@@ -780,24 +764,11 @@ export default function TransactionsPageV2() {
       });
   }, [imports]);
   const [stmtDropdownOpen, setStmtDropdownOpen] = useState(false);
+  const activeFilterCount =
+    (rangeFrom || rangeTo ? 1 : 0) + (yearFilter !== new Date().getFullYear() && !(rangeFrom || rangeTo) ? 1 : 0) +
+    (accountFilter !== 'all' ? 1 : 0) + (statementFilter !== 'all' ? 1 : 0) + (tagCategoryFilter ? 1 : 0);
   // X-1: categories present in the loaded transactions, for the toolbar filter.
   const categoryOptions = useMemo(() => Array.from(new Set(transactions.map(t => t.category || 'Uncategorized'))).sort((a, b) => a.localeCompare(b)), [transactions]);
-
-  // AI insights — from filtered
-  const insights = useMemo(() => {
-    const uncatCount = countNeedsCategory(filtered);
-    const catCount = filtered.length - uncatCount;
-    const topCat = catData[0];
-    const topPct = topCat && catTotal > 0 ? ((topCat.value / catTotal) * 100).toFixed(0) : '0';
-    const merchantCounts: Record<string, number> = {};
-    filtered.forEach(t => { if (t.merchant_name) merchantCounts[t.merchant_name] = (merchantCounts[t.merchant_name] || 0) + 1; });
-    const recurring = Object.entries(merchantCounts).find(([, c]) => c >= 2);
-    return [
-      { agent: 'Tag', color: '#34d399', title: `${catCount} categorized, ${uncatCount} need review`, detail: uncatCount > 0 ? 'Tap uncategorized rows to assign categories' : 'All transactions categorized' },
-      { agent: 'Crystal', color: '#ec4899', title: `Top: ${topCat?.name || 'N/A'} at ${topPct}%`, detail: topCat ? `$${fmt(topCat.value)} spent in ${topCat.name}` : 'No spending data yet' },
-      { agent: 'Chime', color: '#fbbf24', title: recurring ? `${recurring[0]} appears ${recurring[1]}x` : 'No recurring detected', detail: recurring ? 'Possible recurring charge detected' : 'Upload more statements for patterns' },
-    ];
-  }, [filtered, catData, catTotal]);
 
   // X-2: account name for each row, from the same account grouping as the toolbar and cards.
   const accountNameByImport = useMemo(() => {
@@ -851,6 +822,8 @@ export default function TransactionsPageV2() {
 
   // Owner rule: one shared predicate for the strip, banner, toolbar filter and rows.
   const uncategorizedCount = countNeedsCategory(filtered);
+  // TX-FIRST: a brand-new account (nothing loaded at all) shows the getting-started card.
+  const hasNoTransactions = !isLoading && transactions.length === 0;
   const isStatementMode = statementFilter !== 'all';
   const activeStatement = isStatementMode ? stmtOptions.find(s => s.id === statementFilter) : null;
   const activeStatementLabel = activeStatement?.label || 'Statement';
@@ -884,7 +857,8 @@ export default function TransactionsPageV2() {
       <div className="max-w-[1100px] mx-auto px-4 md:px-6 py-6 md:py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         {/* X-1: header — title and page actions */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
-          <div className="min-w-0 flex-1">
+          {/* M-TX: on phones the title has its own row (actions wrap below it, never over it). */}
+          <div className="min-w-0 w-full sm:w-auto sm:flex-1">
             {isStatementMode && (
               <button
                 onClick={() => { setStatementFilter('all'); setAccountFilter('all'); }}
@@ -897,17 +871,6 @@ export default function TransactionsPageV2() {
               {isStatementMode ? activeStatementLabel : 'Transactions'}
             </h1>
           </div>
-              {/* C2-E1: Ask Prime — opens the existing Prime panel; this page stays visible underneath */}
-              <button
-                type="button"
-                onClick={handleOpenPrime}
-                aria-label="Ask Prime about your transactions"
-                data-testid="ask-prime-transactions"
-                className="flex items-center gap-1.5 px-3 text-[13px] font-bold rounded-lg border min-h-[44px]"
-                style={{ background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.35)', color: '#e8cf86', cursor: 'pointer' }}
-              >
-                <span aria-hidden="true">{"♕"}</span> Ask Prime
-              </button>
           <button onClick={handleRefresh} disabled={isRefreshing} title="Refresh data" aria-label="Refresh transactions" className={`flex items-center gap-2 px-3 min-h-[44px] text-[13px] font-bold text-slate-300 bg-slate-800/50 border border-slate-700/50 rounded-lg transition-colors ${isRefreshing ? 'opacity-60 cursor-wait' : 'hover:bg-slate-700/50'}`}>
             <span aria-hidden="true" className={`inline-block ${isRefreshing ? 'animate-spin' : ''}`} style={{ fontSize: 15, lineHeight: 1 }}>↻</span>
             <span className="hidden sm:inline">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
@@ -923,6 +886,14 @@ export default function TransactionsPageV2() {
             <span className="sr-only">Search transactions</span>
             <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (!e.target.value) { setTagFilterLabel(''); setTagCategoryFilter(''); setTagSubcategoryFilter(''); } }} placeholder="Search merchant, category or amount" className="flex-1 min-w-0 bg-transparent text-[16px] md:text-[14px] text-slate-200 placeholder:text-slate-500 outline-none" />
           </label>
+          <button type="button" className="md:hidden flex items-center gap-1.5 rounded-[10px] border px-3 text-[14px] font-semibold"
+            aria-expanded={mobileFiltersOpen} aria-controls="tx-filters"
+            onClick={() => setMobileFiltersOpen(v => !v)}
+            style={{ minHeight: 44, background: '#111a2e', borderColor: '#24365a', color: '#e8ecf4' }}>
+            Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+            <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${mobileFiltersOpen ? 'rotate-180' : ''}`} />
+          </button>
+          <div id="tx-filters" className={mobileFiltersOpen ? 'grid grid-cols-2 gap-2 w-full md:contents [&>*]:min-w-0 [&_select]:w-full md:[&_select]:w-auto' : 'hidden md:contents'}>
           <select aria-label="Year" value={yearFilter === 'all' ? 'all' : String(yearFilter)} disabled={!!(rangeFrom || rangeTo)}
             onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             style={{ minHeight: 44, padding: '0 12px', background: '#111a2e', border: '1px solid #24365a', borderRadius: 10, color: '#e8ecf4', fontSize: 14, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit' }}>
@@ -1016,6 +987,7 @@ export default function TransactionsPageV2() {
             <option value="">All categories</option>
             {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          </div>
           <button type="button" aria-pressed={needsCategoryOnly} onClick={() => setNeedsCategoryOnly(v => !v)}
             className="flex items-center gap-1.5 rounded-[10px] border px-3 text-[14px] font-semibold transition-colors"
             style={{ minHeight: 44, background: needsCategoryOnly ? 'rgba(251,191,36,0.12)' : '#111a2e', borderColor: needsCategoryOnly ? 'rgba(251,191,36,0.45)' : '#24365a', color: needsCategoryOnly ? '#fcd34d' : '#e8ecf4' }}>
@@ -1030,8 +1002,10 @@ export default function TransactionsPageV2() {
           </div>
         </div>
 
-        {/* X-1: one summary strip; the overview (accounts, totals, donut, insights) opens on request */}
-        {!isStatementMode && (
+        {/* TX-FIRST: a genuine transaction-first page. One summary strip; an optional compact
+            summary opens under it (the dashboard-style account, KPI, chart and insight cards are gone from above the
+            list). An account with no transactions gets one getting-started card instead. */}
+        {!isStatementMode && !hasNoTransactions && (
           <button
             type="button"
             onClick={() => setOverviewOpen(v => !v)}
@@ -1045,7 +1019,7 @@ export default function TransactionsPageV2() {
             <span className="text-[14px] text-slate-300">Income <strong className="text-emerald-300 tabular-nums">${fmt(totalIncome)}</strong></span>
             {uncategorizedCount > 0 && <span className="text-[14px] text-amber-200"><strong className="tabular-nums">{uncategorizedCount}</strong> need review</span>}
             <span className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-slate-400">
-              {overviewOpen ? 'Hide overview' : 'Show overview'}
+              {overviewOpen ? 'Hide summary' : 'Summary'}
               <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${overviewOpen ? 'rotate-180' : ''}`} />
             </span>
           </button>
@@ -1056,183 +1030,52 @@ export default function TransactionsPageV2() {
           </p>
         )}
 
-            <style>{`.acct-scroll::-webkit-scrollbar{height:6px}.acct-scroll::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.3);border-radius:3px}.acct-scroll::-webkit-scrollbar-track{background:transparent}`}</style>
-            {!isStatementMode && overviewOpen && <div
-              className="acct-scroll mb-3"
-              style={{
-                display: 'flex',
-                flexWrap: 'nowrap',
-                overflowX: 'auto',
-                gap: 12,
-                paddingBottom: 4,
-                scrollbarWidth: 'thin',
-                scrollbarColor: 'rgba(148,163,184,0.3) transparent',
-              }}
-            >
-              {(() => {
-                const allSpent = accounts.reduce((s, a) => s + a.totalSpent, 0);
-                const allIncome = accounts.reduce((s, a) => s + a.totalIncome, 0);
-                const allStmts = accounts.reduce((s, a) => s + a.statementCount, 0);
-                const allUncat = accounts.reduce((s, a) => s + a.uncategorizedCount, 0);
-                const cards: Array<AccountCard | { id: 'all' | 'add'; kind: 'all' | 'add' }> = [
-                  { id: 'all', kind: 'all' } as any,
-                  ...accounts,
-                  { id: 'add', kind: 'add' } as any,
-                ];
-                return cards.map((c) => {
-                  const isAll = (c as any).kind === 'all';
-                  const isAdd = (c as any).kind === 'add';
-                  const active = accountFilter === (isAll ? 'all' : (c as AccountCard).id);
-                  if (isAdd) {
-                    return (
-                      <button
-                        key="add"
-                        onClick={handleUpload}
-                        className="rounded-xl border border-dashed text-left transition-colors"
-                        style={{
-                          flex: '0 0 180px',
-                          width: 180,
-                          flexShrink: 0,
-                          padding: '12px 14px',
-                          borderColor: '#334155',
-                          background: 'rgba(15,23,42,0.4)',
-                          color: '#94a3b8',
-                        }}
-                      >
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>+ Add account</div>
-                        <div style={{ fontSize: 11, marginTop: 4 }}>Upload a statement</div>
-                      </button>
-                    );
-                  }
-                  const a = isAll
-                    ? { id: 'all', name: 'All accounts', type: '', statementCount: allStmts, totalSpent: allSpent, totalIncome: allIncome, uncategorizedCount: allUncat }
-                    : (c as AccountCard);
-                  const badge = a.uncategorizedCount > 0
-                    ? { text: `${a.uncategorizedCount} to review`, bg: 'rgba(251,191,36,0.15)', fg: '#fbbf24' }
-                    : { text: 'Books clean', bg: 'rgba(52,211,153,0.15)', fg: '#34d399' };
-                  return (
-                    <button
-                      key={a.id}
-                      onClick={() => {
-                        setAccountFilter(a.id);
-                        // Update URL so the filter is bookmarkable
-                        const sp = new URLSearchParams(window.location.search);
-                        if (a.id === 'all') { sp.delete('issuer'); }
-                        else {
-                          // Extract issuer name from account id (format: "BMO|Chequing")
-                          const issuerName = a.id.split('|')[0] || '';
-                          sp.set('issuer', issuerName);
-                        }
-                        sp.delete('import_id'); sp.delete('importId');
-                        const qs = sp.toString();
-                        window.history.replaceState({}, '', `${window.location.pathname}${qs ? '?' + qs : ''}`);
-                      }}
-                      className="rounded-xl text-left transition-colors"
-                      style={{
-                        flex: '0 0 180px',
-                        width: 180,
-                        flexShrink: 0,
-                        padding: '12px 14px',
-                        border: active ? '2px solid #22d3ee' : '1px solid rgba(148,163,184,0.2)',
-                        background: 'rgba(15,23,42,0.6)',
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#e8ecf4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
-                          {a.type && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>{a.type}</div>}
-                        </div>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 999, background: badge.bg, color: badge.fg, whiteSpace: 'nowrap' }}>{badge.text}</span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-3" style={{ fontSize: 11 }}>
-                        <div>
-                          <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Spent</div>
-                          <div style={{ color: '#f87171', fontWeight: 700 }}>${fmt(a.totalSpent)}</div>
-                        </div>
-                        <div>
-                          <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Income</div>
-                          <div style={{ color: '#34d399', fontWeight: 700 }}>${fmt(a.totalIncome)}</div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 6 }}>{a.statementCount} statement{a.statementCount !== 1 ? 's' : ''}</div>
-                    </button>
-                  );
-                });
-              })()}
-            </div>}
-
-        {/* STAT CARDS — hidden in statement mode; collapsible on mobile via
-            overviewOpen. On md+ always visible regardless of state (md:grid
-            overrides mobile hidden). */}
-        {!isStatementMode && <div id="tx-overview-content" className={`grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 ${overviewOpen ? '' : 'hidden'}`}>
-          {[
-            { label: 'Total Spent', value: `$${fmt(totalSpent)}`, color: 'text-red-400', icon: <ArrowUpRight className="h-3.5 w-3.5 text-red-400" />, tab: 'expenses' as const },
-            { label: 'Total Income', value: `$${fmt(totalIncome)}`, color: 'text-emerald-400', icon: <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400" />, tab: 'income' as const },
-            { label: 'Net Flow', value: `${netFlow >= 0 ? '+' : '-'}$${fmt(Math.abs(netFlow))}`, color: netFlow >= 0 ? 'text-emerald-400' : 'text-amber-400', icon: <TrendingDown className="h-3.5 w-3.5 text-amber-400" />, tab: 'all' as const },
-            { label: 'Transactions', value: String(filtered.length), color: 'text-white', icon: <Hash className="h-3.5 w-3.5 text-white" />, tab: 'all' as const },
-          ].map(c => (
-            <div key={c.label} onClick={() => { setFilter(c.tab); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth' }), 50); }} className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5 hover:border-[#2d4a6e] hover:shadow-lg transition-all cursor-pointer" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] uppercase tracking-[0.14em] text-slate-400 font-bold">{c.label}</span>
-                <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-slate-800/60">{c.icon}</div>
-              </div>
-              <div className={`text-[18px] md:text-[26px] font-extrabold ${c.color}`}>{c.value}</div>
-            </div>
-          ))}
-        </div>}
-
-        {/* TWO COLUMN: Donut + AI Insights — hidden in statement mode;
-            collapsible on mobile via overviewOpen (same rules as stat cards). */}
-        {!isStatementMode && <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 ${overviewOpen ? '' : 'hidden'}`}>
-          {/* Donut */}
-          <div className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-4">Spending by category</div>
-            <div className="flex items-center gap-4">
-              <div className="relative w-[140px] h-[140px] shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart><Pie data={catData.length ? catData : [{ name: 'None', value: 1 }]} dataKey="value" cx="50%" cy="50%" innerRadius={46} outerRadius={68} paddingAngle={3} strokeWidth={0}>
-                    {(catData.length ? catData : [{ name: 'None', value: 1 }]).map((d, i) => <Cell key={i} fill={colorFor(d.name)} />)}
-                  </Pie></PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-[17px] font-extrabold text-white">${fmt(catTotal)}</span>
-                  <span className="text-[9px] uppercase text-slate-500">total</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                {catData.slice(0, 6).map(d => (
-                  <div key={d.name} className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full shrink-0" style={{ background: colorFor(d.name) }} />
-                    <span className="text-[12px] text-slate-400 truncate flex-1">{d.name}</span>
-                    <span className="text-[12px] font-bold text-slate-300">${fmt(d.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          {/* AI Insights */}
-          <div className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex items-center justify-center h-6 w-6 rounded-md bg-amber-500/15"><Star className="h-3 w-3 text-amber-400" /></div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">AI insights</span>
-            </div>
-            <div className="flex flex-col gap-2.5">
-              {insights.map((ins, i) => (
-                <div key={i} className="flex gap-3 p-3 rounded-lg bg-slate-800/30 border border-slate-700/30">
-                  <div className="w-1 rounded-full shrink-0" style={{ background: ins.color }} />
-                  <div className="min-w-0">
-                    <span className="inline-block text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded mb-1" style={{ background: ins.color + '20', color: ins.color }}>{ins.agent}</span>
-                    <div className="text-[13px] font-semibold text-slate-200">{ins.title}</div>
-                    <div className="text-[11px] text-slate-500">{ins.detail}</div>
-                  </div>
-                </div>
+        {!isStatementMode && !hasNoTransactions && overviewOpen && (
+          <div id="tx-overview-content" className="mb-3 rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-3 flex flex-col gap-3">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[14px] text-slate-300">
+              <span>Net <strong className={`tabular-nums ${netFlow >= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>{netFlow >= 0 ? '+' : '−'}${fmt(Math.abs(netFlow))}</strong></span>
+              {catData.slice(0, 4).map(d => (
+                <span key={d.name} className="flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: colorFor(d.name) }} />
+                  {d.name} <strong className="text-white tabular-nums">${fmt(d.value)}</strong>
+                  {catTotal > 0 && <span className="text-slate-500 tabular-nums">{Math.round((d.value / catTotal) * 100)}%</span>}
+                </span>
               ))}
             </div>
+            {accounts.length > 1 && (
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Account">
+                {[{ id: 'all', name: 'All accounts' }, ...accounts].map(a => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    aria-pressed={accountFilter === a.id}
+                    onClick={() => setAccountFilter(a.id)}
+                    className={`min-h-[36px] px-3 rounded-full text-[13px] font-semibold border transition-colors ${accountFilter === a.id ? 'border-cyan-400/60 bg-cyan-500/10 text-cyan-200' : 'border-slate-700/60 text-slate-300 hover:border-slate-500'}`}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        </div>}
+        )}
+
+        {hasNoTransactions && (
+          <section aria-labelledby="tx-getting-started" className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/40 px-6 py-8 text-center">
+            <h2 id="tx-getting-started" className="text-[20px] font-bold text-white">No transactions yet</h2>
+            <p className="mt-2 text-[15px] text-slate-300 max-w-md mx-auto">
+              Upload a bank or credit card statement. Byte reads it, Tag categorizes each transaction, and they appear here.
+            </p>
+            <button type="button" onClick={handleUpload}
+              className="mt-5 inline-flex items-center gap-2 px-5 min-h-[44px] text-[14px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-400 hover:to-orange-400 transition-colors">
+              <Upload className="h-4 w-4" aria-hidden="true" /> Upload a statement
+            </button>
+            <p className="mt-3 text-[13px] text-slate-400">PDF, CSV or a photo of a statement.</p>
+          </section>
+        )}
 
         {/* TRANSACTION LIST */}
-        <div className="rounded-xl border border-slate-700/50 bg-slate-900/30">
+        {!hasNoTransactions && <div className="rounded-xl border border-slate-700/50 bg-slate-900/30">
           {/* X-1: search moved to the toolbar above */}
 
           {/* Tag filter chip */}
@@ -1253,7 +1096,7 @@ export default function TransactionsPageV2() {
           {uncategorizedCount > 0 && (
             <div className="mx-4 mt-4 flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3">
               <div className="flex items-center gap-3">
-                <span className="relative flex h-2.5 w-2.5"><span className="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-75" /><span className="relative h-2.5 w-2.5 rounded-full bg-amber-400" /></span>
+                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
                 <span className="text-[13px] text-amber-200">Tag found <strong>{uncategorizedCount}</strong> transaction{uncategorizedCount !== 1 ? 's' : ''} that need review</span>
               </div>
               <button type="button" onClick={() => { setNeedsCategoryOnly(true); listRef.current?.scrollIntoView({ block: 'start' }); }} className="px-3 min-h-[40px] text-[13px] font-bold text-amber-900 bg-amber-400 rounded-md hover:bg-amber-300 transition-colors">Review</button>
@@ -1284,11 +1127,6 @@ export default function TransactionsPageV2() {
                 <button onClick={() => { void refetch(); }} style={{ fontSize: 12, color: '#22d3ee', background: 'none', border: '1px solid rgba(34,211,238,0.3)', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Retry</button>
                 <button onClick={() => setStatementFilter('all')} style={{ fontSize: 12, color: '#22d3ee', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>View all transactions instead</button>
               </div>
-            </div>
-          )}
-          {dateGroups.length === 0 && statementFilter === 'all' && !isLoading && (
-            <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 14, color: '#475569' }}>
-              No transactions found. Upload a statement to get started.
             </div>
           )}
           {/* X-2: desktop column header (rows keep their date groups on phones) */}
@@ -1339,7 +1177,8 @@ export default function TransactionsPageV2() {
                     <span aria-hidden="true" className="hidden md:block truncate text-[14px] text-slate-300">{accountName || '\u2014'}</span>
                     {/* Category (desktop column) */}
                     <span aria-hidden="true" className={`hidden md:flex items-center gap-2 min-w-0 text-[14px] ${isUncat ? 'text-amber-300 font-semibold' : 'text-slate-200'}`}>
-                      {!isUncat && <span className="text-[13px] shrink-0">{iconFor(cat)}</span>}
+                      {/* Category colour dot (the emoji icons rendered as empty boxes on Windows 10). */}
+                      {!isUncat && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: colorFor(cat) }} />}
                       <span className="truncate">{categoryText}</span>
                     </span>
                     {/* Amount */}
@@ -1356,10 +1195,10 @@ export default function TransactionsPageV2() {
             <button onClick={() => setVisibleCount(v => v + 30)} className="w-full py-3 text-[13px] font-bold text-slate-400 border-t border-slate-700/40 hover:bg-slate-800/30 transition-colors rounded-b-xl">Load more transactions</button>
           )}
 
-          {filtered.length === 0 && (
-            <div className="py-12 text-center text-slate-500 text-[14px]">No transactions found</div>
+          {filtered.length === 0 && !isLoading && (
+            <div className="py-12 text-center text-slate-400 text-[14px]">No transactions match these filters.</div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Tag floating bubble */}

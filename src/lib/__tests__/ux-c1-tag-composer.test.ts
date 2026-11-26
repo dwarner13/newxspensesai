@@ -69,7 +69,8 @@ describe('TagCopilotPanel composer layout', () => {
   });
 
   it('pads the header for the iPhone status bar', () => {
-    expect(panel).toMatch(/padding: "calc\(18px \+ env\(safe-area-inset-top, 0px\)\) 20px 16px"/);
+    // TB-3: compact header, still clears the iPhone status bar on every width.
+    expect(panel).toMatch(/padding: isMobile \? "calc\(8px \+ env\(safe-area-inset-top, 0px\)\) 8px 8px 12px" : "calc\(12px \+ env\(safe-area-inset-top, 0px\)\) 16px 12px"/);
   });
 
   it('leaves the C3b anomaly card untouched', () => {

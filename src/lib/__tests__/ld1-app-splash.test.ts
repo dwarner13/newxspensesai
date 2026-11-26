@@ -46,3 +46,15 @@ describe('every startup screen uses it (no separate spinners)', () => {
     expect(read('src/components/auth/OnboardingGuard.tsx')).toMatch(/if \(!ready \|\| loading \|\| isProfileLoading\) \{/);
   });
 });
+
+describe('SPLASH-1 — one continuous startup splash', () => {
+  it('the route gate remembers boot across the suspended-tree remount', () => {
+    const gate = read('src/components/auth/RouteDecisionGate.tsx');
+    expect(gate).toMatch(/let gateBootedThisPage = false;/);
+    expect(gate).toMatch(/const hasBootedRef = useRef\(gateBootedThisPage\);/);
+  });
+  it('later loaders keep the splash on screen until the shell has mounted', () => {
+    expect(read('src/components/ui/AppSplash.tsx')).toMatch(/const continuing = startupSplashSeen && !appShellMounted;/);
+    expect(read('src/layouts/DashboardLayout.tsx')).toMatch(/useEffect\(\(\) => \{ markAppShellMounted\(\); \}, \[\]\);/);
+  });
+});

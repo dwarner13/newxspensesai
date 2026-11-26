@@ -34,8 +34,10 @@ describe('PrimeChatInput', () => {
     expect(input).toMatch(/fontSize: Math\.max\(PANEL\.inputFontSize, chatTextSize\(isMobile\)\)/);
   });
 
-  it('leaves the attachment button and pending-file pill unchanged', () => {
+  it('keeps the attachment button; the hidden legacy attach path is retired (TB-5 W1)', () => {
     expect(input).toMatch(/<ChatAttachmentButton onFileSelected=/);
-    expect(input).toMatch(/setTimeout\(\(\) => setPendingFile\(null\), 8000\)/);
+    // The pending-file pill was reachable only from the display:none legacy button.
+    expect(input).not.toMatch(/display: "none", \/\* Hidden - replaced by ChatAttachmentButton \*\//);
+    expect(input).not.toMatch(/setPendingFile/);
   });
 });

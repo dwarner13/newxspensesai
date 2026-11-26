@@ -22,9 +22,11 @@ describe.each(panels)('$name', ({ file, canonical, slug, name }) => {
     expect(src).toMatch(new RegExp(`useEmployeeChat\\("${canonical}", \\{ employeeSlug: "${slug}" \\}\\)`));
     expect(src).not.toMatch(/useUnifiedChatEngine\(/);
   });
-  it('shared History / New conversation controls and a 44px close', () => {
-    expect(src).toMatch(new RegExp(`<ConversationControls\\s+employeeName="${name}"`));
-    expect(src).toMatch(new RegExp(`aria-label="Close ${name}" style=\\{\\{ width: 44, height: 44`));
+  it('shared History / New conversation and Close in the universal toolbar (TB-4)', () => {
+    expect(src).toMatch(new RegExp(`<ConversationControls\\s+employeeName="${name}" accent=\\{\\w+\\} isMobile=\\{isMobile\\}`));
+    expect(src).toMatch(/onClose=\{handleClose\}/);
+    expect(src).toMatch(/<ChatIdentity/);
+    expect(src).not.toMatch(new RegExp(`aria-label="Close ${name}"`));
   });
   it('unsaved replies show the honest notice', () => {
     expect(src).toMatch(/\{isUnsavedReply\(m\) && <div style=\{\{ maxWidth: "80%" \}\}><UnsavedReplyNotice \/><\/div>\}/);

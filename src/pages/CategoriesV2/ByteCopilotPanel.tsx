@@ -4,6 +4,7 @@ import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useImportList, type ImportListItem } from "@/hooks/useImportList";
 import { useEmployeeChat } from "@/hooks/useEmployeeChat";
 import { ConversationControls, UnsavedReplyNotice } from "@/components/chat/ConversationControls";
+import { ChatIdentity, LetterLogo } from "@/components/chat/ChatHeader";
 import { isUnsavedReply } from "@/lib/employeeChat";
 import { PANEL } from "../PrimeChatV2/panelConfig";
 import { useSetAtom } from "jotai";
@@ -77,15 +78,21 @@ export function ByteCopilotPanel({ onClose }: ByteCopilotPanelProps) {
       <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", opacity: open ? 1 : 0, transition: "opacity 0.3s", zIndex: 998, backdropFilter: "blur(4px)" }} />
       <div style={{ position: "fixed", top: isMobile ? "auto" : 0, bottom: 0, right: 0, left: isMobile ? 0 : "auto", width: isMobile ? "100%" : PANEL.panelWidthDesktop, height: isMobile ? PANEL.panelHeightMobile : "100%", borderRadius: isMobile ? "20px 20px 0 0" : 0, paddingTop: isMobile ? "env(safe-area-inset-top, 0px)" : 0, background: T.bg, borderLeft: isMobile ? "none" : `1px solid ${T.border}`, borderTop: isMobile ? `1px solid ${T.border}` : "none", transform: open ? "translateX(0)" : (isMobile ? "translateY(100%)" : "translateX(100%)"), transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
         {/* Header */}
-        <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${GREEN}20`, border: `1.5px solid ${GREEN}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: GREEN, boxShadow: `0 0 16px ${GREEN}33` }}>B</div>
-          <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Byte <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></div><div style={{ fontSize: 11, color: T.dim }}>Smart Import Assistant</div></div>
+        <div style={{ padding: isMobile ? "10px 8px 10px 14px" : "12px 16px 12px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          {/* TB-4: universal chat header — identity separate from the compact toolbar. The
+              duplicate SECURED tag is gone; the footer still states the protections. */}
+          <ChatIdentity
+            isMobile={isMobile}
+            renderLogo={(px) => <LetterLogo size={px} letter="B" color={GREEN} />}
+            name={isMobile ? "Byte" : <>Byte <span style={{ fontWeight: 500, color: T.muted }}>Copilot</span></>}
+            subtitle={isMobile ? undefined : "Smart Import Assistant"}
+          />
           <ConversationControls
-            employeeName="Byte" accent={GREEN} border={T.border} color={T.muted}
+            employeeName="Byte" accent={GREEN} isMobile={isMobile}
             items={history.items} loading={history.loading} currentId={sessionId}
             onLoad={history.load} onOpen={openConversation} onNew={startNewConversation}
+            onClose={handleClose}
           />
-          <button onClick={handleClose} aria-label="Close Byte" style={{ width: 44, height: 44, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
         {/* Body */}
@@ -150,9 +157,9 @@ export function ByteCopilotPanel({ onClose }: ByteCopilotPanelProps) {
 
         {/* Input */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${T.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: "4px 6px 4px 16px" }}>
+          <div className="chat-composer" style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: "4px 6px 4px 14px" }}>
             <ChatAttachmentButton onFileSelected={(file) => { setUploadOpen(true); }} />
-            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Byte about imports..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: PANEL.inputFontSize, padding: "10px 0", fontFamily: "inherit" }} />
+            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Byte about imports..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: PANEL.inputFontSize, padding: "10px 4px", fontFamily: "inherit" }} data-composer="" />
             <button onClick={() => { if (input.trim()) { sendMessage(input.trim()); setInput(""); } }} style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${GREEN}, #059669)`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 12px ${GREEN}33` }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="#0b1220" /></svg>
             </button>

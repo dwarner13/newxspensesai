@@ -20,7 +20,8 @@ const ISSUER_COLORS: Record<string, string> = {
   Scotiabank: "#ef4444", Unknown: "#9ba8bc",
 };
 
-const KNOWN_ISSUERS = ["BMO", "RBC Avion", "CIBC", "Canadian Tire"];
+// HONEST-3: no fixed bank list. A hard-coded ["BMO", "RBC Avion", "CIBC", "Canadian Tire"] told
+// every customer to upload those banks' statements and marked them "Missing".
 
 function fmtCAD(n: number) { return "CAD $" + Math.abs(n).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtDate(d: string | null) {
@@ -290,7 +291,7 @@ export default function ReportsPageV2() {
 
   // ── Missing issuers for checklist ──
   const presentIssuers = new Set(data.issuerGroups.map(g => g.issuer));
-  const checklist = KNOWN_ISSUERS.map(name => ({ name, present: presentIssuers.has(name) }));
+  const checklist = Array.from(presentIssuers).map(name => ({ name, present: true }));
 
   const net = data.grandTotalIncome - data.grandTotalSpent;
   const agentColor = chatAgent === "Prime" ? T.gold : chatAgent === "Crystal" ? T.purple : T.cyan;
@@ -361,16 +362,13 @@ export default function ReportsPageV2() {
             <IssuerSection group={g} navigate={navigate} />
           </Reveal>
         ))}
-        {/* Placeholder for missing issuers */}
-        {KNOWN_ISSUERS.filter(name => !presentIssuers.has(name)).map(name => (
-          <Reveal key={name} delay={300}>
-            <div style={{ borderRadius: 14, border: "1px dashed " + T.border, padding: "14px 18px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: ISSUER_COLORS[name] || T.dim, opacity: 0.4 }} />
-              <span style={{ fontSize: 13, color: T.dim, flex: 1 }}>Upload {name} statement to populate this section</span>
-              <button onClick={() => navigate("/dashboard/upload")} style={{ padding: "5px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: "1px solid " + T.border, color: T.muted, cursor: "pointer" }}>{"Upload ->"}</button>
-            </div>
-          </Reveal>
-        ))}
+        {/* Add another statement (generic; no assumed banks) */}
+        <Reveal delay={300}>
+          <div style={{ borderRadius: 14, border: "1px dashed " + T.border, padding: "14px 18px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 13, color: T.dim, flex: 1 }}>{presentIssuers.size > 0 ? "Add statements from your other accounts to complete these reports" : "Upload a statement to populate your reports"}</span>
+            <button onClick={() => navigate("/dashboard/upload")} style={{ padding: "5px 14px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: T.surface, border: "1px solid " + T.border, color: T.muted, cursor: "pointer" }}>{"Upload ->"}</button>
+          </div>
+        </Reveal>
 
         {/* ═══ E. Two-column panel row ═══ */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 24, marginBottom: 24 }}>
@@ -426,11 +424,6 @@ export default function ReportsPageV2() {
                   {!item.present && <span style={{ fontSize: 10, color: T.dim, marginLeft: "auto" }}>Missing</span>}
                 </div>
               ))}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", fontSize: 12 }}>
-                <span style={{ color: T.dim, fontSize: 14 }}>!</span>
-                <span style={{ color: T.dim }}>FreshBooks income</span>
-                <span style={{ fontSize: 10, color: T.dim, marginLeft: "auto" }}>Coming soon</span>
-              </div>
               <button onClick={() => exportCSV()} style={{ marginTop: 12, width: "100%", padding: "8px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: "transparent", border: "1px solid " + T.gold + "44", color: T.gold, cursor: "pointer" }}>{"Generate Accountant Summary ->"}</button>
             </div>
           </Reveal>

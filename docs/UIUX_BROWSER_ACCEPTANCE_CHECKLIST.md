@@ -52,3 +52,36 @@ installed PWA. Width checks at 320, 390 and 430.
 
 ## 6. Settings
 - [ ] Data & privacy: no destructive "Nuke" button; the honest support-contact option is present.
+
+## 7. Conversation history: all seven integrated employees (candidate b706405)
+
+Where to open each one:
+- **Prime:** the Prime panel, in all three modes.
+- **Tag:** the Tag panel on Transactions or Categories.
+- **Crystal:** My Story → Crystal.
+- **Goalie:** Goals & Debt → Goalie.
+- **Byte:** Categories → Byte.
+- **Ledger:** Tax & Business → Ledger.
+- **Custodian:** Settings → the Custodian bubble.
+
+Finley, Liberty, Chime and Blitz are **not** part of this release. They stay inactive until a separate readiness review.
+
+Run every row for each of the seven employees (Prime, Tag, Crystal, Goalie, Byte, Ledger, Custodian), on desktop Chrome AND iPhone Safari (browser and installed PWA). Tick per employee.
+
+| # | Check | Pass criteria |
+|---|---|---|
+| 7.1 | Conversation history | The History button (44px) opens the shared drawer. It lists only **this** employee's conversations, newest first, with readable titles, plus search and Today / Earlier. Opening one restores its messages in order. |
+| 7.2 | Cross-device continuity | Send a message on desktop, then open the same employee on iPhone (and the reverse). The same conversation appears, with no duplicates and nothing missing. Repeat after a page refresh and after reopening the PWA. |
+| 7.3 | New conversation | New conversation clears the panel. The next message starts a new conversation, and the earlier one is still in History. Nothing is deleted. |
+| 7.4 | Save failure | If a reply shows "This conversation couldn't be saved, so it won't appear in History or on your other devices." it is readable and does not resend anything. |
+| 7.5 | Manual retry (Tag, Custodian) | With the network off, send. "That message didn't go through." appears with Retry. After reconnecting and pressing Retry, the message appears once and the reply once. Nothing retries automatically. Tag: no categorization preview or change is repeated. |
+| 7.6 | Conflict / duplicate (Tag, Custodian) | "Nothing was changed. Please send that again." appears where applicable; nothing is applied twice; Custodian shows no "Go there" button on such replies. |
+| 7.7 | Employee isolation | One employee's History never shows another employee's conversations. Opening Crystal right after Prime starts or resumes a **Crystal** conversation and never shows Prime's. Switching employees never moves an existing conversation. |
+| 7.8 | Customer isolation | Sign out, then sign in as a second test account on the same device. None of the first account's conversations, cached messages or history appear. Sign back in and the first account's history returns. |
+| 7.9 | Personality and readability | Each employee still sounds like itself: Prime the advisor; Tag categorization; Crystal trends; Goalie goals; Byte documents and statements (**no document reading in chat**); Ledger tax; Custodian app guidance (read-only). Replies are readable: 16–17px text, tables / lists / headings where used, no raw `**`, `#` or `|`. |
+| 7.10 | Mobile keyboard | On iPhone, focusing the composer keeps it above the keyboard. The last message stays visible. Sending keeps the keyboard usable. Rotating doesn't hide the input. |
+| 7.11 | Scrolling | Long conversations scroll smoothly. Reading earlier messages is not interrupted by auto-scroll; new replies scroll into view only when already at the bottom. The History drawer scrolls on its own and closes with Escape (desktop) or Close (44px). |
+| 7.12 | Controls and accessibility | History, New conversation and Close are 44px with spoken labels ("Previous Crystal conversations", "New conversation", "Close Crystal"). Keyboard Tab order reaches them. |
+| 7.13 | Byte boundary | Byte has history only: there is no in-chat document reading. "Upload New Statement" and the attachment button only open the statement-import screen, as before. |
+
+Record any failure with employee, device, steps, screenshot and time, and send it to Development HQ / Prime HQ.

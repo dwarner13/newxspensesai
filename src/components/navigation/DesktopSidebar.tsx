@@ -117,7 +117,6 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
 
   return (
     <>
-    <style>{`@keyframes glowPulse { 0%,100% { box-shadow: 0 0 8px rgba(200,166,78,0.1); } 50% { box-shadow: 0 0 16px rgba(200,166,78,0.25); } }`}</style>
     <aside
       data-testid="desktop-sidebar"
       className="hidden md:flex flex-col h-[100dvh] relative z-[100] transition-all duration-300"
@@ -169,7 +168,6 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
             style={{
               border: '1.5px dashed rgba(200,166,78,0.35)',
               background: 'rgba(200,166,78,0.04)',
-              animation: 'glowPulse 3s ease-in-out infinite',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.6)'; e.currentTarget.style.background = 'rgba(200,166,78,0.08)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(200,166,78,0.35)'; e.currentTarget.style.background = 'rgba(200,166,78,0.04)'; }}
