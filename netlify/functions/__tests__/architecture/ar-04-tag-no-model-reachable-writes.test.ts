@@ -171,3 +171,23 @@ describe('AR-4 — dead merchant-categorize write paths on the Transactions page
     expect(importers).toEqual([]);
   });
 });
+
+describe('AR-1b (FR-021) — the dead model-totals Tag worker module stays deleted', () => {
+  // _shared/tagWorker.ts asked the model for is_spend / category_totals / deposit-withdrawal totals and
+  // had no importer (the live chain is in chat.ts, moved to the engine by Prime HQ). Deleted
+  // 2026-11-26; nothing may bring a model-totals worker module back.
+  it('the file is gone and nothing imports it', () => {
+    const importers: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== '__tests__') walk(rel); continue; }
+        if (/\.(tsx?|jsx?|mjs|cjs)$/.test(e.name) && /['"][./]*(?:_shared\/)?tagWorker(?:\.js)?['"]/.test(read(rel))) importers.push(rel);
+      }
+    };
+    walk('netlify');
+    walk('src');
+    expect(importers).toEqual([]);
+    expect(() => read('netlify/functions/_shared/tagWorker.ts')).toThrow();
+  });
+});
