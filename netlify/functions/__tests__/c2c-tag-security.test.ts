@@ -331,24 +331,26 @@ describe('tx-update-category learning calls', () => {
     expect(seen).toHaveLength(0);
   });
 
-  it('BYTE-LIVE-01: reproduces the silent skip in the hosted runtime without metadata (category saved, no learning)', async () => {
+  // Integration (staging candidate 1): BYTE-LIVE-01 (798e6c5c) tested the old HTTP hop to tag-learn,
+  // which needed the build-time deploy address. Tag reliability round 2 (09788612) removed that hop:
+  // learning runs in-process for the verified user, so it no longer depends on the address at all —
+  // with or without build metadata, the category is saved, learning runs, nothing goes on the network.
+  it('BYTE-LIVE-01 (superseded by in-process learning): hosted runtime WITHOUT metadata still learns, no network', async () => {
     hostedRuntime(null);
     const seen = stubFetch();
     const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
     expect(r.statusCode).toBe(200);
-    expect(r.json.learned).toMatchObject({ applied: false });
+    expect(r.json.learned).toMatchObject({ method: 'tag-learning' });
     expect(seen).toHaveLength(0);
   });
 
-  it('BYTE-LIVE-01: with build metadata, Tag learning resumes on this exact deploy with the verified identity', async () => {
+  it('BYTE-LIVE-01 (superseded by in-process learning): hosted runtime WITH metadata learns the same way, no network', async () => {
     hostedRuntime();
     const seen = stubFetch();
     const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
     expect(r.statusCode).toBe(200);
-    expect(r.json.learned).toMatchObject({ applied: true, method: 'tag-learn' });
-    expect(seen[0].url).toBe(`${HOSTED_ORIGIN}/.netlify/functions/tag-learn`);
-    expect(seen[0].headers.authorization).toBe(`Bearer ${TOKEN_A}`);
-    expect(seen[0].body.userId).toBe(USER_A);
+    expect(r.json.learned).toMatchObject({ method: 'tag-learning' });
+    expect(seen).toHaveLength(0);
   });
 });
 
