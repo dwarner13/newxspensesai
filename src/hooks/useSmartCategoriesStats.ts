@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { NEEDS_CATEGORY_OR_FILTER } from '@/lib/needsCategory';
 
 export interface SmartCategoriesStats {
   /** Re-run every stat query */
@@ -116,7 +117,7 @@ export function useSmartCategoriesStats(): SmartCategoriesStats {
           .from('transactions')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userId)
-          .or('category.is.null,category.eq.,category.ilike.uncategorized');
+          .or(NEEDS_CATEGORY_OR_FILTER);
         if (!error && count !== null) setUncategorizedCount(count);
       })(),
 

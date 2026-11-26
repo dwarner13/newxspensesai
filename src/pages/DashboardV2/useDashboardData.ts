@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { countNeedsCategory } from "@/lib/needsCategory";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useImportList } from "@/hooks/useImportList";
 
@@ -106,7 +107,8 @@ export function useDashboardData(): DashboardData {
     const deductions = deductLabels.reduce((s, l) => s + (catMap[l] || 0), 0);
 
     // Uncategorized
-    const uncategorizedCount = transactions.filter(t => !t.category || t.category === "Uncategorized" || t.category === "Needs Review").length;
+    // REVIEW-2: the one shared review rule (src/lib/needsCategory.ts).
+    const uncategorizedCount = countNeedsCategory(transactions);
     const pendingImports = imports.filter(i => i.status === "parsed" || i.status === "pending").length;
 
     // Trend alert: 3 months increasing
