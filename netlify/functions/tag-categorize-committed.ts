@@ -157,15 +157,6 @@ function applyRules(merchant: string): string | null {
   return null;
 }
 
-/**
- * C1 containment: the legacy known-expense pass (type + amount rewrite) runs only when this
- * variable is exactly '1'. Absent, empty or any other value means disabled. Read per request.
- */
-export const LEGACY_INCOME_TO_EXPENSE_ENV = 'TAG_LEGACY_INCOME_TO_EXPENSE_CONVERSION';
-export function isLegacyIncomeToExpenseConversionEnabled(): boolean {
-  return process.env[LEGACY_INCOME_TO_EXPENSE_ENV] === '1';
-}
-
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') {
@@ -377,7 +368,7 @@ export const handler: Handler = async (event) => {
 
   // Second pass: reclassify any remaining "Other" using merchant map
   let reclassified = 0;
-  let typeEnforced = 0;
+  const typeEnforced = 0; // no pass changes type any more (AR1b-TG-46); kept in the response contract
   try {
     const { data: otherTxs } = await supabase
       .from('transactions')
@@ -416,115 +407,14 @@ export const handler: Handler = async (event) => {
     }
   } catch { /* non-blocking */ }
 
-  // Third pass: known-expense merchant correction — LEGACY, DISABLED BY DEFAULT (C1 containment).
-  // It rewrites type AND negates amount on income rows from a hardcoded merchant list, with no
-  // customer approval and no audit trail. It runs ONLY when TAG_LEGACY_INCOME_TO_EXPENSE_CONVERSION
-  // is exactly '1'. That variable must NOT be set in staging or production without separate
-  // owner authorization. When disabled, this function never changes type, amount or sign.
-  if (!isLegacyIncomeToExpenseConversionEnabled()) {
-    safeLog('info', '[tag-categorize-committed] legacy income-to-expense conversion disabled (default)', { userId });
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ ok: true, updated, reclassified, typeEnforced, total: txs.length, skippedProtected }),
-    };
-  }
-  // Runs a SEPARATE query — txs above only contains null/Other/Uncategorized.
-  // False-income transactions already have category='Business Income' so they
-  // never appear in txs. This pass explicitly fetches type=income rows and
-  // corrects known expense merchants that were miscategorized by delta cascade.
-  const KNOWN_EXPENSE_MERCHANTS = [
-    /golfzon/i,
-    /golf\s*traders/i,
-    /canada\s*golf\s*card/i,
-    /lonespruce/i,
-    /longshotz/i,
-    /montgomery\s*glen/i,
-    /sanpiper/i,
-    /silver\s*creek/i,
-    /twin\s*willows/i,
-    /westlock\s*golf/i,
-    /alberta\s*beach\s*golf/i,
-    /mac.?s\s*conv/i,
-    /beijing\s*house/i,
-    /blackjacks/i,
-    /\ba&w\b/i,
-    /mr\s*sub/i,
-    /wing\s*snob/i,
-    /o.?massage/i,
-    /nakhon/i,
-    /rona\+/i,
-    /eclipse\s*restaurant/i,
-    /kosmos\s*restaurant/i,
-    /ufo\s*pizza/i,
-    /saratoga\s*restaurant/i,
-    /coliseum\s*pizza/i,
-    /smittys/i,
-    /obyrnes/i,
-    /burger\s*king/i,
-    /dairy\s*queen/i,
-    /popeyes/i,
-    /krispykreme/i,
-    /habaneros/i,
-    /five\s*guys/i,
-    /pizza\s*73/i,
-    /rollz\s*ice/i,
-    /second\s*cup/i,
-    /chopped\s*leaf/i,
-    /earls/i,
-    /d\s*and\s*t\s*cater/i,
-    /lewis\s*massage/i,
-    /shadified/i,
-    /shoppers\s*drug/i,
-    /sobeys/i,
-    /save\s*on\s*foods/i,
-    /safeway/i,
-    /loblaws/i,
-    /costco/i,
-    /walmart/i,
-    /canadian\s*tire/i,
-    /winners/i,
-    /petro.canada/i,
-    /shell\s*c/i,
-    /nisku\s*esso/i,
-    /kollbrook/i,
-    /northstar\s*hyundai/i,
-    /northtown\s*registry/i,
-    /bear\s*hills\s*casino/i,
-    /river\s*cree/i,
-    /castledowns\s*bingo/i,
-    /borrowell/i,
-    /ncube\s*and\s*landry/i,
-    /national\s*money/i,
-    /money\s*msp/i,
-  ];
-  try {
-    const { data: incomeRows } = await supabase
-      .from('transactions')
-      .select('id, merchant_name, amount, type')
-      .eq('user_id', userId)
-      .eq('type', 'income')
-      .not('merchant_name', 'is', null)
-      .limit(500);
-    const knownExpenseFixes = (incomeRows || []).filter(tx =>
-      KNOWN_EXPENSE_MERCHANTS.some(re => re.test(tx.merchant_name || ''))
-    );
-    if (knownExpenseFixes.length > 0) {
-      safeLog('info', `[tag-categorize-committed] Correcting ${knownExpenseFixes.length} known-expense merchants falsely set as income`, { userId });
-      for (const tx of knownExpenseFixes) {
-        await supabase.from('transactions').update({
-          type: 'expense',
-          amount: Math.abs(tx.amount) * -1,
-          updated_at: new Date().toISOString(),
-        }).eq('id', tx.id).eq('user_id', userId);
-        typeEnforced++;
-      }
-    }
-  } catch { /* non-blocking */ }
-
+  // AR1b-TG-46 (unified financial engine, owner GO 2026-11-26; AI Architecture HQ verdict: delete):
+  // the legacy "known-expense merchant" pass — which rewrote type AND negated amount on income rows
+  // from a hardcoded merchant list, with no approval or audit — is DELETED. It was disabled by default
+  // (TAG_LEGACY_INCOME_TO_EXPENSE_CONVERSION, verified undefined on staging and production), so this is
+  // behaviour-neutral. This function never changes a transaction's type, amount or sign.
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({ ok: true, updated, reclassified, typeEnforced, total: txs.length }),
+    body: JSON.stringify({ ok: true, updated, reclassified, typeEnforced, total: txs.length, skippedProtected }),
   };
 };

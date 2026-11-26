@@ -93,38 +93,22 @@ afterEach(() => {
   logSpies.forEach((s) => s.mockRestore());
 });
 
-describe('C1 — legacy income-to-expense conversion is disabled by default', () => {
-  it('flag helper: only the exact string "1" enables it', () => {
-    expect(mod.LEGACY_INCOME_TO_EXPENSE_ENV).toBe(ENV);
-    for (const v of [undefined, '', '0', 'true', 'TRUE', 'yes', ' 1', '1 ']) {
-      if (v === undefined) delete process.env[ENV]; else process.env[ENV] = v;
-      expect(mod.isLegacyIncomeToExpenseConversionEnabled()).toBe(false);
-    }
-    process.env[ENV] = '1';
-    expect(mod.isLegacyIncomeToExpenseConversionEnabled()).toBe(true);
-  });
-
-  it('variable absent: no transaction update changes type, amount or sign; income rows are not even queried', async () => {
-    const { statusCode, json } = await invoke();
-    expect(statusCode).toBe(200);
-    expect(txUpdates().some(touchesTypeOrAmount)).toBe(false);
-    expect(txUpdates().some((c) => c.filters.some(([k, v]) => k === 'id' && v === 'tx-inc-listed'))).toBe(false);
-    expect(calls.some((c) => c.table === 'transactions' && c.op === 'select' && c.filters.some(([k, v]) => k === 'type' && v === 'income'))).toBe(false);
-    expect(json.typeEnforced).toBe(0);
-  });
-
-  it('variable set to anything other than "1" behaves exactly like absent', async () => {
-    for (const v of ['0', 'true', 'false', 'on']) {
+describe('C1 / AR1b-TG-46 — the legacy income-to-expense pass is deleted', () => {
+  it('no setting can make it run: type, amount and sign never change; income rows are never queried', async () => {
+    for (const v of [undefined, '1', 'true']) {
       calls = [];
-      process.env[ENV] = v;
-      await invoke();
+      if (v === undefined) delete process.env[ENV]; else process.env[ENV] = v;
+      const { statusCode, json } = await invoke();
+      expect(statusCode).toBe(200);
       expect(txUpdates().some(touchesTypeOrAmount)).toBe(false);
+      expect(txUpdates().some((c) => c.filters.some(([k, v2]) => k === 'id' && v2 === 'tx-inc-listed'))).toBe(false);
+      expect(calls.some((c) => c.table === 'transactions' && c.op === 'select' && c.filters.some(([k, v2]) => k === 'type' && v2 === 'income'))).toBe(false);
+      expect(json.typeEnforced).toBe(0);
     }
   });
 
-  it('normal categorization still runs when disabled, and the response contract is unchanged', async () => {
+  it('normal categorization still runs and the response contract is unchanged', async () => {
     const { json } = await invoke();
-    // C4 Batch 1 (owner GO 2026-11-25) adds `skippedProtected` (protected rows reported, not changed).
     expect(Object.keys(json).sort()).toEqual(['ok', 'reclassified', 'skippedProtected', 'total', 'typeEnforced', 'updated'].sort());
     expect(json.ok).toBe(true);
     expect(json.total).toBe(1);
@@ -137,24 +121,13 @@ describe('C1 — legacy income-to-expense conversion is disabled by default', ()
     }
   });
 
-  it('explicitly enabled ("1"): the legacy path is preserved exactly (listed merchant only, user-scoped)', async () => {
-    process.env[ENV] = '1';
-    const { json } = await invoke();
-    const flips = txUpdates().filter(touchesTypeOrAmount);
-    expect(flips).toHaveLength(1);
-    expect(flips[0].payload).toMatchObject({ type: 'expense', amount: -120 });
-    expect(flips[0].filters).toEqual(expect.arrayContaining([['id', 'tx-inc-listed'], ['user_id', USER]]));
-    expect(txUpdates().some((c) => c.filters.some(([k, v]) => k === 'id' && v === 'tx-inc-payroll'))).toBe(false);
-    expect(json.typeEnforced).toBe(1);
-  });
-
-  it('no deployed or example config enables it', () => {
+  it('the code, flag and hardcoded merchant list are gone; no config mentions the flag', () => {
     const root = path.resolve(__dirname, '../../..');
-    const example = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
-    expect(example).toContain('# TAG_LEGACY_INCOME_TO_EXPENSE_CONVERSION=');
-    expect(example).not.toMatch(/^\s*TAG_LEGACY_INCOME_TO_EXPENSE_CONVERSION\s*=/m);
-    const toml = fs.readFileSync(path.join(root, 'netlify.toml'), 'utf8');
-    expect(toml).not.toContain('TAG_LEGACY_INCOME_TO_EXPENSE_CONVERSION');
+    const src = fs.readFileSync(path.join(root, 'netlify/functions/tag-categorize-committed.ts'), 'utf8');
+    expect(src).not.toMatch(/KNOWN_EXPENSE_MERCHANTS|isLegacyIncomeToExpenseConversionEnabled|process\.env\[/);
+    expect(src).not.toMatch(/amount:\s*Math\.abs\([^)]*\)\s*\*\s*-1/);
+    expect(fs.readFileSync(path.join(root, '.env.example'), 'utf8')).not.toContain(ENV);
+    expect(fs.readFileSync(path.join(root, 'netlify.toml'), 'utf8')).not.toContain(ENV);
   });
 });
 
