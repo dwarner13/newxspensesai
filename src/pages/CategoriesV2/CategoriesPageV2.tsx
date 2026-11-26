@@ -178,14 +178,17 @@ export default function CategoriesPageV2() {
       if (error) throw error;
       // Non-blocking notification. Query builders have no .catch(): the old `.insert(...).catch()`
       // threw AFTER the budget was saved, so customers saw "Failed to save budget" for a saved budget.
-      const { error: notifyErr } = await sb.from('user_notifications').insert({
+      // NOTIFY-1: `user_notifications` has none of employee_slug / message / priority / sent_at
+      // (live layout: id, user_id, type, title, body, href, meta, read_at, created_at), so this
+      // insert always failed. `notifications` has them, and the Inbox reads it
+      // (NOTIFICATIONS_SELECT). created_at records the time.
+      const { error: notifyErr } = await sb.from('notifications').insert({
         user_id: session.user.id,
         employee_slug: 'goalie-goals',
         type: 'budget_set',
         title: `Budget set \u2014 ${budgetCategory}`,
         message: `$${limit.toLocaleString()}/month limit locked in for ${budgetCategory}. I'll flag you when you hit 80%.`,
         priority: 'info',
-        sent_at: new Date().toISOString(),
       });
       if (notifyErr) console.warn('[saveBudget] budget notification not saved');
       toast.success(`Goalie locked in $${limit}/mo for ${budgetCategory}`);
