@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { markAppShellMounted } from "@/components/ui/AppSplash";
 import React from "react";
 import { useLocation, Outlet, useNavigate } from "react-router-dom";
+// CHOOSER-1: the post-onboarding chooser renders these icons; they were never imported, so
+// it threw a ReferenceError (crashing the layout) the moment a new customer finished onboarding.
+import { LayoutDashboard, Settings } from "lucide-react";
 import { AnimatedOutlet } from "../components/ui/AnimatedOutlet";
 import DesktopSidebar from "../components/navigation/DesktopSidebar";
 import DashboardHeader from "../components/ui/DashboardHeader";
