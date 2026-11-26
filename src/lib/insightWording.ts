@@ -16,7 +16,10 @@ export function insightText(i: Insight): string | null {
     case 'stable': {
       if (!i.coverage.complete) return null;
       const what = i.subject === 'category' && i.category ? `${i.category} spending` : 'Actual spending';
-      return `${what} has stayed within 10% across your last ${i.coverage.periodsAvailable} statement periods.`;
+      // G9 (AI Architecture HQ): name only the periods the server actually compared (its `periods`),
+      // never every available period.
+      const compared = i.periods?.length ?? i.coverage.periodsRequired;
+      return `${what} has stayed within 10% across your last ${compared} statement periods.`;
     }
     case 'not_enough_history':
       return `Not enough statement history to compare yet (${i.coverage.periodsAvailable} of ${i.coverage.periodsRequired} complete statement periods).`;

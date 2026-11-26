@@ -47,6 +47,9 @@ describe('insight wording — fixed table, server decides', () => {
     expect(categoryTrend([c], 'Dining')).toBe(c);
     expect(categoryTrend([{ ...c, coverage: cov(false) }], 'Dining')).toBeNull();
     expect(insightText({ kind: 'stable', subject: 'actual_spending', coverage: cov(true, 3, 3) })).toBe('Actual spending has stayed within 10% across your last 3 statement periods.');
+    // G9: 6 periods available, server compared 3 -> say 3.
+    const p = (m: string) => ({ start: `2026-${m}-01`, end: `2026-${m}-28` });
+    expect(insightText({ kind: 'stable', subject: 'actual_spending', periods: [p('08'), p('09'), p('10')], coverage: cov(true, 6, 3) })).toBe('Actual spending has stayed within 10% across your last 3 statement periods.');
   });
   it('not enough history, top category, needs review', () => {
     expect(insightText({ kind: 'not_enough_history', subject: 'actual_spending', coverage: cov(false, 1, 2) })).toBe('Not enough statement history to compare yet (1 of 2 complete statement periods).');
