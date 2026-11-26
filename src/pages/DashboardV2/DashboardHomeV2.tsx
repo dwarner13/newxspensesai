@@ -41,7 +41,7 @@ export default function DashboardHomeV2() {
   const needsReview = data.needsReviewCount ?? 0;
   const txCount = data.transactionCount ?? 0;
   const claim = sum ? spendingClaim(sum.insights) : null;
-  const claimText = claim ? insightText(claim) : null;
+  const claimText = claim ? insightText(claim, sum?.wording) : null;
   const topCat = sum?.insights.find(i => i.kind === "top_category") ?? null;
   const pbe = sum?.possibleBusinessExpenses ?? null;
   const [recapTyped, recapDone] = useTypewriter(recapText, 25, 800, !data.loading);
@@ -196,7 +196,7 @@ export default function DashboardHomeV2() {
               : `${FINANCIAL_LABELS.netCashFlow}: ${sum.labels.netCashFlow.amount > 0 ? "+" : ""}${formatMoney(sum.labels.netCashFlow.amount, cur)}`}
             body={!sum
               ? "Upload statements to see your financial overview."
-              : `${FINANCIAL_LABELS.actualIncome} ${formatMoney(sum.labels.actualIncome.amount, cur)} \u00b7 ${FINANCIAL_LABELS.actualSpending} ${formatMoney(sum.labels.actualSpending.amount, cur)}.${topCat ? ` ${insightText(topCat) ?? ""}` : ""}`}
+              : `${FINANCIAL_LABELS.actualIncome} ${formatMoney(sum.labels.actualIncome.amount, cur)} \u00b7 ${FINANCIAL_LABELS.actualSpending} ${formatMoney(sum.labels.actualSpending.amount, cur)}.${topCat ? ` ${insightText(topCat, sum.wording) ?? ""}` : ""}`}
             cta="Open Full Briefing"
             onCtaClick={() => setIsPrimeBriefingOpen(true)}
           />

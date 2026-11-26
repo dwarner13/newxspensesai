@@ -3,9 +3,28 @@
  * The server decides WHETHER a claim holds (coverage gate, thresholds); the client only phrases it.
  * No arithmetic, no thresholds, no interpretation here.
  */
-import type { Insight } from '@/lib/financialSummary';
+import type { Insight, FinancialSummary } from '@/lib/financialSummary';
 
-export function insightText(i: Insight): string | null {
+type ServerWording = FinancialSummary['wording'];
+
+/** Fill a server template ({category}, {direction}, {percent}, {count}, {periodsAvailable}, {periodsRequired}). */
+function fill(t: string, i: Insight): string | null {
+  const v: Record<string, string | number | undefined> = { category: i.category, direction: i.direction, percent: i.percent, count: i.count ?? 0, periodsAvailable: i.coverage.periodsAvailable, periodsRequired: i.coverage.periodsRequired };
+  let missing = false;
+  const out = t.replace(/\{(\w+)\}/g, (_, k: string) => { const x = v[k]; if (x === undefined) { missing = true; return ''; } return String(x); });
+  return missing ? null : out;
+}
+
+function serverKey(i: Insight): string {
+  if (i.kind === 'trend' || i.kind === 'stable') return `${i.kind}_${i.subject === 'category' ? 'category' : 'actual_spending'}`;
+  return i.kind;
+}
+
+export function insightText(i: Insight, wording?: ServerWording): string | null {
+  // Coverage gate stays on the client too: no trend / stable text without server coverage.
+  if ((i.kind === 'trend' || i.kind === 'stable') && !i.coverage.complete) return null;
+  const t = wording?.insights?.[serverKey(i)];
+  if (t) return fill(t, i);
   switch (i.kind) {
     case 'trend': {
       // Only ever rendered from a server 'trend' that passed coverage.

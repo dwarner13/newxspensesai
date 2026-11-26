@@ -16,7 +16,7 @@ export interface PeriodRow {
   deposits: number; withdrawals: number; netCashFlow: number;
   actualIncome: number; actualSpending: number; refunds: number; count: number;
 }
-export interface CalendarMonth extends PeriodRow { coverage: 'complete' | 'partial' | 'unknown'; comparable: false }
+export interface CalendarMonth extends PeriodRow { coverage: 'complete' | 'partial' | 'unknown' | 'none'; comparable: false }
 export interface StatementTotals extends PeriodRow { importId: string; periodStart: string; periodEnd: string }
 export interface CategoryTotal { category: string; purpose: string; direction?: string; totalCents: number; amount: number; count: number }
 export interface SpendingCategory { category: string; amount: number; cents: number; count: number; share: number }
@@ -56,6 +56,8 @@ export interface FinancialSummary {
   goals: { averageNetCashFlowPerPeriod: number | null; periodsUsed: number; savingsContributions: number };
   possibleBusinessExpenses: { status: 'needs_review'; count: number; amount: number; cents: number; categories: string[] };
   insights: Insight[];
+  /** G9 (Prime HQ 2c545f67): the engine's wording table. Screens render it, never re-word. */
+  wording?: { labels?: Record<string, string>; insights?: Partial<Record<string, string>> };
 }
 
 export type SummaryResult =

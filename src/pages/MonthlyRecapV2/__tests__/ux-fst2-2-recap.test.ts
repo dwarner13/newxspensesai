@@ -23,6 +23,8 @@ describe('UX-FST2-2 Recap', () => {
   it('every month carries its coverage label; unknown is said plainly', () => {
     expect(monthCoverageText('2026-11', 'unknown')).toBe('Recorded transactions dated in Nov 2026 (statement coverage unknown)');
     expect(monthCoverageText('2026-10', 'partial')).toMatch(/statement coverage partial\)$/);
+    // G3: months no statement covers are 'none' (server), shown as such.
+    expect(monthCoverageText('2026-07', 'none')).toBe('Recorded transactions dated in Jul 2026 (no imported statement covers this month)');
     expect(monthName('2026-01')).toBe('January 2026');
   });
   it('no browser money, grades, comparisons or invented copy', () => {

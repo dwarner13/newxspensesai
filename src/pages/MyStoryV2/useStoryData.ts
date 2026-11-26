@@ -40,11 +40,11 @@ export interface StoryData {
   loading: boolean;
 }
 
-export function storyTrends(insights: ReadonlyArray<Insight>): StoryTrend[] {
+export function storyTrends(insights: ReadonlyArray<Insight>, wording?: FinancialSummary["wording"]): StoryTrend[] {
   const out: StoryTrend[] = [];
   for (const i of insights) {
     if (i.subject !== "category" || !i.category || (i.kind !== "trend" && i.kind !== "stable")) continue;
-    const text = insightText(i);
+    const text = insightText(i, wording);
     if (!text) continue; // insightText refuses anything without server coverage
     out.push({ label: i.category, kind: i.kind, direction: i.direction, percent: i.percent, text });
   }
@@ -72,9 +72,9 @@ export function useStoryData(): StoryData {
       periodEnd: sortedKeys.length ? monthName(sortedKeys[sortedKeys.length - 1]) : "",
       monthsRecorded: sortedKeys.length,
       categoryBreakdown: (summary?.spendingByCategory ?? []).map(c => ({ cat: c.category, amount: c.amount, pct: c.share, color: CAT_COLORS[c.category] || "#4a5a75" })),
-      trends: summary ? storyTrends(summary.insights) : [],
-      spendingClaimText: claim ? insightText(claim) : null,
-      topCategoryText: top ? insightText(top) : null,
+      trends: summary ? storyTrends(summary.insights, summary.wording) : [],
+      spendingClaimText: claim ? insightText(claim, summary?.wording) : null,
+      topCategoryText: top ? insightText(top, summary?.wording) : null,
       loading: impLoading || financial.status === "loading",
     };
   }, [imports, impLoading, financial]);

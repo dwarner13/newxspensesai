@@ -1,4 +1,4 @@
-﻿import { THEME } from "../PrimeChatV2/agentConfig";
+import { THEME } from "../PrimeChatV2/agentConfig";
 export { THEME };
 
 export const RECAP_COLOR = "#ec4899";
@@ -11,7 +11,7 @@ export interface RecapEpisode {
   id: string;            // YYYY-MM
   title: string;         // e.g. "November 2026"
   month: string;
-  coverage: "complete" | "partial" | "unknown";
+  coverage: "complete" | "partial" | "unknown" | "none";
   coverageText: string;  // the month's coverage label, always shown
   deposits: number;
   withdrawals: number;

@@ -56,6 +56,17 @@ describe('insight wording — fixed table, server decides', () => {
     expect(insightText({ kind: 'top_category', subject: 'category', category: 'Housing', percent: 39, count: 2, coverage: cov(true) })).toBe('Housing is 39% of actual spending (2 transactions).');
     expect(insightText({ kind: 'needs_review', subject: 'transactions', count: 2, coverage: cov(true) })).toBe('2 transactions need your review.');
   });
+  it('G9: uses the server wording table when present, still gated on coverage', () => {
+    const w = { insights: { trend_category: 'SERVER {category} {direction} {percent}%', top_category: 'SERVER top {category} {percent}% ({count})' } };
+    const c: Insight = { kind: 'trend', subject: 'category', category: 'Dining', direction: 'up', percent: 9, coverage: cov(true) };
+    expect(insightText(c, w)).toBe('SERVER Dining up 9%');
+    expect(insightText({ ...c, coverage: cov(false) }, w)).toBeNull();
+    expect(insightText({ kind: 'top_category', subject: 'category', category: 'Housing', percent: 40, count: 2, coverage: cov(true) }, w)).toBe('SERVER top Housing 40% (2)');
+    // no server template for this kind -> client fallback
+    expect(insightText({ kind: 'needs_review', subject: 'transactions', count: 2, coverage: cov(true) }, w)).toBe('2 transactions need your review.');
+    // a template whose placeholder has no value is not rendered
+    expect(insightText({ ...c, direction: undefined }, w)).toBeNull();
+  });
   it('spending claim prefers trend, then stable, then not enough history', () => {
     const n: Insight = { kind: 'not_enough_history', subject: 'actual_spending', coverage: cov(false, 0, 2) };
     const s: Insight = { kind: 'stable', subject: 'actual_spending', coverage: cov(true, 3, 3) };
