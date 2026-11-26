@@ -2,7 +2,8 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { TAX_SECTIONS, SECTION_BUCKETS, classifyTransactions, groupIntoBuckets } from '../../src/shared/financial-sections';
-import { getYearRange } from '../../src/shared/financial-dates';
+import { readAuthoritativeLedger } from './_shared/financial-ledger';
+import { buildPeriodAggregate } from '../../src/shared/period-aggregate';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -32,28 +33,21 @@ export const handler: Handler = async (event) => {
     const sb = admin();
 
     const currentYear = new Date().getFullYear();
-    const year = body.year && body.year >= 2020 && body.year <= 2030 ? body.year : currentYear;
-    const { start, end } = getYearRange(year);
-
-    // Fetch all transactions for the year
-    const { data: txns, error: txError } = await sb
-      .from('transactions')
-      .select('category, subcategory, merchant_name, merchant, amount, date, type')
-      .eq('user_id', userId)
-      .gte('date', start)
-      .lt('date', end)
-      .order('date', { ascending: false })
-      .limit(5000);
-
-    if (txError) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: txError.message, queryStatus: 'query_error' }),
-      };
+    const year = body.year && body.year >= 2015 && body.year <= 2100 ? body.year : currentYear;
+    // FST-2 S3: complete, count-verified read of the whole year (was .limit(5000), cut to the
+    // newest 1,000 rows by the API — a busy year lost its earliest months while reported 'verified').
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    const read = await readAuthoritativeLedger(sb, { userId, startDate, endDate });
+    if (read.status === 'unavailable') {
+      return { statusCode: 503, headers, body: JSON.stringify({ year, error: 'Tax summary could not be loaded; nothing was guessed.', queryStatus: 'query_error' }) };
     }
+    if (read.status === 'partial') {
+      return { statusCode: 200, headers, body: JSON.stringify({ year, sections: [], grandTotal: null, transactionCount: read.rowsFetched, queryStatus: 'partial', message: 'Not every transaction for this year could be read consistently, so no section totals are given.' }) };
+    }
+    const txns = read.rows as any[];
 
-    if (!txns || txns.length === 0) {
+    if (txns.length === 0) {
       return {
         statusCode: 200,
         headers,
@@ -63,6 +57,7 @@ export const handler: Handler = async (event) => {
           grandTotal: 0,
           transactionCount: 0,
           queryStatus: 'verified_zero',
+          dataStatus: read.status === 'no_data' ? 'no_data' : 'no_transactions_in_year',
         }),
       };
     }
@@ -98,7 +93,11 @@ export const handler: Handler = async (event) => {
       };
     }).filter(s => s.count > 0);
 
+    // grandTotal keeps its meaning (sum of all sections) for compatibility; expense and income
+    // totals now exclude internal movement (transfers, card/loan payments both sides, savings).
     const grandTotal = sections.reduce((s, sec) => s + sec.total, 0);
+    const sectioned = sections.reduce((n, sec) => n + sec.count, 0);
+    const agg = buildPeriodAggregate(txns, { fetch: { complete: true, truncated: false, rowsFetched: txns.length }, period: { start: startDate, end: endDate } });
 
     return {
       statusCode: 200,
@@ -108,6 +107,12 @@ export const handler: Handler = async (event) => {
         sections,
         grandTotal: Math.round(grandTotal * 100) / 100,
         transactionCount: txns.length,
+        // Rows no section claims: their type has no direction (e.g. 'Credit'); disclosed, never guessed.
+        unsectionedCount: txns.length - sectioned,
+        // Reconciliation with the shared engine (same rows, same definitions as every other surface).
+        engine: { incomeCents: agg.cents.income, spendingCents: agg.cents.spending, debtRepaymentsInCents: agg.cents.debtRepaymentsIn, transferInCents: agg.cents.transferIn, transferOutCents: agg.cents.transferOut, debtPaymentsCents: agg.cents.debtPayments, savingsInvestmentCents: agg.cents.savingsInvestment },
+        countVerified: read.countVerified,
+        notice: 'Organized for your accountant. Not tax advice; deductibility is not determined.',
         queryStatus: 'verified',
       }),
     };

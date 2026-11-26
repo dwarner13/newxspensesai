@@ -6,64 +6,24 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchTransactionsInRange, type RangeFetchClient } from '../../../src/shared/transaction-range-fetch';
+import { buildPeriodAggregate } from '../../../src/shared/period-aggregate';
+import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
 // Type imports (TypeScript types)
 type FinancialSnapshot = import('../../../src/types/prime-state').FinancialSnapshot;
 type StressSignal = import('../../../src/types/prime-state').StressSignal;
 
-// Categories that are internal money movement, NOT real spending. Excluded from
-// monthlyExpenses, topCategories, and topMerchants so Prime doesn't report
-// "Transfers" as the #1 spending category. Mirrors the frontend list in
-// usePrimeBriefingData.ts NON_SPEND_CATEGORIES.
-const NON_SPEND_CATEGORIES = new Set([
-  'transfers', 'transfer',
-  'loan payments', 'loan payment',
-  'credit card payments', 'credit card payment',
-  'investments', 'investment',
-  'debt payments', 'debt payment',
-  'income', 'business income',
-]);
+// FST-1: every figure comes from the ONE shared engine (complete paged read +
+// buildPeriodAggregate / classifyCashFlow). The previous unpaged select returned at most
+// 1,000 arbitrary rows; its count-keyed cache could also serve stale figures after a
+// confirmed Tag correction (same count, different categories). There is no cache now:
+// a correction is reflected on the very next read.
 
-function isNonSpend(category: string | null): boolean {
-  if (!category) return false;
-  return NON_SPEND_CATEGORIES.has(category.trim().toLowerCase());
-}
-
-// In-memory cache to prevent heavy re-fetches on every ping
-interface SnapshotCacheEntry {
-  snapshot: FinancialSnapshot;
-  count: number;
-  timestamp: number;
-}
-const snapshotCache = new Map<string, SnapshotCacheEntry>();
-
-/**
- * Build financial snapshot for a user
- *
- * @param supabase - Supabase client (service role)
- * @param userId - User ID
- * @param userTimezone - Optional IANA timezone (e.g. "America/Edmonton") for correct month boundaries
- * @returns FinancialSnapshot
- */
 export async function buildFinancialSnapshot(
   supabase: SupabaseClient,
   userId: string,
   userTimezone?: string | null,
 ): Promise<FinancialSnapshot> {
-  // 1. Lightweight count check to determine if full fetch is needed
-  const { count } = await supabase
-    .from('transactions')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId);
-
-  const currentCount = count || 0;
-  const cacheKey = `${userId}:${userTimezone || 'utc'}`;
-  const cached = snapshotCache.get(cacheKey);
-
-  // Return cached if transaction count is the same and cache is < 5 mins old
-  if (cached && cached.count === currentCount && Date.now() - cached.timestamp < 5 * 60 * 1000) {
-    return cached.snapshot;
-  }
-
   // Derive user-local month boundaries using timezone-aware logic.
   // This prevents the Edmonton 11PM problem where UTC is already next month.
   let localYear: number, localMonth: number;
@@ -84,106 +44,64 @@ export async function buildFinancialSnapshot(
     localYear = now.getFullYear();
     localMonth = now.getMonth();
   }
-  const currentMonthStart = new Date(localYear, localMonth, 1);
-  const currentMonthEnd = new Date(localYear, localMonth + 1, 0);
-  
-  // 1. Fetch transactions, debt, and goals in parallel
-  const [
-    { data: allTransactions, error: txError },
-    { data: debtDataParallel },
-    { data: goalsDataParallel },
-  ] = await Promise.all([
-    supabase
-      .from('transactions')
-      .select('id, date, amount, category, merchant, type')
-      .eq('user_id', userId),
+  const monthStartYmd = `${localYear}-${String(localMonth + 1).padStart(2, '0')}-01`;
+  const monthEndYmd = new Date(Date.UTC(localYear, localMonth + 1, 0)).toISOString().slice(0, 10);
+
+  // 1. Complete paged transactions, debt and goals in parallel
+  const [fetchResult, { data: debtDataParallel }, { data: goalsDataParallel }] = await Promise.all([
+    fetchTransactionsInRange(supabase as unknown as RangeFetchClient,
+      { userId, startDate: '1900-01-01', endDate: '9999-12-31' },
+      { columns: ['merchant_name', 'merchant'] }),
     supabase.from('debt').select('balance').eq('user_id', userId).then((r: any) => r).catch(() => ({ data: null })),
     supabase.from('goals').select('id, status').eq('user_id', userId).eq('status', 'active').then((r: any) => r).catch(() => ({ data: null })),
   ]);
-
-  if (txError) {
-    console.warn('[buildFinancialSnapshot] Error fetching transactions:', txError);
+  if (fetchResult.error) {
+    console.warn('[buildFinancialSnapshot] Error fetching transactions:', fetchResult.error);
   }
-
-  const transactions = allTransactions || [];
+  const transactions = fetchResult.rows as Array<Record<string, any>>;
+  const dataComplete = !fetchResult.error && fetchResult.complete;
   const hasTransactions = transactions.length > 0;
   const transactionCount = transactions.length;
-  
+
   // 2. CATEGORIZATION STATE
-  const uncategorizedTransactions = transactions.filter(
-    t => !t.category || t.category === 'Uncategorized'
-  );
-  const uncategorizedCount = uncategorizedTransactions.length;
+  const uncategorizedCount = transactions.filter(t => !t.category || t.category === 'Uncategorized').length;
   const categorizedCount = transactionCount - uncategorizedCount;
-  
-  const uniqueCategories = new Set(
-    transactions.map(t => t.category).filter(Boolean)
-  );
-  const categoryCount = uniqueCategories.size;
-  
-  // 3. MONTHLY SPENDING
-  const currentMonthTransactions = transactions.filter(t => {
-    if (!t.date) return false;
-    const txDate = new Date(t.date);
-    return txDate >= currentMonthStart && txDate <= currentMonthEnd;
+  const categoryCount = new Set(transactions.map(t => t.category).filter(Boolean)).size;
+
+  // 3. MONTHLY SPENDING / INCOME (calendar dates, user-local month, canonical classifier)
+  const month = buildPeriodAggregate(transactions, {
+    fetch: { complete: fetchResult.complete, truncated: fetchResult.truncated, rowsFetched: fetchResult.rowsFetched },
+    period: { start: monthStartYmd, end: monthEndYmd },
   });
-  
-  const monthlyExpenses = currentMonthTransactions
-    .filter(t => (t.type === 'expense' || (t.type === null && t.amount < 0)) && !isNonSpend(t.category))
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  
-  const monthlyIncome = currentMonthTransactions
-    .filter(t => t.type === 'income' || (t.type === null && t.amount > 0))
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  
-  const netCashflow = monthlyIncome - monthlyExpenses;
-  
-  // 4. TOP CATEGORIES (current month expenses, excluding non-spend categories)
-  const categoryMap = new Map<string, { total: number; count: number }>();
-  currentMonthTransactions
-    .filter(t => (t.type === 'expense' || (t.type === null && t.amount < 0)) && !isNonSpend(t.category))
-    .forEach(t => {
-      const cat = t.category || 'Uncategorized';
-      const existing = categoryMap.get(cat) || { total: 0, count: 0 };
-      categoryMap.set(cat, {
-        total: existing.total + Math.abs(t.amount),
-        count: existing.count + 1,
-      });
-    });
-  
-  const topCategories = Array.from(categoryMap.entries())
-    .map(([category, stats]) => ({
-      category,
-      totalAmount: stats.total,
-      transactionCount: stats.count,
-    }))
-    .sort((a, b) => b.totalAmount - a.totalAmount)
-    .slice(0, 5);
-  
-  // 5. TOP MERCHANTS (current month expenses, excluding non-spend categories)
-  const merchantMap = new Map<string, { total: number; count: number }>();
-  currentMonthTransactions
-    .filter(t => (t.type === 'expense' || (t.type === null && t.amount < 0)) && !isNonSpend(t.category))
-    .forEach(t => {
-      const merchant = t.merchant || 'Unknown';
-      const existing = merchantMap.get(merchant) || { total: 0, count: 0 };
-      merchantMap.set(merchant, {
-        total: existing.total + Math.abs(t.amount),
-        count: existing.count + 1,
-      });
-    });
-  
+  const monthlyExpenses = month.cents.spending / 100;
+  const monthlyIncome = month.cents.income / 100;
+  // Owner 2026-11-26: net cash flow = total deposits − total withdrawals (rawNetCashMovement).
+  const netCashflow = month.cents.rawNetCashMovement / 100;
+
+  // 4. TOP CATEGORIES (current month ordinary spending)
+  const topCategories = month.categories
+    .filter(c => c.purpose === 'spending')
+    .slice(0, 5)
+    .map(c => ({ category: c.category, totalAmount: c.totalCents / 100, transactionCount: c.count }));
+
+  // 5. TOP MERCHANTS (current month ordinary spending, same classifier)
+  const merchantMap = new Map<string, { cents: number; count: number }>();
+  for (const t of transactions) {
+    const d = typeof t.date === 'string' ? t.date.slice(0, 10) : '';
+    if (!d || d < monthStartYmd || d > monthEndYmd) continue;
+    const c = classifyCashFlow(t);
+    if (c.purpose !== 'spending' || c.amountCents === null) continue;
+    const merchant = t.merchant_name || t.merchant || 'Unknown';
+    const e = merchantMap.get(merchant) || { cents: 0, count: 0 };
+    merchantMap.set(merchant, { cents: e.cents + c.amountCents, count: e.count + 1 });
+  }
   const topMerchants = Array.from(merchantMap.entries())
-    .map(([merchant, stats]) => ({
-      merchant,
-      totalAmount: stats.total,
-      transactionCount: stats.count,
-    }))
-    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .map(([merchant, v]) => ({ merchant, totalAmount: v.cents / 100, transactionCount: v.count }))
+    .sort((a, b) => b.totalAmount - a.totalAmount || a.merchant.localeCompare(b.merchant))
     .slice(0, 5);
-  
+
   // 6. DATE RANGES
-  const dates = transactions.map(t => t.date).filter(Boolean).sort();
+  const dates = transactions.map(t => t.date).filter(Boolean).map((d: string) => d.slice(0, 10)).sort();
   const firstTransactionDate = dates.length > 0 ? dates[0] : null;
   const lastTransactionDate = dates.length > 0 ? dates[dates.length - 1] : null;
   
@@ -228,7 +146,7 @@ export async function buildFinancialSnapshot(
     stressSignals.push({
       type: 'negative_cashflow',
       severity: Math.abs(netCashflow) > monthlyIncome * 0.2 ? 'high' : 'medium',
-      message: `Spending exceeds income by ${Math.abs(netCashflow).toFixed(2)} this month`,
+      message: `Withdrawals exceeded deposits by ${Math.abs(netCashflow).toFixed(2)} this month`,
       suggestedAction: 'Review spending patterns or set a budget',
     });
   }
@@ -261,15 +179,8 @@ export async function buildFinancialSnapshot(
     hasGoals,
     activeGoalCount,
     stressSignals,
+    dataComplete,
   };
-
-  // Cache the result
-  snapshotCache.set(cacheKey, {
-    snapshot,
-    count: currentCount,
-    timestamp: Date.now()
-  });
 
   return snapshot;
 }
-

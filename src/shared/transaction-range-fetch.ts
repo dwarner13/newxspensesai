@@ -56,6 +56,21 @@ export const TRANSACTION_RANGE_PAGE_SIZE = 500;
 /** Hard safety ceiling on rows fetched for one aggregate. */
 export const TRANSACTION_RANGE_MAX_ROWS = 20_000;
 export const TRANSACTION_RANGE_COLUMNS = 'id, date, amount, type, category, subcategory';
+/** Extra fields the integrity signals need (merchant text, import) — FST-1. */
+export const TRANSACTION_SIGNAL_COLUMNS: ReadonlyArray<string> = ['merchant_name', 'description', 'import_id'];
+
+const SAFE_COLUMN = /^[a-z_][a-z0-9_]*$/;
+
+/** Base columns plus any extra columns (union, order-stable). Unsafe names are ignored. */
+export function rangeFetchColumns(extra: ReadonlyArray<string> = []): string {
+  const base = TRANSACTION_RANGE_COLUMNS.split(',').map(c => c.trim());
+  const out = [...base];
+  for (const c of extra) {
+    const col = String(c || '').trim();
+    if (SAFE_COLUMN.test(col) && !out.includes(col)) out.push(col);
+  }
+  return out.join(', ');
+}
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -70,7 +85,7 @@ function failed(error: string, pagesFetched: number): TransactionRangeFetchResul
 export async function fetchTransactionsInRange(
   client: RangeFetchClient,
   input: { userId: string; startDate: string; endDate: string },
-  opts: { pageSize?: number; maxRows?: number } = {},
+  opts: { pageSize?: number; maxRows?: number; columns?: ReadonlyArray<string> } = {},
 ): Promise<TransactionRangeFetchResult> {
   const { userId, startDate, endDate } = input;
   if (!userId || !YMD.test(startDate) || !YMD.test(endDate) || startDate > endDate) {
@@ -81,7 +96,7 @@ export async function fetchTransactionsInRange(
 
   const page = (from: number, to: number) =>
     client.from('transactions')
-      .select(TRANSACTION_RANGE_COLUMNS)
+      .select(rangeFetchColumns(opts.columns))
       .eq('user_id', userId)
       .gte('date', startDate)
       .lte('date', endDate)

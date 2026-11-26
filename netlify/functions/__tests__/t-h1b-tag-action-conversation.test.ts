@@ -23,6 +23,7 @@ function builder(table: string) {
   let onConflict: string[] = [];
   let order: { col: string; asc: boolean } | null = null;
   let lim = Infinity;
+  let rng: [number, number] | null = null;
   const rows = () => (db[table] ||= []);
   const matches = () => rows().filter(r => filters.every(f => f(r)));
   const run = () => {
@@ -46,11 +47,21 @@ function builder(table: string) {
     }
     let m = matches();
     if (order) m = [...m].sort((a, b) => (order!.asc ? 1 : -1) * String(a[order!.col]).localeCompare(String(b[order!.col])));
+    if (rng) m = m.slice(rng[0], rng[1] + 1);
     return { data: m.slice(0, lim), error: null };
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const b: any = {
     select: () => b,
+    // T-ACT-FINAL: the shared proposal builder pages (range) and matches merchants (ilike).
+    ilike: (c: string, pat: string) => {
+      const re = new RegExp('^' + pat.split('%').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$', 'i');
+      filters.push(r => re.test(String(r[c] ?? '')));
+      return b;
+    },
+    range: (a: number, z: number) => { rng = [a, z]; return b; },
+    // Bulk updates re-check protection with PostgREST or() filters (evaluated in c4-customer-correction-protection).
+    or: () => b,
     eq: (c: string, v: unknown) => { filters.push(r => get(r, c) === v); return b; },
     in: (c: string, vs: unknown[]) => { filters.push(r => vs.includes(get(r, c))); return b; },
     order: (col: string, o?: { ascending?: boolean }) => { order = { col, asc: o?.ascending !== false }; return b; },
@@ -88,10 +99,20 @@ async function act(body: Record<string, unknown>): Promise<{ res: Res; json: any
   return { res, json: JSON.parse(res.body) };
 }
 const convo = (customerText: string, clientMessageId: string, extra: Record<string, unknown> = {}) => ({ conversation: { customerText, clientMessageId, ...extra } });
-const proposeUber = (id = 'msg_prop_00001', extra: Record<string, unknown> = {}) =>
-  act({ intent: 'preview', matchValue: 'uber', targetCategory: 'Transportation', ...convo('move uber to Transportation', id, extra) });
-const confirmUber = (id: string, sessionId: unknown, extra: Record<string, unknown> = {}) =>
-  act({ intent: 'commit', matchValue: 'uber', targetCategory: 'Transportation', ...convo('yes', id, { sessionId, ...extra }) });
+// T-ACT-FINAL: the typed merchant path is the shared proposal contract. A preview returns the signed
+// proposal; the "yes" is tag-action commit_proposal echoing it back (the retired `commit` returns 410).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let lastProposal: any = null;
+const UBER_FALLBACK = { action: 'save_merchant_rule', subject: { merchantPattern: 'UBER', targetCategory: 'Transportation', targetSubcategory: null, applyToExisting: 'yes', matchType: 'contains', affected: 2, fingerprint: 'unknown' } };
+const proposeUber = async (id = 'msg_prop_00001', extra: Record<string, unknown> = {}) => {
+  const r = await act({ intent: 'preview', matchValue: 'uber', targetCategory: 'Transportation', ...convo('move uber to Transportation', id, extra) });
+  if (r.json?.proposal) lastProposal = r.json.proposal;
+  return r;
+};
+const confirmUber = (id: string, sessionId: unknown, extra: Record<string, unknown> = {}) => {
+  const prop = lastProposal ?? UBER_FALLBACK;
+  return act({ intent: 'commit_proposal', action: prop.action, subject: prop.subject, ...convo('yes', id, { sessionId, ...extra }) });
+};
 const tx = (id: string) => db.transactions.find(t => t.id === id)!;
 const msgs = (sessionId: unknown) => (db.chat_messages || []).filter(m => m.session_id === sessionId);
 
@@ -101,6 +122,7 @@ beforeEach(() => {
   Object.assign(faults, { txUpdate: false, assistantInsert: false, uniqueOnClaim: false, activityLog: false });
   txUpdateCalls = 0;
   authState.userId = ALICE;
+  lastProposal = null;
   db.transactions = [
     { id: 't1', user_id: ALICE, merchant_name: 'UBER TRIP', amount: -18.5, posted_at: '2026-11-03', category: 'Travel' },
     { id: 't2', user_id: ALICE, merchant_name: 'UBER EATS', amount: -22.1, posted_at: '2026-11-02', category: 'Food & Dining' },
@@ -118,9 +140,10 @@ describe('T-H1b — preview is a server-recorded proposal (never described as do
   it('stores the customer message and a server-written proposal with a "proposed" receipt; nothing changes', async () => {
     const { json } = await proposeUber();
     expect(json).toMatchObject({ ok: true, intent: 'preview', matchCount: 2, executed: false });
-    expect(json.conversation).toMatchObject({ persisted: true, duplicate: false, receipt: { v: 1, employee: 'tag-ai', action: 'recategorize_by_merchant', state: 'proposed', result: { matchCount: 2 } } });
-    expect(json.conversation.reply).toContain('I found **2** transactions matching "UBER"');
-    expect(json.conversation.reply).toContain('Say yes to confirm');
+    // T-ACT-FINAL: the typed request is the shared contract (future rule + existing transactions, spelled out).
+    expect(json.conversation).toMatchObject({ persisted: true, duplicate: false, receipt: { v: 1, employee: 'tag-ai', action: 'save_merchant_rule', state: 'proposed', result: { matchCount: 2 } } });
+    expect(json.conversation.reply).toBe('Save a rule so **future imports** matching "uber" are categorized as **Transportation**, AND change **2** of your **existing** "uber" transactions to **Transportation** now? Say yes to confirm.');
+    expect(json.proposal).toMatchObject({ kind: 'action', action: 'save_merchant_rule', subject: { merchantPattern: 'UBER', applyToExisting: 'yes', affected: 2 } });
     expect(json.conversation.reply).not.toMatch(/\bDone\b|Moved \d/);
     expect(tx('t1').category).toBe('Travel');
     const [user, reply] = msgs(json.conversation.sessionId);
@@ -140,11 +163,11 @@ describe('T-H1b — confirmation completes only the server-recorded proposal', (
   it('confirmed → completed: updates exactly the matched rows, verified count, rule saved, receipt + intent stored', async () => {
     const p = await proposeUber();
     const { json } = await confirmUber('msg_conf_00001', p.json.conversation.sessionId);
-    expect(json).toMatchObject({ ok: true, intent: 'commit', executed: true, updatedCount: 2 });
-    expect(json.conversation.receipt).toMatchObject({ state: 'completed', result: { affectedCount: 2 }, proposalRef: 'msg_prop_00001' });
-    expect(json.conversation.reply).toBe('Done. Moved 2 transactions to Transportation and saved a rule so future "UBER" transactions auto-categorize.');
+    expect(json).toMatchObject({ ok: true, intent: 'commit_proposal', executed: true, updatedCount: 2 });
+    expect(json.conversation.receipt).toMatchObject({ state: 'completed', result: { affectedCount: 2 }, proposalRef: 'msg_prop_00001', tool: 'save_merchant_rule', success: true, count: 2 });
+    expect(json.conversation.reply).toBe('Done — saved the rule for future "UBER" imports (**Transportation**) and changed **2** existing transactions.');
     expect([tx('t1').category, tx('t2').category, tx('t3').category, tx('b1').category]).toEqual(['Transportation', 'Transportation', 'Groceries', 'Travel']);
-    expect(tx('t1').category_source).toBe('tag_chat');
+    expect(tx('t1').category_source).toBe('tag_rule');
     expect(db.category_rules).toHaveLength(1);
     const confirmRow = msgs(json.conversation.sessionId).find(m => m.metadata?.client_message_id === 'msg_conf_00001');
     expect(confirmRow.metadata.actionIntent).toMatchObject({ state: 'confirmed', proposalRef: 'msg_prop_00001', matchesProposal: true });
@@ -191,19 +214,21 @@ describe('T-H1b — confirmation completes only the server-recorded proposal', (
     faults.txUpdate = true;
     const { json } = await confirmUber('msg_conf_00005', p.json.conversation.sessionId);
     expect(json).toMatchObject({ ok: false, executed: false });
-    expect(json.conversation.receipt).toMatchObject({ state: 'failed', reason: 'commit_error' });
+    expect(json.conversation.receipt).toMatchObject({ state: 'failed', reason: 'update_failed', count: 0 });
     expect(json.conversation.reply).not.toMatch(/\bDone\b/);
     expect(json.conversation.persisted).toBe(true);
   });
 
-  it('browser-supplied ids outside the server match are never updated', async () => {
+  it('a browser-altered proposal (or the retired id-list commit) is never honoured', async () => {
     const p = await proposeUber();
-    const { json } = await confirmUber('msg_conf_00006', p.json.conversation.sessionId, {});
-    void json;
-    const p2 = await proposeUber('msg_prop_00002', { sessionId: p.json.conversation.sessionId });
-    // A tampered request adds Costco and Bob's transaction to the ids.
-    const tampered = await act({ intent: 'commit', matchValue: 'uber', targetCategory: 'Transportation', affectedIds: ['t1', 't3', 'b1'], ...convo('yes', 'msg_conf_00007', { sessionId: p2.json.conversation.sessionId }) });
-    expect(tampered.json.updatedCount).toBe(1);
+    // Tampered echo: widen the scope to Costco.
+    const altered = { ...lastProposal.subject, merchantPattern: 'COSTCO', affected: 3 };
+    const tampered = await act({ intent: 'commit_proposal', action: 'save_merchant_rule', subject: altered, ...convo('yes', 'msg_conf_00006', { sessionId: p.json.conversation.sessionId }) });
+    expect(tampered.json.conversation.receipt.reason).toBe('no_matching_proposal');
+    // The legacy commit with a client id list (incl. Costco and Bob's row) is retired.
+    const legacy = await act({ intent: 'commit', matchValue: 'uber', targetCategory: 'Transportation', affectedIds: ['t1', 't3', 'b1'], ...convo('yes', 'msg_conf_00007', { sessionId: p.json.conversation.sessionId }) });
+    expect(legacy.res.statusCode).toBe(410);
+    expect(txUpdateCalls).toBe(0);
     expect(tx('t3').category).toBe('Groceries');
     expect(tx('b1').category).toBe('Travel');
   });
@@ -241,11 +266,14 @@ describe('T-H1b — retries, concurrency and partial persistence never repeat th
     expect(txUpdateCalls).toBe(0);
   });
 
-  it('financial writes are set-to-value: applying the same commit twice leaves the same state (idempotent beyond chat dedup)', async () => {
-    const body = { intent: 'commit', matchValue: 'uber', targetCategory: 'Transportation', affectedIds: ['t1', 't2'] };
-    await act(body);
+  it('financial writes are set-to-value: applying the same change twice leaves the same state (idempotent beyond chat dedup)', async () => {
+    const p = await proposeUber();
+    await confirmUber('msg_conf_00050', p.json.conversation.sessionId);
     const snapshot = JSON.stringify({ tx: db.transactions.map(t => [t.id, t.category, t.subcategory, t.category_source]), rules: db.category_rules.map(r => [r.merchant_pattern, r.category, r.is_active]), memory: db.vendor_category_memory.map(m => [m.vendor_key, m.category]) });
-    await act(body);
+    // Proposing again finds nothing left to change; confirming it re-saves the same rule only.
+    const again1 = await proposeUber('msg_prop_00051', { sessionId: p.json.conversation.sessionId });
+    expect(again1.json.proposal.subject.affected).toBe(0);
+    await confirmUber('msg_conf_00052', p.json.conversation.sessionId);
     const again = JSON.stringify({ tx: db.transactions.map(t => [t.id, t.category, t.subcategory, t.category_source]), rules: db.category_rules.map(r => [r.merchant_pattern, r.category, r.is_active]), memory: db.vendor_category_memory.map(m => [m.vendor_key, m.category]) });
     expect(again).toBe(snapshot);
     expect(db.category_rules).toHaveLength(1);
@@ -312,12 +340,14 @@ describe('T-H1b — ownership, masking, restoration, compatibility', () => {
     expect(typeof confirmRow.message_uid).toBe('string');
   });
 
-  it('without conversation fields, preview/commit keep their existing responses (commit count is verified)', async () => {
+  it('without conversation fields, preview is read-only and the legacy commit is retired (410, nothing changes)', async () => {
     const preview = await act({ intent: 'preview', matchValue: 'uber', targetCategory: 'Transportation' });
     expect(preview.json).toMatchObject({ ok: true, intent: 'preview', matchCount: 2, affectedIds: ['t1', 't2'] });
     expect(preview.json.conversation).toBeUndefined();
     const commit = await act({ intent: 'commit', matchValue: 'uber', targetCategory: 'Transportation', affectedIds: ['t1', 't2', 'missing'] });
-    expect(commit.json).toMatchObject({ ok: true, intent: 'commit', updatedCount: 2 });
+    expect(commit.res.statusCode).toBe(410);
+    expect(txUpdateCalls).toBe(0);
+    expect(db.category_rules ?? []).toHaveLength(0);
     expect(db.chat_messages ?? []).toHaveLength(0);
   });
 
@@ -335,7 +365,7 @@ describe('tag-action audit log (non-blocking)', () => {
     expect(json).toMatchObject({ ok: true, intent: 'fix_type', newType: 'income' });
     expect(tx('t1')).toMatchObject({ type: 'income', category: 'Income', category_source: 'user_type_fix' });
     expect(db.tag_activity_log).toHaveLength(1);
-    expect(db.tag_activity_log[0]).toMatchObject({ user_id: ALICE, action_type: 'type_fix', transaction_id: 't1' });
+    expect(db.tag_activity_log[0]).toMatchObject({ user_id: ALICE, change_source: 'type_fix', transaction_id: 't1' });
   });
   it("a failed log write never fails the customer's change", async () => {
     faults.activityLog = true;

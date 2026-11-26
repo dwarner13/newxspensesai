@@ -14,11 +14,13 @@ export function buildPrimeTagConsultationRule(): string {
   return [
     'TAG CONSULTATION (code-owned; read-only):',
     '- When the customer asks whether their categories look right, what needs review, or about categorization quality — or before you suggest any recategorization — call tag_status.',
-    '- Scope, in this order: the period the customer asked for (periodSource "requested"); otherwise a specific imported statement the customer referenced (importId); otherwise the period already established in this conversation (periodSource "conversation"); otherwise omit dates and the current calendar month is used. Always state the period or statement used. If both a period and a statement were referenced, do not combine them — explain the difference or ask which one they meant.',
+    '- Scope, in this order: the period the customer asked for (periodSource "requested"); otherwise a specific imported statement the customer referenced (importId); otherwise the period already established in this conversation (periodSource "conversation"); otherwise omit dates and ALL imported transactions are used. When the customer asks about everything they have ever uploaded, their entire history or all time, set allHistory:true (that beats a conversation period). Always state the period or statement used. If both a period and a statement were referenced, do not combine them — explain the difference or ask which one they meant.',
     '- Status: "no_transactions_in_period" means zero matching transactions; "no_imported_data" means nothing is imported; "outside_imported_coverage" means the period is outside the imported data; "partial" means counts are minimums; "query_error" means Tag data is unavailable — never guess. Never widen the period on your own.',
     "- Findings are PROPOSALS. Never say a category was changed. Offer: \"Want Tag to review these?\" Any change goes through Tag with the customer's explicit confirmation.",
-    '- Never propose changing customer-confirmed or possibly customer-approved categories (both are excluded from tag_status findings).',
+    '- Never propose changing protected categories, verified or not (both are excluded from tag_status findings). Call a category customer-approved ONLY if it is in the verified customer count; the other protected categories are "protected (origin unverified)".',
     '- Always disclose the caveats tag_status returns, including that category-source labels are not fully reliable yet.',
+    '- P-LIVE-02: tag_status is read-only and the customer already asked. Never ask permission to run it, to widen it, or to "review the entire history"; never ask them to repeat or confirm the request. Answer with the counts.',
+    '- Completed work is the stored record, not chat memory: verified customer categories on the transactions, and the corrections Tag has recorded. Report both counts. Conversation history is separate; if the correction history is unavailable, say so plainly.',
   ].join('\n');
 }
 
@@ -33,6 +35,16 @@ const CATEGORIZATION_PATTERNS: readonly RegExp[] = [
   /\b(uncategori[sz]ed|needs?\s+review)\b[^?.!]*\b(transactions?|items?|any|how many|what|which|do i have)\b/i,
   /\b(how many|which|what|any)\b[^?.!]*\b(uncategori[sz]ed|need(?:s)?\s+review|miscategori[sz]ed)\b/i,
   /\b(check|review|audit|verify)\b[^?.!]*\b(my\s+)?categor(?:y|ies|i[sz]ation)\b/i,
+  // P-LIVE-02: "how many still need categorizing", "need to be categorised", "not yet categorized",
+  // "left to categorize", "categorization still outstanding".
+  /\b(?:still\s+)?needs?\s+(?:to\s+be\s+)?categori[sz](?:ing|ed|ation)\b/i,
+  // "n't" has no word boundary before it ("haven't"), so it is matched without \b.
+  /(?:\bnot|n't|\bnever)\s+(?:been\s+)?(?:yet\s+)?categori[sz]ed\b/i,
+  /\b(?:left|remaining|outstanding|pending)\s+(?:to\s+)?categori[sz]e\b/i,
+  /\bcategori[sz](?:e|ing|ation)\b[^?.!]*\b(?:left|remaining|outstanding|pending|to\s+do|still)\b/i,
+  // "can you see the work Tag and I have already completed / the corrections we made with Tag"
+  /\b(?:work|corrections?|fixes|changes|recategori[sz]ations?)\b[^?.!]*\btag\b[^?.!]*\b(?:done|completed|made|finished|fixed|corrected)\b/i,
+  /\btag\b[^?.!]*\b(?:work|corrections?|fixes|changes)\b[^?.!]*\b(?:done|completed|made|finished)\b/i,
 ];
 
 /**
@@ -60,19 +72,24 @@ function minusOneDay(iso: string): string | null {
 }
 
 /**
- * tag_status input from Prime's scope, following the owner's precedence:
- * explicit period (requested) → conversation period (inherited by M1b) → current month (omit dates).
+ * tag_status input from Prime's scope (P-LIVE-02, owner 2026-11-25):
+ *   explicit all-history request → all history;
+ *   a narrower period the customer asked for in THIS message → that period;
+ *   otherwise → all outstanding work (all history). A period inherited from earlier in the
+ *   conversation is not a request for a narrower scope, so it is not applied to categorization.
  * Document scope is not resolved here (no importId in this path); tag_status handles it when given.
  */
 export function tagStatusInputFromScope(
   scope: ResolvedPeriodLike | null | undefined,
   inheritedFromConversation: boolean,
-): { startDate?: string; endDate?: string; periodSource?: 'requested' | 'conversation' } {
+  opts: { allHistory?: boolean } = {},
+): { startDate?: string; endDate?: string; periodSource?: 'requested'; allHistory?: true } {
+  if (opts.allHistory) return { allHistory: true };
   const p = scope?.primary;
-  if (!p?.from || !p?.to) return {};
+  if (inheritedFromConversation || !p?.from || !p?.to) return { allHistory: true };
   const end = minusOneDay(p.to);
-  if (!end || end < p.from) return {};
-  return { startDate: p.from, endDate: end, periodSource: inheritedFromConversation ? 'conversation' : 'requested' };
+  if (!end || end < p.from) return { allHistory: true };
+  return { startDate: p.from, endDate: end, periodSource: 'requested' };
 }
 
 // ── L-A: evidence for the model, and the genuine consultation event ─────────
@@ -126,8 +143,26 @@ export function formatTagConsultationEvidence(s: TagStatus): string {
   }
   if (s.status !== 'query_error') {
     lines.push(`- Transactions in scope: ${s.totals.transactionCount}; uncategorized: ${s.totals.uncategorized}; "Other": ${s.totals.otherCount}; needs review: ${s.needsReviewCount}`);
-    lines.push(`- Category sources: customer-confirmed ${s.provenance.customer_confirmed}, possibly customer-approved ${s.provenance.possibly_customer_approved}, automatic ${s.provenance.automatic}, needs review ${s.provenance.needs_review}, unknown ${s.provenance.unknown}`);
-    if (s.recentCorrections.available) lines.push(`- Customer corrections in the last 90 days: ${s.recentCorrections.count}`);
+    lines.push(`- Category sources: set by the customer in the app (verified) ${s.provenance.verified_customer}, protected (origin unverified) ${s.provenance.protected_unverified}, automatic ${s.provenance.automatic}, needs review ${s.provenance.needs_review}, unknown ${s.provenance.unknown}`);
+    // P-LIVE-02: completed work = stored records on the transactions and Tag's correction log,
+    // never conversation history.
+    lines.push(`- Completed work you can see (stored records, not chat history): ${s.provenance.verified_customer} transactions have a category the customer set in the app (verified); ${s.provenance.protected_unverified} more are protected from automatic change but their origin is not verified (older corrections, manual entries, Tag rules or Tag chat) — never call these customer-approved.`);
+    if (s.recentCorrections.available) {
+      const window = s.recentCorrections.windowDays == null ? 'all time' : `last ${s.recentCorrections.windowDays} days`;
+      lines.push(`- Corrections recorded by Tag (${window}): ${s.recentCorrections.count}`);
+    } else {
+      lines.push("- Tag's correction history could not be read this time, so recorded corrections cannot be counted. Say this plainly; the verified customer count above still stands.");
+    }
+    // Confirmed Tag actions (tag-action → tag_activity_log): counts by type only, customer-isolated.
+    if (s.completedActions) {
+      const window = s.completedActions.windowDays == null ? 'all time' : `last ${s.completedActions.windowDays} days`;
+      if (s.completedActions.available) {
+        const types = Object.entries(s.completedActions.byType).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t.replace(/_/g, ' ')} ${n}`).join(', ');
+        lines.push(`- Changes the customer confirmed through Tag (${window}): ${s.completedActions.count}${types ? ` (${types})` : ''}`);
+      } else {
+        lines.push("- Tag's confirmed-action log could not be read this time. Say this plainly; do not guess how many changes were confirmed.");
+      }
+    }
     if (s.anomalies.length > 0) {
       lines.push('- Suspected categorization issues (proposals only):');
       for (const a of s.anomalies) {
@@ -139,7 +174,9 @@ export function formatTagConsultationEvidence(s: TagStatus): string {
   }
   for (const c of s.caveats) lines.push(`- Caveat: ${c}`);
   lines.push(
-    'How to answer: say you checked with Tag; state the period/scope; summarize the counts and any suspected issues as proposals; '
+    'How to answer: say you checked with Tag; state the period/scope; give the number still needing categorization (uncategorized + needs review) directly; '
+    + 'report the completed work from the stored records above; never ask permission to check or widen the scope and never ask the customer to repeat the request; '
+    + 'summarize any suspected issues as proposals; '
     + 'include the category-source caveat; offer "Want Tag to review these with you?" — never say anything was changed. '
     + 'Do not use tax-section totals to answer a categorization question.',
   );

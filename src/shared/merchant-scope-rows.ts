@@ -23,6 +23,7 @@
  */
 
 import { merchantGroupingKey } from '../../netlify/functions/_shared/merchantNormalize';
+import { pagedSelectAll } from './paged-select';
 import { isNonSpendCategory } from './financial-taxonomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,7 +75,8 @@ export interface MerchantScopeQuery extends PromiseLike<{ data: unknown; error: 
   gte(column: string, value: unknown): MerchantScopeQuery;
   lte(column: string, value: unknown): MerchantScopeQuery;
   or(filters: string): MerchantScopeQuery;
-  limit(count: number): MerchantScopeQuery;
+  order(column: string, options: { ascending: boolean }): MerchantScopeQuery;
+  range(from: number, to: number): PromiseLike<{ data: unknown; error: { message?: string } | null }>;
 }
 
 export interface MerchantScopeClient {
@@ -82,8 +84,9 @@ export interface MerchantScopeClient {
 }
 
 /**
- * Maximum rows fetched before in-code scoping. If the query returns exactly
- * this many rows the set is treated as potentially truncated.
+ * Hard ceiling on rows fetched before in-code scoping (FST-1 / P-G8). The read is
+ * PAGED (an API row cap of 1,000 is never mistaken for the end of the data);
+ * truncation is decided by a probe row past this ceiling, never by a row count.
  */
 export const MERCHANT_SCOPE_ROW_FETCH_LIMIT = 5000;
 
@@ -105,24 +108,24 @@ export async function fetchMerchantScopeRows(
   extraColumns: string[] = [],
 ): Promise<{ rows: MerchantScopeRow[]; truncated: boolean; error: string | null }> {
   const columns = Array.from(new Set([...MERCHANT_SCOPE_BASE_COLUMNS, ...extraColumns])).join(', ');
-  let query = sb.from('transactions').select(columns).eq('user_id', userId);
+  const makeQuery = () => {
+    let query = sb.from('transactions').select(columns).eq('user_id', userId);
+    if (scope.startDate) query = query.gte('date', scope.startDate);
+    if (scope.endDate) query = query.lte('date', scope.endDate);
+    if (scope.merchantQuery) {
+      query = query.or(
+        `merchant_name.ilike.%${scope.merchantQuery}%,merchant.ilike.%${scope.merchantQuery}%`,
+      );
+    }
+    if (scope.category) query = query.eq('category', scope.category);
+    if (scope.type) query = query.eq('type', scope.type);
+    // Total order so pages are deterministic and disjoint (matches compareMerchantScopeRows).
+    return query.order('date', { ascending: false }).order('id', { ascending: false });
+  };
 
-  if (scope.startDate) query = query.gte('date', scope.startDate);
-  if (scope.endDate) query = query.lte('date', scope.endDate);
-  if (scope.merchantQuery) {
-    query = query.or(
-      `merchant_name.ilike.%${scope.merchantQuery}%,merchant.ilike.%${scope.merchantQuery}%`,
-    );
-  }
-  if (scope.category) query = query.eq('category', scope.category);
-  if (scope.type) query = query.eq('type', scope.type);
-
-  query = query.limit(MERCHANT_SCOPE_ROW_FETCH_LIMIT);
-
-  const { data, error } = await query;
-  if (error) return { rows: [], truncated: false, error: error.message || 'query_error' };
-  const rows = Array.isArray(data) ? (data as MerchantScopeRow[]) : [];
-  return { rows, truncated: rows.length >= MERCHANT_SCOPE_ROW_FETCH_LIMIT, error: null };
+  const result = await pagedSelectAll<MerchantScopeRow>(makeQuery, { maxRows: MERCHANT_SCOPE_ROW_FETCH_LIMIT });
+  if (result.error) return { rows: [], truncated: false, error: result.error };
+  return { rows: result.rows, truncated: result.truncated, error: null };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

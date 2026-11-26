@@ -103,6 +103,26 @@ const fakeClient = {
 
 const activity = { log: vi.fn(async () => undefined), fluency: vi.fn(async () => undefined) };
 vi.mock('../_shared/supabase', () => ({ admin: () => fakeClient, serverSupabase: () => fakeClient }));
+
+// BYTE-LIVE-01: build-time deploy metadata as hosted Functions see it (null unless a test sets it).
+const buildMeta = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+vi.mock('../_shared/deployMetadata.generated', () => ({
+  get BUILD_DEPLOY_METADATA() {
+    return buildMeta.current;
+  },
+}));
+const HOSTED_ORIGIN = 'https://f00dfacef00dfacef00dface--synthetic-staging.netlify.app';
+const HOSTED_META = { context: 'production', deployId: 'f00dfacef00dfacef00dface', siteName: 'synthetic-staging', deployUrl: HOSTED_ORIGIN, siteUrl: null };
+/** Exactly what hosted staging Functions see: URL and the job secret, no DEPLOY_URL or CONTEXT. */
+function hostedRuntime(meta: Record<string, unknown> | null = { ...HOSTED_META }) {
+  delete process.env.DEPLOY_URL;
+  delete process.env.CONTEXT;
+  process.env.URL = 'https://synthetic-staging.netlify.app';
+  buildMeta.current = meta;
+}
+afterEach(() => {
+  buildMeta.current = null;
+});
 vi.mock('../../../src/lib/ai/userActivity', () => ({
   logUserEvent: (...a: unknown[]) => activity.log(...a),
   recalcFluency: (...a: unknown[]) => activity.fluency(...a),
@@ -290,25 +310,46 @@ describe('tx-update-category learning calls', () => {
     return seen;
   }
 
-  it('forwards the verified JWT and the verified user id to tag-learn on this same deploy', async () => {
+  // Reliability round 2 (owner GO 2026-11-25): learning now runs IN-PROCESS through the shared
+  // tag-learning module for the verified user — there is no network hop, so no token or user id is
+  // forwarded anywhere and a deploy-preview URL cannot redirect it (stronger than the old guarantee).
+  it('learning runs in-process for the verified user: no network call, no token forwarding', async () => {
     process.env.DEPLOY_URL = DEPLOY;
     const seen = stubFetch();
     const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
     expect(r.statusCode).toBe(200);
-    expect(r.json.learned).toMatchObject({ applied: true, method: 'tag-learn' });
-    expect(seen[0].url).toBe(`${DEPLOY}/.netlify/functions/tag-learn`);
-    expect(seen[0].headers.authorization).toBe(`Bearer ${TOKEN_A}`);
-    expect(seen[0].headers['x-user-id']).toBe(USER_A);
-    expect(seen[0].body.userId).toBe(USER_A);
+    expect(r.json.learned).toMatchObject({ method: 'tag-learning' });
+    expect(seen).toHaveLength(0);
   });
 
-  it('without a same-deploy URL (deploy preview) the category still updates but learning is skipped', async () => {
+  it('on a deploy preview the category still updates and nothing is sent over the network', async () => {
     process.env.CONTEXT = 'deploy-preview';
     process.env.URL = 'https://xspensesai-staging.netlify.app';
     const seen = stubFetch();
     const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
     expect(r.statusCode).toBe(200);
-    expect(r.json.learned).toMatchObject({ applied: false });
+    expect(seen).toHaveLength(0);
+  });
+
+  // Integration (staging candidate 1): BYTE-LIVE-01 (798e6c5c) tested the old HTTP hop to tag-learn,
+  // which needed the build-time deploy address. Tag reliability round 2 (09788612) removed that hop:
+  // learning runs in-process for the verified user, so it no longer depends on the address at all —
+  // with or without build metadata, the category is saved, learning runs, nothing goes on the network.
+  it('BYTE-LIVE-01 (superseded by in-process learning): hosted runtime WITHOUT metadata still learns, no network', async () => {
+    hostedRuntime(null);
+    const seen = stubFetch();
+    const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json.learned).toMatchObject({ method: 'tag-learning' });
+    expect(seen).toHaveLength(0);
+  });
+
+  it('BYTE-LIVE-01 (superseded by in-process learning): hosted runtime WITH metadata learns the same way, no network', async () => {
+    hostedRuntime();
+    const seen = stubFetch();
+    const r = await invoke(txUpdate.handler, bearer(TOKEN_A), { id: TX_A, category: 'Coffee' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json.learned).toMatchObject({ method: 'tag-learning' });
     expect(seen).toHaveLength(0);
   });
 });

@@ -16,7 +16,7 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose rows
 type Row = Record<string, any>;
-type Call = { table: string; ops: string[]; filters: Array<[string, string, unknown]>; limit?: number };
+type Call = { table: string; ops: string[]; filters: Array<[string, string, unknown]>; limit?: number; offset?: number };
 
 const USER_A = '11111111-1111-4111-8111-111111111111';
 const USER_B = '22222222-2222-4222-8222-222222222222';
@@ -37,7 +37,9 @@ function q(table: string) {
     const ord = call.ops.find(o => o.startsWith('order:'));
     if (ord) { const asc = ord.endsWith(':asc'); out = [...out].sort((a, b) => (asc ? String(a.date).localeCompare(String(b.date)) : String(b.date).localeCompare(String(a.date)))); }
     if (call.ops.includes('head')) return { data: null, error: null, count: out.length };
-    return { data: call.limit !== undefined ? out.slice(0, call.limit) : out, error: null };
+    // P-LIVE-02: tag_status pages with .range(); honour it (offset + page size).
+    const from = call.offset ?? 0;
+    return { data: call.limit !== undefined ? out.slice(from, from + call.limit) : out.slice(from), error: null };
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- proxy chain
   const proxy: any = new Proxy({}, {
@@ -49,6 +51,7 @@ function q(table: string) {
         else if (prop === 'not') call.filters.push(['not', String(args[0]), null]);
         else if (prop === 'order') call.ops.push(`order:${(args[1] as { ascending: boolean }).ascending ? 'asc' : 'desc'}`);
         else if (prop === 'limit') call.limit = Number(args[0]);
+        else if (prop === 'range') { call.offset = Number(args[0]); call.limit = Number(args[1]) - Number(args[0]) + 1; }
         else call.ops.push(prop);
         return proxy;
       };
@@ -74,7 +77,7 @@ beforeEach(() => {
     transactions: [
       tx('a1', USER_A, '7-ELEVEN STORE', 'Transfers', 'ai', '2026-11-03'),
       tx('a2', USER_A, '7-ELEVEN STORE', 'Transfers', 'tag_rule', '2026-11-04'),
-      tx('a3', USER_A, 'SOBEYS', 'Business Income', 'manual', '2026-11-05'),          // customer-confirmed → never proposed
+      tx('a3', USER_A, 'SOBEYS', 'Business Income', 'manual', '2026-11-05'),          // protected (origin unverified) → never proposed
       tx('a4', USER_A, 'NETFLIX', 'Subscriptions', 'user_correction', '2026-11-06'),
       tx('a5', USER_A, 'MYSTERY', 'Uncategorized', null, '2026-11-07'),
       tx('a6', USER_A, 'SOMEWHERE', 'Other', 'needs_review', '2026-11-08'),
@@ -120,36 +123,47 @@ describe('scope precedence (owner decision)', () => {
   it('no conflict note when only one scope is given', () => {
     expect(resolveTagStatusScope({ startDate: '2026-10-01', endDate: '2026-10-31' }, NOW).conflict).toBeUndefined();
   });
-  it('4. current calendar month fallback, clearly labelled', () => {
+  // P-LIVE-02 (owner 2026-11-25) supersedes the 2026-11-23 current-month fallback: categorization
+  // status is about outstanding work, so with no period or statement the scope is ALL history.
+  it('4. no period and no statement → all imported transactions (never the current month), clearly labelled', () => {
     const s = resolveTagStatusScope({}, NOW);
-    expect(s).toMatchObject({ source: 'default_current_month', startDate: '2026-11-01', endDate: '2026-11-30' });
-    expect(s.label).toMatch(/November 2026 \(current month — no period was given\)/);
+    expect(s).toEqual({ source: 'all_history', label: 'all imported transactions (entire history)' });
   });
-  it('invalid or reversed dates fall back instead of widening', () => {
-    expect(resolveTagStatusScope({ startDate: '2026-12-01', endDate: '2026-01-01' }, NOW).source).toBe('default_current_month');
-    expect(resolveTagStatusScope({ startDate: 'last month' }, NOW).source).toBe('default_current_month');
+  it('invalid or reversed dates are never used; the scope falls back to all history', () => {
+    expect(resolveTagStatusScope({ startDate: '2026-12-01', endDate: '2026-01-01' }, NOW).source).toBe('all_history');
+    expect(resolveTagStatusScope({ startDate: 'last month' }, NOW).source).toBe('all_history');
+  });
+  it('an explicit all-history request beats a conversation period and a statement; a requested period still wins', () => {
+    expect(resolveTagStatusScope({ allHistory: true, startDate: '2026-11-01', endDate: '2026-11-30', periodSource: 'conversation' }, NOW).source).toBe('all_history');
+    expect(resolveTagStatusScope({ allHistory: true, importId: '33333333-3333-4333-8333-333333333333' }, NOW).source).toBe('all_history');
+    expect(resolveTagStatusScope({ allHistory: true, startDate: '2026-10-01', endDate: '2026-10-31' }, NOW).source).toBe('requested_period');
   });
 });
 
 describe('category source classification (C4 caveat)', () => {
   it.each([
-    ['manual', 'customer_confirmed'], ['manual_edit', 'customer_confirmed'], ['user_correction', 'customer_confirmed'], ['user_chat', 'customer_confirmed'], ['user_edit', 'customer_confirmed'],
-    ['tag_rule', 'possibly_customer_approved'], ['tag_chat', 'possibly_customer_approved'],
+    // Owner GO 2026-11-25 item 3: only in-app customer actions are verified; the rest is protected (origin unverified).
+    ['user_edit', 'verified_customer'], ['user_split', 'verified_customer'], ['user_type_fix', 'verified_customer'],
+    ['manual', 'protected_unverified'], ['manual_edit', 'protected_unverified'], ['user_correction', 'protected_unverified'], ['user_chat', 'protected_unverified'],
+    ['user_undo', 'protected_unverified'], ['user_confirmed', 'protected_unverified'],
+    ['tag_rule', 'protected_unverified'], ['tag_chat', 'protected_unverified'],
     ['ai', 'automatic'], ['bulk_fix', 'automatic'], ['merchant_sweep', 'automatic'], ['learned', 'automatic'], ['tag_single', 'automatic'], ['hardcoded', 'automatic'],
     ['needs_review', 'needs_review'], [null, 'unknown'], ['something_new', 'unknown'],
   ])('%s → %s', (src, want) => { expect(classifyCategorySource(src)).toBe(want); });
 });
 
 describe('tag_status tool', () => {
-  it('own data only, November by default; counts by source; corrections; caveat always present', async () => {
+  it('own data only, ALL history by default (P-LIVE-02); counts by source; all-time corrections; caveat always present', async () => {
     const v = val(await run({}));
     expect(v.status).toBe('ok');
-    expect(v.scope.source).toBe('default_current_month');
-    expect(v.totals).toEqual({ transactionCount: 6, categorized: 5, uncategorized: 1, otherCount: 1 });
-    expect(v.provenance).toEqual({ customer_confirmed: 2, possibly_customer_approved: 1, automatic: 1, needs_review: 1, unknown: 1 });
+    expect(v.scope.source).toBe('all_history');
+    // a7 (May) is included: outstanding work is never limited to the current month
+    expect(v.totals).toEqual({ transactionCount: 7, categorized: 6, uncategorized: 1, otherCount: 1 });
+    expect(v.provenance).toEqual({ verified_customer: 0, protected_unverified: 3, automatic: 2, needs_review: 1, unknown: 1 });
     expect(v.needsReviewCount).toBe(1);
     expect(v.protectedFromProposals).toBe(3);
-    expect(v.recentCorrections).toEqual({ available: true, count: 2, topMerchants: ['NETFLIX'] });
+    // all-history scope → the whole correction log (incl. the one older than 90 days)
+    expect(v.recentCorrections).toEqual({ available: true, count: 3, topMerchants: ['NETFLIX', 'OLD'], windowDays: null });
     expect(v.caveats).toContain(C4_PROVENANCE_CAVEAT);
     expect(v.readOnly).toBe(true);
     expect(() => tool.outputSchema.parse(v)).not.toThrow();
@@ -165,7 +179,8 @@ describe('tag_status tool', () => {
     const v = val(await run({}));
     const seven = v.anomalies.find((a: Row) => a.merchant === '7-ELEVEN STORE');
     // a1 ('ai') is proposed; a2 ('tag_rule', possibly customer-approved) is not.
-    expect(seven).toMatchObject({ kind: 'likely_miscategorized', currentCategory: 'Transfers', suggestedCategory: 'Food & Dining', count: 1 });
+    // all history: a1 and a7 ('ai') are proposed; a2 is not.
+    expect(seven).toMatchObject({ kind: 'likely_miscategorized', currentCategory: 'Transfers', suggestedCategory: 'Food & Dining', count: 2 });
     expect(v.anomalies.find((a: Row) => a.merchant === 'SOBEYS')).toBeUndefined(); // 'manual' = customer-confirmed
   });
 
@@ -215,7 +230,7 @@ describe('tag_status tool', () => {
   it('logs carry counts and status only — never merchant names', async () => {
     await run({});
     const all = logs.join('\n');
-    expect(all).toMatch(/\[tag_status\] status=ok scope=default_current_month rows=6/);
+    expect(all).toMatch(/\[tag_status\] status=ok scope=all_history rows=7/);
     for (const m of ['7-ELEVEN', 'SOBEYS', 'NETFLIX', 'MYSTERY']) expect(all).not.toContain(m);
   });
 
@@ -259,7 +274,8 @@ describe('read-only guarantees and wiring', () => {
     const msg = buildPrimeAuthoritySystemMessage({ lane: 'deep', intent: 'general', hasDocs: false, hasSnapshot: false });
     expect(msg).toContain('TAG CONSULTATION (code-owned; read-only):');
     expect(msg).toMatch(/Findings are PROPOSALS\. Never say a category was changed/);
-    expect(msg).toMatch(/Never propose changing customer-confirmed or possibly customer-approved categories/);
+    expect(msg).toMatch(/Never propose changing protected categories, verified or not/);
+    expect(msg).toMatch(/Call a category customer-approved ONLY if it is in the verified customer count/);
     expect(msg).toMatch(/Never widen the period on your own/);
   });
 });

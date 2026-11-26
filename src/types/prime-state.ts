@@ -65,6 +65,9 @@ export interface FinancialSnapshot {
   categorizedCount: number;
   categoryCount: number; // Unique categories used
   
+  /** FST-1: every transaction was read; amounts are authoritative only when true. */
+  dataComplete?: boolean;
+
   /** Spending metrics */
   monthlySpend: number; // Current month expenses
   monthlyIncome: number; // Current month income

@@ -105,11 +105,18 @@ describe('C2-G2 — source guarantees', () => {
   it('no code path reads the override into the prompt; both model calls use buildSystemPrompt', () => {
     expect(src).not.toMatch(/systemPromptOverride\s*\|\|/);
     expect(src).not.toMatch(/const \{[^}]*systemPromptOverride[^}]*\} = body;/);
-    expect(src.match(/system: buildSystemPrompt\(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, \{ spent: yearSpent, income: yearIncome \}\)/g)?.length).toBe(2);
+    // T-LIVE-01: the prompt no longer takes income / total-spent figures (verified spending is appended server-side).
+    expect(src.match(/system: buildSystemPrompt\(learnedRules, flaggedMerchants, progressBlock, smallTalk\)/g)?.length).toBe(2);
   });
   it('two-step confirmation and user-scoped writes are intact', () => {
-    expect(src).toContain('FOLLOW THE TWO-STEP FLOW');
-    expect(src).toMatch(/\.update\(txUpdate\)\s+\.eq\('id', transactionId\)\s+\.eq\('user_id', auth\.userId\)/);
+    // T-LIVE-02: the confirmation is now SERVER-enforced. Tag's single-transaction tool only proposes
+    // (signed 'proposed' receipt); the one user-scoped write is tag-action commit_single, which runs
+    // only when the customer's "yes" binds to that proposal.
+    expect(src).toContain('buildSingleProposal(');
+    expect(src).not.toMatch(/\.update\(txUpdate\)\s+\.eq\('id', transactionId\)/);
+    const action = fs.readFileSync(path.resolve(__dirname, '../tag-action.ts'), 'utf8');
+    expect(action).toMatch(/\.update\(\{\s+category: subject\.targetCategory[\s\S]{0,200}?\.eq\('id', tx\.id\)\s+\.eq\('user_id', userId\)/);
+    expect(action).toContain("if (!sessionId || !proposalMatches) {");
     expect(src).toContain('resolveFocusedTransaction(');
   });
 });

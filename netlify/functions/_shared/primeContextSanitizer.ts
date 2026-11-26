@@ -54,11 +54,12 @@ export function sanitizePrimeContext(raw: unknown): SanitizedPrimeContext | null
   const fs = r.financialSnapshot;
   if (fs && typeof fs === 'object' && !Array.isArray(fs)) {
     const f = fs as Record<string, unknown>;
+    // FST-1 / P-G2: browser-computed amounts (monthlySpend, topCategories) are dropped here.
+    // They came from a capped, screen-specific calculation and must never become financial
+    // facts. The server rebuilds them from the shared engine when they are needed.
     out.financialSnapshot = {
       hasTransactions: bool(f.hasTransactions) ?? false,
       uncategorizedCount: num(f.uncategorizedCount) ?? 0,
-      monthlySpend: num(f.monthlySpend),
-      topCategories: arr(f.topCategories, 10, nameAmount),
       hasDebt: bool(f.hasDebt),
       hasGoals: bool(f.hasGoals),
     };
@@ -101,7 +102,8 @@ export function sanitizePrimeContext(raw: unknown): SanitizedPrimeContext | null
   const team = summaryText(r.teamActivitySummary, 20, 2000);
   if (team) out.teamActivitySummary = team;
 
-  for (const k of ['pendingImports', 'transactionCount', 'totalSpent', 'totalIncome'] as const) {
+  // FST-1 / P-G2: browser totalSpent / totalIncome are no longer accepted (never facts).
+  for (const k of ['pendingImports', 'transactionCount'] as const) {
     const v = num(r[k]);
     if (v !== undefined) out[k] = v;
   }

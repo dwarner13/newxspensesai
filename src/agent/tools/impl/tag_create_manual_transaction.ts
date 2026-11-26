@@ -64,7 +64,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       description: description,
       category: category,
       type: transactionType,
-      category_source: 'manual', // Mark as manually created
+      // Reliability round 2 (owner GO 2026-11-25): the category was chosen by an AI tool, not confirmed by the customer.
+      category_source: 'tag_assisted',
       source_type: 'chat', // Mark as created via chat
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

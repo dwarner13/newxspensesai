@@ -320,15 +320,14 @@ describe('T-H1 claim-first (Prime HQ review): duplicates and conflicts run no to
     expect(String(json.reply)).not.toMatch(/\bdone\b|moved/i);
   });
 
-  it('a retry of a completed tool turn returns the stored reply and authoritative outcome without re-running the tool', async () => {
-    tools.txCount = 3;
+  it('a retry of a tool turn returns the stored reply and stored outcome without re-running the model or any tool', async () => {
     modelPlan.push(bulkMove());
-    const first = await callTag({ message: 'yes move all Travel', clientMessageId: 'msg_tool_00001' });
-    expect(tools.txUpdates).toBe(1);
-    const retry = await callTag({ message: 'yes move all Travel', sessionId: first.json.sessionId, clientMessageId: 'msg_tool_00001' });
-    expect(tools.txUpdates).toBe(1);
+    const first = await callTag({ message: 'move all Travel', clientMessageId: 'msg_tool_00001' });
+    const stored = messagesOf(first.json.sessionId).find(m => m.role === 'assistant');
+    const retry = await callTag({ message: 'move all Travel', sessionId: first.json.sessionId, clientMessageId: 'msg_tool_00001' });
+    expect(tools.txUpdates).toBe(0);
     expect(modelCalls).toHaveLength(1);
-    expect(retry.json).toMatchObject({ duplicate: true, persisted: true, reply: first.json.reply, actionOutcome: { tool: 'bulk_recategorize', success: true, count: 3, state: 'completed' } });
+    expect(retry.json).toMatchObject({ duplicate: true, persisted: true, reply: first.json.reply, actionOutcome: stored.metadata.actionReceipt });
   });
 
   it('a conflict (unique key, nothing stored in this session) runs no model and no tool and asks to resend', async () => {
@@ -341,24 +340,20 @@ describe('T-H1 claim-first (Prime HQ review): duplicates and conflicts run no to
     expect(String(json.reply)).toContain('send it again');
   });
 
-  it('the stored receipt is the DATABASE outcome: a failed bulk update is recorded as failed with count 0', async () => {
-    tools.txCount = 4;
-    tools.txUpdateFails = true;
-    modelPlan.push(bulkMove());
-    const { json } = await callTag({ message: 'yes move all Travel', clientMessageId: 'msg_failupd_01' });
-    expect(json.action).toMatchObject({ applied: false, affectedCount: 0 });
-    expect(String(json.reply)).toContain("couldn't move those transactions");
-    expect(String(json.reply)).not.toContain('✓ Moved');
-    const stored = messagesOf(json.sessionId).find(m => m.role === 'assistant');
-    expect(stored.metadata.actionReceipt).toMatchObject({ tool: 'bulk_recategorize', success: false, count: 0, state: 'failed', reason: 'update_failed' });
-  });
-
-  it('a successful bulk update stores a completed receipt with the verified count', async () => {
+  // T-ACT-SAFE (owner GO 2026-11-25): Tag's bulk_recategorize tool only PROPOSES. Execution and its
+  // authoritative receipt (database outcome, verified count) moved to tag-action commit_proposal —
+  // covered with real rows in t-act-safe-proposals.test.ts.
+  it('a bulk move tool call writes nothing and never stores a completed / executed receipt', async () => {
     tools.txCount = 4;
     modelPlan.push(bulkMove());
-    const { json } = await callTag({ message: 'yes move all Travel', clientMessageId: 'msg_okupd_0001' });
+    const { json } = await callTag({ message: 'move all Travel to Transportation', clientMessageId: 'msg_okupd_0001' });
+    expect(tools.txUpdates).toBe(0);
+    expect(json.action).toMatchObject({ tool: 'bulk_recategorize', applied: false, proposalOnly: true });
+    expect(String(json.reply)).not.toMatch(/Moving them now|✓ Moved|Done/);
     const stored = messagesOf(json.sessionId).find(m => m.role === 'assistant');
-    expect(stored.metadata.actionReceipt).toMatchObject({ v: 1, employee: 'tag-ai', tool: 'bulk_recategorize', success: true, count: 4, state: 'completed' });
+    expect(stored.metadata.actionReceipt).toMatchObject({ v: 1, employee: 'tag-ai', action: 'bulk_move_category' });
+    expect(['proposed', 'failed']).toContain(stored.metadata.actionReceipt.state);
+    expect(stored.metadata.actionReceipt.success).toBeUndefined();
     expect(json.persisted).toBe(true);
   });
 });

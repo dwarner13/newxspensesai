@@ -74,7 +74,11 @@ describe('TagCopilotPanel wiring (static)', () => {
   };
   it('preview, commit and cancel all send the conversation to tag-action', () => {
     expect(fn('previewAction')).toMatch(/intent: 'preview'[\s\S]*conversation,/);
-    expect(fn('commitPendingProposal')).toMatch(/intent: 'commit'[\s\S]*conversation,/);
+    // T-ACT-FINAL: every confirmation is a signed-proposal confirmation (commit_proposal / commit_single);
+    // the retired merchant `commit` is never sent.
+    expect(fn('commitPendingProposal')).toMatch(/intent: 'commit_proposal'[\s\S]*conversation/);
+    expect(fn('commitPendingProposal')).toMatch(/intent: 'commit_single'[\s\S]*conversation,/);
+    expect(fn('commitPendingProposal')).not.toMatch(/intent: 'commit',/);
     expect(fn('cancelPendingProposal')).toMatch(/intent: 'cancel_proposal', conversation/);
   });
   it('the panel no longer composes "Done" or the proposal text itself', () => {

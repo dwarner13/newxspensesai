@@ -52,6 +52,7 @@ function fakeClient() {
     const missing = isTx ? cols.filter(c => !KNOWN_COLUMNS.has(c)) : [];
     const filters: Array<(r: Row) => boolean> = [];
     let limit = Infinity;
+    let offset = 0;
     let single = false;
     const str = (v: unknown) => (v === null || v === undefined ? null : String(v));
     const record = (m: string, c: string, v: unknown) => { if (isTx) db.calls.push([m, c, v]); };
@@ -71,12 +72,14 @@ function fakeClient() {
       },
       not() { return b; }, ilike() { return b; }, order() { return b; }, in() { return b; }, is() { return b; },
       limit(n: number) { limit = n; return b; },
+      // FST-1 / P-G8: merchant scope fetch now pages with .range().
+      range(from: number, to: number) { offset = from; limit = to - from + 1; return b; },
       maybeSingle() { single = true; return b; },
       then<T>(resolve: (v: { data: unknown; error: { code: string; message: string } | null }) => T) {
         if (missing.length > 0) {
           return Promise.resolve({ data: null, error: { code: '42703', message: `column ${missing[0]} does not exist` } }).then(resolve);
         }
-        const matched = source().filter(r => filters.every(f => f(r))).slice(0, limit);
+        const matched = source().filter(r => filters.every(f => f(r))).slice(offset, offset + limit);
         const data = matched.map(r => Object.fromEntries(cols.map(c => [c, r[c] ?? null])));
         return Promise.resolve({ data: single ? (data[0] ?? null) : data, error: null }).then(resolve);
       },
@@ -581,7 +584,9 @@ describe('Blocker 2 — refine with old (object) vs new (string) categoryFilter'
     seedSession('Groceries');
     const r = await refineExecute({ operation: 'exclude', targets: ['costco gas'] }, { userId: U, sessionId: 'sess-1' });
     expect(r.ok && r.value.status).toBe('success');
-    expect(categoryCalls()).toEqual([['eq', 'category', 'Groceries']]);
+    // FST-1 / P-G8: the fetch is paged, so the same filter is applied to every page request.
+    expect(categoryCalls().length).toBeGreaterThan(0);
+    expect(categoryCalls().every(c => JSON.stringify(c) === JSON.stringify(['eq', 'category', 'Groceries']))).toBe(true);
     // Groceries only: the Restaurants / Dining wholesale row drops out
     expect(r.ok && r.value.transactionCount).toBe(9);
   });

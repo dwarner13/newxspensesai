@@ -6,6 +6,17 @@ import { logAiActivity } from './_shared/logAiActivity.js';
 import { TAG_CATEGORIES } from './_shared/tagCategories.js';
 import { searchTransactions } from './_shared/txSearchCore.js';
 import { resolveFocusedTransaction } from './_shared/tagFocusedTransaction.js';
+import { buildSingleProposal, TAG_SINGLE_ACTION } from './_shared/tagSingleTransaction.js';
+import { buildActionProposal, TOOL_TO_ACTION } from './_shared/tagProposals.js';
+import {
+  loadTagSpendingSummary,
+  loadCategorizationProgress,
+  formatSpendingBlock,
+  formatProgressBlock,
+  summarizeSearchTotals,
+  isSmallTalk,
+  TAG_FINANCIAL_RULES,
+} from './_shared/tagFinancialContext.js';
 import {
   openEmployeeConversation,
   loadConversationHistory,
@@ -28,12 +39,6 @@ interface LearnedRule {
   updated_at: string;
 }
 
-interface CategorySummary {
-  category: string;
-  count: number;
-  total: number;
-}
-
 // ─── Tool definitions ──────────────────────────────────────────────────────
 // The model emits structured tool_use blocks instead of free-form JSON in
 // reply text. This eliminates the entire class of "Tag claimed Done but
@@ -45,7 +50,7 @@ const TAG_TOOLS = [
   {
     name: 'update_single_transaction',
     description:
-      "Change the category (and optionally subcategory) on ONE specific transaction. Use this when the user is focused on a particular transaction and wants to change just that one — not all transactions for the merchant, no rule for future imports. Always the FIRST step when a focused transaction is in context. After this fires, OFFER (don't auto-execute) to extend the change via set_category_rule. ALWAYS confirm with the user before calling.",
+      "PROPOSE changing the category (and optionally subcategory) of ONE specific transaction — the focused one. This does NOT change anything: the server shows the customer a proposal and changes the transaction only after the customer explicitly confirms it. Call it as soon as the customer asks to change the focused transaction (\"change this to …\", \"this should be …\"). Never say the change is done.",
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -70,14 +75,14 @@ const TAG_TOOLS = [
   {
     name: 'set_category_rule',
     description:
-      "Save a permanent category rule for a merchant and apply it to all matching transactions. Use when the user wants to categorize a specific merchant (e.g. \"Smitty's is Food & Dining\", \"always categorize Shell as Transportation\", \"Yo Yo Massage should be Personal Care, subcategory Massage\"). The rule auto-applies to future transactions matching this merchant. ALWAYS confirm the change with the user in plain language BEFORE calling this tool — wait for an explicit \"yes\" / \"go ahead\" / \"do it\" before emitting the call.",
+      "PROPOSE a category rule for a merchant (future imports). This does NOT change anything: the server shows the customer the exact rule and how many transactions are affected, and saves it only after the customer explicitly confirms. Call it as soon as the customer asks (e.g. \"always categorize Shell as Transportation\"). Set applyToExisting=true ONLY if the customer explicitly asked to change their existing transactions too. Never say it is done.",
     input_schema: {
       type: 'object' as const,
       properties: {
         vendor: {
           type: 'string',
           description:
-            'Merchant name or keyword (case-insensitive substring match). Use the user\'s exact wording — do not "correct" or rephrase. Examples: "smittys", "yo yo massage", "shell", "GFS PAY".',
+            'Merchant name or keyword (case-insensitive substring match). Use the user\'s exact wording — do not "correct" or rephrase. Examples: "smittys", "yo yo massage", "shell", "acme pay".',
         },
         category: {
           type: 'string',
@@ -93,7 +98,7 @@ const TAG_TOOLS = [
         applyToExisting: {
           type: 'boolean',
           description:
-            'Whether to update all existing transactions matching this merchant. Defaults to true unless the user said otherwise.',
+            'true ONLY when the customer explicitly asked to also change their EXISTING transactions for this merchant. Default false: a rule applies to future imports only.',
         },
       },
       required: ['vendor', 'category'],
@@ -102,7 +107,7 @@ const TAG_TOOLS = [
   {
     name: 'bulk_recategorize',
     description:
-      'Move ALL transactions in one category to another category. Use when the user wants to reclassify an entire bucket (e.g. "move all Other to Food & Dining", "everything in Transfers should be Income"). Does NOT create a rule — only updates existing transactions. ALWAYS confirm before calling.',
+      'PROPOSE moving the existing transactions in one category to another (e.g. "move all Other to Food & Dining"). This does NOT change anything: the server shows the exact move and count (transactions the customer categorized themselves are kept) and moves them only after the customer explicitly confirms. No rule is created. Never say it is done.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -123,7 +128,7 @@ const TAG_TOOLS = [
   {
     name: 'rename_merchant',
     description:
-      'Fix a mangled or incorrect merchant name on all matching transactions. Use ONLY when the user explicitly wants to fix an OCR error or rename a merchant (e.g. "Unknown" → "Gordon Food Service", "GFS PAY" → "Gordon Food Service"). Updates merchant_name on every transaction whose current name matches from_name exactly (case-insensitive). ALWAYS confirm before calling. If from_name is ambiguous (user says "rename this one" without naming it), ASK which merchant before emitting.',
+      'PROPOSE renaming a merchant on every transaction whose current name matches from_name exactly (case-insensitive), e.g. "SQ *COFFEE 123" → "Corner Coffee". This does NOT change anything: the server shows the exact rename and count and renames only after the customer explicitly confirms; the original imported description is always kept. Use ONLY when the customer explicitly asks to rename a merchant; if from_name is ambiguous, ASK first. Never say it is done.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -194,41 +199,38 @@ const TAG_TOOLS = [
   },
 ];
 
-function buildSystemPrompt(
+/**
+ * T-LIVE-01: Tag's system prompt. It carries NO income, total-spent or cash-flow figure. Money figures
+ * reach Tag only through the server-calculated VERIFIED SPENDING TOTALS block (with its scope), which
+ * the caller appends — and never for a pure greeting (`smallTalk`).
+ */
+export function buildSystemPrompt(
   learnedRules: LearnedRule[],
-  categorySummary: CategorySummary[],
-  uncategorizedCount: number,
   flaggedMerchants: { merchant: string; amount: number; category: string }[],
-  yearTotal: { spent: number; income: number }
+  progressBlock: string,
+  smallTalk = false,
 ): string {
   const rulesText = learnedRules.length > 0
     ? learnedRules.map(r => `  ${r.vendor_key} → ${r.category}`).join('\n')
     : '  No rules learned yet';
 
-  const catText = categorySummary
-    .slice(0, 8)
-    .map(c => `  ${c.category}: ${c.count} txns, $${c.total.toLocaleString()}`)
-    .join('\n');
-
   const flaggedText = flaggedMerchants.length > 0
     ? flaggedMerchants.slice(0, 5).map(f => `  ${f.merchant} $${f.amount.toFixed(2)} (currently: ${f.category})`).join('\n')
     : '  None';
 
-  return `You are Tag — XspensesAI's sharp, friendly categorization expert. You are speaking with the user from the Categories dashboard. You have full visibility into their spending categories and the rules you have learned.
-
-USER'S FINANCES (recent activity — up to 1500 most recent transactions):
-- Total spent: $${yearTotal.spent.toLocaleString()}
-- Total income: $${yearTotal.income.toLocaleString()}
-- Uncategorized transactions: ${uncategorizedCount}
-
-SPENDING CATEGORIES:
-${catText}
+  const contextBlock = smallTalk
+    ? `THIS MESSAGE IS A GREETING OR PLEASANTRY. Reply warmly and briefly like a friend would (one or two short sentences), and at most offer to help with categorizing. Do NOT mention any amount, total, count, category breakdown or opinion about their finances.`
+    : `${progressBlock}
 
 RULES I HAVE LEARNED (vendor → category):
 ${rulesText}
 
-TRANSACTIONS NEEDING REVIEW:
-${flaggedText}
+TRANSACTIONS NEEDING A CATEGORY (newest):
+${flaggedText}`;
+
+  return `You are Tag — XspensesAI's sharp, friendly categorization expert. You are speaking with the user from the Categories dashboard. Your job is categorization: categories, subcategories, merchant names and the rules you have learned.
+
+${contextBlock}
 
 ═══════════════════════════════════════════════════════════════════════
 HOW YOU MAKE CHANGES — READ CAREFULLY
@@ -259,8 +261,11 @@ SEARCH RESULTS DISPLAY RULES — CRITICAL:
   - The search returns { totalMatches, returnedCount, transactions[] }.
   - NEVER dump raw transaction rows into chat. Users don't want a wall of text.
   - Default limit is 25. Use 10-25 for normal requests.
-  - When results arrive, SUMMARIZE first: "I found **47** Subscriptions
-    transactions totaling **$1,200**. Here are the **10 most recent**:"
+  - When results arrive, SUMMARIZE first using ONLY the server's figures in
+    the result. If the result says COMPLETE you may quote its totals with
+    their scope; if it says SAMPLE ONLY, give the count shown and the total
+    count, never a dollar total ("Here are the **10 most recent** of **47**").
+  - Never add up, average or re-total the rows yourself.
   - Show a USEFUL SUBSET (10-25 rows), formatted cleanly.
   - When totalMatches > returnedCount, ALWAYS tell the user:
     "There are **37 more** — want me to narrow by date, merchant, or amount?"
@@ -270,45 +275,40 @@ SEARCH RESULTS DISPLAY RULES — CRITICAL:
     update_single_transaction if the user wants to change a category.
 
 ═══════════════════════════════════════════════════════════════════════
-TWO-STEP FLOW WHEN A FOCUSED TRANSACTION IS PRESENT
+FOCUSED TRANSACTION: ONE TRANSACTION, PROPOSED BY THE SERVER
 ═══════════════════════════════════════════════════════════════════════
 
 If the system prompt contains a FOCUSED TRANSACTION block, the user is looking
-at ONE specific transaction in the UI (drawer, detail view, etc). DEFAULT to
-changing only that one transaction first. Then ASK whether to extend.
+at ONE specific transaction in the UI (drawer, detail view, etc). "this",
+"it", "this one", "this expense", "this transaction" mean THAT transaction —
+never a merchant name, never a search term.
 
-Step 1 — Confirm change to THIS transaction only:
-  - Reply: "Got it — change this **<merchant>** on **<date>** to <category>/<subcategory>?"
-  - Wait for "yes" / "go ahead" / etc. DO NOT call any tool yet.
-
-Step 2 — On confirmation, call update_single_transaction with the focused
-  transaction's ID. The system writes a "✓ Updated this transaction" line.
-
-Step 3 — In your SAME reply (after the tool fires), ASK about extending:
-  - "Want me to update the other <N> <merchant> transactions and save a rule for future imports?"
-  - <N> is the count of OTHER matching transactions (excluding the one you just updated).
-  - If there are no other matching transactions, just say "No other <merchant> transactions to update — done."
-
-Step 4 — On second confirmation, call set_category_rule with applyToExisting=true.
-  This applies to all matching transactions including future imports.
+When the customer asks to change it ("change this to food and beverage",
+"this should be Groceries"), call update_single_transaction right away with the
+focused transaction's ID and the category they named. That tool only PROPOSES:
+the server writes the proposal ("Change this … to …? Say yes to confirm"), and
+the change happens only after the customer explicitly says yes. Never say it is
+done. Never extend it to other transactions or save a rule unless the customer
+separately asks for that.
 
 ═══════════════════════════════════════════════════════════════════════
-ONE-STEP FLOW WHEN NO FOCUSED TRANSACTION
+RULES, BULK MOVES AND RENAMES (NO FOCUSED TRANSACTION)
 ═══════════════════════════════════════════════════════════════════════
 
-If there's no FOCUSED TRANSACTION block, the user is in a general context.
-Use set_category_rule directly with the standard two-turn confirm pattern:
-
-Turn 1: "Want me to set <merchant> to <category>/<subcategory> and apply to
-all <N> matching transactions plus future imports?"
-Turn 2: User confirms → call set_category_rule.
+set_category_rule, bulk_recategorize and rename_merchant only PROPOSE. When the
+customer asks for one, call the tool straight away: the server shows the exact
+change and how many transactions it affects, and makes it only after the
+customer explicitly says yes. A rule is for FUTURE imports; set
+applyToExisting=true only if the customer explicitly asked to change their
+existing transactions too. Never say a change is done.
 
 ═══════════════════════════════════════════════════════════════════════
 GENERAL RULES
 ═══════════════════════════════════════════════════════════════════════
 
-NEVER call a tool on the same turn the user makes the request. NEVER call a tool
-without explicit confirmation ("yes" / "go ahead" / "do it" / "confirm").
+Every tool that changes data only PROPOSES; the server asks the customer to
+confirm and makes the change only after an explicit yes. Never claim a change
+is done, and never write your own confirmation question for it.
 
 If the user names a category not in the canonical list, ask them to pick one.
 Do not silently substitute.
@@ -329,7 +329,12 @@ YOUR PERSONALITY AND VOICE
 - HARD LIMIT: Maximum 2 sentences, then ONE question. No bullet points, no lists, no headers.
 - When proposing a change, the second sentence is your confirmation question.
 - After a tool fires, the system writes the confirmation — you don't speak.
-- Example: "Transfers are eating **44%** of your spend — that's unusually high. What are those payments going to?"
+- Greetings get a natural, friendly reply — no numbers, no financial summary, no unsolicited assessment.
+  Example: user "hi tag how are you" → "Doing great, thanks for asking! Want me to tidy up anything in your categories today?"
+- Example (categorization): "Those **12** Uber charges are sitting in Shopping — want me to move them to Transportation?"
+
+═══════════════════════════════════════════════════════════════════════
+${TAG_FINANCIAL_RULES}
 
 FORMATTING:
 - Wrap key numbers in **double asterisks**: dollar amounts, counts, percentages, dates.
@@ -348,7 +353,7 @@ When flagging:
 - State it's high-interest lending + rough APR range (e.g. "30-40%+")
 - Confirm you're categorizing as Debt Payments
 - Offer to loop in Goalie for a payoff plan
-- Example: "Lend Direct is a Canadian alternative lender — APRs typically **30-45%**. I see **8** payments totaling **$331**. Want me to loop in Goalie?"
+- Example: "Lend Direct is a Canadian alternative lender — APRs typically **30-45%**. Want me to loop in Goalie?" (Only quote a payment total if it appears in VERIFIED SPENDING TOTALS or a COMPLETE search result.)
 
 Do NOT flag: prime banks (RBC, TD, BMO, Scotia, CIBC), credit unions, mortgages, auto loans from major lenders, student loans, regular credit card payments.
 
@@ -490,120 +495,80 @@ export const handler: Handler = async (event) => {
       .limit(50);
     const learnedRules: LearnedRule[] = rulesData || [];
 
-    // 2. Load transactions (cap at 1500, ordered by recency).
-    // Order-by-date + 1500 covers ~6-12 months for most users — wide enough
-    // that mid-range merchants like Urban Kids or Sportsnet stay visible.
-    let txQuery = supabase
-      .from('transactions')
-      .select('amount, category, merchant_name, posted_at, date, import_id, subcategory')
-      .eq('user_id', auth.userId)
-      .order('posted_at', { ascending: false, nullsFirst: false });
-    if (importId) txQuery = txQuery.eq('import_id', importId);
-    const { data: allTxs } = await txQuery.limit(1500);
+    // 2. T-LIVE-01: verified financial context. A pure greeting gets none of it (no financial
+    // figures can be volunteered). Otherwise money figures come only from the shared engine
+    // (complete paged fetch, spending purpose, reconciled breakdowns, scope line) and
+    // categorization progress from exact counts over the full scope.
+    const smallTalk = isSmallTalk(message);
+    let progressBlock = '';
+    let merchantDataBlock = '';
+    let flaggedMerchants: { merchant: string; amount: number; category: string }[] = [];
+    let accountCurrency = 'CAD';
+    if (!smallTalk) {
+      const [spendingSummary, progress] = await Promise.all([
+        loadTagSpendingSummary(supabase, auth.userId, { importId: importId || null }),
+        loadCategorizationProgress(supabase, auth.userId, importId || null),
+      ]);
+      progressBlock = formatProgressBlock(progress);
+      accountCurrency = spendingSummary.scope.currency;
 
-    // 2b. Source attribution: resolve import_id → statement display label.
-    const importIds = Array.from(new Set((allTxs || []).map(t => t.import_id).filter(Boolean))) as string[];
-    const importMap: Record<string, { label: string; issuer: string | null }> = {};
-    if (importIds.length > 0) {
-      try {
-        const { data: impData } = await supabase
-          .from('imports')
-          .select('id, filename, issuer')
-          .in('id', importIds);
-        for (const imp of impData || []) {
-          const baseName = String(imp.filename || '').replace(/\.(pdf|csv|xlsx?|txt)$/i, '').trim();
-          const issuer = imp.issuer ? String(imp.issuer) : null;
-          const label = issuer && baseName
-            ? `${issuer} · ${baseName}`
-            : (issuer || baseName || '(unknown statement)');
-          importMap[imp.id] = { label, issuer };
-        }
-      } catch (e: any) {
-        console.error('[tag-copilot] imports lookup failed:', e?.message);
-      }
-    }
+      // Recent rows (row facts, not totals) with source attribution.
+      let recentQuery = supabase
+        .from('transactions')
+        .select('amount, category, merchant_name, posted_at, date, import_id')
+        .eq('user_id', auth.userId)
+        .order('posted_at', { ascending: false, nullsFirst: false });
+      if (importId) recentQuery = recentQuery.eq('import_id', importId);
+      const { data: recentData } = await recentQuery.limit(20);
+      const recentTxs = recentData || [];
 
-    // 3. Aggregate by category
-    const catMap: Record<string, { count: number; total: number }> = {};
-    let yearSpent = 0;
-    let yearIncome = 0;
-    for (const t of allTxs || []) {
-      const amt = Math.abs(Number(t.amount || 0));
-      const cat = t.category || 'Other';
-      if (cat === 'Income') { yearIncome += amt; continue; }
-      yearSpent += amt;
-      if (!catMap[cat]) catMap[cat] = { count: 0, total: 0 };
-      catMap[cat].count++;
-      catMap[cat].total += amt;
-    }
-    const categorySummary: CategorySummary[] = Object.entries(catMap)
-      .sort((a, b) => b[1].total - a[1].total)
-      .map(([category, d]) => ({ category, count: d.count, total: Math.round(d.total) }));
-
-    const flaggedMerchants = (allTxs || [])
-      .filter(t => !t.category || t.category === 'Uncategorized' || t.category === 'Other')
-      .slice(0, 5)
-      .map(t => ({
+      let flaggedQuery = supabase
+        .from('transactions')
+        .select('amount, category, merchant_name')
+        .eq('user_id', auth.userId)
+        .or('category.is.null,category.eq.,category.eq.Uncategorized,category.eq.Needs Review')
+        .order('posted_at', { ascending: false, nullsFirst: false });
+      if (importId) flaggedQuery = flaggedQuery.eq('import_id', importId);
+      const { data: flaggedData } = await flaggedQuery.limit(5);
+      flaggedMerchants = (flaggedData || []).map(t => ({
         merchant: t.merchant_name || 'Unknown',
         amount: Math.abs(Number(t.amount || 0)),
         category: t.category || 'Uncategorized',
       }));
-    const uncategorizedCount = (allTxs || []).filter(
-      t => !t.category || t.category === 'Uncategorized'
-    ).length;
 
-    // 3b. Merchant-level data so Tag can answer "how much at Rogers?"
-    const merchantMap: Record<string, { count: number; total: number; category: string; lastDate: string }> = {};
-    for (const t of allTxs || []) {
-      const m = String(t.merchant_name || 'Unknown').trim();
-      if (!m || m === 'Unknown') continue;
-      const amt = Math.abs(Number(t.amount || 0));
-      const d = t.posted_at || t.date || '';
-      if (!merchantMap[m]) {
-        merchantMap[m] = { count: 0, total: 0, category: t.category || 'Uncategorized', lastDate: d };
+      const importIds = Array.from(new Set(recentTxs.map(t => t.import_id).filter(Boolean))) as string[];
+      const importMap: Record<string, { label: string }> = {};
+      if (importIds.length > 0) {
+        try {
+          const { data: impData } = await supabase
+            .from('imports')
+            .select('id, filename, issuer')
+            .in('id', importIds);
+          for (const imp of impData || []) {
+            const baseName = String(imp.filename || '').replace(/\.(pdf|csv|xlsx?|txt)$/i, '').trim();
+            const issuer = imp.issuer ? String(imp.issuer) : null;
+            importMap[imp.id] = { label: issuer && baseName ? `${issuer} · ${baseName}` : (issuer || baseName || '(unknown statement)') };
+          }
+        } catch (e: any) {
+          console.error('[tag-copilot] imports lookup failed:', e?.message);
+        }
       }
-      merchantMap[m].count++;
-      merchantMap[m].total += amt;
-      if (d > merchantMap[m].lastDate) merchantMap[m].lastDate = d;
-    }
-    const topMerchants = Object.entries(merchantMap)
-      .sort((a, b) => b[1].total - a[1].total)
-      .slice(0, 30);
 
-    const recentTxs = [...(allTxs || [])]
-      .sort((a, b) => String(b.posted_at || b.date || '').localeCompare(String(a.posted_at || a.date || '')))
-      .slice(0, 20);
+      merchantDataBlock = `\n\n${formatSpendingBlock(spendingSummary)}
 
-    const totalCount = (allTxs || []).length;
-    const needsReviewCount = (allTxs || []).filter(t => t.category === 'Needs Review').length;
-    const categorizedCount = totalCount - uncategorizedCount - needsReviewCount;
-
-    const merchantDataBlock = `\n\nMERCHANT DATA (real numbers from the user's actual transactions)${importId ? ' — SCOPED TO ONE STATEMENT' : ''}:
-
-TOP MERCHANTS BY TOTAL:
-${topMerchants.length > 0
-  ? topMerchants.map(([m, d]) => `  ${m}: $${d.total.toFixed(2)} across ${d.count} txn${d.count !== 1 ? 's' : ''} (last: ${d.lastDate || 'unknown'}, cat: ${d.category})`).join('\n')
-  : '  (none)'}
-
-RECENT TRANSACTIONS (newest first):
+RECENT TRANSACTIONS (newest first; individual rows, not totals):
 ${recentTxs.length > 0
   ? recentTxs.map(t => {
       const src = t.import_id && importMap[t.import_id] ? ` from ${importMap[t.import_id].label}` : '';
       return `  ${t.posted_at || t.date || '?'} ${t.merchant_name || 'Unknown'} $${Math.abs(Number(t.amount || 0)).toFixed(2)} [${t.category || 'Uncategorized'}]${src}`;
     }).join('\n')
   : '  (none)'}
-
-TRANSACTION COUNTS${importId ? ' (this statement only)' : ''}:
-  Total: ${totalCount}
-  Categorized: ${categorizedCount}
-  Uncategorized: ${uncategorizedCount}
-  Needs Review: ${needsReviewCount}
 ${importId ? '\nSCOPE: You are looking at ONE specific statement (import_id: ' + importId + '). Answer questions about THIS statement unless the user explicitly asks about their overall picture.' : ''}
 
-RULES FOR USING MERCHANT DATA:
-- When the user asks about a specific merchant, search TOP MERCHANTS and RECENT TRANSACTIONS above. Quote the exact amounts and counts you find there.
-- If a merchant isn't in the lists, say so honestly — don't guess.
-- Never invent amounts. Every number in your reply must appear in the data above.`;
+RULES FOR USING THIS DATA:
+- For a merchant or category total, use VERIFIED SPENDING TOTALS only, with its scope line. If the merchant isn't listed there, say you don't have a verified total for it (offer to search).
+- Never invent amounts, and never compute one: every amount in your reply must appear verbatim above or in a tool result.`;
+    }
 
     // 3c. Focused transaction block. When the panel is opened from a drawer
     // or single-row context, the caller passes focusedTransaction with the
@@ -651,13 +616,10 @@ FOCUSED TRANSACTION (the user is looking at this specific transaction)
   Current subcategory: ${ftSubcategory}
   Other transactions for this merchant: ${otherCount}
 
-When the user wants to change a category, FOLLOW THE TWO-STEP FLOW:
-  Step 1: confirm change to THIS transaction only ("change this MERCHANT on DATE to CAT/SUB?")
-  Step 2: on user "yes", call update_single_transaction with transaction_id="${ft.id}"
-  Step 3: SERVER appends a confirmation AND a follow-up question asking whether to extend to the other ${otherCount} ${ftMerchant} transactions. You do NOT write this follow-up yourself — emit ONLY the tool call (and optionally a brief acknowledgment text). The system appends the rest.
-  Step 4: on the next user "yes", call set_category_rule with vendor="${ftMerchant}" and the SAME category/subcategory you used in step 2. CRITICAL: do not drop subcategory between calls — re-pass the exact value.
-
-If there are zero other matching transactions (other count = 0), the server will say so — still don't write a follow-up yourself.`;
+When the customer asks to change THIS transaction ("this", "it", "this expense" …), call
+update_single_transaction with transaction_id="${ft.id}" and the category they named. It only proposes;
+the server asks the customer to confirm. Do not write your own confirmation or say it is done, and do
+not touch the other ${otherCount} ${ftMerchant} transactions unless the customer separately asks.`;
     }
 
     // 4. Call Claude with tools
@@ -665,7 +627,7 @@ If there are zero other matching transactions (other count = 0), the server will
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
-      system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }) + merchantDataBlock + focusedTransactionBlock,
+      system: buildSystemPrompt(learnedRules, flaggedMerchants, progressBlock, smallTalk) + merchantDataBlock + focusedTransactionBlock,
       tools: TAG_TOOLS,
       messages: [
         ...storedHistory,
@@ -700,357 +662,56 @@ If there are zero other matching transactions (other count = 0), the server will
       } catch { /* non-blocking */ }
     }
 
+    // T-LIVE-02: set when Tag proposed a single-transaction change (no write happened).
+    let singleProposalOutcome: Awaited<ReturnType<typeof buildSingleProposal>> | null = null;
+    // T-ACT-SAFE: set when Tag proposed a rule / bulk move / rename (no write happened).
+    let actionProposalOutcome: Awaited<ReturnType<typeof buildActionProposal>> | null = null;
+
     // 6. Execute the tool the model called.
     if (toolUseBlock) {
       action = { tool: toolUseBlock.name, ...toolUseBlock.input, applied: false };
 
       try {
         if (toolUseBlock.name === 'update_single_transaction') {
+          // T-LIVE-02: Tag's tool never writes. The server re-reads the transaction scoped to this user,
+          // resolves the category and records a signed 'proposed' receipt; the change happens only in
+          // tag-action commit_single after the customer's explicit "yes" binds to this proposal.
           const transactionId = String(toolUseBlock.input.transaction_id || '').trim();
-          const category = String(toolUseBlock.input.category || '');
-          const subcategory = toolUseBlock.input.subcategory
-            ? String(toolUseBlock.input.subcategory).trim()
-            : null;
-
-          if (!transactionId || !category) {
-            confirmationLine = `\n\n⚠ Could not update transaction — missing id or category.`;
-          } else {
-            // Ownership-scoped update. .eq('user_id') is the access control —
-            // a malicious tool call with a foreign transaction_id will match
-            // zero rows because the user_id won't align.
-            const txUpdate: Record<string, unknown> = {
-              category,
-              category_source: 'tag_single',
-              updated_at: new Date().toISOString(),
+          const category = String(toolUseBlock.input.category || '').trim();
+          const subcategory = toolUseBlock.input.subcategory ? String(toolUseBlock.input.subcategory).trim() : '';
+          // Only the server-verified FOCUSED transaction can be proposed (never an arbitrary id the model
+          // picked, even one the customer owns).
+          const focusedId = focused.row ? String(focused.row.id) : null;
+          const outcome: Awaited<ReturnType<typeof buildSingleProposal>> = focusedId && transactionId === focusedId
+            ? await buildSingleProposal(
+              supabase as unknown as Parameters<typeof buildSingleProposal>[0], auth.userId, transactionId,
+              subcategory ? `${category} > ${subcategory}` : category,
+            )
+            : {
+              state: 'failed', reason: 'not_focused',
+              reply: "I can only change the transaction you have open. Open the one you'd like to change (or tap it in your list) and ask me again.",
             };
-            if (subcategory) {
-              txUpdate.subcategory = subcategory;
-              txUpdate.subcategory_source = 'tag_single';
-            }
-            const { error: updErr, data: updRows } = await supabase
-              .from('transactions')
-              .update(txUpdate)
-              .eq('id', transactionId)
-              .eq('user_id', auth.userId)
-              .select('id, merchant_name, category, subcategory');
-
-            if (updErr) {
-              console.error('[tag-copilot] single-tx update failed', updErr.message);
-              confirmationLine = `\n\n⚠ Could not update transaction: ${updErr.message}`;
-            } else if (!updRows || updRows.length === 0) {
-              // Either the id doesn't exist or doesn't belong to this user.
-              confirmationLine = `\n\n⚠ Transaction not found or not accessible.`;
-            } else {
-              const row = updRows[0];
-              const catLabel = row.subcategory
-                ? `${row.category} / ${row.subcategory}`
-                : row.category;
-              action.applied = true;
-              action.affectedCount = 1;
-              action.verification = {
-                transactionId: row.id,
-                merchant: row.merchant_name,
-                category: row.category,
-                subcategory: row.subcategory ?? null,
-              };
-              confirmationLine = `\n\n✓ Updated this transaction: **${row.merchant_name}** → **${catLabel}**.`;
-
-              // ─── Follow-up question: extend to merchant + save rule? ──────
-              // Count other matching transactions for the merchant. If 0, no
-              // follow-up needed — say so and stop. If >0, ask the user.
-              //
-              // Strategy A (multi-turn): second API call lets the model write
-              // a natural follow-up in Tag's voice that includes the category
-              // and subcategory params explicitly. Embedding the params in
-              // the question text means they're in conversation history when
-              // the user says "yes" — the next turn's set_category_rule call
-              // sees them and carries them forward correctly.
-              //
-              // Strategy B (template): if A errors / times out / returns
-              // empty, fall back to a deterministic templated question that
-              // also explicitly contains the params. Either way, "yes" on
-              // the next turn fires set_category_rule with full context.
-              try {
-                const merchantName = row.merchant_name;
-                const { count: otherCount } = await supabase
-                  .from('transactions')
-                  .select('id', { count: 'exact', head: true })
-                  .eq('user_id', auth.userId)
-                  .ilike('merchant_name', `%${merchantName}%`)
-                  .neq('id', row.id);
-                const others = otherCount || 0;
-
-                if (others === 0) {
-                  confirmationLine += ` No other ${merchantName} transactions to update — done.`;
-                } else {
-                  // Build the templated fallback first (ground truth).
-                  const templateQuestion = `Want me to update the other **${others}** ${merchantName} transaction${others !== 1 ? 's' : ''} and save a rule for **${catLabel}**? Say yes to extend.`;
-
-                  // Try multi-turn (Strategy A) — wrap in 3s timeout.
-                  let naturalQuestion = '';
-                  try {
-                    const followupAbort = new AbortController();
-                    const followupTimer = setTimeout(() => followupAbort.abort(), 3000);
-                    const followup = await anthropic.messages.create({
-                      model: 'claude-haiku-4-5-20251001',
-                      max_tokens: 120,
-                      system: `You are Tag. You just updated ONE transaction (${merchantName}) to ${catLabel}. The user has ${others} other matching ${merchantName} transactions. Ask if they want to update those too and save a rule.
-
-REQUIREMENTS:
-- ONE sentence, casual.
-- MUST mention the count: ${others}.
-- MUST mention the merchant: ${merchantName}.
-- MUST mention the category and subcategory exactly: ${catLabel}.
-- End with a yes-prompt.
-- No greetings, no preamble. Just the question.`,
-                      messages: [{ role: 'user', content: 'Write the follow-up question.' }],
-                    }, { signal: followupAbort.signal as any });
-                    clearTimeout(followupTimer);
-                    const block = followup.content.find((b: any) => b.type === 'text') as { text: string } | undefined;
-                    const text = (block?.text || '').trim();
-                    // Sanity-check the model's answer contains the critical
-                    // params. If it dropped the count or category, fall back.
-                    if (text
-                        && text.includes(String(others))
-                        && text.toLowerCase().includes(merchantName.toLowerCase().slice(0, 8))
-                        && (text.includes(category) || text.toLowerCase().includes(category.toLowerCase()))) {
-                      naturalQuestion = text;
-                    }
-                  } catch (followupErr: any) {
-                    console.error('[tag-copilot] followup multi-turn failed:', followupErr?.message);
-                  }
-
-                  confirmationLine += `\n\n${naturalQuestion || templateQuestion}`;
-                }
-              } catch (countErr: any) {
-                console.error('[tag-copilot] follow-up count failed:', countErr?.message);
-                // Don't block the success message on this — just skip the follow-up.
-              }
-            }
-          }
-        } else if (toolUseBlock.name === 'set_category_rule') {
-          const vendor = String(toolUseBlock.input.vendor || '').trim();
-          const category = String(toolUseBlock.input.category || '');
-          let subcategory: string | null = toolUseBlock.input.subcategory
-            ? String(toolUseBlock.input.subcategory).trim()
-            : null;
-          const applyToExisting = toolUseBlock.input.applyToExisting !== false;
-
-          if (!vendor || !category) {
-            confirmationLine = `\n\n⚠ Could not save rule — missing vendor or category.`;
+          singleProposalOutcome = outcome;
+          action = { tool: toolUseBlock.name, applied: false, proposalOnly: true };
+          if (outcome.state === 'proposed') {
+            action.proposal = { ...outcome.subject, action: TAG_SINGLE_ACTION };
           } else {
-            const vendorKey = vendor.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-            const merchantPattern = vendor.toUpperCase();
-
-            // ─── Subcategory preservation ───────────────────────────────────
-            // If the model omitted subcategory but a row already exists with
-            // one, KEEP the existing value. The model often drops subcategory
-            // on the second tool call (after update_single_transaction), and
-            // an upsert with subcategory absent overwrites it to NULL.
-            // Read existing rule first; preserve any subcategory that's there.
-            if (!subcategory) {
-              try {
-                const { data: existingRule } = await supabase
-                  .from('category_rules')
-                  .select('subcategory')
-                  .eq('user_id', auth.userId)
-                  .ilike('merchant_pattern', merchantPattern)
-                  .limit(1)
-                  .maybeSingle();
-                if (existingRule?.subcategory) {
-                  subcategory = existingRule.subcategory;
-                  console.log(`[tag-copilot] preserving existing subcategory "${subcategory}" for ${merchantPattern} (model omitted it)`);
-                }
-              } catch (e: any) {
-                console.error('[tag-copilot] existing-rule read failed:', e?.message);
-              }
-            }
-
-            // ─── Write 1: vendor_category_memory ─────────────────────────────
-            // Surfacing this error too — used to be a silent await with no
-            // capture. The two-table dual-write needs both halves to land.
-            const vcmRow: Record<string, unknown> = {
-              user_id: auth.userId,
-              vendor_key: vendorKey,
-              category,
-              updated_at: new Date().toISOString(),
-            };
-            if (subcategory) vcmRow.subcategory = subcategory;
-            const { error: vcmErr } = await supabase
-              .from('vendor_category_memory')
-              .upsert(vcmRow, { onConflict: 'user_id,vendor_key' });
-            if (vcmErr) console.error('[tag-copilot] vendor_category_memory upsert failed:', vcmErr.message);
-
-            // ─── Write 2: category_rules ─────────────────────────────────────
-            // Writes BOTH merchant_pattern (canonical) AND match_value (legacy).
-            // Conflict on user_id+merchant_pattern matches the unique constraint.
-            const ruleRow: Record<string, unknown> = {
-              user_id: auth.userId,
-              match_type: 'contains',
-              merchant_pattern: merchantPattern,
-              match_value: merchantPattern,
-              category,
-              is_active: true,
-              updated_at: new Date().toISOString(),
-            };
-            if (subcategory) ruleRow.subcategory = subcategory;
-            const { error: ruleErr } = await supabase
-              .from('category_rules')
-              .upsert(ruleRow, { onConflict: 'user_id,merchant_pattern' });
-
-            // ─── Read-back verification ──────────────────────────────────────
-            // Truth-mode: confirmation string is built from what's actually in
-            // the DB after writes. Detects silent failures (RLS, constraint
-            // violations, dual-write split where one table writes and the
-            // other doesn't) and surfaces them to the user instead of lying.
-            const { data: verifyRow } = await supabase
-              .from('category_rules')
-              .select('category, subcategory')
-              .eq('user_id', auth.userId)
-              .ilike('merchant_pattern', merchantPattern)
-              .limit(1)
-              .maybeSingle();
-
-            // ─── Apply to existing transactions ──────────────────────────────
-            // Count matched rows BEFORE the update — see top of this branch
-            // for full reasoning on why we don't use chained .update().select().
-            let updatedCount = 0;
-            let existingUpdateFailed = false;
-            if (applyToExisting) {
-              const { count: matchedCount } = await supabase
-                .from('transactions')
-                .select('id', { count: 'exact', head: true })
-                .eq('user_id', auth.userId)
-                .ilike('merchant_name', `%${vendor}%`);
-              updatedCount = matchedCount || 0;
-
-              const txUpdate: Record<string, unknown> = {
-                category,
-                category_source: 'tag_rule',
-                updated_at: new Date().toISOString(),
-              };
-              if (subcategory) {
-                txUpdate.subcategory = subcategory;
-                txUpdate.subcategory_source = 'tag_rule';
-              }
-              const { error: updErr } = await supabase
-                .from('transactions')
-                .update(txUpdate)
-                .eq('user_id', auth.userId)
-                .ilike('merchant_name', `%${vendor}%`);
-              if (updErr) {
-                // Authoritative outcome: a failed update changed nothing.
-                console.error('[tag-copilot] transactions update failed');
-                updatedCount = 0;
-                existingUpdateFailed = true;
-              }
-            }
-
-            // ─── Build confirmation: truth-mode ──────────────────────────────
-            // verifyRow null = rule write failed. Surface it. No lying.
-            if (!verifyRow) {
-              const reason = ruleErr?.message || 'no row found after upsert';
-              action.applied = false;
-              action.error = `rule_persist_failed: ${reason}`;
-              confirmationLine = `\n\n⚠ Couldn't save the rule for **${vendor}**: ${reason}. ${updatedCount > 0 ? `(${updatedCount} transactions WERE updated, but future imports won't auto-categorize.)` : ''}`;
-            } else {
-              const catLabel = verifyRow.subcategory
-                ? `${verifyRow.category} / ${verifyRow.subcategory}`
-                : verifyRow.category;
-              action.applied = true;
-              action.affectedCount = updatedCount;
-              action.verification = {
-                rule: { category: verifyRow.category, subcategory: verifyRow.subcategory ?? null },
-                transactionsUpdated: updatedCount,
-                ...(existingUpdateFailed ? { existingUpdateFailed: true } : {}),
-              };
-              confirmationLine = existingUpdateFailed
-                ? `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. ⚠ I couldn't update your existing transactions, so they were not changed.`
-                : `\n\n✓ Saved rule: **${vendor}** → **${catLabel}**. Updated **${updatedCount}** transaction${updatedCount !== 1 ? 's' : ''}.`;
-            }
+            action.error = outcome.reason;
           }
-        } else if (toolUseBlock.name === 'bulk_recategorize') {
-          const fromCat = String(toolUseBlock.input.from_category || '').trim();
-          const toCat = String(toolUseBlock.input.to_category || '').trim();
-
-          if (!fromCat || !toCat) {
-            confirmationLine = `\n\n⚠ Could not bulk recategorize — missing source or destination category.`;
-          } else if (fromCat === toCat) {
-            confirmationLine = `\n\n⚠ Source and destination are the same (${fromCat}) — nothing to do.`;
-          } else {
-            // Count matched rows BEFORE the update — see set_category_rule
-            // above for full reasoning. Bulk moves are guaranteed to change
-            // values (we already filtered fromCat !== toCat above), so this
-            // matters less here, but consistent semantics across all branches
-            // is worth one extra query.
-            const { count: matchedCount } = await supabase
-              .from('transactions')
-              .select('id', { count: 'exact', head: true })
-              .eq('user_id', auth.userId)
-              .eq('category', fromCat);
-            const n = matchedCount || 0;
-
-            const { error: updErr } = await supabase
-              .from('transactions')
-              .update({ category: toCat, category_source: 'tag_bulk', updated_at: new Date().toISOString() })
-              .eq('user_id', auth.userId)
-              .eq('category', fromCat);
-            if (updErr) {
-              // Authoritative outcome: a failed update changed nothing — never report it as moved.
-              console.error('[tag-copilot] bulk update failed');
-              action.applied = false;
-              action.affectedCount = 0;
-              action.error = 'update_failed';
-              confirmationLine = `\n\n⚠ I couldn't move those transactions, so nothing was changed. Please try again.`;
-            } else {
-              action.applied = true;
-              action.affectedCount = n;
-              action.verification = { transactionsUpdated: n };
-              confirmationLine = `\n\n✓ Moved **${n}** transaction${n !== 1 ? 's' : ''} from **${fromCat}** to **${toCat}**.`;
-            }
-          }
-        } else if (toolUseBlock.name === 'rename_merchant') {
-          const fromName = String(toolUseBlock.input.from_name || '').trim();
-          const toName = String(toolUseBlock.input.to_name || '').trim();
-
-          if (!fromName || !toName) {
-            confirmationLine = `\n\n⚠ Could not rename merchant — missing source or destination name.`;
-          } else {
-            // Case-insensitive EXACT match (ilike without wildcards).
-            // Precision over recall — we don't want "Rogers" → "Rogers Wireless"
-            // to also rename rows that happen to contain "Rogers".
-            //
-            // Count matched rows BEFORE the update for the same reason as
-            // set_category_rule above. Edge case: if user renames "ROGERS"
-            // → "ROGERS" (same casing post-normalization, no change), the
-            // chained-count would return 0; matched count returns the real
-            // number of transactions touched.
-            const { count: matchedCount } = await supabase
-              .from('transactions')
-              .select('id', { count: 'exact', head: true })
-              .eq('user_id', auth.userId)
-              .ilike('merchant_name', fromName);
-            const n = matchedCount || 0;
-
-            const { error: updErr } = await supabase
-              .from('transactions')
-              .update({ merchant_name: toName, updated_at: new Date().toISOString() })
-              .eq('user_id', auth.userId)
-              .ilike('merchant_name', fromName);
-            if (updErr) {
-              // Authoritative outcome: a failed update changed nothing — never report it as renamed.
-              console.error('[tag-copilot] rename update failed');
-              action.applied = false;
-              action.affectedCount = 0;
-              action.error = 'update_failed';
-              confirmationLine = `\n\n⚠ I couldn't rename those transactions, so nothing was changed. Please try again.`;
-            } else {
-              action.applied = true;
-              action.affectedCount = n;
-              action.verification = { transactionsUpdated: n };
-              confirmationLine = `\n\n✓ Renamed **${n}** transaction${n !== 1 ? 's' : ''} from **${fromName}** to **${toName}**.`;
-            }
-          }
+          // Tag's words for this turn are the server's proposal (the model's own text could claim "done").
+          confirmationLine = outcome.reply;
+        } else if (TOOL_TO_ACTION[toolUseBlock.name]) {
+          // T-ACT-SAFE: rules, bulk moves and renames only PROPOSE. The server computes the exact
+          // action and verified count and stores a signed 'proposed' receipt; tag-action
+          // commit_proposal executes it after the customer's explicit "yes".
+          const outcome = await buildActionProposal(
+            supabase as unknown as Parameters<typeof buildActionProposal>[0], auth.userId, toolUseBlock.name, toolUseBlock.input,
+          );
+          actionProposalOutcome = outcome;
+          action = { tool: toolUseBlock.name, applied: false, proposalOnly: true };
+          if (outcome.state === 'proposed') action.proposal = { action: outcome.action, ...outcome.subject };
+          else action.error = outcome.reason;
+          confirmationLine = outcome.reply;
         } else if (toolUseBlock.name === 'search_transactions') {
           // READ-ONLY tool — userId injected server-side, never from model input.
           // The model provides search filters only; user_id is NOT in the schema.
@@ -1079,7 +740,39 @@ REQUIREMENTS:
           action.searchResults = result.transactions;
 
           // ── Two-turn pattern: feed results back to Claude ──────────
-          // Build machine-readable tool_result for the model (NOT user-facing).
+          // T-LIVE-01 F-6: the money figures in the tool result are server-calculated. Totals are given
+          // only when EVERY match was returned (split by the engine's classification of each row's
+          // stored type); a partial result is labelled a sample and carries no dollar total.
+          const classification = new Map<string, { type: string | null; category: string | null; subcategory: string | null }>();
+          if (result.returnedCount > 0 && result.returnedCount >= result.totalMatches) {
+            try {
+              const { data: typeRows } = await supabase
+                .from('transactions')
+                .select('id, type, category, subcategory')
+                .eq('user_id', auth.userId)
+                .in('id', result.transactions.map(r => r.id));
+              for (const t of typeRows || []) {
+                classification.set(String(t.id), { type: t.type ?? null, category: t.category ?? null, subcategory: t.subcategory ?? null });
+              }
+            } catch (e) {
+              console.error('[tag-copilot] search classification lookup failed:', e instanceof Error ? e.message : 'unknown');
+            }
+          }
+          const filtersLabel = [
+            searchParams.q ? `text "${searchParams.q}"` : '',
+            searchParams.category ? `category ${searchParams.category}` : '',
+            searchParams.uncategorizedOnly ? 'uncategorized only' : '',
+            searchParams.startDate || searchParams.endDate ? `dates ${searchParams.startDate || 'start'} to ${searchParams.endDate || 'latest'}` : 'all dates',
+            searchParams.importId ? 'one statement' : 'all accounts',
+          ].filter(Boolean).join(', ');
+          const searchTotals = summarizeSearchTotals({
+            rows: result.transactions,
+            totalMatches: result.totalMatches,
+            classification,
+            currency: accountCurrency,
+            filtersLabel,
+          });
+
           let toolResultContent: string;
           if (result.returnedCount === 0) {
             toolResultContent = 'No transactions found matching the search.';
@@ -1087,37 +780,24 @@ REQUIREMENTS:
             const dataLines = result.transactions.map((r, i) =>
               `[${i + 1}] id:${r.id} | ${r.posted_at || r.date || '?'} | ${r.merchant_name || 'Unknown'} | $${Math.abs(r.amount).toFixed(2)} | ${r.category || 'Uncategorized'}${r.subcategory ? ' / ' + r.subcategory : ''}`
             );
-            const totalAmt = result.transactions.reduce((s, r) => s + Math.abs(r.amount), 0);
             toolResultContent = [
-              `${result.totalMatches} total matches, showing ${result.returnedCount} newest (total $${totalAmt.toFixed(2)}).`,
+              searchTotals.text,
+              'Rows (individual transactions; do not add them up):',
               ...dataLines,
-              result.totalMatches > result.returnedCount
-                ? `(${result.totalMatches - result.returnedCount} more matches not shown — offer to narrow by date, merchant, or amount.)`
-                : '',
             ].filter(Boolean).join('\n');
           }
 
-          // Build a deterministic fallback in case the second call fails/times out.
+          // Build a deterministic fallback in case the second call fails/times out (same figures).
           let fallbackSummary: string;
           if (result.returnedCount === 0) {
             fallbackSummary = 'No matching transactions found.';
+          } else if (!searchTotals.complete) {
+            fallbackSummary = `Found **${result.totalMatches}** matching transaction${result.totalMatches !== 1 ? 's' : ''}; here are the **${result.returnedCount}** most recent. I don't have a verified total for all of them — want me to narrow by date, merchant, or amount?`;
           } else {
-            const totalAmt = result.transactions.reduce((s, r) => s + Math.abs(r.amount), 0);
-            const topMerchants = Object.entries(
-              result.transactions.reduce<Record<string, number>>((m, r) => {
-                const key = r.merchant_name || 'Unknown';
-                m[key] = (m[key] || 0) + 1;
-                return m;
-              }, {})
-            ).sort((a, b) => b[1] - a[1]).slice(0, 5);
-            const merchantList = topMerchants.map(([name, count]) =>
-              `• ${name} (${count})`
-            ).join('\n');
-            fallbackSummary = `Found **${result.totalMatches}** transaction${result.totalMatches !== 1 ? 's' : ''} totaling **$${totalAmt.toFixed(2)}**.`
-              + `\n\nTop merchants:\n${merchantList}`
-              + (result.totalMatches > result.returnedCount
-                ? `\n\nShowing ${result.returnedCount} of ${result.totalMatches} — want me to narrow by date, merchant, or amount?`
-                : '');
+            fallbackSummary = searchTotals.text
+              .replace(/^COMPLETE: /, '')
+              .replace(/ — these add up exactly to the spending figure\./, '.')
+              .replace(/\(not analysed by Tag; income questions go to Prime\)/, '(income questions are best asked to Prime)');
           }
 
           // Second Claude call — same pattern as the follow-up question
@@ -1130,7 +810,7 @@ REQUIREMENTS:
             const secondCall = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
               max_tokens: 600,
-              system: buildSystemPrompt(learnedRules, categorySummary, uncategorizedCount, flaggedMerchants, { spent: yearSpent, income: yearIncome }) + merchantDataBlock + focusedTransactionBlock,
+              system: buildSystemPrompt(learnedRules, flaggedMerchants, progressBlock, smallTalk) + merchantDataBlock + focusedTransactionBlock,
               messages: [
                 ...storedHistory,
                 { role: 'user', content: modelMessage },
@@ -1228,8 +908,12 @@ REQUIREMENTS:
       }).catch(() => { /* fire and forget */ });
     }
 
-    const finalReply = (replyText + confirmationLine).trim()
-      || (toolUseBlock ? confirmationLine.trim() : "Sorry, I couldn't process that.");
+    const finalReply = singleProposalOutcome
+      ? singleProposalOutcome.reply
+      : actionProposalOutcome
+      ? actionProposalOutcome.reply
+      : ((replyText + confirmationLine).trim()
+        || (toolUseBlock ? confirmationLine.trim() : "Sorry, I couldn't process that."));
 
     // T-H1: save Tag's reply to the claimed turn. `persisted` is true ONLY when both the claim and
     // the reply were saved; a failed save still returns the reply and the client shows "not saved".
@@ -1243,7 +927,22 @@ REQUIREMENTS:
           assistantText: finalReply,
           clientMessageId,
           // Server-verified outcome of a tool Tag executed (shared v1 action receipt).
-          assistantMetadata: action
+          assistantMetadata: singleProposalOutcome
+            // T-LIVE-02: the signed proposal tag-action commit_single binds to (no tool/success/count:
+            // nothing was executed).
+            ? {
+              actionReceipt: singleProposalOutcome.state === 'proposed'
+                ? { v: 1, employee: 'tag-ai', action: TAG_SINGLE_ACTION, state: 'proposed', subject: singleProposalOutcome.subject, result: { matchCount: 1 } }
+                : { v: 1, employee: 'tag-ai', action: TAG_SINGLE_ACTION, state: 'failed', reason: singleProposalOutcome.reason },
+            }
+            : actionProposalOutcome
+            // T-ACT-SAFE: signed proposal (nothing executed: no tool / success / count).
+            ? {
+              actionReceipt: actionProposalOutcome.state === 'proposed'
+                ? { v: 1, employee: 'tag-ai', action: actionProposalOutcome.action, state: 'proposed', subject: actionProposalOutcome.subject, result: { matchCount: Number(actionProposalOutcome.subject.affected ?? 0) } }
+                : { v: 1, employee: 'tag-ai', action: actionProposalOutcome.action, state: 'failed', reason: actionProposalOutcome.reason },
+            }
+            : action
             ? {
               // Authoritative outcome from the database result (Prime contract: tool, success, count),
               // in the shared v1 receipt shape.
@@ -1270,7 +969,15 @@ REQUIREMENTS:
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ reply: finalReply, action, sessionId: conversationId, persisted }),
+      body: JSON.stringify({
+        reply: finalReply,
+        action,
+        sessionId: conversationId,
+        persisted,
+        ...(singleProposalOutcome?.state === 'proposed' && persisted ? { proposal: { kind: 'single', ...singleProposalOutcome.subject } } : {}),
+        ...(actionProposalOutcome?.state === 'proposed' && persisted
+          ? { proposal: { kind: 'action', action: actionProposalOutcome.action, subject: actionProposalOutcome.subject } } : {}),
+      }),
     };
   } catch (err) {
     console.error('[tag-copilot] handler error:', err);

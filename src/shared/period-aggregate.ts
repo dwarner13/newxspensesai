@@ -56,20 +56,24 @@ export interface PeriodAggregate {
   /** Inclusive YYYY-MM-DD bounds, when known. */
   period: { start: string; end: string } | null;
   cents: {
-    /** Inflow excluding transfers in. */
+    /** Inflow excluding transfers in and refunds. */
     income: number;
+    /** P-LIVE-03: money back on an ordinary spending category (not income). */
+    refunds: number;
     /** Ordinary consumption only. */
     spending: number;
     transferIn: number;
     transferOut: number;
     debtPayments: number;
+    /** D-1: payments received on the customer's own card/loan (inflow). Internal; not income. */
+    debtRepaymentsIn: number;
     /** Outflow to savings / investments (incl. TFSA/RRSP) — internal money movement. */
     savingsInvestment: number;
     /** Other canonical non-spend outflow (reserved; no canonical entry maps here today). */
     otherNonSpend: number;
     /** Outflow whose category contradicts its type (e.g. expense + "Income"). */
     classificationConflict: number;
-    /** income + transferIn */
+    /** income + refunds + transferIn + debtRepaymentsIn */
     totalInflow: number;
     /** spending + transferOut + debtPayments + savingsInvestment + otherNonSpend + classificationConflict */
     totalOutflow: number;
@@ -81,19 +85,28 @@ export interface PeriodAggregate {
     rawNetCashMovement: number;
     /**
      * User-facing net with internal money movements removed:
-     * income − (spending + debtPayments + otherNonSpend + classificationConflict).
+     * income + refunds − (spending + debtPayments + otherNonSpend + classificationConflict).
      * Excludes transfers in/out and savings/investment movement.
      */
     netExcludingInternalMovements: number;
+    /**
+     * Owner 2026-11-26 (unified engine): explicit name for the net with transfers, savings/investment
+     * and cash withdrawals excluded (same value as netExcludingInternalMovements, which is kept as a
+     * compatibility alias). NEVER presented as "net cash flow" — that is rawNetCashMovement
+     * (total deposits − total withdrawals).
+     */
+    netExcludingTransfersAndSavings: number;
   };
   counts: {
     /** Rows that contributed to money totals. */
     included: number;
     income: number;
+    refunds: number;
     spending: number;
     transferIn: number;
     transferOut: number;
     debtPayments: number;
+    debtRepaymentsIn: number;
     savingsInvestment: number;
     otherNonSpend: number;
     classificationConflict: number;
@@ -194,10 +207,12 @@ export function toCompletenessOutput(agg: PeriodAggregate): CompletenessOutput {
 type Bucket = Exclude<CashFlowPurpose, 'unclassified'>;
 const BUCKET_KEY: Record<Bucket, keyof PeriodAggregate['counts'] & keyof PeriodAggregate['cents']> = {
   income: 'income',
+  refund: 'refunds',
   spending: 'spending',
   transfer_in: 'transferIn',
   transfer_out: 'transferOut',
   debt_payment: 'debtPayments',
+  debt_repayment_in: 'debtRepaymentsIn',
   savings_investment: 'savingsInvestment',
   other_non_spend: 'otherNonSpend',
   classification_conflict: 'classificationConflict',
@@ -210,12 +225,12 @@ export function buildPeriodAggregate(
 ): PeriodAggregate {
   const period = opts.period ?? null;
   const sums = {
-    income: 0, spending: 0, transferIn: 0, transferOut: 0,
-    debtPayments: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
+    income: 0, refunds: 0, spending: 0, transferIn: 0, transferOut: 0,
+    debtPayments: 0, debtRepaymentsIn: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
   };
   const counts: PeriodAggregate['counts'] = {
-    included: 0, income: 0, spending: 0, transferIn: 0, transferOut: 0,
-    debtPayments: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
+    included: 0, income: 0, refunds: 0, spending: 0, transferIn: 0, transferOut: 0,
+    debtPayments: 0, debtRepaymentsIn: 0, savingsInvestment: 0, otherNonSpend: 0, classificationConflict: 0,
   };
   const excluded = { missingAmount: 0, missingDate: 0, outOfPeriod: 0, unclassifiedType: 0 };
   let unclassifiedCents = 0;
@@ -262,7 +277,7 @@ export function buildPeriodAggregate(
     }
   }
 
-  const totalInflow = sums.income + sums.transferIn;
+  const totalInflow = sums.income + sums.refunds + sums.transferIn + sums.debtRepaymentsIn;
   const totalOutflow = sums.spending + sums.transferOut + sums.debtPayments
     + sums.savingsInvestment + sums.otherNonSpend + sums.classificationConflict;
   const categories = [...categoryMap.values()].sort((a, b) =>
@@ -278,7 +293,9 @@ export function buildPeriodAggregate(
       totalOutflow,
       rawNetCashMovement: totalInflow - totalOutflow,
       netExcludingInternalMovements:
-        sums.income - (sums.spending + sums.debtPayments + sums.otherNonSpend + sums.classificationConflict),
+        sums.income + sums.refunds - (sums.spending + sums.debtPayments + sums.otherNonSpend + sums.classificationConflict),
+      netExcludingTransfersAndSavings:
+        sums.income + sums.refunds - (sums.spending + sums.debtPayments + sums.otherNonSpend + sums.classificationConflict),
     },
     counts,
     categories,

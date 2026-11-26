@@ -118,6 +118,26 @@ vi.mock('openai', () => {
   return { default: FakeOpenAI, OpenAI: FakeOpenAI };
 });
 vi.mock('../_shared/supabase', () => ({ admin: () => fakeClient }));
+
+// BYTE-LIVE-01: build-time deploy metadata as hosted Functions see it (null unless a test sets it).
+const buildMeta = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+vi.mock('../_shared/deployMetadata.generated', () => ({
+  get BUILD_DEPLOY_METADATA() {
+    return buildMeta.current;
+  },
+}));
+const HOSTED_ORIGIN = 'https://f00dfacef00dfacef00dface--synthetic-staging.netlify.app';
+const HOSTED_META = { context: 'production', deployId: 'f00dfacef00dfacef00dface', siteName: 'synthetic-staging', deployUrl: HOSTED_ORIGIN, siteUrl: null };
+/** Exactly what hosted staging Functions see: URL and the job secret, no DEPLOY_URL or CONTEXT. */
+function hostedRuntime(meta: Record<string, unknown> | null = { ...HOSTED_META }) {
+  delete process.env.DEPLOY_URL;
+  delete process.env.CONTEXT;
+  process.env.URL = 'https://synthetic-staging.netlify.app';
+  buildMeta.current = meta;
+}
+afterEach(() => {
+  buildMeta.current = null;
+});
 vi.mock('../_shared/upload', () => ({
   admin: () => fakeClient,
   markDocStatus: vi.fn(async (docId: string, status: string) => { statusMarks.push({ docId, status }); }),
@@ -400,6 +420,67 @@ describe('dispatchNormalize (OCR/CSV → normalize)', () => {
     process.env.CONTEXT = 'deploy-preview';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fake client
     expect(await dispatchNormalize(fakeClient as any, p, DOC_PDF_A, {}, { src: 'x' })).toMatchObject({ ok: false, code: 'not_configured' });
+    expect(fnCalls).toHaveLength(0);
+  });
+});
+
+// -- BYTE-LIVE-01: hosted runtime without DEPLOY_URL/CONTEXT --
+describe('OCR chain in the hosted runtime (BYTE-LIVE-01 build metadata)', () => {
+  async function ocrPrincipalHosted(documentId: string) {
+    const t = await jobToken('ocr.run', documentId);
+    const a = authenticateJobRequest({ headers: { [JOB_TOKEN_HEADER]: t } }, { audience: 'smart-import-ocr-background', scope: 'ocr.run' });
+    if (!a.ok) throw new Error('setup');
+    return a.principal;
+  }
+
+  it('reproduces the staging failure without metadata: finalize -> 503, document untouched', async () => {
+    hostedRuntime(null);
+    const r = await invoke(finalize.handler, bearer(TOKEN_A), { docId: DOC_PDF_A });
+    expect(r.statusCode).toBe(503);
+    expect(r.json).toMatchObject({ error: 'processing_unavailable' });
+    expect(statusMarks).toHaveLength(0);
+    expect(fnCalls).toHaveLength(0);
+  });
+
+  it('finalize -> OCR job (PDF) and CSV parse job at this exact deploy with scoped tokens', async () => {
+    hostedRuntime();
+    const r = await invoke(finalize.handler, bearer(TOKEN_A), { userId: USER_A, docId: DOC_PDF_A });
+    expect(r.statusCode).toBe(200);
+    const ocr = fnCalls.find((c) => c.fn === 'smart-import-ocr-background')!;
+    expect(ocr.url).toBe(`${HOSTED_ORIGIN}/.netlify/functions/smart-import-ocr-background`);
+    expect(ocr.headers.authorization).toBeUndefined();
+    expect(verifyJobToken(ocr.headers[JOB_TOKEN_HEADER], { audience: 'smart-import-ocr-background', scope: 'ocr.run' }))
+      .toMatchObject({ ok: true, claims: { sub: USER_A, doc: DOC_PDF_A } });
+    const r2 = await invoke(finalize.handler, bearer(TOKEN_A), { docId: DOC_CSV_A });
+    expect(r2.statusCode).toBe(200);
+    expect(fnCalls.find((c) => c.fn === 'smart-import-parse-csv')!.url).toBe(`${HOSTED_ORIGIN}/.netlify/functions/smart-import-parse-csv`);
+    expect(fnCalls.some((c) => c.url.startsWith('https://synthetic-staging.netlify.app'))).toBe(false);
+  });
+
+  it('OCR -> normalize handoff reaches this exact deploy with a normalize.run token', async () => {
+    hostedRuntime();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fake client
+    const r = await dispatchNormalize(fakeClient as any, await ocrPrincipalHosted(DOC_PDF_A), DOC_PDF_A, { ocrText: 'TEXT', ocrTextLength: 4 }, { src: 'smart-import-ocr-background', traceId: 't' });
+    expect(r.ok).toBe(true);
+    if (r.ok) await r.dispatched;
+    const call = fnCalls.find((c) => c.fn === 'normalize-transactions')!;
+    expect(call.url).toBe(`${HOSTED_ORIGIN}/.netlify/functions/normalize-transactions`);
+    expect(verifyJobToken(call.headers[JOB_TOKEN_HEADER], { audience: 'normalize-transactions', scope: 'normalize.run' }))
+      .toMatchObject({ ok: true, claims: { sub: USER_A, doc: DOC_PDF_A } });
+  });
+
+  it('metadata from another site is rejected -> handoff not_configured, nothing sent', async () => {
+    const p = await ocrPrincipalHosted(DOC_PDF_A);
+    hostedRuntime({ ...HOSTED_META, siteName: 'other-site', deployUrl: 'https://f00dfacef00dfacef00dface--other-site.netlify.app' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fake client
+    expect(await dispatchNormalize(fakeClient as any, p, DOC_PDF_A, {}, { src: 'x' })).toMatchObject({ ok: false, code: 'not_configured' });
+    expect(fnCalls).toHaveLength(0);
+  });
+
+  it('normalize-transactions itself still requires a valid job token or user JWT', async () => {
+    hostedRuntime();
+    const r = await invoke(normalize.handler, { [JOB_TOKEN_HEADER]: 'probe-not-a-token' }, { documentId: DOC_PDF_A });
+    expect(r.json?.error?.code ?? r.json?.error).toBe('unauthorized');
     expect(fnCalls).toHaveLength(0);
   });
 });

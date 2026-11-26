@@ -1,4 +1,12 @@
 import type { Handler } from '@netlify/functions';
+import {
+  loadTagSpendingSummary,
+  loadCategorizationProgress,
+  formatSpendingBlock,
+  formatProgressBlock,
+  isSmallTalk,
+  TAG_FINANCIAL_RULES,
+} from './_shared/tagFinancialContext.js';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
@@ -69,24 +77,7 @@ function normalizeCategory(raw: string): string {
   return CATEGORY_ALIASES[lower] || trimmed;
 }
 
-async function enforceType(sb: any, userId: string, category: string, transactionId?: string): Promise<void> {
-  try {
-    const { data: typeRule } = await sb.from('category_type_rules').select('forced_type').eq('category', category).single();
-    if (!typeRule) return;
-    if (transactionId) {
-      await sb.from('transactions').update({ type: typeRule.forced_type }).eq('id', transactionId).eq('user_id', userId);
-    }
-  } catch { /* non-blocking */ }
-}
 
-async function enforceTypeBulk(sb: any, userId: string, category: string, merchantPattern: string): Promise<string | null> {
-  try {
-    const { data: typeRule } = await sb.from('category_type_rules').select('forced_type').eq('category', category).single();
-    if (!typeRule) return null;
-    await sb.from('transactions').update({ type: typeRule.forced_type }).eq('user_id', userId).ilike('merchant_name', `%${merchantPattern}%`);
-    return typeRule.forced_type;
-  } catch { return null; }
-}
 
 async function callWithRetry(fn: () => Promise<any>, retries = 2): Promise<any> {
   for (let i = 0; i <= retries; i++) {
@@ -114,9 +105,6 @@ function parseNeedsReviewQueue(text: string): boolean {
   return /<needs_review_queue\s*\/?>/.test(text);
 }
 
-function parseMerchantSweep(text: string): boolean {
-  return /<merchant_sweep\s*\/?>/.test(text);
-}
 
 function parseSessionClose(text: string): boolean {
   return /SESSION_CLOSE/i.test(text);
@@ -244,43 +232,29 @@ function extractSearchIntent(message: string): {
   };
 }
 
-function parseDeleteRule(text: string): { merchant_pattern: string } | null {
-  const match = text.match(/<delete_rule>([\s\S]*?)<\/delete_rule>/);
-  if (!match) return null;
-  try { return JSON.parse(match[1].trim()); } catch { return null; }
-}
 
 function parseListRules(text: string): boolean {
   return /<list_rules\s*\/?>/.test(text);
 }
 
-function parseCorrection(text: string): { merchant_pattern: string; category: string; subcategory: string; min_amount?: number | null; max_amount?: number | null } | null {
-  const match = text.match(/<correction>([\s\S]*?)<\/correction>/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[1].trim());
-  } catch {
-    return null;
-  }
-}
 
 function buildSystemPrompt(
   merchant: string,
   isQuickChange: boolean,
   category: string | null,
   amount: number | null,
-  merchantHistory: { count: number; totalSpent: number; categories: string[] },
-  yearTotal: { spent: number; income: number },
+  merchantHistory: { count: number; countExact: boolean; categories: string[] },
   pageContext?: any,
   userName?: string | null,
   selectedTx?: any,
   learnedCategory?: string | null
 ): string {
   const userLine = (userName ? `The user's name is ${userName}. Use it occasionally but naturally.\n` : '') +
+    `HIGHEST PRIORITY: You cannot change, save, delete, rename or flag anything from this chat — no categories, rules or transactions. Never say you changed or saved something, and do not output <correction>, <delete_rule>, <merchant_sweep/>, SAVE_RULE or action JSON (the server ignores them). If the customer wants a change, tell them to ask Tag in the Tag panel on the Transactions page, where they will see exactly what will change and confirm it.\n` +
     `IMPORTANT: Never introduce yourself or say hello when the user has already started a conversation. If the conversation history exists, respond directly to what the user said. Never say "Hello! How can I assist you" or "Hi there" mid-conversation. Only greet on the very first message if history is empty.\n`;
   const merchantBlock = merchant ? `
 MERCHANT IN FOCUS: ${merchant}
-${merchantHistory.count > 0 ? `- Seen ${merchantHistory.count} times, total $${merchantHistory.totalSpent.toFixed(2)}` : '- First time seeing this merchant'}
+${merchantHistory.count > 0 ? `- Seen ${merchantHistory.countExact ? '' : 'at least '}${merchantHistory.count} times (for a verified spending total use VERIFIED SPENDING TOTALS)` : '- First time seeing this merchant'}
 ${merchantHistory.categories.length > 0 ? `- Previously categorized as: ${[...new Set(merchantHistory.categories)].join(', ')}` : ''}
 ${category ? `- Currently categorized as: ${category}` : ''}
 ${amount != null ? `- Transaction amount: $${Math.abs(amount).toFixed(2)}` : ''}
@@ -292,20 +266,19 @@ ${learnedCategory ? `- Tag has learned: usually "${learnedCategory}" for this me
     return `${userLine}You are Tag  - XspensesAI's categorization agent operating at the page level.
 The user is on the Transactions page talking to you directly.
 
-USER'S FINANCES:
-- Total spent: $${yearTotal.spent.toFixed(2)}
-- Total income: $${yearTotal.income.toFixed(2)}
-- Transactions in view: ${pageContext.transactionCount || 0}
+ON SCREEN: ${pageContext.transactionCount || 0} transactions in the current view (as reported by the page; not a verified total).
+
+${TAG_FINANCIAL_RULES}
 
 INTENT UNDERSTANDING - CRITICAL:
-You must understand what the user MEANS, not just what they literally typed. Natural language in a finance app almost always maps to one of: (a) a count/total question answerable from the injected data or CATEGORY TOTALS, (b) a filter/search request for specific transactions, or (c) a categorization command. When in doubt, lean toward answering directly with numbers. Examples:
-- "how many shadified" = "How many Shadified transactions do I have?" - count them from the injected data and answer in one line.
-- "how much coffee" = "What did I spend on coffee year-to-date?" - read from CATEGORY TOTALS / SUBCATEGORY TOTALS and answer with the dollar figure.
-- "how often do I hit 7-eleven" = count of 7-Eleven transactions from injected data.
+You must understand what the user MEANS, not just what they literally typed. Natural language in a finance app almost always maps to one of: (a) a count/total question answerable from VERIFIED SPENDING TOTALS / CATEGORIZATION PROGRESS (never from the injected rows), (b) a filter/search request for specific transactions, or (c) a categorization command. Only answer with numbers that are verified. Examples:
+- "how many shadified" = "How many Shadified transactions do I have?" - answer with the verified count for that merchant if VERIFIED SPENDING TOTALS has it; otherwise emit a FILTER block so the page shows them.
+- "how much coffee" = "What did I spend on coffee?" - answer only with a figure from VERIFIED SPENDING TOTALS, with its period; if it isn't there, say you don't have a verified number and offer to filter.
+- "how often do I hit 7-eleven" = the verified 7-Eleven count from VERIFIED SPENDING TOTALS, with its period.
 - "any duplicates" = "Do I have duplicate transactions?" - acknowledge and tell the user to check the Needs Review queue; Tag does not run dedupe on demand.
 - "what about gas" = filter intent -> emit FILTER block for Transportation / Gas & Fuel.
 - "tim hortons?" = filter intent -> emit FILTER block for Tim Hortons.
-- "gordon foods is income" = categorization command -> emit <correction> block (see IS-A PATTERN below).
+- "acme foods is income" = categorization command -> emit <correction> block (see IS-A PATTERN below).
 Never treat question words ("how", "what", "any") as merchant names. Strip leading "how much/many/often", "what about", "show me", "tell me" before interpreting the remainder as a merchant or category.
 
 FILTER intent  - triggers on ANY of these patterns:
@@ -404,7 +377,7 @@ Then confirm the change naturally. For amount-based rules (e.g. "over $30", "und
 IS-A PATTERN - HARD RULE: When the user says "[merchant] is [category]" or "[merchant] is [category], [subcategory]" - ALWAYS treat this as a categorization command and emit a <correction> block immediately, saving the rule. The merchant name is everything before the word "is". The category (and optional subcategory after a comma) is everything after "is". Never ignore it. Never ask for clarification. Never respond with a question. Examples:
 - "7-ELEVEN is Food & Dining" -> <correction>{"merchant_pattern":"7-ELEVEN","category":"Food & Dining","subcategory":null,"min_amount":null,"max_amount":null}</correction>
 - "Petro-Canada is Transportation, Gas & Fuel" -> <correction>{"merchant_pattern":"Petro-Canada","category":"Transportation","subcategory":"Gas & Fuel","min_amount":null,"max_amount":null}</correction>
-- "Gordon Foods is Income" -> <correction>{"merchant_pattern":"Gordon Foods","category":"Income","subcategory":null,"min_amount":null,"max_amount":null}</correction>
+- "Acme Foods is Income" -> <correction>{"merchant_pattern":"Acme Foods","category":"Income","subcategory":null,"min_amount":null,"max_amount":null}</correction>
 
 SUBCATEGORIES: If the user asks about subcategories, tell them: "Open any transaction drawer and you'll see a subcategory dropdown below the category. You can pick from built-in options or select '+ Add new...' to create your own."
 
@@ -422,14 +395,12 @@ When the user asks to find, show, list, filter, or search transactions:
 
 CRITICAL: When LIVE TRANSACTION DATA is provided in your context, respond in Tag's voice  - sharp, direct, human. Structure it like this:
 
-1. ONE punchy opening line with the count and total.
-   Example: "Found 19 grocery transactions  - $3,457 total."
+1. ONE punchy opening line with what was found. LIVE TRANSACTION DATA is a SAMPLE of rows, never a total:
+   give its row count, and quote a dollar total ONLY if VERIFIED SPENDING TOTALS has it (with its period).
+   Example: "Here are your latest grocery transactions — your verified grocery spending for 2026-01-01 to 2026-10-31 is $3,457.00."
 
-2. A clean grouped list. Group by merchant if there are repeats. Show the most recent date and total per merchant, not every row.
-   Format: \u2022 [Merchant]  - [X visits, $total]
-   Example: \u2022 Save On Foods  - 8 visits, $1,204.38
-            \u2022 Sobeys Hollick Kenyon  - 4 visits, $889.43
-            \u2022 Colton's No Frills  - 2 visits, $22.19
+2. A clean list of the rows that matter (most recent first). Do not add up rows or build per-merchant totals yourself.
+   Format: \u2022 [Merchant]  - [date], [amount]
 
 3. ONE short observation if something stands out.
    Example: "Save On Foods is your main grocery spot by a wide margin."
@@ -440,7 +411,7 @@ CRITICAL: When LIVE TRANSACTION DATA is provided in your context, respond in Tag
 Rules:
 - Never list every individual row. Group by merchant.
 - Never exceed 15 merchant groups. If more, show top 10 and say "+ [N] more merchants."
-- Never hallucinate  - only use data from LIVE TRANSACTION DATA.
+- Never hallucinate  - only use data from LIVE TRANSACTION DATA and VERIFIED SPENDING TOTALS. Never compute a total.
 - Keep it under 300 words total.
 
 If LIVE TRANSACTION DATA shows 0 results, say:
@@ -465,18 +436,17 @@ Call tag_update_transaction_category with:
 After the update, confirm what changed in one line, then ask if the same rule should apply to all transactions from that merchant.
 
 ANSWER DIRECTLY  - YOUR DOMAIN:
-You have access to the user's injected transaction context (up to 200 transactions  - merchant-prioritized when a merchant is mentioned) PLUS a CATEGORY TOTALS block computed from the full transaction table. Use CATEGORY TOTALS for aggregation questions ("top spending category", "total spent on X")  - never compute totals from only the injected subset. You MUST answer questions directly using this data for:
+You have VERIFIED SPENDING TOTALS (server-calculated over the full scope, with a scope line) and CATEGORIZATION PROGRESS (exact counts), plus a SAMPLE of individual rows (LIVE TRANSACTION DATA, when injected). Answer these directly, using ONLY the verified figures and stating the period:
 - Spending category questions ("how much did I spend on groceries?", "what's my biggest category?")
-- Totals and counts ("how many transactions this month?", "total spent at Amazon?")
-- Merchant/transaction lookups ("show me coffee purchases", "biggest expense?")
-- Category breakdowns, top merchants, uncategorized counts
-- Anything derivable from the injected transaction list
+- Merchant spending ("total spent at Amazon?") when the merchant appears in VERIFIED SPENDING TOTALS
+- Uncategorized / Needs Review counts
+- Transaction lookups (from the rows)
 
-Do NOT hand off for these. Compute the answer from the context and respond in a single short sentence with the number.
+Never compute a total, count or breakdown from the injected rows. If the verified figure isn't there, say so and offer a FILTER.
 
 PROACTIVE INTELLIGENCE:
 When the user says "yes", "let's go", "start", "sure", "go", or "go ahead" after the opening greeting - immediately fetch the first Needs Review merchant from context and ask about it. Format exactly:
-"Let's start - you have [N] x [MERCHANT] totalling $[X]. What are these usually? [suggest 2-3 likely categories]"
+"Let's start - you have [N] x [MERCHANT]. What are these usually? [suggest 2-3 likely categories]"
 
 Use merchant name to suggest smart categories:
 - contains gas/petro/shell/esso/husky/chevron/mobil -> Transportation / Gas & Fuel
@@ -519,23 +489,23 @@ Employee slugs and when to use them:
 Always say one short sentence before the HANDOFF line acknowledging what the user asked. Keep it natural  - Tag is handing off to a colleague, not abandoning the user.
 
 MERCHANT SPLIT RULES - INCOME vs EXPENSE:
-When a merchant appears with both income and expense transactions (e.g. 'GORDON FOODS' as a $62 grocery purchase AND 'GORDON FOODS ER' as a $2900 payroll deposit), you MUST handle them as two separate rules. Never create one blanket rule that would match both.
+When a merchant appears with both income and expense transactions (e.g. 'ACME FOODS' as a $62 grocery purchase AND 'ACME FOODS ER' as a $1500 payroll deposit), you MUST handle them as two separate rules. Never create one blanket rule that would match both.
 
 When you detect mixed transaction types for a merchant:
 1. Tell the user you see both income and expense transactions under similar names
 2. Propose two separate rules and ask the user to confirm each one
 3. For the expense variant: use match_type 'contains' with amount_max set to a threshold (e.g. 200)
-4. For the income/payroll variant: use match_type 'exact' for the specific suffix variant (e.g. 'GORDON FOODS ER') with amount_min set above the threshold
+4. For the income/payroll variant: use match_type 'exact' for the specific suffix variant (e.g. 'ACME FOODS ER') with amount_min set above the threshold
 
 Example flow:
-User: "Gordon Foods is groceries"
-Tag: "I see GORDON FOODS charges under $200 (groceries) AND GORDON FOODS ER deposits around $2,900 (looks like payroll). Want me to set two rules?
-1. GORDON FOODS under $200 -> Groceries
-2. GORDON FOODS ER over $200 -> Income"
+User: "Acme Foods is groceries"
+Tag: "I see ACME FOODS charges under $200 (groceries) AND ACME FOODS ER deposits around $1,500 (looks like payroll). Want me to set two rules?
+1. ACME FOODS under $200 -> Groceries
+2. ACME FOODS ER over $200 -> Income"
 
 If the user confirms, output two SAVE_RULE lines:
-SAVE_RULE:{"merchant_pattern":"GORDON FOODS","category":"Groceries","match_type":"contains","amount_min":null,"amount_max":200}
-SAVE_RULE:{"merchant_pattern":"GORDON FOODS ER","category":"Income","match_type":"exact","amount_min":200,"amount_max":null}
+SAVE_RULE:{"merchant_pattern":"ACME FOODS","category":"Groceries","match_type":"contains","amount_min":null,"amount_max":200}
+SAVE_RULE:{"merchant_pattern":"ACME FOODS ER","category":"Income","match_type":"exact","amount_min":200,"amount_max":null}
 
 SESSION CLOSING:
 When the needs-review queue is empty, or the user says "done", "that's all", "finished", "I'm done for now", "wrap it up"  - respond with a closing message then emit SESSION_CLOSE on its own line.
@@ -564,9 +534,7 @@ Be casual, 1 sentence max. Do not offer to save a rule yet.`;
 
   return `${userLine}You are Tag, XspensesAI's categorization agent. You are having a conversation about merchant "${merchant}".
 ${merchantBlock}
-USER'S OVERALL FINANCES (this year):
-- Total spent: $${yearTotal.spent.toFixed(2)}
-- Total income: $${yearTotal.income.toFixed(2)}
+${TAG_FINANCIAL_RULES}
 
 Conversation rules:
 1. If the user tells you the category directly (e.g. "Food & Dining", "Transportation"), accept it immediately  - do NOT ask to confirm again. Just save it.
@@ -577,7 +545,7 @@ Conversation rules:
 5. NEVER double-confirm. One question max. If they said "Food & Dining" that IS the confirmation.
 6. Keep all replies to 1-2 sentences max.
 7. Use ONLY these exact category names: ${CATEGORIES.join(', ')}. NEVER invent names not on this list.
-${pageContext ? `\nPAGE CONTEXT:\n- Total spent: $${pageContext.totalSpent?.toFixed(2) || '0'}\n- Total income: $${pageContext.totalIncome?.toFixed(2) || '0'}\n- Transactions in view: ${pageContext.transactionCount || 0}` : ''}
+${pageContext ? `\nON SCREEN: ${pageContext.transactionCount || 0} transactions in the current view (as reported by the page; not a verified total).` : ''}
 
 IMPORTANT: Only output SAVE_RULE when the user has explicitly confirmed they want a rule saved. Never output it for questions or explanations.
 
@@ -590,7 +558,7 @@ Then confirm the change naturally. For amount-based rules (e.g. "over $30", "und
 IS-A PATTERN - HARD RULE: When the user says "[merchant] is [category]" or "[merchant] is [category], [subcategory]" - ALWAYS treat this as a categorization command and emit a <correction> block immediately, saving the rule. The merchant name is everything before the word "is". The category (and optional subcategory after a comma) is everything after "is". Never ignore it. Never ask for clarification. Never respond with a question. Examples:
 - "7-ELEVEN is Food & Dining" -> <correction>{"merchant_pattern":"7-ELEVEN","category":"Food & Dining","subcategory":null,"min_amount":null,"max_amount":null}</correction>
 - "Petro-Canada is Transportation, Gas & Fuel" -> <correction>{"merchant_pattern":"Petro-Canada","category":"Transportation","subcategory":"Gas & Fuel","min_amount":null,"max_amount":null}</correction>
-- "Gordon Foods is Income" -> <correction>{"merchant_pattern":"Gordon Foods","category":"Income","subcategory":null,"min_amount":null,"max_amount":null}</correction>
+- "Acme Foods is Income" -> <correction>{"merchant_pattern":"Acme Foods","category":"Income","subcategory":null,"min_amount":null,"max_amount":null}</correction>
 
 SUBCATEGORIES: If the user asks about subcategories, tell them: "Open any transaction drawer and you'll see a subcategory dropdown below the category. You can pick from built-in options or select '+ Add new...' to create your own."
 
@@ -639,72 +607,49 @@ export const handler: Handler = async (event) => {
         firstName = profile?.first_name || profile?.full_name?.split(' ')[0] || 'there';
       } catch { /* non-blocking */ }
 
-      // Duplicate detection - find (amount, date) pairs with count > 1
-      let dupeLine = '';
-      try {
-        const { data: dupeRows } = await supabase
-          .from('transactions')
-          .select('id, amount, date, posted_at, merchant_name, category')
-          .eq('user_id', auth.userId)
-          .limit(5000);
-        const seen = new Map<string, { count: number; total: number }>();
-        for (const r of dupeRows || []) {
-          if (r.category === 'Duplicate') continue; // already flagged
-          const d = String(r.date || (r.posted_at ? String(r.posted_at).slice(0, 10) : ''));
-          if (!d) continue;
-          const amt = Math.abs(Number(r.amount || 0));
-          const key = `${amt.toFixed(2)}|${d}`;
-          const e = seen.get(key) || { count: 0, total: 0 };
-          e.count += 1;
-          e.total = amt;
-          seen.set(key, e);
-        }
-        const dupeGroups = Array.from(seen.values()).filter(e => e.count > 1);
-        const dupeCount = dupeGroups.reduce((s, e) => s + (e.count - 1), 0);
-        const dupeTotal = dupeGroups.reduce((s, e) => s + e.total * (e.count - 1), 0);
-        if (dupeCount > 0) {
-          dupeLine = `\n\nHeads up - I found ${dupeCount} possible duplicate transaction${dupeCount > 1 ? 's' : ''} totaling $${dupeTotal.toFixed(2)}. Open any transaction and tap "Mark Duplicate" to flag it.`;
-        }
-      } catch { /* non-blocking */ }
+      // T-LIVE-01 / P-G4: the opening line uses only verified figures. Possible duplicate imports come
+      // from the shared integrity signals over the complete paged fetch; categorization status from
+      // exact counts (customer-kept "Other" is never unfinished). No dollar totals are volunteered.
+      const [openingSummary, openingProgress] = await Promise.all([
+        loadTagSpendingSummary(supabase, auth.userId),
+        loadCategorizationProgress(supabase, auth.userId),
+      ]);
+      const dup = openingSummary.integrity?.possibleDuplicates;
+      const dupeLine = dup && dup.count > 0
+        ? `\n\nHeads up - ${dup.count} transaction${dup.count > 1 ? 's look' : ' looks'} like ${dup.count > 1 ? 'they were' : 'it was'} imported twice (the same statement uploaded more than once). Open any of them and tap "Mark Duplicate" to flag it.`
+        : '';
 
-      // Fetch all Needs Review transactions, group in JS
+      // Needs Review merchants (counts only; the exact total count comes from the progress counts).
       const { data: needsReview } = await supabase
         .from('transactions')
-        .select('merchant_name, amount')
+        .select('merchant_name')
         .eq('user_id', auth.userId)
-        .eq('category', 'Needs Review');
-
+        .eq('category', 'Needs Review')
+        .order('posted_at', { ascending: false, nullsFirst: false })
+        .limit(500);
       const rows = needsReview || [];
-      const uncatCount = rows.length;
-      const totalAmt = rows.reduce((s, r) => s + Math.abs(Number(r.amount || 0)), 0);
-      const byMerchant = new Map<string, { cnt: number; total: number }>();
+      const byMerchant = new Map<string, number>();
       for (const r of rows) {
         const m = String(r.merchant_name || 'Unknown');
-        const e = byMerchant.get(m) || { cnt: 0, total: 0 };
-        e.cnt += 1;
-        e.total += Math.abs(Number(r.amount || 0));
-        byMerchant.set(m, e);
+        byMerchant.set(m, (byMerchant.get(m) || 0) + 1);
       }
-      const top = Array.from(byMerchant.entries())
-        .sort((a, b) => b[1].total - a[1].total)
-        .slice(0, 5);
-      const merchantCount = byMerchant.size;
+      const top = Array.from(byMerchant.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5);
 
       let openingReply: string;
-      if (uncatCount > 0) {
-        const lines = top.map(([m, v]) => `- ${m} x${v.cnt} ($${v.total.toFixed(2)})`).join('\n');
+      if (!openingProgress.available) {
+        openingReply = `Hey ${firstName} - what can I help you categorize today?` + dupeLine;
+      } else if (openingProgress.needsReview > 0) {
+        const lines = top.map(([m, n]) => `- ${m} x${n}`).join('\n');
+        const sampleNote = rows.length < openingProgress.needsReview ? ' (among the most recent ones)' : '';
         openingReply =
-          `Hey ${firstName} - you've got ${uncatCount} transactions across ${merchantCount} merchants in Needs Review ($${totalAmt.toFixed(2)} total).\n\n` +
-          `Biggest ones:\n${lines}\n\n` +
+          `Hey ${firstName} - you've got ${openingProgress.needsReview} transaction${openingProgress.needsReview !== 1 ? 's' : ''} in Needs Review.\n\n` +
+          `Most common${sampleNote}:\n${lines}\n\n` +
           `Want me to work through them now? I'll go one merchant at a time and ask you about each one.` +
           dupeLine;
+      } else if (openingProgress.allCategorized) {
+        openingReply = `Hey ${firstName} - everything's categorized: all ${openingProgress.total} transaction${openingProgress.total !== 1 ? 's have' : ' has'} a category. Ask me anything about your categories or merchants.` + dupeLine;
       } else {
-        const totalCat = await supabase
-          .from('transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', auth.userId);
-        const totalN = totalCat.count ?? 0;
-        openingReply = `Hey ${firstName} - your books are looking clean (done) All ${totalN} transactions categorized. Ask me anything about your spending.` + dupeLine;
+        openingReply = `Hey ${firstName} - ${openingProgress.unfinished} transaction${openingProgress.unfinished !== 1 ? 's' : ''} still need a category. Want me to help sort them out?` + dupeLine;
       }
 
       return { statusCode: 200, headers, body: JSON.stringify({ reply: openingReply, action: null, sessionComplete: false }) };
@@ -772,18 +717,27 @@ export const handler: Handler = async (event) => {
 
   // 3. Fetch merchant history
   const merchantLower = merchantName.toLowerCase().trim();
-  let merchantHistory = { count: 0, totalSpent: 0, categories: [] as string[] };
+  let merchantHistory = { count: 0, countExact: false, categories: [] as string[] };
   if (merchantLower) {
     const { data: merchantTxs } = await supabase
       .from('transactions')
-      .select('amount, category, posted_at')
+      .select('category, posted_at')
       .eq('user_id', auth.userId)
       .ilike('merchant_name', `%${merchantLower}%`)
       .order('posted_at', { ascending: false })
       .limit(50);
+    let exactCount: number | null = null;
+    try {
+      const { count, error } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.userId)
+        .ilike('merchant_name', `%${merchantLower}%`);
+      exactCount = error || typeof count !== 'number' ? null : count;
+    } catch { exactCount = null; }
     merchantHistory = {
-      count: merchantTxs?.length || 0,
-      totalSpent: merchantTxs?.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) || 0,
+      count: exactCount ?? (merchantTxs?.length || 0),
+      countExact: exactCount !== null,
       categories: (merchantTxs?.map(t => t.category).filter(Boolean) as string[]) || [],
     };
   }
@@ -801,54 +755,10 @@ export const handler: Handler = async (event) => {
     } catch { /* non-blocking */ }
   }
 
-  // 4. Complete category + subcategory totals (ALL transactions, no date filter)
-  const { data: allTxs } = await supabase
-    .from('transactions')
-    .select('amount, category, subcategory, type')
-    .eq('user_id', auth.userId)
-    .limit(10000);
-  let yearSpent = 0, yearIncome = 0;
-  const categoryTotalsMap = new Map<string, { total: number; count: number }>();
-  const subcatTotalsMap = new Map<string, { total: number; count: number }>();
-  for (const t of allTxs || []) {
-    const amt = Math.abs(Number(t.amount || 0));
-    const cat = String(t.category || 'Uncategorized');
-    const sub = String((t as any).subcategory || '');
-    if (cat.toLowerCase() === 'income' || String((t as any).type || '').toLowerCase() === 'income') {
-      yearIncome += amt;
-    } else {
-      yearSpent += amt;
-      const entry = categoryTotalsMap.get(cat) || { total: 0, count: 0 };
-      entry.total += amt;
-      entry.count += 1;
-      categoryTotalsMap.set(cat, entry);
-      const subKey = `${cat}||${sub}`;
-      const subEntry = subcatTotalsMap.get(subKey) || { total: 0, count: 0 };
-      subEntry.total += amt;
-      subEntry.count += 1;
-      subcatTotalsMap.set(subKey, subEntry);
-    }
-  }
-  const categoryTotalsSorted = Array.from(categoryTotalsMap.entries())
-    .sort((a, b) => b[1].total - a[1].total);
-  const subcatTotalsSorted = Array.from(subcatTotalsMap.entries())
-    .filter(([k]) => k.split('||')[1]) // only rows with a subcategory
-    .sort((a, b) => b[1].total - a[1].total);
-  const categoryTotalsBlock = [
-    `COMPLETE CATEGORY TOTALS (all ${allTxs?.length || 0} transactions, use these for any spending aggregation question):`,
-    ...categoryTotalsSorted.map(([cat, v]) => `- ${cat}: $${v.total.toFixed(2)} (${v.count} tx)`),
-    '',
-    'SUBCATEGORY TOTALS:',
-    ...subcatTotalsSorted.map(([k, v]) => {
-      const [cat, sub] = k.split('||');
-      return `- ${cat} / ${sub}: $${v.total.toFixed(2)} (${v.count} tx)`;
-    }),
-    '',
-    `- TOTAL SPENT: $${yearSpent.toFixed(2)}`,
-    `- TOTAL INCOME: $${yearIncome.toFixed(2)}`,
-    '',
-    'Use these totals verbatim for any aggregation, "top category", or subcategory question. Never recompute from the injected transaction list.',
-  ].join('\n');
+  // 4. T-LIVE-01 / P-G4: verified totals are built after the search pre-fetch below (they need the
+  // merchant named in the message). The old block read at most the API row cap (~1000 rows) yet was
+  // labelled as complete category totals; it has been replaced by the shared engine.
+  let focusForTotals: string | null = merchantName || null;
 
   // 4.5: Pre-fetch transaction data for search intents (page-level only)
   let injectedTxContext: string | null = null;
@@ -882,6 +792,7 @@ export const handler: Handler = async (event) => {
       return tokenHit;
     };
     const msgMerchant = searchIntent.merchant || extractFromFallback();
+    if (msgMerchant) focusForTotals = msgMerchant;
     if (searchIntent.isSearch || msgMerchant) {
       try {
         // Step 1: merchant-prioritized rows (if merchant mentioned)
@@ -895,7 +806,7 @@ export const handler: Handler = async (event) => {
             .order('date', { ascending: false })
             .limit(200);
           priorityRows = mRows || [];
-          console.log('[tag-chat] merchant priority:', { merchant: msgMerchant, priorityCount: priorityRows.length, fillCount: Math.max(0, 200 - priorityRows.length) });
+          console.log('[tag-chat] merchant priority:', { priorityCount: priorityRows.length, fillCount: Math.max(0, 200 - priorityRows.length) });
         }
 
         // Step 2: fill remaining slots with recent transactions matching other filters
@@ -937,12 +848,11 @@ export const handler: Handler = async (event) => {
         ].slice(0, 200);
 
         if (txRows.length > 0) {
-          const totalAmt = txRows.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0);
           const lines = txRows.slice(0, 60).map((t: any, i: number) =>
             `[${i + 1}] id:${t.id} | ${t.date || (t.posted_at || '').split('T')[0]} | ${t.merchant_name || t.description || 'Unknown'} | $${Math.abs(Number(t.amount)).toFixed(2)} | ${t.category || 'Uncategorized'}${t.subcategory ? ' / ' + t.subcategory : ''}`
           );
           injectedTxContext = [
-            `LIVE TRANSACTION DATA (${txRows.length} results, total $${totalAmt.toFixed(2)}${msgMerchant ? `, merchant-prioritized: ${msgMerchant}` : ''}):`,
+            `LIVE TRANSACTION DATA — SAMPLE of ${txRows.length} rows (newest first${msgMerchant ? `, merchant-prioritized: ${msgMerchant}` : ''}). Individual rows only: never add them up or present them as all transactions; dollar totals come only from VERIFIED SPENDING TOTALS.`,
             ...lines,
             txRows.length > 60 ? `... and ${txRows.length - 60} more` : '',
             '',
@@ -958,6 +868,18 @@ export const handler: Handler = async (event) => {
     }
   }
 
+  // 4.6 Verified financial context (skipped for a pure greeting).
+  let categoryTotalsBlock = '';
+  if (!isQuickChange && !isSmallTalk(message)) {
+    const [summary, progress] = await Promise.all([
+      loadTagSpendingSummary(supabase, auth.userId, { focusMerchant: focusForTotals }),
+      loadCategorizationProgress(supabase, auth.userId),
+    ]);
+    categoryTotalsBlock = `${formatSpendingBlock(summary)}\n\n${formatProgressBlock(progress)}`;
+  } else if (!isQuickChange) {
+    categoryTotalsBlock = 'THIS MESSAGE IS A GREETING OR PLEASANTRY. Reply warmly and briefly; do not mention any amount, total, count or opinion about their finances.';
+  }
+
   // 5. Build messages for LLM
   const userMessage = isQuickChange
     ? `I just changed ${merchantName} to ${bodyCategory}.`
@@ -966,7 +888,7 @@ export const handler: Handler = async (event) => {
   const systemPrompt = buildSystemPrompt(
     merchantName, isQuickChange, bodyCategory || (tx as any)?.category || null,
     bodyAmount ?? (tx as any)?.amount ?? null,
-    merchantHistory, { spent: yearSpent, income: yearIncome }, pageContext, userName, selectedTransaction || null, learnedCategory
+    merchantHistory, pageContext, userName, selectedTransaction || null, learnedCategory
   );
 
   // 6. Call OpenAI
@@ -977,7 +899,7 @@ export const handler: Handler = async (event) => {
     max_tokens: 500,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'system' as const, content: categoryTotalsBlock },
+      ...(categoryTotalsBlock ? [{ role: 'system' as const, content: categoryTotalsBlock }] : []),
       ...(injectedTxContext ? [{ role: 'system' as const, content: injectedTxContext }] : []),
       ...effectiveHistory.map((m: { role: string; content: string }) => ({
         role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
@@ -988,7 +910,7 @@ export const handler: Handler = async (event) => {
   }));
 
   let reply = completion.choices?.[0]?.message?.content || 'Sorry, I could not process that.';
-  console.log('[tag-chat] RAW REPLY:', JSON.stringify(reply));
+  console.log('[tag-chat] reply received', { chars: reply.length });
 
   // Server-side FILTER injection  - don't trust LLM to output it
   const isPageLevel = isPageContext || (!transactionId && !isQuickChange);
@@ -1092,89 +1014,19 @@ export const handler: Handler = async (event) => {
     reply = reply.replace(/\s*HANDOFF:\s*\{[^}]+\}/g, '').trim();
   }
 
-  // Handle correction intent  - user told Tag a merchant is miscategorized
-  const correction = parseCorrection(reply);
-  if (correction) {
-    const { merchant_pattern, min_amount, max_amount } = correction;
-    const category = normalizeCategory(correction.category);
-    const subcategory = correction.subcategory?.trim() || null;
-    try {
-      // Upsert into category_rules  - schema uses match_value, NOT merchant_pattern
-      const rulePayload: Record<string, any> = {
-        user_id: auth.userId,
-        match_value: merchant_pattern.toUpperCase(),
-        category,
-        subcategory: subcategory || null,
-        match_type: 'contains',
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      };
-      if (min_amount != null) rulePayload.min_amount = min_amount;
-      if (max_amount != null) rulePayload.max_amount = max_amount;
+  // T-ACT-FINAL (owner GO 2026-11-25): text the MODEL writes never changes data. <correction>,
+  // <delete_rule>, <merchant_sweep/>, SAVE_RULE:{…} and the legacy {"action":"recategorize"} used to
+  // write rules / recategorize history / delete rules / reset rows the moment they appeared in the
+  // model's reply, with no server-enforced confirmation (and reachable through client-supplied
+  // history). They are now stripped and nothing is written; changes go through Tag's signed
+  // proposal → explicit confirmation flow (tag-copilot / tag-action).
+  let blockedModelWrite = false;
+  const stripModelWrite = (re: RegExp) => {
+    if (re.test(reply)) { blockedModelWrite = true; reply = reply.replace(re, '').trim(); }
+  };
+  stripModelWrite(/<correction>[\s\S]*?<\/correction>/g);
 
-      if (min_amount != null || max_amount != null) {
-        const { error: insErr } = await supabase.from('category_rules').insert(rulePayload);
-        if (insErr) console.error('[tag-chat] correction insert failed', insErr.message);
-      } else {
-        const { error: upErr } = await supabase.from('category_rules').upsert(rulePayload, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' });
-        if (upErr) console.error('[tag-chat] correction upsert failed', upErr.message);
-      }
-      const amountNote = min_amount != null || max_amount != null ? ` (${min_amount != null ? '>=$' + min_amount : ''}${min_amount != null && max_amount != null ? ', ' : ''}${max_amount != null ? '<$' + max_amount : ''})` : '';
-      console.log(`[tag-chat] Correction rule saved: ${merchant_pattern} -> ${category}${subcategory ? ' / ' + subcategory : ''}${amountNote}`);
-
-      // Backfill existing transactions
-      const updatePayload: Record<string, any> = {
-        category,
-        category_source: 'user_correction',
-        updated_at: new Date().toISOString(),
-      };
-      if (subcategory) {
-        updatePayload.subcategory = subcategory;
-        updatePayload.subcategory_source = 'user_correction';
-      }
-      let backfillQ = supabase
-        .from('transactions')
-        .update(updatePayload)
-        .eq('user_id', auth.userId)
-        .ilike('merchant_name', `%${merchant_pattern}%`);
-      // Apply amount threshold if this is an amount-specific correction
-      if (min_amount != null) backfillQ = backfillQ.gte('amount', min_amount);
-      if (max_amount != null) backfillQ = backfillQ.lt('amount', max_amount);
-      const { count } = await backfillQ.select('id', { count: 'exact', head: true });
-      console.log(`[tag-chat] Backfilled ${count || 0} transactions for ${merchant_pattern}${min_amount != null || max_amount != null ? ` (amount filtered)` : ''}`);
-
-      // Enforce type from category_type_rules
-      await enforceTypeBulk(supabase, auth.userId, category, merchant_pattern);
-    } catch (err: any) {
-      console.error('[tag-chat] Correction handling error:', err.message);
-    }
-
-    // Strip the <correction> block from the response sent to the user
-    reply = reply.replace(/<correction>[\s\S]*?<\/correction>/g, '').trim();
-
-    // Mark any existing feedback as applied
-    try {
-      await supabase.from('tag_category_feedback')
-        .update({ applied_at: new Date().toISOString() })
-        .eq('user_id', auth.userId)
-        .eq('merchant_pattern', correction.merchant_pattern)
-        .is('applied_at', null);
-    } catch { /* table/column may not exist */ }
-  }
-
-  // Handle delete_rule intent
-  const deletion = parseDeleteRule(reply);
-  if (deletion) {
-    try {
-      await supabase.from('category_rules').delete()
-        .eq('user_id', auth.userId)
-        .ilike('match_value', deletion.merchant_pattern);
-      console.log(`[tag-chat] Deleted rules for: ${deletion.merchant_pattern}`);
-    } catch (err: any) {
-      console.error('[tag-chat] Delete rule error:', err.message);
-    }
-    reply = reply.replace(/<delete_rule>[\s\S]*?<\/delete_rule>/g, '').trim();
-  }
+  stripModelWrite(/<delete_rule>[\s\S]*?<\/delete_rule>/g);
 
   // Handle list_rules intent
   if (parseListRules(reply)) {
@@ -1215,56 +1067,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // Handle merchant_sweep intent  - find and flag unknown-merchant transactions
-  if (parseMerchantSweep(reply)) {
-    reply = reply.replace(/<merchant_sweep\s*\/?>/g, '').trim();
-    try {
-      const { data: unknowns } = await supabase
-        .from('transactions')
-        .select('id, description, amount, date, posted_at, category')
-        .eq('user_id', auth.userId)
-        .not('category', 'in', '("Transfers","Income")')
-        .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
-        .not('subcategory', 'eq', 'Unknown Merchant - Verify')
-        .order('posted_at', { ascending: false })
-        .limit(10);
-
-      if (unknowns && unknowns.length > 0) {
-        // Mark them for review
-        for (const tx of unknowns) {
-          await supabase.from('transactions').update({
-            category: 'Needs Review',
-            subcategory: 'Unknown Merchant - Verify',
-            category_source: 'merchant_sweep',
-            updated_at: new Date().toISOString(),
-          }).eq('id', tx.id).eq('user_id', auth.userId);
-        }
-
-        // Get total remaining
-        const { count: remaining } = await supabase
-          .from('transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', auth.userId)
-          .not('category', 'in', '("Transfers","Income")')
-          .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
-          .not('subcategory', 'eq', 'Unknown Merchant - Verify');
-
-        const lines = unknowns.slice(0, 5).map(tx => {
-          const amt = Math.abs(Number(tx.amount || 0)).toFixed(2);
-          const d = tx.date || tx.posted_at?.split('T')[0] || '?';
-          const desc = tx.description || '(no description)';
-          return `- **$${amt}** on ${d}  - "${desc}"`;
-        }).join('\n');
-
-        reply = `Found ${unknowns.length} transactions with no merchant name. I've flagged them for review.\n\n${lines}${unknowns.length > 5 ? `\n- ... and ${unknowns.length - 5} more` : ''}${(remaining || 0) > 0 ? `\n\n${remaining} more still unflagged  - say "fix unknowns" again for the next batch.` : ''}\n\nOpen any of these in the transaction drawer to add the merchant name and category. I'll learn from your corrections.`;
-      } else {
-        reply = 'All your transactions have merchant names  - nothing to fix here!';
-      }
-    } catch (err: any) {
-      console.error('[tag-chat] merchant_sweep error:', err.message);
-      reply = 'I had trouble scanning for unknown merchants. Try again in a moment.';
-    }
-  }
+  stripModelWrite(/<merchant_sweep\s*\/?>/g);
 
   /*
    * SQL RPC required for staging backfill  - run in Supabase SQL editor:
@@ -1292,97 +1095,15 @@ export const handler: Handler = async (event) => {
    * $$;
    */
 
-  // 7. Detect SAVE_RULE: in response
-  let ruleSaved = false;
-  let backfillCount = 0;
-  const ruleMatch = reply.match(/SAVE_RULE:\s*(\{[^}]+\})/);
-  if (ruleMatch) {
-    try {
-      const ruleData = JSON.parse(ruleMatch[1]);
-      ruleData.category = normalizeCategory(ruleData.category || '');
-      const pattern = String(ruleData.merchant_pattern || merchantName).toUpperCase();
-
-      // 7a. Save rule (INSERT for amount-specific, upsert for generic)
-      const ruleRow: Record<string, any> = {
-        user_id: auth.userId,
-        match_value: pattern,
-        merchant_pattern: pattern,
-        category: ruleData.category,
-        match_type: ruleData.match_type || 'exact',
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      };
-      if (ruleData.amount_min != null) ruleRow.min_amount = ruleData.amount_min;
-      if (ruleData.amount_max != null) ruleRow.max_amount = ruleData.amount_max;
-      if (ruleData.amount_min != null || ruleData.amount_max != null) {
-        await supabase.from('category_rules').insert(ruleRow);
-      } else {
-        await supabase.from('category_rules').upsert(ruleRow, { onConflict: 'user_id,merchant_pattern,min_amount,max_amount' });
-      }
-
-      // 7b. Write vendor memory
-      await supabase.from('vendor_category_memory').upsert({
-        user_id: auth.userId,
-        vendor_key: pattern.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
-        category: ruleData.category,
-        source: 'tag_conversation',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,vendor_key' });
-
-      // 7c. Backfill committed transactions
-      let backfillQuery = supabase
-        .from('transactions')
-        .update({
-          category: ruleData.category,
-          category_source: 'tag_rule',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', auth.userId)
-        .ilike('merchant_name', `%${pattern}%`)
-        .not('category_source', 'eq', 'user_override');
-
-      if (ruleData.amount_min != null) {
-        backfillQuery = backfillQuery.gte('amount', ruleData.amount_min);
-      }
-      if (ruleData.amount_max != null) {
-        backfillQuery = backfillQuery.lte('amount', ruleData.amount_max);
-      }
-
-      const { data: backfilled } = await backfillQuery.select('id');
-      backfillCount = backfilled?.length ?? 0;
-
-      // 7c2. Enforce type from category_type_rules
-      await enforceTypeBulk(supabase, auth.userId, ruleData.category, pattern);
-
-      // 7d. Backfill staging transactions (RPC  - may not exist yet)
-      try {
-        await supabase.rpc('backfill_staging_category', {
-          p_user_id: auth.userId,
-          p_match_value: pattern,
-          p_category: ruleData.category,
-        });
-      } catch { /* RPC may not exist yet  - skip */ }
-
-      ruleSaved = true;
-    } catch { /* ignore parse errors */ }
-    // Strip SAVE_RULE from reply
-    reply = reply.replace(/\n?SAVE_RULE:\s*\{[^}]+\}/g, '').trim();
-  }
-
-  // 8. Legacy recategorize action support
-  let action: { action: string; category: string } | null = null;
-  const actionMatch = reply.match(/\{"action"\s*:\s*"recategorize"\s*,\s*"category"\s*:\s*"([^"]+)"\}/);
-  if (actionMatch) {
-    const category = normalizeCategory(actionMatch[1]);
-    action = { action: 'recategorize', category };
-    if (transactionId) {
-      await supabase.from('transactions').update({
-        category, category_source: 'user_chat', updated_at: new Date().toISOString(),
-      }).eq('id', transactionId).eq('user_id', auth.userId);
-      // Enforce type
-      await enforceType(supabase, auth.userId, category, transactionId);
-    }
-    reply = reply.replace(/\n?\{"action"[^}]+\}/g, '').trim();
+  // 7./8. SAVE_RULE:{…} and the legacy recategorize JSON: stripped, never executed.
+  const ruleSaved = false;
+  const backfillCount = 0;
+  const action: { action: string; category: string } | null = null;
+  stripModelWrite(/\n?SAVE_RULE:\s*\{[^}]+\}/g);
+  stripModelWrite(/\n?\{"action"\s*:\s*"recategorize"[^}]*\}/g);
+  if (blockedModelWrite) {
+    reply = `${reply}${reply ? '\n\n' : ''}I haven't changed anything here. To change a category, save a rule or rename a merchant, ask me in the Tag panel on the Transactions page — I'll show you exactly what will change and wait for your yes.`;
+    console.log('[tag-chat] model-emitted change tag ignored (no write)');
   }
 
   // 9. Save conversation to tag_conversations

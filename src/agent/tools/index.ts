@@ -21,7 +21,6 @@ import * as tagExplain from './impl/tag_explain';
 import * as tagMerchantInsights from './impl/tag_merchant_insights';
 import * as tagCategoryBrain from './impl/tag_category_brain';
 import * as tagUpdateTransactionCategory from './impl/tag_update_transaction_category';
-import * as tagBulkRecategorize from './impl/tag_bulk_recategorize';
 import * as tagCreateManualTransaction from './impl/tag_create_manual_transaction';
 import * as requestEmployeeHandoff from './impl/request_employee_handoff';
 import * as analyticsForecast from './impl/analytics_forecast';
@@ -378,14 +377,9 @@ const toolModules: Map<string, ToolModule> = new Map([
       rateLimit: { perMinute: 30 },
     },
   }],
-  ['tag_bulk_recategorize', {
-    id: 'tag_bulk_recategorize',
-    description: 'Bulk recategorize all transactions matching a merchant name or keyword. Use when users say change X to Y, move all X to category Y, mark all X as Y.',
-    inputSchema: tagBulkRecategorize.inputSchema,
-    outputSchema: tagBulkRecategorize.outputSchema,
-    run: tagBulkRecategorize.execute,
-    meta: { requiresConfirm: false, mutates: true, timeout: 20000, rateLimit: { perMinute: 20 } },
-  }],
+  // tag_bulk_recategorize: RETIRED (owner GO 2026-11-25). Its commit ran when the model set
+  // confirmed:true. Merchant-wide and bulk category changes are Tag proposals the customer confirms
+  // (tag-copilot / typed preview -> tag-action commit_proposal).
   ['tag_create_manual_transaction', {
     id: 'tag_create_manual_transaction',
     description: 'Create a new income or expense transaction from natural language. Use this when users say things like "add an income of $500", "I was paid $1000 on Feb 10", "create a transaction for $50 from GFS", "add $200 income last Friday", or "add an income for $500 from GFS last Friday". Always confirm the amount, date (YYYY-MM-DD), description, and category before calling this tool. If category is "Income", the transaction type will be income; otherwise expense.',
@@ -470,7 +464,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['cash_flow_summary', {
     id: 'cash_flow_summary',
-    description: 'Authoritative, deterministic period-level cash-flow facts for an inclusive startDate–endDate range. Every transaction in the range is fetched and classified: transaction type decides direction, category/subcategory decide purpose; amount sign never decides direction. Returns ordinary spending, income (excluding transfers in), debt payments, transfers in/out, savings/investment movement, classification-conflict outflow, total inflow/outflow, and two explicitly named nets: rawNetCashMovement (all classified inflow minus all classified outflow) and netExcludingInternalMovements (transfers and savings/investment excluded). netCashFlow is a compatibility alias of netExcludingInternalMovements; nonSpend is a compatibility sum of all non-spending outflow buckets. Refunds/reversals are not identified. Use when users ask about spending, income, cash flow, or money in vs money out for a period; check queryStatus and completeness (partial data, unclassified transactions) before presenting totals.',
+    description: 'Authoritative, deterministic period-level cash-flow facts for an inclusive startDate–endDate range. Every transaction in the range is fetched and classified: transaction type decides direction, category/subcategory decide purpose; amount sign never decides direction. Returns ordinary spending, income (excluding transfers in), debt payments, transfers in/out, savings/investment movement, classification-conflict outflow, total inflow/outflow, refunds (money back on a spending category; never income), and the nets: netCashFlow = rawNetCashMovement = TOTAL DEPOSITS minus TOTAL WITHDRAWALS (this is the only figure to call "net cash flow"), and netExcludingTransfersAndSavings (income + refunds minus spending and debt payments; transfers, savings and cash excluded; always name it that way, never "net cash flow"). statementBreakdown gives the reconciled lines (employment income, other deposits, transfers, cash, refunds, mortgage, loans, card payments, savings, unresolved) that add up exactly to total deposits and withdrawals; present those lines instead of adding buckets yourself. nonSpend is a compatibility sum of all non-spending outflow buckets. Use when users ask about spending, income, cash flow, or money in vs money out for a period; check queryStatus and completeness (partial data, unclassified transactions) before presenting totals.',
     inputSchema: cashFlowSummary.inputSchema,
     outputSchema: cashFlowSummary.outputSchema,
     run: cashFlowSummary.execute,
@@ -505,14 +499,14 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tag_status', {
     id: 'tag_status',
-    description: 'READ-ONLY. Ask Tag about categorization quality for the customer: category counts by source (customer-confirmed / automatic / needs review / unknown), needs-review count, recent corrections, and suspected misclassifications from Tag\'s review rules. Scope order: startDate/endDate (YYYY-MM-DD) the customer asked about (periodSource "requested"); else importId for a statement the customer referenced; else the period established in this conversation (periodSource "conversation"); else the current calendar month. Never combine a requested period with a statement. It never changes categories.',
+    description: 'READ-ONLY. Ask Tag about categorization quality for the customer: category counts by source (customer-confirmed / automatic / needs review / unknown), needs-review count, recent corrections, and suspected misclassifications from Tag\'s review rules. Scope order: startDate/endDate (YYYY-MM-DD) the customer asked about (periodSource "requested"); else importId for a statement the customer referenced; else the period established in this conversation (periodSource "conversation"); with no period or statement it covers ALL imported transactions (entire history). Set allHistory:true when the customer asks about everything they have ever uploaded, their entire history or all time — that beats a conversation period. Never combine a requested period with a statement. Never ask permission to run or widen it: it is read-only. It never changes categories.',
     inputSchema: tagStatus.inputSchema,
     outputSchema: tagStatus.outputSchema,
     run: tagStatus.execute,
     meta: {
       mutates: false,
       requiresConfirm: false,
-      timeout: 10000,
+      timeout: 20000, // P-LIVE-02: complete paged read of the whole history
       rateLimit: { perMinute: 10 },
     },
   }],
@@ -857,8 +851,12 @@ function fixExclusiveBounds(obj: any): any {
   return out;
 }
 
+/** Tools that must never be offered or executed, whatever an employee profile allows. */
+export const RETIRED_TOOL_IDS: ReadonlySet<string> = new Set(['ingest_statement_enhanced']);
+
 export function toOpenAIToolDefs(ids: string[]): OpenAIToolDef[] {
   return ids
+    .filter(id => !RETIRED_TOOL_IDS.has(id))
     .map(id => toolModules.get(id))
     .filter(Boolean)
     .map(tool => ({
@@ -877,6 +875,7 @@ export function toOpenAIToolDefs(ids: string[]): OpenAIToolDef[] {
 export function pickTools(ids: string[]): Record<string, ToolModule> {
   const picked: Record<string, ToolModule> = {};
   for (const id of ids) {
+    if (RETIRED_TOOL_IDS.has(id)) continue;
     const tool = toolModules.get(id);
     if (tool) picked[id] = tool;
   }

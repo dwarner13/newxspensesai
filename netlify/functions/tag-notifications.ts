@@ -17,19 +17,23 @@ export const handler: Handler = async (event) => {
 
   const sb = serverSupabase();
 
+  // Owner 2026-11-26 (smallest safe notifications fix, no migration): Tag's notices are stored in the
+  // `notifications` table (live columns employee_slug / message / payload). Errors are reported as
+  // errors — never "200 with an empty list", which would look like "no news".
   if (event.httpMethod === 'GET') {
     try {
-      const { data } = await sb
-        .from('user_notifications')
+      const { data, error } = await sb
+        .from('notifications')
         .select('*')
         .eq('user_id', auth.userId)
         .eq('employee_slug', 'tag-ai')
         .is('read_at', null)
         .order('created_at', { ascending: false })
         .limit(5);
+      if (error) return { statusCode: 503, headers, body: JSON.stringify({ error: 'notifications_unavailable', retryable: true }) };
       return { statusCode: 200, headers, body: JSON.stringify({ notifications: data ?? [] }) };
     } catch {
-      return { statusCode: 200, headers, body: JSON.stringify({ notifications: [] }) };
+      return { statusCode: 503, headers, body: JSON.stringify({ error: 'notifications_unavailable', retryable: true }) };
     }
   }
 
@@ -38,13 +42,16 @@ export const handler: Handler = async (event) => {
     const { id } = body;
     if (!id) return { statusCode: 400, headers, body: JSON.stringify({ error: 'id required' }) };
     try {
-      await sb.from('user_notifications')
+      const { data, error } = await sb.from('notifications')
         .update({ read_at: new Date().toISOString() })
         .eq('id', id)
-        .eq('user_id', auth.userId);
+        .eq('user_id', auth.userId)
+        .select('id');
+      if (error) return { statusCode: 503, headers, body: JSON.stringify({ error: 'not_updated', retryable: true }) };
+      if (!Array.isArray(data) || data.length === 0) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Notification not found' }) };
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
-    } catch (e: any) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
+    } catch {
+      return { statusCode: 503, headers, body: JSON.stringify({ error: 'not_updated', retryable: true }) };
     }
   }
 

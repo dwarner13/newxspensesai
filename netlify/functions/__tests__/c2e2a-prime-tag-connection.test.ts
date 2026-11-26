@@ -95,7 +95,12 @@ describe('server: Tag re-verifies the focused transaction (ownership + freshness
   });
 
   it('category changes stay user-scoped and are never triggered by navigation', () => {
-    expect(tagFn).toMatch(/\.update\(txUpdate\)\s+\.eq\('id', transactionId\)\s+\.eq\('user_id', auth\.userId\)/);
+    // T-LIVE-02: Tag's single-transaction tool only proposes; the one write is tag-action commit_single,
+    // user-scoped and gated on the customer's "yes" binding to the signed proposal.
+    expect(tagFn).not.toMatch(/\.update\(txUpdate\)\s+\.eq\('id', transactionId\)/);
+    const tagAction = read('netlify/functions/tag-action.ts');
+    expect(tagAction).toMatch(/\.eq\('id', tx\.id\)\s+\.eq\('user_id', userId\)/);
+    expect(tagAction).toContain('if (!sessionId || !proposalMatches) {');
     const handler = v2.slice(v2.indexOf('const handleReviewWithTag = useCallback('), v2.indexOf('}, [navigate]);', v2.indexOf('const handleReviewWithTag = useCallback(')));
     expect(handler).not.toMatch(/fetch\(|tag-copilot|update|categor/i);
   });
