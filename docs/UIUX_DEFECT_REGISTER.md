@@ -25,6 +25,8 @@ while active, and a "SIMULATED DATA" banner is shown.
 | Transactions not transaction-first; duplicate Ask Prime | Dashboard blocks above list | 74509447 |
 | Budget notice never reached the Inbox | Inserted columns `user_notifications` lacks | e9e4ad5e |
 | Review counts disagreed (Home 2, Transactions / Categories 'all categorized', sidebar badge, Tag bubble) | Four separate rules; literal 'Needs Review' rows not counted by the shared rule | 1127da0d, 249788f0, 63ef6640 |
+| Review page for an already-imported statement (would say 'Imported 0'); success showed on-screen row count; failures silent | No status check; client count; no error state | e21a5d82 |
+| Floating Tag bubble covered amounts on phones | Bubble over the amount column | d31068c8 |
 | **New customers' dashboard crashed after onboarding** | Post-onboarding chooser used two icons that were never imported (since 2025-12-28) | 611cca13 |
 
 ## Open
@@ -36,12 +38,10 @@ while active, and a "SIMULATED DATA" banner is shown.
 | Transactions summary "Income" and compact-summary categories include transfers / card payments (simulated data: Transfer shown as a spending category) | Calculation — Prime HQ (FST-2, planning only) |
 | Categories "22 transactions" vs Transactions "28" for the same data | Scope definition — Prime HQ |
 | Home "Expenses ↓ -63%" shows both an arrow and a minus sign | UI — next batch |
-| Mobile: floating Tag bubble covers row amounts while scrolling | UI — next batch (needs a design choice: list bottom padding vs smaller bubble) |
 | "Add New Goal" card looks clickable but does nothing; "+ New Goal" with no storage | Wait for Goals storage decision |
 | URL-only routes with fabricated figures (W9) and unreachable fake components (W10) | Owner decision — see retirement register |
 | Upload queue shows raw error codes (e.g. `simulated_mode`) on failure | UI — next batch (needs Byte / Attachments wording) |
 | Keyboard-open behaviour | Owner to test on an iPhone (Decision 2) |
 | Dev-only: ~4s blank before the first splash on a cold dev server | Dev server module loading; production unaffected — not a defect |
-| Review page for an already-imported statement would say 'Imported 0 transactions' (after S-1) | UI/UX — show 'This statement is already imported' with a link (Attachments HQ suggestion) |
 | Type checking does not run: `tsc -p tsconfig.json` checks no files; with `tsconfig.app.json`, ~346 pre-existing syntax errors (e.g. AddIncomeModal, PrimeTeamStatusPanel) stop semantic checks, so undefined names go unnoticed | All teams — fix or exclude the broken files so `tsc -p tsconfig.app.json` can run; CHOOSER-1 was found this way |
 | `toast` used without import in dashboard/TransactionsPageV2 (applySweep paths) | Fixed on Tag HQ's line; dead paths |
