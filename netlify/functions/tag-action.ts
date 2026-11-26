@@ -424,7 +424,11 @@ async function handleConversationalAction(
     reply = outcome.reply;
     if (outcome.state === 'proposed') {
       receipt = { ...base, subject: outcome.subject, state: 'proposed', result: { matchCount: Number(outcome.subject.affected ?? 0) } };
-      legacy = { ok: true, matchCount: Number(outcome.subject.affected ?? 0), proposal: { kind: 'action', action: outcome.action, subject: outcome.subject } };
+      legacy = {
+        ok: true, matchCount: Number(outcome.subject.affected ?? 0), proposal: { kind: 'action', action: outcome.action, subject: outcome.subject },
+        // Every proposed change, for "View all" (response only; bound by subject.fingerprint).
+        ...(outcome.details ? { proposalDetails: outcome.details } : {}),
+      };
     } else {
       receipt = { ...base, state: 'failed', reason: outcome.reason };
       legacy = { ok: false, error: outcome.reason };
