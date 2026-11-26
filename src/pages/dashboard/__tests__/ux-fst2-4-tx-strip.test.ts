@@ -23,6 +23,19 @@ describe('UX-FST2-4 Transactions strip', () => {
     expect(code).toMatch(/const clientOnlyFilter = filter !== 'all' \|\| needsCategoryOnly \|\| !!tagCategoryFilter \|\| !!tagSubcategoryFilter \|\| !!searchQuery;/);
     expect(code).toMatch(/totals hidden while filters are on/);
   });
+  it('UX-FST2-4b: rows use the engine classifier, never merchant patterns', () => {
+    expect(code).not.toMatch(/isIncomeTx|INCOME_PATTERNS|PAYMENT\|CREDIT/);
+    expect(code).toMatch(/classifyCashFlow\(/);
+    expect(code).toMatch(/classifyRow\(t\)\.purpose === 'spending'/);
+    expect(code).toMatch(/classifyRow\(t\)\.purpose === 'income'/);
+    expect(code).toMatch(/\(isInflowRow\(t\) \? '' : '-'\)/); // CSV sign
+    expect(code).toMatch(/const isIncome = isInflowRow\(t\);/); // row sign
+    expect(code).toMatch(/FINANCIAL_LABELS\.actualSpending : FINANCIAL_LABELS\.actualIncome/); // filter labels
+  });
+  it('says when the loaded list is incomplete (interim until paging)', () => {
+    expect(code).toMatch(/const listIncomplete = !!sum && scoped\.length < sum\.transactionCount;/);
+    expect(code).toMatch(/\(\{scoped\.length\} loaded\)/);
+  });
   it('owner labels, duplicates disclosed, coverage label, honest state', () => {
     for (const k of ['withdrawals', 'deposits', 'netCashFlow', 'actualIncome', 'actualSpending']) expect(code).toMatch(new RegExp(`FINANCIAL_LABELS\\.${k}\\b`));
     expect(code).toMatch(/sum\?\.signals\?\.possibleDuplicates\?\.count/);

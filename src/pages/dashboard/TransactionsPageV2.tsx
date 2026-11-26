@@ -30,6 +30,7 @@ import { useFinancialSummary } from '@/hooks/useFinancialSummary';
 import { allTimeRange, yearRange, type SummaryRequest } from '@/lib/financialSummary';
 import { FinancialStateNotice, hasFigures, formatMoney } from '@/components/finance/FinancialState';
 import { FINANCIAL_LABELS } from '@/lib/financialLabels';
+import { classifyCashFlow } from '@/shared/financial-taxonomy';
 
 const CAT_COLORS: Record<string, string> = {
   'Personal Care': '#ec4899', Subscriptions: '#818cf8', Shopping: '#a78bfa',
@@ -38,18 +39,18 @@ const CAT_COLORS: Record<string, string> = {
 };
 const colorFor = (c?: string) => CAT_COLORS[c || ''] || '#475569';
 
-const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
-function isIncomeTx(t: CommittedTransaction): boolean {
-  const cat = (t.category || '').toLowerCase();
-  const merchant = (t.merchant_name || '').toUpperCase().trim();
-  const txType = ((t as Record<string, unknown>).type as string || '').toLowerCase();
-  // type field is set by commit-import from balance-delta math — most reliable signal.
-  // Always trust it when present so "Debit Card Purchase, FLAME & BARREL" (type=expense)
-  // never shows as income even if category_rules tagged the merchant as Business Income.
-  if (txType === 'income') return true;
-  if (txType === 'expense') return false;
-  // Fallback when type field is not set (older imports)
-  return cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
+// UX-FST2-4b (AR-1b R1): rows are classified by the shared engine (classifyCashFlow), the same
+// rule the totals use, so a row never reads "Income" while the strip counts it as a refund or a
+// card payment. Direction comes from the transaction type; when the type is missing the stored
+// amount's sign is used (never merchant patterns). Switch to the AR-1c direction module when it lands.
+function classifyRow(t: CommittedTransaction) {
+  return classifyCashFlow({ type: (t as { type?: string | null }).type, category: t.category, subcategory: t.subcategory, amount: t.amount });
+}
+function isInflowRow(t: CommittedTransaction): boolean {
+  const c = classifyRow(t);
+  if (c.direction === 'inflow') return true;
+  if (c.direction === 'outflow') return false;
+  return Number(t.amount) > 0;
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -654,7 +655,9 @@ export default function TransactionsPageV2() {
     return Array.from(years).sort((a, b) => b - a);
   }, [transactions, yearFilter]);
 
-  const filtered = useMemo(() => {
+  // Rows in the server scope (date / statement / account): compared with the server's count to
+  // tell when the loaded list is incomplete (AR-1b R4, interim until list paging).
+  const scoped = useMemo(() => {
     let list = transactions;
     const range = (rangeFrom || rangeTo) && !(rangeFrom && rangeTo && rangeFrom > rangeTo) ? { from: rangeFrom || undefined, to: rangeTo || undefined } : null;
     if (isRangeActive(range)) {
@@ -667,8 +670,6 @@ export default function TransactionsPageV2() {
         return d === y;
       });
     }
-    if (filter === 'expenses') list = list.filter(t => !isIncomeTx(t));
-    else if (filter === 'income') list = list.filter(t => isIncomeTx(t));
     if (statementFilter !== 'all') list = list.filter(t => t.import_id === statementFilter);
     if (accountFilter !== 'all') {
       const acct = accounts.find(a => a.id === accountFilter);
@@ -677,6 +678,14 @@ export default function TransactionsPageV2() {
         list = list.filter(t => ids.has(t.import_id || ''));
       }
     }
+    return list;
+  }, [transactions, statementFilter, accountFilter, accounts, yearFilter, rangeFrom, rangeTo]);
+
+  const filtered = useMemo(() => {
+    let list = scoped;
+    // Same purposes as the engine's Actual Spending / Actual Income.
+    if (filter === 'expenses') list = list.filter(t => classifyRow(t).purpose === 'spending');
+    else if (filter === 'income') list = list.filter(t => classifyRow(t).purpose === 'income');
     if (needsCategoryOnly) list = list.filter(t => needsCategory(t.category));
     if (tagCategoryFilter) {
       list = list.filter(t => (t.category || '').toLowerCase() === tagCategoryFilter.toLowerCase());
@@ -697,14 +706,14 @@ export default function TransactionsPageV2() {
       });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter, yearFilter, rangeFrom, rangeTo, needsCategoryOnly]);
+  }, [scoped, filter, searchQuery, tagCategoryFilter, tagSubcategoryFilter, needsCategoryOnly]);
 
   const handleExport = useCallback(() => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const rows = filtered.map(t => [
       t.date || t.posted_at?.slice(0, 10) || '',
       escape(t.merchant_name || 'Unknown'),
-      (isIncomeTx(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
+      (isInflowRow(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
       escape(t.category || 'Uncategorized'),
       escape(t.import_id || ''),
     ].join(','));
@@ -744,6 +753,8 @@ export default function TransactionsPageV2() {
   const sum = hasFigures(financial) ? financial.summary : null;
   const clientOnlyFilter = filter !== 'all' || needsCategoryOnly || !!tagCategoryFilter || !!tagSubcategoryFilter || !!searchQuery;
   const dupes = sum?.signals?.possibleDuplicates?.count ?? 0;
+  // The list holds fewer rows in scope than the server counted: older rows were not loaded.
+  const listIncomplete = !!sum && scoped.length < sum.transactionCount;
 
   // Statement options for dropdown (each individual import with filename)
   const stmtOptions = useMemo(() => {
@@ -1001,7 +1012,7 @@ export default function TransactionsPageV2() {
           <div role="group" aria-label="Transaction type" className="flex p-1 rounded-[10px] bg-slate-800/40 border border-slate-700/30">
             {(['all', 'expenses', 'income'] as const).map(f => (
               <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`px-3.5 text-[13px] font-bold rounded-md transition-colors ${filter === f ? 'bg-slate-700/60 text-white' : 'text-slate-400 hover:text-slate-200'}`} style={{ minHeight: 36 }}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === 'all' ? 'All' : f === 'expenses' ? FINANCIAL_LABELS.actualSpending : FINANCIAL_LABELS.actualIncome}
               </button>
             ))}
           </div>
@@ -1022,6 +1033,7 @@ export default function TransactionsPageV2() {
             {clientOnlyFilter ? (
               <span className="text-[14px] text-slate-300" data-testid="tx-strip-filtered">
                 <strong className="text-white tabular-nums">{filtered.length}</strong>{sum ? <> of <strong className="text-white tabular-nums">{sum.transactionCount}</strong></> : null} transaction{(sum ? sum.transactionCount : filtered.length) !== 1 ? 's' : ''} shown
+                {listIncomplete && <span className="text-amber-200" data-testid="tx-strip-loaded"> ({scoped.length} loaded)</span>}
                 <span className="text-slate-400"> · totals hidden while filters are on</span>
               </span>
             ) : sum ? (
@@ -1029,6 +1041,7 @@ export default function TransactionsPageV2() {
                 <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{sum.transactionCount}</strong> transaction{sum.transactionCount !== 1 ? 's' : ''}</span>
                 <span className="text-[14px] text-slate-300">{FINANCIAL_LABELS.withdrawals} <strong className="text-white tabular-nums">{formatMoney(sum.labels.withdrawals.amount, sum.scope.currency)}</strong></span>
                 <span className="text-[14px] text-slate-300">{FINANCIAL_LABELS.deposits} <strong className="text-emerald-300 tabular-nums">{formatMoney(sum.labels.deposits.amount, sum.scope.currency)}</strong></span>
+                {listIncomplete && <span className="text-[14px] text-amber-200" data-testid="tx-strip-loaded">list shows the latest {scoped.length} loaded</span>}
                 {dupes > 0 && <span className="text-[14px] text-amber-200" data-testid="tx-strip-dupes">includes <strong className="tabular-nums">{dupes}</strong> possible duplicate{dupes !== 1 ? 's' : ''}</span>}
               </>
             ) : (
@@ -1182,7 +1195,7 @@ export default function TransactionsPageV2() {
               {g.txs.map(t => {
                 const cat = t.category || 'Uncategorized';
                 const isUncat = needsCategory(t.category);
-                const isIncome = isIncomeTx(t);
+                const isIncome = isInflowRow(t);
                 const isDupe = isDuplicate(t);
                 const accountName = t.import_id ? accountNameByImport.get(t.import_id) || null : null;
                 const dayText = formatCalendarDate(calendarDayOfTx(t), 'medium') || '';
