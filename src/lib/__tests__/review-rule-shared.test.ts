@@ -41,7 +41,9 @@ describe('every count, filter and banner uses it', () => {
   it('REVIEW-1: the sidebar Categories badge counts with the same rule', () => {
     const stats = read('src/hooks/useSmartCategoriesStats.ts');
     expect(stats).toMatch(/\.or\(NEEDS_CATEGORY_OR_FILTER\)/);
-    expect(read('src/pages/DashboardV2/useDashboardData.ts')).toMatch(/const uncategorizedCount = countNeedsCategory\(transactions\);/);
+    // UX-FST2-1: Home now shows the server's needsReviewCount, computed with the same shared rule
+    // (src/shared/needs-category-rule.ts, which src/lib/needsCategory re-exports).
+    expect(read('src/pages/DashboardV2/useDashboardData.ts')).toMatch(/needsReviewCount: summary \? summary\.needsReviewCount : null/);
     expect(stats).not.toMatch(/category\.eq\.Other|category\.eq\.Needs Review/);
   });
   it('REVIEW-1: the Tag bubble on Transactions shows the page\'s own review count', () => {

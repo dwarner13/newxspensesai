@@ -16,6 +16,9 @@ import { CompactScoreRing } from "../XspenseScore/ScoreRing";
 import { useXspenseScore } from "../XspenseScore/useXspenseScore";
 import { isXspenseScoreVisible } from "../XspenseScore/scoreDisplay";
 import toast from "react-hot-toast";
+import { FinancialStateNotice, formatMoney } from "@/components/finance/FinancialState";
+import { FINANCIAL_LABELS } from "@/lib/financialLabels";
+import { insightText, spendingClaim } from "@/lib/insightWording";
 
 export default function DashboardHomeV2() {
   const data = useDashboardData();
@@ -34,6 +37,15 @@ export default function DashboardHomeV2() {
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
   const recapText = data.loading ? "" : buildRecapText(data);
+  // UX-FST2-1: every figure below is the shared engine's (fst2-summary-2); nothing is computed here.
+  const sum = data.summary;
+  const cur = sum?.scope.currency ?? "CAD";
+  const needsReview = data.needsReviewCount ?? 0;
+  const txCount = data.transactionCount ?? 0;
+  const claim = sum ? spendingClaim(sum.insights) : null;
+  const claimText = claim ? insightText(claim) : null;
+  const topCat = sum?.insights.find(i => i.kind === "top_category") ?? null;
+  const pbe = sum?.possibleBusinessExpenses ?? null;
   const [recapTyped, recapDone] = useTypewriter(recapText, 25, 800, !data.loading);
 
   const handleExport = useCallback(() => {
@@ -66,7 +78,7 @@ export default function DashboardHomeV2() {
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-start", gap: isMobile ? 12 : 0, marginBottom: 8 }}>
             <div>
               <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0, color: "white" }}>{greeting}, {firstName}</h1>
-              <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>{data.transactionCount > 0 ? "Here is where your accounts stand." : "Upload a statement to get started."}</p>
+              <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>{txCount > 0 ? "Here is where your accounts stand." : "Upload a statement to get started."}</p>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {/* Xspense Score widget - desktop only */}
@@ -132,13 +144,16 @@ export default function DashboardHomeV2() {
           </div>
         </Reveal>
 
-        {/* FINANCIAL PULSE */}
+        {/* FINANCIAL PULSE — UX-FST2-1: the owner's labels, the server's figures, no client trends */}
+        {!sum ? (
+          <div style={{ marginBottom: 28 }}><FinancialStateNotice state={data.financial} onRetry={data.financial.status !== "loading" ? data.financial.refetch : undefined} /></div>
+        ) : (
         <div style={{ display: "grid", gridTemplateColumns: isVerySmall ? "1fr" : isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: 28, padding: isMobile ? "0 2px" : 0 }}>
           {[
-            { label: "Income", value: `$${data.income.toLocaleString()}`, trend: data.incomeTrend !== 0 ? `${data.incomeTrend > 0 ? "+" : ""}${data.incomeTrend}%` : null, dir: data.incomeTrend >= 0 ? "up" as const : "down" as const, color: THEME.green, href: "/dashboard/transactions?filter=income" },
-            { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, trend: data.expenseTrend !== 0 ? `${data.expenseTrend > 0 ? "+" : ""}${data.expenseTrend}%` : null, dir: data.expenseTrend >= 0 ? "up" as const : "down" as const, color: "#f87171", href: "/dashboard/transactions?filter=expenses" },
-            { label: "Net Flow", value: `${data.netFlow >= 0 ? "+" : ""}$${data.netFlow.toLocaleString()}`, trend: null, dir: data.netFlow >= 0 ? "up" as const : "down" as const, color: data.netFlow >= 0 ? THEME.green : "#fb923c", href: "/dashboard/transactions" },
-            { label: "Deductions Found", value: `$${data.deductions.toLocaleString()}`, trend: null, dir: "up" as const, color: THEME.accent, href: "/dashboard/tax-workspace" },
+            { label: FINANCIAL_LABELS.deposits, value: formatMoney(sum.labels.deposits.amount, cur), sub: null as string | null, color: THEME.green, href: "/dashboard/transactions" },
+            { label: FINANCIAL_LABELS.withdrawals, value: formatMoney(sum.labels.withdrawals.amount, cur), sub: null as string | null, color: "#f87171", href: "/dashboard/transactions" },
+            { label: FINANCIAL_LABELS.netCashFlow, value: `${sum.labels.netCashFlow.amount > 0 ? "+" : ""}${formatMoney(sum.labels.netCashFlow.amount, cur)}`, sub: null as string | null, color: sum.labels.netCashFlow.amount >= 0 ? THEME.green : "#fb923c", href: "/dashboard/transactions" },
+            { label: FINANCIAL_LABELS.possibleBusinessExpenses, value: formatMoney(pbe ? pbe.amount : 0, cur), sub: `${pbe ? pbe.count : 0} transaction${pbe && pbe.count === 1 ? "" : "s"} · ${FINANCIAL_LABELS.possibleBusinessExpensesSub.toLowerCase()}`, color: THEME.accent, href: "/dashboard/tax-workspace" },
           ].map((s, i) => (
             <Reveal key={s.label} delay={300 + i * 80} style={{ minWidth: 0 }}>
               <div
@@ -152,22 +167,18 @@ export default function DashboardHomeV2() {
                 height: "100%", minWidth: 0, cursor: "pointer",
               }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: isMobile ? 9 : 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textMuted, fontWeight: 800, marginBottom: 6, whiteSpace: "nowrap" }}>{s.label}</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: isMobile ? 4 : 8 }}>
-                    <span style={{ fontSize: isVerySmall ? 18 : isMobile ? 16 : 24, fontWeight: 800, color: THEME.text, whiteSpace: "nowrap" }}>{s.value}</span>
-                    {s.trend && (
-                      <span style={{
-                        fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
-                        background: s.dir === "up" && s.color === THEME.green ? "rgba(52,211,153,0.08)" : s.dir === "up" ? "rgba(248,113,113,0.08)" : "rgba(52,211,153,0.08)",
-                        color: s.dir === "up" && s.color === THEME.green ? THEME.green : s.dir === "up" ? "#f87171" : THEME.green,
-                      }}>{s.dir === "up" ? "\u2191" : "\u2193"} {s.trend}</span>
-                    )}
-                  </div>
+                  <div style={{ fontSize: isMobile ? 9 : 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textMuted, fontWeight: 800, marginBottom: 6, lineHeight: 1.3 }}>{s.label}</div>
+                  <div style={{ fontSize: isVerySmall ? 18 : isMobile ? 16 : 24, fontWeight: 800, color: THEME.text, whiteSpace: "nowrap" }}>{s.value}</div>
+                  {s.sub && <div style={{ fontSize: 11, color: THEME.textMuted, marginTop: 4 }}>{s.sub}</div>}
                 </div>
               </div>
             </Reveal>
           ))}
         </div>
+        )}
+        {sum && sum.dataQuality && sum.dataQuality.statementCoverage !== "complete" && (
+          <div data-testid="totals-label" style={{ marginTop: -16, marginBottom: 28, fontSize: 12.5, lineHeight: 1.5, color: THEME.textMuted }}>{sum.dataQuality.totalsLabel}</div>
+        )}
 
         {/* AGENT BRIEFING */}
         <Reveal delay={500}>
@@ -181,26 +192,26 @@ export default function DashboardHomeV2() {
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 28 }}>
           <AgentBriefingCard
             delay={600} agent="Prime" color={THEME.accent}
-            urgency={data.netFlow < 0 ? "medium" : null}
-            title={data.netFlow < 0
-              ? `Your expenses are outpacing income by $${Math.abs(data.netFlow).toLocaleString()}`
-              : `Net positive: +$${data.netFlow.toLocaleString()} this period`}
-            body={data.topCategory.name
-              ? `${data.topCategory.name} at $${data.topCategory.amount.toLocaleString()} is ${data.topCategory.pct}% of all spending${data.topCategory.trend > 0 ? ` \u2014 up ${data.topCategory.trend}% from last month` : ""}.${data.deductions > 0 ? ` I've flagged $${data.deductions.toLocaleString()} in tax deductions.` : ""}`
-              : "Upload statements to see your financial overview."}
+            urgency={sum && sum.labels.netCashFlow.amount < 0 ? "medium" : null}
+            title={!sum
+              ? "Figures not available yet"
+              : `${FINANCIAL_LABELS.netCashFlow}: ${sum.labels.netCashFlow.amount > 0 ? "+" : ""}${formatMoney(sum.labels.netCashFlow.amount, cur)}`}
+            body={!sum
+              ? "Upload statements to see your financial overview."
+              : `${FINANCIAL_LABELS.actualIncome} ${formatMoney(sum.labels.actualIncome.amount, cur)} \u00b7 ${FINANCIAL_LABELS.actualSpending} ${formatMoney(sum.labels.actualSpending.amount, cur)}.${topCat ? ` ${insightText(topCat) ?? ""}` : ""}`}
             cta="Open Full Briefing"
             onCtaClick={() => setIsPrimeBriefingOpen(true)}
           />
           <AgentBriefingCard
             delay={720} agent="Tag" color="#22d3ee"
-            urgency={data.uncategorizedCount > 0 ? "high" : null}
-            title={data.uncategorizedCount > 0
-              ? `${data.uncategorizedCount} transaction${data.uncategorizedCount !== 1 ? "s" : ""} need your review`
-              : data.transactionCount > 0 ? "All transactions categorized" : "No transactions yet"}
-            body={data.uncategorizedCount > 0
-              ? `Found ${data.uncategorizedCount} uncategorized or suspicious item${data.uncategorizedCount !== 1 ? "s" : ""}. Should take about ${Math.max(1, Math.ceil(data.uncategorizedCount / 3))} minute${data.uncategorizedCount > 3 ? "s" : ""} to resolve.`
-              : data.transactionCount > 0 ? "Every transaction has a category. No action needed." : "Upload a statement and Tag will categorize each transaction."}
-            cta="Review Now" ctaColor={data.uncategorizedCount > 0 ? "#f87171" : undefined}
+            urgency={needsReview > 0 ? "high" : null}
+            title={needsReview > 0
+              ? `${needsReview} transaction${needsReview !== 1 ? "s" : ""} need your review`
+              : txCount > 0 ? "All transactions categorized" : "No transactions yet"}
+            body={needsReview > 0
+              ? `Found ${needsReview} uncategorized or suspicious item${needsReview !== 1 ? "s" : ""}. Should take about ${Math.max(1, Math.ceil(needsReview / 3))} minute${needsReview > 3 ? "s" : ""} to resolve.`
+              : txCount > 0 ? "Every transaction has a category. No action needed." : "Upload a statement and Tag will categorize each transaction."}
+            cta="Review Now" ctaColor={needsReview > 0 ? "#f87171" : undefined}
             onCtaClick={() => navigate("/dashboard/categories")}
           />
           <AgentBriefingCard
@@ -209,21 +220,15 @@ export default function DashboardHomeV2() {
             title={data.pendingImports > 0
               ? `${data.pendingImports} statement${data.pendingImports !== 1 ? "s" : ""} pending`
               : `${data.statementCount} statement${data.statementCount !== 1 ? "s" : ""} imported`}
-            body={data.statementCount > 0 ? `${data.transactionCount} transaction${data.transactionCount !== 1 ? "s" : ""} imported from ${data.statementCount} statement${data.statementCount !== 1 ? "s" : ""}.` : "No statements imported yet."}
+            body={data.statementCount > 0 ? `${txCount} transaction${txCount !== 1 ? "s" : ""} imported from ${data.statementCount} statement${data.statementCount !== 1 ? "s" : ""}.` : "No statements imported yet."}
             cta="View Imports"
             onCtaClick={() => navigate("/dashboard/transactions")}
           />
           <AgentBriefingCard
             delay={960} agent="Crystal" color="#a78bfa"
-            urgency={data.trendAlert ? "medium" : null}
-            title={data.trendAlert
-              ? `${data.trendAlert.category} spend is accelerating \u2014 ${data.trendAlert.months.length} month${data.trendAlert.months.length !== 1 ? "s" : ""} straight`
-              : "No unusual spending trends detected"}
-            body={data.trendAlert
-              ? `${data.trendAlert.months.map(m => "$" + m.toLocaleString()).join(" \u2192 ")}. At this rate, it may continue climbing next month.`
-              : data.topCategory.name
-                ? `Top category is ${data.topCategory.name} at $${data.topCategory.amount.toLocaleString()}. Spending patterns look stable.`
-                : "Upload more statements to unlock trend analysis."}
+            urgency={claim?.kind === "trend" && claim.direction === "up" ? "medium" : null}
+            title={claim?.kind === "trend" ? "Spending trend" : claim?.kind === "stable" ? "Spending is steady" : "Spending trends"}
+            body={claimText ?? "Upload statements to unlock trend analysis."}
             cta="See Trend Analysis"
             onCtaClick={() => navigate("/dashboard/ai-results")}
           />
@@ -237,14 +242,14 @@ export default function DashboardHomeV2() {
                 <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: THEME.textDim, fontWeight: 700 }}>AI-Recommended Actions</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {data.uncategorizedCount > 0 && (
-                  <SmartAction delay={1200} icon={"\uD83D\uDD0D"} label={`Review ${data.uncategorizedCount} flagged transactions`} reason="Tag found items needing review" agentColor="#22d3ee" onClick={() => navigate("/dashboard/categories")} />
+                {needsReview > 0 && (
+                  <SmartAction delay={1200} icon={"\uD83D\uDD0D"} label={`Review ${needsReview} flagged transactions`} reason="Tag found items needing review" agentColor="#22d3ee" onClick={() => navigate("/dashboard/categories")} />
                 )}
-                {data.deductions > 0 && (
-                  <SmartAction delay={1280} icon={"\uD83E\uDDFE"} label="Review tax deductions" reason={`$${data.deductions.toLocaleString()} identified by Prime`} agentColor={THEME.accent} onClick={() => setIsPrimeBriefingOpen(true)} />
+                {pbe && pbe.count > 0 && (
+                  <SmartAction delay={1280} icon={"\uD83E\uDDFE"} label="Review possible business expenses" reason={`${pbe.count} transactions, ${formatMoney(pbe.amount, cur)} \u2014 not a tax decision`} agentColor={THEME.accent} onClick={() => navigate("/dashboard/tax-workspace")} />
                 )}
-                {data.trendAlert && (
-                  <SmartAction delay={1360} icon={"\uD83D\uDCCA"} label={`Check ${data.trendAlert.category} trend`} reason={`Crystal: spending up ${data.trendAlert.months.length} months straight`} agentColor="#a78bfa" onClick={() => navigate("/dashboard/ai-results")} />
+                {claim?.kind === "trend" && claimText && (
+                  <SmartAction delay={1360} icon={"\uD83D\uDCCA"} label="See the spending trend" reason={claimText} agentColor="#a78bfa" onClick={() => navigate("/dashboard/my-story")} />
                 )}
                 <SmartAction delay={1440} icon={"\uD83D\uDCE4"} label="Upload a new statement" reason="Keep your data current" agentColor="#34d399" onClick={() => {
                   window.dispatchEvent(new CustomEvent("prime:open-upload", { detail: { source: "dashboard-v2" } }));

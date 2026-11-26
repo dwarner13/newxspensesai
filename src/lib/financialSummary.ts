@@ -37,6 +37,13 @@ export interface FinancialSummary {
   status: 'verified' | 'verified_zero';
   scope: { startDate: string; endDate: string; currency?: string; label: string };
   transactionCount: number;
+  /** Owner decision 2026-11-26 (final contract): retrieval vs statement coverage. */
+  dataQuality: {
+    retrieval: 'complete';
+    statementCoverage: 'complete' | 'partial' | 'unknown' | 'none';
+    allowed: { recordedTotals: boolean; completenessClaims: boolean; comparisons: boolean };
+    totalsLabel: string;
+  };
   labels: { deposits: Money; withdrawals: Money; netCashFlow: Money; actualIncome: Money; actualSpending: Money; refunds: Money };
   netExcludingTransfersAndSavings: Money;
   spendingByCategory: SpendingCategory[];
