@@ -241,6 +241,8 @@ import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
 import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
 import { buildStatementBreakdown, engineRowsFromExtracted } from '../../src/shared/statement-breakdown';
+import { hasComparisonClaim, applyComparisonGate } from '../../src/shared/comparison-claim-guard';
+import { comparisonAllowed } from '../../src/shared/coverage-insights';
 import { buildPeriodAggregate } from '../../src/shared/period-aggregate';
 import { resolveFocusedTransaction } from './_shared/focusedTransaction';
 // P3.1C: Controlled read-only evidence execution
@@ -14885,6 +14887,27 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         }
       }
 
+      // ── G11 (owner GO 2026-11-26): coverage gate for comparison / trend / stability claims, EVERY employee ──
+      // Same comparability rule as financial-summary. Coverage is loaded only when the reply makes such a claim.
+      let comparisonGate: { removedSentences: number; reason: string } | null = null;
+      if (assistantContent && hasComparisonClaim(assistantContent)) {
+        try {
+          const cov = await loadStatementCoverage(admin() as unknown as CoverageDbClient, userId);
+          const permission = comparisonAllowed(cov);
+          const gated = applyComparisonGate(assistantContent, permission);
+          if (gated.applied) {
+            assistantContent = gated.text;
+            comparisonGate = { removedSentences: gated.removedSentences, reason: permission.reason };
+            console.warn(`[G11] comparison claim gated for ${finalEmployeeSlug}: removed=${gated.removedSentences} reason=${permission.reason}`);
+          }
+        } catch (e: unknown) {
+          // Coverage unknown → comparisons are not allowed (fail closed).
+          const gated = applyComparisonGate(assistantContent, { allowed: false, reason: 'statement coverage could not be read' });
+          if (gated.applied) { assistantContent = gated.text; comparisonGate = { removedSentences: gated.removedSentences, reason: 'coverage unreadable' }; }
+          console.warn('[G11] coverage read failed; comparison claims removed:', e instanceof Error ? e.message : String(e));
+        }
+      }
+
       // ── L-C: server-side coverage safeguard (before saving) ──
       // A zero / no-match answer for a proven-empty period must state the period searched and the
       // imported coverage. If the model omitted the coverage dates, append one deterministic sentence.
@@ -14905,6 +14928,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         if (financialVisual) assistantMsgMetadata.financialVisual = financialVisual;
         if (groundingFallback) assistantMsgMetadata.groundingFallback = groundingFallback;
         if (breakdownGuard) assistantMsgMetadata.breakdownGuard = breakdownGuard;
+        if (comparisonGate) assistantMsgMetadata.comparisonGate = comparisonGate;
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
           user_id: userId,
