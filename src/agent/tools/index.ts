@@ -857,8 +857,12 @@ function fixExclusiveBounds(obj: any): any {
   return out;
 }
 
+/** Tools that must never be offered or executed, whatever an employee profile allows. */
+export const RETIRED_TOOL_IDS: ReadonlySet<string> = new Set(['ingest_statement_enhanced']);
+
 export function toOpenAIToolDefs(ids: string[]): OpenAIToolDef[] {
   return ids
+    .filter(id => !RETIRED_TOOL_IDS.has(id))
     .map(id => toolModules.get(id))
     .filter(Boolean)
     .map(tool => ({
@@ -877,6 +881,7 @@ export function toOpenAIToolDefs(ids: string[]): OpenAIToolDef[] {
 export function pickTools(ids: string[]): Record<string, ToolModule> {
   const picked: Record<string, ToolModule> = {};
   for (const id of ids) {
+    if (RETIRED_TOOL_IDS.has(id)) continue;
     const tool = toolModules.get(id);
     if (tool) picked[id] = tool;
   }
