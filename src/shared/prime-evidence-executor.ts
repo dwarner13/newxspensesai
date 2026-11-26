@@ -1521,10 +1521,10 @@ function formatCashFlowData(data: Record<string, unknown>): string {
   };
   total('Total inflow', 'totalInflow');
   total('Total outflow', 'totalOutflow');
-  total('Raw net cash movement (all classified inflow − all classified outflow, incl. transfers and savings/investment)', 'rawNetCashMovement');
-  total('Net excluding internal movements (income − ordinary spending, debt payments, other non-spend and conflicts; transfers and savings/investment excluded)', 'netExcludingInternalMovements');
+  total('Net cash flow (total deposits − total withdrawals; the only figure to call "net cash flow")', 'rawNetCashMovement');
+  total('Net excluding transfers and savings (income + refunds − spending, debt payments, other non-spend and conflicts; never call this "net cash flow")', 'netExcludingTransfersAndSavings');
   if (finiteNumber(data.transactionCount) !== null) lines.push(`  Transactions included: ${data.transactionCount}`);
-  lines.push('  Refunds/reversals are not identified in this data and are not netted.');
+  total('Refunds (money back on a spending category; not income)', 'refunds');
   lines.push(...formatAggregateDisclosures(data.completeness, '  '));
   return lines.join('\n');
 }

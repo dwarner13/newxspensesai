@@ -186,6 +186,7 @@ describe('buildPeriodAggregate', () => {
       totalOutflow: 129610,           // 20100 + 44000 + 31000 + 30000 + 0 + 4510
       rawNetCashMovement: 229890,     // 359500 − 129610
       netExcludingInternalMovements: 246890, // 302500 − (20100 + 31000 + 0 + 4510)
+      netExcludingTransfersAndSavings: 246890, // owner 2026-11-26: explicit name, same value
     });
   });
 

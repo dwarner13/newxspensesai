@@ -17,8 +17,12 @@ import { readAuthoritativeLedger, loadAccountLabels, loadProfileCurrency, parseS
 import { buildPeriodAggregate, toCompletenessOutput } from '../../src/shared/period-aggregate';
 import { computeIntegritySignals } from '../../src/shared/financial-integrity-signals';
 import { merchantGroupingKey } from './_shared/merchantNormalize';
+import { buildSummaryV2 } from './_shared/financial-summary-v2';
+import { loadStatementCoverage, type CoverageDbClient } from '../../src/shared/statement-coverage';
 
-export const SUMMARY_CONTRACT_VERSION = 'fst2-summary-1';
+// fst2-summary-2 (owner 2026-11-26): additive to -1. Net cash flow = deposits − withdrawals; labels,
+// refunds, reconciled breakdown, statement coverage and comparability, typed insights.
+export const SUMMARY_CONTRACT_VERSION = 'fst2-summary-2';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -48,10 +52,12 @@ export const handler: Handler = async (event) => {
 
   const started = Date.now();
   const sb = admin();
-  const [read, currency, accounts] = await Promise.all([
+  const [read, currency, accounts, coverage] = await Promise.all([
     readAuthoritativeLedger(sb, { userId, startDate: scope.startDate, endDate: scope.endDate, importIds: scope.importIds }),
     loadProfileCurrency(sb, userId),
     loadAccountLabels(sb, userId).catch(() => new Map<string, string>()),
+    // Statement coverage (the statements' own periods); an error yields status 'query_error', so nothing is comparable.
+    loadStatementCoverage(sb as unknown as CoverageDbClient, userId),
   ]);
 
   const accountScope = scope.importIds
@@ -111,6 +117,7 @@ export const handler: Handler = async (event) => {
       possibleRefunds: { ...signals.possibleRefunds, amount: dollars(signals.possibleRefunds.cents) },
     },
     completeness: { ...toCompletenessOutput(agg), countVerified: read.countVerified },
+    ...buildSummaryV2({ rows: read.rows, agg, scope: { startDate: scope.startDate, endDate: scope.endDate, importIds: scope.importIds }, coverage, accountLabels: accounts }),
     notice: 'Organized financial data for you and your accountant. Not tax advice; deductibility is not determined by XspensesAI.',
     perf,
   });

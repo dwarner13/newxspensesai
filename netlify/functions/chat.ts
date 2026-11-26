@@ -242,6 +242,10 @@ type LifecycleDb = Parameters<typeof committedImportIds>[0];
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
 import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
+import { buildStatementBreakdown, engineRowsFromExtracted } from '../../src/shared/statement-breakdown';
+import { hasComparisonClaim, applyComparisonGate } from '../../src/shared/comparison-claim-guard';
+import { comparisonAllowed } from '../../src/shared/coverage-insights';
+import { buildPeriodAggregate } from '../../src/shared/period-aggregate';
 import { resolveFocusedTransaction } from './_shared/focusedTransaction';
 // P3.1C: Controlled read-only evidence execution
 import {
@@ -324,11 +328,12 @@ interface ChatRequest {
     recentImportSummaries?: Array<{
       importId: string;
       label: string; // e.g. "BMO February 2026"
-      totalSpend: number;
-      totalIncome: number;
-      txCount: number;
-      topCategories: Array<{ name: string; amount: number }>;
-      topMerchants: Array<{ name: string; amount: number }>;
+      /** Removed by the sanitizer (owner 2026-11-26): browser money never reaches Prime. */
+      totalSpend?: number;
+      totalIncome?: number;
+      txCount?: number;
+      topCategories?: Array<{ name: string; amount: number }>;
+      topMerchants?: Array<{ name: string; amount: number }>;
       displayedAt: string;
     }> | null;
   } | null;
@@ -2900,7 +2905,7 @@ CRITICAL RULES
 - Never skip pages. If a page contains legal info only, label it "legal/info".
 - Transfers and payments must NOT be counted as spending.
 - Bank/credit card payments reduce liabilities, not expenses.
-- ATM withdrawals are transfers unless explicit spending context exists.
+- Label every ATM or cash withdrawal "Cash Withdrawal". It is never spending.
 - Always output JSON only. No conversational text.
 
 CATEGORIES TO USE
@@ -2941,18 +2946,10 @@ OUTPUT FORMAT (STRICT JSON ONLY)
       "amount": number,
       "direction": "debit"|"credit",
       "category": "...",
-      "is_spend": true|false,
       "tax_hint": "...",
       "confidence": number,
       "needs_review": true|false,
       "reason": "short explanation"
-    }
-  ],
-  "category_totals": [
-    {
-      "category": "...",
-      "total": number,
-      "count": number
     }
   ],
   "insights_for_prime": [
@@ -3411,7 +3408,12 @@ function normalizeTagWorkerOutput(raw: any, fallbackReason: string, pagesProcess
   const source = raw && typeof raw === 'object' ? raw : fallback;
   const pagesProcessed = Number(source.pages_processed);
   const transactions = Array.isArray(source.transactions) ? source.transactions : [];
-  const categoryTotals = Array.isArray(source.category_totals) ? source.category_totals : [];
+  // AR1b-TG-21 part (a) (owner GO 2026-11-26): the model only categorizes rows. Whether a row is
+  // spending and every total come from the shared engine; direction only from the extracted
+  // debit/credit side (no side → unknown, never assumed 'debit').
+  const sideOf = (t: any) => (t?.direction === 'credit' ? 'credit' : t?.direction === 'debit' ? 'debit' : null);
+  const engineRows = engineRowsFromExtracted(transactions.map((t: any) => ({ direction: sideOf(t), amount: t?.amount, category: t?.category, subcategory: t?.subcategory, date: t?.date })));
+  const engineAgg = buildPeriodAggregate(engineRows, { fetch: { complete: true, truncated: false, rowsFetched: engineRows.length } });
   const insights = Array.isArray(source.insights_for_prime) && source.insights_for_prime.length > 0
     ? source.insights_for_prime.map((v: any) => String(v))
     : fallback.insights_for_prime;
@@ -3424,13 +3426,13 @@ function normalizeTagWorkerOutput(raw: any, fallbackReason: string, pagesProcess
       total_deposits: source?.account_summary?.total_deposits ?? null,
       total_withdrawals: source?.account_summary?.total_withdrawals ?? null,
     },
-    transactions: transactions.map((t: any) => ({
+    transactions: transactions.map((t: any, i: number) => ({
       date: t?.date ?? null,
       description: String(t?.description || 'Unknown'),
       amount: Number(t?.amount || 0),
-      direction: t?.direction === 'credit' ? 'credit' : 'debit',
+      direction: sideOf(t),
       category: String(t?.category || 'Other'),
-      is_spend: Boolean(t?.is_spend),
+      is_spend: classifyCashFlow(engineRows[i]).purpose === 'spending',
       tax_hint: ['business_possible', 'personal_likely', 'transfer', 'unknown'].includes(String(t?.tax_hint))
         ? t.tax_hint
         : 'unknown',
@@ -3438,10 +3440,10 @@ function normalizeTagWorkerOutput(raw: any, fallbackReason: string, pagesProcess
       needs_review: Boolean(t?.needs_review),
       reason: String(t?.reason || 'normalized'),
     })),
-    category_totals: categoryTotals.map((c: any) => ({
-      category: String(c?.category || 'Other'),
-      total: Number(c?.total || 0),
-      count: Number(c?.count || 0),
+    category_totals: engineAgg.categories.filter(c => c.purpose === 'spending').map(c => ({
+      category: c.category,
+      total: c.totalCents / 100,
+      count: c.count,
     })),
     insights_for_prime: insights.length > 0 ? insights : fallback.insights_for_prime,
   };
@@ -5013,7 +5015,8 @@ function renderStatementQaAnswer(message: string, req: StatementQaRequest, rows:
   const credits = rows.filter((r) => r.amount < 0);
   const totalDebits = charges.reduce((sum, row) => sum + row.amount, 0);
   const totalCredits = credits.reduce((sum, row) => sum + Math.abs(row.amount), 0);
-  const net = totalDebits - totalCredits;
+  // G15 (owner 2026-11-26): net = money in − money out (credits − debits), same sign as net cash flow.
+  const net = totalCredits - totalDebits;
   const lowerMessage = String(message || '').toLowerCase();
   const nLargest = req.topN;
 
@@ -5074,7 +5077,7 @@ function renderStatementQaAnswer(message: string, req: StatementQaRequest, rows:
     }
     return [
       `I checked your latest statement context for ${queryLabel.toUpperCase()}.`,
-      `Total spend is $${spendTotal.toFixed(2)} across ${spendRows.length} transaction${spendRows.length === 1 ? '' : 's'}.`,
+      `Total charged (debits on the statement) is ${spendTotal.toFixed(2)} across ${spendRows.length} transaction${spendRows.length === 1 ? '' : 's'}.`,
       ...(latestSpend
         ? [`Most recent charge: ${latestSpend.date || 'UNKNOWN-DATE'} | ${latestSpend.merchant || 'UNKNOWN-MERCHANT'} | $${latestSpend.amount.toFixed(2)}.`]
         : []),
@@ -5096,7 +5099,7 @@ function renderStatementQaAnswer(message: string, req: StatementQaRequest, rows:
   } else {
     lines.push(`- I analyzed ${rows.length} normalized transaction${rows.length === 1 ? '' : 's'} for this statement query.`);
   }
-  lines.push(`- Total debits: $${totalDebits.toFixed(2)} | total credits: $${totalCredits.toFixed(2)} | net: $${net.toFixed(2)}.`);
+  lines.push(`- Total debits: ${totalDebits.toFixed(2)} | total credits: ${totalCredits.toFixed(2)} | net (credits − debits): ${net.toFixed(2)}.`);
   lines.push(`- Scope: ${req.startDate || 'unknown'} to ${req.endDate || 'unknown'}${req.importId ? ` | import ${req.importId.slice(0, 8)}` : ''}.`);
   lines.push('');
 
@@ -8088,14 +8091,12 @@ export const handler: Handler = async (event, context) => {
         };
       } else if (pipelineReuseIntent === 'tag_breakdown' && lastPipelineRaw?.tag_json) {
         const txns = Array.isArray(lastPipelineRaw.tag_json?.transactions) ? lastPipelineRaw.tag_json.transactions : [];
-        const spendTotal = txns.reduce(
-          (sum: number, tx: any) => sum + (tx?.is_spend === true && tx?.direction === 'debit' ? Math.abs(Number(tx?.amount || 0)) : 0),
-          0
-        );
-        const transferTotal = txns.reduce(
-          (sum: number, tx: any) => sum + (String(tx?.category || '').toLowerCase().includes('transfer') ? Math.abs(Number(tx?.amount || 0)) : 0),
-          0
-        );
+        // AR1b-TG-21 (owner GO 2026-11-26): totals from the shared engine over the extracted rows
+        // (direction = extracted debit/credit only), never from the model's is_spend flags.
+        const extractedBreakdown = buildStatementBreakdown(engineRowsFromExtracted(txns));
+        const lineCents = (k: string) => extractedBreakdown.lines.find(l => l.key === k)?.cents ?? 0;
+        const spendTotal = (lineCents('everyday_spending') + lineCents('unresolved')) / 100;
+        const transferTotal = (lineCents('incoming_transfers') + lineCents('outgoing_transfers')) / 100;
         const businessLike = txns.filter((tx: any) => String(tx?.tax_hint || '') === 'business_possible').length;
         forcedPrimeDecision = {
           lane: 'deterministic',
@@ -8105,8 +8106,11 @@ export const handler: Handler = async (event, context) => {
             'I still have your last statement context loaded.',
             `From your last statement (${lastPipelineSnapshot.ts}), here is a grounded breakdown:`,
             `- Transactions reviewed: ${txns.length}`,
-            `- Spend total: ${formatCurrency(spendTotal, String(effectivePrimeContext?.currency || 'CAD'))}`,
-            `- Transfer total: ${formatCurrency(transferTotal, String(effectivePrimeContext?.currency || 'CAD'))}`,
+            `- Total deposits: ${formatCurrency(extractedBreakdown.raw.depositsCents / 100, String(effectivePrimeContext?.currency || 'CAD'))}; total withdrawals: ${formatCurrency(extractedBreakdown.raw.withdrawalsCents / 100, String(effectivePrimeContext?.currency || 'CAD'))}`,
+            `- Actual spending (everyday purchases; excludes transfers, debt payments and cash): ${formatCurrency(spendTotal, String(effectivePrimeContext?.currency || 'CAD'))}`,
+            `- Transfers in and out: ${formatCurrency(transferTotal, String(effectivePrimeContext?.currency || 'CAD'))}`,
+            ...(extractedBreakdown.unplaced.count > 0 ? [`- ${extractedBreakdown.unplaced.count} row(s) had no debit/credit side in the extraction and are not in these totals`] : []),
+            '- These come from the statement as read, before it was committed to your transactions.',
             `- Business-possible rows: ${businessLike}`,
             '',
             "Based on what we reviewed earlier, I can filter this to subscriptions only or list likely business expenses next.",
@@ -8712,13 +8716,13 @@ export const handler: Handler = async (event, context) => {
         setStage('memory');
         workerNotes.push('Memory: context refresh queued');
 
-        const spendTotal = (Array.isArray(tagWorkerOutput.transactions) ? tagWorkerOutput.transactions : []).reduce(
-          (sum: number, tx: any) =>
-            sum + (tx?.direction === 'debit' && tx?.is_spend === true ? Math.abs(Number(tx?.amount || 0)) : 0),
-          0
-        );
-        const topCategory = (Array.isArray(tagWorkerOutput.category_totals) ? tagWorkerOutput.category_totals : [])
-          .sort((a: any, b: any) => Number(b?.total || 0) - Number(a?.total || 0))[0];
+        // AR1b-TG-21: engine totals over the extracted rows; never model is_spend / category_totals.
+        const workerEngineRows = engineRowsFromExtracted(Array.isArray(tagWorkerOutput.transactions) ? tagWorkerOutput.transactions : []);
+        const workerBreakdown = buildStatementBreakdown(workerEngineRows);
+        const spendTotal = ((workerBreakdown.lines.find(l => l.key === 'everyday_spending')?.cents ?? 0) + (workerBreakdown.lines.find(l => l.key === 'unresolved')?.cents ?? 0)) / 100;
+        const workerAgg = buildPeriodAggregate(workerEngineRows, { fetch: { complete: true, truncated: false, rowsFetched: workerEngineRows.length } });
+        const topSpend = workerAgg.categories.find(c => c.purpose === 'spending');
+        const topCategory = topSpend ? { category: topSpend.category } : undefined;
         workerNotes.push(
           `Snapshot: spend=${formatCurrency(spendTotal, String(effectivePrimeContext?.currency || 'CAD'))}` +
             (topCategory ? `, top_category=${topCategory.category}` : '')
@@ -11021,25 +11025,8 @@ export const handler: Handler = async (event, context) => {
         primeContextMessage += `Pending Imports: ${pc.pendingImports}\n`;
       }
       
-      // PHASE 2.2 FIX: Tax-workspace mirror with authority instruction.
-      // Prime has been ignoring this data and calling tx_search instead. Strong directive added.
-      if (Array.isArray(pc.taxSummary) && pc.taxSummary.length > 0) {
-        // C2-F: this snapshot is computed in the browser (not verified server evidence) and is not
-        // scoped to the period the user asks about. It must never be presented as an authoritative total.
-        primeContextMessage += `\nDashboard snapshot (browser-computed, NOT verified, NOT period-specific — orientation only; never quote these as a verified or period total, and use your tools for any specific period or category):\n`;
-        for (const section of pc.taxSummary) {
-          if (!section || typeof section.total !== 'number') continue;
-          primeContextMessage += `- ${section.section}: ${section.total} (${section.count} txns)`;
-          if (Array.isArray(section.topSubcategories) && section.topSubcategories.length > 0) {
-            const subs = section.topSubcategories
-              .map((b: any) => `${b.name}=${b.amount}`)
-              .join(', ');
-            primeContextMessage += ` [${subs}]`;
-          }
-          primeContextMessage += `\n`;
-        }
-        primeContextMessage += `\nFor a specific period or category, rely on verified tool evidence; if you mention a snapshot figure, say it is an unverified dashboard snapshot.\n`;
-      }
+      // Owner GO 2026-11-26 (UNIFIED FINANCIAL ENGINE): the browser-computed dashboard tax snapshot is
+      // no longer accepted (primeContextSanitizer drops it); every figure comes from the shared engine.
       
       // Team activity summary (what other agents did recently)
       if (pc.teamActivitySummary) {
@@ -11064,29 +11051,12 @@ export const handler: Handler = async (event, context) => {
         const summaries = pc.recentImportSummaries;
         // FST-1 / P-G7: these figures come from the browser (what the page displayed). They are
         // display context only, never verified totals.
-        primeContextMessage += `\nRECENT IMPORT SUMMARIES: BROWSER-SUPPLIED DISPLAY CONTEXT, NOT VERIFIED (${summaries.length} document${summaries.length > 1 ? 's' : ''} shown this session). Use them only to recognise which document the customer means; for any amount, total or count use the financial tools or the stored statement breakdown, and never present these numbers as verified:\n`;
+        // Owner 2026-11-26: identity only (which document the customer is looking at). No browser
+        // figures; every amount, total or count comes from the shared engine via the financial tools.
+        primeContextMessage += `\nDOCUMENTS THE CUSTOMER VIEWED THIS SESSION (identity only, no figures; use the financial tools or the stored statement breakdown for any amount, total or count):\n`;
         summaries.forEach((rs, i) => {
-          primeContextMessage += `\n[Document ${i + 1}${rs.label ? `: ${rs.label}` : ''}]\n`;
-          primeContextMessage += `- Total spend: $${rs.totalSpend.toFixed(2)}\n`;
-          if (rs.totalIncome > 0) primeContextMessage += `- Total income: $${rs.totalIncome.toFixed(2)}\n`;
-          primeContextMessage += `- Transactions: ${rs.txCount}\n`;
-          if (rs.topCategories && rs.topCategories.length > 0) {
-            primeContextMessage += `- Top categories: ${rs.topCategories.slice(0, 5).map(c => `${c.name} ($${c.amount.toFixed(2)})`).join(', ')}\n`;
-          }
-          if (rs.topMerchants && rs.topMerchants.length > 0) {
-            primeContextMessage += `- Top merchants: ${rs.topMerchants.slice(0, 5).map(m => `${m.name} ($${m.amount.toFixed(2)})`).join(', ')}\n`;
-          }
+          primeContextMessage += `- [Document ${i + 1}${rs.label ? `: ${rs.label}` : ''}]\n`;
         });
-        // Aggregate totals across all documents if more than one
-        if (summaries.length > 1) {
-          const totalSpendAll = summaries.reduce((sum, s) => sum + s.totalSpend, 0);
-          const totalIncomeAll = summaries.reduce((sum, s) => sum + s.totalIncome, 0);
-          const totalTxAll = summaries.reduce((sum, s) => sum + s.txCount, 0);
-          primeContextMessage += `\n[Combined across all ${summaries.length} documents: browser-supplied, not verified; overlapping statements may double count]\n`;
-          primeContextMessage += `- Total spend: $${totalSpendAll.toFixed(2)}\n`;
-          if (totalIncomeAll > 0) primeContextMessage += `- Total income: $${totalIncomeAll.toFixed(2)}\n`;
-          primeContextMessage += `- Total transactions: ${totalTxAll}\n`;
-        }
       }
 
       // ── DOCUMENT/IMPORT CONTEXT (only for document-related conversations) ──
@@ -14928,6 +14898,27 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         }
       }
 
+      // ── G11 (owner GO 2026-11-26): coverage gate for comparison / trend / stability claims, EVERY employee ──
+      // Same comparability rule as financial-summary. Coverage is loaded only when the reply makes such a claim.
+      let comparisonGate: { removedSentences: number; reason: string } | null = null;
+      if (assistantContent && hasComparisonClaim(assistantContent)) {
+        try {
+          const cov = await loadStatementCoverage(admin() as unknown as CoverageDbClient, userId);
+          const permission = comparisonAllowed(cov);
+          const gated = applyComparisonGate(assistantContent, permission);
+          if (gated.applied) {
+            assistantContent = gated.text;
+            comparisonGate = { removedSentences: gated.removedSentences, reason: permission.reason };
+            console.warn(`[G11] comparison claim gated for ${finalEmployeeSlug}: removed=${gated.removedSentences} reason=${permission.reason}`);
+          }
+        } catch (e: unknown) {
+          // Coverage unknown → comparisons are not allowed (fail closed).
+          const gated = applyComparisonGate(assistantContent, { allowed: false, reason: 'statement coverage could not be read' });
+          if (gated.applied) { assistantContent = gated.text; comparisonGate = { removedSentences: gated.removedSentences, reason: 'coverage unreadable' }; }
+          console.warn('[G11] coverage read failed; comparison claims removed:', e instanceof Error ? e.message : String(e));
+        }
+      }
+
       // ── L-C: server-side coverage safeguard (before saving) ──
       // A zero / no-match answer for a proven-empty period must state the period searched and the
       // imported coverage. If the model omitted the coverage dates, append one deterministic sentence.
@@ -14948,6 +14939,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         if (financialVisual) assistantMsgMetadata.financialVisual = financialVisual;
         if (groundingFallback) assistantMsgMetadata.groundingFallback = groundingFallback;
         if (breakdownGuard) assistantMsgMetadata.breakdownGuard = breakdownGuard;
+        if (comparisonGate) assistantMsgMetadata.comparisonGate = comparisonGate;
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
           user_id: userId,

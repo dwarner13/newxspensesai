@@ -129,7 +129,11 @@ describe('P-G2 financial snapshot (fast lanes) uses the engine, with no stale ca
     expect(chat).not.toMatch(/Total Income: \$\{pc\.totalIncome\}/);
     expect(chat).not.toMatch(/Total Spent: \$\{pc\.totalSpent\}/);
     expect(chat).toContain('FINANCIAL POSITION: unavailable right now');
-    expect(chat).toContain('BROWSER-SUPPLIED DISPLAY CONTEXT, NOT VERIFIED');
+    // Owner 2026-11-26: browser import summaries carry identity only; no browser figures reach Prime.
+    expect(chat).toContain('DOCUMENTS THE CUSTOMER VIEWED THIS SESSION (identity only, no figures');
+    expect(chat).not.toContain('rs.totalSpend.toFixed');
+    expect(chat).not.toContain('Dashboard snapshot (browser-computed');
+    expect(read('_shared/primeContextSanitizer.ts')).not.toMatch(/out\.taxSummary\s*=/);
     expect(chat).toContain('withServerFinancialSnapshot(');
   });
 });

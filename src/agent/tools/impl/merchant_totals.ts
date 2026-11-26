@@ -9,6 +9,8 @@ import {
   type MerchantScopeClient,
 } from '../../../shared/merchant-scope-rows';
 
+import { classifyCashFlow } from '../../../shared/financial-taxonomy';
+
 export const id = 'merchant_totals';
 
 export const inputSchema = z.object({
@@ -33,9 +35,17 @@ export const outputSchema = z.object({
     average: z.number(),
     firstSeen: z.string(),
     lastSeen: z.string(),
+    /** AR-1b F-6: money back from this merchant (refunds), never added to total. */
+    refunds: z.number().optional(),
   })),
+  /** AR-1b F-6: total over EVERY merchant in scope (not only the listed ones). */
   grandTotal: z.number(),
   transactionCount: z.number(),
+  /** Total and count of the merchants listed (top N by total). */
+  listedTotal: z.number().optional(),
+  listedCount: z.number().optional(),
+  /** Refunds across every merchant in scope (separate from grandTotal). */
+  refundsTotal: z.number().optional(),
   dateRange: z.object({ start: z.string(), end: z.string() }),
   queryStatus: z.enum(['verified', 'verified_zero', 'partial', 'query_error']),
   /** P3.2B2C parity: fingerprint of the exact rows behind grandTotal/transactionCount. */
@@ -126,6 +136,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
     const groups = new Map<string, {
       rawVariants: Map<string, number>;
       total: number;
+      refundCents: number;
       count: number;
       firstSeen: string;
       lastSeen: string;
@@ -134,7 +145,12 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
     for (const t of scoped) {
       const rawMerchant = t.merchant_name || t.merchant || 'Unknown';
       const key = t.groupKey;
-      const amount = Math.abs(t.amount || 0);
+      // AR-1b F-6 (owner GO 2026-11-26): amount and purpose from the shared engine. A refund is
+      // reported separately and never adds to spending; a row with no direction or amount is skipped.
+      const cls = classifyCashFlow(t);
+      if (cls.excluded !== null || cls.amountCents === null) continue;
+      const isRefund = cls.purpose === 'refund';
+      const amount = isRefund ? 0 : cls.amountCents / 100;
       const date = t.date || '';
 
       let group = groups.get(key);
@@ -142,6 +158,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         group = {
           rawVariants: new Map(),
           total: 0,
+          refundCents: 0,
           count: 0,
           firstSeen: date,
           lastSeen: date,
@@ -149,8 +166,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         groups.set(key, group);
       }
 
-      group.total += amount;
-      group.count++;
+      if (isRefund) { group.refundCents += cls.amountCents; } else { group.total += amount; group.count++; }
       group.rawVariants.set(rawMerchant, (group.rawVariants.get(rawMerchant) || 0) + 1);
 
       if (date && (!group.firstSeen || date < group.firstSeen)) group.firstSeen = date;
@@ -173,30 +189,41 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
           average: Math.round((group.total / group.count) * 100) / 100,
           firstSeen: group.firstSeen,
           lastSeen: group.lastSeen,
+          ...(group.refundCents > 0 ? { refunds: group.refundCents / 100 } : {}),
         };
       })
-      .sort((a, b) => b.total - a.total)
-      .slice(0, limit);
+      .filter(m => m.count > 0 || (m.refunds ?? 0) > 0)
+      .sort((a, b) => b.total - a.total);
+    const listed = merchantResults.slice(0, limit);
 
+    // AR-1b F-6: grandTotal / transactionCount cover EVERY merchant in scope; listed* cover the top N.
     const grandTotal = merchantResults.reduce((sum, m) => sum + m.total, 0);
     const transactionCount = merchantResults.reduce((sum, m) => sum + m.count, 0);
+    const listedTotal = listed.reduce((sum, m) => sum + m.total, 0);
+    const listedCount = listed.reduce((sum, m) => sum + m.count, 0);
+    const refundsTotal = merchantResults.reduce((sum, m) => sum + (m.refunds ?? 0), 0);
 
-    // Evidence fingerprint over exactly the rows behind grandTotal/transactionCount
-    const reportedKeys = new Set(merchantResults.map(m => m.groupingKey));
-    const evidence = merchantEvidenceFingerprint(scoped.filter(t => reportedKeys.has(t.groupKey)));
+    // Evidence fingerprint over exactly the rows behind grandTotal/transactionCount (refunds excluded)
+    const evidence = merchantEvidenceFingerprint(scoped.filter(t => {
+      const c = classifyCashFlow(t);
+      return c.excluded === null && c.amountCents !== null && c.purpose !== 'refund';
+    }));
 
     // Effective date range from actual data
     let earliestDate = '';
     let latestDate = '';
-    for (const m of merchantResults) {
+    for (const m of listed) {
       if (m.firstSeen && (!earliestDate || m.firstSeen < earliestDate)) earliestDate = m.firstSeen;
       if (m.lastSeen && (!latestDate || m.lastSeen > latestDate)) latestDate = m.lastSeen;
     }
 
     return Ok({
-      merchants: merchantResults,
+      merchants: listed,
       grandTotal: Math.round(grandTotal * 100) / 100,
       transactionCount,
+      listedTotal: Math.round(listedTotal * 100) / 100,
+      listedCount,
+      refundsTotal: Math.round(refundsTotal * 100) / 100,
       dateRange: {
         start: input.startDate || earliestDate,
         end: input.endDate || latestDate,

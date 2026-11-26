@@ -14,6 +14,9 @@ import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { fetchTransactionsInRange, type RangeFetchClient } from '../../src/shared/transaction-range-fetch';
 import { buildPeriodAggregate } from '../../src/shared/period-aggregate';
+import { countNeedsCategory } from '../../src/shared/needs-category-rule';
+import { gateReplyForCoverage } from '../../src/shared/comparison-claim-guard';
+import { loadStatementCoverage, type CoverageDbClient } from '../../src/shared/statement-coverage';
 
 // FST-1 / P-G3: totals come from the ONE shared engine (complete paged read +
 // buildPeriodAggregate / classifyCashFlow). The previous local classifier (merchant regex,
@@ -144,9 +147,11 @@ export const handler: Handler = async (event) => {
     const complete = !fetched.error && agg.completeness.complete;
     const totalIncome = agg.cents.income / 100;
     const totalExpenses = agg.cents.spending / 100;
-    const netFlow = agg.cents.netExcludingInternalMovements / 100;
+    // G15 (owner 2026-11-26): net cash flow = total deposits − total withdrawals.
+    const netFlow = agg.cents.rawNetCashMovement / 100;
     const totalTxs = fetched.rowsFetched;
-    const uncategorized = fetched.rows.filter(t => !t.category || t.category === 'Needs Review' || t.category === 'Uncategorized' || t.category === 'Other').length;
+    // The ONE review rule (shared with every screen): no category / Uncategorized / Needs Review; not 'Other'.
+    const uncategorized = countNeedsCategory(fetched.rows);
     const categorizedPct = totalTxs > 0 ? Math.round(((totalTxs - uncategorized) / totalTxs) * 100) : 0;
     const topSpend = agg.categories.find(cat => cat.purpose === 'spending') ?? null;
     const dated = fetched.rows.map(t => t.date).filter((x): x is string => typeof x === 'string').map(x => x.slice(0, 10)).sort();
@@ -161,7 +166,7 @@ export const handler: Handler = async (event) => {
       ? `OVERALL BOOKS (scope: ${scopeLine}):
 - Income: ${money(agg.cents.income)} (${agg.counts.income} transactions)
 - Spending (excludes transfers, debt payments, savings/investments): ${money(agg.cents.spending)} (${agg.counts.spending} transactions)
-- Net (income minus spending and debt payments): ${netFlow >= 0 ? '+' : '-'}${money(Math.abs(agg.cents.netExcludingInternalMovements))}
+- Net cash flow (total deposits minus total withdrawals): ${netFlow >= 0 ? '+' : '-'}${money(Math.abs(agg.cents.rawNetCashMovement))}
 - Uncategorized: ${uncategorized} of ${totalTxs} (${100 - categorizedPct}%)
 - Biggest spending category: ${topSpend ? `${topSpend.category} at ${money(topSpend.totalCents)}` : 'unknown'}${agg.completeness.excluded.unclassifiedType > 0 ? `
 - ${agg.completeness.excluded.unclassifiedType} transactions have an unrecognised type and are in no total` : ''}`
@@ -194,7 +199,10 @@ Write Prime's briefing. Be specific with the numbers given; never invent figures
     });
 
     const claudeData = await claudeRes.json();
-    const briefing = claudeData.content?.[0]?.text || 'Import processed successfully.';
+    // G11b (owner GO 2026-11-26): the model-written briefing may not compare periods without coverage.
+    const gatedBriefing = await gateReplyForCoverage(claudeData.content?.[0]?.text || 'Import processed successfully.',
+      () => loadStatementCoverage(sb as unknown as CoverageDbClient, userId));
+    const briefing = gatedBriefing.text;
 
     // 5. Save to notifications (never silently: a failed write is logged, the briefing still returns)
     const { error: saveError } = await sb.from('notifications').insert({

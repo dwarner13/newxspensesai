@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Result, Ok, Err } from '../../../types/result';
-import { getSupabaseServerClient } from '../../../server/db';
+import { crystalSummary } from './_crystal-summary-engine';
 
 export const id = 'crystal_summarize_expenses';
 
@@ -10,119 +10,35 @@ export const inputSchema = z.object({
 });
 
 export const outputSchema = z.object({
-  total: z.number(),
+  /** null when not every transaction could be read (never a partial total). */
+  total: z.number().nullable(),
   count: z.number(),
-  average: z.number(),
+  average: z.number().nullable(),
   topMerchants: z.array(z.object({
     merchant: z.string(),
     total: z.number(),
     count: z.number(),
   })),
+  /** Money back on spending categories; never part of spending. */
+  refunds: z.number().nullable(),
+  queryStatus: z.enum(['verified', 'verified_zero', 'partial', 'query_error']),
+  definition: z.string(),
 });
 
 export type Input = z.infer<typeof inputSchema>;
 export type Output = z.infer<typeof outputSchema>;
 
 /**
- * Summarize expense transactions
- * 
- * Provides clean financial summary of expenses: total, count, average, top merchants.
- * Use this when users ask about spending totals, expense breakdowns, or expense summaries.
+ * Summarize ACTUAL SPENDING from the shared engine (owner GO 2026-11-26; AR-1b FR-036).
+ * Complete paged read; purpose 'spending' from classifyCashFlow (no transfers, cash withdrawals, debt
+ * payments or savings); refunds separate; no totals when the read is incomplete.
+ * Use when users ask about spending totals or breakdowns.
  */
 export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
   try {
-    const { userId } = ctx;
-
-    // Log tool invocation (dev only)
-    if (process.env.NODE_ENV === 'development' || process.env.NETLIFY_DEV === 'true') {
-      console.log(`[Crystal Summarize Expenses] Executing for userId: ${userId}`);
-    }
-
-    const supabase = getSupabaseServerClient();
-
-    // Build query for expense transactions
-    let query = supabase
-      .from('transactions')
-      .select('amount, merchant')
-      .eq('user_id', userId)
-      .eq('type', 'expense');
-
-    // Apply date filters if provided
-    if (input.startDate) {
-      query = query.gte('date', input.startDate);
-    }
-    if (input.endDate) {
-      query = query.lte('date', input.endDate);
-    }
-
-    const { data: transactions, error } = await query;
-
-    if (error) {
-      console.error('[Crystal Summarize Expenses] Query error:', error);
-      return Err(new Error(`Failed to query expense transactions: ${error.message}`));
-    }
-
-    // Log query results (dev only)
-    if (process.env.NODE_ENV === 'development' || process.env.NETLIFY_DEV === 'true') {
-      console.log(`[Crystal Summarize Expenses] Found ${transactions?.length || 0} expense transactions`);
-    }
-
-    const txns = transactions || [];
-
-    // Handle empty case
-    if (txns.length === 0) {
-      return Ok({
-        total: 0,
-        count: 0,
-        average: 0,
-        topMerchants: [],
-      });
-    }
-
-    // Calculate totals
-    const total = txns.reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-    const count = txns.length;
-    const average = count > 0 ? total / count : 0;
-
-    // Group by merchant and calculate totals
-    const merchantMap = new Map<string, { total: number; count: number }>();
-
-    txns.forEach(t => {
-      const merchant = t.merchant || 'Unknown';
-      const amount = Math.abs(t.amount || 0);
-
-      if (!merchantMap.has(merchant)) {
-        merchantMap.set(merchant, { total: 0, count: 0 });
-      }
-
-      const entry = merchantMap.get(merchant)!;
-      entry.total += amount;
-      entry.count += 1;
-    });
-
-    // Convert to array and sort by total descending
-    const topMerchants = Array.from(merchantMap.entries())
-      .map(([merchant, stats]) => ({
-        merchant,
-        total: stats.total,
-        count: stats.count,
-      }))
-      .sort((a, b) => b.total - a.total);
-
-    return Ok({
-      total: Math.round(total * 100) / 100, // Round to 2 decimals
-      count,
-      average: Math.round(average * 100) / 100,
-      topMerchants,
-    });
+    return Ok(await crystalSummary(ctx.userId, input, 'spending'));
   } catch (error) {
     console.error('[Crystal Summarize Expenses] Error:', error);
     return Err(error as Error);
   }
 }
-
-
-
-
-
-

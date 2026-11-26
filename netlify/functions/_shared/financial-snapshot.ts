@@ -75,7 +75,8 @@ export async function buildFinancialSnapshot(
   });
   const monthlyExpenses = month.cents.spending / 100;
   const monthlyIncome = month.cents.income / 100;
-  const netCashflow = month.cents.netExcludingInternalMovements / 100;
+  // Owner 2026-11-26: net cash flow = total deposits − total withdrawals (rawNetCashMovement).
+  const netCashflow = month.cents.rawNetCashMovement / 100;
 
   // 4. TOP CATEGORIES (current month ordinary spending)
   const topCategories = month.categories
@@ -145,7 +146,7 @@ export async function buildFinancialSnapshot(
     stressSignals.push({
       type: 'negative_cashflow',
       severity: Math.abs(netCashflow) > monthlyIncome * 0.2 ? 'high' : 'medium',
-      message: `Spending exceeds income by ${Math.abs(netCashflow).toFixed(2)} this month`,
+      message: `Withdrawals exceeded deposits by ${Math.abs(netCashflow).toFixed(2)} this month`,
       suggestedAction: 'Review spending patterns or set a budget',
     });
   }

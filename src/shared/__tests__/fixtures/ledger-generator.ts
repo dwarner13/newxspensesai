@@ -50,7 +50,7 @@ export const KIND_BUCKET: Record<Kind, Bucket> = {
 export const KIND_TAX_SECTION: Record<Kind, string | null> = {
   payroll: 'income',
   interest_earned: 'income',
-  refund: 'income',
+  refund: null,                    // FR-029: a refund is not tax income (unsectioned, disclosed)
   purchase: 'meals',               // generated with category "Food & Dining"
   card_purchase: 'personal',       // "Shopping"
   interest_charged: 'business',    // "Bank Fees"
