@@ -24,10 +24,6 @@ const arr = <T>(v: unknown, max: number, map: (x: Record<string, unknown>) => T 
   }
   return out;
 };
-const nameAmount = (x: Record<string, unknown>) => {
-  const name = text(x.name, 60);
-  return name ? { name, amount: num(x.amount) ?? 0 } : null;
-};
 /** Multi-line summary text: control characters removed (newlines kept), bounded lines and size. */
 function summaryText(v: unknown, maxLines: number, maxChars: number): string | undefined {
   if (typeof v !== 'string') return undefined;
