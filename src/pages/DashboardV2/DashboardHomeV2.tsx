@@ -13,8 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isPrimeBriefingOpenAtom } from "@/lib/uiStore";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { CompactScoreRing } from "../XspenseScore/ScoreRing";
-import { useXspenseScore } from "../XspenseScore/useXspenseScore";
-import { isXspenseScoreVisible } from "../XspenseScore/scoreDisplay";
+import { WithXspenseScore } from "../XspenseScore/WithXspenseScore";
 import toast from "react-hot-toast";
 import { FinancialStateNotice, formatMoney } from "@/components/finance/FinancialState";
 import { FINANCIAL_LABELS } from "@/lib/financialLabels";
@@ -26,7 +25,6 @@ export default function DashboardHomeV2() {
   const location = useLocation();
   const { firstName } = useAuth();
   const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
-  const scoreData = useXspenseScore();
   const [loaded, setLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isVerySmall, setIsVerySmall] = useState(false);
@@ -82,7 +80,7 @@ export default function DashboardHomeV2() {
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {/* Xspense Score widget - desktop only */}
-              {isXspenseScoreVisible() && !scoreData.loading && !isMobile && (
+              {!isMobile && <WithXspenseScore render={(scoreData) => (
                 <button onClick={() => navigate("/dashboard/xspense-score")} style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "4px 14px 4px 4px", borderRadius: 20,
                   background: THEME.surface, border: `1px solid ${THEME.border}`, cursor: "pointer", transition: "all 0.15s",
@@ -96,7 +94,7 @@ export default function DashboardHomeV2() {
                     {/* N0-c: no month-over-month change shown; the hook's prior score is an estimate, not stored history. */}
                   </div>
                 </button>
-              )}
+              )} />}
               {/* N0-c: removed a static agent-count chip that was not backed by any agent status. */}
               <button onClick={handleExport} style={{ padding: "8px 18px", borderRadius: 12, fontSize: 12, fontWeight: 600, background: `linear-gradient(135deg,${THEME.accent},#a08030)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: `0 4px 16px rgba(200,166,78,0.44)` }}>Export Report</button>
             </div>
@@ -104,7 +102,7 @@ export default function DashboardHomeV2() {
         </Reveal>
 
         {/* MOBILE HERO SCORE ï¿½ Borrowell style */}
-        {isXspenseScoreVisible() && isMobile && !scoreData.loading && (
+        {isMobile && <WithXspenseScore render={(scoreData) => (
           <Reveal delay={100}>
             <button onClick={() => navigate("/dashboard/xspense-score")} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "24px 20px", marginBottom: 20, borderRadius: 20, background: `linear-gradient(180deg, ${THEME.surface}, ${THEME.bg})`, border: `1px solid ${THEME.border}`, cursor: "pointer", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 180, height: 180, borderRadius: "50%", background: `radial-gradient(circle, ${THEME.accent}15, transparent 70%)`, filter: "blur(30px)" }} />
@@ -112,7 +110,7 @@ export default function DashboardHomeV2() {
               <div style={{ fontSize: 12, fontWeight: 600, color: THEME.textMuted, marginTop: 2 }}>Xspense Score</div>
             </button>
           </Reveal>
-        )}
+        )} />}
 
         {/* PREVIOUSLY ON */}
         <Reveal delay={200}>

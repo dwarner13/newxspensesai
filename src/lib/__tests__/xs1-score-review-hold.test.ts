@@ -44,15 +44,16 @@ describe('Xspense Score page', () => {
 
 describe('Dashboard home', () => {
   it('gates both score surfaces on the hold', () => {
-    expect(dashboard).toMatch(/\{isXspenseScoreVisible\(\) && !scoreData\.loading && !isMobile && \(/);
-    expect(dashboard).toMatch(/\{isXspenseScoreVisible\(\) && isMobile && !scoreData\.loading && \(/);
+    // XS-2: gated through WithXspenseScore (hold checked inside; the hook only runs when visible).
+    expect(dashboard).toMatch(/\{!isMobile && <WithXspenseScore render=\{\(scoreData\) => \(/);
+    expect(dashboard).toMatch(/\{isMobile && <WithXspenseScore render=\{\(scoreData\) => \(/);
   });
 });
 
 describe('Header score chip', () => {
   const header = read('src/components/ui/DashboardHeader.tsx');
   it('is gated on the hold; Ask Prime untouched', () => {
-    expect(header).toMatch(/\{isXspenseScoreVisible\(\) && !scoreData\.loading && \(/);
+    expect(header).toMatch(/<WithXspenseScore render=\{\(scoreData\) => \(/);
     expect(header).toMatch(/data-testid="ask-prime-header"/);
   });
 });

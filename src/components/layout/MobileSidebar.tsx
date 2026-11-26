@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { X, Home, Receipt, Tags, Brain, FileText, Star, Target, Mic, Briefcase, Settings, Upload, Mail, BookOpen } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { isXspenseScoreVisible } from '../../pages/XspenseScore/scoreDisplay';
 
 interface MobileSidebarProps { open: boolean; onClose: () => void; }
 
@@ -14,7 +15,8 @@ const NAV = [
   { label: "My Story", to: "/dashboard/my-story", icon: Brain, group: "primary", badge: "New" },
   { label: "Reports", to: "/dashboard/reports", icon: FileText, group: "primary" },
   { label: "Inbox", to: "/dashboard/inbox", icon: Mail, group: "primary" },
-  { label: "Xspense Score", to: "/dashboard/xspense-score", icon: Star, group: "primary" },
+  // XS-2 (owner 2026-11-26): the held Score has no menu entry; the route stays and shows the review message.
+  ...(isXspenseScoreVisible() ? [{ label: "Xspense Score", to: "/dashboard/xspense-score", icon: Star, group: "primary" }] : []),
   { label: "Tax Summary", to: "/dashboard/tax-workspace", icon: BookOpen, group: "primary" },
   { label: "Goals & Debt", to: "/dashboard/goal-concierge", icon: Target, group: "more" },
   { label: "Monthly Recap", to: "/dashboard/monthly-recap", icon: Mic, group: "more" },
