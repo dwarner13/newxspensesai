@@ -35,4 +35,9 @@ describe('every count, filter and banner uses it', () => {
     expect(cat).toMatch(/\.filter\(t => needsCategory\(t\.category\)\)/);
     expect(cat).not.toMatch(/t\.category === "Other"/);
   });
+  it('REVIEW-1: the sidebar Categories badge counts with the same rule', () => {
+    const stats = read('src/hooks/useSmartCategoriesStats.ts');
+    expect(stats).toMatch(/\.or\('category\.is\.null,category\.eq\.,category\.ilike\.uncategorized'\)/);
+    expect(stats).not.toMatch(/category\.eq\.Other|category\.eq\.Needs Review/);
+  });
 });

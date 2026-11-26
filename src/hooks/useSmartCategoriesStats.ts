@@ -107,13 +107,16 @@ export function useSmartCategoriesStats(): SmartCategoriesStats {
         if (!error && count !== null) setTaggedToday(count);
       })(),
 
-      // 4. Uncategorized count — live query, includes all 'needs attention' states
+      // 4. Uncategorized count — REVIEW-1: the owner-approved rule (src/lib/needsCategory.ts):
+      // no category or 'Uncategorized'. A customer-approved 'Other' (and the retired 'Needs
+      // Review' label) is not counted, so the sidebar badge agrees with Transactions and
+      // Categories.
       (async () => {
         const { count, error } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userId)
-          .or('category.is.null,category.eq.Uncategorized,category.eq.Needs Review,category.eq.Other');
+          .or('category.is.null,category.eq.,category.ilike.uncategorized');
         if (!error && count !== null) setUncategorizedCount(count);
       })(),
 
