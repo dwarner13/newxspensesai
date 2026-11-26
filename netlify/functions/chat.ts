@@ -240,6 +240,8 @@ import { runStatementReview } from './_shared/statementReview';
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
 import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
+import { buildStatementBreakdown, engineRowsFromExtracted } from '../../src/shared/statement-breakdown';
+import { buildPeriodAggregate } from '../../src/shared/period-aggregate';
 import { resolveFocusedTransaction } from './_shared/focusedTransaction';
 // P3.1C: Controlled read-only evidence execution
 import {
@@ -5064,7 +5066,7 @@ function renderStatementQaAnswer(message: string, req: StatementQaRequest, rows:
     }
     return [
       `I checked your latest statement context for ${queryLabel.toUpperCase()}.`,
-      `Total spend is $${spendTotal.toFixed(2)} across ${spendRows.length} transaction${spendRows.length === 1 ? '' : 's'}.`,
+      `Total charged (debits on the statement) is ${spendTotal.toFixed(2)} across ${spendRows.length} transaction${spendRows.length === 1 ? '' : 's'}.`,
       ...(latestSpend
         ? [`Most recent charge: ${latestSpend.date || 'UNKNOWN-DATE'} | ${latestSpend.merchant || 'UNKNOWN-MERCHANT'} | $${latestSpend.amount.toFixed(2)}.`]
         : []),
@@ -8078,14 +8080,12 @@ export const handler: Handler = async (event, context) => {
         };
       } else if (pipelineReuseIntent === 'tag_breakdown' && lastPipelineRaw?.tag_json) {
         const txns = Array.isArray(lastPipelineRaw.tag_json?.transactions) ? lastPipelineRaw.tag_json.transactions : [];
-        const spendTotal = txns.reduce(
-          (sum: number, tx: any) => sum + (tx?.is_spend === true && tx?.direction === 'debit' ? Math.abs(Number(tx?.amount || 0)) : 0),
-          0
-        );
-        const transferTotal = txns.reduce(
-          (sum: number, tx: any) => sum + (String(tx?.category || '').toLowerCase().includes('transfer') ? Math.abs(Number(tx?.amount || 0)) : 0),
-          0
-        );
+        // AR1b-TG-21 (owner GO 2026-11-26): totals from the shared engine over the extracted rows
+        // (direction = extracted debit/credit only), never from the model's is_spend flags.
+        const extractedBreakdown = buildStatementBreakdown(engineRowsFromExtracted(txns));
+        const lineCents = (k: string) => extractedBreakdown.lines.find(l => l.key === k)?.cents ?? 0;
+        const spendTotal = (lineCents('everyday_spending') + lineCents('unresolved')) / 100;
+        const transferTotal = (lineCents('incoming_transfers') + lineCents('outgoing_transfers')) / 100;
         const businessLike = txns.filter((tx: any) => String(tx?.tax_hint || '') === 'business_possible').length;
         forcedPrimeDecision = {
           lane: 'deterministic',
@@ -8095,8 +8095,11 @@ export const handler: Handler = async (event, context) => {
             'I still have your last statement context loaded.',
             `From your last statement (${lastPipelineSnapshot.ts}), here is a grounded breakdown:`,
             `- Transactions reviewed: ${txns.length}`,
-            `- Spend total: ${formatCurrency(spendTotal, String(effectivePrimeContext?.currency || 'CAD'))}`,
-            `- Transfer total: ${formatCurrency(transferTotal, String(effectivePrimeContext?.currency || 'CAD'))}`,
+            `- Total deposits: ${formatCurrency(extractedBreakdown.raw.depositsCents / 100, String(effectivePrimeContext?.currency || 'CAD'))}; total withdrawals: ${formatCurrency(extractedBreakdown.raw.withdrawalsCents / 100, String(effectivePrimeContext?.currency || 'CAD'))}`,
+            `- Actual spending (everyday purchases; excludes transfers, debt payments and cash): ${formatCurrency(spendTotal, String(effectivePrimeContext?.currency || 'CAD'))}`,
+            `- Transfers in and out: ${formatCurrency(transferTotal, String(effectivePrimeContext?.currency || 'CAD'))}`,
+            ...(extractedBreakdown.unplaced.count > 0 ? [`- ${extractedBreakdown.unplaced.count} row(s) had no debit/credit side in the extraction and are not in these totals`] : []),
+            '- These come from the statement as read, before it was committed to your transactions.',
             `- Business-possible rows: ${businessLike}`,
             '',
             "Based on what we reviewed earlier, I can filter this to subscriptions only or list likely business expenses next.",
@@ -8702,13 +8705,13 @@ export const handler: Handler = async (event, context) => {
         setStage('memory');
         workerNotes.push('Memory: context refresh queued');
 
-        const spendTotal = (Array.isArray(tagWorkerOutput.transactions) ? tagWorkerOutput.transactions : []).reduce(
-          (sum: number, tx: any) =>
-            sum + (tx?.direction === 'debit' && tx?.is_spend === true ? Math.abs(Number(tx?.amount || 0)) : 0),
-          0
-        );
-        const topCategory = (Array.isArray(tagWorkerOutput.category_totals) ? tagWorkerOutput.category_totals : [])
-          .sort((a: any, b: any) => Number(b?.total || 0) - Number(a?.total || 0))[0];
+        // AR1b-TG-21: engine totals over the extracted rows; never model is_spend / category_totals.
+        const workerEngineRows = engineRowsFromExtracted(Array.isArray(tagWorkerOutput.transactions) ? tagWorkerOutput.transactions : []);
+        const workerBreakdown = buildStatementBreakdown(workerEngineRows);
+        const spendTotal = ((workerBreakdown.lines.find(l => l.key === 'everyday_spending')?.cents ?? 0) + (workerBreakdown.lines.find(l => l.key === 'unresolved')?.cents ?? 0)) / 100;
+        const workerAgg = buildPeriodAggregate(workerEngineRows, { fetch: { complete: true, truncated: false, rowsFetched: workerEngineRows.length } });
+        const topSpend = workerAgg.categories.find(c => c.purpose === 'spending');
+        const topCategory = topSpend ? { category: topSpend.category } : undefined;
         workerNotes.push(
           `Snapshot: spend=${formatCurrency(spendTotal, String(effectivePrimeContext?.currency || 'CAD'))}` +
             (topCategory ? `, top_category=${topCategory.category}` : '')

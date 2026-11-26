@@ -134,3 +134,28 @@ export function buildStatementBreakdown(rows: ReadonlyArray<AggregateRow>): Stat
     engineAgrees,
   };
 }
+
+/**
+ * Rows extracted from a document by the worker chain (Byte/Tag workers), converted to engine rows.
+ * Owner GO 2026-11-26 (UNIFIED FINANCIAL ENGINE; AR1b-TG-21): totals over extracted rows come from
+ * the shared engine, never from model-supplied is_spend / category_totals. Direction is taken ONLY
+ * from the extracted debit/credit side (bank evidence); a row without one stays unclassified and is
+ * reported as unplaced, never guessed.
+ */
+export interface ExtractedRow { direction?: unknown; amount?: unknown; category?: unknown; subcategory?: unknown; date?: unknown }
+export function engineRowsFromExtracted(rows: ReadonlyArray<ExtractedRow>, fallbackDate = '1970-01-01'): AggregateRow[] {
+  return rows.map((r, i) => {
+    const dir = String(r.direction ?? '').toLowerCase();
+    const type = dir === 'credit' ? 'income' : dir === 'debit' ? 'expense' : null;
+    const abs = Math.abs(Number(r.amount));
+    const date = typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(r.date) ? r.date.slice(0, 10) : fallbackDate;
+    return {
+      id: `extracted-${i}`,
+      date,
+      amount: Number.isFinite(abs) ? (type === 'income' ? abs : -abs) : null,
+      type,
+      category: typeof r.category === 'string' ? r.category : null,
+      subcategory: typeof r.subcategory === 'string' ? r.subcategory : null,
+    };
+  });
+}
