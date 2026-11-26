@@ -75,6 +75,8 @@ export interface StatementCoverage {
   accounts: AccountCoverage[];
   completedWithoutPeriod: number;
   limitations: string[];
+  /** G14 (Architecture review): more imports exist than were read; coverage cannot be complete. */
+  importsTruncated?: boolean;
   readOnly: true;
 }
 
@@ -216,6 +218,8 @@ export function coverageForPeriod(
   start: string,
   end: string,
 ): { overall: PeriodCoverage; byAccount: Array<{ label: string; coverage: 'covered' | 'partial' | 'not_covered' }> } {
+  // G4/G14: a read error or a truncated import list is unknown coverage (never 'none' or 'complete').
+  if (coverage.status === 'query_error' || coverage.importsTruncated) return { overall: 'unknown', byAccount: [] };
   if (coverage.status !== 'ok' || coverage.accounts.length === 0) return { overall: coverage.completedWithoutPeriod > 0 ? 'unknown' : 'none', byAccount: [] };
   const byAccount = coverage.accounts.map(a => {
     const s = a.earliestPeriodStart!, e = a.latestPeriodEnd!;
@@ -287,7 +291,10 @@ export async function loadStatementCoverage(sb: CoverageDbClient, userId: string
       .filter(i => docs.get(String(i.document_id))?.purpose !== 'chat_document')
       .map(i => toStatementRecord(i, i.document_id ? docs.get(i.document_id) : undefined));
     const summary = summarizeStatementCoverage(records);
-    if (imports.length >= MAX_IMPORTS) summary.limitations.unshift(`Only the most recent ${MAX_IMPORTS} imports were checked.`);
+    if (imports.length >= MAX_IMPORTS) {
+      summary.limitations.unshift(`Only the most recent ${MAX_IMPORTS} imports were checked.`);
+      summary.importsTruncated = true;
+    }
     return summary;
   } catch {
     return errorResult;

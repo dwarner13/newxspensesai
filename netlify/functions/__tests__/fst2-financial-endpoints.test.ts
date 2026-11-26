@@ -147,8 +147,23 @@ describe('S0/S2b financial-summary reconciles with the oracle at 119 / 1,000 / 1
       expect(b.dataQuality.totalsLabel).toMatch(/^Recorded transactions for 2023-01-01 to 2025-12-31. Statement coverage for this period is unknown/);
       expect(b.possibleBusinessExpenses).toMatchObject({ status: 'needs_review' });
       expect(b.possibleBusinessExpenses.wording).not.toMatch(/deduction(s)? found|deductible/i);
+      // G8: engine cents; sections add up; refunds on the same categories netted
+      const pbe = b.possibleBusinessExpenses;
+      expect(pbe.sections.reduce((x: number, sct: any) => x + sct.cents, 0) - pbe.refundsNettedCents).toBe(Math.max(0, pbe.cents));
+      // G9: the engine serves the wording
+      expect(b.wording.labels.netCashFlow).toBe('Net cash flow');
+      expect(b.wording.insights.stable_actual_spending).toContain('last 3 statement periods');
     });
   }
+
+  it('G2: an account-scoped request never claims coverage or comparisons', async () => {
+    const { rows } = generateLedger(1000, A);
+    state.client = makeCappedClient(db(rows), { shuffleUnordered: true });
+    const b = JSON.parse((await call(summary, 'tok-a', { ...ALL, importIds: [IMPORTS.chequing] })).body);
+    expect(b.status).toBe('verified');
+    expect(b.dataQuality).toMatchObject({ statementCoverage: 'unknown', allowed: { comparisons: false, completenessClaims: false, recordedTotals: true } });
+    expect(b.periods).toEqual([]);
+  });
 
   it('with statement periods recorded for every account: comparisons allowed, periods/insights coverage-backed, net reconciles per period', async () => {
     const { rows } = generateLedger(3000, A);

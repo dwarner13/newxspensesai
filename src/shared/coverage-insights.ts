@@ -33,7 +33,7 @@ const length = (p: { start: string; end: string }) => dayNum(p.end) - dayNum(p.s
 
 /** The periods that may be compared, oldest first. */
 export function comparablePeriods(cov: StatementCoverage): ComparablePeriod[] {
-  if (cov.status !== 'ok' || cov.accounts.length === 0 || cov.completedWithoutPeriod > 0) return [];
+  if (cov.status !== 'ok' || cov.importsTruncated || cov.accounts.length === 0 || cov.completedWithoutPeriod > 0) return [];
   if (cov.accounts.length === 1) {
     const a = cov.accounts[0];
     return (a.periods ?? []).map(p => ({ start: p.start, end: p.end, label: `${p.start} to ${p.end}`, accounts: [a.label] }));
@@ -147,12 +147,21 @@ export function buildCategoryInsights(figures: ReadonlyArray<PeriodFigures>, cat
   return out;
 }
 
+/** G1 (Architecture review): comparison permission for a REQUESTED range (periods fully inside it). */
+export function comparisonAllowedInRange(cov: StatementCoverage, start: string, end: string): { allowed: boolean; periodsAvailable: number; reason: string } {
+  const chain = comparableChain(comparablePeriods(cov).filter(p => p.start >= start && p.end <= end));
+  if (chain.length >= TREND_MIN_PERIODS) return { allowed: true, periodsAvailable: chain.length, reason: 'comparable statement periods in this range' };
+  const all = comparisonAllowed(cov);
+  return { allowed: false, periodsAvailable: chain.length, reason: all.allowed ? `only ${chain.length} complete comparable statement period(s) in this range` : all.reason };
+}
+
 /** For chat (every employee): may a comparison / trend / stability claim be made? */
 export function comparisonAllowed(cov: StatementCoverage): { allowed: boolean; periodsAvailable: number; reason: string } {
   const chain = comparableChain(comparablePeriods(cov));
   if (chain.length >= TREND_MIN_PERIODS) return { allowed: true, periodsAvailable: chain.length, reason: 'comparable statement periods available' };
   const reason = cov.status === 'no_statements' ? 'no statements imported'
     : cov.status !== 'ok' ? 'statement coverage could not be read'
+      : cov.importsTruncated ? 'not every import could be checked'
       : cov.completedWithoutPeriod > 0 ? 'some imported statements have no recorded period'
         : `only ${chain.length} complete comparable statement period(s)`;
   return { allowed: false, periodsAvailable: chain.length, reason };

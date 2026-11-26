@@ -73,3 +73,24 @@ describe('insights: thresholds on the server; clients only render', () => {
     expect(kinds).not.toContain('stable');
   });
 });
+
+describe('Architecture review gaps', () => {
+  it('G1: comparisons are scoped to the requested range', async () => {
+    const { comparisonAllowedInRange } = await import('../coverage-insights');
+    const c = cov(rec('Bank', '1111', '2026-01-01', '2026-01-31'), rec('Bank', '1111', '2026-02-01', '2026-02-28'), rec('Bank', '1111', '2026-03-01', '2026-03-31'));
+    expect(comparisonAllowed(c).allowed).toBe(true);                                       // all time: yes
+    expect(comparisonAllowedInRange(c, '2026-03-01', '2026-03-31').allowed).toBe(false);   // only one period in range
+    expect(comparisonAllowedInRange(c, '2026-02-01', '2026-03-31').allowed).toBe(true);
+  });
+  it('G4: a coverage read error is unknown, never "none"', async () => {
+    const { coverageForPeriod } = await import('../statement-coverage');
+    const err = { ...cov(), status: 'query_error' as const };
+    expect(coverageForPeriod(err, '2026-01-01', '2026-01-31').overall).toBe('unknown');
+  });
+  it('G14: a truncated import list is unknown coverage and nothing is comparable', async () => {
+    const { coverageForPeriod } = await import('../statement-coverage');
+    const c = { ...cov(rec('Bank', '1111', '2026-01-01', '2026-01-31'), rec('Bank', '1111', '2026-02-01', '2026-02-28')), importsTruncated: true };
+    expect(coverageForPeriod(c, '2026-01-01', '2026-01-31').overall).toBe('unknown');
+    expect(comparablePeriods(c)).toEqual([]);
+  });
+});
