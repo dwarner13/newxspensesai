@@ -14,6 +14,13 @@ import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
 import type { EmployeeStat } from '../../config/employeeDisplayConfig';
 import toast from 'react-hot-toast';
 import { newClientMessageId } from '@/lib/tagConversation';
+import { useSetAtom } from 'jotai';
+import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
+import { useFinancialSummary } from '@/hooks/useFinancialSummary';
+import { allTimeRange } from '@/lib/financialSummary';
+import { hasFigures, formatMoney } from '@/components/finance/FinancialState';
+import { FINANCIAL_LABELS } from '@/lib/financialLabels';
+import { categoryTrend, insightText } from '@/lib/insightWording';
 
 // Local Transaction type for Smart Categories page
 interface Transaction {
@@ -628,19 +635,17 @@ const SmartCategoriesPage: React.FC = () => {
 
   // Removed all inline chat code - chat is now only in unified slideout
 
-  // Handler to open unified chat with Tag
-  const openTagWorkspace = () => {
-    openChat({
-      initialEmployeeSlug: 'tag-ai',
-      force: true,
-      context: {
-        page: 'smart-categories',
-        data: {
-          source: 'workspace-tag',
-        },
-      },
-    });
+  // SC-1 (owner 2026-11-26: restore supported active employee navigation). The unified chat
+  // launcher (openChat) has no mounted renderer, so its buttons opened nothing. Each Ask button now
+  // goes to the employee's working surface: Tag on Transactions (scoped to the statement), Prime's
+  // briefing panel (as the header button), Crystal on My Story. Finley stays hidden (not active).
+  const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
+  const askTag = () => {
+    navigate(`/dashboard/transactions?openTag=1${selectedImportFilter ? `&import_id=${encodeURIComponent(selectedImportFilter)}` : ''}`);
   };
+  const askPrime = () => setIsPrimeBriefingOpen(true);
+  const askCrystal = () => navigate('/dashboard/my-story?crystal=1');
+  const openTagWorkspace = askTag;
   const dismissHandoffBanner = () => {
     const next = new URLSearchParams(searchParams);
     next.delete('handoff');
@@ -897,17 +902,17 @@ const SmartCategoriesPage: React.FC = () => {
     ],
     [importList]
   );
-  const topExpenseCategory = scopedExpenseBreakdownEntries[0] || null;
-  const topIncomeCategory = scopedIncomeBreakdownEntries[0] || null;
   const tagSceneBrief = `${confidentMerchantSuggestions.length} merchant group${
     confidentMerchantSuggestions.length === 1 ? '' : 's'
   } confident, ${uncertainMerchantSuggestions.length} need review.`;
-  const primeSceneBrief = topExpenseCategory
-    ? `Top spend: ${topExpenseCategory.category} (${formatCurrency(topExpenseCategory.amount)}). Net ${netTotal >= 0 ? 'positive' : 'negative'} at ${formatCurrency(netTotal)}.`
-    : 'No major spend detected in this scope.';
-  const finleySceneBrief = topIncomeCategory
-    ? `Main income source: ${topIncomeCategory.category}. Cash flow is ${incomeTotal > totalSpent ? 'healthy' : 'tight'} this scene.`
-    : 'No income mapped in this scope yet.';
+  // FST-2: Prime's line uses the shared engine's figures for the same scope, never browser sums.
+  const primeScope = useMemo(() => ({ ...allTimeRange(), ...(selectedImportFilter ? { importIds: [selectedImportFilter] } : {}) }), [selectedImportFilter]);
+  const primeFinancial = useFinancialSummary(primeScope);
+  const primeSum = hasFigures(primeFinancial) ? primeFinancial.summary : null;
+  const primeTop = primeSum?.spendingByCategory[0] ?? null;
+  const primeSceneBrief = !primeSum
+    ? 'Figures for this scope are not available right now.'
+    : `${primeTop ? `Top spending: ${primeTop.category} (${formatMoney(primeTop.amount, primeSum.scope.currency)}). ` : ''}${FINANCIAL_LABELS.netCashFlow}: ${primeSum.labels.netCashFlow.amount > 0 ? '+' : ''}${formatMoney(primeSum.labels.netCashFlow.amount, primeSum.scope.currency)}.`;
   const inspectorRows = useMemo(() => {
     if (!selectedInspectorCategory) return [];
     return scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === selectedInspectorCategory);
@@ -1344,15 +1349,15 @@ const SmartCategoriesPage: React.FC = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <div className="grid grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] gap-2 border-b border-slate-800 px-4 py-2 text-[11px] uppercase tracking-wide text-slate-500">
+              <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] md:grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] gap-2 border-b border-slate-800 px-4 py-2 text-[11px] uppercase tracking-wide text-slate-500">
                 <div />
                 <div>Category</div>
-                <div>Bar</div>
-                <div className="text-right">% Total</div>
+                <div className="hidden md:block">Bar</div>
+                <div className="hidden md:block text-right">% Total</div>
                 <div className="text-right">Amount</div>
-                <div className="text-right">Trend</div>
-                <div className="text-right">Conf</div>
-                <div className="text-right">Txns</div>
+                <div className="hidden md:block text-right">Trend</div>
+                <div className="hidden md:block text-right">Conf</div>
+                <div className="hidden md:block text-right">Txns</div>
               </div>
 
               <div className="max-h-[56vh] overflow-y-auto">
@@ -1422,7 +1427,7 @@ const SmartCategoriesPage: React.FC = () => {
                     return (
                       <div key={entry.category} className="border-b border-slate-800/80 last:border-b-0 group">
                         <div
-                          className={`grid cursor-pointer grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] items-center gap-2 px-4 py-2 transition-colors ${
+                          className={`grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] md:grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] items-center gap-2 px-4 py-2 transition-colors ${
                             isExpanded ? 'bg-violet-500/12 border-l-2 border-violet-400' : 'hover:bg-slate-800/40 border-l-2 border-transparent'
                           }`}
                           onClick={() => {
@@ -1468,16 +1473,22 @@ const SmartCategoriesPage: React.FC = () => {
                               </span>
                             )}
                           </button>
-                          <div className="h-2 rounded-full bg-slate-800">
+                          <div className="hidden md:block h-2 rounded-full bg-slate-800">
                             <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: categoryColor }} />
                           </div>
-                          <div className="text-right text-sm text-slate-300">{entry.pctOfTotal}%</div>
+                          <div className="hidden md:block text-right text-sm text-slate-300">{entry.pctOfTotal}%</div>
                           <div className="text-right text-sm font-medium text-slate-100">{formatCurrency(entry.amount)}</div>
-                          <div className={`text-right text-xs ${
-                            entry.trend === 'up' ? 'text-red-300' : entry.trend === 'down' ? 'text-emerald-300' : 'text-slate-400'
-                          }`}>
-                            {entry.trend === 'flat' ? '-' : `${entry.trend === 'up' ? '↑' : '↓'} ${entry.trendPct ?? ''}%`}
-                          </div>
+                          {(() => {
+                            // FST-2: only the server's coverage-gated category trend; never a browser month comparison.
+                            const t = primeSum ? categoryTrend(primeSum.insights, entry.category) : null;
+                            return (
+                              <div title={t ? (insightText(t, primeSum?.wording) ?? undefined) : 'Not enough statement history to compare'} className={`hidden md:block text-right text-xs ${
+                                t?.direction === 'up' ? 'text-red-300' : t?.direction === 'down' ? 'text-emerald-300' : 'text-slate-400'
+                              }`}>
+                                {t ? `${t.direction === 'up' ? '↑' : '↓'} ${t.percent}%` : '-'}
+                              </div>
+                            );
+                          })()}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1486,7 +1497,7 @@ const SmartCategoriesPage: React.FC = () => {
                               setInspectorMoveCategory(entry.category);
                               setInspectorMoveSubcategory('');
                             }}
-                            className={`text-right text-xs ${
+                            className={`hidden md:block text-right text-xs ${
                               entry.avgConfidence !== null && entry.avgConfidence < 0.7
                                 ? 'text-amber-300 underline decoration-dotted underline-offset-2'
                                 : 'text-slate-300'
@@ -1501,7 +1512,7 @@ const SmartCategoriesPage: React.FC = () => {
                               ? 'Learning'
                               : `${Math.round(entry.avgConfidence * 100)}%`}
                           </button>
-                          <div className="text-right text-sm text-slate-300">{entry.count}</div>
+                          <div className="hidden md:block text-right text-sm text-slate-300">{entry.count}</div>
                         </div>
                         <div
                           className={`overflow-hidden transition-all duration-300 ease-out ${
@@ -1575,9 +1586,11 @@ const SmartCategoriesPage: React.FC = () => {
                                   Sources: {categorySourceBreakdown.map((src) => `${src.source} ${src.count}`).join(' | ') || 'No source data'}
                                 </div>
                                 <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2 text-slate-300">
-                                  {entry.trend === 'flat'
-                                    ? 'Trend is flat vs last month.'
-                                    : `Trend is ${entry.trend} by ${entry.trendPct ?? 0}% vs last month.`}{' '}
+                                  {(() => {
+                                    // FST-2: the server's coverage-gated wording only; no "vs last month" from the browser.
+                                    const t = primeSum ? categoryTrend(primeSum.insights, entry.category) : null;
+                                    return t ? (insightText(t, primeSum?.wording) ?? '') : 'Not enough statement history to compare this category yet.';
+                                  })()}{' '}
                                   {entry.avgConfidence !== null && entry.avgConfidence < 0.7
                                     ? 'Low confidence suggests inconsistent merchant mapping.'
                                     : 'Confidence looks stable.'}
@@ -1764,7 +1777,6 @@ const SmartCategoriesPage: React.FC = () => {
               <div className="mt-2 space-y-1 text-[11px] text-slate-300">
                 <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-violet-300">Tag:</span> {tagSceneBrief}</div>
                 <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-cyan-300">Prime:</span> {primeSceneBrief}</div>
-                <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-emerald-300">Finley:</span> {finleySceneBrief}</div>
               </div>
               <div className="mt-3 grid grid-cols-1 gap-2">
                 <button
@@ -1788,24 +1800,24 @@ const SmartCategoriesPage: React.FC = () => {
                 <div className="grid grid-cols-3 gap-1">
                   <button
                     type="button"
-                    onClick={() => openChat({ initialEmployeeSlug: 'tag-ai', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    onClick={askTag}
                     className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
                   >
                     Ask Tag
                   </button>
                   <button
                     type="button"
-                    onClick={() => openChat({ initialEmployeeSlug: 'prime-boss', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    onClick={askPrime}
                     className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
                   >
                     Ask Prime
                   </button>
                   <button
                     type="button"
-                    onClick={() => openChat({ initialEmployeeSlug: 'finley-forecasts', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    onClick={askCrystal}
                     className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
                   >
-                    Ask Finley
+                    Ask Crystal
                   </button>
                 </div>
               </div>

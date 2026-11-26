@@ -20,7 +20,8 @@ export default function MyFinancialStoryV2() {
   const location = useLocation();
   const data = useStoryData();
   const [loaded, setLoaded] = useState(false);
-  const [copilotOpen, setCopilotOpen] = useState(false);
+  // SC-1: other pages link here with ?crystal=1 to open Crystal (Smart Categories "Ask Crystal").
+  const [copilotOpen, setCopilotOpen] = useState(() => new URLSearchParams(location.search).get('crystal') === '1');
   const [reportOpen, setReportOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   useEffect(() => setLoaded(true), []);
