@@ -7,6 +7,31 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { merchantGroupingKey } from './merchantNormalize.js';
+import { resolveCategoryRequest } from './tagCategories.js';
+import { pagedSelectAll, type PagedQuery } from '../../../src/shared/paged-select';
+
+/**
+ * The customer's corrections for EXACTLY this merchant (AI Architecture HQ follow-up, 2026-11-26;
+ * owner GO "Tag reliability" 2026-11-26). A complete, paged read narrowed by merchantGroupingKey, so a
+ * correction for a similar-named merchant is never applied to, or claimed for, another one. ILIKE is
+ * only a superset prefilter. Newest first. `complete: false` when the read failed or was truncated.
+ */
+export async function exactMerchantCorrections(
+  supabase: SupabaseClient, userId: string, merchant: string,
+): Promise<{ rows: Array<{ new_category: string | null; created_at: string | null }>; complete: boolean }> {
+  const key = merchant.trim() ? merchantGroupingKey(merchant) : '';
+  if (!key) return { rows: [], complete: true };
+  const read = await pagedSelectAll<{ id: string; merchant: string | null; new_category: string | null; created_at: string | null }>(() =>
+    supabase.from('tag_category_feedback')
+      .select('id, merchant, new_category, created_at')
+      .eq('user_id', userId)
+      .ilike('merchant', `%${merchant.trim()}%`)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }) as unknown as PagedQuery);
+  if (read.error) return { rows: [], complete: false };
+  return { rows: read.rows.filter(f => merchantGroupingKey(f.merchant || '') === key), complete: read.complete };
+}
 import { committedImportIds } from './importLifecycle.js';
 
 export type LearnedCategoryResult = {
@@ -42,19 +67,11 @@ export async function getLearnedCategoryForTransaction(
       return null;
     }
 
-    // Step 2: Query tag_category_feedback for this user + merchant
-    // Use ILIKE for case-insensitive matching (simple version)
-    const merchantSearch = merchant.trim();
-    const { data: feedback, error } = await supabase
-      .from('tag_category_feedback')
-      .select('new_category')
-      .eq('user_id', userId)
-      .ilike('merchant', `%${merchantSearch}%`);
-
-    if (error) {
-      console.error('[Tag Learning] Query error:', error);
-      return null; // Fail silently, fall back to AI
-    }
+    // Step 2: the customer's corrections for EXACTLY this merchant (owner GO 2026-11-26). The old
+    // ILIKE '%merchant%' match let corrections for a similar-named merchant become a 0.95-0.99
+    // "learned" category for this one at import time.
+    const { rows: feedback, complete } = await exactMerchantCorrections(supabase, userId, merchant);
+    if (!complete && feedback.length === 0) return null; // unreadable: fall back, never guess
 
     if (!feedback || feedback.length === 0) {
       return null; // No feedback for this merchant yet
@@ -117,32 +134,76 @@ function vendorFromDataJson(dataJson: Record<string, unknown> | null | undefined
   return String(d.description || d.merchant || d.vendor || d.payee || d.memo || d.name || d.details || '').trim();
 }
 
+/** Outcome of the retroactive staging apply (logged as counts only; never shown as "learned"). */
+export type StagingApplyOutcome = { applied: number; complete: boolean; skipped?: 'unknown_category' };
+
+const STAGING_PAGE = 500;
+const STAGING_MAX_ROWS = 20_000;
+
 /**
- * Staging rows still awaiting review (tag_status 'needs_review') for this vendor. Non-blocking.
- * S-1 (owner GO 2026-11-26): only rows of imports that are NOT committed — a committed import's
- * staging rows are read-only history. If import status cannot be read, nothing is written.
+ * Staging rows still awaiting review (tag_status 'needs_review') for this vendor get the customer's
+ * corrected category. Non-blocking; never part of the "learned" claim (that is the vendor memory).
+ *
+ * Owner GO "Tag reliability" 2026-11-26 — the two learning flaws, corrected:
+ *  1. Skipped rows: it paged by OFFSET over tag_status='needs_review' while moving matched rows OUT of
+ *     that filter, so every later page started past rows it had never read; it also stopped silently
+ *     after 10 pages. Now: keyset paging by id (rows already updated are behind the cursor), and a
+ *     stated ceiling that reports complete:false instead of stopping silently.
+ *  2. Check-then-write window: import status (S-1) was read once per page and the rows were then
+ *     updated one by one without error checks. Now: candidates are collected first, import status is
+ *     re-read immediately before ONE guarded, verified update per page that itself carries the
+ *     conditions (only these ids, still needs_review, only imports still open). A residual window of a
+ *     single statement remains; closing it entirely needs a database-side guard (migration, not
+ *     authorized). It cannot affect money: staging rows are history after commit.
+ *  Also: a category that is not a recognised Tag category is never auto-applied (the rows stay in
+ *  review), and rows a customer already decided (not needs_review) are never touched.
  */
-async function applyMemoryToNeedsReviewStaging(supabase: SupabaseClient, userId: string, vendorKey: string, category: string): Promise<void> {
-  const pageSize = 500;
-  let offset = 0;
-  for (let page = 0; page < 10; page++) {
-    const { data, error } = await supabase.from('transactions_staging').select('id, import_id, data_json, tag_status')
-      .eq('user_id', userId).eq('tag_status', 'needs_review').range(offset, offset + pageSize - 1);
-    if (error) throw error;
+export async function applyMemoryToNeedsReviewStaging(supabase: SupabaseClient, userId: string, vendorKey: string, category: string): Promise<StagingApplyOutcome> {
+  const resolved = resolveCategoryRequest(category);
+  if (resolved.status !== 'exact') return { applied: 0, complete: true, skipped: 'unknown_category' };
+  const target = resolved.category;
+  let applied = 0;
+  let lastId: string | null = null;
+  let read = 0;
+  for (;;) {
+    if (read >= STAGING_MAX_ROWS) return { applied, complete: false };
+    let q = supabase.from('transactions_staging').select('id, import_id, data_json, tag_status')
+      .eq('user_id', userId).eq('tag_status', 'needs_review');
+    if (lastId) q = q.gt('id', lastId);
+    const { data, error } = await q.order('id', { ascending: true }).limit(STAGING_PAGE);
+    if (error) return { applied, complete: false };
     const rows = (data || []) as Array<{ id: string; import_id?: string | null; data_json?: Record<string, unknown> | null }>;
-    if (rows.length === 0) break;
-    const lifecycle = await committedImportIds(supabase as unknown as Parameters<typeof committedImportIds>[0], userId, rows.map(r => r.import_id));
-    if (!lifecycle.ok) return; // fail closed: never touch rows whose import status is unknown
-    for (const row of rows) {
-      if (row.import_id && lifecycle.committed.has(row.import_id)) continue;
-      if (normalizeVendorKey(vendorFromDataJson(row?.data_json)) !== vendorKey) continue;
-      await supabase.from('transactions_staging').update({
-        tag_category: category, tag_rule_source: 'vendor_memory', tag_confidence: 0.95, tag_status: 'auto',
+    if (rows.length === 0) return { applied, complete: true };
+    read += rows.length;
+    lastId = String(rows[rows.length - 1].id);
+
+    const matches = rows.filter(r => normalizeVendorKey(vendorFromDataJson(r?.data_json)) === vendorKey);
+    if (matches.length > 0) {
+      // Re-read import status right before the write (S-1; fail closed: unknown → write nothing).
+      const lifecycle = await committedImportIds(supabase as unknown as Parameters<typeof committedImportIds>[0], userId, matches.map(r => r.import_id));
+      if (!lifecycle.ok) return { applied, complete: false };
+      const open = matches.filter(r => !(r.import_id && lifecycle.committed.has(r.import_id)));
+      const openImports = [...new Set(open.map(r => r.import_id).filter((v): v is string => typeof v === 'string' && v.length > 0))];
+      const withImport = open.filter(r => r.import_id).map(r => String(r.id));
+      const noImport = open.filter(r => !r.import_id).map(r => String(r.id));
+      const payload = {
+        tag_category: target, tag_subcategory: resolved.subcategory ?? null, tag_rule_source: 'vendor_memory', tag_confidence: 0.95, tag_status: 'auto',
         tag_reason: 'Learned from confirmed correction', tag_version: 'v1', tag_updated_at: new Date().toISOString(),
-      }).eq('id', row.id).eq('user_id', userId).eq('tag_status', 'needs_review');
+      };
+      if (withImport.length > 0) {
+        const { data: done, error: upErr } = await supabase.from('transactions_staging').update(payload)
+          .in('id', withImport).eq('user_id', userId).eq('tag_status', 'needs_review').in('import_id', openImports).select('id');
+        if (upErr) return { applied, complete: false };
+        applied += Array.isArray(done) ? done.length : 0;
+      }
+      if (noImport.length > 0) {
+        const { data: done, error: upErr } = await supabase.from('transactions_staging').update(payload)
+          .in('id', noImport).eq('user_id', userId).eq('tag_status', 'needs_review').is('import_id', null).select('id');
+        if (upErr) return { applied, complete: false };
+        applied += Array.isArray(done) ? done.length : 0;
+      }
     }
-    if (rows.length < pageSize) break;
-    offset += pageSize;
+    if (rows.length < STAGING_PAGE) return { applied, complete: true };
   }
 }
 
@@ -167,9 +228,10 @@ export async function learnFromCorrection(
       user_id: userId, vendor_key: vendorKey, category: newCategory, subcategory: null, updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,vendor_key' });
     if (memoryError) return { feedbackSaved: true, feedbackId, memory: 'failed' };
-    applyMemoryToNeedsReviewStaging(supabase, userId, vendorKey, newCategory).catch(() => {
-      console.warn('[tag-learning] retroactive staging apply failed (non-blocking)');
-    });
+    // Non-blocking; its outcome is logged as counts only and is never reported as "learned".
+    applyMemoryToNeedsReviewStaging(supabase, userId, vendorKey, newCategory)
+      .then(o => { if (!o.complete || o.skipped) console.warn('[tag-learning] retroactive staging apply incomplete', { applied: o.applied, skipped: o.skipped ?? null }); })
+      .catch(() => { console.warn('[tag-learning] retroactive staging apply failed (non-blocking)'); });
     return { feedbackSaved: true, feedbackId, memory: 'saved' };
   } catch {
     return { feedbackSaved: true, feedbackId, memory: 'failed' };

@@ -106,6 +106,18 @@ function normalizeCategoryKey(input: string): string {
     .replace(/\s+/g, ' ');
 }
 
+/**
+ * Owner GO 2026-11-26: is this a recognised category (canonical name or alias)? Anything else must go to
+ * review — normalizeCanonicalCategory's fallback to 'Other' must never be applied automatically.
+ */
+export function isKnownCategory(input: string): boolean {
+  const raw = String(input || '').trim();
+  const head = raw.includes('::') ? raw.slice(0, raw.indexOf('::')) : raw;
+  const key = normalizeCategoryKey(head);
+  if (!key) return false;
+  return CANONICAL_CATEGORIES.some((c) => normalizeCategoryKey(c) === key) || Boolean(CATEGORY_ALIASES[key]);
+}
+
 function normalizeCanonicalCategory(input: string): string {
   const key = normalizeCategoryKey(input);
   if (!key) return 'Other';
@@ -432,13 +444,15 @@ export const handler: Handler = async (event) => {
         }
         if (matched) {
           const decoded = parseRuleCategory(rule.category);
+          const known = isKnownCategory(rule.category);
           return {
             category: decoded.category,
             subcategory: decoded.subcategory,
-            confidence: 0.9,
-            reason: `Matched user rule (${rule.match_type}: ${rule.match_value})`,
+            confidence: known ? 0.9 : 0.5,
+            reason: known ? `Matched user rule (${rule.match_type}: ${rule.match_value})` : 'Rule has an unrecognised category; needs review',
             source: 'rules',
             model: null,
+            ...(known ? {} : { forceNeedsReview: true }),
           };
         }
       }
@@ -456,13 +470,16 @@ export const handler: Handler = async (event) => {
 
       const memory = memoryMap.get(vendorKey);
       if (memory) {
+        const known = isKnownCategory(memory.category);
         result = {
           category: normalizeCanonicalCategory(memory.category),
           subcategory: memory.subcategory,
-          confidence: 0.92,
-          reason: 'Matched vendor memory',
+          confidence: known ? 0.92 : 0.5,
+          reason: known ? 'Matched vendor memory' : 'Vendor memory has an unrecognised category; needs review',
           source: 'vendor_memory',
           model: null,
+          // An unrecognised category is never auto-applied as "Other" (owner GO 2026-11-26).
+          ...(known ? {} : { forceNeedsReview: true }),
         };
       } else {
         // Check user-defined DB rules before inline rules

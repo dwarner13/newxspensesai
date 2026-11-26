@@ -176,16 +176,16 @@ describe('tx-update-category: committed staging copies are read-only', () => {
 
 describe('Tag learning distinguishes pending from completed imports', () => {
   it('a correction updates only needs_review staging rows of OPEN imports', async () => {
-    await tagLearning.learnFromCorrection(fakeClient as never, { userId: USER, transactionId: 'tx-done-1', merchant: 'Synthetic Cafe', oldCategory: 'Dining', newCategory: 'Coffee' });
+    await tagLearning.learnFromCorrection(fakeClient as never, { userId: USER, transactionId: 'tx-done-1', merchant: 'Synthetic Cafe', oldCategory: 'Dining', newCategory: 'Food & Dining' });
     await new Promise((r) => setTimeout(r, 20)); // memory application is non-blocking
-    expect(db.transactions_staging.find((s) => s.id === STG_OPEN)?.tag_category).toBe('Coffee');
+    expect(db.transactions_staging.find((s) => s.id === STG_OPEN)?.tag_category).toBe('Food & Dining');
     expect(db.transactions_staging.find((s) => s.id === STG_DONE)?.tag_category).toBeNull();
     expect(db.transactions_staging.find((s) => s.id === STG_DONE)?.tag_status).toBe('needs_review');
   });
 
   it('import status unreadable → no staging row is touched', async () => {
     failImportsRead = true;
-    await tagLearning.learnFromCorrection(fakeClient as never, { userId: USER, transactionId: 'tx-done-1', merchant: 'Synthetic Cafe', oldCategory: 'Dining', newCategory: 'Coffee' });
+    await tagLearning.learnFromCorrection(fakeClient as never, { userId: USER, transactionId: 'tx-done-1', merchant: 'Synthetic Cafe', oldCategory: 'Dining', newCategory: 'Food & Dining' });
     await new Promise((r) => setTimeout(r, 20));
     expect(writes('transactions_staging')).toHaveLength(0);
   });

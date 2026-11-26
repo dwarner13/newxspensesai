@@ -57,7 +57,7 @@ function query(table: string) {
   let upsertConflict: string[] = [];
   let range: [number, number] | null = null;
   const matches = () =>
-    (db[table] || []).filter((r) => filters.every(([k, v]) => (k.startsWith('in:') ? (v as unknown[]).includes(r[k.slice(3)]) : r[k] === v)));
+    (db[table] || []).filter((r) => filters.every(([k, v]) => (k.startsWith('in:') ? (v as unknown[]).includes(r[k.slice(3)]) : k.startsWith('gt:') ? String(r[k.slice(3)]) > String(v) : k.startsWith('is:') ? (r[k.slice(3)] ?? null) === v : r[k] === v)));
   const run = () => {
     dbCalls.push({ table, op, filters: [...filters], payload });
     if (failTable === table) return { data: null, error: { message: 'relation leaked-internal-detail' } };
@@ -84,6 +84,8 @@ function query(table: string) {
     upsert: (p: Row, o?: { onConflict?: string }) => { op = 'upsert'; payload = p; upsertConflict = String(o?.onConflict || '').split(','); return q; },
     eq: (k: string, v: unknown) => { filters.push([k, v]); return q; },
     in: (k: string, v: unknown[]) => { filters.push([`in:${k}`, v]); return q; },
+    gt: (k: string, v: unknown) => { filters.push([`gt:${k}`, v]); return q; },
+    is: (k: string, v: unknown) => { filters.push([`is:${k}`, v]); return q; },
     range: (a: number, b: number) => { range = [a, b]; return q; },
     order: () => q, limit: () => q,
     single: async () => { const r = run(); if (r.error) return r; const row = (r.data as Row[])[0]; return row ? { data: row, error: null } : { data: null, error: { message: 'no rows' } }; },
@@ -142,7 +144,7 @@ async function invoke(h: any, headers: Record<string, string>, body: Row) {
 const bearer = (t: string) => ({ authorization: `Bearer ${t}` });
 const writes = () => dbCalls.filter((c) => c.op !== 'select');
 const flush = async () => { for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0)); };
-const learnBody = { transactionId: TX_A, merchant: 'Starbucks', description: 'Starbucks #12', oldCategory: 'Other', newCategory: 'Coffee' };
+const learnBody = { transactionId: TX_A, merchant: 'Starbucks', description: 'Starbucks #12', oldCategory: 'Other', newCategory: 'Food & Dining' };
 let logSpies: Array<ReturnType<typeof vi.spyOn>> = [];
 
 beforeEach(() => {
@@ -202,10 +204,10 @@ describe('tag-learn', () => {
     expect(r.json.success).toBe(true);
     await flush();
     expect(db.tag_category_feedback).toHaveLength(1);
-    expect(db.tag_category_feedback[0]).toMatchObject({ user_id: USER_A, transaction_id: TX_A, new_category: 'Coffee' });
-    expect(db.vendor_category_memory.find((m) => m.user_id === USER_A)).toMatchObject({ vendor_key: 'starbucks', category: 'Coffee' });
+    expect(db.tag_category_feedback[0]).toMatchObject({ user_id: USER_A, transaction_id: TX_A, new_category: 'Food & Dining' });
+    expect(db.vendor_category_memory.find((m) => m.user_id === USER_A)).toMatchObject({ vendor_key: 'starbucks', category: 'Food & Dining' });
     // Retroactive apply: only A's matching needs_review row changes.
-    expect(db.transactions_staging.find((s) => s.id === STG_A)).toMatchObject({ tag_status: 'auto', tag_category: 'Coffee' });
+    expect(db.transactions_staging.find((s) => s.id === STG_A)).toMatchObject({ tag_status: 'auto', tag_category: 'Food & Dining' });
     expect(db.transactions_staging.find((s) => s.id === 'stg-a-other')?.tag_status).toBe('needs_review');
     expect(db.transactions_staging.find((s) => s.id === 'stg-b')?.tag_status).toBe('needs_review');
     expect(db.vendor_category_memory.find((m) => m.user_id === USER_B)?.category).toBe('Travel');

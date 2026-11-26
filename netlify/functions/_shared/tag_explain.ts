@@ -6,29 +6,8 @@ import { fetchMerchantScopeRows, merchantRowGroupKey, type MerchantScopeClient }
 import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
 import { merchantGroupingKey } from './merchantNormalize';
 import { VERIFIED_CUSTOMER_SOURCES, isProtectedSource } from '../../../src/shared/tag-status';
-import { pagedSelectAll, type PagedQuery } from '../../../src/shared/paged-select';
-
-/**
- * The customer's corrections for EXACTLY this merchant (AI Architecture HQ follow-up, 2026-11-26):
- * a complete, paged read narrowed by the same merchant grouping key as the merchant history, so a
- * correction for a similar-named merchant never makes Tag say it "learned" this one. ILIKE is only a
- * superset prefilter. Newest first.
- */
-export async function exactMerchantCorrections(
-  supabase: SupabaseClient, userId: string, merchant: string,
-): Promise<{ rows: Array<{ new_category: string | null; created_at: string | null }>; complete: boolean }> {
-  const key = merchant.trim() ? merchantGroupingKey(merchant) : '';
-  if (!key) return { rows: [], complete: true };
-  const read = await pagedSelectAll<{ id: string; merchant: string | null; new_category: string | null; created_at: string | null }>(() =>
-    supabase.from('tag_category_feedback')
-      .select('id, merchant, new_category, created_at')
-      .eq('user_id', userId)
-      .ilike('merchant', `%${merchant.trim()}%`)
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false }) as unknown as PagedQuery);
-  if (read.error) return { rows: [], complete: false };
-  return { rows: read.rows.filter(f => merchantGroupingKey(f.merchant || '') === key), complete: read.complete };
-}
+import { exactMerchantCorrections } from './tag-learning';
+export { exactMerchantCorrections };
 
 export type TagExplanationResult = {
   category: string | null;
