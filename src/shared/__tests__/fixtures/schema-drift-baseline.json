@@ -113,7 +113,6 @@
   "src/agent/tools/impl/chime_list_upcoming_notifications.ts|user_notifications.status|select",
   "src/agent/tools/impl/manage_billing.ts|profiles.billing_email|select",
   "src/agent/tools/impl/manage_billing.ts|profiles.stripe_customer_id|select",
-  "src/agent/tools/impl/tag_status.ts|tag_activity_log.action_type|select",
   "src/agents/agents/categorizerAgent.ts|memory.category|upsert",
   "src/agents/agents/categorizerAgent.ts|memory.keyword|eq",
   "src/agents/agents/categorizerAgent.ts|memory.keyword|upsert",
