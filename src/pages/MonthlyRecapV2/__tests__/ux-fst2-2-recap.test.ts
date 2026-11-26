@@ -24,7 +24,13 @@ describe('UX-FST2-2 Recap', () => {
     expect(monthCoverageText('2026-11', 'unknown')).toBe('Recorded transactions dated in Nov 2026 (statement coverage unknown)');
     expect(monthCoverageText('2026-10', 'partial')).toMatch(/statement coverage partial\)$/);
     // G3: months no statement covers are 'none' (server), shown as such.
-    expect(monthCoverageText('2026-07', 'none')).toBe('Recorded transactions dated in Jul 2026 (no imported statement covers this month)');
+    // Owner: "No statement" must never imply zero activity — recorded totals still show.
+    expect(monthCoverageText('2026-07', 'none')).toBe('Recorded transactions dated in Jul 2026 (no imported statement covers this month, so this may not be every transaction)');
+    const card = read('RecapCard.tsx');
+    expect(card).toMatch(/"Not covered by a statement"/);
+    expect(card).not.toMatch(/"No statement"/);
+    const eps = toEpisodes([month('2026-07', 'none', 4)]);
+    expect(eps[0]).toMatchObject({ deposits: 100, withdrawals: 96, netCashFlow: 4, count: 3 });
     expect(monthName('2026-01')).toBe('January 2026');
   });
   it('no browser money, grades, comparisons or invented copy', () => {

@@ -13,7 +13,7 @@ export function RecapCard({ episode: ep, index }: RecapCardProps) {
   const [h, setH] = useState(false);
   // UX-FST2-2: no grade (owner: remove unsupported grades). The chip states statement coverage only.
   const covColor = ep.coverage === "complete" ? "#34d399" : "#fbbf24";
-  const covChip = ep.coverage === "complete" ? "Coverage complete" : ep.coverage === "partial" ? "Coverage partial" : ep.coverage === "none" ? "No statement" : "Coverage unknown";
+  const covChip = ep.coverage === "complete" ? "Coverage complete" : ep.coverage === "partial" ? "Coverage partial" : ep.coverage === "none" ? "Not covered by a statement" : "Coverage unknown";
 
   return (
     <Reveal delay={200 + index * 100}>

@@ -30,7 +30,7 @@ export function monthName(key: string): string {
 export function monthCoverageText(key: string, coverage: CalendarMonth["coverage"]): string {
   const short = new Date(Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, 1)).toLocaleDateString("en-CA", { month: "short", year: "numeric", timeZone: "UTC" });
   // G3 (Prime HQ 2c545f67): months no statement covers are "none". Rendered as the server says.
-  const cov = coverage === "complete" ? "statement coverage complete" : coverage === "partial" ? "statement coverage partial" : coverage === "none" ? "no imported statement covers this month" : "statement coverage unknown";
+  const cov = coverage === "complete" ? "statement coverage complete" : coverage === "partial" ? "statement coverage partial" : coverage === "none" ? "no imported statement covers this month, so this may not be every transaction" : "statement coverage unknown";
   return `Recorded transactions dated in ${short} (${cov})`;
 }
 
