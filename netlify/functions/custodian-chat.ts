@@ -7,6 +7,8 @@ import type { Handler } from '@netlify/functions';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { safeAppPath, MAX_USER_MESSAGE_CHARS } from './_shared/boundedChatInput.js';
 import { serverSupabase } from './_shared/supabase.js';
+import { gateReplyForCoverage } from '../../src/shared/comparison-claim-guard';
+import { loadStatementCoverage, type CoverageDbClient } from '../../src/shared/statement-coverage';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import {
   resolveEmployeeConversation,
@@ -235,6 +237,10 @@ export const handler: Handler = async (event) => {
       action = { type: 'navigate', path: navMatch[1] };
       reply = reply.replace(/\s*ACTION:NAVIGATE:\/[^\s\n]+/g, '').trim();
     }
+
+    // G11b (owner GO 2026-11-26): no comparison / trend / stability claim without coverage (same rule as screens).
+    const gated = await gateReplyForCoverage(reply, () => loadStatementCoverage(supabase as unknown as CoverageDbClient, auth.userId!));
+    if (gated.applied) { reply = gated.text; console.warn(`[custodian-chat] comparison claim gated: removed=${gated.removedSentences}`); }
 
     // Save Custodian's reply (signed by the platform). persisted is true only when both saves succeeded.
     let persisted = false;

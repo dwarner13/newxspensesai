@@ -151,7 +151,7 @@ describe('S0/S2b financial-summary reconciles with the oracle at 119 / 1,000 / 1
       const pbe = b.possibleBusinessExpenses;
       expect(pbe.sections.reduce((x: number, sct: any) => x + sct.cents, 0) - pbe.refundsNettedCents).toBe(Math.max(0, pbe.cents));
       // G9: the engine serves the wording
-      expect(b.wording.labels.netCashFlow).toBe('Net cash flow');
+      expect(b.wording.labels.netCashFlow).toBe('Net Cash Flow');
       expect(b.wording.insights.stable_actual_spending).toContain('last 3 statement periods');
     });
   }
