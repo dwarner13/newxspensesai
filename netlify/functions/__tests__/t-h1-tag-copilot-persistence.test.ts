@@ -7,6 +7,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { maskCustomerTextForModel, findRecordedTurn } from '../_shared/conversation-platform';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
@@ -109,6 +111,16 @@ vi.mock('../_shared/verifyAuth.js', () => ({
 }));
 vi.mock('../_shared/logAiActivity.js', () => ({ logAiActivity: async () => undefined }));
 vi.mock('../_shared/txSearchCore.js', () => ({ searchTransactions: async () => ({ rows: [], totalMatches: 0 }) }));
+// G11b: statement coverage for the comparison gate (synthetic; controlled per test).
+const coverageState: { mode: 'none' | 'throw'; calls: number } = { mode: 'none', calls: 0 };
+vi.mock('../../../src/shared/statement-coverage', async (orig) => ({
+  ...(await orig() as object),
+  loadStatementCoverage: async () => {
+    coverageState.calls++;
+    if (coverageState.mode === 'throw') throw new Error('coverage down');
+    return { status: 'no_statements', lastUploadAttempt: null, lastCompletedImport: null, statusCounts: {}, accounts: [], completedWithoutPeriod: 0, limitations: [], readOnly: true };
+  },
+}));
 
 process.env.ANTHROPIC_API_KEY = 'test-key';
 process.env.SUPABASE_URL = 'http://localhost';
@@ -134,6 +146,7 @@ beforeEach(() => {
   failures.uniqueConflict = false;
   modelCalls.length = 0;
   modelPlan.length = 0;
+  coverageState.mode = 'none'; coverageState.calls = 0;
   otherTablesUsed.length = 0;
   Object.assign(tools, { txUpdateFails: false, txCount: 0, txUpdates: 0 });
   authState.userId = ALICE;
@@ -375,5 +388,37 @@ describe('T-H1 — platform additions (Tag HQ, for Prime HQ review)', () => {
     expect(other).toEqual({ found: false, reply: null, actionOutcome: null });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(await findRecordedTurn(fakeClient as any, { sessionId: 's1', userId: ALICE, clientMessageId: 'bad id' })).toEqual({ found: false, reply: null, actionOutcome: null });
+  });
+});
+
+describe('G11b — coverage-aware comparisons in Tag Copilot (owner GO 2026-11-26, unified engine)', () => {
+  it('a comparison claim without enough statement coverage is removed and replaced by the honest sentence; recorded in metadata', async () => {
+    modelPlan.push({ content: [{ type: 'text', text: 'Your Food & Dining spending is up 40% from last month. Groceries look normal.' }] });
+    const { json } = await callTag({ message: 'how is my dining?' });
+    expect(String(json.reply)).not.toMatch(/up 40%/);
+    expect(String(json.reply)).toMatch(/Groceries look normal\./);
+    expect(String(json.reply)).toMatch(/I can't compare periods or describe a trend yet: there isn't enough complete statement history \(no statements imported\)/);
+    const stored = messagesOf(json.sessionId).find(m => m.role === 'assistant');
+    expect(String(stored?.content)).not.toMatch(/up 40%/);
+    expect(JSON.stringify(stored?.metadata)).toMatch(/"comparisonGate":\{"applied":true,"removedSentences":1/);
+  });
+  it('fails closed when coverage cannot be read', async () => {
+    coverageState.mode = 'throw';
+    modelPlan.push({ content: [{ type: 'text', text: 'Spending has been stable for three months.' }] });
+    const { json } = await callTag({ message: 'am I steady?' });
+    expect(String(json.reply)).not.toMatch(/stable for three months/);
+    expect(String(json.reply)).toMatch(/\(statement coverage could not be read\)/);
+  });
+  it('text without a comparison claim is untouched and coverage is not even read', async () => {
+    modelPlan.push({ content: [{ type: 'text', text: 'That one looks like Groceries.' }] });
+    const { json } = await callTag({ message: 'what is this?' });
+    expect(json.reply).toBe('That one looks like Groceries.');
+    expect(coverageState.calls).toBe(0);
+  });
+  it('tag-chat applies the same gate before the reply is saved or returned (static)', () => {
+    const src = readFileSync(resolve(__dirname, '../tag-chat.ts'), 'utf8');
+    const gate = src.indexOf('await gateReplyForCoverage(reply');
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(src.indexOf("from('tag_conversations').upsert"));
   });
 });
