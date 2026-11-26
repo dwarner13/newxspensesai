@@ -352,7 +352,10 @@ async function handleConversationalAction(
       // count), never the suggestion count. Non-blocking: a failed notification never fails the change.
       if (executed && pending.receipt.action === TAG_SUGGESTIONS_ACTION && typeof signedSubject.importId === 'string') {
         try {
-          const { error: nErr } = await supabase.from('user_notifications').insert({
+          // Owner 2026-11-26 (smallest safe notifications fix, no migration): Tag notices live in the
+          // `notifications` table, whose LIVE columns (employee_slug, message, priority, payload, sent_at) match
+          // this row. `user_notifications` has none of them, so every earlier insert failed silently.
+          const { error: nErr } = await supabase.from('notifications').insert({
             user_id: userId, employee_slug: 'tag-ai', type: 'tag_suggestions_applied',
             title: "Tag's suggestions applied",
             message: `You confirmed Tag's suggestions: ${outcome.count} transaction${outcome.count === 1 ? '' : 's'} saved.`,

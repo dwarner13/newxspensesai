@@ -116,21 +116,6 @@ function vendorFromDataJson(dataJson: Record<string, unknown> | null | undefined
   return String(d.description || d.merchant || d.vendor || d.payee || d.memo || d.name || d.details || '').trim();
 }
 
-async function countHistoricalVendorUses(supabase: SupabaseClient, userId: string, vendorKey: string): Promise<number> {
-  const pageSize = 1000;
-  let offset = 0;
-  let total = 0;
-  for (let page = 0; page < 10; page++) {
-    const { data, error } = await supabase.from('transactions_staging').select('data_json').eq('user_id', userId).range(offset, offset + pageSize - 1);
-    if (error) throw error;
-    const rows = (data || []) as Array<{ data_json?: Record<string, unknown> | null }>;
-    for (const row of rows) if (normalizeVendorKey(vendorFromDataJson(row?.data_json)) === vendorKey) total += 1;
-    if (rows.length < pageSize) break;
-    offset += pageSize;
-  }
-  return total;
-}
-
 /** Staging rows still awaiting review (tag_status 'needs_review') for this vendor. Non-blocking. */
 async function applyMemoryToNeedsReviewStaging(supabase: SupabaseClient, userId: string, vendorKey: string, category: string): Promise<void> {
   const pageSize = 500;
@@ -168,23 +153,11 @@ export async function learnFromCorrection(
   const vendorKey = merchant ? normalizeVendorKey(String(merchant)) : '';
   if (!vendorKey) return { feedbackSaved: true, feedbackId, memory: 'skipped' };
   try {
-    const historicalUseCount = await countHistoricalVendorUses(supabase, userId, vendorKey);
-    const { data: existingRow, error: existingErr } = await supabase.from('vendor_category_memory')
-      .select('metadata').eq('user_id', userId).eq('vendor_key', vendorKey).maybeSingle();
-    const existingMetadata = !existingErr && existingRow && typeof (existingRow as { metadata?: unknown }).metadata === 'object'
-      ? ((existingRow as { metadata?: Record<string, unknown> }).metadata ?? {}) : {};
-    const now = new Date().toISOString();
-    let { error: memoryError } = await supabase.from('vendor_category_memory').upsert({
-      user_id: userId, vendor_key: vendorKey, category: newCategory, subcategory: null,
-      metadata: { ...existingMetadata, memory_confidence: historicalUseCount >= 3 ? 'high' : 'learning', historical_use_count: historicalUseCount, learned_from: 'tag_learn', learned_at: now },
-      updated_at: now,
+    // Live vendor_category_memory columns only (AR-SCHEMA 2026-11-26: there is no metadata column, so
+    // the earlier metadata write always failed and fell back; the full staging read that fed it is gone).
+    const { error: memoryError } = await supabase.from('vendor_category_memory').upsert({
+      user_id: userId, vendor_key: vendorKey, category: newCategory, subcategory: null, updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,vendor_key' });
-    if (memoryError) {
-      // Fallback where the metadata column is unavailable.
-      ({ error: memoryError } = await supabase.from('vendor_category_memory').upsert({
-        user_id: userId, vendor_key: vendorKey, category: newCategory, subcategory: null, updated_at: now,
-      }, { onConflict: 'user_id,vendor_key' }));
-    }
     if (memoryError) return { feedbackSaved: true, feedbackId, memory: 'failed' };
     applyMemoryToNeedsReviewStaging(supabase, userId, vendorKey, newCategory).catch(() => {
       console.warn('[tag-learning] retroactive staging apply failed (non-blocking)');

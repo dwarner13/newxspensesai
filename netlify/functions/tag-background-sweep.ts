@@ -44,7 +44,8 @@ export const handler: Handler = async (event) => {
     const unsureMerchants = sug.unsure;
     const unsureMap = Object.fromEntries(sug.unsure.map(u => [u.merchant_name, u]));
 
-    // 6. Build statement completion report + persist to user_notifications
+    // 6. Build statement completion report + persist it (notifications table).
+    let notificationSaved = false;
     try {
       const { data: importData } = await sb
         .from('imports').select('file_url, created_at').eq('id', importId).eq('user_id', userId).maybeSingle();
@@ -99,7 +100,10 @@ export const handler: Handler = async (event) => {
         needsInputCount > 0 ? `\nReady to handle the ${needsInputCount} flagged ones?` : '\nYour books are up to date \u2713',
       ].filter(Boolean).join('\n');
 
-      await sb.from('user_notifications').insert({
+      // Owner 2026-11-26 (smallest safe notifications fix, no migration): Tag notices live in the
+      // `notifications` table, whose LIVE columns (employee_slug, message, priority, payload, sent_at) match
+      // this row. `user_notifications` has none of them, so every earlier insert failed silently.
+      const { error: notifyErr } = await sb.from('notifications').insert({
         user_id: userId,
         employee_slug: 'tag-ai',
         type: 'import_complete',
@@ -117,7 +121,12 @@ export const handler: Handler = async (event) => {
         },
         sent_at: new Date().toISOString(),
       });
-    } catch { /* non-blocking */ }
+      // Never silent: the response says whether the notice was stored (it never blocks the sweep).
+      notificationSaved = !notifyErr;
+      if (notifyErr) console.warn('[tag-background-sweep] import notification not saved');
+    } catch {
+      console.warn('[tag-background-sweep] import notification not saved');
+    }
 
     // Trigger Prime briefing (fire and forget)
     try {
@@ -139,6 +148,7 @@ export const handler: Handler = async (event) => {
         unsure_count: Object.keys(unsureMap).length,
         confident_groups: confidentGroups,
         unsure_merchants: unsureMerchants,
+        notification_saved: notificationSaved,
       }),
     };
   } catch (err: any) {

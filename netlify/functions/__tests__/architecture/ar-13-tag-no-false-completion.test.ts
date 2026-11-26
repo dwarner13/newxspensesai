@@ -125,7 +125,16 @@ const r = (id: string, merchant: string, category: string | null, source: string
   id, user_id: ALICE, merchant_name: merchant, merchant, description: `POS ${merchant}`, amount: -6.1, type: 'expense',
   posted_at: '2026-11-04', date: '2026-11-04', category, subcategory: null, category_source: source, import_id: IMP,
 });
-const notes = (type: string) => (db.user_notifications ?? []).filter(n => n.type === type);
+// Owner 2026-11-26: Tag notices live in `notifications`; every stored row may use LIVE columns only
+// (live-schema.json), so a nonexistent column fails here exactly as it would in PostgREST (42703).
+import LIVE_SCHEMA_JSON from '../../../../src/shared/__tests__/fixtures/live-schema.json';
+const LIVE_NOTIFICATION_COLUMNS = new Set<string>((LIVE_SCHEMA_JSON as Record<string, string[]>).notifications);
+const notes = (type: string) => {
+  expect(db.user_notifications ?? [], 'Tag never writes user_notifications').toEqual([]);
+  const rows = (db.notifications ?? []).filter(n => n.type === type);
+  for (const row of rows) for (const col of Object.keys(row)) expect(LIVE_NOTIFICATION_COLUMNS.has(col), `notifications.${col} is not a live column`).toBe(true);
+  return rows;
+};
 const failing = { memory: false, rules: false };
 const baseFrom = fakeClient.from;
 const CLAIM = /\b(saved|applied|updated|done|learned|categori[sz]ed \d)/i;

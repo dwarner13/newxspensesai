@@ -128,7 +128,16 @@ const r = (id: string, merchant: string, category: string | null, source: string
   id, user_id: ALICE, merchant_name: merchant, merchant, description: `POS ${merchant}`, amount: -7.25, type: 'expense',
   posted_at: '2026-11-02', date: '2026-11-02', category, subcategory: null, category_source: source, import_id: IMP,
 });
-const notes = (type: string) => (db.user_notifications ?? []).filter(n => n.type === type);
+// Owner 2026-11-26: Tag notices live in `notifications`; every stored row may use LIVE columns only
+// (live-schema.json), so a nonexistent column fails here exactly as it would in PostgREST (42703).
+import LIVE_SCHEMA_JSON from '../../../src/shared/__tests__/fixtures/live-schema.json';
+const LIVE_NOTIFICATION_COLUMNS = new Set<string>((LIVE_SCHEMA_JSON as Record<string, string[]>).notifications);
+const notes = (type: string) => {
+  expect(db.user_notifications ?? [], 'Tag never writes user_notifications').toEqual([]);
+  const rows = (db.notifications ?? []).filter(n => n.type === type);
+  for (const row of rows) for (const col of Object.keys(row)) expect(LIVE_NOTIFICATION_COLUMNS.has(col), `notifications.${col} is not a live column`).toBe(true);
+  return rows;
+};
 let failMemory = false;
 const baseFrom = fakeClient.from;
 
@@ -243,5 +252,50 @@ describe('§4.5 — the replaced legacy learning path cannot produce the result 
     const learn = readFileSync(resolve(__dirname, '../tag-learn.ts'), 'utf8');
     expect(learn).toContain('learnFromCorrection(');
     expect(learn).not.toMatch(/from\('vendor_category_memory'\)/);
+  });
+});
+
+describe('Notifications fix (owner 2026-11-26): Tag notices use the notifications table, failures are never silent', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const getTagNotices = async (): Promise<{ res: Res; json: any }> => {
+    const mod = await import('../tag-notifications');
+    const res = await (mod.handler as (e: unknown, c: unknown) => Promise<Res>)({ httpMethod: 'GET', headers: { authorization: 'Bearer test' }, body: '' }, {});
+    return { res, json: JSON.parse(res.body) };
+  };
+  const failTable = (table: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fakeClient as any).from = (t: string) => {
+      const b = baseFrom(t);
+      if (t === table) {
+        const failed = { then: (res: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { code: '42703', message: 'column does not exist' } }).then(res) };
+        // Every chained call returns the same thenable, so the handler sees a RETURNED error (not a throw).
+        const chain: Record<string, unknown> = new Proxy(failed, { get: (o, k) => (k === 'then' ? o.then : () => chain) });
+        for (const m of ['insert', 'select', 'update']) b[m] = () => chain;
+      }
+      return b;
+    };
+  };
+  it("the sweep's notice is stored in notifications and the response says so", async () => {
+    const { json } = await call('tag-background-sweep', { importId: IMP });
+    expect(json.notification_saved).toBe(true);
+    expect(notes('import_complete')).toHaveLength(1);
+  });
+  it('a failed notice is reported (notification_saved:false), never silent, and never blocks the sweep', async () => {
+    failTable('notifications');
+    const { res, json } = await call('tag-background-sweep', { importId: IMP });
+    expect(res.statusCode).toBe(200);
+    expect(json).toMatchObject({ ok: true, notification_saved: false, confident_count: 2 });
+  });
+  it("tag-notifications reads Tag's unread notices from notifications", async () => {
+    await call('tag-background-sweep', { importId: IMP });
+    const { res, json } = await getTagNotices();
+    expect(res.statusCode).toBe(200);
+    expect(json.notifications.map((n: { type: string }) => n.type)).toContain('import_complete');
+  });
+  it('tag-notifications reports a read failure as an error, not an empty inbox', async () => {
+    failTable('notifications');
+    const { res, json } = await getTagNotices();
+    expect(res.statusCode).toBe(503);
+    expect(json.error).toBe('notifications_unavailable');
   });
 });
