@@ -21,6 +21,7 @@ import { getSupabase } from '@/lib/supabase';
 import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
 import { AgentFloatingBubble } from '@/components/ui/AgentFloatingBubble';
 import { useProfile } from '@/hooks/useProfile';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { loadChatReturnContext, clearChatReturnContext } from '@/lib/chatReturnContext';
 import type { ChatReturnContext } from '@/lib/chatReturnContext';
 
@@ -116,6 +117,9 @@ export default function TransactionsPageV2() {
   const [rangeTo, setRangeTo] = useState<string>(initialToolbar.to);
   // M-TX: on phones the secondary filters fold behind one "Filters" button.
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  // TAG-BUBBLE-1: on phones the floating Tag bubble covered the amount column; Tag opens from
+  // the toolbar instead (same action and review count). Desktop keeps the bubble.
+  const isPhone = useIsMobile();
   // X-3: 'Needs category' quick filter (same check as the page's existing review count).
   const [needsCategoryOnly, setNeedsCategoryOnly] = useState<boolean>(!!initialToolbar.needsCategory);
   const [tagFilterLabel, setTagFilterLabel] = useState('');
@@ -850,6 +854,13 @@ export default function TransactionsPageV2() {
             Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
             <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${mobileFiltersOpen ? 'rotate-180' : ''}`} />
           </button>
+          <button type="button" className="md:hidden flex items-center gap-1.5 rounded-[10px] border px-3 text-[14px] font-semibold"
+            onClick={() => setTagPanelOpen(true)}
+            aria-label={uncategorizedCount > 0 ? `Ask Tag — ${uncategorizedCount} need review` : 'Ask Tag'}
+            style={{ minHeight: 44, background: 'rgba(34,211,238,0.10)', borderColor: 'rgba(34,211,238,0.35)', color: '#67e8f9' }}>
+            Ask Tag
+            {uncategorizedCount > 0 && <span aria-hidden="true" className="rounded-full px-1.5 text-[12px] font-bold" style={{ background: '#ef4444', color: '#fff', lineHeight: '18px' }}>{uncategorizedCount}</span>}
+          </button>
           <div id="tx-filters" className={mobileFiltersOpen ? 'grid grid-cols-2 gap-2 w-full md:contents [&>*]:min-w-0 [&_select]:w-full md:[&_select]:w-auto' : 'hidden md:contents'}>
           <select aria-label="Year" value={yearFilter === 'all' ? 'all' : String(yearFilter)} disabled={!!(rangeFrom || rangeTo)}
             onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
@@ -1159,7 +1170,7 @@ export default function TransactionsPageV2() {
       </div>
 
       {/* Tag floating bubble */}
-      {!tagPanelOpen && !selectedTx && location.pathname.includes('/transactions') && createPortal(
+      {!isPhone && !tagPanelOpen && !selectedTx && location.pathname.includes('/transactions') && createPortal(
         <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setTagPanelOpen(true)} label="Open Tag Copilot" badgeCount={uncategorizedCount} pulse={badgePulse} />,
         document.body
       )}

@@ -48,4 +48,9 @@ describe('every count, filter and banner uses it', () => {
     expect(tx).toMatch(/label="Open Tag Copilot" badgeCount=\{uncategorizedCount\}/);
     expect(tx).not.toMatch(/tagBadgeCount/);
   });
+  it('TAG-BUBBLE-1: phones open Tag from the toolbar (same count); the bubble is desktop-only', () => {
+    expect(tx).toMatch(/\{!isPhone && !tagPanelOpen && !selectedTx && location\.pathname\.includes\('\/transactions'\) && createPortal\(/);
+    expect(tx).toMatch(/className="md:hidden[^"]*"\s*onClick=\{\(\) => setTagPanelOpen\(true\)\}/);
+    expect(tx).toMatch(/\{uncategorizedCount > 0 && <span aria-hidden="true"[^>]*>\{uncategorizedCount\}<\/span>\}/);
+  });
 });
