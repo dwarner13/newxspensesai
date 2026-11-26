@@ -23,6 +23,9 @@ while active, and a "SIMULATED DATA" banner is shown.
 | Mobile Goalie tiles overflow; 320 header names truncate | Four-column flex; 17px name | 16f0b6d7 |
 | Startup blank page (missing self-check file) | `main.tsx` imported a never-committed file | aea84342 |
 | Transactions not transaction-first; duplicate Ask Prime | Dashboard blocks above list | 74509447 |
+| Budget notice never reached the Inbox | Inserted columns `user_notifications` lacks | e9e4ad5e |
+| Review counts disagreed (Home 2, Transactions / Categories 'all categorized', sidebar badge, Tag bubble) | Four separate rules; literal 'Needs Review' rows not counted by the shared rule | 1127da0d, 249788f0, 63ef6640 |
+| **New customers' dashboard crashed after onboarding** | Post-onboarding chooser used two icons that were never imported (since 2025-12-28) | 611cca13 |
 
 ## Open
 
@@ -39,3 +42,6 @@ while active, and a "SIMULATED DATA" banner is shown.
 | Upload queue shows raw error codes (e.g. `simulated_mode`) on failure | UI — next batch (needs Byte / Attachments wording) |
 | Keyboard-open behaviour | Owner to test on an iPhone (Decision 2) |
 | Dev-only: ~4s blank before the first splash on a cold dev server | Dev server module loading; production unaffected — not a defect |
+| Review page for an already-imported statement would say 'Imported 0 transactions' (after S-1) | UI/UX — show 'This statement is already imported' with a link (Attachments HQ suggestion) |
+| Type checking does not run: `tsc -p tsconfig.json` checks no files; with `tsconfig.app.json`, ~346 pre-existing syntax errors (e.g. AddIncomeModal, PrimeTeamStatusPanel) stop semantic checks, so undefined names go unnoticed | All teams — fix or exclude the broken files so `tsc -p tsconfig.app.json` can run; CHOOSER-1 was found this way |
+| `toast` used without import in dashboard/TransactionsPageV2 (applySweep paths) | Fixed on Tag HQ's line; dead paths |

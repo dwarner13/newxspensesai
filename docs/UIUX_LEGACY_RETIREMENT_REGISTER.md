@@ -29,6 +29,8 @@ code is a duplicate or replaced UI with no future role; it is removed.
 | W9 | URL-only dashboard routes that show fabricated figures (not in the sidebar): bank-accounts, debt-payoff-planner, ai-financial-freedom, bill-reminders, business-intelligence, spending-predictions, workspace, and the entertainment / automation / Finley workspace panels (e.g. "$24,580 total balance", "5 banks linked", "$124K revenue") | — | — | — | **Owner decision**: remove the routes, or gate them until each employee's readiness review. Finley / Liberty panels are dormant employees, but their fake figures are not. |
 | W10 | Unreachable components with the owner's name or fake data: `MobileNavInline` ("Darrell Warner", "Level 8 Money Master"), `MobileRevolution` story cards, `MiniWorkspacePanel`, `ByteWorkspacePanel`, `CreditScoreCard`, `AccountSettingsSidebar`, `ProfileSettingsPage`, `useTaxData` constants; `MobileProfileModal` (mounted, never opened; fake save incl. password) | — | — | — | **Candidates**: confirm against the earlier plan (see Reconciliation), then retire one commit each |
 
+| W11 | Dead merchant-write handlers passed to the Tag panel from `dashboard/TransactionsPageV2` (`onMerchantCategorize`, `onTagAction` with 'categorize' / 'bulk_change' / 'undo'); the panel never declares or calls them (Tag HQ, 2026-11-26). Over-broad `ilike '%merchant%'`, no confirmation | Tag proposals (save_merchant_rule / bulk_move_category -> commit_proposal) | Tag AR-4 checks (65d52852) fail if re-wired | — | **Ready to retire; owner GO** (Tag HQ recommends with W8). Must never be re-wired. |
+
 ## Kept on purpose
 
 - `ConversationControls`: still the shared history wrapper (drawer, errors, unsaved
