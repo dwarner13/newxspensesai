@@ -1254,7 +1254,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
     if (seen.length === 0) { toast('Nothing to change'); return; }
     const total = seen.reduce((n, x) => n + x.affected, 0);
     const confirmed = window.confirm(
-      `${verb} ${seen.length} merchant rule${seen.length === 1 ? '' : 's'} for future imports and change ${total} existing transaction${total === 1 ? '' : 's'} now? Transactions you categorized yourself are kept.`
+      `${verb} ${seen.length} merchant rule${seen.length === 1 ? '' : 's'} for future imports and change ${total} existing transaction${total === 1 ? '' : 's'} now? Transactions with a protected category (set by you, or of unverified origin) are kept.`
     );
     if (!confirmed) return;
     let done = 0; let changed = 0; let skipped = 0;

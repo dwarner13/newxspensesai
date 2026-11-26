@@ -187,7 +187,7 @@ describe('T-ACT-SAFE — merchant rules: future-only unless explicitly proposed'
   it('only when explicitly asked: the proposal says how many EXISTING transactions change and which stay; "yes" moves exactly those', async () => {
     modelPlan.push(tool('set_category_rule', { vendor: 'corner coffee', category: 'Food & Dining', applyToExisting: true }));
     const out = await chat('always put corner coffee in food & dining and fix the old ones too', { clientMessageId: 'msg_act_0004' });
-    expect(out.reply).toContain('AND change **2** of your **existing** "corner coffee" transactions to **Food & Dining** now (2 transactions you\'ve already categorized yourself will stay as they are)');
+    expect(out.reply).toContain('AND change **2** of your **existing** "corner coffee" transactions to **Food & Dining** now (2 transactions with a protected category (set by you, or of unverified origin) will stay as they are)');
     const { json } = await yes(out, 'msg_act_0005');
     expect(json.conversation.receipt).toMatchObject({ state: 'completed', count: 2 });
     expect([1, 2].map(n => t(n).category)).toEqual(['Food & Dining', 'Food & Dining']);
@@ -201,7 +201,7 @@ describe('T-ACT-SAFE — bulk category moves', () => {
   it('proposal shows the exact move and count; customer-confirmed Other is kept; "yes" moves exactly those, no rule', async () => {
     modelPlan.push(tool('bulk_recategorize', { from_category: 'Other', to_category: 'Food & Dining' }));
     const out = await chat('move all Other to Food & Dining', { clientMessageId: 'msg_act_0010' });
-    expect(out.reply).toBe('Move **2** existing transactions from **Other** to **Food & Dining**? 1 transaction in Other that you categorized yourself will stay as they are. This changes existing transactions only — no rule is saved for future imports. Say yes to confirm.');
+    expect(out.reply).toBe('Move **2** existing transactions from **Other** to **Food & Dining**? 1 transaction in Other with a protected category (set by you, or of unverified origin) will stay as they are. This changes existing transactions only — no rule is saved for future imports. Say yes to confirm.');
     expect(txUpdateCalls).toBe(0);
     const { json } = await yes(out, 'msg_act_0011');
     expect(json.conversation.receipt).toMatchObject({ action: 'bulk_move_category', state: 'completed', count: 2 });

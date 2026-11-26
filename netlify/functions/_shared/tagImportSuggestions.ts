@@ -6,7 +6,7 @@
  * the customer is shown is exactly what is proposed and applied.
  *
  * Suggestions come only from the customer's OWN rules and their own merchant history (≥80% of ≥3
- * categorized transactions). Protected rows (customer-confirmed, possibly-approved, unknown
+ * categorized transactions). Protected rows (verified customer, protected (origin unverified), unknown
  * provenance — approved "Other" included) are never suggested. A rule whose category is not a real
  * category is ignored (never an invented category, never a silent "Other"). Reads are complete
  * (paged past the API row cap); an incomplete read is reported, never presented as complete.

@@ -69,7 +69,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       .update({
         category: newCategory,
         subcategory: subcategory || null,
-        category_source: 'manual', // Mark as user correction
+        // Reliability round 2 (owner GO 2026-11-25): an AI tool never claims customer approval.
+        category_source: 'tag_assisted',
         updated_at: new Date().toISOString(),
       })
       .eq('id', transactionId)

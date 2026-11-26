@@ -135,7 +135,7 @@ describe('"Apply suggestions" is a server-computed, signed proposal the customer
     const p = await propose('msg_btn_0001');
     expect(p.json.conversation.receipt).toMatchObject({ action: 'apply_import_suggestions', state: 'proposed', result: { matchCount: 2 } });
     expect(p.json.conversation.reply).toContain("Apply Tag's suggestions to **2** transactions from this statement");
-    expect(p.json.conversation.reply).toContain('1 transaction you categorized yourself will stay as they are');
+    expect(p.json.conversation.reply).toContain('1 transaction with a protected category (set by you, or of unverified origin) will stay as they are');
     expect(txUpdateCalls).toBe(0);
   });
   it('"yes" applies exactly those rows (verified count), keeps the approved Other, never touches another customer, records it', async () => {

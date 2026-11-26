@@ -11,7 +11,8 @@
  * Owner requirements honoured here:
  *  - exact action + affected count before confirmation; future rules distinguished from changes to
  *    existing transactions; a rule NEVER touches existing transactions unless that was proposed;
- *  - customer-confirmed classifications (C4 customer sources + tag_rule / tag_chat) are never moved;
+ *  - protected classifications (PROTECTED_SOURCES: verified customer edits AND protected-but-unverified
+ *    labels, plus NULL/unknown real categories) are never moved — and never described as customer-approved;
  *  - stale scope (different rows / count than proposed) is rejected;
  *  - renames change merchant_name only; the imported `merchant` and `description` are kept;
  *  - every read and write is scoped to the verified user.
@@ -20,7 +21,7 @@
 import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { pagedSelectAll, type PagedQuery } from '../../../src/shared/paged-select';
-import { CUSTOMER_SOURCES, AMBIGUOUS_SOURCES } from '../../../src/shared/tag-status';
+import { PROTECTED_SOURCES } from '../../../src/shared/tag-status';
 import { resolveCategoryRequest, TAG_CATEGORIES } from './tagCategories.js';
 import { computeImportSuggestions } from './tagImportSuggestions.js';
 import { AUTO_UPDATE_SOURCE_FILTER, AUTO_UPDATE_CATEGORY_FILTER } from './categorySource.js';
@@ -55,7 +56,7 @@ export type ActionExecutionOutcome = {
   log?: { action_type: string; merchant_name: string | null; old_value: string | null; new_value: string | null; note: string };
 };
 
-const PROTECTED = new Set<string>([...CUSTOMER_SOURCES, ...AMBIGUOUS_SOURCES]);
+const PROTECTED = new Set<string>(PROTECTED_SOURCES);
 const isProtected = (source: unknown) => PROTECTED.has(String(source ?? '').trim().toLowerCase());
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const escLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -162,7 +163,7 @@ export async function buildActionProposal(
       if (!scope.complete) return failed(action, 'scope_incomplete', INCOMPLETE);
       const target = catLabel(res.category, targetSubcategory);
       const note = res.status === 'closest' ? `There's no "${res.requested}" category — the closest is **${res.category}**.\n\n` : '';
-      const keptLine = scope.kept > 0 ? ` (${plural(scope.kept, 'transaction')} you've already categorized yourself will stay as they are)` : '';
+      const keptLine = scope.kept > 0 ? ` (${plural(scope.kept, 'transaction')} with a protected category (set by you, or of unverified origin) will stay as they are)` : '';
       const reply = applyToExisting
         ? `${note}Save a rule so **future imports** matching "${vendor}" are categorized as **${target}**, AND change **${scope.eligible.length}** of your **existing** "${vendor}" ${scope.eligible.length === 1 ? 'transaction' : 'transactions'} to **${target}** now${keptLine}? Say yes to confirm.`
         : `${note}Save a rule so **future imports** matching "${vendor}" are categorized as **${target}**? This does **not** change your ${plural(scope.matched, 'existing transaction')} matching "${vendor}" — tell me if you want those changed too. Say yes to confirm.`;
@@ -188,11 +189,11 @@ export async function buildActionProposal(
       if (!scope.complete) return failed(action, 'scope_incomplete', INCOMPLETE);
       if (scope.eligible.length === 0) {
         return failed(action, 'nothing_to_move', scope.kept > 0
-          ? `All ${plural(scope.kept, 'transaction')} in **${from.category}** were categorized by you, so I'll leave them as they are.`
+          ? `All ${plural(scope.kept, 'transaction')} in **${from.category}** have a protected category (set by you, or of unverified origin), so I'll leave them as they are.`
           : `There are no transactions in **${from.category}** to move.`);
       }
       const note = to.status === 'closest' ? `There's no "${to.requested}" category — the closest is **${to.category}**.\n\n` : '';
-      const keptLine = scope.kept > 0 ? ` ${plural(scope.kept, 'transaction')} in ${from.category} that you categorized yourself will stay as they are.` : '';
+      const keptLine = scope.kept > 0 ? ` ${plural(scope.kept, 'transaction')} in ${from.category} with a protected category (set by you, or of unverified origin) will stay as they are.` : '';
       return {
         state: 'proposed', action,
         reply: `${note}Move **${scope.eligible.length}** existing ${scope.eligible.length === 1 ? 'transaction' : 'transactions'} from **${from.category}** to **${to.category}**?${keptLine} This changes existing transactions only — no rule is saved for future imports. Say yes to confirm.`,
@@ -234,7 +235,7 @@ export async function buildImportSuggestionsProposal(sb: SupabaseClient, userId:
     if (!sug.complete) return failed(action, 'scope_incomplete', INCOMPLETE);
     const affected = sug.groups.reduce((n, g) => n + g.count, 0);
     if (affected === 0) return failed(action, 'nothing_to_apply', "There are no suggestions to apply for this statement, so nothing has changed.");
-    const kept = sug.skippedProtected > 0 ? ` ${plural(sug.skippedProtected, 'transaction')} you categorized yourself will stay as they are.` : '';
+    const kept = sug.skippedProtected > 0 ? ` ${plural(sug.skippedProtected, 'transaction')} with a protected category (set by you, or of unverified origin) will stay as they are.` : '';
     const top = sug.groups.slice(0, 3).map(g => `${g.merchant_name} → ${catLabel(g.category, g.subcategory)} (${g.count})`).join('; ');
     return {
       state: 'proposed', action, matched: affected,
@@ -261,9 +262,9 @@ async function updateIds(
 ): Promise<{ count: number; error: boolean }> {
   let count = 0;
   for (let i = 0; i < ids.length; i += CHUNK) {
-    // A row that became customer-confirmed after the proposal is never overwritten (re-checked here).
+    // A row that became protected after the proposal is never overwritten (re-checked here).
     let q = sb.from('transactions').update(payload).in('id', ids.slice(i, i + CHUNK)).eq('user_id', userId);
-    // A rename never changes a category, so a customer-confirmed category is no reason to skip it.
+    // A rename never changes a category, so a protected category is no reason to skip it.
     if (!opts.renameOnly) q = q.or(AUTO_UPDATE_SOURCE_FILTER);
     if (opts.gapOnly) q = q.or(AUTO_UPDATE_CATEGORY_FILTER);
     const { data, error } = await q.select('id');

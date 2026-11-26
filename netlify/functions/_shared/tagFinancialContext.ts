@@ -17,9 +17,9 @@
  *    disclosed, never silently removed (Prime HQ contract (f)).
  *  - Income, cash flow, net and financial-health assessments belong to Prime; Tag gets no income
  *    figure at all.
- *  - Categorization progress covers the full scope with exact counts. "Other" kept by the customer
- *    (customer-confirmed or possibly customer-approved per C4 provenance) is a customer decision and
- *    never counted as unfinished.
+ *  - Categorization progress covers the full scope with exact counts. A protected "Other" (a verified
+ *    customer choice, or protected (origin unverified)) is never counted as unfinished and never
+ *    described as customer-approved unless verified.
  *
  * No merchant names, amounts or transaction data are logged here.
  */
@@ -32,7 +32,7 @@ import {
 import { buildPeriodAggregate, toCompletenessOutput, type AggregateFetchCompleteness, type CompletenessOutput } from '../../../src/shared/period-aggregate';
 import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
 import { computeIntegritySignals, type FinancialIntegritySignals } from '../../../src/shared/financial-integrity-signals';
-import { CUSTOMER_SOURCES, AMBIGUOUS_SOURCES } from '../../../src/shared/tag-status';
+import { PROTECTED_SOURCES } from '../../../src/shared/tag-status';
 import { merchantGroupingKey } from './merchantNormalize';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ export interface CategorizationProgress {
   needsReview: number;
   /** Other not confirmed by the customer (automatic or unknown source). */
   otherUnconfirmed: number;
-  /** Other kept by the customer: a customer decision, never "unfinished". */
+  /** Protected Other (customer-set or origin unverified): never "unfinished". */
   otherKeptByCustomer: number;
   /** null when counts are unavailable: no completeness claim may be made. */
   allCategorized: boolean | null;
@@ -322,8 +322,9 @@ export const TAG_FINANCIAL_RULES = `FINANCIAL FIGURES — HARD RULES
   from its name. Describe deposits only by their recorded category.
 - No tax advice: never say whether something is tax-deductible or how to treat it for tax. You can categorize it;
   tax questions go to the Tax Summary page or a tax professional.
-- Only say everything is categorized when CATEGORIZATION PROGRESS says so. "Other" kept by the customer is their
-  decision, never unfinished work.`;
+- Only say everything is categorized when CATEGORIZATION PROGRESS says so. A protected "Other" is never unfinished
+  work. Protected does NOT mean customer-approved: call it "protected (origin unverified)" unless the
+  progress block says the customer confirmed it.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Categorization progress (exact counts, full scope)
@@ -360,7 +361,7 @@ export function formatProgressBlock(p: CategorizationProgress): string {
     `  Uncategorized: ${p.uncategorized}`,
     `  Needs Review: ${p.needsReview}`,
     `  "Other" not yet confirmed by the customer: ${p.otherUnconfirmed}`,
-    `  "Other" kept by the customer: ${p.otherKeptByCustomer} (the customer's decision; never count as unfinished and never propose changing)`,
+    `  "Other" protected (set by the customer or origin unverified — never call it customer-approved): ${p.otherKeptByCustomer} (never count as unfinished and never propose changing)`,
     p.allCategorized
       ? `  Status: everything in this scope is categorized.`
       : `  Status: ${plural(p.unfinished, 'transaction')} still need a category. Do NOT say everything is categorized.`,
@@ -371,8 +372,8 @@ export function formatProgressBlock(p: CategorizationProgress): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CountClient = { from(table: string): any };
 
-/** The source values that mark a category as kept by the customer (C4 provenance). */
-export const CUSTOMER_KEPT_SOURCES: ReadonlyArray<string> = [...CUSTOMER_SOURCES, ...AMBIGUOUS_SOURCES];
+/** Protected category sources (PROTECTED_SOURCES: verified customer ∪ protected (origin unverified)). */
+export const CUSTOMER_KEPT_SOURCES: ReadonlyArray<string> = [...PROTECTED_SOURCES];
 
 export async function loadCategorizationProgress(
   sb: CountClient,

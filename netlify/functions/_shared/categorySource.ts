@@ -3,7 +3,8 @@
  * automatic categorization writer uses. Pure, no I/O, no logging.
  *
  * Owner requirements:
- *  1. Automatic categorization never overwrites customer-confirmed classifications.
+ *  1. Automatic categorization never overwrites protected classifications (verified customer choices
+ *     and protected (origin unverified) ones alike).
  *  2. Explicitly approved "Other" is preserved.
  *  5. Historical rows with ambiguous approval provenance are protected until separately reconciled.
  *  6. Never silently recategorize historical customer data.
@@ -19,18 +20,18 @@
  * unprotected. Owner requirement 5 (ambiguous provenance) is stricter: a real category or "Other"
  * with a blank / unknown source is protected (older customer edits in the drawer wrote no source).
  */
-import { CUSTOMER_SOURCES, AMBIGUOUS_SOURCES } from '../../../src/shared/tag-status';
+// Reliability round 2 item 4 (owner GO 2026-11-25): the ONE protected-source definition lives in
+// src/shared/tag-status.ts (PROTECTED_SOURCES = verified customer sources ∪ protected-but-unverified).
+// No behaviour change: PROTECTED_SOURCES equals the former CUSTOMER_SOURCES ∪ AMBIGUOUS_SOURCES.
+import { PROTECTED_SOURCES, isProtectedSource as sharedIsProtectedSource } from '../../../src/shared/tag-status';
 
 export interface SourceRow { category?: string | null; category_source?: string | null }
 
 const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
 const GAP_CATEGORIES = new Set(['', 'uncategorized', 'needs review']);
 
-/** Customer-confirmed or possibly customer-approved (tag_rule / tag_chat). */
-export function isProtectedSource(source: unknown): boolean {
-  const s = norm(source);
-  return CUSTOMER_SOURCES.has(s) || AMBIGUOUS_SOURCES.has(s);
-}
+/** Protected source (verified customer choice, or protected of unverified origin). Never auto-changed. */
+export const isProtectedSource = (source: unknown): boolean => sharedIsProtectedSource(norm(source));
 
 /** May an AUTOMATIC writer categorize this row? (see header) */
 export function isAutoWritable(row: SourceRow): boolean {
@@ -67,13 +68,13 @@ const MACHINE_ONLY = new Set(AUTOMATIC_OTHER_SOURCES);
 export const AUTO_UPDATE_CATEGORY_FILTER =
   `category.is.null,category.eq.,category.eq.Uncategorized,category.eq.Needs Review,and(category.eq.Other,category_source.in.(${AUTOMATIC_OTHER_SOURCES.join(',')}))`;
 export const AUTO_UPDATE_SOURCE_FILTER =
-  `category_source.is.null,category_source.not.in.(${[...CUSTOMER_SOURCES, ...AMBIGUOUS_SOURCES].join(',')})`;
+  `category_source.is.null,category_source.not.in.(${[...PROTECTED_SOURCES].join(',')})`;
 
 /**
  * Import-scoped processing (apply-category-rules with an import_id, right after upload): the rows of
  * a NEW import may additionally have a category that the import pipeline itself assigned (a purely
  * machine source) replaced by the customer's own rules / maps. That is processing the new import,
- * not editing history. Customer-confirmed, possibly-approved and unknown-provenance rows stay.
+ * not editing history. Protected rows (verified or origin unverified) and unknown-provenance rows stay.
  */
 export function isImportWritable(row: SourceRow): boolean {
   if (isAutoWritable(row)) return true;
