@@ -23,6 +23,9 @@ export const TRANSACTION_MUTATION_TOOLS: ReadonlySet<string> = new Set([
   'tag_create_manual_transaction',
   'tx_update_category',
   'bulk_categorize',
+  // AR4-ATT-01: inserts transactions directly; retired by 56e8d78d (refuses, never offered). Listed here too
+  // so chat strips it for every employee whatever tools_allowed says (owner authorization 2026-11-25).
+  'ingest_statement_enhanced',
 ]);
 
 /**
