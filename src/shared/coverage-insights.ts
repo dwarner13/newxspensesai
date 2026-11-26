@@ -123,6 +123,30 @@ export function buildInsights(totals: PeriodAggregate, figures: ReadonlyArray<Pe
   return out;
 }
 
+/**
+ * Category-level trend / stable claims for the top-N spending categories (UI/UX Q2). Same thresholds
+ * and the same comparable chain as actual spending; nothing is emitted without passing coverage.
+ */
+export function buildCategoryInsights(figures: ReadonlyArray<PeriodFigures>, categories: readonly string[]): Insight[] {
+  const chain = comparableChain(figures.map(f => ({ start: f.start, end: f.end, label: f.label, accounts: ['*'] })));
+  const usable = figures.slice(figures.length - chain.length);
+  const n = usable.length;
+  if (n < TREND_MIN_PERIODS) return [];
+  const out: Insight[] = [];
+  const centsFor = (f: PeriodFigures, cat: string) => f.agg.categories.filter(c => c.purpose === 'spending' && c.category === cat).reduce((s, c) => s + c.totalCents, 0);
+  for (const cat of categories) {
+    const s = usable.map(f => centsFor(f, cat));
+    const ch = (a: number, b: number) => (a > 0 ? (b - a) / a : null);
+    const recent = ch(s[n - 2], s[n - 1]);
+    if (recent !== null && Math.abs(recent) >= TREND_THRESHOLD) {
+      out.push({ kind: 'trend', subject: 'category', category: cat, direction: recent > 0 ? 'up' : 'down', percent: Math.round(recent * 100), periods: usable.slice(-2).map(f => ({ start: f.start, end: f.end })), coverage: { complete: true, periodsAvailable: n, periodsRequired: TREND_MIN_PERIODS } });
+    } else if (recent !== null && n >= STABLE_MIN_PERIODS && s.slice(-STABLE_MIN_PERIODS).every((v, i, a) => i === 0 || (ch(a[i - 1], v) !== null && Math.abs(ch(a[i - 1], v)!) < TREND_THRESHOLD))) {
+      out.push({ kind: 'stable', subject: 'category', category: cat, periods: usable.slice(-STABLE_MIN_PERIODS).map(f => ({ start: f.start, end: f.end })), coverage: { complete: true, periodsAvailable: n, periodsRequired: STABLE_MIN_PERIODS } });
+    }
+  }
+  return out;
+}
+
 /** For chat (every employee): may a comparison / trend / stability claim be made? */
 export function comparisonAllowed(cov: StatementCoverage): { allowed: boolean; periodsAvailable: number; reason: string } {
   const chain = comparableChain(comparablePeriods(cov));
