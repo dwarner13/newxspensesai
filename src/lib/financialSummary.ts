@@ -56,6 +56,8 @@ export interface FinancialSummary {
   goals: { averageNetCashFlowPerPeriod: number | null; periodsUsed: number; savingsContributions: number };
   possibleBusinessExpenses: { status: 'needs_review'; count: number; amount: number; cents: number; categories: string[] };
   insights: Insight[];
+  /** Integrity signals: possible duplicates (same transaction from two imports) stay in totals and are disclosed. */
+  signals?: { possibleDuplicates?: { count: number; amount: number; groups?: number }; possibleRefunds?: { count: number; amount: number } };
   /** G9 (Prime HQ 2c545f67): the engine's wording table. Screens render it, never re-word. */
   wording?: { labels?: Record<string, string>; insights?: Partial<Record<string, string>> };
 }

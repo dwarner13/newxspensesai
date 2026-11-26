@@ -26,6 +26,10 @@ import { useProfile } from '@/hooks/useProfile';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { loadChatReturnContext, clearChatReturnContext } from '@/lib/chatReturnContext';
 import type { ChatReturnContext } from '@/lib/chatReturnContext';
+import { useFinancialSummary } from '@/hooks/useFinancialSummary';
+import { allTimeRange, yearRange, type SummaryRequest } from '@/lib/financialSummary';
+import { FinancialStateNotice, hasFigures, formatMoney } from '@/components/finance/FinancialState';
+import { FINANCIAL_LABELS } from '@/lib/financialLabels';
 
 const CAT_COLORS: Record<string, string> = {
   'Personal Care': '#ec4899', Subscriptions: '#818cf8', Shopping: '#a78bfa',
@@ -592,15 +596,13 @@ export default function TransactionsPageV2() {
     type: 'Credit Card' | 'Chequing';
     statementCount: number;
     importIds: string[];
-    totalSpent: number;
-    totalIncome: number;
     uncategorizedCount: number;
   };
   const accounts: AccountCard[] = useMemo(() => {
     // K-d: grouping moved unchanged to lib/accountGroups.ts so Categories uses the same accounts.
     const groups = new Map<string, AccountCard>();
     for (const a of groupImportsIntoAccounts(imports)) {
-      groups.set(a.id, { ...a, statementCount: 0, totalSpent: 0, totalIncome: 0, uncategorizedCount: 0 });
+      groups.set(a.id, { ...a, statementCount: 0, uncategorizedCount: 0 });
     }
     const byImportId = new Map<string, AccountCard>();
     for (const a of groups.values()) {
@@ -616,8 +618,6 @@ export default function TransactionsPageV2() {
       const a = byImportId.get(t.import_id || '');
       if (!a) return;
       if (t.import_id) importsWithActivity.add(t.import_id);
-      if (isIncomeTx(t)) a.totalIncome += Math.abs(t.amount);
-      else a.totalSpent += Math.abs(t.amount);
       if (needsCategory(t.category)) {
         a.uncategorizedCount += 1;
       }
@@ -722,18 +722,28 @@ export default function TransactionsPageV2() {
   const isDuplicate = (t: CommittedTransaction): boolean =>
     ((t as any).is_duplicate === true) || (t.category === 'Duplicate');
 
-  // Stats — computed from filtered list, duplicates excluded
-  const totalSpent = useMemo(() => filtered.reduce((s, t) => (!isIncomeTx(t) && !isDuplicate(t)) ? s + Math.abs(t.amount) : s, 0), [filtered]);
-  const totalIncome = useMemo(() => filtered.reduce((s, t) => (isIncomeTx(t) && !isDuplicate(t)) ? s + Math.abs(t.amount) : s, 0), [filtered]);
-  const netFlow = totalIncome - totalSpent;
-
-  // Spending by category for the compact summary — duplicates excluded
-  const catData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(t => { if (!isIncomeTx(t) && !isDuplicate(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
-  }, [filtered]);
-  const catTotal = catData.reduce((s, d) => s + d.value, 0);
+  // UX-FST2-4 (owner 2026-11-26; AR-1b FR-008): the strip shows the shared engine's totals for
+  // the date + account/statement scope (server filters). Possible duplicates stay in the totals
+  // and are disclosed (owner). Client-only filters (type, review, category, search) show
+  // "N of M transactions shown" and NO money. No totals are computed in the browser.
+  const summaryReq: SummaryRequest | null = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const customRange = (rangeFrom || rangeTo) && !(rangeFrom && rangeTo && rangeFrom > rangeTo);
+    const dates = customRange
+      ? { startDate: rangeFrom || '2000-01-01', endDate: rangeTo || today }
+      : yearFilter === 'all' ? allTimeRange() : yearRange(Number(yearFilter));
+    if (statementFilter !== 'all') return { ...dates, importIds: [statementFilter] };
+    if (accountFilter !== 'all') {
+      const acct = accounts.find(a => a.id === accountFilter);
+      if (!acct || acct.importIds.length === 0) return null;
+      return { ...dates, importIds: acct.importIds };
+    }
+    return dates;
+  }, [rangeFrom, rangeTo, yearFilter, statementFilter, accountFilter, accounts]);
+  const financial = useFinancialSummary(summaryReq);
+  const sum = hasFigures(financial) ? financial.summary : null;
+  const clientOnlyFilter = filter !== 'all' || needsCategoryOnly || !!tagCategoryFilter || !!tagSubcategoryFilter || !!searchQuery;
+  const dupes = sum?.signals?.possibleDuplicates?.count ?? 0;
 
   // Statement options for dropdown (each individual import with filename)
   const stmtOptions = useMemo(() => {
@@ -1009,9 +1019,21 @@ export default function TransactionsPageV2() {
             aria-expanded={overviewOpen}
             aria-controls="tx-overview-content"
           >
-            <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{filtered.length}</strong> transaction{filtered.length !== 1 ? 's' : ''}</span>
-            <span className="text-[14px] text-slate-300">Spent <strong className="text-white tabular-nums">${fmt(totalSpent)}</strong></span>
-            <span className="text-[14px] text-slate-300">Income <strong className="text-emerald-300 tabular-nums">${fmt(totalIncome)}</strong></span>
+            {clientOnlyFilter ? (
+              <span className="text-[14px] text-slate-300" data-testid="tx-strip-filtered">
+                <strong className="text-white tabular-nums">{filtered.length}</strong>{sum ? <> of <strong className="text-white tabular-nums">{sum.transactionCount}</strong></> : null} transaction{(sum ? sum.transactionCount : filtered.length) !== 1 ? 's' : ''} shown
+                <span className="text-slate-400"> · totals hidden while filters are on</span>
+              </span>
+            ) : sum ? (
+              <>
+                <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{sum.transactionCount}</strong> transaction{sum.transactionCount !== 1 ? 's' : ''}</span>
+                <span className="text-[14px] text-slate-300">{FINANCIAL_LABELS.withdrawals} <strong className="text-white tabular-nums">{formatMoney(sum.labels.withdrawals.amount, sum.scope.currency)}</strong></span>
+                <span className="text-[14px] text-slate-300">{FINANCIAL_LABELS.deposits} <strong className="text-emerald-300 tabular-nums">{formatMoney(sum.labels.deposits.amount, sum.scope.currency)}</strong></span>
+                {dupes > 0 && <span className="text-[14px] text-amber-200" data-testid="tx-strip-dupes">includes <strong className="tabular-nums">{dupes}</strong> possible duplicate{dupes !== 1 ? 's' : ''}</span>}
+              </>
+            ) : (
+              <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{filtered.length}</strong> transaction{filtered.length !== 1 ? 's' : ''}{financial.status === 'loading' ? '' : ' · figures unavailable'}</span>
+            )}
             {uncategorizedCount > 0 && <span className="text-[14px] text-amber-200"><strong className="tabular-nums">{uncategorizedCount}</strong> need review</span>}
             <span className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-slate-400">
               {overviewOpen ? 'Hide summary' : 'Summary'}
@@ -1027,16 +1049,36 @@ export default function TransactionsPageV2() {
 
         {!isStatementMode && !hasNoTransactions && overviewOpen && (
           <div id="tx-overview-content" className="mb-3 rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-3 flex flex-col gap-3">
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[14px] text-slate-300">
-              <span>Net <strong className={`tabular-nums ${netFlow >= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>{netFlow >= 0 ? '+' : '−'}${fmt(Math.abs(netFlow))}</strong></span>
-              {catData.slice(0, 4).map(d => (
-                <span key={d.name} className="flex items-center gap-1.5">
-                  <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: colorFor(d.name) }} />
-                  {d.name} <strong className="text-white tabular-nums">${fmt(d.value)}</strong>
-                  {catTotal > 0 && <span className="text-slate-500 tabular-nums">{Math.round((d.value / catTotal) * 100)}%</span>}
-                </span>
-              ))}
-            </div>
+            {clientOnlyFilter ? (
+              <p className="text-[14px] text-slate-400">Clear the filters to see totals for this period.</p>
+            ) : !sum ? (
+              <FinancialStateNotice state={financial} compact onRetry={financial.status !== 'loading' ? financial.refetch : undefined} />
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-[14px] text-slate-300">
+                  <span>{FINANCIAL_LABELS.netCashFlow} <strong className={`tabular-nums ${sum.labels.netCashFlow.amount >= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>{sum.labels.netCashFlow.amount > 0 ? '+' : ''}{formatMoney(sum.labels.netCashFlow.amount, sum.scope.currency)}</strong></span>
+                  <span>{FINANCIAL_LABELS.actualIncome} <strong className="text-white tabular-nums">{formatMoney(sum.labels.actualIncome.amount, sum.scope.currency)}</strong></span>
+                  <span>{FINANCIAL_LABELS.actualSpending} <strong className="text-white tabular-nums">{formatMoney(sum.labels.actualSpending.amount, sum.scope.currency)}</strong></span>
+                </div>
+                {sum.spendingByCategory.length > 0 && (
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-[14px] text-slate-300">
+                    {sum.spendingByCategory.slice(0, 4).map(d => (
+                      <span key={d.category} className="flex items-center gap-1.5">
+                        <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: colorFor(d.category) }} />
+                        {d.category} <strong className="text-white tabular-nums">{formatMoney(d.amount, sum.scope.currency)}</strong>
+                        <span className="text-slate-500 tabular-nums">{d.share}%</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {sum.dataQuality && sum.dataQuality.statementCoverage !== 'complete' && (
+                  <p className="text-[13px] text-slate-400" data-testid="totals-label">{sum.dataQuality.totalsLabel}</p>
+                )}
+                {dupes > 0 && (
+                  <p className="text-[13px] text-amber-200">These totals include {dupes} possible duplicate{dupes !== 1 ? 's' : ''} (the same transaction imported from two statements). Review them in the list.</p>
+                )}
+              </>
+            )}
             {accounts.length > 1 && (
               <div className="flex flex-wrap gap-2" role="group" aria-label="Account">
                 {[{ id: 'all', name: 'All accounts' }, ...accounts].map(a => (
@@ -1347,7 +1389,7 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
-      {tagPanelOpen && createPortal(<TagCopilotPanel focusedTransaction={tagPanelTx as any} totalCount={transactions.length} categorizedCount={transactions.filter(t => t.category && t.category !== 'Uncategorized' && t.category !== 'Other').length} flaggedCount={uncategorizedCount} avgConfidence={0} rulesCount={0} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} focusedAccountLabel={tagPanelTx ? tagPanelAccountLabel : null} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFromPrime(false); setHighlightTxId(null); }} />, document.body)}
+      {tagPanelOpen && createPortal(<TagCopilotPanel focusedTransaction={tagPanelTx as any} totalCount={transactions.length} categorizedCount={transactions.filter(t => t.category && t.category !== 'Uncategorized' && t.category !== 'Other').length} flaggedCount={uncategorizedCount} avgConfidence={0} rulesCount={0} firstName={firstName} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} focusedAccountLabel={tagPanelTx ? tagPanelAccountLabel : null} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFromPrime(false); setHighlightTxId(null); }} />, document.body)}
 
       {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
