@@ -50,3 +50,24 @@ describe('AR1b-TG-21 part (a): the worker prompt asks only for per-row categoriz
     expect(norm).not.toContain("direction: t?.direction === 'credit' ? 'credit' : 'debit'");
   });
 });
+
+describe('Tag HQ review: worker category names map to canonical categories', () => {
+  const b = buildStatementBreakdown(engineRowsFromExtracted([
+    { direction: 'debit', amount: 100, category: 'Cash Withdrawal' },
+    { direction: 'debit', amount: 300, category: 'Credit Card Payment' },
+    { direction: 'debit', amount: 40, category: 'Dining' },
+    { direction: 'debit', amount: 15, category: 'Software/AI' },
+  ], '2026-03-10'));
+  const line = (k: string) => b.lines.find(l => l.key === k)!;
+  it('a debit "Cash Withdrawal" is NOT spending: it lands on the cash-withdrawals line', () => {
+    expect(line('cash_withdrawals').cents).toBe(10000);
+    expect(line('everyday_spending').cents).toBe(5500);
+  });
+  it('card payments are debt repayment, never spending', () => {
+    expect(line('credit_card_payments').cents).toBe(30000);
+  });
+  it('the prompt no longer lets the model turn ATM rows into spending', () => {
+    const chat = fs.readFileSync(path.join(__dirname, '../../../netlify/functions/chat.ts'), 'utf8');
+    expect(chat).not.toContain('unless explicit spending context exists');
+  });
+});

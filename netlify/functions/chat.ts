@@ -2901,7 +2901,7 @@ CRITICAL RULES
 - Never skip pages. If a page contains legal info only, label it "legal/info".
 - Transfers and payments must NOT be counted as spending.
 - Bank/credit card payments reduce liabilities, not expenses.
-- ATM withdrawals are transfers unless explicit spending context exists.
+- Label every ATM or cash withdrawal "Cash Withdrawal". It is never spending.
 - Always output JSON only. No conversational text.
 
 CATEGORIES TO USE

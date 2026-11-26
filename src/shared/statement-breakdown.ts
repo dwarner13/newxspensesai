@@ -142,7 +142,35 @@ export function buildStatementBreakdown(rows: ReadonlyArray<AggregateRow>): Stat
  * from the extracted debit/credit side (bank evidence); a row without one stays unclassified and is
  * reported as unplaced, never guessed.
  */
+/**
+ * Tag HQ review (2026-11-26, blocking): the worker chain's category names mapped DETERMINISTICALLY to
+ * canonical engine categories, so the engine's purpose never depends on the model's wording.
+ * 'Cash Withdrawal' is Transfers / ATM Withdrawal (never spending). Unknown names pass through.
+ */
+export const WORKER_CATEGORY_MAP: Readonly<Record<string, { category: string; subcategory: string | null }>> = {
+  'income': { category: 'Income', subcategory: null },
+  'transfer': { category: 'Transfers', subcategory: null },
+  'bank fee': { category: 'Bank Fees', subcategory: null },
+  'credit card payment': { category: 'Debt Payments', subcategory: 'Credit Card' },
+  'subscription': { category: 'Subscriptions', subcategory: null },
+  'software/ai': { category: 'Subscriptions', subcategory: 'Software' },
+  'fitness/health': { category: 'Healthcare', subcategory: null },
+  'retail': { category: 'Shopping', subcategory: null },
+  'groceries': { category: 'Groceries', subcategory: null },
+  'dining': { category: 'Food & Dining', subcategory: null },
+  'cash withdrawal': { category: 'Transfers', subcategory: 'ATM Withdrawal' },
+  'insurance': { category: 'Insurance', subcategory: null },
+  'utilities': { category: 'Utilities', subcategory: null },
+  'other': { category: 'Other', subcategory: null },
+};
+
 export interface ExtractedRow { direction?: unknown; amount?: unknown; category?: unknown; subcategory?: unknown; date?: unknown }
+function canonicalCategory(category: unknown, subcategory: unknown): { category: string | null; subcategory: string | null } {
+  const mapped = typeof category === 'string' ? WORKER_CATEGORY_MAP[category.trim().toLowerCase()] : undefined;
+  if (mapped) return { category: mapped.category, subcategory: mapped.subcategory ?? (typeof subcategory === 'string' ? subcategory : null) };
+  return { category: typeof category === 'string' ? category : null, subcategory: typeof subcategory === 'string' ? subcategory : null };
+}
+
 export function engineRowsFromExtracted(rows: ReadonlyArray<ExtractedRow>, fallbackDate = '1970-01-01'): AggregateRow[] {
   return rows.map((r, i) => {
     const dir = String(r.direction ?? '').toLowerCase();
@@ -154,8 +182,7 @@ export function engineRowsFromExtracted(rows: ReadonlyArray<ExtractedRow>, fallb
       date,
       amount: Number.isFinite(abs) ? (type === 'income' ? abs : -abs) : null,
       type,
-      category: typeof r.category === 'string' ? r.category : null,
-      subcategory: typeof r.subcategory === 'string' ? r.subcategory : null,
+      ...canonicalCategory(r.category, r.subcategory),
     };
   });
 }
