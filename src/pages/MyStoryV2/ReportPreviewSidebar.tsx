@@ -1,6 +1,8 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { THEME } from "./storyConfig";
 import type { StoryData } from "./useStoryData";
+import { FINANCIAL_LABELS } from "@/lib/financialLabels";
+import { formatMoney } from "@/components/finance/FinancialState";
 
 interface ReportPreviewSidebarProps {
   data: StoryData;
@@ -19,7 +21,7 @@ const TOGGLES: ReportToggle[] = [
   { label: "Crystal analytics", agent: "Crystal", color: "#a78bfa", defaultOn: true },
   { label: "Trend analysis", agent: "Crystal", color: "#a78bfa", defaultOn: false },
   { label: "All transactions list", agent: "Byte", color: "#34d399", defaultOn: false },
-  { label: "Tax deduction summary", agent: "Prime", color: "#c8a64e", defaultOn: true },
+  { label: "Possible business expenses (needs review)", agent: "Prime", color: "#c8a64e", defaultOn: true },
 ];
 
 export function ReportPreviewSidebar({ data }: ReportPreviewSidebarProps) {
@@ -46,10 +48,13 @@ export function ReportPreviewSidebar({ data }: ReportPreviewSidebarProps) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {[
-            { label: "Income", value: `$${data.income.toLocaleString()}`, color: "#34d399" },
-            { label: "Expenses", value: `$${data.expenses.toLocaleString()}`, color: "#f87171" },
-            { label: "Transactions", value: `${data.transactionCount}`, color: THEME.text },
-            { label: "Net", value: `$${data.netPosition.toLocaleString()}`, color: "#fb923c" },
+            // UX-FST2-3: server figures only; nothing shown without them.
+            ...(data.summary ? [
+              { label: FINANCIAL_LABELS.deposits, value: formatMoney(data.summary.labels.deposits.amount), color: "#34d399" },
+              { label: FINANCIAL_LABELS.withdrawals, value: formatMoney(data.summary.labels.withdrawals.amount), color: "#f87171" },
+              { label: "Transactions", value: `${data.summary.transactionCount}`, color: THEME.text },
+              { label: FINANCIAL_LABELS.netCashFlow, value: formatMoney(data.summary.labels.netCashFlow.amount), color: "#fb923c" },
+            ] : []),
           ].map(s => (
             <div key={s.label} style={{ padding: "8px 10px", borderRadius: 8, background: "rgba(0,0,0,0.2)" }}>
               <div style={{ fontSize: 9, color: THEME.textDim, marginBottom: 2 }}>{s.label}</div>
