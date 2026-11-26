@@ -12,9 +12,9 @@ const GATE = /gateReplyForCoverage\(|applyComparisonGate\(/;
 const CALLS_MODEL = /anthropic|openai|chat\.completions|messages\.create/;
 
 /** Model prose reaches the user: the gate is mandatory. */
-const GATED = ['chat.ts', 'custodian-chat.ts', 'prime-briefing.ts'];
-/** Gated on Tag HQ's line (f8e25e22); move to GATED when that line is integrated. */
-const PENDING_TAG_INTEGRATION = ['tag-chat.ts', 'tag-copilot.ts'];
+const GATED = ['chat.ts', 'custodian-chat.ts', 'prime-briefing.ts', 'tag-chat.ts', 'tag-copilot.ts'];
+/** Tag's endpoints moved to GATED on Tag HQ's line (f8e25e22, owner GO 2026-11-26). */
+const PENDING_TAG_INTEGRATION: string[] = [];
 /** Structured extraction / categorization: no free-text reply reaches the user. */
 const EXEMPT_STRUCTURED = [
   'byte-ocr-parse.ts', 'normalize-transactions.ts', 'ocr-ingest-simple.ts', 'openai-vision.ts',
