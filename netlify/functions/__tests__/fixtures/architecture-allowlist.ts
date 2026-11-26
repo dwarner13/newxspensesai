@@ -31,13 +31,6 @@ export const ARCH_EXCEPTIONS: ReadonlyArray<ArchException> = [
     added: '2026-11-25', expires: '2027-01-24', renewals: 0,
   },
   {
-    id: 'AR4-ATT-01', ar: 'AR-4', file: 'src/agent/tools/impl/ingest_statement_enhanced.ts', rule: 'tool:ingest_statement_enhanced',
-    ownerTeam: 'Attachments HQ (tool) / Prime HQ (registry, ai-action-safety)',
-    reason: 'Baseline found by Tag HQ 2026-11-25: a registered tool that INSERTS transactions and is not in TRANSACTION_MUTATION_TOOLS; chat.ts reachability depends on employee_profiles.tools_allowed (unversioned).',
-    removalPlan: 'Owner decision: add to TRANSACTION_MUTATION_TOOLS (stripped from chat) or delete in favour of the smart-import pipeline.',
-    added: '2026-11-25', expires: '2027-01-24', renewals: 0,
-  },
-  {
     id: 'AR17-TAG-01', ar: 'AR-17', file: 'netlify/functions/tag-background-sweep.ts', rule: 'callee:fetch',
     ownerTeam: 'Tag HQ',
     reason: 'Unawaited prime-briefing trigger after the post-import sweep (plan item 7).',
