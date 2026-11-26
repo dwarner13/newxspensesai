@@ -23,4 +23,14 @@ describe('XS-2 Score hold', () => {
     expect(read('src/pages/XspenseScore/scoreDisplay.ts')).toMatch(/XSPENSE_SCORE_REVIEW_HOLD = true/);
     expect(fs.existsSync(path.join(root, 'src/pages/XspenseScore/useXspenseScore.ts'))).toBe(true);
   });
+  it('shared nav registry entry is gated (desktop sidebar, Sidebar, mobile navs)', () => {
+    expect(read('src/navigation/nav-registry.tsx')).toMatch(/\.\.\.\(isXspenseScoreVisible\(\) \? \[\{\s*label: "Xspense Score"/);
+  });
+  it('Score page checks the hold before any score hook runs', () => {
+    const page = code(read('src/pages/XspenseScore/XspenseScorePage.tsx'));
+    const main = page.slice(page.indexOf('export default function XspenseScorePage'));
+    expect(main).not.toMatch(/useXspenseScore\(/);
+    expect(main).toMatch(/if \(isXspenseScoreVisible\(\)\) return <XspenseScoreVisible \/>;/);
+    expect(main).toMatch(/XSPENSE_SCORE_REVIEW_MESSAGE/);
+  });
 });

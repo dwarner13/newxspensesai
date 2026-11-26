@@ -28,11 +28,12 @@ describe('score display hold', () => {
 
 describe('Xspense Score page', () => {
   it('returns the review notice before rendering any score content', () => {
-    const holdIdx = page.indexOf('if (!isXspenseScoreVisible())');
-    expect(holdIdx).toBeGreaterThan(-1);
-    expect(holdIdx).toBeLessThan(page.indexOf('<ScoreRing'));
-    expect(holdIdx).toBeLessThan(page.indexOf('Share Score'));
-    expect(page).toMatch(/\{XSPENSE_SCORE_REVIEW_MESSAGE\}/);
+    // XS-2: score content lives only in XspenseScoreVisible; the page mounts it only when the
+    // score is visible and otherwise returns the review notice (no score hook runs while held).
+    const main = page.slice(page.indexOf('export default function XspenseScorePage'));
+    expect(main).toMatch(/if \(isXspenseScoreVisible\(\)\) return <XspenseScoreVisible \/>;/);
+    expect(main).not.toMatch(/<ScoreRing|Share Score|useXspenseScore\(/);
+    expect(main).toMatch(/\{XSPENSE_SCORE_REVIEW_MESSAGE\}/);
   });
 
   it('has no simulated score-history chart', () => {
