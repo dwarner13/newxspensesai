@@ -1,6 +1,8 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { THEME, RECAP_COLOR, type RecapEpisode } from "./recapConfig";
 import { Reveal } from "../PrimeChatV2/Reveal";
+import { FINANCIAL_LABELS } from "@/lib/financialLabels";
+import { formatMoney } from "@/components/finance/FinancialState";
 
 interface RecapCardProps {
   episode: RecapEpisode;
@@ -9,7 +11,9 @@ interface RecapCardProps {
 
 export function RecapCard({ episode: ep, index }: RecapCardProps) {
   const [h, setH] = useState(false);
-  const gradeColor = ep.healthGrade === "A" || ep.healthGrade === "B" ? "#34d399" : ep.healthGrade === "C" ? "#fbbf24" : "#f87171";
+  // UX-FST2-2: no grade (owner: remove unsupported grades). The chip states statement coverage only.
+  const covColor = ep.coverage === "complete" ? "#34d399" : "#fbbf24";
+  const covChip = ep.coverage === "complete" ? "Coverage complete" : ep.coverage === "partial" ? "Coverage partial" : "Coverage unknown";
 
   return (
     <Reveal delay={200 + index * 100}>
@@ -20,24 +24,24 @@ export function RecapCard({ episode: ep, index }: RecapCardProps) {
         transition: "all 0.25s", cursor: "pointer",
         boxShadow: h ? `0 8px 32px ${RECAP_COLOR}0d` : "none",
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: THEME.text }}>{ep.title}</div>
-            <div style={{ fontSize: 11, color: THEME.textDim, marginTop: 2 }}>Generated {ep.date} {"\u2022"} {ep.duration} read</div>
+            <div data-testid="recap-coverage-text" style={{ fontSize: 11.5, color: THEME.textMuted, marginTop: 4, lineHeight: 1.45 }}>{ep.coverageText}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ padding: "4px 12px", borderRadius: 8, background: `${gradeColor}12`, border: `1px solid ${gradeColor}22`, fontSize: 12, fontWeight: 700, color: gradeColor }}>Grade {ep.healthGrade}</div>
+            <div style={{ padding: "4px 12px", borderRadius: 8, background: `${covColor}12`, border: `1px solid ${covColor}22`, fontSize: 11.5, fontWeight: 700, color: covColor, whiteSpace: "nowrap" }}>{covChip}</div>
             {ep.hasAudio && <div style={{ padding: "4px 12px", borderRadius: 8, background: `${RECAP_COLOR}12`, border: `1px solid ${RECAP_COLOR}22`, fontSize: 11, fontWeight: 600, color: RECAP_COLOR }}>{"\uD83C\uDF99\uFE0F"} Audio</div>}
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
           {[
-            { label: "Income", value: `$${ep.income.toLocaleString()}`, color: "#34d399" },
-            { label: "Expenses", value: `$${ep.expenses.toLocaleString()}`, color: "#f87171" },
-            { label: "Net", value: `$${ep.net.toLocaleString()}`, color: ep.net >= 0 ? "#34d399" : "#fb923c" },
+            { label: FINANCIAL_LABELS.deposits, value: formatMoney(ep.deposits), color: "#34d399" },
+            { label: FINANCIAL_LABELS.withdrawals, value: formatMoney(ep.withdrawals), color: "#f87171" },
+            { label: FINANCIAL_LABELS.netCashFlow, value: `${ep.netCashFlow > 0 ? "+" : ""}${formatMoney(ep.netCashFlow)}`, color: ep.netCashFlow >= 0 ? "#34d399" : "#fb923c" },
           ].map(s => (
-            <div key={s.label} style={{ padding: "8px 14px", borderRadius: 10, background: THEME.bg, border: `1px solid ${THEME.border}`, flex: 1, textAlign: "center" }}>
+            <div key={s.label} style={{ padding: "8px 14px", borderRadius: 10, background: THEME.bg, border: `1px solid ${THEME.border}`, flex: "1 1 100px", minWidth: 0, textAlign: "center" }}>
               <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: THEME.textDim, fontWeight: 700, marginBottom: 2 }}>{s.label}</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: s.color }}>{s.value}</div>
             </div>

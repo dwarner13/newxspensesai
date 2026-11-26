@@ -1,16 +1,20 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { THEME, RECAP_COLOR } from "./recapConfig";
 import { useRecapData } from "./useRecapData";
 import { RecapCard } from "./RecapCard";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { AgentDot } from "../PrimeChatV2/AgentDot";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
+import { FinancialStateNotice } from "@/components/finance/FinancialState";
 
 export default function MonthlyRecapPageV2() {
   const data = useRecapData();
   const [tab, setTab] = useState<"written" | "audio" | "settings">("written");
 
-  const intro = data.loading ? "" : `You have ${data.totalEpisodes} monthly recaps covering your financial journey. Your latest recap is ready \u2014 February was a tough month, but your Xspense Score still improved by 4 points.`;
+  // UX-FST2-2: facts only. The old intro invented a "tough February" and a Score change.
+  const sum = data.summary;
+  const n = data.episodes.length;
+  const intro = data.loading || !sum ? "" : `You have ${n} month${n === 1 ? "" : "s"} of recorded transactions. ${sum.dataQuality.totalsLabel} Months are shown on their own and are not compared.`;
   const [typed, typeDone] = useTypewriter(intro, 14, 600, !data.loading);
 
   if (data.loading) return (
@@ -37,14 +41,17 @@ export default function MonthlyRecapPageV2() {
         </div>
       </div></Reveal>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+      {!sum ? (
+        <div style={{ marginBottom: 24 }}><FinancialStateNotice state={data.financial} onRetry={data.financial.status !== "loading" ? data.financial.refetch : undefined} /></div>
+      ) : (<>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
         {[
-          { label: "Total Recaps", value: `${data.totalEpisodes}`, color: RECAP_COLOR, icon: "\uD83D\uDCDD" },
+          { label: "Months Recorded", value: `${n}`, color: RECAP_COLOR, icon: "\uD83D\uDCDD" },
           { label: "Audio Episodes", value: `${data.episodes.filter(e => e.hasAudio).length}`, color: "#a78bfa", icon: "\uD83C\uDF99\uFE0F" },
-          { label: "Total Duration", value: data.totalDuration, color: "#60a5fa", icon: "\u23F1" },
-          { label: "Pending", value: `${data.pendingRecaps}`, color: "#fbbf24", icon: "\u23F3" },
+          { label: "Transactions", value: `${sum ? sum.transactionCount : 0}`, color: "#60a5fa", icon: "\uD83E\uDDFE" },
+          { label: "Need Review", value: `${sum ? sum.needsReviewCount : 0}`, color: "#fbbf24", icon: "\u23F3" },
         ].map((s, i) => (
-          <Reveal key={s.label} delay={100 + i * 60} style={{ flex: 1 }}>
+          <Reveal key={s.label} delay={100 + i * 60} style={{ flex: "1 1 160px", minWidth: 0 }}>
             <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: `${s.color}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{s.icon}</div>
               <div>
@@ -58,7 +65,7 @@ export default function MonthlyRecapPageV2() {
 
       <Reveal delay={350}><div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
         {([
-          { id: "written" as const, label: "\uD83D\uDCDD Written Recaps", count: data.totalEpisodes },
+          { id: "written" as const, label: "\uD83D\uDCDD Written Recaps", count: n },
           { id: "audio" as const, label: "\uD83C\uDF99\uFE0F Audio Episodes", count: data.episodes.filter(e => e.hasAudio).length },
           { id: "settings" as const, label: "\u2699\uFE0F Preferences", count: 0 },
         ]).map(t => (
@@ -71,6 +78,7 @@ export default function MonthlyRecapPageV2() {
 
       {tab === "written" && data.episodes.map((ep, i) => <RecapCard key={ep.id} episode={ep} index={i} />)}
       {tab === "audio" && data.episodes.filter(e => e.hasAudio).map((ep, i) => <RecapCard key={ep.id} episode={ep} index={i} />)}
+      </>)}
       {tab === "settings" && (
         <Reveal delay={100}><div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: "24px" }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: THEME.text, marginBottom: 16 }}>Recap Preferences</div>
