@@ -9,7 +9,7 @@ export const FINANCIAL_LABELS = {
   actualIncome: 'Actual Income',
   actualSpending: 'Actual Spending',
   refunds: 'Refunds',
-  netExcludingTransfersAndSavings: 'Net excluding transfers and savings',
+  netExcludingTransfersAndSavings: 'Net Excluding Transfers and Savings',
   possibleBusinessExpenses: 'Possible business expenses',
   possibleBusinessExpensesSub: 'Needs your review (not a tax decision)',
   needsReview: 'Need review',
