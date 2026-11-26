@@ -1,7 +1,12 @@
 ﻿/**
  * prime-briefing - Generates Prime's daily briefing after an import sweep completes.
  * Reads Tag's sweep results + overall financial snapshot, calls Claude Haiku,
- * saves to user_notifications for Inbox + Prime chat.
+ * saves to the `notifications` table for Inbox + Prime chat.
+ *
+ * NOTIFICATIONS SCHEMA (owner 2026-11-26): the live `user_notifications` table has no employee_slug /
+ * message / priority / payload / sent_at columns (every insert failed silently). Those columns exist on
+ * `notifications` (src/lib/inbox/notificationRows.ts documents both; the Inbox reads both), so Tag's
+ * notices and Prime's briefings are read from and written to `notifications`.
  */
 
 import type { Handler } from '@netlify/functions';
@@ -47,7 +52,7 @@ type NotificationClient = { from(table: string): { select(columns: string): Noti
 
 export async function loadTagImportStatus(sb: NotificationClient, userId: string, importId: string): Promise<TagImportStatus> {
   try {
-    const { data, error } = await sb.from('user_notifications').select('type, payload, created_at')
+    const { data, error } = await sb.from('notifications').select('type, payload, created_at')
       .eq('user_id', userId).eq('employee_slug', 'tag-ai')
       .order('created_at', { ascending: false }).limit(50);
     if (error || !Array.isArray(data)) return { state: 'unavailable' };
@@ -191,10 +196,10 @@ Write Prime's briefing. Be specific with the numbers given; never invent figures
     const claudeData = await claudeRes.json();
     const briefing = claudeData.content?.[0]?.text || 'Import processed successfully.';
 
-    // 5. Save to user_notifications
-    await sb.from('user_notifications').insert({
+    // 5. Save to notifications (never silently: a failed write is logged, the briefing still returns)
+    const { error: saveError } = await sb.from('notifications').insert({
       user_id: userId,
-      employee_slug: 'prime',
+      employee_slug: 'prime-boss',
       type: 'daily_briefing',
       title: `${month} \u2014 Import Complete`,
       message: briefing,
@@ -209,6 +214,7 @@ Write Prime's briefing. Be specific with the numbers given; never invent figures
       },
       sent_at: new Date().toISOString(),
     });
+    if (saveError) console.error('[prime-briefing] briefing not saved:', saveError.code ?? '', saveError.message);
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, briefing }) };
   } catch (err: any) {
