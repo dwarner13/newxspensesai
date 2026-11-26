@@ -41,10 +41,7 @@ interface Transaction {
 
 export type SmartCategorySummary = {
   category: string;
-  totalAmount: number;
   transactionCount: number;
-  averageAmount: number;
-  isExpenseCategory: boolean;
   trend: 'up' | 'down' | 'flat'; // Placeholder for now
   // Tag learning metrics
   learnedCount: number;        // category_source = 'learned'
@@ -218,17 +215,8 @@ const SmartCategoriesPage: React.FC = () => {
 
     // Calculate stats for each category including Tag learning metrics
     const summaries: SmartCategorySummary[] = Array.from(categoryMap.entries()).map(([category, txs]) => {
-      const totalAmount = txs.reduce((sum, tx) => {
-        const amount = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-        return sum + amount;
-      }, 0);
-
+      // SC-5 (AR-1b R2): no money here; counts and Tag learning metrics only. Figures come from the engine.
       const transactionCount = txs.length;
-      const averageAmount = transactionCount > 0 ? totalAmount / transactionCount : 0;
-
-      // Determine if expense category: net is negative OR most transactions are expenses
-      const expenseCount = txs.filter(tx => tx.type === 'expense').length;
-      const isExpenseCategory = totalAmount < 0 || expenseCount > transactionCount / 2;
 
       // Tag learning metrics
       const learnedCount = txs.filter(tx => tx.source_type === 'learned').length;
@@ -267,10 +255,7 @@ const SmartCategoriesPage: React.FC = () => {
 
       return {
         category,
-        totalAmount,
         transactionCount,
-        averageAmount,
-        isExpenseCategory,
         trend,
         learnedCount,
         aiCount,
@@ -280,26 +265,10 @@ const SmartCategoriesPage: React.FC = () => {
       };
     });
 
-    // Sort by absolute totalAmount descending (biggest categories at top)
-    return summaries.sort((a, b) => Math.abs(b.totalAmount) - Math.abs(a.totalAmount));
+    // Most-used categories first (no money ranking).
+    return summaries.sort((a, b) => b.transactionCount - a.transactionCount || a.category.localeCompare(b.category));
   }, [transactions]);
 
-  // Calculate overall stats
-  const stats = useMemo(() => {
-    const totalExpenses = categorySummaries
-      .filter(cat => cat.isExpenseCategory)
-      .reduce((sum, cat) => sum + Math.abs(cat.totalAmount), 0);
-
-    const totalIncome = categorySummaries
-      .filter(cat => !cat.isExpenseCategory)
-      .reduce((sum, cat) => sum + cat.totalAmount, 0);
-
-    return {
-      categoryCount: categorySummaries.length,
-      totalExpenses,
-      totalIncome,
-    };
-  }, [categorySummaries]);
 
   // O(1) lookup: category name -> SmartCategorySummary (for learning metrics)
   const summaryMap = useMemo(() => {
@@ -427,7 +396,6 @@ const SmartCategoriesPage: React.FC = () => {
           aiCount: categorySummary.aiCount,
           avgConfidence: categorySummary.avgConfidence,
           transactionCount: categorySummary.transactionCount,
-          totalAmount: categorySummary.totalAmount,
         },
       },
     });
@@ -444,7 +412,6 @@ const SmartCategoriesPage: React.FC = () => {
         aiCount: categorySummary.aiCount,
         avgConfidence: categorySummary.avgConfidence,
         transactionCount: categorySummary.transactionCount,
-        totalAmount: categorySummary.totalAmount,
       },
     });
   };
@@ -460,7 +427,6 @@ const SmartCategoriesPage: React.FC = () => {
         aiCount: categorySummary.aiCount,
         avgConfidence: categorySummary.avgConfidence,
         transactionCount: categorySummary.transactionCount,
-        totalAmount: categorySummary.totalAmount,
       },
     });
   };
@@ -1174,31 +1140,24 @@ const SmartCategoriesPage: React.FC = () => {
                     const isExpanded = expandedCategory === entry.category;
                     const activeTab = expandedTabs[entry.category] || 'subcategories';
                     const categoryTxs = scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === entry.category);
-                    const subcategoryMap = new Map<string, { amount: number; count: number }>();
+                    // SC-5: grouped and ranked by count only (no hidden spend ranking; amounts are G6).
+                    const subcategoryMap = new Map<string, number>();
                     categoryTxs.forEach((tx) => {
                       const sub = String((tx as any).subcategory || 'Unspecified').trim() || 'Unspecified';
-                      const prev = subcategoryMap.get(sub) || { amount: 0, count: 0 };
-                      subcategoryMap.set(sub, {
-                        amount: prev.amount + Math.abs(Number(tx.amount) || 0),
-                        count: prev.count + 1,
-                      });
+                      subcategoryMap.set(sub, (subcategoryMap.get(sub) || 0) + 1);
                     });
                     const subRows = Array.from(subcategoryMap.entries())
-                      .map(([subcategory, value]) => ({ subcategory, amount: value.amount, count: value.count }))
-                      .sort((a, b) => b.amount - a.amount);
+                      .map(([subcategory, count]) => ({ subcategory, count }))
+                      .sort((a, b) => b.count - a.count || a.subcategory.localeCompare(b.subcategory));
                     const maxSubCount = Math.max(...subRows.map((s) => s.count), 0);
-                    const merchantMap = new Map<string, { amount: number; count: number }>();
+                    const merchantMap = new Map<string, number>();
                     categoryTxs.forEach((tx) => {
                       const merchant = String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase();
-                      const prev = merchantMap.get(merchant) || { amount: 0, count: 0 };
-                      merchantMap.set(merchant, {
-                        amount: prev.amount + Math.abs(Number(tx.amount) || 0),
-                        count: prev.count + 1,
-                      });
+                      merchantMap.set(merchant, (merchantMap.get(merchant) || 0) + 1);
                     });
                     const topMerchants = Array.from(merchantMap.entries())
-                      .map(([merchant, value]) => ({ merchant, amount: value.amount, count: value.count }))
-                      .sort((a, b) => b.amount - a.amount)
+                      .map(([merchant, count]) => ({ merchant, count }))
+                      .sort((a, b) => b.count - a.count || a.merchant.localeCompare(b.merchant))
                       .slice(0, 8);
                     const categorySourceMap = new Map<string, number>();
                     categoryTxs.forEach((tx) => {

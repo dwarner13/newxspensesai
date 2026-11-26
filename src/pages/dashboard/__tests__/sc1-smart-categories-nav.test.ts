@@ -47,6 +47,12 @@ describe('SC-1 Smart Categories', () => {
     for (const k of ['actualSpending', 'actualIncome', 'netCashFlow']) expect(page).toMatch(new RegExp(`FINANCIAL_LABELS\\.${k}\\b`));
     expect(page).toMatch(/<FinancialStateNotice state=\{primeFinancial\}/);
   });
+  it('SC-5: no hidden browser money (summaries, stats, drill-down ranking)', () => {
+    expect(page).not.toMatch(/totalAmount|averageAmount|isExpenseCategory|const stats = useMemo/);
+    expect(page).not.toMatch(/prev\.amount \+ Math\.abs\(Number\(tx\.amount\)/);
+    expect(page).toMatch(/b\.count - a\.count \|\| a\.subcategory\.localeCompare/);
+    expect(page).toMatch(/b\.count - a\.count \|\| a\.merchant\.localeCompare/);
+  });
   it('SC-4 G6: subcategory and merchant amounts are not browser sums', () => {
     expect(page).not.toMatch(/formatCurrency\(sub\.amount\)|formatCurrency\(merchantRow\.amount\)|formatCurrency\(item\.amount\)/);
     expect(page).toMatch(/Amounts by subcategory and merchant are not available yet/);
