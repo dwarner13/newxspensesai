@@ -44,10 +44,10 @@ function db(rows: LedgerRow[], extra: Record<string, FakeRow[]> = {}): Record<st
   return {
     transactions: rows as unknown as FakeRow[],
     imports: [
-      { id: IMPORTS.chequing, user_id: A, file_url: 'x/chequing.pdf', created_at: '2023-01-01', statement_breakdown_json: { statement_meta: { issuer: 'Synthetic Bank', account_last4: '0001' } } },
-      { id: IMPORTS.card, user_id: A, file_url: 'x/card.pdf', created_at: '2023-01-02' },
-      { id: IMPORTS.savings, user_id: A, file_url: 'x/savings.pdf', created_at: '2023-01-03' },
-      { id: IMPORTS.chequingReimport, user_id: A, file_url: 'x/chequing-again.pdf', created_at: '2023-01-04' },
+      { id: IMPORTS.chequing, user_id: A, status: 'committed', file_url: 'x/chequing.pdf', created_at: '2023-01-01', statement_breakdown_json: { statement_meta: { issuer: 'Synthetic Bank', account_last4: '0001' } } },
+      { id: IMPORTS.card, user_id: A, status: 'committed', file_url: 'x/card.pdf', created_at: '2023-01-02' },
+      { id: IMPORTS.savings, user_id: A, status: 'committed', file_url: 'x/savings.pdf', created_at: '2023-01-03' },
+      { id: IMPORTS.chequingReimport, user_id: A, status: 'committed', file_url: 'x/chequing-again.pdf', created_at: '2023-01-04' },
     ],
     profiles: [{ id: A, currency: 'CAD', first_name: 'Synthetic', full_name: 'Synthetic Customer' }, { id: B, currency: 'CAD' }],
     ...extra,
@@ -142,6 +142,9 @@ describe('S0/S2b financial-summary reconciles with the oracle at 119 / 1,000 / 1
       expect(b.insights.map((i: any) => i.kind)).toContain('not_enough_history');
       expect(b.calendarMonths.every((m: any) => m.comparable === false)).toBe(true);
       expect(b.goals.averageNetCashFlowPerPeriod).toBeNull();
+      // owner 2026-11-26: retrieval complete + coverage unknown → labelled recorded totals, no comparisons/completeness
+      expect(b.dataQuality).toMatchObject({ retrieval: 'complete', statementCoverage: 'unknown', allowed: { recordedTotals: true, completenessClaims: false, comparisons: false } });
+      expect(b.dataQuality.totalsLabel).toMatch(/^Recorded transactions for 2023-01-01 to 2025-12-31. Statement coverage for this period is unknown/);
       expect(b.possibleBusinessExpenses).toMatchObject({ status: 'needs_review' });
       expect(b.possibleBusinessExpenses.wording).not.toMatch(/deduction(s)? found|deductible/i);
     });
@@ -157,6 +160,8 @@ describe('S0/S2b financial-summary reconciles with the oracle at 119 / 1,000 / 1
     const b = JSON.parse((await call(summary, 'tok-a', ALL)).body);
     expect(b.status).toBe('verified');
     expect(b.coverage.comparison.allowed).toBe(true);
+    expect(b.dataQuality).toMatchObject({ retrieval: 'complete', statementCoverage: 'complete', allowed: { completenessClaims: true, comparisons: true } });
+    expect(b.dataQuality.totalsLabel).toMatch(/^Complete for 2023-01-01 to 2025-12-31/);
     expect(b.periods.length).toBeGreaterThan(12);                  // full calendar months every account covers
     for (const p of b.periods) expect(Math.round(p.netCashFlow * 100)).toBe(Math.round(p.deposits * 100) - Math.round(p.withdrawals * 100));
     expect(b.insights.every((i: any) => i.kind === 'not_enough_history' || i.coverage.complete)).toBe(true);
