@@ -40,4 +40,8 @@ describe('every count, filter and banner uses it', () => {
     expect(stats).toMatch(/\.or\('category\.is\.null,category\.eq\.,category\.ilike\.uncategorized'\)/);
     expect(stats).not.toMatch(/category\.eq\.Other|category\.eq\.Needs Review/);
   });
+  it('REVIEW-1: the Tag bubble on Transactions shows the page\'s own review count', () => {
+    expect(tx).toMatch(/label="Open Tag Copilot" badgeCount=\{uncategorizedCount\}/);
+    expect(tx).not.toMatch(/tagBadgeCount/);
+  });
 });

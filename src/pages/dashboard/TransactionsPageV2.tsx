@@ -179,7 +179,6 @@ export default function TransactionsPageV2() {
       } catch { /* per-viewer convenience only */ }
     };
   }, []);
-  const [tagBadgeCount, setTagBadgeCount] = useState(0);
   const [tagInboxData, setTagInboxData] = useState<any>(null);
   const [tagActivityOpen, setTagActivityOpen] = useState(false);
   const [lastBulkAction, setLastBulkAction] = useState<{ ids: string[]; previousCategory: string } | null>(null);
@@ -314,7 +313,7 @@ export default function TransactionsPageV2() {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) return;
       const res = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) { const d = await res.json(); setTagInboxData(d); setTagBadgeCount(d.badge_count ?? 0); }
+      if (res.ok) { const d = await res.json(); setTagInboxData(d); }
     } catch { /* silent */ }
   }, []);
   useEffect(() => { fetchTagInbox(); }, [fetchTagInbox]);
@@ -1161,7 +1160,7 @@ export default function TransactionsPageV2() {
 
       {/* Tag floating bubble */}
       {!tagPanelOpen && !selectedTx && location.pathname.includes('/transactions') && createPortal(
-        <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setTagPanelOpen(true)} label="Open Tag Copilot" badgeCount={tagBadgeCount} pulse={badgePulse} />,
+        <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setTagPanelOpen(true)} label="Open Tag Copilot" badgeCount={uncategorizedCount} pulse={badgePulse} />,
         document.body
       )}
 
