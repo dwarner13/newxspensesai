@@ -239,7 +239,7 @@ import { applyCustomerScope, negatedPeriodNote, ALL_HISTORY_SCOPE_NOTE, type Tem
 import { runStatementReview } from './_shared/statementReview';
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
-import { guardReconciledAnswer, renderReconciledAnswer, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
+import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
 import { resolveFocusedTransaction } from './_shared/focusedTransaction';
 // P3.1C: Controlled read-only evidence execution
 import {
@@ -10573,7 +10573,10 @@ export const handler: Handler = async (event, context) => {
     const p31dAccumulatedEvidence: AccumulatedEvidenceMap = new Map();
     // P-LIVE-03: the turn's latest cash_flow_summary result carrying a reconciled statement breakdown.
     let turnCashFlowForGuard: CashFlowForGuard | null = null;
+    // Figures from every same-turn read tool: a reply may quote them, or a sum/difference of two.
+    const turnToolFigures: number[] = [];
     const captureCashFlowForGuard = (tool: string | undefined, data: unknown) => {
+      if (data && typeof data === 'object') figuresFromToolResult(data, turnToolFigures);
       if (tool === 'cash_flow_summary' && data && typeof data === 'object' && (data as CashFlowForGuard).statementBreakdown) {
         turnCashFlowForGuard = data as CashFlowForGuard;
       }
@@ -11505,7 +11508,7 @@ RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categoriz
             .order('created_at', { ascending: false })
             .limit(20),
           sb.from('user_documents')
-            .select('id, file_name, file_type, created_at')
+            .select('id, original_name, mime_type, created_at') // live columns (file_name/file_type do not exist → 42703, list was always empty)
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(20),
@@ -11519,7 +11522,7 @@ RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categoriz
         });
 
         const docLines = (docsResult.data || []).map((doc: any) =>
-          `- "${doc.file_name}" (${doc.file_type || 'unknown'}) - ${doc.created_at}`
+          `- "${doc.original_name || 'document'}" (${doc.mime_type || 'unknown'}) - ${doc.created_at}`
         );
 
         const contextBlock = [
@@ -14903,7 +14906,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       // table replaces the reply (recorded in the message metadata).
       let breakdownGuard: { unsupportedFigures: number; mislabelledTotals: number; speculation: boolean; replaced: true } | null = null;
       if (isPrime && isPrimeConversationSlug(finalEmployeeSlug) && assistantContent && turnCashFlowForGuard) {
-        const g = guardReconciledAnswer(assistantContent, turnCashFlowForGuard, masked);
+        const g = guardReconciledAnswer(assistantContent, turnCashFlowForGuard, masked, turnToolFigures);
+        if (g.applies && g.ok && g.unsupportedFigures > 0) {
+          console.log(`[P-LIVE-03] breakdown guard (log only, not a breakdown answer): unsupported=${g.unsupportedFigures}`);
+        }
         if (g.applies && !g.ok) {
           assistantContent = renderReconciledAnswer(turnCashFlowForGuard, userProfile?.currency || effectivePrimeContext?.currency || 'CAD');
           breakdownGuard = { unsupportedFigures: g.unsupportedFigures, mislabelledTotals: g.mislabelledTotals, speculation: g.speculation, replaced: true };

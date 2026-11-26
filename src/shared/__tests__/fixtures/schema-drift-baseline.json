@@ -1,5 +1,8 @@
 {
- "_note": "Pre-existing column drift (code names columns the live database does not have), recorded 2026-11-26 from live-schema.json. NEW drift fails ar-live-schema-columns; a fixed entry must be removed from this list. Owner decision per table; no migration authorized. Review by 2027-01-25.",
+ "_note": "Pre-existing column drift (code names columns the live database does not have), recorded 2026-11-26 from live-schema.json. NEW drift fails ar-live-schema-columns; a fixed entry must be removed (shrink-only).",
+ "owner": "Prime HQ (scanner and baseline); each entry is fixed by the team owning its file",
+ "expires": "2027-01-25",
+ "policy": "§5A baseline: owner decision per table; no migration authorized",
  "entries": [
   "netlify/functions/_lib/employeeAccess.ts|employee_capabilities.capability_key|select",
   "netlify/functions/_lib/employeeAccess.ts|employee_capabilities.employee_key|select",
@@ -62,8 +65,6 @@
   "netlify/functions/chat.ts|ai_activity_events.metadata|insert",
   "netlify/functions/chat.ts|imports.metadata|select",
   "netlify/functions/chat.ts|imports.statement_breakdown|select",
-  "netlify/functions/chat.ts|user_documents.file_name|select",
-  "netlify/functions/chat.ts|user_documents.file_type|select",
   "netlify/functions/commit-import.ts|import_summaries.statement_breakdown_json|upsert",
   "netlify/functions/commit-import.ts|imports.metadata|select",
   "netlify/functions/commit-import.ts|imports.metadata|update",
