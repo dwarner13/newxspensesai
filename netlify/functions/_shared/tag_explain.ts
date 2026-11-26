@@ -6,6 +6,29 @@ import { fetchMerchantScopeRows, merchantRowGroupKey, type MerchantScopeClient }
 import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
 import { merchantGroupingKey } from './merchantNormalize';
 import { VERIFIED_CUSTOMER_SOURCES, isProtectedSource } from '../../../src/shared/tag-status';
+import { pagedSelectAll, type PagedQuery } from '../../../src/shared/paged-select';
+
+/**
+ * The customer's corrections for EXACTLY this merchant (AI Architecture HQ follow-up, 2026-11-26):
+ * a complete, paged read narrowed by the same merchant grouping key as the merchant history, so a
+ * correction for a similar-named merchant never makes Tag say it "learned" this one. ILIKE is only a
+ * superset prefilter. Newest first.
+ */
+export async function exactMerchantCorrections(
+  supabase: SupabaseClient, userId: string, merchant: string,
+): Promise<{ rows: Array<{ new_category: string | null; created_at: string | null }>; complete: boolean }> {
+  const key = merchant.trim() ? merchantGroupingKey(merchant) : '';
+  if (!key) return { rows: [], complete: true };
+  const read = await pagedSelectAll<{ id: string; merchant: string | null; new_category: string | null; created_at: string | null }>(() =>
+    supabase.from('tag_category_feedback')
+      .select('id, merchant, new_category, created_at')
+      .eq('user_id', userId)
+      .ilike('merchant', `%${merchant.trim()}%`)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }) as unknown as PagedQuery);
+  if (read.error) return { rows: [], complete: false };
+  return { rows: read.rows.filter(f => merchantGroupingKey(f.merchant || '') === key), complete: read.complete };
+}
 
 export type TagExplanationResult = {
   category: string | null;
@@ -117,13 +140,8 @@ export async function explainTransactionCategory(
     let learnedCount = 0;
     let lastLearnedAt: string | null = null;
     if (merchant.trim()) {
-      const { data: feedback } = await supabase
-        .from('tag_category_feedback')
-        .select('new_category, created_at')
-        .eq('user_id', userId)
-        .ilike('merchant', `%${merchant.trim()}%`)
-        .order('created_at', { ascending: false });
-      learnedCount = feedback?.length || 0;
+      const { rows: feedback } = await exactMerchantCorrections(supabase, userId, merchant);
+      learnedCount = feedback.length;
       lastLearnedAt = feedback?.[0]?.created_at || null;
     }
 
@@ -239,13 +257,8 @@ export async function getMerchantCategoryInsight(
 ): Promise<TagMerchantInsight> {
   try {
     if (!merchant?.trim()) return { merchant, topCategory: null, totalCorrections: 0 };
-    const { data: feedback } = await supabase
-      .from('tag_category_feedback')
-      .select('new_category, created_at')
-      .eq('user_id', userId)
-      .ilike('merchant', `%${merchant.trim()}%`)
-      .order('created_at', { ascending: false });
-    if (!feedback?.length) return { merchant, topCategory: null, totalCorrections: 0 };
+    const { rows: feedback } = await exactMerchantCorrections(supabase, userId, merchant);
+    if (!feedback.length) return { merchant, topCategory: null, totalCorrections: 0 };
     const counts: Record<string, number> = {};
     feedback.forEach(f => { if (f.new_category) counts[f.new_category] = (counts[f.new_category] || 0) + 1; });
     const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;

@@ -152,3 +152,20 @@ describe('tag-explain provenance wording (round-2 item 4)', () => {
     }
   });
 });
+
+describe('tag-explain "learned" claims count only corrections for the exact merchant (Arch follow-up 2026-11-26)', () => {
+  const fb = (merchant: string, n: number) => Array.from({ length: n }, (_, i) => ({ id: `${merchant}-${i}`, merchant, new_category: 'Groceries', created_at: `2026-10-0${1 + i}` }));
+  it('corrections for a similar-named merchant never make Tag say it learned this one', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test client
+    const r = await explainTransactionCategory(client(baseTx, history(1), fb('SOBEYS LIQUOR', 3)) as any, 'u1', 't1');
+    expect(r.learnedCount).toBe(0);
+    expect(r.categorySource).not.toBe('learned');
+    expect(r.message).not.toMatch(/I learned from your/);
+  });
+  it('two corrections for the exact merchant do', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test client
+    const r = await explainTransactionCategory(client(baseTx, history(1), [...fb('SOBEYS', 2), ...fb('SOBEYS LIQUOR', 3)]) as any, 'u1', 't1');
+    expect(r.learnedCount).toBe(2);
+    expect(r.message).toMatch(/I learned from your 2 past corrections/);
+  });
+});
