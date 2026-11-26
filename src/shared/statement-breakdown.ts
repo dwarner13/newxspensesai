@@ -7,7 +7,9 @@
  * direction rule), and the result is cross-checked against buildPeriodAggregate. Any difference
  * is reported as a number, never explained by guessing (no "overdraft"/"missing deposits").
  */
-import { classifyCashFlow, type CashFlowPurpose } from './financial-taxonomy';
+import { classifyCashFlow, CANONICAL_CATEGORIES, type CashFlowPurpose } from './financial-taxonomy';
+
+const CANONICAL_SET: ReadonlySet<string> = new Set([...CANONICAL_CATEGORIES, 'Income', 'Transfers', 'Debt Payments', 'Needs Review', 'Uncategorized'].map(c => String(c).toLowerCase()));
 import { buildPeriodAggregate, type AggregateRow } from './period-aggregate';
 
 export type BreakdownLineKey =
@@ -145,7 +147,7 @@ export function buildStatementBreakdown(rows: ReadonlyArray<AggregateRow>): Stat
 /**
  * Tag HQ review (2026-11-26, blocking): the worker chain's category names mapped DETERMINISTICALLY to
  * canonical engine categories, so the engine's purpose never depends on the model's wording.
- * 'Cash Withdrawal' is Transfers / ATM Withdrawal (never spending). Unknown names pass through.
+ * 'Cash Withdrawal' is Transfers / ATM Withdrawal (never spending). Unknown names → Needs Review.
  */
 export const WORKER_CATEGORY_MAP: Readonly<Record<string, { category: string; subcategory: string | null }>> = {
   'income': { category: 'Income', subcategory: null },
@@ -168,7 +170,12 @@ export interface ExtractedRow { direction?: unknown; amount?: unknown; category?
 function canonicalCategory(category: unknown, subcategory: unknown): { category: string | null; subcategory: string | null } {
   const mapped = typeof category === 'string' ? WORKER_CATEGORY_MAP[category.trim().toLowerCase()] : undefined;
   if (mapped) return { category: mapped.category, subcategory: mapped.subcategory ?? (typeof subcategory === 'string' ? subcategory : null) };
-  return { category: typeof category === 'string' ? category : null, subcategory: typeof subcategory === 'string' ? subcategory : null };
+  // A canonical category name passes through; anything else the worker should not have produced is
+  // flagged for review (unresolved line), never silently counted as everyday spending (Tag HQ note).
+  if (typeof category === 'string' && CANONICAL_SET.has(category.trim().toLowerCase())) {
+    return { category: category.trim(), subcategory: typeof subcategory === 'string' ? subcategory : null };
+  }
+  return { category: typeof category === 'string' && category.trim() ? 'Needs Review' : null, subcategory: null };
 }
 
 export function engineRowsFromExtracted(rows: ReadonlyArray<ExtractedRow>, fallbackDate = '1970-01-01'): AggregateRow[] {

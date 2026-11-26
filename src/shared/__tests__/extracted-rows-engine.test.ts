@@ -71,3 +71,11 @@ describe('Tag HQ review: worker category names map to canonical categories', () 
     expect(chat).not.toContain('unless explicit spending context exists');
   });
 });
+
+describe('Tag HQ note: an unexpected worker category is flagged, never everyday spending', () => {
+  it('unknown model category → Needs Review → unresolved line', () => {
+    const b = buildStatementBreakdown(engineRowsFromExtracted([{ direction: 'debit', amount: 25, category: 'ATM' }], '2026-03-10'));
+    expect(b.lines.find(l => l.key === 'unresolved')!.cents).toBe(2500);
+    expect(b.lines.find(l => l.key === 'everyday_spending')!.cents).toBe(0);
+  });
+});
