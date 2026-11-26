@@ -26,7 +26,7 @@ import {
 } from './_shared/conversation-platform.js';
 import { resolveCategoryRequest } from './_shared/tagCategories.js';
 import { TAG_SINGLE_ACTION, UUID_RE, loadOwnedTransaction, buildSingleProposal, catLabel } from './_shared/tagSingleTransaction.js';
-import { TAG_PROPOSAL_ACTIONS, TAG_RULE_ACTION, TAG_SUGGESTIONS_ACTION, sameProposalSubject, executeActionProposal, buildActionProposal, buildImportSuggestionsProposal, type ProposalSubject } from './_shared/tagProposals.js';
+import { TAG_PROPOSAL_ACTIONS, TAG_RULE_ACTION, TAG_SUGGESTIONS_ACTION, sameProposalSubject, executeActionProposal, buildActionProposal, buildImportSuggestionsProposal, type ProposalSubject, type TagActivityEntry, toActivityRow } from './_shared/tagProposals.js';
 import { isAutoWritable, AUTO_UPDATE_CATEGORY_FILTER, AUTO_UPDATE_SOURCE_FILTER } from './_shared/categorySource.js';
 
 const CORS = {
@@ -346,7 +346,7 @@ async function handleConversationalAction(
         result: { affectedCount: outcome.count }, ...(outcome.reason ? { reason: outcome.reason } : {}),
       };
       if (outcome.log) {
-        await logTagActivity(supabase, { user_id: userId, ...outcome.log, created_at: new Date().toISOString() });
+        await logTagActivity(supabase, userId, outcome.log);
       }
       // Reliability round 2: the inbox / Prime briefing learn the SAVED result (the database-verified
       // count), never the suggestion count. Non-blocking: a failed notification never fails the change.
@@ -402,11 +402,11 @@ async function handleConversationalAction(
             receipt = { ...base, subject, state: 'completed', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 1 } };
             reply = `Done — this **${tx.merchant_name || ''}** transaction is now in **${catLabel(subject.targetCategory, subject.targetSubcategory)}**. No other transactions or rules were changed.`;
             // Completed-action record for authorized employee collaboration (Prime's tag_status reads
-            // action_type only). Stable action_type = the receipt action name.
-            await logTagActivity(supabase, {
-              user_id: userId, action_type: TAG_SINGLE_ACTION, merchant_name: null, transaction_id: tx.id,
-              old_value: tx.category ?? null, new_value: subject.targetCategory,
-              note: 'Single transaction recategorized (customer confirmed)', created_at: new Date().toISOString(),
+            // change_source). Stable change_source = the receipt action name.
+            await logTagActivity(supabase, userId, {
+              change_source: TAG_SINGLE_ACTION, merchant_name: null, transaction_id: tx.id,
+              previous_category: tx.category ?? null, new_category: subject.targetCategory, new_subcategory: subject.targetSubcategory ?? null,
+              change_note: 'Single transaction recategorized (customer confirmed)',
             });
           } else {
             receipt = { ...base, subject, state: 'failed', reason: 'nothing_updated', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
@@ -492,9 +492,9 @@ async function handleConversationalAction(
 // `insert(...).catch(() => {})` threw a TypeError after the transaction update had already
 // succeeded, so fix_type / fix_type_bulk / bulk_normalize_subcategory returned 500 for completed
 // changes and never wrote the log. A failed log write must never fail the customer's action.
-async function logTagActivity(supabase: SupabaseClient, row: Record<string, unknown>): Promise<void> {
+async function logTagActivity(supabase: SupabaseClient, userId: string, entry: TagActivityEntry): Promise<void> {
   try {
-    const { error } = await supabase.from('tag_activity_log').insert(row);
+    const { error } = await supabase.from('tag_activity_log').insert(toActivityRow(userId, entry));
     if (error) console.warn('[tag-action] activity log write failed');
   } catch {
     console.warn('[tag-action] activity log write failed');
@@ -553,7 +553,7 @@ export const handler: Handler = async (event) => {
       if (!error && Array.isArray(done)) total += done.length;
     }
     if (total > 0) {
-      await logTagActivity(supabase, { user_id: userId, action_type: 'bulk_apply_legacy', merchant_name: null, old_value: null, new_value: null, note: `Applied ${total} suggestions (legacy button; protected rows skipped: ${skippedProtected})`, created_at: new Date().toISOString() });
+      await logTagActivity(supabase, userId, { change_source: 'bulk_apply_legacy', merchant_name: null, previous_category: null, new_category: null, change_note: `Applied ${total} suggestions (legacy button; protected rows skipped: ${skippedProtected})` });
     }
     return ok({ ok: true, intent: 'bulk_apply', applied: total, skippedProtected });
   }
@@ -596,15 +596,13 @@ export const handler: Handler = async (event) => {
         .eq('user_id', userId);
       if (error) return err(error.message, 500);
 
-      await logTagActivity(supabase, {
-        user_id: userId,
-        action_type: 'type_fix',
+      await logTagActivity(supabase, userId, {
+        change_source: 'type_fix',
         merchant_name: current?.merchant_name || null,
         transaction_id: transactionId,
-        old_value: oldType,
-        new_value: newType,
-        note: `Type changed: ${oldType} → ${newType}${newType === 'income' ? ' (category set to Income)' : ''}`,
-        created_at: new Date().toISOString(),
+        previous_category: null,
+        new_category: newType === 'income' ? 'Income' : null,
+        change_note: `Type changed: ${oldType} → ${newType}${newType === 'income' ? ' (category set to Income)' : ''}`,
       });
 
       safeLog('tag-action.fix_type', { userId, transactionId, oldType, newType });
@@ -747,11 +745,10 @@ export const handler: Handler = async (event) => {
       }
 
       safeLog('tag-action.save_rule', { userId, matchValue: normalized, targetCategory: parsedTarget.category, matchType });
-      await logTagActivity(supabase, {
-        user_id: userId, action_type: 'save_merchant_rule', merchant_name: normalized, old_value: null,
-        new_value: parsedTarget.subcategory ? `${parsedTarget.category} / ${parsedTarget.subcategory}` : parsedTarget.category,
-        note: 'Rule saved from a customer button (future imports only; existing transactions unchanged)',
-        created_at: new Date().toISOString(),
+      await logTagActivity(supabase, userId, {
+        change_source: 'save_merchant_rule', merchant_name: normalized, previous_category: null,
+        new_category: parsedTarget.category, new_subcategory: parsedTarget.subcategory ?? null,
+        change_note: 'Rule saved from a customer button (future imports only; existing transactions unchanged)',
       });
 
       return ok({ ok: true, intent: 'save_rule', rule: { merchant: normalized, category: parsedTarget.category }, backfill_count: backfillCount, existingTransactionsChanged: 0 });

@@ -209,7 +209,7 @@ describe('T-ACT-SAFE — bulk category moves', () => {
     expect(t(7).category).toBe('Other');
     expect(t(9).category).toBe('Other');
     expect(db.category_rules ?? []).toHaveLength(0);
-    expect(db.tag_activity_log).toEqual([expect.objectContaining({ user_id: ALICE, action_type: 'bulk_move_category', old_value: 'Other', new_value: 'Food & Dining' })]);
+    expect(db.tag_activity_log).toEqual([expect.objectContaining({ user_id: ALICE, change_source: 'bulk_move_category', previous_category: 'Other', new_category: 'Food & Dining' })]);
   });
 });
 
