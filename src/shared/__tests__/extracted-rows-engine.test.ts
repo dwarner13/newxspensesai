@@ -35,3 +35,18 @@ describe('worker-extracted rows through the engine', () => {
     expect(chat).toContain('engineRowsFromExtracted(');
   });
 });
+
+describe('AR1b-TG-21 part (a): the worker prompt asks only for per-row categorization', () => {
+  const chat = fs.readFileSync(path.join(__dirname, '../../../netlify/functions/chat.ts'), 'utf8');
+  const prompt = chat.slice(chat.indexOf('TAG_WORKER_SYSTEM_PROMPT'), chat.indexOf('TAG_WORKER_SYSTEM_PROMPT') + 4000);
+  it('no is_spend or category_totals requested from the model', () => {
+    expect(prompt).not.toMatch(/"is_spend"/);
+    expect(prompt).not.toMatch(/"category_totals"/);
+  });
+  it('the normalizer recomputes is_spend and category_totals with the shared engine; no side is never assumed debit', () => {
+    const norm = chat.slice(chat.indexOf('function normalizeTagWorkerOutput'), chat.indexOf('function normalizeTagWorkerOutput') + 3500);
+    expect(norm).toContain("is_spend: classifyCashFlow(engineRows[i]).purpose === 'spending'");
+    expect(norm).toContain("engineAgg.categories.filter(c => c.purpose === 'spending')");
+    expect(norm).not.toContain("direction: t?.direction === 'credit' ? 'credit' : 'debit'");
+  });
+});

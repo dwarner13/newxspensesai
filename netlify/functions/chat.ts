@@ -2942,18 +2942,10 @@ OUTPUT FORMAT (STRICT JSON ONLY)
       "amount": number,
       "direction": "debit"|"credit",
       "category": "...",
-      "is_spend": true|false,
       "tax_hint": "...",
       "confidence": number,
       "needs_review": true|false,
       "reason": "short explanation"
-    }
-  ],
-  "category_totals": [
-    {
-      "category": "...",
-      "total": number,
-      "count": number
     }
   ],
   "insights_for_prime": [
@@ -3412,7 +3404,12 @@ function normalizeTagWorkerOutput(raw: any, fallbackReason: string, pagesProcess
   const source = raw && typeof raw === 'object' ? raw : fallback;
   const pagesProcessed = Number(source.pages_processed);
   const transactions = Array.isArray(source.transactions) ? source.transactions : [];
-  const categoryTotals = Array.isArray(source.category_totals) ? source.category_totals : [];
+  // AR1b-TG-21 part (a) (owner GO 2026-11-26): the model only categorizes rows. Whether a row is
+  // spending and every total come from the shared engine; direction only from the extracted
+  // debit/credit side (no side → unknown, never assumed 'debit').
+  const sideOf = (t: any) => (t?.direction === 'credit' ? 'credit' : t?.direction === 'debit' ? 'debit' : null);
+  const engineRows = engineRowsFromExtracted(transactions.map((t: any) => ({ direction: sideOf(t), amount: t?.amount, category: t?.category, subcategory: t?.subcategory, date: t?.date })));
+  const engineAgg = buildPeriodAggregate(engineRows, { fetch: { complete: true, truncated: false, rowsFetched: engineRows.length } });
   const insights = Array.isArray(source.insights_for_prime) && source.insights_for_prime.length > 0
     ? source.insights_for_prime.map((v: any) => String(v))
     : fallback.insights_for_prime;
@@ -3425,13 +3422,13 @@ function normalizeTagWorkerOutput(raw: any, fallbackReason: string, pagesProcess
       total_deposits: source?.account_summary?.total_deposits ?? null,
       total_withdrawals: source?.account_summary?.total_withdrawals ?? null,
     },
-    transactions: transactions.map((t: any) => ({
+    transactions: transactions.map((t: any, i: number) => ({
       date: t?.date ?? null,
       description: String(t?.description || 'Unknown'),
       amount: Number(t?.amount || 0),
-      direction: t?.direction === 'credit' ? 'credit' : 'debit',
+      direction: sideOf(t),
       category: String(t?.category || 'Other'),
-      is_spend: Boolean(t?.is_spend),
+      is_spend: classifyCashFlow(engineRows[i]).purpose === 'spending',
       tax_hint: ['business_possible', 'personal_likely', 'transfer', 'unknown'].includes(String(t?.tax_hint))
         ? t.tax_hint
         : 'unknown',
@@ -3439,10 +3436,10 @@ function normalizeTagWorkerOutput(raw: any, fallbackReason: string, pagesProcess
       needs_review: Boolean(t?.needs_review),
       reason: String(t?.reason || 'normalized'),
     })),
-    category_totals: categoryTotals.map((c: any) => ({
-      category: String(c?.category || 'Other'),
-      total: Number(c?.total || 0),
-      count: Number(c?.count || 0),
+    category_totals: engineAgg.categories.filter(c => c.purpose === 'spending').map(c => ({
+      category: c.category,
+      total: c.totalCents / 100,
+      count: c.count,
     })),
     insights_for_prime: insights.length > 0 ? insights : fallback.insights_for_prime,
   };
