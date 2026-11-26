@@ -5002,7 +5002,8 @@ function renderStatementQaAnswer(message: string, req: StatementQaRequest, rows:
   const credits = rows.filter((r) => r.amount < 0);
   const totalDebits = charges.reduce((sum, row) => sum + row.amount, 0);
   const totalCredits = credits.reduce((sum, row) => sum + Math.abs(row.amount), 0);
-  const net = totalDebits - totalCredits;
+  // G15 (owner 2026-11-26): net = money in − money out (credits − debits), same sign as net cash flow.
+  const net = totalCredits - totalDebits;
   const lowerMessage = String(message || '').toLowerCase();
   const nLargest = req.topN;
 
@@ -5085,7 +5086,7 @@ function renderStatementQaAnswer(message: string, req: StatementQaRequest, rows:
   } else {
     lines.push(`- I analyzed ${rows.length} normalized transaction${rows.length === 1 ? '' : 's'} for this statement query.`);
   }
-  lines.push(`- Total debits: $${totalDebits.toFixed(2)} | total credits: $${totalCredits.toFixed(2)} | net: $${net.toFixed(2)}.`);
+  lines.push(`- Total debits: ${totalDebits.toFixed(2)} | total credits: ${totalCredits.toFixed(2)} | net (credits − debits): ${net.toFixed(2)}.`);
   lines.push(`- Scope: ${req.startDate || 'unknown'} to ${req.endDate || 'unknown'}${req.importId ? ` | import ${req.importId.slice(0, 8)}` : ''}.`);
   lines.push('');
 

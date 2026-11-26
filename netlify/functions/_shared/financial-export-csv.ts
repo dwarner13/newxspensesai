@@ -97,7 +97,8 @@ export function buildExportCsv(input: ExportInput): ExportResult {
     `# Scope: ${input.startDate} to ${input.endDate}; ${input.accountScopeLabel}; currency ${input.currency} (profile currency, assumed — transactions carry no currency)`,
     `# Status: COMPLETE — ${rows.length} transactions; every transaction in scope was read${input.countVerified ? ' and the count was verified' : ''}`,
     `# Totals (${input.currency}): income ${money(c.income)} (${n.income}); spending ${money(c.spending)} (${n.spending}); transfers in ${money(c.transferIn)} (${n.transferIn}); transfers out ${money(c.transferOut)} (${n.transferOut}); debt payments ${money(c.debtPayments)} (${n.debtPayments}); card/loan payments received ${money(c.debtRepaymentsIn)} (${n.debtRepaymentsIn}); savings/investment ${money(c.savingsInvestment)} (${n.savingsInvestment}); needs review ${money(c.classificationConflict)} (${n.classificationConflict})`,
-    `# Net (income − spending − debt payments − needs review; internal movements excluded): ${money(c.netExcludingInternalMovements)}`,
+    `# Net cash flow (total deposits − total withdrawals): ${money(c.rawNetCashMovement)}`,
+    `# Net excluding transfers and savings (income + refunds − spending − debt payments − needs review): ${money(c.netExcludingTransfersAndSavings)}`,
     `# Integrity: ${agg.completeness.excluded.unclassifiedType} transactions (${money(agg.completeness.unclassifiedCents)}) have a type with no direction and are in no total; ${signals.possibleDuplicates.count} possible duplicate-import transactions (${money(signals.possibleDuplicates.cents)}) are INCLUDED; ${signals.possibleRefunds.count} inflows (${money(signals.possibleRefunds.cents)}) look like refunds and are counted as income`,
     '# Organized for your accountant. Not tax advice: XspensesAI does not determine whether any amount is deductible.',
   ];
