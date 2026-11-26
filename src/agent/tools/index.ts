@@ -355,7 +355,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tag_category_brain', {
     id: 'tag_category_brain',
-    description: 'Get aggregated intelligence for a spending category including totals, top merchants, confidence metrics, and insights. Use this when users ask "what have you learned about this category?", "how much do I usually spend here?", "which merchants are most common?", or "is this category trending up or down?".',
+    description: tagCategoryBrain.metadata.description,
     inputSchema: tagCategoryBrain.inputSchema,
     outputSchema: tagCategoryBrain.outputSchema,
     run: tagCategoryBrain.execute,
