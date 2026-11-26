@@ -148,6 +148,7 @@ describe('cash_flow_summary — authoritative period aggregate', () => {
       totalOutflow: 128609,          // 21099 + 45500 + 31000 + 30000 + 0 + 1010
       rawNetCashMovement: 223891,
       netExcludingInternalMovements: 249391, // 302500 − (21099 + 31000 + 0 + 1010)
+      netExcludingTransfersAndSavings: 249391, // owner 2026-11-26: explicit name, same value
     });
     expect(r.spending).toBe(210.99);
     expect(r.income).toBe(3025);
@@ -155,11 +156,13 @@ describe('cash_flow_summary — authoritative period aggregate', () => {
     expect(r.netExcludingInternalMovements).toBe(2493.91);
   });
 
-  it('compatibility fields: nonSpend sum, netCashFlow alias, counts', async () => {
+  it('compatibility fields: nonSpend sum, netCashFlow = deposits − withdrawals, counts', async () => {
     const r = await cashFlow();
     const c = r.cents!;
     expect(r.nonSpend).toBe((c.transferOut + c.debtPayments + c.savingsInvestment + c.otherNonSpend + c.classificationConflict) / 100);
-    expect(r.netCashFlow).toBe(r.netExcludingInternalMovements);
+    // owner 2026-11-26: net cash flow = total deposits − total withdrawals
+    expect(r.netCashFlow).toBe(r.rawNetCashMovement);
+    expect(r.netExcludingTransfersAndSavings).toBe(r.netExcludingInternalMovements);
     expect(r.incomeTransactionCount).toBe(2);
     expect(r.spendingTransactionCount).toBe(4);
     expect(r.nonSpendTransactionCount).toBe(8); // 3 transfer-out, 2 debt, 2 savings, 1 conflict

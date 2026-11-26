@@ -37,6 +37,7 @@ const centsSchema = z.object({
   totalOutflow: z.number(),
   rawNetCashMovement: z.number(),
   netExcludingInternalMovements: z.number(),
+  netExcludingTransfersAndSavings: z.number(),
 });
 
 export const outputSchema = z.object({
@@ -49,8 +50,10 @@ export const outputSchema = z.object({
   spending: z.number().nullable(),
   /** COMPATIBILITY aggregate: transfersOut + debtPayments + savingsInvestment + otherNonSpend + classificationConflict. Prefer the specific buckets. */
   nonSpend: z.number().nullable(),
-  /** COMPATIBILITY ALIAS of netExcludingInternalMovements (NOT income − spending). Prefer the explicitly named nets. */
+  /** Owner 2026-11-26: NET CASH FLOW = total deposits − total withdrawals (= rawNetCashMovement). */
   netCashFlow: z.number().nullable(),
+  /** income + refunds − (spending + debt payments + other non-spend + conflicts): transfers, savings and cash excluded. Never "net cash flow". */
+  netExcludingTransfersAndSavings: z.number().optional(),
   /** Transactions that contributed to the totals. */
   transactionCount: z.number(),
   incomeTransactionCount: z.number(),
@@ -191,7 +194,8 @@ export function toCashFlowOutput(input: Input, agg: PeriodAggregate, breakdown?:
     refunds: centsToDollars(c.refunds),
     spending: centsToDollars(c.spending),
     nonSpend: centsToDollars(nonSpendCents),
-    netCashFlow: centsToDollars(c.netExcludingInternalMovements),
+    netCashFlow: centsToDollars(c.rawNetCashMovement),
+    netExcludingTransfersAndSavings: centsToDollars(c.netExcludingTransfersAndSavings),
     transactionCount: n.included,
     incomeTransactionCount: n.income,
     spendingTransactionCount: n.spending,

@@ -89,6 +89,13 @@ export interface PeriodAggregate {
      * Excludes transfers in/out and savings/investment movement.
      */
     netExcludingInternalMovements: number;
+    /**
+     * Owner 2026-11-26 (unified engine): explicit name for the net with transfers, savings/investment
+     * and cash withdrawals excluded (same value as netExcludingInternalMovements, which is kept as a
+     * compatibility alias). NEVER presented as "net cash flow" — that is rawNetCashMovement
+     * (total deposits − total withdrawals).
+     */
+    netExcludingTransfersAndSavings: number;
   };
   counts: {
     /** Rows that contributed to money totals. */
@@ -286,6 +293,8 @@ export function buildPeriodAggregate(
       totalOutflow,
       rawNetCashMovement: totalInflow - totalOutflow,
       netExcludingInternalMovements:
+        sums.income + sums.refunds - (sums.spending + sums.debtPayments + sums.otherNonSpend + sums.classificationConflict),
+      netExcludingTransfersAndSavings:
         sums.income + sums.refunds - (sums.spending + sums.debtPayments + sums.otherNonSpend + sums.classificationConflict),
     },
     counts,

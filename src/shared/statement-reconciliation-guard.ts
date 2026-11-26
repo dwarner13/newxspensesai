@@ -41,7 +41,7 @@ const LABELLED_TOTALS: ReadonlyArray<{ rx: RegExp; pick: (b: BreakdownOutput, cf
   { rx: /total deposits?[^$\n]{0,40}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: b => [b.totalDeposits] },
   { rx: /total (?:withdrawals?|outflows?)[^$\n]{0,40}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: b => [b.totalWithdrawals] },
   { rx: /total (?:inflows?)[^$\n]{0,40}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: b => [b.totalDeposits] },
-  { rx: /\bnet(?: cash flow| change)?\b[^$\n]{0,25}(-?\s?\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: (b, cf) => [b.net, num(cf.netCashFlow), num(cf.netExcludingInternalMovements)] },
+  { rx: /\bnet(?: cash flow| change)?\b[^$\n]{0,25}(-?\s?\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: (b, cf) => [b.net, num(cf.rawNetCashMovement)] }, // owner 2026-11-26: "net" = deposits − withdrawals only
   { rx: /\b(?:actual |everyday |total )?spending\b[^$\n]{0,70}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi,
     pick: (b, cf) => [num(cf.spending), line(b, 'everyday_spending'), line(b, 'everyday_spending') + line(b, 'unresolved')] },
   { rx: /\b(?:actual |total )?income\b[^$\n]{0,70}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi,
@@ -72,7 +72,7 @@ export function knownFigures(cf: CashFlowForGuard): number[] {
   }
   for (const k of ['income', 'refunds', 'spending', 'nonSpend', 'netCashFlow', 'debtPayments', 'debtRepaymentsIn', 'transfersIn',
     'transfersOut', 'savingsInvestment', 'otherNonSpend', 'classificationConflict', 'totalInflow', 'totalOutflow',
-    'rawNetCashMovement', 'netExcludingInternalMovements']) add(cf[k]);
+    'rawNetCashMovement', 'netExcludingInternalMovements', 'netExcludingTransfersAndSavings']) add(cf[k]);
   const cats = cf.categories;
   if (Array.isArray(cats)) for (const c of cats) add((c as { total?: unknown }).total);
   return [...out].map(c => c / 100);
