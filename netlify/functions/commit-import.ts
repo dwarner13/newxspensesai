@@ -31,6 +31,7 @@ import { getFirstMoney } from './_shared/money.js';
 import { authenticateUser, claimedUserIdMatches, JOB_TOKEN_HEADER } from './_shared/internalJobAuth.js';
 import { documentImportBlock } from './_shared/documentPurpose.js';
 import { getInternalBaseUrl, InternalBaseUrlError } from './_shared/internalBaseUrl.js';
+import { resolveStatementPeriod } from '../../src/shared/statement-period.js';
 
 const STAGED_ROWS_WAIT_MS = 12000;
 const STAGED_ROWS_POLL_MS = 750;
@@ -187,17 +188,26 @@ function extractAccountLast4(meta: any): string | null {
   return accountNumber.length >= 4 ? accountNumber.slice(-4) : null;
 }
 
-function extractPeriodRange(meta: any): { periodStart: string | null; periodEnd: string | null } {
+/**
+ * BYTE-LIVE-01 follow-up (owner GO 2026-11-26): the statement period recorded at commit comes from
+ * the statement itself, through the shared resolver (src/shared/statement-period.ts), never from the
+ * first/last transaction dates. Order:
+ *   1. explicit ISO period fields on the extracted document (unchanged behaviour);
+ *   2. the verified Claude Vision extraction period (extracted_data.claude_vision.period);
+ *   3. the printed period text (metadata.statement_summary.statement_period, or legacy
+ *      extracted statement_period) — only when it parses unambiguously as a range.
+ * A printed "period ending X" (single date) is not a range: start/end stay null, as before.
+ * Nothing is guessed; a partial explicit pair (start without end) is kept as recorded.
+ */
+export function extractPeriodRange(meta: any, printedPeriod?: unknown): { periodStart: string | null; periodEnd: string | null } {
   const start = normalizeDateOnly(meta?.period_start || meta?.statement_period_start || null);
   const end = normalizeDateOnly(meta?.period_end || meta?.statement_period_end || null);
   if (start || end) return { periodStart: start, periodEnd: end };
-  const periodRaw = String(meta?.statement_period || '').trim();
-  if (!periodRaw) return { periodStart: null, periodEnd: null };
-  const matches = periodRaw.match(/\d{4}-\d{2}-\d{2}/g);
-  if (matches && matches.length >= 2) {
-    return { periodStart: matches[0], periodEnd: matches[1] };
-  }
-  return { periodStart: null, periodEnd: null };
+  const resolved = resolveStatementPeriod({
+    visionPeriod: meta?.claude_vision?.period ?? null,
+    printedPeriod: printedPeriod ?? meta?.statement_period ?? null,
+  });
+  return { periodStart: resolved.start, periodEnd: resolved.end };
 }
 
 function deriveReadCompleteness(args: {
@@ -444,6 +454,8 @@ async function buildStatementBreakdown(args: {
       // Merge issuer/institution from metadata.statement_summary (written by normalize-transactions)
       institution: extractedData?.institution || docMetadata?.statement_summary?.institution || docMetadata?.issuer || null,
       issuer: extractedData?.issuer || docMetadata?.statement_summary?.issuer || docMetadata?.issuer || null,
+      // Printed period text stored by normalize-transactions (read by extractPeriodRange).
+      printed_statement_period: docMetadata?.statement_summary?.statement_period || null,
     };
   }
 
@@ -599,7 +611,7 @@ async function buildStatementBreakdown(args: {
       : ((ocrConfidence !== null && ocrConfidence < 0.6) || needsReviewCount > 10)
         ? 'low'
         : 'medium';
-  const { periodStart, periodEnd } = extractPeriodRange(docMeta);
+  const { periodStart, periodEnd } = extractPeriodRange(docMeta, docMeta?.printed_statement_period);
   const breakdown: StatementBreakdown = {
     version: 1,
     import_id: importId,
