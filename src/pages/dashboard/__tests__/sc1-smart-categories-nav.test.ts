@@ -38,6 +38,19 @@ describe('SC-1 Smart Categories', () => {
     expect(page).not.toMatch(/entry\.trend\b|entry\.trendPct|vs last month\./);
     expect(page).toMatch(/categoryTrend\(primeSum\.insights, entry\.category\)/);
   });
+  it('SC-4 FST-2: no legacy direction rule and no browser money totals', () => {
+    expect(page).not.toMatch(/getTxDirection|isExpenseTx|isIncomeTx|INCOME_PATTERNS|INCOME_CONTAINS/);
+    expect(page).not.toMatch(/totalSpendAll|const totalSpent|const incomeTotal|const netTotal/);
+    expect(page).toMatch(/useFinancialSummary\(allTimeScope\)/);
+    expect(page).toMatch(/primeSum\.spendingByCategory\.map/);
+    expect(page).toMatch(/c\.purpose === 'income'/);
+    for (const k of ['actualSpending', 'actualIncome', 'netCashFlow']) expect(page).toMatch(new RegExp(`FINANCIAL_LABELS\\.${k}\\b`));
+    expect(page).toMatch(/<FinancialStateNotice state=\{primeFinancial\}/);
+  });
+  it('SC-4 G6: subcategory and merchant amounts are not browser sums', () => {
+    expect(page).not.toMatch(/formatCurrency\(sub\.amount\)|formatCurrency\(merchantRow\.amount\)|formatCurrency\(item\.amount\)/);
+    expect(page).toMatch(/Amounts by subcategory and merchant are not available yet/);
+  });
   it('both routes preserved; My Story opens Crystal from ?crystal=1', () => {
     const app = read('src/App.tsx');
     expect(app).toMatch(/path="smart-categories" element=\{<Suspense fallback=\{<LoadingSpinner \/>\}><SmartCategoriesPage \/>/);

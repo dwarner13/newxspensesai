@@ -21,6 +21,8 @@ import { allTimeRange } from '@/lib/financialSummary';
 import { hasFigures, formatMoney } from '@/components/finance/FinancialState';
 import { FINANCIAL_LABELS } from '@/lib/financialLabels';
 import { categoryTrend, insightText } from '@/lib/insightWording';
+import { classifyCashFlow } from '@/shared/financial-taxonomy';
+import { FinancialStateNotice } from '@/components/finance/FinancialState';
 
 // Local Transaction type for Smart Categories page
 interface Transaction {
@@ -368,119 +370,11 @@ const SmartCategoriesPage: React.FC = () => {
       return key === selectedMonth;
     });
   }, [transactions, selectedMonth]);
-  const getTxDirection = (tx: Transaction): 'income' | 'expense' | 'unknown' => {
-    const amount = Number(tx.amount) || 0;
-    const category = String(tx.category || '').toLowerCase();
-    const merchant = String(tx.merchant || '').toUpperCase().trim();
-    const description = String(tx.description || '').toUpperCase().trim();
-
-    // 1. Category override — if Tag/user explicitly set "Income", trust it
-    if (category === 'income') return 'income';
-
-    // 2. Merchant/description patterns — payments, credits, refunds are income
-    const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
-    const INCOME_CONTAINS = /\b(PAYMENT RECEIVED|PAYMENT THANK YOU|CREDIT ADJUSTMENT|REFUND|DEPOSIT|E-TRANSFER IN|PAYROLL)\b/;
-    if (INCOME_PATTERNS.test(merchant) || INCOME_CONTAINS.test(merchant) || INCOME_CONTAINS.test(description)) {
-      return 'income';
-    }
-
-    // 3. Explicit income type from DB (if import ever sets it correctly)
-    const txType = String(tx.type || '').toLowerCase();
-    if (txType === 'income' || txType === 'credit') return 'income';
-
-    // 4. Everything else with a positive amount on a credit card statement is a charge
-    return 'expense';
-  };
-  const isExpenseTx = (tx: Transaction): boolean => {
-    return getTxDirection(tx) === 'expense';
-  };
-  const isIncomeTx = (tx: Transaction): boolean => {
-    return getTxDirection(tx) === 'income';
-  };
-
-  // Previous month's per-category spending (for trend arrows on breakdown rows)
-  const prevMonthBreakdown = useMemo(() => {
-    if (!selectedMonth) return new Map<string, number>();
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const prevDate = new Date(y, m - 2, 1); // step back one month (month is 1-based, Date is 0-based)
-    const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-    const map = new Map<string, number>();
-    for (const tx of transactions) {
-      const raw = tx.date || '';
-      if (!raw) continue;
-      const d = new Date(raw);
-      if (isNaN(d.getTime())) continue;
-      const txKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (txKey !== prevKey) continue;
-      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (!isExpenseTx(tx)) continue;
-      const cat = tx.category || 'Uncategorized';
-      map.set(cat, (map.get(cat) || 0) + Math.abs(amt));
-    }
-    return map;
-  }, [selectedMonth, transactions]);
-
-  // Category spending breakdown (expenses only, sorted desc) - enriched with learning + trend
-  const breakdownEntries = useMemo(() => {
-    const map = new Map<string, { amount: number; count: number }>();
-    for (const tx of monthFilteredTransactions) {
-      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (!isExpenseTx(tx)) continue;
-      const cat = tx.category || 'Uncategorized';
-      const prev = map.get(cat) || { amount: 0, count: 0 };
-      map.set(cat, { amount: prev.amount + Math.abs(amt), count: prev.count + 1 });
-    }
-    return [...map.entries()]
-      .map(([category, { amount, count }]) => {
-        const summary = summaryMap.get(category);
-        const prevAmount = prevMonthBreakdown.get(category);
-        let trend: 'up' | 'down' | 'flat' = 'flat';
-        let trendPct: number | undefined;
-        if (selectedMonth && prevAmount !== undefined && prevAmount > 0) {
-          const delta = ((amount - prevAmount) / prevAmount) * 100;
-          if (Math.abs(delta) >= 5) { // only surface meaningful changes (≥5%)
-            trend = delta > 0 ? 'up' : 'down';
-            trendPct = Math.abs(Math.round(delta));
-          }
-        }
-        return {
-          category,
-          amount,
-          count,
-          learningDominance: summary?.learningDominance,
-          avgConfidence: summary?.avgConfidence ?? null,
-          trend,
-          trendPct,
-        };
-      })
-      .sort((a, b) => b.amount - a.amount);
-  }, [monthFilteredTransactions, summaryMap, prevMonthBreakdown, selectedMonth]);
-
-  // Income breakdown (positive amounts only, sorted desc)
-  const incomeBreakdownEntries = useMemo(() => {
-    const map = new Map<string, { amount: number; count: number }>();
-    for (const tx of monthFilteredTransactions) {
-      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (!isIncomeTx(tx)) continue;
-      const cat = tx.category || 'Uncategorized';
-      const prev = map.get(cat) || { amount: 0, count: 0 };
-      map.set(cat, { amount: prev.amount + amt, count: prev.count + 1 });
-    }
-    return [...map.entries()]
-      .map(([category, { amount, count }]) => {
-        const summary = summaryMap.get(category);
-        return {
-          category,
-          amount,
-          count,
-          learningDominance: summary?.learningDominance,
-          avgConfidence: summary?.avgConfidence ?? null,
-          trend: 'flat' as const,
-          trendPct: undefined,
-        };
-      })
-      .sort((a, b) => b.amount - a.amount);
-  }, [monthFilteredTransactions, summaryMap]);
+  // FST-2 (AR-1b FR-009): the pasted PAYMENT|CREDIT|REFUND / PAYROLL merchant rule
+  // (getTxDirection, isExpenseTx, isIncomeTx) and the unused month / breakdown memos built on it
+  // are retired. Rows that need a direction use the engine classifier (classifyCashFlow).
+  const isSpendingRow = (tx: Transaction): boolean =>
+    classifyCashFlow({ type: (tx as { type?: string | null }).type, category: tx.category, subcategory: (tx as { subcategory?: string | null }).subcategory, amount: tx.amount }).purpose === 'spending';
   // ────────────────────────────────────────────────────────────────────────────
 
   const formatCurrency = (amount: number) => {
@@ -723,7 +617,6 @@ const SmartCategoriesPage: React.FC = () => {
     handoffChatOpenedRef.current = true;
   }, [handoffBannerVisible, handoffSource, handoffImportId, openChat]);
 
-  const totalSpendAll = transactions.reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
   const selectedImportFilter = String(searchParams.get('importId') || '').trim();
   const handleSelectImportFilter = (importId: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -734,149 +627,59 @@ const SmartCategoriesPage: React.FC = () => {
   const scopedForBreakdown = selectedImportFilter
     ? monthFilteredTransactions.filter((tx) => String(tx.import_id || '').trim() === selectedImportFilter)
     : monthFilteredTransactions;
-  const totalSpent = scopedForBreakdown
-    .filter((tx) => isExpenseTx(tx))
-    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
-  const incomeTotal = scopedForBreakdown
-    .filter((tx) => isIncomeTx(tx))
-    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
-  const netTotal = incomeTotal - totalSpent;
-  const scopedExpenseBreakdownEntries = (() => {
-    const map = new Map<string, { amount: number; count: number; confidenceSum: number; confidenceCount: number }>();
+  // FST-2: every money figure below is the shared engine's for the page scope (all time or the
+  // ?month, plus the selected statement). Rows keep non-money facts (counts, confidence, drill-down).
+  const allTimeScope = useMemo(() => allTimeRange(), []);
+  const allTimeFinancial = useFinancialSummary(allTimeScope);
+  const allTimeSum = hasFigures(allTimeFinancial) ? allTimeFinancial.summary : null;
+  const primeScope = useMemo(() => {
+    let dates = allTimeRange();
+    if (selectedMonth && /^[0-9]{4}-[0-9]{2}$/.test(selectedMonth)) {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      dates = { startDate: `${selectedMonth}-01`, endDate: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) };
+    }
+    return { ...dates, ...(selectedImportFilter ? { importIds: [selectedImportFilter] } : {}) };
+  }, [selectedMonth, selectedImportFilter]);
+  const primeFinancial = useFinancialSummary(primeScope);
+  const primeSum = hasFigures(primeFinancial) ? primeFinancial.summary : null;
+  const pageCurrency = primeSum?.scope.currency ?? 'CAD';
+  const confidenceByCategory = useMemo(() => {
+    const m = new Map<string, { sum: number; n: number }>();
     for (const tx of scopedForBreakdown) {
-      const amount = Number(tx.amount) || 0;
-      if (!isExpenseTx(tx)) continue;
+      if (typeof tx.confidence !== 'number') continue;
       const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
-      const prev = map.get(cat) || { amount: 0, count: 0, confidenceSum: 0, confidenceCount: 0 };
-      const confidence = typeof tx.confidence === 'number' ? tx.confidence : null;
-      map.set(cat, {
-        amount: prev.amount + Math.abs(amount),
-        count: prev.count + 1,
-        confidenceSum: prev.confidenceSum + (confidence ?? 0),
-        confidenceCount: prev.confidenceCount + (confidence !== null ? 1 : 0),
-      });
+      const prev = m.get(cat) || { sum: 0, n: 0 };
+      m.set(cat, { sum: prev.sum + tx.confidence, n: prev.n + 1 });
     }
-    let rows = Array.from(map.entries()).map(([category, value]) => {
-      const prevAmount = prevMonthBreakdown.get(category) ?? 0;
-      const pctOfTotal = totalSpent > 0 ? Math.round((value.amount / totalSpent) * 100) : 0;
-      const trendDelta = prevAmount > 0 ? ((value.amount - prevAmount) / prevAmount) * 100 : 0;
-      const trend: 'up' | 'down' | 'flat' =
-        prevAmount <= 0 || Math.abs(trendDelta) < 5 ? 'flat' : trendDelta > 0 ? 'up' : 'down';
-      const trendPct = prevAmount > 0 && Math.abs(trendDelta) >= 5 ? Math.abs(Math.round(trendDelta)) : undefined;
-      const avgConfidence = value.confidenceCount > 0 ? value.confidenceSum / value.confidenceCount : null;
-      return {
-        category,
-        amount: value.amount,
-        count: value.count,
-        pctOfTotal,
-        trend,
-        trendPct,
-        trendDeltaAbs: Math.abs(trendDelta),
-        avgConfidence,
-      };
-    });
-    if (rows.length === 0) {
-      const fallbackMap = new Map<string, { amount: number; count: number; confidenceSum: number; confidenceCount: number }>();
-      for (const tx of scopedForBreakdown) {
-        const amount = Math.abs(Number(tx.amount) || 0);
-        if (amount <= 0) continue;
-        const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
-        const prev = fallbackMap.get(cat) || { amount: 0, count: 0, confidenceSum: 0, confidenceCount: 0 };
-        const confidence = typeof tx.confidence === 'number' ? tx.confidence : null;
-        fallbackMap.set(cat, {
-          amount: prev.amount + amount,
-          count: prev.count + 1,
-          confidenceSum: prev.confidenceSum + (confidence ?? 0),
-          confidenceCount: prev.confidenceCount + (confidence !== null ? 1 : 0),
-        });
-      }
-      const fallbackTotal = Array.from(fallbackMap.values()).reduce((sum, value) => sum + value.amount, 0);
-      rows = Array.from(fallbackMap.entries()).map(([category, value]) => ({
-        category,
-        amount: value.amount,
-        count: value.count,
-        pctOfTotal: fallbackTotal > 0 ? Math.round((value.amount / fallbackTotal) * 100) : 0,
-        trend: 'flat' as const,
-        trendPct: undefined,
-        trendDeltaAbs: 0,
-        avgConfidence: value.confidenceCount > 0 ? value.confidenceSum / value.confidenceCount : null,
-      }));
-    }
-    rows.sort((a, b) => {
-      if (breakdownSort === 'tx_desc') return b.count - a.count;
-      if (breakdownSort === 'alpha') return a.category.localeCompare(b.category);
-      if (breakdownSort === 'trend_desc') return b.trendDeltaAbs - a.trendDeltaAbs;
-      return b.amount - a.amount;
-    });
-    return rows;
-  })();
-  const scopedIncomeBreakdownEntries = (() => {
-    const map = new Map<string, { amount: number; count: number }>();
-    for (const tx of scopedForBreakdown) {
-      const amount = Number(tx.amount) || 0;
-      if (!isIncomeTx(tx)) continue;
-      const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
-      const prev = map.get(cat) || { amount: 0, count: 0 };
-      map.set(cat, {
-        amount: prev.amount + amount,
-        count: prev.count + 1,
-      });
-    }
-    return Array.from(map.entries())
-      .map(([category, value]) => ({ category, amount: value.amount, count: value.count }))
-      .sort((a, b) => b.amount - a.amount);
-  })();
-  const expenseCategorySet = new Set(
-    scopedExpenseBreakdownEntries.map((entry) => String(entry.category || '').trim().toLowerCase())
-  );
-  const scopedCategoryEntries = [
-    ...scopedExpenseBreakdownEntries.map((entry) => ({ ...entry, isIncome: false })),
-    ...scopedIncomeBreakdownEntries
-      .filter((entry) => {
-        const key = String(entry.category || '').trim().toLowerCase();
-        return key === 'income' || !expenseCategorySet.has(key);
-      })
-      .map((entry) => {
-      const summary = summaryMap.get(entry.category);
-      return {
-        category: entry.category,
-        amount: entry.amount,
-        count: entry.count,
-        pctOfTotal: incomeTotal > 0 ? Math.round((entry.amount / incomeTotal) * 100) : 0,
-        trend: 'flat' as const,
-        trendPct: undefined,
-        trendDeltaAbs: 0,
-        avgConfidence: summary?.avgConfidence ?? null,
-        isIncome: true,
-      };
-    }),
-  ].sort((a, b) => b.amount - a.amount);
+    return new Map([...m.entries()].map(([k, v]) => [k, v.n > 0 ? v.sum / v.n : null] as const));
+  }, [scopedForBreakdown]);
+  const scopedCategoryEntries: Array<{ category: string; amount: number; count: number; pctOfTotal: number | null; avgConfidence: number | null; isIncome: boolean }> = primeSum
+    ? [
+        ...primeSum.spendingByCategory.map((c) => ({ category: c.category, amount: c.amount, count: c.count, pctOfTotal: c.share as number | null, avgConfidence: confidenceByCategory.get(c.category) ?? null, isIncome: false })),
+        ...(primeSum.categories ?? []).filter((c) => c.purpose === 'income').map((c) => ({ category: c.category, amount: c.amount, count: c.count, pctOfTotal: null as number | null, avgConfidence: confidenceByCategory.get(c.category) ?? null, isIncome: true })),
+      ]
+    : [];
   const maxBreakdownAmount = Math.max(...scopedCategoryEntries.map((entry) => entry.amount), 0);
-  const otherBucket = scopedExpenseBreakdownEntries.find((entry) => entry.category.toLowerCase() === 'other');
-  const otherPct = otherBucket ? (totalSpent > 0 ? (otherBucket.amount / totalSpent) * 100 : 0) : 0;
+  const otherBucket = primeSum?.spendingByCategory.find((c) => c.category.toLowerCase() === 'other') ?? null;
+  const otherPct = otherBucket ? otherBucket.share : 0;
   const shouldWarnOther = otherPct >= 35 && (otherBucket?.amount || 0) > 0;
   const otherMerchantSuggestions = useMemo(() => {
-    const map = new Map<string, { count: number; amount: number }>();
+    const map = new Map<string, { count: number }>();
     for (const tx of scopedForBreakdown) {
-      const amount = Number(tx.amount) || 0;
-      if (!isExpenseTx(tx)) continue;
+      if (!isSpendingRow(tx)) continue;
       const category = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
       if (category.toLowerCase() !== 'other') continue;
       const merchant = String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase();
-      const prev = map.get(merchant) || { count: 0, amount: 0 };
-      map.set(merchant, {
-        count: prev.count + 1,
-        amount: prev.amount + Math.abs(amount),
-      });
+      const prev = map.get(merchant) || { count: 0 };
+      map.set(merchant, { count: prev.count + 1 });
     }
     return Array.from(map.entries())
       .map(([merchant, value]) => ({
         merchant,
         count: value.count,
-        amount: value.amount,
         suggestedCategory: inferStarterCategory(merchant),
       }))
-      .sort((a, b) => b.amount - a.amount)
+      .sort((a, b) => b.count - a.count)
       .slice(0, 10);
   }, [scopedForBreakdown]);
   const confidentMerchantSuggestions = useMemo(
@@ -906,9 +709,6 @@ const SmartCategoriesPage: React.FC = () => {
     confidentMerchantSuggestions.length === 1 ? '' : 's'
   } confident, ${uncertainMerchantSuggestions.length} need review.`;
   // FST-2: Prime's line uses the shared engine's figures for the same scope, never browser sums.
-  const primeScope = useMemo(() => ({ ...allTimeRange(), ...(selectedImportFilter ? { importIds: [selectedImportFilter] } : {}) }), [selectedImportFilter]);
-  const primeFinancial = useFinancialSummary(primeScope);
-  const primeSum = hasFigures(primeFinancial) ? primeFinancial.summary : null;
   const primeTop = primeSum?.spendingByCategory[0] ?? null;
   const primeSceneBrief = !primeSum
     ? 'Figures for this scope are not available right now.'
@@ -1258,8 +1058,8 @@ const SmartCategoriesPage: React.FC = () => {
         <div className="grid grid-cols-1 gap-3 p-4">
         <section className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Total spend</div>
-            <div className="mt-1 text-sm font-semibold text-slate-100">{formatCurrency(totalSpendAll)}</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{FINANCIAL_LABELS.actualSpending}</div>
+            <div className="mt-1 text-sm font-semibold text-slate-100">{allTimeSum ? formatMoney(allTimeSum.labels.actualSpending.amount, allTimeSum.scope.currency) : '-'}</div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Auto-tagged %</div>
@@ -1317,7 +1117,7 @@ const SmartCategoriesPage: React.FC = () => {
                 <div className="flex items-center justify-between gap-2">
                   <span>
                     <span className="font-semibold">Other is high:</span>{' '}
-                    {formatCurrency(otherBucket?.amount || 0)} ({Math.round(otherPct)}% of spend)
+                    {formatMoney(otherBucket?.amount || 0, pageCurrency)} ({otherPct}% of actual spending)
                   </span>
                   <button
                     type="button"
@@ -1333,17 +1133,17 @@ const SmartCategoriesPage: React.FC = () => {
 
             <div className="grid grid-cols-3 gap-2 border-b border-slate-800 px-4 py-3 bg-slate-900/70">
               <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-                <div className="text-[11px] text-slate-400">Total spent</div>
-                <div className="mt-1 text-sm font-semibold text-red-300">{formatCurrency(totalSpent)}</div>
+                <div className="text-[11px] text-slate-400">{FINANCIAL_LABELS.actualSpending}</div>
+                <div className="mt-1 text-sm font-semibold text-red-300">{primeSum ? formatMoney(primeSum.labels.actualSpending.amount, pageCurrency) : '-'}</div>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-                <div className="text-[11px] text-slate-400">Income</div>
-                <div className="mt-1 text-sm font-semibold text-emerald-300">{formatCurrency(incomeTotal)}</div>
+                <div className="text-[11px] text-slate-400">{FINANCIAL_LABELS.actualIncome}</div>
+                <div className="mt-1 text-sm font-semibold text-emerald-300">{primeSum ? formatMoney(primeSum.labels.actualIncome.amount, pageCurrency) : '-'}</div>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-                <div className="text-[11px] text-slate-400">Net</div>
-                <div className={`mt-1 text-sm font-semibold ${netTotal >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                  {formatCurrency(netTotal)}
+                <div className="text-[11px] text-slate-400">{FINANCIAL_LABELS.netCashFlow}</div>
+                <div className={`mt-1 text-sm font-semibold ${(primeSum?.labels.netCashFlow.amount ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {primeSum ? `${primeSum.labels.netCashFlow.amount > 0 ? '+' : ''}${formatMoney(primeSum.labels.netCashFlow.amount, pageCurrency)}` : '-'}
                 </div>
               </div>
             </div>
@@ -1363,6 +1163,8 @@ const SmartCategoriesPage: React.FC = () => {
               <div className="max-h-[56vh] overflow-y-auto">
                 {isLoading ? (
                   <div className="px-4 py-4 text-sm text-slate-400">Loading category breakdown...</div>
+                ) : !primeSum ? (
+                  <div className="px-4 py-4"><FinancialStateNotice state={primeFinancial} compact onRetry={primeFinancial.status !== 'loading' ? primeFinancial.refetch : undefined} /></div>
                 ) : scopedCategoryEntries.length === 0 ? (
                   <div className="px-4 py-4 text-sm text-slate-400">No transactions available for this scope.</div>
                 ) : (
@@ -1384,7 +1186,7 @@ const SmartCategoriesPage: React.FC = () => {
                     const subRows = Array.from(subcategoryMap.entries())
                       .map(([subcategory, value]) => ({ subcategory, amount: value.amount, count: value.count }))
                       .sort((a, b) => b.amount - a.amount);
-                    const maxSubAmount = Math.max(...subRows.map((s) => s.amount), 0);
+                    const maxSubCount = Math.max(...subRows.map((s) => s.count), 0);
                     const merchantMap = new Map<string, { amount: number; count: number }>();
                     categoryTxs.forEach((tx) => {
                       const merchant = String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase();
@@ -1416,7 +1218,7 @@ const SmartCategoriesPage: React.FC = () => {
                     const categorySourceBreakdown = Array.from(categorySourceMap.entries())
                       .map(([source, count]) => ({ source, count }))
                       .sort((a, b) => b.count - a.count);
-                    const maxMerchantAmount = Math.max(...topMerchants.map((m) => m.amount), 0);
+                    const maxMerchantCount = Math.max(...topMerchants.map((m) => m.count), 0);
                     const selectedMerchant = selectedMerchantByCategory[entry.category] || topMerchants[0]?.merchant || '';
                     const selectedMerchantTxs = selectedMerchant
                       ? categoryTxs
@@ -1476,8 +1278,8 @@ const SmartCategoriesPage: React.FC = () => {
                           <div className="hidden md:block h-2 rounded-full bg-slate-800">
                             <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: categoryColor }} />
                           </div>
-                          <div className="hidden md:block text-right text-sm text-slate-300">{entry.pctOfTotal}%</div>
-                          <div className="text-right text-sm font-medium text-slate-100">{formatCurrency(entry.amount)}</div>
+                          <div className="hidden md:block text-right text-sm text-slate-300">{entry.pctOfTotal === null ? '-' : `${entry.pctOfTotal}%`}</div>
+                          <div className="text-right text-sm font-medium text-slate-100">{formatMoney(entry.amount, pageCurrency)}</div>
                           {(() => {
                             // FST-2: only the server's coverage-gated category trend; never a browser month comparison.
                             const t = primeSum ? categoryTrend(primeSum.insights, entry.category) : null;
@@ -1543,7 +1345,7 @@ const SmartCategoriesPage: React.FC = () => {
                             {activeTab === 'subcategories' && (
                               <div className="space-y-1.5">
                                 {subRows.map((sub) => {
-                                  const subWidth = maxSubAmount > 0 ? Math.max(6, (sub.amount / maxSubAmount) * 100) : 0;
+                                  const subWidth = maxSubCount > 0 ? Math.max(6, (sub.count / maxSubCount) * 100) : 0;
                                   return (
                                     <button
                                       key={`${entry.category}-${sub.subcategory}`}
@@ -1559,7 +1361,7 @@ const SmartCategoriesPage: React.FC = () => {
                                       <div className="h-1.5 rounded-full bg-slate-800">
                                         <div className="h-full rounded-full" style={{ width: `${subWidth}%`, backgroundColor: categoryColor }} />
                                       </div>
-                                      <div className="text-right text-[12px] text-slate-300">{formatCurrency(sub.amount)}</div>
+                                      <div className="text-right text-[12px] text-slate-500" title="Amounts by subcategory and merchant are not available yet">-</div>
                                       <div className="text-right text-[12px] text-slate-400">{sub.count}</div>
                                     </button>
                                   );
@@ -1630,7 +1432,7 @@ const SmartCategoriesPage: React.FC = () => {
                             {activeTab === 'merchants' && (
                               <div className="space-y-1.5">
                                 {topMerchants.map((merchantRow) => {
-                                  const merchantWidth = maxMerchantAmount > 0 ? Math.max(6, (merchantRow.amount / maxMerchantAmount) * 100) : 0;
+                                  const merchantWidth = maxMerchantCount > 0 ? Math.max(6, (merchantRow.count / maxMerchantCount) * 100) : 0;
                                   const selected = selectedMerchant === merchantRow.merchant;
                                   return (
                                     <button
@@ -1649,7 +1451,7 @@ const SmartCategoriesPage: React.FC = () => {
                                       <div className="h-1.5 rounded-full bg-slate-800">
                                         <div className="h-full rounded-full bg-cyan-400" style={{ width: `${merchantWidth}%` }} />
                                       </div>
-                                      <div className="text-right text-[12px] text-slate-300">{formatCurrency(merchantRow.amount)}</div>
+                                      <div className="text-right text-[12px] text-slate-500" title="Amounts by subcategory and merchant are not available yet">-</div>
                                       <div className="text-right text-[12px] text-slate-400">{merchantRow.count}</div>
                                     </button>
                                   );
@@ -1829,7 +1631,7 @@ const SmartCategoriesPage: React.FC = () => {
                   {uncertainMerchantSuggestions.map((item) => (
                     <div key={`uncertain-${item.merchant}`} className="rounded-md border border-amber-400/20 bg-slate-950/40 p-2">
                       <div className="truncate text-[11px] font-medium text-slate-100">{item.merchant}</div>
-                      <div className="mt-1 text-[10px] text-amber-100/80">{item.count} tx · {formatCurrency(item.amount)} · Tag needs confirmation</div>
+                      <div className="mt-1 text-[10px] text-amber-100/80">{item.count} tx · Tag needs confirmation</div>
                     </div>
                   ))}
                 </div>
