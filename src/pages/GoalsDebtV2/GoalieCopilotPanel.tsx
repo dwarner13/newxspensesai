@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 import { useEmployeeChat } from "@/hooks/useEmployeeChat";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { ConversationControls, UnsavedReplyNotice } from "@/components/chat/ConversationControls";
+import { ChatIdentity, LetterLogo } from "@/components/chat/ChatHeader";
 import { isUnsavedReply } from "@/lib/employeeChat";
 import { PANEL } from "../PrimeChatV2/panelConfig";
 import type { GoalsPageData } from "./useGoalsData";
@@ -14,6 +16,7 @@ interface Props { onClose: () => void; data: GoalsPageData; }
 
 export function GoalieCopilotPanel({ onClose, data }: Props) {
   // Universal conversation history: the shared hook (restore, resume, history, New conversation).
+  const isMobile = useIsMobile();
   const { messages, sendMessage, sessionId, history, openConversation, startNewConversation } = useEmployeeChat("goalie-goals", { employeeSlug: "goalie-ai" });
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -23,7 +26,10 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
   const handleClose = () => { setOpen(false); setTimeout(onClose, 300); };
 
   const goalPct = data.totalGoalTarget > 0 ? Math.round((data.totalGoalCurrent / data.totalGoalTarget) * 100) : 0;
-  const statusText = `You're ${goalPct}% toward your total goal target of $${data.totalGoalTarget.toLocaleString()}. ${data.totalDebt > 0 ? `You also have $${data.totalDebt.toLocaleString()} in total debt.` : ""} ${data.monthlySavings > 0 ? `At $${data.monthlySavings.toLocaleString()}/mo savings, you're making progress.` : "Let\'s work on building your savings rate."}`;
+  const hasPlan = data.goals.length > 0 || data.debts.length > 0;
+  const statusText = !hasPlan
+    ? (data.unavailable ? "Goal and debt tracking isn't set up yet, so I have nothing of yours to summarise. I won't use example figures." : data.loadError ? "I couldn't load your goals and debts just now, so I won't guess at them. Please try again shortly." : "You haven't added any goals or debts yet. Add one on this page and I'll help you plan for it.")
+    : `You're ${goalPct}% toward your total goal target of $${data.totalGoalTarget.toLocaleString()}. ${data.totalDebt > 0 ? `You also have $${data.totalDebt.toLocaleString()} in total debt.` : ""} ${data.monthlySavings > 0 ? `At $${data.monthlySavings.toLocaleString()}/mo savings, you're making progress.` : "Let\'s work on building your savings rate."}`;
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [typed, messages.length]);
@@ -33,15 +39,21 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
     <>
       <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", opacity: open ? 1 : 0, transition: "opacity 0.3s", zIndex: 998, backdropFilter: "blur(4px)" }} />
       <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, background: T.bg, borderLeft: "1px solid rgba(245,158,11,0.2)", transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1)", zIndex: 999, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
-        <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${YELLOW}20`, border: `1.5px solid ${YELLOW}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: YELLOW, boxShadow: `0 0 16px ${YELLOW}33` }}>G</div>
-          <div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Goalie <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></span><span style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", letterSpacing: "0.05em" }}>SECURED</span></div><div style={{ fontSize: 11, color: T.dim }}>Goals & Debt Coach</div></div>
+        <div style={{ padding: isMobile ? "10px 8px 10px 14px" : "12px 16px 12px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          {/* TB-4: universal chat header — identity separate from the compact toolbar. The
+              duplicate SECURED tag is gone; the footer still states the protections. */}
+          <ChatIdentity
+            isMobile={isMobile}
+            renderLogo={(px) => <LetterLogo size={px} letter="G" color={YELLOW} />}
+            name={isMobile ? "Goalie" : <>Goalie <span style={{ fontWeight: 500, color: T.muted }}>Copilot</span></>}
+            subtitle={isMobile ? undefined : "Goals & Debt Coach"}
+          />
           <ConversationControls
-            employeeName="Goalie" accent={YELLOW} border={T.border} color={T.muted}
+            employeeName="Goalie" accent={YELLOW} isMobile={isMobile}
             items={history.items} loading={history.loading} currentId={sessionId}
             onLoad={history.load} onOpen={openConversation} onNew={startNewConversation}
+            onClose={handleClose}
           />
-          <button onClick={handleClose} aria-label="Close Goalie" style={{ width: 44, height: 44, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "20px 24px 140px" }}>
@@ -52,16 +64,17 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
             </div>
           </div>
 
-          {typeDone && (
+          {typeDone && hasPlan && (
             <Reveal delay={0} style={{ marginLeft: 38, marginBottom: 24 }}>
-              <div style={{ display: "flex", gap: 8 }}>
+              {/* M-OVF: two columns on phones (four tiles overflowed the 390px panel). */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: 8 }}>
                 {[
                   { label: "Goals", value: String(data.goals.length), color: YELLOW },
                   { label: "Debts", value: String(data.debts.length), color: "#f87171" },
                   { label: "Savings/mo", value: `$${data.monthlySavings.toLocaleString()}`, color: "#34d399" },
                   { label: "Progress", value: `${goalPct}%`, color: "#60a5fa" },
                 ].map(s => (
-                  <div key={s.label} style={{ flex: 1, padding: "10px 12px", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
+                  <div key={s.label} style={{ minWidth: 0, padding: "10px 12px", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
                     <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: T.dim, fontWeight: 700, marginBottom: 4 }}>{s.label}</div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</div>
                   </div>
@@ -103,8 +116,8 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
         </div>
 
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: `linear-gradient(0deg, ${T.bg} 75%, transparent)`, padding: "32px 24px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: "4px 6px 4px 16px" }}>
-            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Goalie about goals..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: PANEL.inputFontSize, padding: "10px 0", fontFamily: "inherit" }} />
+          <div className="chat-composer" style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: "4px 6px 4px 14px" }}>
+            <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && input.trim()) { sendMessage(input.trim()); setInput(""); } }} placeholder="Ask Goalie about goals..." style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.text, fontSize: PANEL.inputFontSize, padding: "10px 4px", fontFamily: "inherit" }} data-composer="" />
             <button onClick={() => { if (input.trim()) { sendMessage(input.trim()); setInput(""); } }} style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${YELLOW}, #d97706)`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="#0b1220" /></svg>
             </button>

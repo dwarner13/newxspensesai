@@ -11,6 +11,12 @@ import { calculateConfidence } from '../lib/confidenceScoring';
 import { checkForDuplicates } from '../lib/duplicateDetection';
 import type { PendingTransaction, NormalizedTransaction } from '../types/transactions';
 
+/** S-1: the joined `imports` row says this import is already committed. */
+export function isCommittedImportJoin(importJoin: unknown): boolean {
+  const imp = Array.isArray(importJoin) ? importJoin[0] : importJoin;
+  return !!imp && typeof imp === 'object' && (imp as { status?: unknown }).status === 'committed';
+}
+
 export interface UsePendingTransactionsResult {
   pendingTransactions: PendingTransaction[];
   isLoading: boolean;
@@ -117,9 +123,13 @@ export function usePendingTransactions(options?: {
         return;
       }
 
+      // S-1 (owner GO 2026-11-26): a committed import's staging rows are read-only history (its
+      // transactions already exist), so they are never "pending" and never approvable again.
+      const openStagingRows = stagingData.filter((staging) => !isCommittedImportJoin((staging as Record<string, unknown>).import));
+
       // Process each staging transaction
       const processed: PendingTransaction[] = await Promise.all(
-        stagingData.map(async (staging) => {
+        openStagingRows.map(async (staging) => {
           const dataJson = staging.data_json as NormalizedTransaction;
           const ocrText = '';
 

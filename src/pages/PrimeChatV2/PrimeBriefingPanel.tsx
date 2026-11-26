@@ -48,14 +48,18 @@ export function PrimeBriefingPanel() {
       <button
         type="button"
         aria-label="Close Prime briefing"
-        className="fixed inset-0 z-[50] bg-slate-950/50 backdrop-blur-[2px]"
+        className="fixed inset-0 bg-slate-950/50 backdrop-blur-[2px]"
+        style={{ zIndex: mode === "workspace" ? 119 : 50 }}
         onClick={() => setIsOpen(false)}
       />
       {/* Panel - capture and stop all key events */}
       <div
-        className="fixed top-0 right-0 z-[51] h-full shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
+        className="fixed top-0 right-0 h-full shadow-[-8px_0_40px_rgba(0,0,0,0.5)]"
         data-prime-mode={mode}
         style={{
+          // PW-1: the full Workspace sits ABOVE the dashboard sidebar (z-index 100). Before, it
+          // was underneath it, which hid Prime's crown and name and pushed the conversation left.
+          zIndex: mode === "workspace" ? 120 : 51,
           width: isMobile ? "100%" : primePanelWidth(mode),
           ...(isMobile && visibleViewport ? { top: visibleViewport.offsetTop, height: visibleViewport.height } : null),
           transition: "width 0.25s cubic-bezier(0.16,1,0.3,1)",

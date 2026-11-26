@@ -123,14 +123,16 @@ export async function execute(
   // Completed Tag actions (owner 2026-11-25: authoritative, customer-isolated correction history).
   // tag-action records every confirmed change in tag_activity_log. Only the action TYPE is read and
   // only counts leave this function: no transaction ids, amounts or conversation content.
+  // Live tag_activity_log has NO action_type column (42703 — the read always failed); the stable
+  // action name is stored in change_source (Tag HQ writer fix, 2026-11-26).
   let completedActionTypes: string[] | null = null;
-  const act = await pagedSelectAll<{ id?: unknown; action_type?: unknown }>(() => {
-    let q = sb.from('tag_activity_log').select('id, action_type').eq('user_id', userId);
+  const act = await pagedSelectAll<{ id?: unknown; change_source?: unknown }>(() => {
+    let q = sb.from('tag_activity_log').select('id, change_source').eq('user_id', userId);
     if (feedbackWindowDays !== null) q = q.gte('created_at', since);
     return q.order('created_at', { ascending: true }).order('id', { ascending: true });
   }, { maxRows: MAX_ROWS });
   if (!act.error) {
-    completedActionTypes = act.rows.map(r => (typeof r.action_type === 'string' && r.action_type ? r.action_type : 'other'));
+    completedActionTypes = act.rows.map(r => (typeof r.change_source === 'string' && r.change_source ? r.change_source : 'other'));
   }
 
   const coverage = rows && rows.length === 0 ? await fetchTransactionCoverage(sb as unknown as CoverageClient, userId) : null;

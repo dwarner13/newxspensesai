@@ -46,12 +46,42 @@ describe('statement reconciliation guard', () => {
   it('rejects a double count (spending + needs review added again)', () => {
     const bad = 'Total withdrawals: $1,600.00 (spending + transfers + debt + needs review).';
     const g = guardReconciledAnswer(bad, cf);
-    expect(g).toMatchObject({ ok: false, applies: true, unsupportedFigures: 1 });
+    // $1,600 = withdrawals + needs review: a sum of two returned figures, but labelled as the total → mislabelled.
+    expect(g).toMatchObject({ ok: false, applies: true, mislabelledTotals: 1 });
   });
 
   it('rejects an invented difference explained as an overdraft when the breakdown reconciles', () => {
     const bad = 'Deposits $2,165.00, withdrawals $1,565.00. This could reflect an overdraft or missing deposits.';
     expect(guardReconciledAnswer(bad, cf)).toMatchObject({ ok: false, speculation: true });
+  });
+
+  it('Arch review: figures from other same-turn tools, and sums/differences of two returned figures, are supported', () => {
+    const otherTool = [1234.56]; // e.g. a tx_search amount ("largest withdrawal")
+    const reply = 'Withdrawals were $1,565.00; the largest single withdrawal was $1,234.56, and deposits exceeded withdrawals by $600.00. And $1,850.00 more came from your employer than from e-Transfers.';
+    expect(guardReconciledAnswer(reply, cf, 'how did this month go', otherTool)).toMatchObject({ ok: true, unsupportedFigures: 0 });
+  });
+
+  it('outside a breakdown/reconciliation request an unsupported figure is logged, not replaced', () => {
+    const g = guardReconciledAnswer('Your deposits look healthy; roughly $9,999.00 came in over the season.', cf, 'how are my deposits looking');
+    expect(g).toMatchObject({ applies: true, strict: false, ok: true });
+    expect(g.unsupportedFigures).toBeGreaterThan(0);
+  });
+
+  it('in a breakdown/reconciliation request an unsupported figure fails', () => {
+    const g = guardReconciledAnswer('Here is your breakdown: spending $9,999.00.', cf, 'give me a breakdown and reconcile it');
+    expect(g).toMatchObject({ applies: true, strict: true, ok: false });
+  });
+
+  it('mislabelled totals and speculation fail even outside strict mode', () => {
+    expect(guardReconciledAnswer('Deposits came to a total deposits figure of $2,000.00', cf, 'how are deposits').ok).toBe(false);
+    expect(guardReconciledAnswer('Withdrawals $1,565.00 may reflect an overdraft.', cf, 'how are withdrawals').ok).toBe(false);
+  });
+
+  it('defect: "spending" that still includes mortgage payments is mislabelled, even though it is a sum of two returned figures', () => {
+    // spending 115 + mortgage 1100 = 1215 (pair-explainable, but labelled as spending)
+    const g = guardReconciledAnswer('Actual spending (goods/services, not debt or transfers): **$1,215.00**', cf, 'give me a breakdown');
+    expect(g).toMatchObject({ ok: false, mislabelledTotals: 1 });
+    expect(guardReconciledAnswer('Actual spending (goods/services, not debt or transfers): **$115.00**', cf, 'give me a breakdown').ok).toBe(true);
   });
 
   it('does not apply to replies without money figures or off-topic', () => {

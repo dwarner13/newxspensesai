@@ -63,7 +63,10 @@ describe('PrimeChatV2 in Workspace', () => {
   });
 
   it('hides Expand/Collapse in Workspace', () => {
-    expect(prime).toMatch(/\{!isMobileWidth && chatMode !== 'workspace' && \(/);
+    // TB-2: the universal ChatToolbar replaced Prime's individual header buttons.
+    // In Workspace the same mode group shows Full Workspace pressed; Quick / Expanded leave
+    // the route and reopen Prime (returnToConversation).
+    expect(prime).toMatch(/sessionStorage\.setItem\('returnToConversation', '1'\)/);
   });
 });
 

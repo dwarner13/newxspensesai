@@ -1,6 +1,7 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { COMMITTED_IMPORT_STATUS, IMPORT_COMMITTED_ERROR, isImportCommitted } from './_shared/importLifecycle.js';
 
 /**
  * tx-update-amount
@@ -133,7 +134,8 @@ export const handler: Handler = async (event) => {
         .from('imports')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', attestImportId)
-        .eq('user_id', auth.userId);
+        .eq('user_id', auth.userId)
+        .neq('status', COMMITTED_IMPORT_STATUS);
       if (sErr) throw sErr;
       console.log('[tx-update-amount] Attested balances persisted + gate re-run', {
         importId: attestImportId, openingBalance, closingBalance,
@@ -185,6 +187,17 @@ export const handler: Handler = async (event) => {
     const importId = String(existing.import_id || '').trim();
     if (!importId) {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'Staging row has no import_id' }) };
+    }
+
+    // S-1 (owner GO 2026-11-26): a committed import's staging rows are read-only history. Editing
+    // one would rewrite imports.status back to parsed/parsed_unreconciled and reopen the import
+    // (disabling commit-import's already-committed guard). Fail closed if the status is unknown.
+    const committedState = await isImportCommitted(sb, auth.userId, importId);
+    if (committedState === null) {
+      return { statusCode: 503, headers, body: JSON.stringify({ error: 'import_status_unavailable', retryable: true }) };
+    }
+    if (committedState) {
+      return { statusCode: 409, headers, body: JSON.stringify(IMPORT_COMMITTED_ERROR) };
     }
 
     // --- 2. Merge new signed amount into data_json (mirrors tx-update-category write) ---
@@ -254,7 +267,8 @@ export const handler: Handler = async (event) => {
             .from('imports')
             .update({ status: newStatus, updated_at: new Date().toISOString() })
             .eq('id', importId)
-            .eq('user_id', auth.userId);
+            .eq('user_id', auth.userId)
+            .neq('status', COMMITTED_IMPORT_STATUS);
           if (statusErr) throw statusErr;
           console.log('[tx-update-amount] Attested-balance reconciliation', {
             importId, opening, closing, rowDeducted, rowAdded,
@@ -283,7 +297,8 @@ export const handler: Handler = async (event) => {
         .from('imports')
         .update({ status: 'parsed_unreconciled', updated_at: new Date().toISOString() })
         .eq('id', importId)
-        .eq('user_id', auth.userId);
+        .eq('user_id', auth.userId)
+        .neq('status', COMMITTED_IMPORT_STATUS);
       if (statusErr) throw statusErr;
       console.warn('[tx-update-amount] HELD — no statementTotals and no attested balances', { importId });
 
@@ -340,7 +355,8 @@ export const handler: Handler = async (event) => {
       .from('imports')
       .update({ status: newStatus, updated_at: new Date().toISOString() })
       .eq('id', importId)
-      .eq('user_id', auth.userId);
+      .eq('user_id', auth.userId)
+      .neq('status', COMMITTED_IMPORT_STATUS);
     if (statusErr) throw statusErr;
 
     return {

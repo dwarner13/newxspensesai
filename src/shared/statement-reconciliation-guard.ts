@@ -30,16 +30,37 @@ export interface CashFlowForGuard {
 
 const MONEY = /(?:-\s?)?\$\s?\d[\d,]*(?:\.\d{1,2})?/g;
 const SPECULATION = /\b(overdraft|overdrawn|starting balance|opening balance usage|missing (?:deposit|deposits|data|income|transactions)|(?<!\bno )unexplained difference|outflows exceed inflows)\b/i;
-/** Labelled statement totals: the figure after the label must be that exact total. */
-const LABELLED_TOTALS: ReadonlyArray<{ rx: RegExp; pick: (b: BreakdownOutput) => number[] }> = [
+const line = (b: BreakdownOutput, key: string) => b.lines.find(l => l.key === key)?.amount ?? 0;
+const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
+/**
+ * Labelled figures: the amount after the label must be one of the matching returned values.
+ * (A sum of two figures can explain an unlabelled number, never a labelled total. This catches
+ * "spending" that still includes mortgage payments, or a double-counted withdrawal total.)
+ */
+const LABELLED_TOTALS: ReadonlyArray<{ rx: RegExp; pick: (b: BreakdownOutput, cf: CashFlowForGuard) => number[] }> = [
   { rx: /total deposits?[^$\n]{0,40}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: b => [b.totalDeposits] },
   { rx: /total (?:withdrawals?|outflows?)[^$\n]{0,40}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: b => [b.totalWithdrawals] },
   { rx: /total (?:inflows?)[^$\n]{0,40}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: b => [b.totalDeposits] },
-  { rx: /\bnet(?: cash flow| change)?\b[^$\n]{0,25}(-?\s?\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: b => [Math.abs(b.net)] },
+  { rx: /\bnet(?: cash flow| change)?\b[^$\n]{0,25}(-?\s?\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi, pick: (b, cf) => [b.net, num(cf.netCashFlow), num(cf.netExcludingInternalMovements)] },
+  { rx: /\b(?:actual |everyday |total )?spending\b[^$\n]{0,70}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi,
+    pick: (b, cf) => [num(cf.spending), line(b, 'everyday_spending'), line(b, 'everyday_spending') + line(b, 'unresolved')] },
+  { rx: /\b(?:actual |total )?income\b[^$\n]{0,70}(\$\s?\d[\d,]*(?:\.\d{1,2})?)/gi,
+    pick: (b, cf) => [num(cf.income), line(b, 'employment_income'), line(b, 'other_deposits'), line(b, 'business_deposits')] },
 ];
+/** Strict mode: the customer asked for (or the reply is) a statement breakdown / reconciliation. */
+const STRICT_TOPIC = /\b(reconcil\w*|breakdown|break (?:it|this) down|total deposits?|total withdrawals?|deposits and withdrawals)\b/i;
 const BREAKDOWN_TOPIC = /\b(deposit|deposits|withdrawal|withdrawals|reconcil\w*|breakdown|net cash|cash ?flow|total (?:income|spending|inflows?|outflows?)|money (?:in|out))\b/i;
 
-/** Every dollar figure the tool returned (absolute values, dollars). */
+/** Every number in any same-turn read-tool result (deep walk; absolute values, dollars). */
+export function figuresFromToolResult(result: unknown, out: number[] = [], depth = 0): number[] {
+  if (depth > 6 || out.length > 5000) return out;
+  if (typeof result === 'number' && Number.isFinite(result)) { out.push(Math.abs(result)); return out; }
+  if (Array.isArray(result)) { for (const v of result) figuresFromToolResult(v, out, depth + 1); return out; }
+  if (result && typeof result === 'object') for (const v of Object.values(result)) figuresFromToolResult(v, out, depth + 1);
+  return out;
+}
+
+/** Every dollar figure the cash-flow tool returned (absolute values, dollars). */
 export function knownFigures(cf: CashFlowForGuard): number[] {
   const out = new Set<number>();
   const add = (v: unknown) => { if (typeof v === 'number' && Number.isFinite(v)) out.add(Math.round(Math.abs(v) * 100)); };
@@ -64,18 +85,20 @@ export function moneyFigures(text: string): number[] {
 export interface GuardResult {
   ok: boolean;
   applies: boolean;
+  /** Strict mode (breakdown / reconciliation answer): unsupported figures fail. Otherwise they are logged only. */
+  strict: boolean;
   unsupportedFigures: number;
   /** A figure labelled as a statement total (deposits / withdrawals / net) that is not that total. */
   mislabelledTotals: number;
   speculation: boolean;
 }
 
-function countMislabelled(reply: string, b: BreakdownOutput): number {
+function countMislabelled(reply: string, b: BreakdownOutput, cf: CashFlowForGuard): number {
   let bad = 0;
   for (const { rx, pick } of LABELLED_TOTALS) {
     for (const m of reply.matchAll(rx)) {
       const v = Math.round(Math.abs(Number(m[1].replace(/[^\d.]/g, ''))) * 100);
-      if (!pick(b).some(t => Math.abs(Math.round(Math.abs(t) * 100) - v) <= 1)) bad++;
+      if (!pick(b, cf).filter(t => Number.isFinite(t)).some(t => Math.abs(Math.round(Math.abs(t) * 100) - v) <= 1)) bad++;
     }
   }
   return bad;
@@ -85,16 +108,29 @@ function countMislabelled(reply: string, b: BreakdownOutput): number {
  * Applies when the turn has a statement breakdown AND the reply (or request) is about totals,
  * deposits, withdrawals or a breakdown and the reply states money figures.
  */
-export function guardReconciledAnswer(reply: string, cf: CashFlowForGuard | null | undefined, userMessage = ''): GuardResult {
+export function guardReconciledAnswer(
+  reply: string,
+  cf: CashFlowForGuard | null | undefined,
+  userMessage = '',
+  /** Figures from OTHER same-turn read tools (tx_search, category totals, comparisons…). */
+  otherToolFigures: readonly number[] = [],
+): GuardResult {
   const b = cf?.statementBreakdown;
   const figures = moneyFigures(reply || '');
   const applies = !!b && figures.length > 0 && (BREAKDOWN_TOPIC.test(reply) || BREAKDOWN_TOPIC.test(userMessage));
-  if (!applies || !b || !cf) return { ok: true, applies: false, unsupportedFigures: 0, mislabelledTotals: 0, speculation: false };
-  const known = knownFigures(cf).map(v => Math.round(v * 100));
-  const unsupported = figures.filter(f => f !== 0 && !known.some(k => Math.abs(k - Math.round(f * 100)) <= 1)).length;
-  const mislabelled = countMislabelled(reply, b);
+  if (!applies || !b || !cf) return { ok: true, applies: false, strict: false, unsupportedFigures: 0, mislabelledTotals: 0, speculation: false };
+  const strict = STRICT_TOPIC.test(userMessage) || STRICT_TOPIC.test(reply);
+  const known = [...new Set([...knownFigures(cf), ...otherToolFigures].map(v => Math.round(Math.abs(v) * 100)))];
+  const knownSet = new Set(known);
+  const near = (c: number) => knownSet.has(c) || knownSet.has(c - 1) || knownSet.has(c + 1);
+  // A sum or difference of two returned figures is also supported (e.g. "$120 more than last month").
+  const pairOk = (c: number) => known.length <= 600 && known.some(a => near(c - a) || near(a - c) || near(a + c));
+  const unsupported = figures.filter(f => { const c = Math.round(f * 100); return c !== 0 && !near(c) && !pairOk(c); }).length;
+  const mislabelled = countMislabelled(reply, b, cf);
   const speculation = b.reconciled && SPECULATION.test(reply);
-  return { ok: unsupported === 0 && mislabelled === 0 && !speculation, applies: true, unsupportedFigures: unsupported, mislabelledTotals: mislabelled, speculation };
+  // Mislabelled statement totals and speculation always fail; unsupported figures fail only in strict mode.
+  const ok = mislabelled === 0 && !speculation && (!strict || unsupported === 0);
+  return { ok, applies: true, strict, unsupportedFigures: unsupported, mislabelledTotals: mislabelled, speculation };
 }
 
 function fmt(n: number, currency: string): string {

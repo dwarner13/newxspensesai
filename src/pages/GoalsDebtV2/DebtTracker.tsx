@@ -8,6 +8,15 @@ interface DebtTrackerProps {
 
 export function DebtTracker({ debts, debtFreeMonths }: DebtTrackerProps) {
   const totalDebt = debts.reduce((s, d) => s + d.balance, 0);
+  // HONEST-2: no debts, no strategy or countdown (it showed "0 months" and fixed savings claims).
+  if (debts.length === 0) {
+    return (
+      <div style={{ padding: "28px 24px", borderRadius: 16, border: `1px solid ${THEME.border}`, textAlign: "center", color: THEME.textMuted, fontSize: 14 }}>
+        No debts recorded.
+      </div>
+    );
+  }
+  const countdown = debtFreeMonths > 0 && debtFreeMonths < 999 ? `${debtFreeMonths} months` : "Not enough data";
 
   return (
     <div>
@@ -28,7 +37,7 @@ export function DebtTracker({ debts, debtFreeMonths }: DebtTrackerProps) {
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: THEME.text, marginBottom: 6 }}>Goalie Recommends: Avalanche Method</div>
             <div style={{ fontSize: 12.5, color: THEME.textMuted, lineHeight: 1.5, marginBottom: 12 }}>
-              Pay minimums on everything, then throw all extra cash at the highest-APR debt first. This saves the most in interest over time. At $500/mo extra, you're debt-free in {debtFreeMonths} months.
+              Pay minimums on everything, then throw all extra cash at the highest-APR debt first. This saves the most in interest over time.
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button style={{ padding: "8px 18px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: `linear-gradient(135deg, ${GOALIE_COLOR}, #d4a017)`, border: "none", color: "#0b1220", cursor: "pointer", boxShadow: `0 2px 12px ${GOALIE_COLOR}33` }}>Apply Avalanche Plan</button>
@@ -81,8 +90,8 @@ export function DebtTracker({ debts, debtFreeMonths }: DebtTrackerProps) {
           border: "1px solid rgba(52,211,153,0.12)", textAlign: "center",
         }}>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: "#34d399", fontWeight: 700, marginBottom: 8 }}>Debt Freedom Countdown</div>
-          <div style={{ fontSize: 36, fontWeight: 800, color: THEME.text }}>{debtFreeMonths} months</div>
-          <div style={{ fontSize: 12, color: THEME.textMuted, marginTop: 4 }}>At current pace \u2022 <span style={{ color: "#34d399", fontWeight: 600 }}>Save $340 in interest with Avalanche</span></div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: THEME.text }}>{countdown}</div>
+          <div style={{ fontSize: 12, color: THEME.textMuted, marginTop: 4 }}>At your latest month&apos;s savings</div>
         </div>
       </Reveal>
     </div>

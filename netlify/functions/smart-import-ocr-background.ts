@@ -1656,7 +1656,12 @@ async function runOCR(
       }
     }
   } else if (isPdf) {
-    console.log('[OCR] PDF embedded text extraction disabled; using OCR.space');
+    // BYTE-LIVE-01 follow-up (owner GO 2026-11-26): log the provider order that actually runs.
+    console.log(
+      hasVision
+        ? '[OCR] PDF embedded text extraction disabled; Google Vision is the primary OCR (OCR.space only as fallback)'
+        : '[OCR] PDF embedded text extraction disabled; Google Vision not configured, using OCR.space'
+    );
   }
 
   // 1.5) For PDFs, try Google Vision BEFORE OCR.space when API key is configured
@@ -1778,7 +1783,11 @@ async function runOCR(
 
   // 2) Prefer OCR.space first for images and PDFs when available
   if (hasOcrSpace) {
-    console.log('[OCR] Using OCR.space backend');
+    console.log(
+      isPdf && hasVision && !enableEmbeddedPdfText
+        ? '[OCR] Using OCR.space backend (fallback: Google Vision did not return usable text)'
+        : '[OCR] Using OCR.space backend'
+    );
     try {
       const baseResult = await runOcrSpace(docMode === 'statement');
       const baseLen = baseResult.text?.trim().length || 0;
@@ -2608,7 +2617,8 @@ export const handler: Handler = async (event, context) => {
 
     // Claude Vision here extracts TRANSACTIONS; chat documents never need it.
     if (VISION_ENABLED && isPdfForVision && !isChatDocument) {
-      console.log('[Vision] Starting parallel extraction', { docId, model: CLAUDE_VISION_MODEL, timeoutMs: CLAUDE_VISION_TIMEOUT_MS });
+      // "[Vision]" here is Claude Vision (Anthropic) structured extraction, not Google Vision OCR.
+      console.log('[Vision] Starting parallel extraction', { docId, provider: 'anthropic_claude_vision', model: CLAUDE_VISION_MODEL, timeoutMs: CLAUDE_VISION_TIMEOUT_MS });
       visionPromise = withTimeout(
         runClaudeVisionExtraction(binaryBuffer, docId),
         CLAUDE_VISION_TIMEOUT_MS,

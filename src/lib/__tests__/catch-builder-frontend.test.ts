@@ -19,7 +19,9 @@ describe('frontend: no .catch() chained on Supabase query builders in these flow
   it('Categories: a saved budget is never reported as failed because of the notification insert', () => {
     const src = read('pages/CategoriesV2/CategoriesPageV2.tsx');
     expect(src).not.toMatch(/sent_at: new Date\(\)\.toISOString\(\),\s*\}\)\.catch\(/);
-    expect(src).toMatch(/const \{ error: notifyErr \} = await sb\.from\('user_notifications'\)\.insert\(/);
+    // NOTIFY-1: the budget notice goes to `notifications` (the table with these columns).
+    expect(src).toMatch(/const \{ error: notifyErr \} = await sb\.from\('notifications'\)\.insert\(/);
+    expect(src).not.toMatch(/sent_at: new Date\(\)\.toISOString\(\)/);
   });
 });
 

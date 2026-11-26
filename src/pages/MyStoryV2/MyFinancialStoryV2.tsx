@@ -121,11 +121,11 @@ export default function MyFinancialStoryV2() {
             <div style={{ flex: 1, display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
               {[
                 { label: "Total Income", value: `$${data.income.toLocaleString()}`, color: "#34d399", sub: `${data.periodMonths} months` },
-                { label: "Total Expenses", value: `$${data.expenses.toLocaleString()}`, color: "#f87171", sub: `+${data.expenseTrendPct}% MoM` },
+                { label: "Total Expenses", value: `$${data.expenses.toLocaleString()}`, color: "#f87171", sub: `${data.expenseTrendPct > 0 ? "+" : ""}${data.expenseTrendPct}% vs previous month` },
                 { label: "Net Position", value: `$${data.netPosition.toLocaleString()}`, color: "#fb923c", sub: data.netPosition < 0 ? "Deficit" : "Surplus" },
                 { label: "Statements", value: `${data.statementCount}`, color: "#60a5fa", sub: "Processed" },
-                { label: "Transactions", value: `${data.transactionCount}`, color: "#22d3ee", sub: "Categorized" },
-                { label: "Tax Deductions", value: `$${data.deductions.toLocaleString()}`, color: THEME.accent, sub: "Identified" },
+                { label: "Transactions", value: `${data.transactionCount}`, color: "#22d3ee", sub: "Imported" },
+                { label: "Possibly deductible", value: `$${data.deductions.toLocaleString()}`, color: THEME.accent, sub: "Needs review" },
               ].map((s, i) => (
                 <Reveal key={s.label} delay={350 + i * 50}>
                   <div style={{
@@ -161,7 +161,7 @@ export default function MyFinancialStoryV2() {
             ))}
             <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 12, background: "rgba(167,139,250,0.04)", borderLeft: "3px solid rgba(167,139,250,0.3)" }}>
               <div style={{ fontSize: 12, color: THEME.textMuted, lineHeight: 1.5 }}>
-                <span style={{ fontWeight: 700, color: "#a78bfa" }}>Crystal:</span> Personal Care dominates at 50% of spending. This is unusual \u2014 the typical ratio is 15-20%. Worth reviewing if some items should be recategorized as business expenses.
+                <span style={{ fontWeight: 700, color: "#a78bfa" }}>Crystal:</span> {data.categoryBreakdown[0] ? `${data.categoryBreakdown[0].cat} is your largest spending category at ${data.categoryBreakdown[0].pct}% of the total.` : "No spending to summarise yet."}
               </div>
             </div>
           </StorySection>
@@ -183,17 +183,15 @@ export default function MyFinancialStoryV2() {
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 12, background: "rgba(167,139,250,0.04)", borderLeft: "3px solid rgba(167,139,250,0.3)" }}>
-              <div style={{ fontSize: 12, color: THEME.textMuted, lineHeight: 1.5 }}>
-                <span style={{ fontWeight: 700, color: "#a78bfa" }}>Crystal:</span> Dining acceleration is most concerning \u2014 3 months straight with 68% driven by delivery apps. Shopping trending well.
-              </div>
-            </div>
           </StorySection>
 
           {/* Prime Advisory */}
           <StorySection title="Prime's Advisory Note" icon={"\u2655"} agent="Prime" agentColor={THEME.accent} delay={1000}>
             <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.65 }}>
-              Your expenses have outpaced income by ${Math.abs(data.netPosition).toLocaleString()} over this period. The good news: I've identified $${data.deductions.toLocaleString()} in potential tax deductions. For self-employed income, these could save you approximately $820-$985 at tax time. Lock down vehicle expense documentation \u2014 CRA requires mileage logs and April deadline is approaching.
+              {data.netPosition < 0
+                ? `Over this period your spending was $${Math.abs(data.netPosition).toLocaleString()} more than your income.`
+                : `Over this period your income was $${data.netPosition.toLocaleString()} more than your spending.`}
+              {data.deductions > 0 && ` Spending in categories that are sometimes tax-deductible totals $${data.deductions.toLocaleString()}. Whether any of it is deductible depends on your situation — confirm with an accountant.`}
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
               {data.deductionBreakdown.map(d => (
@@ -212,7 +210,6 @@ export default function MyFinancialStoryV2() {
                 <div key={c.cat} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 12, background: THEME.bg, border: `1px solid ${THEME.border}` }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: THEME.text, flex: 1 }}>{c.cat}</span>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: `${c.statusColor}12`, color: c.statusColor, border: `1px solid ${c.statusColor}22` }}>{c.status}</span>
-                  <span style={{ fontSize: 11, color: "#22d3ee", fontWeight: 600, width: 50, textAlign: "right" }}>{c.confidence}%</span>
                 </div>
               ))}
             </div>

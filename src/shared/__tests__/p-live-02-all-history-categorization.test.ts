@@ -230,11 +230,11 @@ describe('Completed correction history: authoritative, customer-isolated, no con
     const l = ledger() as Record<string, FakeRow[]>;
     l.tag_activity_log = [
       // own: 3 confirmed actions, one older than 90 days
-      { id: 'a1', user_id: USER, action_type: 'recategorize_single_transaction', merchant_name: 'M', old_value: 'Dining', new_value: 'Groceries', note: 'secret note', created_at: new Date(NOW.getTime() - 3 * 86_400_000).toISOString() },
-      { id: 'a2', user_id: USER, action_type: 'save_merchant_rule', merchant_name: 'M', created_at: new Date(NOW.getTime() - 10 * 86_400_000).toISOString() },
-      { id: 'a3', user_id: USER, action_type: 'recategorize_single_transaction', merchant_name: 'M', created_at: new Date(NOW.getTime() - 400 * 86_400_000).toISOString() },
+      { id: 'a1', user_id: USER, change_source: 'recategorize_single_transaction', merchant_name: 'M', previous_category: 'Dining', new_category: 'Groceries', change_note: 'secret note', created_at: new Date(NOW.getTime() - 3 * 86_400_000).toISOString() },
+      { id: 'a2', user_id: USER, change_source: 'save_merchant_rule', merchant_name: 'M', created_at: new Date(NOW.getTime() - 10 * 86_400_000).toISOString() },
+      { id: 'a3', user_id: USER, change_source: 'recategorize_single_transaction', merchant_name: 'M', created_at: new Date(NOW.getTime() - 400 * 86_400_000).toISOString() },
       // another customer: never counted
-      { id: 'b1', user_id: OTHER, action_type: 'bulk_move_category', merchant_name: 'OTHER SECRET', created_at: NOW.toISOString() },
+      { id: 'b1', user_id: OTHER, change_source: 'bulk_move_category', merchant_name: 'OTHER SECRET', created_at: NOW.toISOString() },
     ];
     return l;
   };

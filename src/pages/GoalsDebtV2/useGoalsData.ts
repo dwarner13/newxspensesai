@@ -14,6 +14,10 @@ export interface GoalsPageData {
   monthlySavings: number;
   debtFreeMonths: number;
   loading: boolean;
+  /** The goals or debts could not be loaded (shown as an error, never as example data). */
+  loadError: boolean;
+  /** Goal / debt storage is not set up in the database (missing table or column). */
+  unavailable: boolean;
 }
 
 const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
@@ -26,18 +30,9 @@ function isIncome(t: { amount: number; category?: string; merchant_name?: string
   return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
-// Example data shown when tables don't exist or are empty (onboarding)
-const EXAMPLE_GOALS: GoalData[] = [
-  { name: "Emergency Fund", target: 5000, current: 2100, icon: "\uD83D\uDEE1\uFE0F", color: "#60a5fa", deadline: "Aug 2026", priority: "high", tip: "At your current savings rate, you'll hit this by July. Consider redirecting $200/mo from dining." },
-  { name: "New Car Down Payment", target: 15000, current: 3800, icon: "\uD83D\uDE97", color: "#a78bfa", deadline: "Dec 2026", priority: "medium", tip: "25% there. Your vehicle deductions could be redirected here after tax season." },
-  { name: "Vacation Fund", target: 3000, current: 1200, icon: "\u2708\uFE0F", color: "#22d3ee", deadline: "Jun 2026", priority: "low", tip: "On track if you save $450/mo. Consider pausing one subscription to boost this." },
-];
-
-const EXAMPLE_DEBTS: DebtData[] = [
-  { name: "CIBC Visa", balance: 1700, rate: 19.99, minPayment: 45, color: "#f87171", type: "Credit Card" },
-  { name: "Canadian Tire MC", balance: 850, rate: 22.99, minPayment: 25, color: "#fb923c", type: "Credit Card" },
-  { name: "Student Loan", balance: 12400, rate: 5.5, minPayment: 280, color: "#60a5fa", type: "Loan" },
-];
+// HONEST-1: no example goals or debts. They were shown as the customer's own when the
+// tables were empty or failed to load ($23,000 of goals, $14,950 of debt on an empty
+// account). Empty data now stays empty; a load failure is reported, not papered over.
 
 const LESSONS: LessonData[] = [
   { title: "The 50/30/20 Rule", desc: "How to split your income for maximum financial health", duration: "3 min", icon: "\uD83D\uDCCA", color: "#c8a64e", agent: "Prime" },
@@ -46,17 +41,28 @@ const LESSONS: LessonData[] = [
   { title: "Building an Emergency Fund", desc: "Why 3-6 months of expenses is the magic number", duration: "3 min", icon: "\uD83D\uDEE1\uFE0F", color: "#a78bfa", agent: "Goalie" },
 ];
 
+// Missing table / column (42P01, 42703, PGRST204, PGRST205): the feature has no storage yet.
+// On 2026-11-25 the shared database had a goals table without the queried columns and no
+// debts table, so every customer was shown the example data.
+function isSchemaMissing(e: { code?: string } | null): boolean {
+  return !!e && ["42P01", "42703", "PGRST204", "PGRST205"].includes(String(e.code || ""));
+}
+
 export function useGoalsData(): GoalsPageData {
   const { userId } = useAuth();
   const { transactions, isLoading: txLoading } = useTransactions();
   const [goals, setGoals] = useState<GoalData[]>([]);
   const [debts, setDebts] = useState<DebtData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
 
   const fetchGoalsDebts = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
     const supabase = getSupabase();
-    if (!supabase) { setGoals(EXAMPLE_GOALS); setDebts(EXAMPLE_DEBTS); setLoading(false); return; }
+    if (!supabase) { setGoals([]); setDebts([]); setLoadError(true); setLoading(false); return; }
+    setLoadError(false);
+    setUnavailable(false);
 
     try {
       // Try fetching goals
@@ -66,9 +72,9 @@ export function useGoalsData(): GoalsPageData {
         .eq("user_id", userId)
         .order("priority", { ascending: true });
 
-      if (goalsErr?.code === "42P01" || goalsErr?.message?.includes("does not exist")) {
-        // Table doesn't exist - use example data
-        setGoals(EXAMPLE_GOALS);
+      if (goalsErr) {
+        setGoals([]);
+        if (isSchemaMissing(goalsErr)) setUnavailable(true); else setLoadError(true);
       } else if (goalsData && goalsData.length > 0) {
         setGoals(goalsData.map((g: Record<string, unknown>) => ({
           name: String(g.name || ""),
@@ -81,7 +87,7 @@ export function useGoalsData(): GoalsPageData {
           tip: "",
         })));
       } else {
-        setGoals(EXAMPLE_GOALS);
+        setGoals([]);
       }
 
       // Try fetching debts
@@ -91,8 +97,9 @@ export function useGoalsData(): GoalsPageData {
         .eq("user_id", userId)
         .order("rate", { ascending: false });
 
-      if (debtsErr?.code === "42P01" || debtsErr?.message?.includes("does not exist")) {
-        setDebts(EXAMPLE_DEBTS);
+      if (debtsErr) {
+        setDebts([]);
+        if (isSchemaMissing(debtsErr)) setUnavailable(true); else setLoadError(true);
       } else if (debtsData && debtsData.length > 0) {
         setDebts(debtsData.map((d: Record<string, unknown>) => ({
           name: String(d.name || ""),
@@ -103,11 +110,12 @@ export function useGoalsData(): GoalsPageData {
           type: String(d.type || "Credit Card"),
         })));
       } else {
-        setDebts(EXAMPLE_DEBTS);
+        setDebts([]);
       }
     } catch {
-      setGoals(EXAMPLE_GOALS);
-      setDebts(EXAMPLE_DEBTS);
+      setGoals([]);
+      setDebts([]);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -144,6 +152,8 @@ export function useGoalsData(): GoalsPageData {
     totalDebt, totalGoalTarget, totalGoalCurrent,
     monthlySavings, debtFreeMonths,
     loading: loading || txLoading,
+    loadError,
+    unavailable,
   };
 }
 

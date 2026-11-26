@@ -916,7 +916,7 @@ input, textarea, select {
   border-radius: 8px;
 }
 
-input:focus, textarea:focus {
+input:focus:not([data-composer]), textarea:focus:not([data-composer]) {
   border-color: var(--primary-purple);
   outline: none;
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);

@@ -34,8 +34,10 @@ export function ChatAttachmentButton({ onFileSelected }: ChatAttachmentButtonPro
       <input ref={galleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleFile(e, "gallery")} />
       <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.heic,.webp" style={{ display: "none" }} onChange={e => handleFile(e, "file")} />
 
-      <button onClick={() => setShowMenu(!showMenu)} style={{
-        background: "none", border: "none", cursor: "pointer", padding: 8,
+      <button type="button" onClick={() => setShowMenu(!showMenu)} aria-label="Attach a file" aria-expanded={showMenu} style={{
+        // CHAT-POLISH: a 44px target with the icon centred (was 36px, flush to the frame).
+        width: 44, height: 44, flexShrink: 0, borderRadius: 12,
+        background: "none", border: "none", cursor: "pointer", padding: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
         color: "#c8d0e0", transition: "color 0.2s",
       }}

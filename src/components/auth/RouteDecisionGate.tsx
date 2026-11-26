@@ -70,6 +70,11 @@ function PreparingWorkspaceScreen() {
   );
 }
 
+// SPLASH-1: boot is remembered for the page's lifetime. On first load the dashboard suspends
+// while its code downloads and React discards the suspended tree, remounting this gate; a
+// component ref reset to false and showed "Preparing your workspace" a second time.
+let gateBootedThisPage = false;
+
 export default function RouteDecisionGate({ children }: { children: React.ReactNode }) {
   // ============================================================================
   // CRITICAL: ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP
@@ -77,7 +82,7 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
   // ============================================================================
   
   // Hook 1: Permanent boot tracking - NEVER resets during navigation
-  const hasBootedRef = useRef(false);
+  const hasBootedRef = useRef(gateBootedThisPage);
   const [isBootComplete, setIsBootComplete] = useState(false);
   
   // Hook 2: Context hooks - ALL called unconditionally
@@ -108,6 +113,7 @@ export default function RouteDecisionGate({ children }: { children: React.ReactN
     // Once boot is complete, mark it permanently
     if (routeReady && !hasBootedRef.current) {
       hasBootedRef.current = true;
+      gateBootedThisPage = true;
       setIsBootComplete(true);
       if (import.meta.env.DEV) {
         console.log('[RouteDecisionGate] ✅ Boot complete - loader will NEVER show again until hard refresh');

@@ -120,6 +120,16 @@ const fakeClient = {
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => fakeClient }));
 vi.mock('../_shared/supabase', () => ({ admin: () => fakeClient }));
 
+// BYTE-LIVE-01: build-time deploy metadata as hosted Functions see it (null unless a test sets it).
+const buildMeta = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+vi.mock('../_shared/deployMetadata.generated', () => ({
+  get BUILD_DEPLOY_METADATA() {
+    return buildMeta.current;
+  },
+}));
+const HOSTED_ORIGIN = 'https://f00dfacef00dfacef00dface--synthetic-staging.netlify.app';
+const HOSTED_META = { context: 'production', deployId: 'f00dfacef00dfacef00dface', siteName: 'synthetic-staging', deployUrl: HOSTED_ORIGIN, siteUrl: null };
+
 function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
@@ -319,6 +329,71 @@ describe('prime-router — upload', () => {
     expect(logs).not.toContain(OWNER_TOKEN);
     expect(logs).not.toContain(SECRET_FILE);
     expect(logs).not.toContain(OWNER_ID);
+  });
+});
+
+describe('prime-router — hosted runtime without DEPLOY_URL/CONTEXT (BYTE-LIVE-01)', () => {
+  beforeEach(() => {
+    // Exactly what hosted staging Functions see: URL and the job secret, no DEPLOY_URL or CONTEXT.
+    delete process.env.DEPLOY_URL;
+    delete process.env.CONTEXT;
+    process.env.URL = 'https://synthetic-staging.netlify.app';
+    buildMeta.current = { ...HOSTED_META };
+  });
+  afterEach(() => {
+    buildMeta.current = null;
+    process.env.URL = 'https://app.test';
+  });
+
+  it('reproduces the staging failure without build metadata: 503 processing_unavailable, nothing created', async () => {
+    buildMeta.current = null;
+    const res = await call(uploadEvent({ token: OWNER_TOKEN, userId: OWNER_ID }));
+    expect(res.statusCode).toBe(503);
+    expect(res.json).toMatchObject({ ok: false, step: 'ocr-dispatch', retryable: true, error: 'processing_unavailable' });
+    expect(fnCalls).toHaveLength(0);
+    expect(dbWrites()).toHaveLength(0);
+  });
+
+  it('with build metadata the upload passes the pre-check; init and OCR target this exact deploy', async () => {
+    const res = await call(uploadEvent({ token: OWNER_TOKEN, userId: OWNER_ID }));
+    expect(res.statusCode).toBe(200);
+    expect(res.json).toMatchObject({ ok: true, mode: 'upload', importId: NEW_IMPORT, documentId: NEW_DOC });
+    const init = fnCalls.find((c) => c.fn === 'smart-import-init')!;
+    expect(init.url).toBe(`${HOSTED_ORIGIN}/.netlify/functions/smart-import-init`);
+    const ocr = fnCalls.find((c) => c.fn === 'smart-import-ocr-background')!;
+    expect(ocr.url).toBe(`${HOSTED_ORIGIN}/.netlify/functions/smart-import-ocr-background`);
+    expect(ocr.headers.authorization).toBeUndefined();
+    expect(verifyJobToken(ocr.headers[JOB_TOKEN_HEADER], OCR_JOB)).toMatchObject({ ok: true, claims: { sub: OWNER_ID, doc: NEW_DOC, scope: 'ocr.run' } });
+    // Never the site's main URL, never request data.
+    expect(fnCalls.filter((c) => c.url.startsWith('http') && !c.fn.startsWith('external:')).every((c) => c.url.startsWith(`${HOSTED_ORIGIN}/`))).toBe(true);
+    expect(loggedText()).not.toContain(HOSTED_ORIGIN);
+  });
+
+  it('job signing still required: metadata alone never authorizes dispatch', async () => {
+    delete process.env.INTERNAL_JOB_SIGNING_SECRET;
+    const res = await call(uploadEvent({ token: OWNER_TOKEN }));
+    expect(res.statusCode).toBe(503);
+    expect(fnCalls).toHaveLength(0);
+  });
+
+  it.each([
+    ['built for another site', { ...HOSTED_META, siteName: 'other-site', deployUrl: 'https://f00dfacef00dfacef00dface--other-site.netlify.app' }],
+    ['deploy URL not matching its deploy id', { ...HOSTED_META, deployUrl: 'https://0123456789abcdef01234567--synthetic-staging.netlify.app' }],
+    ['arbitrary external address', { ...HOSTED_META, deployUrl: 'https://attacker.example' }],
+    ['plain http', { ...HOSTED_META, deployUrl: 'http://f00dfacef00dfacef00dface--synthetic-staging.netlify.app' }],
+  ])('metadata %s is rejected → 503, nothing created', async (_l, meta) => {
+    buildMeta.current = meta;
+    const res = await call(uploadEvent({ token: OWNER_TOKEN }));
+    expect(res.statusCode).toBe(503);
+    expect(fnCalls).toHaveLength(0);
+  });
+
+  it('a deploy-preview build calls its own deploy, never the published site URL', async () => {
+    buildMeta.current = { ...HOSTED_META, context: 'deploy-preview' };
+    const res = await call(uploadEvent({ token: OWNER_TOKEN }));
+    expect(res.statusCode).toBe(200);
+    expect(fnCalls.some((c) => c.url.startsWith('https://synthetic-staging.netlify.app'))).toBe(false);
+    expect(fnCalls.find((c) => c.fn === 'smart-import-ocr-background')!.url.startsWith(`${HOSTED_ORIGIN}/`)).toBe(true);
   });
 });
 

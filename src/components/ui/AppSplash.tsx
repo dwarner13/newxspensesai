@@ -14,11 +14,28 @@ import { APP_SPLASH_SLOW_MS, splashStatus, type AppSplashStage } from "@/lib/app
  * - showRing=false renders the screen without a visible indicator (used for the first
  *   few hundred ms of a page download, so quick loads don't flash anything).
  */
+/**
+ * SPLASH-1: one continuous startup splash. Startup passes through several loaders (sign-in,
+ * route gate, page download, onboarding guard). The page-download loader hides its content
+ * for its first 350 ms, which showed as a blank gap between two "Preparing your workspace"
+ * screens. Once a full-screen splash has been seen and until the app shell has mounted, every
+ * further splash is shown at once, full screen, with the same "preparing" text.
+ */
+let startupSplashSeen = false;
+let appShellMounted = false;
+/** Called once by the app shell (DashboardLayout) when its first screen is on display. */
+export function markAppShellMounted(): void { appShellMounted = true; }
+
 const NAVY = "#0b1220";
 const GOLD = "#c8a64e";
 const TRACK = "#1e2d4a";
 
-export function AppSplash({ stage = "loading", showRing = true, inline = false }: { stage?: AppSplashStage; showRing?: boolean; inline?: boolean }) {
+export function AppSplash({ stage: stageProp = "loading", showRing: showRingProp = true, inline: inlineProp = false }: { stage?: AppSplashStage; showRing?: boolean; inline?: boolean }) {
+  const continuing = startupSplashSeen && !appShellMounted;
+  const showRing = continuing ? true : showRingProp;
+  const inline = continuing ? false : inlineProp;
+  const stage: AppSplashStage = continuing && stageProp === "loading" ? "preparing" : stageProp;
+  if (showRing && !inline && !appShellMounted) startupSplashSeen = true;
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     const t = window.setTimeout(() => setSlow(true), APP_SPLASH_SLOW_MS);

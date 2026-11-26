@@ -132,7 +132,7 @@ export function useDashboardData(): DashboardData {
       actions.push({ agent: "Byte", action: `Imported ${imp.statementLabel || imp.docName}`, detail: `Status: ${imp.status}`, time: ago });
     }
     if (uncategorizedCount === 0 && transactions.length > 0) {
-      actions.push({ agent: "Tag", action: "All transactions categorized", detail: "High confidence across the board", time: "recently" });
+      actions.push({ agent: "Tag", action: "All transactions categorized", detail: "Every transaction has a category", time: "recently" });
     } else if (uncategorizedCount > 0) {
       actions.push({ agent: "Tag", action: `Flagged ${uncategorizedCount} for review`, detail: "Uncategorized or low confidence", time: "recently" });
     }
@@ -184,7 +184,7 @@ export function buildRecapText(d: DashboardData): string {
     parts.push(`Byte imported ${d.statementCount} statement${d.statementCount !== 1 ? "s" : ""} (${d.transactionCount} transactions)`);
   }
   if (d.uncategorizedCount === 0 && d.transactionCount > 0) {
-    parts.push("Tag auto-categorized all with high confidence");
+    parts.push("every transaction has a category");
   } else if (d.uncategorizedCount > 0) {
     parts.push(`Tag flagged ${d.uncategorizedCount} transaction${d.uncategorizedCount !== 1 ? "s" : ""} for review`);
   }
@@ -194,5 +194,5 @@ export function buildRecapText(d: DashboardData): string {
   if (d.deductions > 0) {
     parts.push(`Prime identified $${d.deductions.toLocaleString()} in potential tax deductions`);
   }
-  return parts.length > 0 ? `Since your last visit: ${parts.join(", ")}.` : "Your AI team is standing by. Upload a statement to get started.";
+  return parts.length > 0 ? `So far: ${parts.join(", ")}.` : "Your AI team is standing by. Upload a statement to get started.";
 }

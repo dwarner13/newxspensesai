@@ -7,6 +7,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { committedImportIds } from './importLifecycle.js';
 
 export type LearnedCategoryResult = {
   category: string;
@@ -116,17 +117,24 @@ function vendorFromDataJson(dataJson: Record<string, unknown> | null | undefined
   return String(d.description || d.merchant || d.vendor || d.payee || d.memo || d.name || d.details || '').trim();
 }
 
-/** Staging rows still awaiting review (tag_status 'needs_review') for this vendor. Non-blocking. */
+/**
+ * Staging rows still awaiting review (tag_status 'needs_review') for this vendor. Non-blocking.
+ * S-1 (owner GO 2026-11-26): only rows of imports that are NOT committed — a committed import's
+ * staging rows are read-only history. If import status cannot be read, nothing is written.
+ */
 async function applyMemoryToNeedsReviewStaging(supabase: SupabaseClient, userId: string, vendorKey: string, category: string): Promise<void> {
   const pageSize = 500;
   let offset = 0;
   for (let page = 0; page < 10; page++) {
-    const { data, error } = await supabase.from('transactions_staging').select('id, data_json, tag_status')
+    const { data, error } = await supabase.from('transactions_staging').select('id, import_id, data_json, tag_status')
       .eq('user_id', userId).eq('tag_status', 'needs_review').range(offset, offset + pageSize - 1);
     if (error) throw error;
-    const rows = (data || []) as Array<{ id: string; data_json?: Record<string, unknown> | null }>;
+    const rows = (data || []) as Array<{ id: string; import_id?: string | null; data_json?: Record<string, unknown> | null }>;
     if (rows.length === 0) break;
+    const lifecycle = await committedImportIds(supabase as unknown as Parameters<typeof committedImportIds>[0], userId, rows.map(r => r.import_id));
+    if (!lifecycle.ok) return; // fail closed: never touch rows whose import status is unknown
     for (const row of rows) {
+      if (row.import_id && lifecycle.committed.has(row.import_id)) continue;
       if (normalizeVendorKey(vendorFromDataJson(row?.data_json)) !== vendorKey) continue;
       await supabase.from('transactions_staging').update({
         tag_category: category, tag_rule_source: 'vendor_memory', tag_confidence: 0.95, tag_status: 'auto',

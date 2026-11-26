@@ -123,6 +123,26 @@ const fakeClient = {
 
 const paid = { categorize: vi.fn(async () => ({ category: 'Dining', confidence: 0.9, source: 'rule' })), openai: vi.fn() };
 vi.mock('../_shared/supabase', () => ({ admin: () => fakeClient }));
+
+// BYTE-LIVE-01: build-time deploy metadata as hosted Functions see it (null unless a test sets it).
+const buildMeta = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+vi.mock('../_shared/deployMetadata.generated', () => ({
+  get BUILD_DEPLOY_METADATA() {
+    return buildMeta.current;
+  },
+}));
+const HOSTED_ORIGIN = 'https://f00dfacef00dfacef00dface--synthetic-staging.netlify.app';
+const HOSTED_META = { context: 'production', deployId: 'f00dfacef00dfacef00dface', siteName: 'synthetic-staging', deployUrl: HOSTED_ORIGIN, siteUrl: null };
+/** Exactly what hosted staging Functions see: URL and the job secret, no DEPLOY_URL or CONTEXT. */
+function hostedRuntime(meta: Record<string, unknown> | null = { ...HOSTED_META }) {
+  delete process.env.DEPLOY_URL;
+  delete process.env.CONTEXT;
+  process.env.URL = 'https://synthetic-staging.netlify.app';
+  buildMeta.current = meta;
+}
+afterEach(() => {
+  buildMeta.current = null;
+});
 vi.mock('../_shared/categorize', () => ({ categorizeTransactionWithLearning: (...a: unknown[]) => paid.categorize(...a) }));
 vi.mock('../_shared/recurringDetection', () => ({ detectAndUpsertRecurringObligations: async () => ({ upserted: 0 }) }));
 vi.mock('../_shared/chimeNotifications', () => ({ queueUpcomingPaymentNotifications: async () => undefined }));
@@ -358,6 +378,53 @@ describe('smart-import-sync — authorized synchronization', () => {
       expect(c.filters, `${c.table} ${c.op}`).toContainEqual(['user_id', USER_A]);
     }
     expect(db.imports.find((i) => i.id === IMP_B)?.status).toBe('parsed');
+  });
+});
+
+// -- BYTE-LIVE-01: hosted runtime without DEPLOY_URL/CONTEXT --
+describe('sync / commit in the hosted runtime (BYTE-LIVE-01 build metadata)', () => {
+  it('reproduces the staging failure without metadata: sync -> 503 after ownership, nothing downstream', async () => {
+    hostedRuntime(null);
+    const r = await invoke(sync.handler, bearer(TOKEN_A), { docIds: [DOC_A] });
+    expect(r.statusCode).toBe(503);
+    expect(fnCalls).toHaveLength(0);
+    expect(writes()).toHaveLength(0);
+  });
+
+  it('sync reaches the downstream functions of this exact deploy with the owner JWT only', async () => {
+    hostedRuntime();
+    const r = await invoke(sync.handler, bearer(TOKEN_A), { docIds: [DOC_A], importRunId: 'run-hosted', waitForOcrMs: 0, pollForOcrMs: 100 });
+    expect(r.statusCode).toBe(200);
+    const downstream = fnCalls.filter((c) => c.url.includes('/.netlify/functions/'));
+    expect(downstream.length).toBeGreaterThan(0);
+    for (const c of downstream) {
+      expect(c.url.startsWith(`${HOSTED_ORIGIN}/.netlify/functions/`), c.url).toBe(true);
+      expect(c.headers.authorization).toBe(`Bearer ${TOKEN_A}`);
+    }
+    expect(fnCalls.map((c) => c.fn)).toContain('commit-import');
+    for (const c of dbCalls.filter((d) => ['user_documents', 'imports', 'transactions_staging', 'transactions'].includes(d.table))) {
+      expect(c.filters, `${c.table} ${c.op}`).toContainEqual(['user_id', USER_A]);
+    }
+  });
+
+  it('commit-import batch self-calls go to this exact deploy with the verified identity', async () => {
+    hostedRuntime();
+    const r = await invoke(commit.handler, bearer(TOKEN_A), { importIds: [IMP_A, IMP_A2] });
+    expect(r.statusCode).toBe(200);
+    const calls = fnCalls.filter((c) => c.fn === 'commit-import');
+    expect(calls).toHaveLength(2);
+    for (const c of calls) {
+      expect(c.url).toBe(`${HOSTED_ORIGIN}/.netlify/functions/commit-import`);
+      expect(c.headers['x-user-id']).toBe(USER_A);
+      expect(c.headers[JOB_TOKEN_HEADER]).toBeUndefined();
+    }
+  });
+
+  it('commit still refuses an unauthenticated caller in the hosted runtime', async () => {
+    hostedRuntime();
+    const r = await invoke(commit.handler, { 'x-user-id': USER_B }, { importIds: [IMP_B] });
+    expect(r.statusCode).toBe(401);
+    expect(fnCalls).toHaveLength(0);
   });
 });
 

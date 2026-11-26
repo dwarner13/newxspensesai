@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { markAppShellMounted } from "@/components/ui/AppSplash";
 import React from "react";
 import { useLocation, Outlet, useNavigate } from "react-router-dom";
 import { AnimatedOutlet } from "../components/ui/AnimatedOutlet";
@@ -54,6 +55,10 @@ export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   
+  // SPLASH-1: the shell is on screen (committed — a render React discards while a page
+  // downloads must not count), so later page downloads use the in-app loader.
+  useEffect(() => { markAppShellMounted(); }, []);
+
   // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
   // All routes are now full-width - activity feed rail removed
@@ -1116,7 +1121,7 @@ export default function DashboardLayout() {
               onClick={() => setIsPrimeBriefingOpen(true)}
               aria-label="Ask Prime"
               data-testid="ask-prime-mobile"
-              className="ml-auto mr-2 px-3 py-1.5 rounded-lg text-xs font-bold"
+              className="ml-auto mr-2 px-3 min-h-[44px] shrink-0 whitespace-nowrap rounded-lg text-xs font-bold"
               style={{ background: 'rgba(200,166,78,0.12)', border: '1px solid rgba(200,166,78,0.35)', color: '#e8cf86' }}
             >
               Ask Prime

@@ -11,11 +11,18 @@
   transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
 }
 
-/* Input focus glow */
-input:focus, textarea:focus {
+/* Input focus glow. Chat composers opt out (data-composer): their frame shows focus
+   instead, so no second ring is drawn inside the composer (CHAT-POLISH). */
+input:focus:not([data-composer]), textarea:focus:not([data-composer]) {
   box-shadow: 0 0 0 2px rgba(200,166,78,0.15), 0 4px 16px rgba(200,166,78,0.06) !important;
   border-color: #c8a64e !important;
   outline: none !important;
+}
+
+/* The chat composer frame shows keyboard focus for the field inside it. */
+.chat-composer:focus-within {
+  border-color: rgba(200,166,78,0.55) !important;
+  box-shadow: 0 0 0 2px rgba(200,166,78,0.15);
 }
 
 /* Gold button class */

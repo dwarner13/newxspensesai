@@ -55,13 +55,23 @@ describe('summary strip and overview', () => {
     expect(page.match(/const uncategorizedCount = /g)?.length).toBe(1);
   });
 
-  it('account cards, totals, donut and insights are kept, inside the overview', () => {
-    expect(page).toMatch(/\{!isStatementMode && overviewOpen && <div\s*className="acct-scroll mb-3"/);
-    expect(page).toMatch(/id="tx-overview-content" className=\{`grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 \$\{overviewOpen \? '' : 'hidden'\}`\}/);
-    expect(page).toContain('Spending by category');
-    expect(page).toContain('AI insights');
-    // the overview is no longer forced open on desktop
-    expect(page).not.toMatch(/overviewOpen \? '' : 'hidden md:grid'/);
+  it('TX-FIRST: no dashboard blocks above the list; an optional compact summary instead', () => {
+    // owner: a genuine transaction-first page — the account cards, KPI cards, donut and AI
+    // insights are removed (not hidden).
+    expect(page).not.toContain('acct-scroll');
+    expect(page).not.toContain('AI insights');
+    expect(page).not.toMatch(/PieChart|ResponsiveContainer/);
+    expect(page).not.toMatch(/label: 'Total Spent'/);
+    // the compact summary renders only when opened, and starts closed
+    expect(page).toMatch(/\{!isStatementMode && !hasNoTransactions && overviewOpen && \(\s*<div id="tx-overview-content"/);
+    expect(page).toMatch(/getItem\('xai\.tx\.summary\.open'\) === '1'/);
+  });
+
+  it('TX-FIRST: a brand-new account shows one getting-started card, not zero-value cards', () => {
+    expect(page).toMatch(/const hasNoTransactions = !isLoading && transactions\.length === 0;/);
+    expect(page).toMatch(/\{hasNoTransactions && \(\s*<section aria-labelledby="tx-getting-started"/);
+    expect(page).toContain('No transactions yet');
+    expect(page).toMatch(/\{!hasNoTransactions && <div className="rounded-xl border border-slate-700\/50 bg-slate-900\/30">/);
   });
 
   it('page actions are 44px', () => {

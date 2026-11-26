@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CHAT_VISUALS, chatTextSize } from '../chatVisualStandards';
+import { CHAT_HEADER } from '../chatToolbar';
 
 const root = path.resolve(__dirname, '../../..');
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -16,8 +17,10 @@ const thinking = read('src/components/chat/ThinkingIndicator.tsx');
 
 describe('visual standard tokens', () => {
   it('match the owner-approved values', () => {
-    expect(CHAT_VISUALS.headerLogo).toBe(48);
-    expect(CHAT_VISUALS.welcomeLogo).toBeGreaterThan(CHAT_VISUALS.headerLogo);
+    // TB-5 W2: the header logo size moved to the universal header (CHAT_HEADER).
+    expect(CHAT_HEADER.logoDesktop).toBe(48);
+    expect(CHAT_VISUALS.welcomeLogo).toBeGreaterThan(CHAT_HEADER.logoDesktop);
+    expect('headerLogo' in CHAT_VISUALS).toBe(false);
     expect(CHAT_VISUALS.thinkingDot).toBeGreaterThanOrEqual(10);
     expect(CHAT_VISUALS.thinkingDot).toBeLessThanOrEqual(12);
     expect(CHAT_VISUALS.touchTarget).toBeGreaterThanOrEqual(44);
@@ -39,8 +42,8 @@ describe('ThinkingIndicator', () => {
 
 describe('Prime presentation', () => {
   it('uses the header, welcome and message tokens', () => {
-    expect(prime).toMatch(/width: CHAT_VISUALS\.headerLogo, height: CHAT_VISUALS\.headerLogo/);
-    expect(prime).toMatch(/fontSize: CHAT_VISUALS\.headerName/);
+    // TB-2: the universal ChatToolbar replaced Prime's individual header buttons.
+    expect(prime).toMatch(/<ChatIdentity\s+isMobile=\{isMobileWidth\}\s+renderLogo=\{\(px\) => <PrimeLogoBadge size=\{px\} \/>\}/);
     expect(prime).toMatch(/<AgentDot agent="Prime" size=\{CHAT_VISUALS\.welcomeLogo\} \/>/);
     expect(prime).toMatch(/<AgentDot agent=\{agentForMsg\} size=\{CHAT_VISUALS\.messageAvatar\} \/>/);
     expect(prime.match(/fontSize: chatTextSize\(isMobileWidth\)/g)?.length).toBe(2);
@@ -48,7 +51,9 @@ describe('Prime presentation', () => {
   });
 
   it('History button meets the touch target', () => {
-    expect(prime).toMatch(/height: CHAT_VISUALS\.touchTarget, padding: "0 12px"/);
+    // TB-2: the universal ChatToolbar replaced Prime's individual header buttons.
+    // The toolbar uses 44px buttons on phones (tb1-chat-header.test.ts renders it).
+    expect(prime).toMatch(/<ChatToolbar\s+employeeName="Prime"[\s\S]*?isMobile=\{isMobileWidth\}/);
   });
 
   it('shows the thinking indicator only for the existing empty-streaming condition', () => {
@@ -60,8 +65,8 @@ describe('Prime presentation', () => {
 
 describe('Tag presentation', () => {
   it('uses the header and message tokens', () => {
-    expect(tag).toMatch(/<TagAvatar size=\{CHAT_VISUALS\.headerLogo\} \/>/);
-    expect(tag).toMatch(/fontSize: CHAT_VISUALS\.headerName/);
+    // TB-3: header identity is the universal ChatIdentity (48 / 44px box, artwork ~85%).
+    expect(tag).toMatch(/renderLogo=\{\(px\) => <TagAvatar size=\{px\} letterRatio=\{0\.5\} \/>\}/);
     expect(tag).not.toMatch(/<TagAvatar size=\{28\} \/>/);
     expect(tag).not.toMatch(/var\(--chat-text-size\)/);
     expect(tag.match(/fontSize: chatTextSize\(isMobile\)/g)?.length).toBe(3);

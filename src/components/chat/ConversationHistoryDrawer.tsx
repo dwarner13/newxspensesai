@@ -24,6 +24,11 @@ interface ConversationHistoryDrawerProps {
   accent?: string;
   /** Shown when a title is empty. */
   fallbackTitle?: string;
+  /**
+   * "overlay" (default): covers the chat panel (dialog). "sidebar": an in-page, collapsible
+   * column for Prime's full Workspace; it stays open beside the conversation.
+   */
+  variant?: "overlay" | "sidebar";
 }
 
 const C = {
@@ -33,20 +38,21 @@ const C = {
 
 export function ConversationHistoryDrawer({
   open, onClose, items, loading, currentId, onSelect, onNewChat,
-  accent = "#c8a64e", fallbackTitle = "Conversation",
+  accent = "#c8a64e", fallbackTitle = "Conversation", variant = "overlay",
 }: ConversationHistoryDrawerProps) {
+  const isSidebar = variant === "sidebar";
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Focus the search when opened; Escape closes.
   useEffect(() => {
-    if (!open) return;
+    if (!open || isSidebar) return;
     setQuery("");
     const t = window.setTimeout(() => searchRef.current?.focus(), 0);
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => { window.clearTimeout(t); window.removeEventListener("keydown", onKey); };
-  }, [open, onClose]);
+  }, [open, onClose, isSidebar]);
 
   const groups = useMemo(() => groupHistoryItems(items, query), [items, query]);
 
@@ -87,30 +93,34 @@ export function ConversationHistoryDrawer({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Conversations"
-      style={{
+      {...(isSidebar
+        ? { role: "complementary", "aria-label": "Conversations" }
+        : { role: "dialog", "aria-modal": true, "aria-label": "Conversations" })}
+      style={isSidebar ? {
+        position: "relative", width: 288, flexShrink: 0, height: "100%", display: "flex", flexDirection: "column",
+        background: "#0a1020", borderRight: `1px solid ${C.border}`, fontFamily: "inherit",
+      } : {
         position: "absolute", inset: 0, zIndex: 30, display: "flex", flexDirection: "column",
         background: C.bg, fontFamily: "inherit",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "calc(12px + env(safe-area-inset-top, 0px)) 12px 12px 16px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-        <h2 style={{ margin: 0, flex: 1, fontSize: 19, fontWeight: 800, color: C.text }}>Conversations</h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: isSidebar ? "14px 10px 12px 16px" : "calc(12px + env(safe-area-inset-top, 0px)) 12px 12px 16px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <h2 style={{ margin: 0, flex: 1, fontSize: isSidebar ? 15 : 19, fontWeight: 800, color: C.text }}>Conversations</h2>
         <button
           type="button"
           onClick={onNewChat}
-          style={{ minHeight: CHAT_VISUALS.touchTarget, padding: "0 14px", borderRadius: 12, border: `1px solid ${accent}55`, background: `${accent}14`, color: accent, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          style={{ minHeight: isSidebar ? 36 : CHAT_VISUALS.touchTarget, padding: isSidebar ? "0 10px" : "0 14px", borderRadius: isSidebar ? 10 : 12, border: `1px solid ${accent}55`, background: `${accent}14`, color: accent, fontSize: isSidebar ? 13 : 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
         >
           + New chat
         </button>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close conversations"
-          style={{ width: CHAT_VISUALS.touchTarget, height: CHAT_VISUALS.touchTarget, borderRadius: 12, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 20, cursor: "pointer" }}
+          aria-label={isSidebar ? "Hide conversations" : "Close conversations"}
+          title={isSidebar ? "Hide conversations" : undefined}
+          style={{ width: isSidebar ? 36 : CHAT_VISUALS.touchTarget, height: isSidebar ? 36 : CHAT_VISUALS.touchTarget, borderRadius: isSidebar ? 10 : 12, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: isSidebar ? 16 : 20, cursor: "pointer" }}
         >
-          ×
+          {isSidebar ? "\u00AB" : "×"}
         </button>
       </div>
       <div style={{ padding: "12px 16px 4px", flexShrink: 0 }}>
@@ -121,7 +131,7 @@ export function ConversationHistoryDrawer({
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search conversations"
-            style={{ flex: 1, minHeight: CHAT_VISUALS.touchTarget, padding: "0 14px", borderRadius: 12, border: `1px solid ${C.borderHi}`, background: C.surface, color: C.text, fontSize: 16, fontFamily: "inherit", outline: "none" }}
+            style={{ flex: 1, minHeight: isSidebar ? 38 : CHAT_VISUALS.touchTarget, padding: "0 14px", borderRadius: isSidebar ? 10 : 12, border: `1px solid ${C.borderHi}`, background: C.surface, color: C.text, fontSize: 16, fontFamily: "inherit", outline: "none" }}
           />
         </label>
       </div>

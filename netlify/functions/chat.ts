@@ -237,9 +237,11 @@ import {
 import { buildTemporalScope, buildTemporalScopeTelemetry, inheritedTemporalScope } from '../../src/shared/prime-temporal-scope';
 import { applyCustomerScope, negatedPeriodNote, ALL_HISTORY_SCOPE_NOTE, type TemporalScopeLike } from '../../src/shared/prime-request-scope';
 import { runStatementReview } from './_shared/statementReview';
+import { committedImportIds, isImportCommitted } from './_shared/importLifecycle.js';
+type LifecycleDb = Parameters<typeof committedImportIds>[0];
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
-import { guardReconciledAnswer, renderReconciledAnswer, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
+import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
 import { resolveFocusedTransaction } from './_shared/focusedTransaction';
 // P3.1C: Controlled read-only evidence execution
 import {
@@ -4022,7 +4024,9 @@ async function loadMerchantSpendForLatestImportBestEffort(
           .filter(Boolean)
       )
     ).slice(0, 4);
-    if (matched.length === 0) {
+    // S-1: a committed import's staging rows are read-only history, never a fallback source.
+    const importCommittedForFallback = matched.length === 0 ? await isImportCommitted(sb as unknown as LifecycleDb, userId, importId) : true;
+    if (matched.length === 0 && importCommittedForFallback === false) {
       const staged = await pagedSelectAll<any>(() => (sb as any)
         .from('transactions_staging')
         .select('id, data_json')
@@ -4941,7 +4945,14 @@ async function loadStatementQaRows(
         .select('id,import_id,data_json')
         .eq('user_id', userId)
         .order('id', { ascending: true }));
-      const staged = stagedRead.rows;
+      // S-1 (owner GO 2026-11-26): only staging rows of imports that are NOT committed are pending.
+      // A committed import's staging copies duplicate its transactions; they are never counted.
+      // If import status cannot be read, no staged rows are included and the result is partial.
+      const stagedLifecycle = stagedRead.error ? null : await committedImportIds(sb as unknown as LifecycleDb, userId, stagedRead.rows.map((r: { import_id?: string | null }) => r?.import_id));
+      if (stagedLifecycle && !stagedLifecycle.ok) rows.complete = false;
+      const staged = stagedLifecycle && stagedLifecycle.ok
+        ? stagedRead.rows.filter((r: { import_id?: string | null }) => !(r?.import_id && stagedLifecycle.committed.has(String(r.import_id))))
+        : [];
       const stagedError = stagedRead.error;
       if (!stagedRead.complete) rows.complete = false;
       if (!stagedError && Array.isArray(staged)) {
@@ -10573,7 +10584,10 @@ export const handler: Handler = async (event, context) => {
     const p31dAccumulatedEvidence: AccumulatedEvidenceMap = new Map();
     // P-LIVE-03: the turn's latest cash_flow_summary result carrying a reconciled statement breakdown.
     let turnCashFlowForGuard: CashFlowForGuard | null = null;
+    // Figures from every same-turn read tool: a reply may quote them, or a sum/difference of two.
+    const turnToolFigures: number[] = [];
     const captureCashFlowForGuard = (tool: string | undefined, data: unknown) => {
+      if (data && typeof data === 'object') figuresFromToolResult(data, turnToolFigures);
       if (tool === 'cash_flow_summary' && data && typeof data === 'object' && (data as CashFlowForGuard).statementBreakdown) {
         turnCashFlowForGuard = data as CashFlowForGuard;
       }
@@ -11505,7 +11519,7 @@ RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categoriz
             .order('created_at', { ascending: false })
             .limit(20),
           sb.from('user_documents')
-            .select('id, file_name, file_type, created_at')
+            .select('id, original_name, mime_type, created_at') // live columns (file_name/file_type do not exist → 42703, list was always empty)
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(20),
@@ -11519,7 +11533,7 @@ RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categoriz
         });
 
         const docLines = (docsResult.data || []).map((doc: any) =>
-          `- "${doc.file_name}" (${doc.file_type || 'unknown'}) - ${doc.created_at}`
+          `- "${doc.original_name || 'document'}" (${doc.mime_type || 'unknown'}) - ${doc.created_at}`
         );
 
         const contextBlock = [
@@ -14903,7 +14917,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       // table replaces the reply (recorded in the message metadata).
       let breakdownGuard: { unsupportedFigures: number; mislabelledTotals: number; speculation: boolean; replaced: true } | null = null;
       if (isPrime && isPrimeConversationSlug(finalEmployeeSlug) && assistantContent && turnCashFlowForGuard) {
-        const g = guardReconciledAnswer(assistantContent, turnCashFlowForGuard, masked);
+        const g = guardReconciledAnswer(assistantContent, turnCashFlowForGuard, masked, turnToolFigures);
+        if (g.applies && g.ok && g.unsupportedFigures > 0) {
+          console.log(`[P-LIVE-03] breakdown guard (log only, not a breakdown answer): unsupported=${g.unsupportedFigures}`);
+        }
         if (g.applies && !g.ok) {
           assistantContent = renderReconciledAnswer(turnCashFlowForGuard, userProfile?.currency || effectivePrimeContext?.currency || 'CAD');
           breakdownGuard = { unsupportedFigures: g.unsupportedFigures, mislabelledTotals: g.mislabelledTotals, speculation: g.speculation, replaced: true };

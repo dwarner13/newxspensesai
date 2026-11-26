@@ -1,4 +1,5 @@
 import type { Handler } from '@netlify/functions';
+import { committedImportIds } from './_shared/importLifecycle.js';
 import { serverSupabase } from './_shared/supabase.js';
 import { getOpenAIClient, getChatModel } from './_shared/openai_client.js';
 import { safeLog } from './_shared/safeLog.js';
@@ -331,9 +332,19 @@ export const handler: Handler = async (event) => {
     }
 
     const supabase = serverSupabase();
-    const importIds = await resolveImportIds(supabase, userId, importId, documentId);
-    if (importIds.length === 0) {
+    const resolvedImportIds = await resolveImportIds(supabase, userId, importId, documentId);
+    if (resolvedImportIds.length === 0) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0, skipped: 0, rows: [] }) };
+    }
+    // S-1 (owner GO 2026-11-26): Tag never writes to a committed import's staging rows (read-only
+    // history; committed transactions are categorized through the transaction paths). Fail closed.
+    const lifecycle = await committedImportIds(supabase, userId, resolvedImportIds);
+    if (!lifecycle.ok) {
+      return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'import_status_unavailable', retryable: true }) };
+    }
+    const importIds = resolvedImportIds.filter((id) => !lifecycle.committed.has(id));
+    if (importIds.length === 0) {
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0, skipped: 0, rows: [], reason: 'import_committed' }) };
     }
 
     let query = supabase

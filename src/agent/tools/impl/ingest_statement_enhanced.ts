@@ -27,7 +27,19 @@ export const outputSchema = z.object({
 export type Input = z.infer<typeof inputSchema>;
 export type Output = z.infer<typeof outputSchema>;
 
+/**
+ * RETIRED (owner authorization 2026-11-25, "STATEMENT TOOL SECURITY"; AR4-ATT-01).
+ * This tool downloaded a model-chosen storage path with the service-role client (no ownership
+ * check) and inserted rows straight into the caller's transactions, bypassing staging and every
+ * import gate. Statement uploads go through Smart Import only. It refuses before any storage or
+ * database access, whatever the caller, employee or confirmation.
+ */
+export const RETIRED = true;
+
 export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
+  if (RETIRED) {
+    return Err(new Error('ingest_statement_enhanced is retired. Statement uploads use Smart Import (the Byte upload page).'));
+  }
   try {
     const { fileId, type, deduplication, autoCategorization } = input;
     
