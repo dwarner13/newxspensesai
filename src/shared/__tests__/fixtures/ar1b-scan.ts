@@ -45,7 +45,7 @@ export function scanFile(file: string, src: string): Ar1bHit[] {
   for (const rx of R1) for (const m of src.matchAll(rx)) add('R1', (m[1] ?? m[0]).slice(0, 60));
   if (READS_TRANSACTIONS.test(src)) {
     for (const rx of R2) for (const m of src.matchAll(rx)) add('R2', (m[1] ?? 'reduce(amount)').toLowerCase().slice(0, 40));
-    for (const _m of src.matchAll(R4)) add('R4', 'transactions .limit(');
+    if ([...src.matchAll(R4)].length > 0) add('R4', 'transactions .limit(');
   }
   for (const m of src.matchAll(R3)) if (!/^\s*\*|\/\//.test(src.slice(src.lastIndexOf('\n', m.index ?? 0) + 1, (m.index ?? 0)))) add('R3', m[1]);
   if (file.startsWith('src/pages/')) for (const m of src.matchAll(R6)) add('R6', m[2].toLowerCase());
