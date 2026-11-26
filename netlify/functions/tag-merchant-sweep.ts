@@ -7,6 +7,7 @@
 import type { Handler } from '@netlify/functions';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { partitionAutoWritable, AUTO_UPDATE_CATEGORY_FILTER, AUTO_UPDATE_SOURCE_FILTER } from './_shared/categorySource.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -30,10 +31,10 @@ export const handler: Handler = async (event) => {
     //    and aren't Transfers/Income (those legitimately lack merchant names)
     const { data: txs, error } = await sb
       .from('transactions')
-      .select('id, merchant_name, merchant, description, amount, date, posted_at, category, import_id')
+      .select('id, merchant_name, merchant, description, amount, date, posted_at, category, category_source, import_id')
       .eq('user_id', userId)
       .not('category', 'in', '("Transfers","Income")')
-      .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
+      .or('merchant_name.is.null,merchant_name.eq.')
       .not('subcategory', 'eq', 'Unknown Merchant - Verify')
       .order('posted_at', { ascending: false })
       .limit(10);
@@ -43,15 +44,18 @@ export const handler: Handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
     }
 
-    if (!txs || txs.length === 0) {
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, queued: 0, transactions: [] }) };
+    // Owner GO 2026-11-25 / C4 Batch 1: a missing merchant name never overwrites a category the
+    // customer set (or one with possibly-approved / unknown provenance). Only gap rows are flagged.
+    const { writable, skippedProtected } = partitionAutoWritable(txs ?? []);
+    if (writable.length === 0) {
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, queued: 0, transactions: [], skippedProtected }) };
     }
 
     // 2. Mark each as Needs Review with subcategory flag
     const queued: Array<{ id: string; amount: number; date: string; description: string; category: string | null }> = [];
 
-    for (const tx of txs) {
-      const { error: updateErr } = await sb
+    for (const tx of writable) {
+      const { data: done, error: updateErr } = await sb
         .from('transactions')
         .update({
           category: 'Needs Review',
@@ -60,9 +64,12 @@ export const handler: Handler = async (event) => {
           updated_at: new Date().toISOString(),
         })
         .eq('id', tx.id)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .or(AUTO_UPDATE_CATEGORY_FILTER)
+        .or(AUTO_UPDATE_SOURCE_FILTER)
+        .select('id');
 
-      if (!updateErr) {
+      if (!updateErr && Array.isArray(done) && done.length === 1) {
         queued.push({
           id: tx.id,
           amount: Number(tx.amount || 0),
@@ -79,7 +86,7 @@ export const handler: Handler = async (event) => {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .not('category', 'in', '("Transfers","Income")')
-      .or('merchant_name.is.null,merchant_name.eq.,merchant.is.null,merchant.eq.')
+      .or('merchant_name.is.null,merchant_name.eq.')
       .not('subcategory', 'eq', 'Unknown Merchant - Verify');
 
     console.log(`[tag-merchant-sweep] Queued ${queued.length} unknown-merchant txs for user ${String(userId).slice(0, 8)}..., ${remaining || 0} remaining`);
@@ -92,6 +99,7 @@ export const handler: Handler = async (event) => {
         queued: queued.length,
         remaining: remaining || 0,
         transactions: queued,
+        skippedProtected,
       }),
     };
   } catch (err: any) {

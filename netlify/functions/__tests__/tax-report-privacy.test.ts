@@ -26,7 +26,14 @@ describe('tax report contains no owner-specific information', () => {
     expect(src).toMatch(/require a T2200 signed by the employer/);
     expect(src).toMatch(/Employment income, if any, should be verified against the T4 slip\(s\)\./);
   });
-  it('vehicle calculations and saved keys are unchanged', () => {
-    expect(src).toMatch(/const business_km = vehicleCfgInput\.business_km \|\| \(business_km_gfs \+ business_km_rownmi\);/);
+  // FST-2: the internal variable names no longer carry an employer or business name. The
+  // calculation is unchanged, and older clients' saved input keys are still accepted.
+  it('vehicle calculations are unchanged and legacy saved keys are still accepted', () => {
+    expect(src).toMatch(/const business_km = vehicleCfgInput\.business_km \|\| \(business_km_employment \+ business_km_self_employment\);/);
+    expect(src).toMatch(/vehicleCfgInput\.business_km_employment \|\| vehicleCfgInput\[LEGACY_KM_KEYS\[0\]\]/);
+    expect(src).toMatch(/vehicleCfgInput\.business_km_self_employment \|\| vehicleCfgInput\[LEGACY_KM_KEYS\[1\]\]/);
+  });
+  it('no owner-specific identifiers anywhere in the source (not only the visible output)', () => {
+    expect(src).not.toMatch(/_gfs|_rownmi|celtic|kollbrook|hyundai|northtown|kenyon|revolution moto/i);
   });
 });

@@ -784,6 +784,7 @@ const PURPOSE_LABEL: Readonly<Record<string, string>> = {
   income: 'Income (excluding transfers in)',
   spending: 'Ordinary spending',
   transfer_in: 'Transfers in',
+  debt_repayment_in: 'Card/loan payments received (internal, not income)',
   transfer_out: 'Transfers out',
   debt_payment: 'Debt payments',
   savings_investment: 'Savings/investment movement',
@@ -1509,6 +1510,7 @@ function formatCashFlowData(data: Record<string, unknown>): string {
   bucket(PURPOSE_LABEL.income, 'income', 'income');
   bucket(PURPOSE_LABEL.debt_payment, 'debtPayments', 'debt_payment');
   bucket(PURPOSE_LABEL.transfer_in, 'transferIn', 'transfer_in');
+  bucket(PURPOSE_LABEL.debt_repayment_in, 'debtRepaymentsIn', 'debt_repayment_in');
   bucket(PURPOSE_LABEL.transfer_out, 'transferOut', 'transfer_out');
   bucket(PURPOSE_LABEL.savings_investment, 'savingsInvestment', 'savings_investment');
   bucket(PURPOSE_LABEL.other_non_spend, 'otherNonSpend', 'other_non_spend');

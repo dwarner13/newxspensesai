@@ -15,6 +15,8 @@ export default defineConfig({
       'dist/**',
       'netlify/functions_old/**',
       'netlify/functions_old/**/*',
+      // FST-1: shared test fixtures live in __tests__/fixtures and are not test files.
+      '**/__tests__/fixtures/**',
     ],
     globals: false, // Use explicit imports instead of globals
   },

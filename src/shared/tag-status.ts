@@ -8,13 +8,24 @@
  *  - Never silently widen an empty period. Zero matching transactions, no imported data, a period
  *    outside the imported coverage, a capped (partial) read and a query failure are distinct.
  *  - Read-only: findings are proposals; customer-confirmed categories are never proposed for change.
+ *
+ * P-LIVE-02 (owner, 2026-11-25): categorization status is about OUTSTANDING work, so with no
+ * explicit period or statement the scope is ALL imported transactions ('all_history'), never the
+ * current month. An explicit all-history request also beats a conversation period.
  *  - Until C4, category-source labels are not fully reliable and must be disclosed as such.
  */
 
 import { detectReviewIssues, type ReviewTx } from './tag-review-rules';
 
-export type ScopeSource = 'requested_period' | 'conversation_period' | 'document' | 'default_current_month';
-export type Provenance = 'customer_confirmed' | 'possibly_customer_approved' | 'automatic' | 'needs_review' | 'unknown';
+export type ScopeSource = 'requested_period' | 'conversation_period' | 'document' | 'all_history' | 'default_current_month';
+/**
+ * Owner GO 2026-11-25 (FINAL RELIABILITY CORRECTIONS item 3; shared definitions agreed with Tag HQ
+ * and AI Architecture HQ): PROTECTED is not the same as CUSTOMER-APPROVED.
+ *  - verified_customer: set by the customer directly in the app (single edit, split, type fix).
+ *  - protected_unverified: protected from automatic change, but the origin is not verified
+ *    (historical corrections, manual entries, Tag rules, Tag chat). Never described as customer-approved.
+ */
+export type Provenance = 'verified_customer' | 'protected_unverified' | 'automatic' | 'needs_review' | 'unknown';
 export type TagStatusResult =
   | 'ok'
   | 'no_transactions_in_period'
@@ -34,19 +45,36 @@ export interface TagStatusScope {
 }
 
 export const C4_PROVENANCE_CAVEAT =
-  'Category-source labels are not fully reliable yet: some categories labelled as Tag rules or Tag chat may have been approved by the customer, so they are counted as possibly customer-approved and never proposed for change. Treat customer-confirmed counts as a minimum, not a guarantee.';
+  'Only categories the customer set directly in the app (an edit, a split or a type fix) count as verified customer choices. Other protected categories (older corrections, manual entries, Tag rules, Tag chat) are never changed automatically or proposed for change, but their origin is not verified: never describe them as customer-approved. The verified count is a minimum, not a guarantee.';
 
+// Shared provenance definitions (owner GO 2026-11-25; Tag HQ + AI Architecture HQ concur).
+/** Written only by a customer action in the app, verified server-side. */
+export const VERIFIED_CUSTOMER_SOURCES: ReadonlySet<string> = new Set(['user_edit', 'user_split', 'user_type_fix']);
+/** Never changed by automatic writers. Superset of VERIFIED; the rest is "protected (origin unverified)". */
+export const PROTECTED_SOURCES: ReadonlySet<string> = new Set([
+  ...VERIFIED_CUSTOMER_SOURCES,
+  'tag_rule', 'tag_chat', 'user_correction', 'user_chat', 'user_undo', 'manual', 'manual_edit', 'user_confirmed',
+]);
+/** True when a category source must never be changed automatically or proposed for change. */
+export function isProtectedSource(source: unknown): boolean {
+  return typeof source === 'string' && PROTECTED_SOURCES.has(source.trim().toLowerCase());
+}
+
+// DEPRECATED aliases (no behaviour change; CUSTOMER_SOURCES ∪ AMBIGUOUS_SOURCES === PROTECTED_SOURCES).
+// Use PROTECTED_SOURCES for protection and VERIFIED_CUSTOMER_SOURCES for "customer-approved" wording.
 // Source groups follow the C4 inventory (C4_category_integrity_plan.md §0).
-const CUSTOMER_SOURCES = new Set(['manual', 'manual_edit', 'user_correction', 'user_chat', 'user_edit', 'user_split', 'user_type_fix', 'user_undo', 'user_confirmed']);
+/** @deprecated use PROTECTED_SOURCES / VERIFIED_CUSTOMER_SOURCES */
+export const CUSTOMER_SOURCES: ReadonlySet<string> = new Set(['manual', 'manual_edit', 'user_correction', 'user_chat', 'user_edit', 'user_split', 'user_type_fix', 'user_undo', 'user_confirmed']);
 // Written both by customer-approved Tag actions AND by automatic writers. Until C4 separates them,
-// they are treated as possibly customer-approved: counted separately and never proposed for change.
-const AMBIGUOUS_SOURCES = new Set(['tag_chat', 'tag_rule']);
+// they are protected (origin unverified): counted separately, never proposed for change, never called customer-approved.
+/** @deprecated use PROTECTED_SOURCES */
+export const AMBIGUOUS_SOURCES: ReadonlySet<string> = new Set(['tag_chat', 'tag_rule']);
 const AUTOMATIC_SOURCES = new Set(['ai', 'hardcoded', 'rule', 'merchant_map', 'merchant_sweep', 'sign_conflict', 'bulk_fix', 'xlsx-spreadsheet', 'learned', 'tag_single', 'tag_bulk', 'tag_conversation', 'tag_assisted']);
 
 export function classifyCategorySource(source: unknown): Provenance {
   const s = typeof source === 'string' ? source.trim().toLowerCase() : '';
-  if (CUSTOMER_SOURCES.has(s)) return 'customer_confirmed';
-  if (AMBIGUOUS_SOURCES.has(s)) return 'possibly_customer_approved';
+  if (VERIFIED_CUSTOMER_SOURCES.has(s)) return 'verified_customer';
+  if (PROTECTED_SOURCES.has(s)) return 'protected_unverified';
   if (AUTOMATIC_SOURCES.has(s)) return 'automatic';
   if (s === 'needs_review') return 'needs_review';
   return 'unknown';
@@ -55,29 +83,23 @@ export function classifyCategorySource(source: unknown): Provenance {
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function monthBounds(today: Date): { startDate: string; endDate: string; label: string } {
-  const y = today.getUTCFullYear();
-  const m = today.getUTCMonth();
-  const start = new Date(Date.UTC(y, m, 1));
-  const end = new Date(Date.UTC(y, m + 1, 0));
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const label = start.toLocaleDateString('en-CA', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  return { startDate: iso(start), endDate: iso(end), label };
-}
-
 /**
  * Resolve the scope (owner precedence, Phase 2 authorization 2026-11-23):
  *   1. explicit customer-requested period (periodSource 'requested', the default for dates);
- *   2. explicitly referenced document (importId);
- *   3. period established in the conversation (periodSource 'conversation');
- *   4. current calendar month.
+ *   2. an explicit all-history request (allHistory) — P-LIVE-02, beats 3 and 4;
+ *   3. explicitly referenced document (importId);
+ *   4. period established in the conversation (periodSource 'conversation');
+ *   5. otherwise ALL imported transactions (P-LIVE-02; was: current calendar month).
  * When an explicit period AND a document are both given they are never silently combined: the
  * requested period is used and `conflict` explains the distinction so Prime can clarify.
  */
 export function resolveTagStatusScope(
-  input: { startDate?: string; endDate?: string; periodSource?: 'requested' | 'conversation'; importId?: string },
-  today: Date,
+  input: { startDate?: string; endDate?: string; periodSource?: 'requested' | 'conversation'; importId?: string; allHistory?: boolean },
+  _today: Date,
 ): TagStatusScope {
+  // P-LIVE-02: the date no longer decides the scope (no current-month fallback); the parameter is
+  // kept so existing callers are unchanged.
+  void _today;
   const s = input.startDate && ISO.test(input.startDate) ? input.startDate : undefined;
   const e = input.endDate && ISO.test(input.endDate) ? input.endDate : undefined;
   const hasPeriod = !!(s && e && s <= e);
@@ -92,15 +114,21 @@ export function resolveTagStatusScope(
       ...(hasDocument ? { conflict: 'Both a period and a specific statement were referenced. Results cover the requested period only, not the statement; ask which one the customer meant if it matters.' } : {}),
     };
   }
+  // An explicit all-history request beats a statement or a period carried over from the conversation.
+  if (input.allHistory) {
+    return { source: 'all_history', label: ALL_HISTORY_LABEL };
+  }
   if (hasDocument) {
     return { source: 'document', importId: input.importId, label: 'the selected imported statement' };
   }
   if (hasPeriod) {
     return { source: 'conversation_period', startDate: s, endDate: e, label: `${s} through ${e}` };
   }
-  const m = monthBounds(today);
-  return { source: 'default_current_month', startDate: m.startDate, endDate: m.endDate, label: `${m.label} (current month — no period was given)` };
+  // P-LIVE-02: no period and no statement → all outstanding work (all imported transactions).
+  return { source: 'all_history', label: ALL_HISTORY_LABEL };
 }
+
+export const ALL_HISTORY_LABEL = 'all imported transactions (entire history)';
 
 export interface TagStatusRow {
   id: string;
@@ -127,7 +155,16 @@ export interface TagStatus {
   provenance: Record<Provenance, number>;
   needsReviewCount: number;
   protectedFromProposals: number;
-  recentCorrections: { available: boolean; count: number; topMerchants: string[] };
+  /**
+   * Completed corrections recorded by Tag (tag_category_feedback). windowDays null = all time.
+   * These are stored correction records, separate from conversation history.
+   */
+  recentCorrections: { available: boolean; count: number; topMerchants: string[]; windowDays?: number | null };
+  /**
+   * Completed Tag actions recorded by tag-action (tag_activity_log): counts by action type only.
+   * Customer-isolated; no ids, amounts or conversation content. Absent when not read.
+   */
+  completedActions?: { available: boolean; count: number; byType: Record<string, number>; windowDays: number | null };
   anomalies: TagStatusAnomaly[];
   coverage: { earliestDate: string | null; latestDate: string | null } | null;
   caveats: string[];
@@ -153,13 +190,17 @@ export function summarizeTagStatus(input: {
   userHasAnyTransactions: boolean | null;
   coverage: { earliestDate: string | null; latestDate: string | null } | null;
   feedbackMerchants: string[] | null;
+  /** Window of the correction records: days, or null for all time. */
+  feedbackWindowDays?: number | null;
+  /** Action types of completed Tag actions in the window; null = could not be read; undefined = not read. */
+  completedActionTypes?: string[] | null;
 }): TagStatus {
   const { scope } = input;
   const empty: TagStatus = {
     status: 'query_error',
     scope,
     totals: { transactionCount: 0, categorized: 0, uncategorized: 0, otherCount: 0 },
-    provenance: { customer_confirmed: 0, possibly_customer_approved: 0, automatic: 0, needs_review: 0, unknown: 0 },
+    provenance: { verified_customer: 0, protected_unverified: 0, automatic: 0, needs_review: 0, unknown: 0 },
     needsReviewCount: 0,
     protectedFromProposals: 0,
     recentCorrections: { available: false, count: 0, topMerchants: [] },
@@ -173,7 +214,7 @@ export function summarizeTagStatus(input: {
   }
 
   const rows = input.rows;
-  const provenance: Record<Provenance, number> = { customer_confirmed: 0, possibly_customer_approved: 0, automatic: 0, needs_review: 0, unknown: 0 };
+  const provenance: Record<Provenance, number> = { verified_customer: 0, protected_unverified: 0, automatic: 0, needs_review: 0, unknown: 0 };
   let uncategorized = 0;
   let otherCount = 0;
   for (const r of rows) {
@@ -183,10 +224,10 @@ export function summarizeTagStatus(input: {
     else if (c === 'other') otherCount++;
   }
 
-  // Customer-confirmed and possibly-customer-approved rows are never proposed for change (owner rule;
-  // C4 will make the distinction authoritative).
+  // Protected rows (verified customer choices AND protected rows of unverified origin) are never
+  // proposed for change (owner rule).
   const proposable: ReviewTx[] = rows
-    .filter(r => { const p = classifyCategorySource(r.category_source); return p !== 'customer_confirmed' && p !== 'possibly_customer_approved'; })
+    .filter(r => { const p = classifyCategorySource(r.category_source); return p !== 'verified_customer' && p !== 'protected_unverified'; })
     .map(r => ({
       id: r.id,
       merchant_name: r.merchant_name ?? '',
@@ -232,8 +273,9 @@ export function summarizeTagStatus(input: {
     caveats.push('Only part of this period was scanned (row limit reached); counts are minimums.');
   }
   if (scope.source === 'default_current_month') caveats.push('No period was given, so the current calendar month was used. Say so.');
+  if (scope.source === 'all_history') caveats.push('Scope is every imported transaction (entire history). Say so; do not narrow it to a month or ask permission to widen it.');
   if (scope.conflict) caveats.push(scope.conflict);
-  if (feedback === null) caveats.push('Recent correction history could not be retrieved.');
+  if (feedback === null) caveats.push("Tag's correction history could not be retrieved, so completed corrections cannot be listed. Customer-confirmed categories stored on the transactions are still counted. Say this limitation plainly.");
 
   return {
     status,
@@ -241,8 +283,16 @@ export function summarizeTagStatus(input: {
     totals: { transactionCount: rows.length, categorized: rows.length - uncategorized, uncategorized, otherCount },
     provenance,
     needsReviewCount: provenance.needs_review,
-    protectedFromProposals: provenance.customer_confirmed + provenance.possibly_customer_approved,
-    recentCorrections: { available: feedback !== null, count: feedback?.length ?? 0, topMerchants },
+    protectedFromProposals: provenance.verified_customer + provenance.protected_unverified,
+    recentCorrections: { available: feedback !== null, count: feedback?.length ?? 0, topMerchants, windowDays: input.feedbackWindowDays === undefined ? 90 : input.feedbackWindowDays },
+    ...(input.completedActionTypes === undefined ? {} : {
+      completedActions: {
+        available: input.completedActionTypes !== null,
+        count: input.completedActionTypes?.length ?? 0,
+        byType: (input.completedActionTypes ?? []).reduce<Record<string, number>>((m, t) => { m[t] = (m[t] || 0) + 1; return m; }, {}),
+        windowDays: input.feedbackWindowDays === undefined ? 90 : input.feedbackWindowDays,
+      },
+    }),
     anomalies,
     coverage: input.coverage,
     caveats,

@@ -308,12 +308,15 @@ describe('isIncomeBroad', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('classifyTransactions — first-match-wins', () => {
-  test('Income section is evaluated FIRST', () => {
-    expect(TAX_SECTIONS[0].id).toBe('income');
+  // FST-2 (owner 2026-11-25): internal money movement is claimed FIRST (shared engine), then
+  // Income, then Vehicle — transfers, card/loan payments and savings are never income or expenses.
+  test('Internal movement is evaluated FIRST, Income SECOND', () => {
+    expect(TAX_SECTIONS[0].id).toBe('internal');
+    expect(TAX_SECTIONS[1].id).toBe('income');
   });
 
-  test('Vehicle section is evaluated SECOND', () => {
-    expect(TAX_SECTIONS[1].id).toBe('vehicle');
+  test('Vehicle section is evaluated THIRD', () => {
+    expect(TAX_SECTIONS[2].id).toBe('vehicle');
   });
 
   /**
@@ -389,7 +392,7 @@ describe('classifyTransactions — first-match-wins', () => {
     expect(totalClaimed).toBe(txs.length);
   });
 
-  test('Transfers land in Personal section (current TaxWorkspace behavior)', () => {
+  test('Transfers are internal movement, never Personal (FST-2; was: Personal)', () => {
     const transfer: ClassifiableTransaction = {
       type: 'expense',
       category: 'Transfers',
@@ -397,7 +400,8 @@ describe('classifyTransactions — first-match-wins', () => {
     };
 
     const results = classifyTransactions([transfer]);
-    expect(results.get('personal')!.count).toBe(1);
+    expect(results.get('internal')!.count).toBe(1);
+    expect(results.get('personal')!.count).toBe(0);
   });
 
   test('Golf subcategory → Personal (not Meals)', () => {
@@ -479,13 +483,15 @@ describe('Non-spend collision behavior', () => {
     const vehicleSection = TAX_SECTIONS.find((s) => s.id === 'vehicle')!;
     expect(vehicleSection.matchFn(tx)).toBe(true);
 
-    // In first-match-wins, Vehicle (index 1) comes before Personal (index 5)
+    // FST-2: the Transfers CATEGORY makes it internal movement under the shared engine (category
+    // decides purpose before subcategory), so neither Vehicle nor Personal claims it.
     const results = classifyTransactions([tx]);
-    expect(results.get('vehicle')!.count).toBe(1);
+    expect(results.get('internal')!.count).toBe(1);
+    expect(results.get('vehicle')!.count).toBe(0);
     expect(results.get('personal')!.count).toBe(0);
   });
 
-  test('Debt Payments without matching subcategory → Personal section', () => {
+  test('Debt Payments → internal movement (debt repayment), never Personal (FST-2; was: Personal)', () => {
     const tx: ClassifiableTransaction = {
       type: 'expense',
       category: 'Debt Payments',
@@ -493,7 +499,21 @@ describe('Non-spend collision behavior', () => {
     };
 
     const results = classifyTransactions([tx]);
-    expect(results.get('personal')!.count).toBe(1);
+    expect(results.get('internal')!.count).toBe(1);
+    expect(results.get('personal')!.count).toBe(0);
+  });
+
+  test("a 'Credit'-typed row (no clear direction) is claimed by NO expense section (FST-2)", () => {
+    const tx: ClassifiableTransaction = { type: 'Credit', category: 'Shopping', amount: 40 };
+    const results = classifyTransactions([tx]);
+    for (const [, r] of results) expect(r.count).toBe(0);
+  });
+
+  test('D-1: a payment received on the card statement is internal, never Income', () => {
+    const tx: ClassifiableTransaction = { type: 'income', category: 'Credit Card Payments', amount: 500 };
+    const results = classifyTransactions([tx]);
+    expect(results.get('internal')!.count).toBe(1);
+    expect(results.get('income')!.count).toBe(0);
   });
 });
 

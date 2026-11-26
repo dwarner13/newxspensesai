@@ -109,6 +109,8 @@ export const NON_SPEND_SUBCATEGORIES: ReadonlySet<string> = new Set([
   'atm withdrawal',
   'points redemption',
   'credit card payment',
+  // P-LIVE-03 (owner 2026-11-26): a mortgage payment is debt repayment, never everyday spending.
+  'mortgage',
 ]);
 
 /** Check if a category represents non-spend (internal money movement). */
@@ -204,17 +206,28 @@ export function isIncomeBroad(tx: ClassifiableTransaction): boolean {
 //   - Money is |amount| in integer cents. Invalid amounts are excluded, never $0.
 //   - Disagreements between type, category and sign are surfaced as conflicts,
 //     not silently corrected.
-// Refunds/reversals cannot be identified from current data (no refund type,
-// `direction` is null, sign is unreliable) — they are NOT detected here.
+// Refunds: an inflow (by type) whose category is an ordinary spending category is a refund
+// (P-LIVE-03). Reversals with a negative inflow amount are still surfaced as conflicts only.
 
 export type CashFlowDirection = 'inflow' | 'outflow' | 'unclassified';
 
 export type CashFlowPurpose =
   /** Inflow that is not a transfer. */
   | 'income'
+  /**
+   * P-LIVE-03 (owner 2026-11-26): an inflow carrying an ordinary spending category (money coming
+   * back from a merchant). Kept separate from income; it offsets spending in the net.
+   */
+  | 'refund'
   /** Ordinary consumption outflow. */
   | 'spending'
   | 'transfer_in'
+  /**
+   * D-1 (owner, 2026-11-25): a payment RECEIVED on the customer's own credit card / loan
+   * account (inflow carrying a debt-payment category or subcategory). Internal money movement:
+   * neither income nor spending, kept visible as a repayment.
+   */
+  | 'debt_repayment_in'
   | 'transfer_out'
   /** Outflow to debt / loan / credit-card payment. */
   | 'debt_payment'
@@ -305,7 +318,18 @@ export const NON_SPEND_SUBCATEGORY_PURPOSE: Readonly<Record<string, Exclude<NonS
   // Canonically subcategories of Transfers (CANONICAL_SUBCATEGORIES.Transfers).
   'atm withdrawal': 'transfer',
   'points redemption': 'transfer',
+  // P-LIVE-03: mortgage payments are debt repayment (Housing/Mortgage was counted as spending).
+  'mortgage': 'debt_payment',
 };
+
+/**
+ * Categories that never make an inflow a refund (income-like, unknown or unresolved). Single
+ * definition shared by classifyCashFlow and computeIntegritySignals.
+ */
+export const NOT_A_REFUND_CATEGORIES: ReadonlySet<string> = new Set(['', 'uncategorized', 'other', 'needs review',
+  'income', 'business income', 'employment income',
+  'interest', 'interest income', 'interest earned', 'dividends', 'dividend', 'investment income', 'rental income',
+  'government benefits', 'benefits', 'pension', 'cashback', 'rewards']);
 
 /**
  * Canonical income categories (CANONICAL_CATEGORIES 'Income', 'Business Income',
@@ -350,7 +374,14 @@ const OUTFLOW_PURPOSE: Readonly<Record<Exclude<NonSpendPurpose, 'income_category
  * Purpose precedence (within the type-decided direction):
  *   outflow: income category → classification_conflict; else category purpose;
  *            else subcategory purpose; else spending.
- *   inflow:  transfer category or subcategory → transfer_in; else income.
+ *   inflow:  transfer category or subcategory → transfer_in;
+ *            debt-payment category or subcategory → debt_repayment_in (D-1: a payment received on
+ *            the customer's own card/loan — neither income nor spending);
+ *            an ordinary spending category → refund (P-LIVE-03);
+ *            else income (savings/investment categories on an inflow stay income with the
+ *            non_spend_category_on_inflow conflict, unchanged).
+ *   Interest charged, fees and bank fees (outflow, no non-spend category) are spending; interest
+ *   earned (inflow) is income. Direction is NEVER taken from the sign or the size of the amount.
  */
 export function classifyCashFlow(tx: {
   type?: string | null;
@@ -374,11 +405,19 @@ export function classifyCashFlow(tx: {
   if (direction === 'inflow') {
     if (categoryPurpose === 'transfer' || (!categoryPurpose && subcategoryPurpose === 'transfer')) {
       purpose = 'transfer_in';
+    } else if (categoryPurpose === 'debt_payment' || (!categoryPurpose && subcategoryPurpose === 'debt_payment')) {
+      // D-1: a card/loan payment received on the customer's own account is internal, not income.
+      purpose = 'debt_repayment_in';
     } else {
-      purpose = 'income';
       const nonSpend = categoryPurpose ?? subcategoryPurpose;
       if (nonSpend && nonSpend !== 'income_category') {
+        purpose = 'income';
         conflicts.push('non_spend_category_on_inflow');
+      } else if (!nonSpend && !NOT_A_REFUND_CATEGORIES.has(category)) {
+        // P-LIVE-03: money back on an ordinary spending category is a refund, not income.
+        purpose = 'refund';
+      } else {
+        purpose = 'income';
       }
     }
     if (parsed !== null && parsed < 0) conflicts.push('negative_inflow');

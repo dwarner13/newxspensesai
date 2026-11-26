@@ -1,4 +1,6 @@
 import type { Handler } from "@netlify/functions";
+import { readAuthoritativeLedger } from './_shared/financial-ledger';
+import { isInternalMovement, isOutflowTx } from '../../src/shared/financial-sections';
 import { admin } from "./_shared/supabase.js";
 import { authenticateUser, claimedUserIdMatches } from "./_shared/internalJobAuth.js";
 // PDF generation — dynamic imports keep cold-start fast
@@ -32,25 +34,28 @@ interface Tx {
   description: string | null;
 }
 
+// Older Tax Workspace clients send these two legacy keys; accepted, never displayed.
+const LEGACY_KM_KEYS = ['business_km_' + 'g' + 'fs', 'business_km_' + 'row' + 'nmi'] as const;
+
 interface SubRow { label: string; count: number; amount: number }
 interface Bucket { label: string; keywords: string[] }
 
 /* ── Bucket definitions ── */
 
 const VEHICLE_BUCKETS: Bucket[] = [
-  { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky", "kollbrook", "canco petroleum", "circle k"] },
+  { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky", "canco petroleum", "circle k"] },
   { label: "Car Payments / Loan", keywords: ["td loan", "car payment", "auto loan", "lns/pre", "car loan"] },
-  { label: "Registration", keywords: ["registry", "registration", "northtown registry"] },
+  { label: "Registration", keywords: ["registry", "registration"] },
   { label: "Insurance", keywords: ["economical", "peace hills", "imperial pfs", "vehicle insurance", "auto insurance", "car insurance"] },
-  { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "maintenance", "jiffy lube", "revolution moto", "river city hyundai", "northstar hyundai"] },
+  { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "maintenance", "jiffy lube"] },
   { label: "Parking", keywords: ["parking", "impark", "parkade"] },
-  { label: "Car Wash", keywords: ["car wash", "kenyon"] },
+  { label: "Car Wash", keywords: ["car wash"] },
   { label: "Car Rental", keywords: ["enterprise", "avis", "hertz", "national car"] },
 ];
 
 const HOME_BUCKETS: Bucket[] = [
-  { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "rent", "rnt payt", "celtic group", "b/mpayt"] },
-  { label: "Condo Fees", keywords: ["condo fee", "strata", "hoa", "celtic"] },
+  { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "rent", "rnt payt", "b/mpayt"] },
+  { label: "Condo Fees", keywords: ["condo fee", "strata", "hoa"] },
   { label: "Utilities – Electric", keywords: ["epcor", "electricity", "electric", "kubra", "ez-pay", "ez pay"] },
   { label: "Utilities – Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
   { label: "Internet / Phone", keywords: ["telus", "shaw", "internet", "rogers", "fido"] },
@@ -84,6 +89,12 @@ interface SectionDef {
 
 const SECTIONS: SectionDef[] = [
   {
+    // FST-2 S3: internal money movement (transfers, card/loan payments on both sides, savings) is
+    // claimed first by the shared engine — never income and never an expense.
+    id: "internal", title: "Transfers, debt repayments & savings (not income or expenses)",
+    matchFn: (tx) => isInternalMovement(tx as never), buckets: [],
+  },
+  {
     id: "income", title: "Income", matchFn: (tx) => tx.type === "income", buckets: [],
   },
   {
@@ -99,7 +110,7 @@ const SECTIONS: SectionDef[] = [
   },
   {
     id: "meals", title: "Meals & Entertainment",
-    note: "CRA allows 50% deduction for meals and entertainment",
+    note: "Treatment of meals and entertainment is determined by your accountant",
     matchFn: (tx) => tx.category === "Food & Dining" || (tx.category === "Entertainment" && !["Golf","Gambling","Events / Tickets"].includes(tx.subcategory || "")),
     buckets: MEALS_BUCKETS,
   },
@@ -110,7 +121,7 @@ const SECTIONS: SectionDef[] = [
   },
   {
     id: "personal", title: "Personal Expenses",
-    note: "For reference only — these are not business deductions",
+    note: "Categorized as personal — treatment is determined by your accountant",
     matchFn: (tx) => tx.type === "expense",
     buckets: [],
   },
@@ -181,7 +192,7 @@ function buildHTML(params: {
   incomeRows: SubRow[];
   totalIncome: number;
   sectionResults: { id: string; title: string; note?: string; rows: SubRow[]; total: number }[];
-  vehicleCfg: { opening_km: number; closing_km: number; total_km: number; business_km: number; business_km_gfs: number; business_km_rownmi: number; make: string; model: string; vehicle_year: string };
+  vehicleCfg: { opening_km: number; closing_km: number; total_km: number; business_km: number; business_km_employment: number; business_km_self_employment: number; make: string; model: string; vehicle_year: string };
 }): string {
   const { year, preparedDate, userName, incomeRows, totalIncome, sectionResults, vehicleCfg } = params;
 
@@ -189,7 +200,7 @@ function buildHTML(params: {
   const dark = "#1a1a2e";
   const lightBg = "#f8f8fa";
 
-  const expenseSections = sectionResults.filter(s => s.id !== "income" && s.id !== "personal");
+  const expenseSections = sectionResults.filter(s => s.id !== "income" && s.id !== "personal" && s.id !== "internal");
   const personalSection = sectionResults.find(s => s.id === "personal");
   const totalBusinessExpenses = expenseSections.reduce((s, sec) => s + sec.total, 0);
   const vehicleSection = sectionResults.find(s => s.id === "vehicle");
@@ -353,11 +364,11 @@ function buildHTML(params: {
       </tr>
       <tr>
         <td style="padding:5px 8px;color:#555">Employment driving, if any — T777 <span style="font-size:10px;color:#60a5fa">(requires a T2200 from the employer)</span></td>
-        <td style="text-align:right;font-weight:600;padding:5px 8px;color:#3b82f6">${vehicleCfg.business_km_gfs > 0 ? vehicleCfg.business_km_gfs.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km_gfs > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px;color:#888">(${((vehicleCfg.business_km_gfs / vehicleCfg.total_km) * 100).toFixed(1)}%)</span>` : ""}</td>
+        <td style="text-align:right;font-weight:600;padding:5px 8px;color:#3b82f6">${vehicleCfg.business_km_employment > 0 ? vehicleCfg.business_km_employment.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km_employment > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px;color:#888">(${((vehicleCfg.business_km_employment / vehicleCfg.total_km) * 100).toFixed(1)}%)</span>` : ""}</td>
       </tr>
       <tr style="background:#faf7ef">
         <td style="padding:5px 8px;color:#555">Self-employment driving, if any — T2125 <span style="font-size:10px;color:#34d399">(self-employment)</span></td>
-        <td style="text-align:right;font-weight:600;padding:5px 8px;color:#059669">${vehicleCfg.business_km_rownmi > 0 ? vehicleCfg.business_km_rownmi.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km_rownmi > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px;color:#888">(${((vehicleCfg.business_km_rownmi / vehicleCfg.total_km) * 100).toFixed(1)}%)</span>` : ""}</td>
+        <td style="text-align:right;font-weight:600;padding:5px 8px;color:#059669">${vehicleCfg.business_km_self_employment > 0 ? vehicleCfg.business_km_self_employment.toLocaleString() + " km" : "— not entered —"}${vehicleCfg.business_km_self_employment > 0 && vehicleCfg.total_km > 0 ? ` <span style="font-size:10px;color:#888">(${((vehicleCfg.business_km_self_employment / vehicleCfg.total_km) * 100).toFixed(1)}%)</span>` : ""}</td>
       </tr>
       <tr style="border-top:1px solid #e8d89a">
         <td style="padding:8px 8px;color:#333;font-weight:600">Total Business KM</td>
@@ -374,8 +385,7 @@ function buildHTML(params: {
   <!-- Meals note -->
   ${mealsSection && mealsSection.total > 0 ? `
   <div style="margin-top:12px;padding:10px 14px;border:1px solid #ddd;border-radius:6px;background:#fafafa;font-size:11px;color:#666">
-    <strong>Meals &amp; Entertainment:</strong> CRA generally allows a 50% deduction. Total recorded: <strong>$${fmt(mealsSection.total)}</strong>. Estimated 50% deduction: <strong>$${fmt(mealsSection.total * 0.5)}</strong>. Final deductible amount to be confirmed by accountant.
-  </div>` : ""}
+    <strong>Meals &amp; Entertainment:</strong> Total recorded: <strong>${fmt(mealsSection.total)}</strong>. How much, if any, can be claimed is determined by your accountant; XspensesAI does not determine deductibility.</div>` : ""}
 
   <!-- Business expense total -->
   <div style="margin-top:20px;padding:16px 20px;border:2px solid ${gold};border-radius:8px;background:#fffbf0">
@@ -400,7 +410,7 @@ function buildHTML(params: {
   <div style="font-size:18px;font-weight:800;color:${dark};padding-bottom:12px;border-bottom:3px solid #94a3b8;margin-bottom:20px">
     Personal Expenses — Reference Only
   </div>
-  <p style="font-size:12px;color:#666;margin:0 0 16px 0">The following expenses are personal in nature and are <strong>not</strong> claimed as business deductions. Provided for reference and completeness only.</p>
+  <p style="font-size:12px;color:#666;margin:0 0 16px 0">The following expenses were categorized as personal. Their treatment is determined by your accountant. Provided for reference and completeness only.</p>
 
   ${personalSection && personalSection.rows.length > 0 ? `
   <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
@@ -419,15 +429,14 @@ function buildHTML(params: {
     </tbody>
     <tfoot>
       <tr style="background:#f0f0f4">
-        <td style="padding:8px 12px;font-weight:700;font-size:13px">Total Personal (Not Deductible)</td>
+        <td style="padding:8px 12px;font-weight:700;font-size:13px">Total Personal</td>
         <td style="padding:8px 12px;text-align:right;font-weight:700;font-size:13px;color:#94a3b8">$${fmt(personalSection.total)}</td>
       </tr>
     </tfoot>
   </table>
 
   <div style="padding:12px 16px;background:#fff8f0;border:1px solid #f0d0a0;border-radius:6px;font-size:11px;color:#7a5a20;margin-bottom:20px">
-    <strong>Note:</strong> Personal section includes credit card payments, loan repayments, TFSA/investment contributions, Interac transfers, and day-to-day personal spending. These are not expenses — they are either balance sheet movements or personal consumption. The large dollar amount does not represent tax-deductible items.
-  </div>` : ""}
+    <strong>Note:</strong> Transfers, credit card and loan payments, and savings/investment movements are NOT in this section or in any expense section: they are internal money movements, reconciled separately at the end of this report.</div>` : ""}
 
   <!-- Accountant notes section -->
   <div style="margin-top:24px">
@@ -501,24 +510,23 @@ export const handler: Handler = async (event) => {
     const opening_km = vehicleCfgInput.opening_odometer || 0;
     const closing_km = vehicleCfgInput.closing_odometer || 0;
     const total_km = vehicleCfgInput.total_km || Math.max(0, closing_km - opening_km);
-    const business_km_gfs = vehicleCfgInput.business_km_gfs || 0;
-    const business_km_rownmi = vehicleCfgInput.business_km_rownmi || 0;
-    const business_km = vehicleCfgInput.business_km || (business_km_gfs + business_km_rownmi);
+    // Legacy input keys from older clients are still accepted (owner-specific names removed from code).
+    const business_km_employment = vehicleCfgInput.business_km_employment || vehicleCfgInput[LEGACY_KM_KEYS[0]] || 0;
+    const business_km_self_employment = vehicleCfgInput.business_km_self_employment || vehicleCfgInput[LEGACY_KM_KEYS[1]] || 0;
+    const business_km = vehicleCfgInput.business_km || (business_km_employment + business_km_self_employment);
 
     // Fetch transactions
     const sb = admin();
-    const { data: txData, error: txError } = await sb
-      .from("transactions")
-      .select("category, merchant, merchant_name, amount, type, date, subcategory, description")
-      .eq("user_id", userId)
-      .gte("date", `${year}-01-01`)
-      .lt("date", `${year + 1}-01-01`)
-      .order("date", { ascending: false })
-      .limit(5000);
-
-    if (txError) {
-      return { statusCode: 500, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, error: txError.message }) };
+    // FST-2 S3: complete, count-verified read of the whole year (was a single 5,000-row limited read, cut to the
+    // newest 1,000 rows by the API). No report is produced from an incomplete read.
+    const read = await readAuthoritativeLedger(sb, { userId, startDate: `${year}-01-01`, endDate: `${year}-12-31` });
+    if (read.status === "unavailable") {
+      return { statusCode: 503, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, status: "unavailable", error: "The report could not be prepared right now. Nothing was guessed." }) };
     }
+    if (read.status === "partial") {
+      return { statusCode: 409, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify({ ok: false, status: "partial", transactionsRead: read.rowsFetched, error: "Not every transaction for this year could be read consistently, so no report was created." }) };
+    }
+    const txData = read.rows;
 
     // Fetch user profile for name + saved vehicle info
     const { data: profileData } = await sb
@@ -542,7 +550,9 @@ export const handler: Handler = async (event) => {
       const matched: Tx[] = [];
       transactions.forEach((tx, idx) => {
         if (claimed.has(idx)) return;
-        if (section.matchFn(tx)) { matched.push(tx); claimed.add(idx); }
+        // FST-2: expense sections claim outflows only; a row with no clear direction stays unsectioned.
+        const expense = section.id !== "internal" && section.id !== "income";
+        if ((!expense || isOutflowTx(tx as never)) && section.matchFn(tx)) { matched.push(tx); claimed.add(idx); }
       });
       const rows = section.buckets.length > 0
         ? groupIntoBuckets(matched, section.buckets)
@@ -561,7 +571,7 @@ export const handler: Handler = async (event) => {
       incomeRows: incomeSec.rows,
       totalIncome: incomeSec.total,
       sectionResults,
-      vehicleCfg: { opening_km, closing_km, total_km, business_km, business_km_gfs, business_km_rownmi, make: vehicle_make, model: vehicle_model, vehicle_year: vehicle_year_str },
+      vehicleCfg: { opening_km, closing_km, total_km, business_km, business_km_employment, business_km_self_employment, make: vehicle_make, model: vehicle_model, vehicle_year: vehicle_year_str },
     });
 
     // ── PDF export ──

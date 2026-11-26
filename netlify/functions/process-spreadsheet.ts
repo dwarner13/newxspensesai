@@ -81,7 +81,7 @@ Given a spreadsheet's filename, column headers, and first 10 rows, determine:
 
 1. document_type - one of:
    - "income_report" (e.g. FreshBooks Payments Collected, invoice summaries, revenue reports)
-   - "expense_report" (e.g. business expense spreadsheets, ROWNMI-style category breakdowns, receipt logs)
+   - "expense_report" (e.g. business expense spreadsheets, category breakdowns, receipt logs)
    - "bank_statement" (e.g. exported bank/credit card transactions)
    - "unknown"
 

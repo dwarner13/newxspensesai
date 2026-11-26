@@ -135,11 +135,12 @@ describe('cash_flow_summary — authoritative period aggregate', () => {
     expect(cashFlowOutput.safeParse(r).success).toBe(true);
     expect(r.queryStatus).toBe('verified');
     expect(r.cents).toEqual({
-      income: 302500,                // 3000 + |−25|
+      income: 302500, refunds: 0,                // 3000 + |−25|
       spending: 21099,               // 120.55 + 80.45 + 0 + 9.99
       transferIn: 50000,
       transferOut: 45500,            // 400 + 40 ATM + 15 Points Redemption
       debtPayments: 31000,           // 250 + 60 Car Loan
+      debtRepaymentsIn: 0,           // D-1 bucket: none in this fixture
       savingsInvestment: 30000,      // 100 Savings + 200 Investments
       otherNonSpend: 0,
       classificationConflict: 1010,  // 10.10 expense + "Income"

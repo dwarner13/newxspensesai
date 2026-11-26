@@ -188,11 +188,9 @@ export const MERCHANT_CATEGORY_MAP: Record<string, { category: string; subcatego
   "indall": { category: "Transfers", subcategory: "e-Transfer" },
 
   // ── INCOME ──────────────────────────────────────────────────
-  "gordon food ser pay": { category: "Income", subcategory: "Employment" },
-  "gfs pay": { category: "Income", subcategory: "Employment" },
+  // FST-2 S7 (owner GO 2026-11-25): rules built for ONE customer (their employer payroll / business) applied to every customer and were removed. Personal rules live in that customer's own category_rules.
   "gordon food": { category: "Groceries", subcategory: "Food Supply" },
   "gordon foods": { category: "Groceries", subcategory: "Food Supply" },
-  "gfs edmonton": { category: "Groceries", subcategory: "Food Supply" },
   "canada rit": { category: "Income", subcategory: "Tax Refund" },
   "cda carbon rebate": { category: "Income", subcategory: "Government Rebate" },
   "cdacarbonrebate": { category: "Income", subcategory: "Government Rebate" },

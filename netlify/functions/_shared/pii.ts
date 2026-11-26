@@ -80,7 +80,9 @@ export function maskPII(text: string, strategy: MaskStrategy = 'last4'): MaskRes
   // Process each detector in priority order
   for (const detector of detectorsByPriority) {
     const rx = detector.rx;
-    const matches = [...masked.matchAll(rx)];
+    // SWIFT-MASK review: indices refer to the text AS SCANNED (masked changes length in the loop).
+    const scanned = masked;
+    const matches = [...scanned.matchAll(rx)];
 
     for (const match of matches) {
       if (!match[0]) continue;
@@ -98,7 +100,7 @@ export function maskPII(text: string, strategy: MaskStrategy = 'last4'): MaskRes
       }
 
       // Apply masking using detector's mask function first to check if it's valid
-      const maskedValue = detector.mask(originalText, strategy);
+      const maskedValue = detector.mask(originalText, strategy, { source: scanned, index });
       
       // Only record and replace if mask function actually changed the text
       // This ensures we don't record false positives that the mask function rejects
@@ -177,7 +179,9 @@ export function maskSpecificPII(
     if (!detector) continue;
 
     const rx = detector.rx;
-    const matches = [...masked.matchAll(rx)];
+    // SWIFT-MASK review: indices refer to the text AS SCANNED (masked changes length in the loop).
+    const scanned = masked;
+    const matches = [...scanned.matchAll(rx)];
 
     for (const match of matches) {
       if (!match[0]) continue;
@@ -191,7 +195,7 @@ export function maskSpecificPII(
         index
       });
 
-      const maskedValue = detector.mask(originalText, strategy);
+      const maskedValue = detector.mask(originalText, strategy, { source: scanned, index });
       masked = masked.replace(originalText, maskedValue);
     }
   }

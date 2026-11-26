@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
-import { useUnifiedChatEngine } from "@/hooks/useUnifiedChatEngine";
+import { useEmployeeChat } from "@/hooks/useEmployeeChat";
+import { ConversationControls, UnsavedReplyNotice } from "@/components/chat/ConversationControls";
+import { isUnsavedReply } from "@/lib/employeeChat";
 import { PANEL } from "../PrimeChatV2/panelConfig";
 import type { StoryData } from "./useStoryData";
 
@@ -11,7 +13,8 @@ const PURPLE = "#a78bfa";
 interface Props { onClose: () => void; data: StoryData; }
 
 export function CrystalCopilotPanel({ onClose, data }: Props) {
-  const { messages, sendMessage } = useUnifiedChatEngine({
+  // Universal conversation history: the shared hook (restore, resume, history, New conversation).
+  const { messages, sendMessage, sessionId, history, openConversation, startNewConversation } = useEmployeeChat("crystal-analytics", {
     employeeSlug: "crystal-ai",
     additionalPrimeContext: data.loading ? undefined : {
       totalIncome: data.income,
@@ -59,7 +62,12 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
         <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${PURPLE}20`, border: `1.5px solid ${PURPLE}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: PURPLE, boxShadow: `0 0 16px ${PURPLE}33` }}>C</div>
           <div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Crystal <span style={{ fontWeight: 400, color: T.muted }}>Copilot</span></span><span style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", letterSpacing: "0.05em" }}>SECURED</span></div><div style={{ fontSize: 11, color: T.dim }}>Analytics & Trends</div></div>
-          <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
+          <ConversationControls
+            employeeName="Crystal" accent={PURPLE} border={T.border} color={T.muted}
+            items={history.items} loading={history.loading} currentId={sessionId}
+            onLoad={history.load} onOpen={openConversation} onNew={startNewConversation}
+          />
+          <button onClick={handleClose} aria-label="Close Crystal" style={{ width: 44, height: 44, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
         </div>
 
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px 24px 140px" }}>
@@ -85,8 +93,9 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
           {chatMsgs.length > 0 && (
             <div style={{ marginTop: 24, borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
               {chatMsgs.map(m => (
-                <div key={m.id} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 10 }}>
+                <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 10 }}>
                   <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: 12, background: m.role === "user" ? T.surface : `${PURPLE}06`, borderLeft: m.role === "assistant" ? `3px solid ${PURPLE}44` : "none", fontSize: PANEL.messageFontSize, color: T.muted, lineHeight: 1.5 }}>{m.content}</div>
+                  {isUnsavedReply(m) && <div style={{ maxWidth: "80%" }}><UnsavedReplyNotice /></div>}
                 </div>
               ))}
             </div>

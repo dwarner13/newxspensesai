@@ -21,7 +21,6 @@ import * as tagExplain from './impl/tag_explain';
 import * as tagMerchantInsights from './impl/tag_merchant_insights';
 import * as tagCategoryBrain from './impl/tag_category_brain';
 import * as tagUpdateTransactionCategory from './impl/tag_update_transaction_category';
-import * as tagBulkRecategorize from './impl/tag_bulk_recategorize';
 import * as tagCreateManualTransaction from './impl/tag_create_manual_transaction';
 import * as requestEmployeeHandoff from './impl/request_employee_handoff';
 import * as analyticsForecast from './impl/analytics_forecast';
@@ -378,14 +377,9 @@ const toolModules: Map<string, ToolModule> = new Map([
       rateLimit: { perMinute: 30 },
     },
   }],
-  ['tag_bulk_recategorize', {
-    id: 'tag_bulk_recategorize',
-    description: 'Bulk recategorize all transactions matching a merchant name or keyword. Use when users say change X to Y, move all X to category Y, mark all X as Y.',
-    inputSchema: tagBulkRecategorize.inputSchema,
-    outputSchema: tagBulkRecategorize.outputSchema,
-    run: tagBulkRecategorize.execute,
-    meta: { requiresConfirm: false, mutates: true, timeout: 20000, rateLimit: { perMinute: 20 } },
-  }],
+  // tag_bulk_recategorize: RETIRED (owner GO 2026-11-25). Its commit ran when the model set
+  // confirmed:true. Merchant-wide and bulk category changes are Tag proposals the customer confirms
+  // (tag-copilot / typed preview -> tag-action commit_proposal).
   ['tag_create_manual_transaction', {
     id: 'tag_create_manual_transaction',
     description: 'Create a new income or expense transaction from natural language. Use this when users say things like "add an income of $500", "I was paid $1000 on Feb 10", "create a transaction for $50 from GFS", "add $200 income last Friday", or "add an income for $500 from GFS last Friday". Always confirm the amount, date (YYYY-MM-DD), description, and category before calling this tool. If category is "Income", the transaction type will be income; otherwise expense.',
@@ -505,14 +499,14 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tag_status', {
     id: 'tag_status',
-    description: 'READ-ONLY. Ask Tag about categorization quality for the customer: category counts by source (customer-confirmed / automatic / needs review / unknown), needs-review count, recent corrections, and suspected misclassifications from Tag\'s review rules. Scope order: startDate/endDate (YYYY-MM-DD) the customer asked about (periodSource "requested"); else importId for a statement the customer referenced; else the period established in this conversation (periodSource "conversation"); else the current calendar month. Never combine a requested period with a statement. It never changes categories.',
+    description: 'READ-ONLY. Ask Tag about categorization quality for the customer: category counts by source (customer-confirmed / automatic / needs review / unknown), needs-review count, recent corrections, and suspected misclassifications from Tag\'s review rules. Scope order: startDate/endDate (YYYY-MM-DD) the customer asked about (periodSource "requested"); else importId for a statement the customer referenced; else the period established in this conversation (periodSource "conversation"); with no period or statement it covers ALL imported transactions (entire history). Set allHistory:true when the customer asks about everything they have ever uploaded, their entire history or all time — that beats a conversation period. Never combine a requested period with a statement. Never ask permission to run or widen it: it is read-only. It never changes categories.',
     inputSchema: tagStatus.inputSchema,
     outputSchema: tagStatus.outputSchema,
     run: tagStatus.execute,
     meta: {
       mutates: false,
       requiresConfirm: false,
-      timeout: 10000,
+      timeout: 20000, // P-LIVE-02: complete paged read of the whole history
       rateLimit: { perMinute: 10 },
     },
   }],

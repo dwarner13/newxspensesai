@@ -155,11 +155,14 @@ describe('R2a tool parity (intent label is wording-dependent in the live classif
 // plan is tx_search{limit: 3} over an undated range instead of a 3-month spending total. The
 // adapter represents the rolling period explicitly and plans the cash-flow total. Reported for R2b.
 
-describe('known live divergence: rolling months read as a row count', () => {
-  it('live plans a 3-row list; R2a plans a 3-month cash-flow total', () => {
+// D1 (owner 2026-11-25): this was a pinned KNOWN DEFECT (live read "last 3 months" as a 3-row list).
+// Inverted: live and R2a now both plan one 3-month cash-flow total.
+describe('rolling months are a period, not a row count (D1 fixed; was a known live divergence)', () => {
+  it('live and R2a both plan a 3-month cash-flow total', () => {
     const live = livePlan('How much did I spend in the last 3 months?');
-    expect(live.intent.financialClassification).toMatchObject({ requestShape: 'list', requestedCount: 3 });
-    expect(toolSteps(live.plan)[0]).toMatchObject({ tool: 'tx_search', params: { limit: 3 } });
+    expect(live.intent.financialClassification.requestedCount).toBeUndefined();
+    expect(toolSteps(live.plan)[0]).toMatchObject({ tool: 'cash_flow_summary', params: { startDate: '2026-07-02', endDate: '2026-10-01' } });
+    expect(toolSteps(live.plan).some((s: any) => s.tool === 'tx_search')).toBe(false);
     const a = adapterPlan(R({ operation: 'total', measures: ['spending'], period: { kind: 'rolling', count: 3, unit: 'month' } }));
     expect(a.ts?.primary).toMatchObject({ from: '2026-07-02', to: '2026-10-02', label: 'last 3 months' });
     expect(toolSteps(a.plan)).toEqual([{ kind: 'cash_flow', tool: 'cash_flow_summary', params: { startDate: '2026-07-02', endDate: '2026-10-01' } }]);

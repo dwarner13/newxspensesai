@@ -4,9 +4,17 @@
  */
 
 import type { Handler } from '@netlify/functions';
-import { boundChatHistory, safeAppPath, MAX_USER_MESSAGE_CHARS } from './_shared/boundedChatInput.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { safeAppPath, MAX_USER_MESSAGE_CHARS } from './_shared/boundedChatInput.js';
 import { serverSupabase } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import {
+  resolveEmployeeConversation,
+  loadConversationHistory,
+  claimConversationTurn,
+  completeConversationTurn,
+  maskCustomerTextForModel,
+} from './_shared/conversation-platform.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -124,7 +132,11 @@ export const handler: Handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { message, history = [], currentPath } = body;
+    // Universal conversation persistence (owner): history comes ONLY from the server; a
+    // browser-sent `history` array is ignored. Custodian is read-only (no tools, no data changes).
+    const { message, currentPath } = body;
+    const requestedSessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
+    const clientMessageId = typeof body.clientMessageId === 'string' ? body.clientMessageId : null;
 
     if (!message || typeof message !== 'string') {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'message required' }) };
@@ -142,7 +154,63 @@ export const handler: Handler = async (event) => {
     // COLLAB-1: only a real app path reaches the system prompt; history and message are bounded.
     const appPath = safeAppPath(currentPath);
     const pathContext = appPath ? `The user is currently on: ${appPath}. ` : '';
-    const boundedHistory = boundChatHistory(history);
+    const modelMessage = maskCustomerTextForModel(message.slice(0, MAX_USER_MESSAGE_CHARS));
+
+    // Open or resume this customer's own Custodian conversation (ownership + employee identity).
+    const db = supabase as unknown as SupabaseClient;
+    let conversationId: string | null = null;
+    try {
+      const opened = await resolveEmployeeConversation(db, {
+        userId: auth.userId, employeeSlug: 'custodian', requestedSessionId, newConversation: body.newConversation === true,
+      });
+      conversationId = opened.sessionId;
+    } catch {
+      console.warn('[custodian-chat] conversation could not be opened; this turn will not be saved');
+    }
+
+    // Claim the turn BEFORE answering (retry-safe). A duplicate returns the stored reply.
+    let claimed = false;
+    if (conversationId) {
+      try {
+        const claim = await claimConversationTurn(db, { sessionId: conversationId, userId: auth.userId, employeeSlug: 'custodian', userText: message, clientMessageId });
+        if (claim.status === 'duplicate') {
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              reply: claim.reply ?? "I already received that message, but my answer to it wasn't saved. Please ask again.",
+              sessionId: conversationId,
+              persisted: claim.reply !== null,
+              duplicate: true,
+            }),
+          };
+        }
+        if (claim.status === 'conflict') {
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ reply: "I couldn't confirm that message was received. Please send it again.", sessionId: conversationId, persisted: false }),
+          };
+        }
+        claimed = claim.status === 'claimed';
+      } catch {
+        console.warn('[custodian-chat] could not save the message; answering without saving');
+      }
+    }
+
+    let storedHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+    if (conversationId) {
+      try {
+        // The current message was just claimed; exclude it (it is sent below as the new turn).
+        storedHistory = await loadConversationHistory(db, { sessionId: conversationId, userId: auth.userId });
+        if (claimed && storedHistory.length > 0) {
+          const last = storedHistory[storedHistory.length - 1];
+          if (last.role === 'user' && last.content === maskCustomerTextForModel(message)) storedHistory = storedHistory.slice(0, -1);
+        }
+      } catch {
+        storedHistory = [];
+      }
+    }
 
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -152,8 +220,8 @@ export const handler: Handler = async (event) => {
       max_tokens: 500,
       system: SYSTEM_PROMPT + '\n\n' + userContext + pathContext,
       messages: [
-        ...boundedHistory,
-        { role: 'user', content: message.slice(0, MAX_USER_MESSAGE_CHARS) },
+        ...storedHistory,
+        { role: 'user', content: modelMessage },
       ],
     });
 
@@ -168,10 +236,24 @@ export const handler: Handler = async (event) => {
       reply = reply.replace(/\s*ACTION:NAVIGATE:\/[^\s\n]+/g, '').trim();
     }
 
+    // Save Custodian's reply (signed by the platform). persisted is true only when both saves succeeded.
+    let persisted = false;
+    if (conversationId && claimed) {
+      try {
+        await completeConversationTurn(db, {
+          sessionId: conversationId, userId: auth.userId, employeeSlug: 'custodian', assistantText: reply, clientMessageId,
+          assistantMetadata: action ? { navigateTo: action.path } : undefined,
+        });
+        persisted = true;
+      } catch {
+        console.warn('[custodian-chat] reply was not saved');
+      }
+    }
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ reply, action }),
+      body: JSON.stringify({ reply, action, sessionId: conversationId, persisted }),
     };
   } catch (err: any) {
     console.error('[custodian-chat] Error:', err.message);

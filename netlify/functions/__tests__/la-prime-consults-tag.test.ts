@@ -50,15 +50,20 @@ describe('L-A scope follows the owner precedence', () => {
     expect(tagStatusInputFromScope({ primary: { from: '2026-10-01', to: '2026-11-01' } }, false))
       .toEqual({ startDate: '2026-10-01', endDate: '2026-10-31', periodSource: 'requested' });
   });
-  it('period inherited from the conversation (M1b) → conversation', () => {
-    expect(tagStatusInputFromScope({ primary: { from: '2026-09-01', to: '2026-10-01' } }, true).periodSource).toBe('conversation');
+  // P-LIVE-02 (owner 2026-11-25): outstanding categorization defaults to ALL history unless the
+  // customer asks for a narrower period in this message; a conversation period is not such a request.
+  it('period inherited from the conversation (M1b) → all history (not narrowed)', () => {
+    expect(tagStatusInputFromScope({ primary: { from: '2026-09-01', to: '2026-10-01' } }, true)).toEqual({ allHistory: true });
   });
-  it('no period → no dates (tag_status falls back to the current calendar month, labelled)', () => {
-    expect(tagStatusInputFromScope(null, false)).toEqual({});
-    expect(tagStatusInputFromScope({}, false)).toEqual({});
+  it('no period → all history (never the current calendar month), labelled', () => {
+    expect(tagStatusInputFromScope(null, false)).toEqual({ allHistory: true });
+    expect(tagStatusInputFromScope({}, false)).toEqual({ allHistory: true });
     const s = resolveTagStatusScope(tagStatusInputFromScope(null, false), new Date('2026-11-23T12:00:00Z'));
-    expect(s.source).toBe('default_current_month');
-    expect(s.label).toMatch(/November 2026/);
+    expect(s.source).toBe('all_history');
+    expect(s.label).toBe('all imported transactions (entire history)');
+  });
+  it('an explicit all-history request beats a requested-looking period only when that period was ruled out upstream', () => {
+    expect(tagStatusInputFromScope({ primary: { from: '2026-10-01', to: '2026-11-01' } }, false, { allHistory: true })).toEqual({ allHistory: true });
   });
 });
 
@@ -77,7 +82,7 @@ describe('L-A evidence and event', () => {
   const ev = formatTagConsultationEvidence(status);
   it('states that Tag was consulted, the period, counts, proposals and the caveat', () => {
     expect(ev).toMatch(/^TAG CONSULTATION RESULT \(you consulted Tag via tag_status — read-only, server-verified\):/);
-    expect(ev).toMatch(/Period \/ scope: November 2026 \(current month — no period was given\)/);
+    expect(ev).toMatch(/Period \/ scope: all imported transactions \(entire history\) \(all history\)/);
     expect(ev).toMatch(/uncategorized: 1; "Other": 1/);
     expect(ev).toMatch(/7-ELEVEN STORE: 1 × Transfers → possibly Food & Dining/);
     expect(ev).toContain(`Caveat: ${C4_PROVENANCE_CAVEAT}`);
@@ -100,7 +105,7 @@ describe('L-A chat.ts wiring', () => {
   it('runs tag_status deterministically for categorization questions', () => {
     expect(chat).toMatch(/const primeCategorizationReview: boolean = isPrime && isCategorizationReviewQuestion\(String\(masked \|\| ''\)\);/);
     expect(chat).toMatch(/\? \(await executeTagStatus\(tagInput, \{ userId \}\)\)/); // runs only when the capability hook allows it
-    expect(chat).toMatch(/tagStatusInputFromScope\(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision\?\.apply\)/);
+    expect(chat).toMatch(/tagStatusInputFromScope\(temporalScope as unknown as ResolvedPeriodLike, !!m1bDecision\?\.apply, \{ allHistory: customerAllHistory \}\)/);
   });
   it('the event is pushed only after a successful execution', () => {
     const block = chat.slice(chat.indexOf('if (primeCategorizationReview) {'), chat.indexOf('if (primeCategorizationReview) {') + 1800);
