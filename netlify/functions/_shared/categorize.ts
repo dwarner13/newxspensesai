@@ -14,6 +14,10 @@ import { OpenAI } from 'openai';
 import { admin } from './upload';
 import { getLearnedCategoryForTransaction } from './tag-learning';
 import { serverSupabase } from './supabase';
+import { resolveCategoryRequest } from './tagCategories';
+
+/** Category the customer must review (owner GO 2026-11-26: unknown AI categories require review). */
+export const REVIEW_CATEGORY = 'Needs Review';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -45,7 +49,8 @@ export type CategorizationResult = {
 export type LearningCategorizationResult = {
   category: string;
   confidence: number;
-  source: 'learned' | 'ai';
+  /** 'none' = no learned, rule or AI answer: the row stays Uncategorized (never a silent "Other"). */
+  source: 'learned' | 'rule' | 'ai' | 'none';
 };
 
 /**
@@ -126,10 +131,16 @@ export async function categorizeTransaction(
         ]
       });
       
-      const category = response.choices[0]?.message?.content?.trim() || 'Needs Review';
-      
+      // Owner GO 2026-11-26: the model's answer is used only when it is a recognised Tag category
+      // (exact name or alias). Anything else — an invented category, a sentence, an empty reply — goes
+      // to review; it is never stored as if it were a real category.
+      const raw = response.choices[0]?.message?.content?.trim() || '';
+      const resolved = resolveCategoryRequest(raw.replace(/^category:\s*/i, ''));
+      if (resolved.status !== 'exact') {
+        return { category: REVIEW_CATEGORY, confidence: 0, source: 'ai' };
+      }
       return {
-        category,
+        category: resolved.category,
         confidence: 0.70,  // Lower confidence for AI
         source: 'ai'
       };
@@ -195,11 +206,16 @@ export async function categorizeTransactionWithLearning(input: {
     input.userId
   );
 
-  // Step 4: Return result with source 'ai'
+  // Step 4 (owner GO 2026-11-26): report what actually decided the category. With no answer the row
+  // stays Uncategorized for Tag / the customer — it used to become "Other" at 0.8 labelled 'ai', a
+  // decision nobody made.
+  if (!aiResult.category) {
+    return { category: 'Uncategorized', confidence: 0, source: 'none' };
+  }
   return {
-    category: aiResult.category || 'Other',
-    confidence: aiResult.confidence || 0.8,
-    source: 'ai'
+    category: aiResult.category,
+    confidence: aiResult.confidence,
+    source: aiResult.source === 'rule' ? 'rule' : 'ai',
   };
 }
 

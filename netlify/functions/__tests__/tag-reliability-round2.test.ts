@@ -299,3 +299,36 @@ describe('Notifications fix (owner 2026-11-26): Tag notices use the notification
     expect(json.error).toBe('notifications_unavailable');
   });
 });
+
+describe('"View all" (owner 2026-11-26): every proposed change is inspectable before confirming', () => {
+  it('proposalDetails lists every change, in reply order, and matches the signed proposal exactly', async () => {
+    const p = await act({ intent: 'propose_import_suggestions', importId: IMP, ...convo("Apply Tag's suggestions", 'msg_r2_va01') });
+    const d = p.json.proposalDetails;
+    expect(d.fingerprint).toBe(p.json.proposal.subject.fingerprint);
+    expect(d.total).toBe(p.json.proposal.subject.affected);
+    expect(d.items.reduce((n: number, i: { count: number }) => n + i.count, 0)).toBe(d.total);
+    expect(d.protectedCount).toBe(1); // the customer's own "Other" is left alone and counted
+    for (const item of d.items) expect(item.rows).toHaveLength(item.count);
+    const rows = d.items.flatMap((i: { rows: unknown[] }) => i.rows);
+    expect(rows).toEqual(expect.arrayContaining([
+      { date: '2026-11-02', amount: -7.25, description: 'POS CORNER COFFEE 7', fromCategory: 'Uncategorized' },
+      { date: '2026-11-02', amount: -7.25, description: 'POS CORNER COFFEE 8', fromCategory: 'Needs Review' },
+    ]));
+    expect(d.items[0]).toMatchObject({ toCategory: 'Food & Dining' });
+    // Reply text shows the first items in the same order.
+    expect(p.json.conversation.reply.indexOf(d.items[0].merchant)).toBeGreaterThan(-1);
+  });
+  it('the details are not stored in the signed receipt / chat history', async () => {
+    const p = await act({ intent: 'propose_import_suggestions', importId: IMP, ...convo("Apply Tag's suggestions", 'msg_r2_va02') });
+    expect(p.json.conversation.receipt.result).toEqual({ matchCount: 2 });
+    const stored = JSON.stringify((db.chat_messages ?? []).map(m => m.metadata));
+    expect(stored).not.toContain('POS CORNER COFFEE');
+  });
+  it('a confirm can only apply what was listed: a changed import is rejected as stale', async () => {
+    const p = await act({ intent: 'propose_import_suggestions', importId: IMP, ...convo("Apply Tag's suggestions", 'msg_r2_va03') });
+    db.transactions.push(r('r2-va4', 'CORNER COFFEE 11', 'Uncategorized', null));
+    const c = await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_r2_va04', { sessionId: p.json.conversation.sessionId }) });
+    expect(c.json.conversation.receipt.reason).toBe('stale');
+    expect(txUpdateCalls).toBe(0);
+  });
+});

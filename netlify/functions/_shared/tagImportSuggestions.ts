@@ -18,7 +18,9 @@ import { normalizeMerchant } from './merchantUtils.js';
 import { partitionAutoWritable } from './categorySource.js';
 import { TAG_CATEGORIES } from './tagCategories.js';
 
-export interface SuggestionGroup { merchant_name: string; category: string; subcategory: string | null; ids: string[]; count: number }
+/** One proposed change, for the customer to inspect before confirming (owner 2026-11-26: "View all"). */
+export interface SuggestionRow { id: string; date: string | null; amount: number | null; description: string | null; fromCategory: string | null }
+export interface SuggestionGroup { merchant_name: string; category: string; subcategory: string | null; ids: string[]; count: number; rows: SuggestionRow[] }
 export interface ImportSuggestions {
   complete: boolean;
   groups: SuggestionGroup[];
@@ -35,12 +37,12 @@ const canonical = (raw: unknown): { category: string; subcategory: string | null
   return c ? { category: c, subcategory: sub.trim() || null } : null;
 };
 
-interface Tx { id: string; merchant_name: string | null; category: string | null; category_source: string | null }
+interface Tx { id: string; merchant_name: string | null; category: string | null; category_source: string | null; posted_at?: string | null; date?: string | null; amount?: number | string | null; description?: string | null }
 
 export async function computeImportSuggestions(sb: SupabaseClient, userId: string, importId: string): Promise<ImportSuggestions> {
   const empty: ImportSuggestions = { complete: false, groups: [], unsure: [], skippedProtected: 0, rowsScanned: 0 };
   const importRows = await pagedSelectAll<Tx>(() => sb.from('transactions')
-    .select('id, merchant_name, category, category_source')
+    .select('id, merchant_name, category, category_source, posted_at, date, amount, description')
     .eq('user_id', userId).eq('import_id', importId)
     .or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null')
     .order('id', { ascending: true }) as unknown as PagedQuery);
@@ -94,8 +96,10 @@ export async function computeImportSuggestions(sb: SupabaseClient, userId: strin
       continue;
     }
     const key = `${normalized}|${target.category}|${target.subcategory ?? ''}`;
-    const g = groupMap.get(key) || { merchant_name: tx.merchant_name || '', category: target.category, subcategory: target.subcategory, ids: [], count: 0 };
+    const g = groupMap.get(key) || { merchant_name: tx.merchant_name || '', category: target.category, subcategory: target.subcategory, ids: [], count: 0, rows: [] };
     g.ids.push(String(tx.id)); g.count++;
+    const amt = tx.amount == null ? null : Number(tx.amount);
+    g.rows.push({ id: String(tx.id), date: tx.posted_at || tx.date || null, amount: Number.isFinite(amt) ? amt : null, description: tx.description ?? null, fromCategory: tx.category ?? null });
     groupMap.set(key, g);
   }
   return {

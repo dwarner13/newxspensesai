@@ -10,6 +10,8 @@ import {
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { gateReplyForCoverage } from '../../src/shared/comparison-claim-guard';
+import { loadStatementCoverage, type CoverageDbClient } from '../../src/shared/statement-coverage';
 import { getLearnedCategoryForTransaction } from './_shared/tag-learning.js';
 
 const headers = {
@@ -1106,6 +1108,19 @@ export const handler: Handler = async (event) => {
     console.log('[tag-chat] model-emitted change tag ignored (no write)');
   }
 
+  // G11b (owner GO 2026-11-26, unified financial engine: coverage-aware comparisons for every
+  // employee): no comparison / trend / stability claim the statement coverage does not support (same
+  // rule as the screens); a coverage read failure fails closed. Gated before it is saved or returned.
+  let comparisonGate: { applied: boolean; removedSentences: number; reason: string | null } | null = null;
+  {
+    const gated = await gateReplyForCoverage(reply, () => loadStatementCoverage(supabase as unknown as CoverageDbClient, auth.userId!));
+    if (gated.applied) {
+      reply = gated.text;
+      comparisonGate = { applied: true, removedSentences: gated.removedSentences, reason: gated.reason };
+      console.warn(`[tag-chat] comparison claim gated: removed=${gated.removedSentences}`);
+    }
+  }
+
   // 9. Save conversation to tag_conversations
   if (conversationKey) {
     try {
@@ -1134,7 +1149,7 @@ export const handler: Handler = async (event) => {
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify({ reply, action, rule_saved: ruleSaved, backfill_count: backfillCount, history: persistedHistory, sessionComplete, handoff: handoffPayload }),
+    body: JSON.stringify({ reply, action, rule_saved: ruleSaved, backfill_count: backfillCount, history: persistedHistory, sessionComplete, handoff: handoffPayload, ...(comparisonGate ? { comparisonGate } : {}) }),
   };
 
   } catch (handlerErr: any) {

@@ -2897,6 +2897,14 @@ export default function UnifiedAssistantChat({
       const { getSupabase } = await import('../../lib/supabase');
       const supabase = getSupabase();
       if (!supabase) return [];
+      // S-1 (owner GO 2026-11-26): a committed import's staging rows are read-only history; its
+      // clarifications belong on the committed transactions, so none are offered from staging.
+      const { data: importRow, error: importErr } = await supabase
+        .from('imports')
+        .select('status')
+        .eq('id', importId)
+        .maybeSingle();
+      if (importErr || !importRow || importRow.status === 'committed') return [];
       const { data } = await supabase
         .from('transactions_staging')
         .select('id, data_json, tag_status')

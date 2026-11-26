@@ -146,3 +146,48 @@ describe('AR-4 — unmounted duplicate Tag panel stays unreachable (UI/UX W8, 20
     expect(importers).toEqual([]);
   });
 });
+
+describe('AR-4 — dead merchant-categorize write paths on the Transactions page stay unreachable (UI/UX REVIEW-1, 2026-11-26)', () => {
+  // TransactionsPageV2 passes onMerchantCategorize / onTagAction handlers that select ids in the browser
+  // (merchant ilike '%x%', any "Other") and POST bulk_apply / save_rule / undo without a confirmation.
+  // The live TagCopilotPanel never declares or calls them, so they cannot run. Deletion awaits the
+  // owner's GO; until then the panel must not start calling them.
+  it('TagCopilotPanel never exposes onMerchantCategorize / onTagAction', () => {
+    const panel = read('src/components/transactions/TagCopilotPanel.tsx');
+    expect(panel).not.toMatch(/\bonMerchantCategorize\b|\bonTagAction\b/);
+  });
+  it('the old unrouted src/pages/TransactionsPageV2.tsx is imported nowhere', () => {
+    const importers: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== '__tests__') walk(rel); continue; }
+        if (!/\.(tsx?|jsx?)$/.test(e.name) || rel === 'src/pages/TransactionsPageV2.tsx') continue;
+        if (/['"](\.\/pages\/TransactionsPageV2|@\/pages\/TransactionsPageV2|\.\.\/TransactionsPageV2|\.\/TransactionsPageV2)['"]/.test(read(rel))
+          && !rel.startsWith('src/pages/dashboard/')) importers.push(rel);
+      }
+    };
+    walk('src');
+    expect(importers).toEqual([]);
+  });
+});
+
+describe('AR-1b (FR-021) — the dead model-totals Tag worker module stays deleted', () => {
+  // _shared/tagWorker.ts asked the model for is_spend / category_totals / deposit-withdrawal totals and
+  // had no importer (the live chain is in chat.ts, moved to the engine by Prime HQ). Deleted
+  // 2026-11-26; nothing may bring a model-totals worker module back.
+  it('the file is gone and nothing imports it', () => {
+    const importers: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== '__tests__') walk(rel); continue; }
+        if (/\.(tsx?|jsx?|mjs|cjs)$/.test(e.name) && /['"][./]*(?:_shared\/)?tagWorker(?:\.js)?['"]/.test(read(rel))) importers.push(rel);
+      }
+    };
+    walk('netlify');
+    walk('src');
+    expect(importers).toEqual([]);
+    expect(() => read('netlify/functions/_shared/tagWorker.ts')).toThrow();
+  });
+});

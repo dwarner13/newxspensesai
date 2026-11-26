@@ -44,10 +44,10 @@ function db(rows: LedgerRow[], extra: Record<string, FakeRow[]> = {}): Record<st
   return {
     transactions: rows as unknown as FakeRow[],
     imports: [
-      { id: IMPORTS.chequing, user_id: A, file_url: 'x/chequing.pdf', created_at: '2023-01-01', statement_breakdown_json: { statement_meta: { issuer: 'Synthetic Bank', account_last4: '0001' } } },
-      { id: IMPORTS.card, user_id: A, file_url: 'x/card.pdf', created_at: '2023-01-02' },
-      { id: IMPORTS.savings, user_id: A, file_url: 'x/savings.pdf', created_at: '2023-01-03' },
-      { id: IMPORTS.chequingReimport, user_id: A, file_url: 'x/chequing-again.pdf', created_at: '2023-01-04' },
+      { id: IMPORTS.chequing, user_id: A, status: 'committed', file_url: 'x/chequing.pdf', created_at: '2023-01-01', statement_breakdown_json: { statement_meta: { issuer: 'Synthetic Bank', account_last4: '0001' } } },
+      { id: IMPORTS.card, user_id: A, status: 'committed', file_url: 'x/card.pdf', created_at: '2023-01-02' },
+      { id: IMPORTS.savings, user_id: A, status: 'committed', file_url: 'x/savings.pdf', created_at: '2023-01-03' },
+      { id: IMPORTS.chequingReimport, user_id: A, status: 'committed', file_url: 'x/chequing-again.pdf', created_at: '2023-01-04' },
     ],
     profiles: [{ id: A, currency: 'CAD', first_name: 'Synthetic', full_name: 'Synthetic Customer' }, { id: B, currency: 'CAD' }],
     ...extra,
@@ -81,8 +81,8 @@ function parseCsv(csv: string): { meta: string[]; header: string[]; rows: string
 
 beforeEach(() => { state.tokens = { 'tok-a': A, 'tok-b': B }; });
 
-describe('S0/S2b financial-summary reconciles with the oracle at 1,000 / 1,501 / 3,000 / 10,000', () => {
-  for (const n of [1000, 1501, 3000, 10000]) {
+describe('S0/S2b financial-summary reconciles with the oracle at 119 / 1,000 / 1,501 / 3,000 / 10,000', () => {
+  for (const n of [119, 1000, 1501, 3000, 10000]) {
     it(`${n} transactions`, async () => {
       const { rows, oracle } = generateLedger(n, A);
       state.client = makeCappedClient(db(rows), { shuffleUnordered: true });
@@ -91,7 +91,7 @@ describe('S0/S2b financial-summary reconciles with the oracle at 1,000 / 1,501 /
       expect(res.headers['Cache-Control']).toBe('no-store');
       const b = JSON.parse(res.body);
       expect(b.status).toBe('verified');
-      expect(b.contractVersion).toBe('fst2-summary-1');
+      expect(b.contractVersion).toBe('fst2-summary-2');
       expect(b.transactionCount).toBe(oracle.count);
       for (const [bucket, key] of Object.entries(BUCKET_KEY)) {
         expect(b.totals.cents[key], bucket).toBe(oracle.cents[bucket as Bucket]);
@@ -109,8 +109,80 @@ describe('S0/S2b financial-summary reconciles with the oracle at 1,000 / 1,501 /
       expect(b.perf.databaseRequests).toBe(Math.ceil(n / 1000) + 2);
       expect(b.perf.attempts).toBe(1);
       expect(b.scope.currencyBasis).toBe('profile_assumed');
+
+      // ── fst2-summary-2 (owner 2026-11-26): every breakdown reconciles to raw deposits/withdrawals ──
+      const o = oracle.cents;
+      const deposits = o.income + o.refunds + o.transferIn + o.debtRepaymentsIn;
+      const withdrawals = o.spending + o.transferOut + o.debtPayments + o.savingsInvestment;
+      expect(b.labels.deposits.cents).toBe(deposits);
+      expect(b.labels.withdrawals.cents).toBe(withdrawals);
+      expect(b.labels.netCashFlow.cents).toBe(deposits - withdrawals);          // net cash flow = deposits − withdrawals
+      expect(b.labels.actualIncome.cents).toBe(o.income);                       // never refunds / transfers / card payments
+      expect(b.labels.actualSpending.cents).toBe(o.spending);
+      expect(b.labels.refunds.cents).toBe(o.refunds);
+      expect(b.netExcludingTransfersAndSavings.cents).toBe(o.income + o.refunds - (o.spending + o.debtPayments));
+      // reconciled breakdown: lines add up to the raw totals; the 'Credit'-typed rows are reported unplaced, never guessed
+      const lineSum = (dir: string) => Math.round(b.statementBreakdown.lines.filter((l: any) => l.direction === dir).reduce((x: number, l: any) => x + l.amount * 100, 0));
+      expect(lineSum('inflow')).toBe(deposits);
+      expect(lineSum('outflow')).toBe(withdrawals);
+      expect(b.statementBreakdown.unplacedCount).toBe(oracle.counts.unclassified);
+      expect(b.statementBreakdown.reconciled).toBe(oracle.counts.unclassified === 0);
+      // spending by category: purpose 'spending' only, sums to actual spending
+      expect(b.spendingByCategory.reduce((x: number, c: any) => x + c.cents, 0)).toBe(o.spending);
+      expect(b.spendingByCategory.some((c: any) => /transfer|debt|payment|savings/i.test(c.category))).toBe(false);
+      // per statement: the statements add up to the whole (every synthetic row has an import)
+      expect(Math.round(b.perStatement.reduce((x: number, p: any) => x + p.deposits * 100, 0))).toBe(deposits);
+      expect(Math.round(b.perStatement.reduce((x: number, p: any) => x + p.withdrawals * 100, 0))).toBe(withdrawals);
+      // the ONE review rule (no category / Uncategorized / Needs Review; not 'Other'), computed independently here
+      expect(b.needsReviewCount).toBe(rows.filter(r => { const c = (r.category ?? '').trim().toLowerCase(); return c === '' || c === 'uncategorized' || c === 'needs review'; }).length);
+      // no statement periods recorded in this fixture → coverage unknown → nothing comparable, no trend/stable
+      expect(b.coverage.comparison.allowed).toBe(false);
+      expect(b.periods).toEqual([]);
+      expect(b.insights.some((i: any) => i.kind === 'trend' || i.kind === 'stable')).toBe(false);
+      expect(b.insights.map((i: any) => i.kind)).toContain('not_enough_history');
+      expect(b.calendarMonths.every((m: any) => m.comparable === false)).toBe(true);
+      expect(b.goals.averageNetCashFlowPerPeriod).toBeNull();
+      // owner 2026-11-26: retrieval complete + coverage unknown → labelled recorded totals, no comparisons/completeness
+      expect(b.dataQuality).toMatchObject({ retrieval: 'complete', statementCoverage: 'unknown', allowed: { recordedTotals: true, completenessClaims: false, comparisons: false } });
+      expect(b.dataQuality.totalsLabel).toMatch(/^Recorded transactions for 2023-01-01 to 2025-12-31. Statement coverage for this period is unknown/);
+      expect(b.possibleBusinessExpenses).toMatchObject({ status: 'needs_review' });
+      expect(b.possibleBusinessExpenses.wording).not.toMatch(/deduction(s)? found|deductible/i);
+      // G8: engine cents; sections add up; refunds on the same categories netted
+      const pbe = b.possibleBusinessExpenses;
+      expect(pbe.sections.reduce((x: number, sct: any) => x + sct.cents, 0) - pbe.refundsNettedCents).toBe(Math.max(0, pbe.cents));
+      // G9: the engine serves the wording
+      expect(b.wording.labels.netCashFlow).toBe('Net Cash Flow');
+      expect(b.wording.insights.stable_actual_spending).toContain('last 3 statement periods');
     });
   }
+
+  it('G2: an account-scoped request never claims coverage or comparisons', async () => {
+    const { rows } = generateLedger(1000, A);
+    state.client = makeCappedClient(db(rows), { shuffleUnordered: true });
+    const b = JSON.parse((await call(summary, 'tok-a', { ...ALL, importIds: [IMPORTS.chequing] })).body);
+    expect(b.status).toBe('verified');
+    expect(b.dataQuality).toMatchObject({ statementCoverage: 'unknown', allowed: { comparisons: false, completenessClaims: false, recordedTotals: true } });
+    expect(b.periods).toEqual([]);
+  });
+
+  it('with statement periods recorded for every account: comparisons allowed, periods/insights coverage-backed, net reconciles per period', async () => {
+    const { rows } = generateLedger(3000, A);
+    const committed = (id: string, issuer: string, l4: string) => ({ id, user_id: A, status: 'committed', committed_at: '2026-01-01', file_url: `x/${l4}.pdf`, created_at: '2023-01-01',
+      statement_breakdown_json: { statement_meta: { issuer, account_last4: l4, period_start: '2023-01-01', period_end: '2025-12-31' } } });
+    const data = db(rows);
+    data.imports = [committed(IMPORTS.chequing, 'Synthetic Bank', '0001'), committed(IMPORTS.card, 'Synthetic Card', '0002'), committed(IMPORTS.savings, 'Synthetic Savings', '0003'), committed(IMPORTS.chequingReimport, 'Synthetic Bank', '0001')];
+    state.client = makeCappedClient(data, { shuffleUnordered: true });
+    const b = JSON.parse((await call(summary, 'tok-a', ALL)).body);
+    expect(b.status).toBe('verified');
+    expect(b.coverage.comparison.allowed).toBe(true);
+    expect(b.dataQuality).toMatchObject({ retrieval: 'complete', statementCoverage: 'complete', allowed: { completenessClaims: true, comparisons: true } });
+    expect(b.dataQuality.totalsLabel).toMatch(/^Complete for 2023-01-01 to 2025-12-31/);
+    expect(b.periods.length).toBeGreaterThan(12);                  // full calendar months every account covers
+    for (const p of b.periods) expect(Math.round(p.netCashFlow * 100)).toBe(Math.round(p.deposits * 100) - Math.round(p.withdrawals * 100));
+    expect(b.insights.every((i: any) => i.kind === 'not_enough_history' || i.coverage.complete)).toBe(true);
+    expect(b.goals.periodsUsed).toBe(b.periods.length);
+    expect(b.calendarMonths.filter((m: any) => m.coverage === 'complete').length).toBe(b.periods.length);
+  });
 });
 
 describe('S2 financial-export: complete files that add up to the stated totals', () => {

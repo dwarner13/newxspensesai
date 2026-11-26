@@ -2,6 +2,12 @@
  * Tag Explanation Helper — enhanced with merchant history + anomaly detection
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchMerchantScopeRows, merchantRowGroupKey, type MerchantScopeClient } from '../../../src/shared/merchant-scope-rows';
+import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
+import { merchantGroupingKey } from './merchantNormalize';
+import { VERIFIED_CUSTOMER_SOURCES, isProtectedSource } from '../../../src/shared/tag-status';
+import { exactMerchantCorrections } from './tag-learning';
+export { exactMerchantCorrections };
 
 export type TagExplanationResult = {
   category: string | null;
@@ -12,7 +18,7 @@ export type TagExplanationResult = {
   confidenceSource: 'stored' | 'estimated' | 'none';
   /** Qualitative level for display (owner direction 2026-11-23: no uncalibrated percentages). */
   confidenceLevel: 'high' | 'medium' | 'low' | null;
-  /** True when merchantSeenCount hit the 100-row cap (show as "100+"). */
+  /** True when the merchant history could not be read completely (counts and amounts are a minimum: "at least"). */
   merchantSeenCapped: boolean;
   /** Display-only "Issuer •••• 1234" from the transaction's own import (last 4 only). Never logged or sent to AI. */
   accountLabel: string | null;
@@ -21,8 +27,12 @@ export type TagExplanationResult = {
   message: string;
   // Enhanced fields
   merchantSeenCount: number;
+  /** Unified engine (owner GO 2026-11-26): SPENDING only (classifyCashFlow), exact merchant, refunds excluded. */
   merchantTotalSpent: number;
+  /** Average of the spending transactions above. */
   merchantAvgAmount: number;
+  /** Refunds at this merchant (money back), reported separately, never netted into spending. */
+  merchantRefundTotal: number;
   isAmountAnomaly: boolean;
   anomalyRatio: number;
   proactiveInsights: string[];
@@ -45,7 +55,7 @@ export async function explainTransactionCategory(
   const empty: TagExplanationResult = {
     category: null, categorySource: 'unknown', confidence: null, confidenceSource: 'none', confidenceLevel: null, merchantSeenCapped: false, accountLabel: null,
     learnedCount: 0, lastLearnedAt: null, message: '',
-    merchantSeenCount: 0, merchantTotalSpent: 0, merchantAvgAmount: 0,
+    merchantSeenCount: 0, merchantTotalSpent: 0, merchantAvgAmount: 0, merchantRefundTotal: 0,
     isAmountAnomaly: false, anomalyRatio: 1, proactiveInsights: [],
   };
 
@@ -53,7 +63,7 @@ export async function explainTransactionCategory(
     // 1. Fetch the transaction
     const { data: tx, error: txErr } = await supabase
       .from('transactions')
-      .select('id, category, category_source, confidence, merchant_name, merchant, description, amount, posted_at, user_id, import_id')
+      .select('id, category, subcategory, category_source, confidence, merchant_name, merchant, description, amount, type, posted_at, user_id, import_id')
       .eq('id', transactionId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -65,24 +75,39 @@ export async function explainTransactionCategory(
     const amount = Math.abs(Number(tx.amount || 0));
     const categorySourceFromDb = tx.category_source;
 
-    // 2. Merchant history — all transactions from this merchant
-    const { data: merchantTxs } = await supabase
-      .from('transactions')
-      .select('amount, category, posted_at')
-      .eq('user_id', userId)
-      .ilike('merchant_name', `%${merchant.toLowerCase().trim()}%`)
-      .neq('id', transactionId)
-      .order('posted_at', { ascending: false })
-      .limit(100);
-
-    const merchantSeenCount = merchantTxs?.length || 0;
-    // Approximate: substring merchant match, capped at 100 rows.
-    const merchantSeenCapped = merchantSeenCount >= 100;
-    const seenLabel = merchantSeenCapped ? '100+' : `about ${merchantSeenCount}`;
-    const merchantTotalSpent = merchantTxs?.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) || 0;
-    const merchantAvgAmount = merchantSeenCount > 0 ? merchantTotalSpent / merchantSeenCount : 0;
-    const anomalyRatio = merchantAvgAmount > 0 ? amount / merchantAvgAmount : 1;
-    const isAmountAnomaly = merchantSeenCount >= 3 && anomalyRatio > 2.0;
+    // 2. Merchant history (unified financial engine, owner GO 2026-11-26; AI Architecture HQ verdict
+    // REFACTOR). Same engine merchant path as Tag's financial context: a complete, paged read
+    // (fetchMerchantScopeRows), narrowed to the EXACT merchant group (never "%name%", which matched other
+    // merchants). Money uses classifyCashFlow: spending only; refunds separate. If the read is not
+    // complete, figures are a minimum ("at least"), never a full total.
+    const merchantKey = merchant.trim() ? merchantGroupingKey(merchant) : '';
+    let merchantTxs: Array<{ id: string; amount?: unknown; category?: string | null; subcategory?: string | null; type?: string | null }> = [];
+    let merchantSeenCapped = false;
+    if (merchantKey) {
+      const fetched = await fetchMerchantScopeRows(supabase as unknown as MerchantScopeClient, userId, { merchantQuery: merchant.trim() }, ['subcategory']);
+      if (fetched.error) merchantSeenCapped = true;
+      merchantSeenCapped = merchantSeenCapped || fetched.truncated;
+      merchantTxs = fetched.rows
+        .filter(r => r.id !== transactionId && merchantRowGroupKey(r) === merchantKey)
+        .map(r => ({ id: String(r.id), amount: r.amount, category: r.category ?? null, subcategory: (r.subcategory as string | null | undefined) ?? null, type: r.type ?? null }));
+    }
+    const merchantSeenCount = merchantTxs.length;
+    const seenLabel = merchantSeenCapped ? `at least ${merchantSeenCount}` : `${merchantSeenCount}`;
+    let spendCents = 0; let spendCount = 0; let refundCents = 0;
+    for (const t of merchantTxs) {
+      const c = classifyCashFlow(t);
+      if (c.excluded !== null || c.amountCents === null) continue;
+      if (c.purpose === 'spending') { spendCents += Math.abs(c.amountCents); spendCount++; }
+      else if (c.purpose === 'refund') refundCents += Math.abs(c.amountCents);
+    }
+    const merchantTotalSpent = spendCents / 100;
+    const merchantRefundTotal = refundCents / 100;
+    const merchantAvgAmount = spendCount > 0 ? merchantTotalSpent / spendCount : 0;
+    // Anomaly hint only for a SPENDING transaction compared with >= 3 prior spending transactions here.
+    const thisTx = classifyCashFlow({ type: (tx as { type?: string | null }).type ?? null, category: tx.category, subcategory: (tx as { subcategory?: string | null }).subcategory ?? null, amount: tx.amount });
+    const thisIsSpending = thisTx.purpose === 'spending' && thisTx.excluded === null;
+    const anomalyRatio = thisIsSpending && merchantAvgAmount > 0 ? amount / merchantAvgAmount : 1;
+    const isAmountAnomaly = thisIsSpending && spendCount >= 3 && anomalyRatio > 2.0;
 
     // Most common past category for this merchant
     const catCounts: Record<string, number> = {};
@@ -94,13 +119,8 @@ export async function explainTransactionCategory(
     let learnedCount = 0;
     let lastLearnedAt: string | null = null;
     if (merchant.trim()) {
-      const { data: feedback } = await supabase
-        .from('tag_category_feedback')
-        .select('new_category, created_at')
-        .eq('user_id', userId)
-        .ilike('merchant', `%${merchant.trim()}%`)
-        .order('created_at', { ascending: false });
-      learnedCount = feedback?.length || 0;
+      const { rows: feedback } = await exactMerchantCorrections(supabase, userId, merchant);
+      learnedCount = feedback.length;
       lastLearnedAt = feedback?.[0]?.created_at || null;
     }
 
@@ -109,7 +129,10 @@ export async function explainTransactionCategory(
     if (categorySourceFromDb === 'learned' || learnedCount >= 2) categorySource = 'learned';
     else if (categorySourceFromDb === 'ai') categorySource = 'ai';
     else if (categorySourceFromDb === 'rule' || categorySourceFromDb === 'rules') categorySource = 'rule';
-    else if (categorySourceFromDb === 'manual' || categorySourceFromDb === 'user' || categorySourceFromDb === 'user_chat') categorySource = 'manual';
+    else if (typeof categorySourceFromDb === 'string' && VERIFIED_CUSTOMER_SOURCES.has(categorySourceFromDb.trim().toLowerCase())) categorySource = 'manual';
+    // Round-2 item 4: protected labels of unverified origin (manual, user_chat, tag_chat, …) stay
+    // protected but are never described as the customer's own choice.
+    const protectedUnverified = categorySource === 'unknown' && isProtectedSource(categorySourceFromDb);
 
     // 5. Confidence — enrich from merchant history
     let confidence = tx.confidence != null ? Number(tx.confidence) : null;
@@ -149,7 +172,9 @@ export async function explainTransactionCategory(
 
     // 6. Build primary message
     let message = '';
-    if (categorySource === 'manual') {
+    if (protectedUnverified) {
+      message = `This category is protected, so I won't change it automatically. I can't confirm who set it — tell me if it's wrong and I'll fix this one.`;
+    } else if (categorySource === 'manual') {
       message = `You set this category yourself${learnedCount > 1 ? ` — and you have corrected this merchant ${learnedCount} times` : ''}. I am locked in.`;
     } else if (categorySource === 'learned' && learnedCount >= 2) {
       message = `I learned from your ${learnedCount} past corrections and always tag ${merchant || 'this merchant'} as ${category}.`;
@@ -180,12 +205,15 @@ export async function explainTransactionCategory(
     }
 
     if (merchantSeenCount >= 5) {
-      proactiveInsights.push(`📊 You have spent about ${merchantTotalSpent.toFixed(2)} at ${merchant} across ${seenLabel} transactions${merchantSeenCapped ? ' (only the most recent 100 are counted)' : ''}.`);
+      if (spendCount > 0) {
+        const refunds = merchantRefundTotal > 0 ? ` You also got $${merchantRefundTotal.toFixed(2)} back in refunds there (not counted as spending).` : '';
+        proactiveInsights.push(`📊 Across your imported transactions, you've spent ${merchantSeenCapped ? 'at least ' : ''}$${merchantTotalSpent.toFixed(2)} at ${merchant} in ${merchantSeenCapped ? 'at least ' : ''}${spendCount} purchase${spendCount === 1 ? '' : 's'}.${refunds}`);
+      }
     }
 
     return {
       category, categorySource, confidence, confidenceSource, confidenceLevel, merchantSeenCapped, accountLabel, learnedCount, lastLearnedAt,
-      message, merchantSeenCount, merchantTotalSpent, merchantAvgAmount,
+      message, merchantSeenCount, merchantTotalSpent, merchantAvgAmount, merchantRefundTotal,
       isAmountAnomaly, anomalyRatio, proactiveInsights,
     };
 
@@ -208,13 +236,8 @@ export async function getMerchantCategoryInsight(
 ): Promise<TagMerchantInsight> {
   try {
     if (!merchant?.trim()) return { merchant, topCategory: null, totalCorrections: 0 };
-    const { data: feedback } = await supabase
-      .from('tag_category_feedback')
-      .select('new_category, created_at')
-      .eq('user_id', userId)
-      .ilike('merchant', `%${merchant.trim()}%`)
-      .order('created_at', { ascending: false });
-    if (!feedback?.length) return { merchant, topCategory: null, totalCorrections: 0 };
+    const { rows: feedback } = await exactMerchantCorrections(supabase, userId, merchant);
+    if (!feedback.length) return { merchant, topCategory: null, totalCorrections: 0 };
     const counts: Record<string, number> = {};
     feedback.forEach(f => { if (f.new_category) counts[f.new_category] = (counts[f.new_category] || 0) + 1; });
     const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;

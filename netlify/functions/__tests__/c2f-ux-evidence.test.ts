@@ -57,7 +57,9 @@ describe('F3 — the reported May follow-up', () => {
   it('F3-a: the browser snapshot is never presented as authoritative and never strips tools', () => {
     expect(chat).not.toContain('AUTHORITATIVE — use these numbers');
     expect(chat).not.toContain('answer directly with that number');
-    expect(chat).toContain('Dashboard snapshot (browser-computed, NOT verified, NOT period-specific');
+    // Owner 2026-11-26 (unified engine): stronger than labelling — the browser snapshot never reaches Prime.
+    expect(chat).not.toContain('Dashboard snapshot (browser-computed');
+    expect(chat).toContain('the browser-computed dashboard tax snapshot is');
     expect(chat).not.toContain("tools stripped (exact-scope match in Tax Summary)");
     expect(chat).not.toMatch(/shouldRetainTools\(/);
   });

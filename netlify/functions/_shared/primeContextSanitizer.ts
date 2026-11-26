@@ -24,10 +24,6 @@ const arr = <T>(v: unknown, max: number, map: (x: Record<string, unknown>) => T 
   }
   return out;
 };
-const nameAmount = (x: Record<string, unknown>) => {
-  const name = text(x.name, 60);
-  return name ? { name, amount: num(x.amount) ?? 0 } : null;
-};
 /** Multi-line summary text: control characters removed (newlines kept), bounded lines and size. */
 function summaryText(v: unknown, maxLines: number, maxChars: number): string | undefined {
   if (typeof v !== 'string') return undefined;
@@ -75,29 +71,18 @@ export function sanitizePrimeContext(raw: unknown): SanitizedPrimeContext | null
     };
   } else out.memorySummary = null;
 
+  // Owner GO 2026-11-26 (UNIFIED FINANCIAL ENGINE): "Remove legacy browser financial context from
+  // Prime." Browser-computed money (per-document spend/income/category/merchant totals and the
+  // dashboard tax snapshot) never reaches the model or any server decision. Only what identifies a
+  // document the customer is looking at is kept; every figure comes from the shared engine.
   const ris = arr(r.recentImportSummaries, 10, x => {
     const label = text(x.label, 80);
     if (!label) return null;
-    return {
-      importId: text(x.importId, 64) ?? '',
-      label,
-      totalSpend: num(x.totalSpend) ?? 0,
-      totalIncome: num(x.totalIncome) ?? 0,
-      txCount: num(x.txCount) ?? 0,
-      topCategories: arr(x.topCategories, 10, nameAmount) ?? [],
-      topMerchants: arr(x.topMerchants, 10, nameAmount) ?? [],
-      displayedAt: text(x.displayedAt, 40) ?? '',
-    };
+    return { importId: text(x.importId, 64) ?? '', label, displayedAt: text(x.displayedAt, 40) ?? '' };
   });
   if (ris) out.recentImportSummaries = ris;
-
-  const tax = arr(r.taxSummary, 30, x => {
-    const section = text(x.section, 60);
-    const total = num(x.total);
-    if (!section || total === undefined) return null;
-    return { section, total, count: num(x.count) ?? 0, topSubcategories: arr(x.topSubcategories, 10, nameAmount) ?? [] };
-  });
-  if (tax) out.taxSummary = tax;
+  // taxSummary (browser-computed dashboard snapshot) is dropped entirely: it fed the prompt, the
+  // "answer is in context" shortcut and the tool-stripping gate with unverified numbers.
 
   const team = summaryText(r.teamActivitySummary, 20, 2000);
   if (team) out.teamActivitySummary = team;

@@ -148,6 +148,7 @@ describe('cash_flow_summary — authoritative period aggregate', () => {
       totalOutflow: 128609,          // 21099 + 45500 + 31000 + 30000 + 0 + 1010
       rawNetCashMovement: 223891,
       netExcludingInternalMovements: 249391, // 302500 − (21099 + 31000 + 0 + 1010)
+      netExcludingTransfersAndSavings: 249391, // owner 2026-11-26: explicit name, same value
     });
     expect(r.spending).toBe(210.99);
     expect(r.income).toBe(3025);
@@ -155,11 +156,13 @@ describe('cash_flow_summary — authoritative period aggregate', () => {
     expect(r.netExcludingInternalMovements).toBe(2493.91);
   });
 
-  it('compatibility fields: nonSpend sum, netCashFlow alias, counts', async () => {
+  it('compatibility fields: nonSpend sum, netCashFlow = deposits − withdrawals, counts', async () => {
     const r = await cashFlow();
     const c = r.cents!;
     expect(r.nonSpend).toBe((c.transferOut + c.debtPayments + c.savingsInvestment + c.otherNonSpend + c.classificationConflict) / 100);
-    expect(r.netCashFlow).toBe(r.netExcludingInternalMovements);
+    // owner 2026-11-26: net cash flow = total deposits − total withdrawals
+    expect(r.netCashFlow).toBe(r.rawNetCashMovement);
+    expect(r.netExcludingTransfersAndSavings).toBe(r.netExcludingInternalMovements);
     expect(r.incomeTransactionCount).toBe(2);
     expect(r.spendingTransactionCount).toBe(4);
     expect(r.nonSpendTransactionCount).toBe(8); // 3 transfer-out, 2 debt, 2 savings, 1 conflict
@@ -447,14 +450,16 @@ describe('executor — cash-flow evidence', () => {
       'Classification-conflict outflow: $10.10 (1 txns)',
       'Total inflow: $3,525.00',
       'Total outflow: $1,286.09',
-      'Raw net cash movement (all classified inflow − all classified outflow, incl. transfers and savings/investment): $2,238.91',
-      'Net excluding internal movements (income − ordinary spending, debt payments, other non-spend and conflicts; transfers and savings/investment excluded): $2,493.91',
+      'Net cash flow (total deposits − total withdrawals; the only figure to call "net cash flow"): $2,238.91',
+      'Net excluding transfers and savings (income + refunds − spending, debt payments, other non-spend and conflicts; never call this "net cash flow"): $2,493.91',
       '2 transactions totalling $130.00 could not be classified (unsupported transaction type) and are excluded from all financial totals.',
       '1 transaction has a missing or invalid amount; its monetary value is unknown and excluded from the totals.',
-      'Refunds/reversals are not identified',
+      'Refunds (money back on a spending category; not income)',
     ]) expect(msg).toContain(line);
     expect(msg).not.toMatch(/undefined|NaN/);
-    expect(msg).not.toMatch(/^\s*Net cash flow\b/m);
+    // owner 2026-11-26: "Net cash flow" is now the defined figure (deposits − withdrawals); every net line states its definition.
+    expect(msg).toMatch(/^\s*Net cash flow \(total deposits − total withdrawals/m);
+    expect(msg).not.toMatch(/^\s*Net cash flow:\s/m);
     expect(msg).not.toMatch(/^\s*Net:/m);
   });
 });

@@ -355,7 +355,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tag_category_brain', {
     id: 'tag_category_brain',
-    description: 'Get aggregated intelligence for a spending category including totals, top merchants, confidence metrics, and insights. Use this when users ask "what have you learned about this category?", "how much do I usually spend here?", "which merchants are most common?", or "is this category trending up or down?".',
+    description: tagCategoryBrain.metadata.description,
     inputSchema: tagCategoryBrain.inputSchema,
     outputSchema: tagCategoryBrain.outputSchema,
     run: tagCategoryBrain.execute,
@@ -464,7 +464,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['cash_flow_summary', {
     id: 'cash_flow_summary',
-    description: 'Authoritative, deterministic period-level cash-flow facts for an inclusive startDate–endDate range. Every transaction in the range is fetched and classified: transaction type decides direction, category/subcategory decide purpose; amount sign never decides direction. Returns ordinary spending, income (excluding transfers in), debt payments, transfers in/out, savings/investment movement, classification-conflict outflow, total inflow/outflow, and two explicitly named nets: rawNetCashMovement (all classified inflow minus all classified outflow) and netExcludingInternalMovements (transfers and savings/investment excluded). netCashFlow is a compatibility alias of netExcludingInternalMovements; nonSpend is a compatibility sum of all non-spending outflow buckets. Refunds/reversals are not identified. Use when users ask about spending, income, cash flow, or money in vs money out for a period; check queryStatus and completeness (partial data, unclassified transactions) before presenting totals.',
+    description: 'Authoritative, deterministic period-level cash-flow facts for an inclusive startDate–endDate range. Every transaction in the range is fetched and classified: transaction type decides direction, category/subcategory decide purpose; amount sign never decides direction. Returns ordinary spending, income (excluding transfers in), debt payments, transfers in/out, savings/investment movement, classification-conflict outflow, total inflow/outflow, refunds (money back on a spending category; never income), and the nets: netCashFlow = rawNetCashMovement = TOTAL DEPOSITS minus TOTAL WITHDRAWALS (this is the only figure to call "net cash flow"), and netExcludingTransfersAndSavings (income + refunds minus spending and debt payments; transfers, savings and cash excluded; always name it that way, never "net cash flow"). statementBreakdown gives the reconciled lines (employment income, other deposits, transfers, cash, refunds, mortgage, loans, card payments, savings, unresolved) that add up exactly to total deposits and withdrawals; present those lines instead of adding buckets yourself. nonSpend is a compatibility sum of all non-spending outflow buckets. Use when users ask about spending, income, cash flow, or money in vs money out for a period; check queryStatus and completeness (partial data, unclassified transactions) before presenting totals.',
     inputSchema: cashFlowSummary.inputSchema,
     outputSchema: cashFlowSummary.outputSchema,
     run: cashFlowSummary.execute,

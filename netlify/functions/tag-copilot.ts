@@ -2,6 +2,8 @@ import type { Handler } from '@netlify/functions';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { gateReplyForCoverage } from '../../src/shared/comparison-claim-guard';
+import { loadStatementCoverage, type CoverageDbClient } from '../../src/shared/statement-coverage';
 import { logAiActivity } from './_shared/logAiActivity.js';
 import { TAG_CATEGORIES } from './_shared/tagCategories.js';
 import { searchTransactions } from './_shared/txSearchCore.js';
@@ -908,12 +910,26 @@ not touch the other ${otherCount} ${ftMerchant} transactions unless the customer
       }).catch(() => { /* fire and forget */ });
     }
 
-    const finalReply = singleProposalOutcome
+    let finalReply = singleProposalOutcome
       ? singleProposalOutcome.reply
       : actionProposalOutcome
       ? actionProposalOutcome.reply
       : ((replyText + confirmationLine).trim()
         || (toolUseBlock ? confirmationLine.trim() : "Sorry, I couldn't process that."));
+
+    // G11b (owner GO 2026-11-26, unified financial engine: coverage-aware comparisons for every
+    // employee). The model's free text never claims a comparison / trend / stability the customer's
+    // statement coverage does not support — the same rule as the screens; a coverage read failure
+    // fails closed. Server-built proposal replies are deterministic and are not passed through it.
+    let comparisonGate: { applied: boolean; removedSentences: number; reason: string | null } | null = null;
+    if (!singleProposalOutcome && !actionProposalOutcome) {
+      const gated = await gateReplyForCoverage(finalReply, () => loadStatementCoverage(supabase as unknown as CoverageDbClient, auth.userId!));
+      if (gated.applied) {
+        finalReply = gated.text;
+        comparisonGate = { applied: true, removedSentences: gated.removedSentences, reason: gated.reason };
+        console.warn(`[tag-copilot] comparison claim gated: removed=${gated.removedSentences}`);
+      }
+    }
 
     // T-H1: save Tag's reply to the claimed turn. `persisted` is true ONLY when both the claim and
     // the reply were saved; a failed save still returns the reply and the client shows "not saved".
@@ -958,6 +974,8 @@ not touch the other ${otherCount} ${ftMerchant} transactions unless the customer
                 ...(action.applied === true ? {} : { reason: String(action.error || 'not_applied').slice(0, 40) }),
               },
             }
+            : comparisonGate
+            ? { comparisonGate }
             : undefined,
         });
         persisted = true;

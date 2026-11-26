@@ -264,14 +264,14 @@ export async function buildFinancialPosition(
         topCategories,
       };
 
-  // ── Cash flow (current month, net excluding internal movements) ──
+  // ── Cash flow (current month): NET CASH FLOW = deposits − withdrawals (owner 2026-11-26) ──
   const cashFlow: CashFlowArea = unavailable
     ? { status: 'unavailable', source: 'unavailable' }
     : {
         status: dataCoverage.complete ? 'estimated' : 'partial',
         source: 'derived',
         monthlyNet: {
-          amount: dollars(month.cents.netExcludingInternalMovements),
+          amount: dollars(month.cents.rawNetCashMovement),
           currency,
           status: dataCoverage.complete ? 'estimated' : 'partial',
           source: 'derived',

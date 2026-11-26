@@ -43,8 +43,33 @@ export const TOOL_TO_ACTION: Readonly<Record<string, string>> = {
 export type ProposalSubject = Record<string, string | number | null>;
 
 export type ActionProposalOutcome =
-  | { state: 'proposed'; action: string; subject: ProposalSubject; reply: string; /** Rows matching the scope (before protection / no-op filtering). */ matched?: number }
+  | { state: 'proposed'; action: string; subject: ProposalSubject; reply: string; /** Rows matching the scope (before protection / no-op filtering). */ matched?: number; details?: ImportProposalDetails }
   | { state: 'failed'; action: string; reason: string; reply: string };
+
+/**
+ * Every proposed change of an "apply suggestions" proposal, for the customer to inspect before
+ * confirming (owner decision 2026-11-26: top three examples + "View all"; coordinated with UI/UX).
+ * Built in the same request, from the same rows the signed fingerprint covers; the commit recomputes
+ * and rejects anything different as stale, so what is listed is exactly what "yes" can change.
+ * Returned in the response only (not stored in the signed receipt / chat history).
+ */
+export interface ImportProposalDetails {
+  /** Equals subject.fingerprint. */
+  fingerprint: string;
+  /** Equals subject.affected (sum of item counts). */
+  total: number;
+  /** Rows left alone because their category is protected. */
+  protectedCount: number;
+  /** Same order as the reply text. */
+  items: Array<{
+    merchant: string;
+    count: number;
+    toCategory: string;
+    toSubcategory: string | null;
+    fromCategories: Array<{ category: string | null; count: number }>;
+    rows: Array<{ date: string | null; amount: number | null; description: string | null; fromCategory: string | null }>;
+  }>;
+}
 
 /**
  * One Tag activity record in the LIVE tag_activity_log columns (AR-SCHEMA, 2026-11-26; agreed with
@@ -262,11 +287,24 @@ export async function buildImportSuggestionsProposal(sb: SupabaseClient, userId:
     const affected = sug.groups.reduce((n, g) => n + g.count, 0);
     if (affected === 0) return failed(action, 'nothing_to_apply', "There are no suggestions to apply for this statement, so nothing has changed.");
     const kept = sug.skippedProtected > 0 ? ` ${plural(sug.skippedProtected, 'transaction')} with a protected category (set by you, or of unverified origin) will stay as they are.` : '';
+    const fingerprint = suggestionFingerprint(sug.groups);
     const top = sug.groups.slice(0, 3).map(g => `${g.merchant_name} → ${catLabel(g.category, g.subcategory)} (${g.count})`).join('; ');
     return {
       state: 'proposed', action, matched: affected,
       reply: `Apply Tag's suggestions to **${affected}** ${affected === 1 ? 'transaction' : 'transactions'} from this statement (${plural(sug.groups.length, 'merchant')}: ${top}${sug.groups.length > 3 ? '; …' : ''})?${kept} No rules are saved. Say yes to confirm.`,
-      subject: { importId, affected, groups: sug.groups.length, fingerprint: suggestionFingerprint(sug.groups) },
+      subject: { importId, affected, groups: sug.groups.length, fingerprint },
+      details: {
+        fingerprint, total: affected, protectedCount: sug.skippedProtected,
+        items: sug.groups.map(g => {
+          const from = new Map<string | null, number>();
+          for (const r of g.rows) from.set(r.fromCategory, (from.get(r.fromCategory) ?? 0) + 1);
+          return {
+            merchant: g.merchant_name, count: g.count, toCategory: g.category, toSubcategory: g.subcategory,
+            fromCategories: [...from.entries()].map(([category, count]) => ({ category, count })),
+            rows: g.rows.map(r => ({ date: r.date, amount: r.amount, description: r.description, fromCategory: r.fromCategory })),
+          };
+        }),
+      },
     };
   } catch {
     return failed(action, 'preview_error', 'Something went wrong checking your transactions, so nothing has changed. Try again?');

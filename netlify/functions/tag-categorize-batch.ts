@@ -1,4 +1,5 @@
 import type { Handler } from '@netlify/functions';
+import { committedImportIds } from './_shared/importLifecycle.js';
 import { serverSupabase } from './_shared/supabase.js';
 import { getOpenAIClient, getChatModel } from './_shared/openai_client.js';
 import { safeLog } from './_shared/safeLog.js';
@@ -103,6 +104,18 @@ function normalizeCategoryKey(input: string): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+}
+
+/**
+ * Owner GO 2026-11-26: is this a recognised category (canonical name or alias)? Anything else must go to
+ * review — normalizeCanonicalCategory's fallback to 'Other' must never be applied automatically.
+ */
+export function isKnownCategory(input: string): boolean {
+  const raw = String(input || '').trim();
+  const head = raw.includes('::') ? raw.slice(0, raw.indexOf('::')) : raw;
+  const key = normalizeCategoryKey(head);
+  if (!key) return false;
+  return CANONICAL_CATEGORIES.some((c) => normalizeCategoryKey(c) === key) || Boolean(CATEGORY_ALIASES[key]);
 }
 
 function normalizeCanonicalCategory(input: string): string {
@@ -331,9 +344,19 @@ export const handler: Handler = async (event) => {
     }
 
     const supabase = serverSupabase();
-    const importIds = await resolveImportIds(supabase, userId, importId, documentId);
-    if (importIds.length === 0) {
+    const resolvedImportIds = await resolveImportIds(supabase, userId, importId, documentId);
+    if (resolvedImportIds.length === 0) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0, skipped: 0, rows: [] }) };
+    }
+    // S-1 (owner GO 2026-11-26): Tag never writes to a committed import's staging rows (read-only
+    // history; committed transactions are categorized through the transaction paths). Fail closed.
+    const lifecycle = await committedImportIds(supabase, userId, resolvedImportIds);
+    if (!lifecycle.ok) {
+      return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'import_status_unavailable', retryable: true }) };
+    }
+    const importIds = resolvedImportIds.filter((id) => !lifecycle.committed.has(id));
+    if (importIds.length === 0) {
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0, skipped: 0, rows: [], reason: 'import_committed' }) };
     }
 
     let query = supabase
@@ -421,13 +444,15 @@ export const handler: Handler = async (event) => {
         }
         if (matched) {
           const decoded = parseRuleCategory(rule.category);
+          const known = isKnownCategory(rule.category);
           return {
             category: decoded.category,
             subcategory: decoded.subcategory,
-            confidence: 0.9,
-            reason: `Matched user rule (${rule.match_type}: ${rule.match_value})`,
+            confidence: known ? 0.9 : 0.5,
+            reason: known ? `Matched user rule (${rule.match_type}: ${rule.match_value})` : 'Rule has an unrecognised category; needs review',
             source: 'rules',
             model: null,
+            ...(known ? {} : { forceNeedsReview: true }),
           };
         }
       }
@@ -445,13 +470,16 @@ export const handler: Handler = async (event) => {
 
       const memory = memoryMap.get(vendorKey);
       if (memory) {
+        const known = isKnownCategory(memory.category);
         result = {
           category: normalizeCanonicalCategory(memory.category),
           subcategory: memory.subcategory,
-          confidence: 0.92,
-          reason: 'Matched vendor memory',
+          confidence: known ? 0.92 : 0.5,
+          reason: known ? 'Matched vendor memory' : 'Vendor memory has an unrecognised category; needs review',
           source: 'vendor_memory',
           model: null,
+          // An unrecognised category is never auto-applied as "Other" (owner GO 2026-11-26).
+          ...(known ? {} : { forceNeedsReview: true }),
         };
       } else {
         // Check user-defined DB rules before inline rules
