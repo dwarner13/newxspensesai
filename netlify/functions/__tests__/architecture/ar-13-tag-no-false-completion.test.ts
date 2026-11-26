@@ -188,6 +188,30 @@ describe('AR-13 — forced write failures: Tag never claims completion', () => {
     failing.rules = true;
     const s = await act({ intent: 'save_rule', matchValue: 'corner coffee', targetCategory: 'Food & Dining' });
     expect(s.res.statusCode).toBeGreaterThanOrEqual(500);
-    expect((db.tag_activity_log ?? []).filter(x => x.action_type === 'save_merchant_rule')).toHaveLength(0);
+    expect((db.tag_activity_log ?? []).filter(x => x.change_source === 'save_merchant_rule')).toHaveLength(0);
+  });
+});
+
+describe('AR-13 / AR-SCHEMA — Tag activity records use only LIVE tag_activity_log columns (2026-11-26)', () => {
+  // The old action_type / old_value / new_value / note keys never existed live, so every record
+  // failed silently. A record that cannot be stored is no evidence of anything.
+  const LIVE_ACTIVITY = new Set<string>((LIVE_SCHEMA_JSON as Record<string, string[]>).tag_activity_log);
+  const assertLive = () => {
+    const rows = db.tag_activity_log ?? [];
+    for (const row of rows) for (const col of Object.keys(row)) expect(LIVE_ACTIVITY.has(col), `tag_activity_log.${col} is not a live column`).toBe(true);
+    return rows;
+  };
+  it('a confirmed apply and a saved rule each store a live-column record with a stable change_source', async () => {
+    const p = await act({ intent: 'propose_import_suggestions', importId: IMP, ...convo("Apply Tag's suggestions", 'msg_ar13_0101') });
+    await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_ar13_0102', { sessionId: p.json.conversation.sessionId }) });
+    await act({ intent: 'save_rule', matchValue: 'grains bakery', targetCategory: 'Food & Dining' });
+    const rows = assertLive();
+    expect(rows.map(r => r.change_source)).toEqual(['apply_import_suggestions', 'save_merchant_rule']);
+    expect(rows.every(r => r.user_id === ALICE && typeof r.change_note === 'string')).toBe(true);
+  });
+  it('the shared row builder can only emit live columns', async () => {
+    const { toActivityRow } = await import('../../_shared/tagProposals');
+    const row = toActivityRow(ALICE, { change_source: 'x', change_note: 'y', merchant_name: null, previous_category: 'A', new_category: 'B', new_subcategory: null, transaction_id: 't' });
+    for (const col of Object.keys(row)) expect(LIVE_ACTIVITY.has(col), col).toBe(true);
   });
 });

@@ -365,7 +365,7 @@ describe('tag-action audit log (non-blocking)', () => {
     expect(json).toMatchObject({ ok: true, intent: 'fix_type', newType: 'income' });
     expect(tx('t1')).toMatchObject({ type: 'income', category: 'Income', category_source: 'user_type_fix' });
     expect(db.tag_activity_log).toHaveLength(1);
-    expect(db.tag_activity_log[0]).toMatchObject({ user_id: ALICE, action_type: 'type_fix', transaction_id: 't1' });
+    expect(db.tag_activity_log[0]).toMatchObject({ user_id: ALICE, change_source: 'type_fix', transaction_id: 't1' });
   });
   it("a failed log write never fails the customer's change", async () => {
     faults.activityLog = true;
