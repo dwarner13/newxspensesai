@@ -146,7 +146,7 @@ describe('"Apply suggestions" is a server-computed, signed proposal the customer
     expect(t('a3')).toMatchObject({ category: 'Other', category_source: 'manual' });
     expect(t('a4').category).toBe('Uncategorized');
     expect(t('b1').category).toBe('Uncategorized');
-    expect((db.tag_activity_log ?? []).map(x => x.action_type)).toContain('apply_import_suggestions');
+    expect((db.tag_activity_log ?? []).map(x => x.change_source)).toContain('apply_import_suggestions');
   });
   it('a stale proposal (the statement changed since) changes nothing', async () => {
     const p = await propose('msg_btn_0004');

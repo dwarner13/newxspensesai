@@ -171,7 +171,7 @@ describe('T-ACT-FINAL — "Save rule" button: future imports only, never a silen
     expect(snapshot()).toBe(before);
     expect(txUpdateCalls).toBe(0);
     expect(db.category_rules).toEqual(expect.arrayContaining([expect.objectContaining({ user_id: ALICE, merchant_pattern: 'CORNER COFFEE', category: 'Food & Dining' })]));
-    expect(db.tag_activity_log).toEqual([expect.objectContaining({ user_id: ALICE, action_type: 'save_merchant_rule' })]);
+    expect(db.tag_activity_log).toEqual([expect.objectContaining({ user_id: ALICE, change_source: 'save_merchant_rule' })]);
   });
   it('an unrecognised category is refused (never silently "Other")', async () => {
     const { res } = await act({ intent: 'save_rule', matchValue: 'corner coffee', targetCategory: 'Pizza', matchType: 'contains' });
@@ -229,13 +229,13 @@ describe('T-ACT-FINAL — no competing confirmation mechanisms in the clients', 
   });
 });
 
-describe('T-ACT-FINAL — every confirmed action is recorded for employee collaboration (stable action_type)', () => {
+describe('T-ACT-FINAL — every confirmed action is recorded for employee collaboration (stable change_source)', () => {
   it('commit_single and commit_proposal both write tag_activity_log with the receipt action name', async () => {
     const p1 = await act({ intent: 'preview_single', transactionId: id(1), targetPhrase: 'Groceries', ...convo('change this to groceries', 'msg_fin_0101') });
     await act({ intent: 'commit_single', transactionId: id(1), targetCategory: 'Groceries', targetSubcategory: null, ...convo('yes', 'msg_fin_0102', { sessionId: p1.json.conversation.sessionId }) });
     const p2 = await act({ intent: 'preview', matchValue: 'corner coffee', targetCategory: 'Travel', ...convo('change all corner coffee to travel', 'msg_fin_0103', { sessionId: p1.json.conversation.sessionId }) });
     await act({ intent: 'commit_proposal', action: p2.json.proposal.action, subject: p2.json.proposal.subject, ...convo('yes', 'msg_fin_0104', { sessionId: p1.json.conversation.sessionId }) });
-    expect((db.tag_activity_log ?? []).map(r => r.action_type)).toEqual(['recategorize_single_transaction', 'save_merchant_rule']);
+    expect((db.tag_activity_log ?? []).map(r => r.change_source)).toEqual(['recategorize_single_transaction', 'save_merchant_rule']);
     expect(db.tag_activity_log.every(r => r.user_id === ALICE)).toBe(true);
   });
 });

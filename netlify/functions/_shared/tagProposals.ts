@@ -46,14 +46,40 @@ export type ActionProposalOutcome =
   | { state: 'proposed'; action: string; subject: ProposalSubject; reply: string; /** Rows matching the scope (before protection / no-op filtering). */ matched?: number }
   | { state: 'failed'; action: string; reason: string; reply: string };
 
+/**
+ * One Tag activity record in the LIVE tag_activity_log columns (AR-SCHEMA, 2026-11-26; agreed with
+ * Prime HQ, whose tag_status reads change_source). change_source = the stable action name.
+ * The old action_type / old_value / new_value / note keys never existed live, so no row was stored.
+ */
+export type TagActivityEntry = {
+  change_source: string;
+  change_note: string;
+  merchant_name: string | null;
+  previous_category: string | null;
+  new_category: string | null;
+  new_subcategory?: string | null;
+  transaction_id?: string | null;
+};
+
+/** The exact live columns a Tag activity row may contain (anything else is dropped). */
+export function toActivityRow(userId: string, e: TagActivityEntry): Record<string, unknown> {
+  return {
+    user_id: userId, change_source: e.change_source, change_note: e.change_note, merchant_name: e.merchant_name,
+    previous_category: e.previous_category, new_category: e.new_category,
+    ...(e.new_subcategory !== undefined ? { new_subcategory: e.new_subcategory } : {}),
+    ...(e.transaction_id !== undefined ? { transaction_id: e.transaction_id } : {}),
+    created_at: new Date().toISOString(),
+  };
+}
+
 export type ActionExecutionOutcome = {
   state: 'completed' | 'failed';
   action: string;
   reason?: string;
   count: number;
   reply: string;
-  /** For the activity log (no ids, no amounts). */
-  log?: { action_type: string; merchant_name: string | null; old_value: string | null; new_value: string | null; note: string };
+  /** For the activity log (no amounts). LIVE tag_activity_log columns only (AR-SCHEMA 2026-11-26). */
+  log?: TagActivityEntry;
 };
 
 const PROTECTED = new Set<string>(PROTECTED_SOURCES);
@@ -311,7 +337,7 @@ export async function executeActionProposal(
         reply: count === affected
           ? `Done — applied Tag's suggestions to **${count}** ${count === 1 ? 'transaction' : 'transactions'}. No rules were saved.`
           : `Applied Tag's suggestions to **${count}** of ${affected} transactions; the rest changed in the meantime and were left as they are.`,
-        log: { action_type: TAG_SUGGESTIONS_ACTION, merchant_name: null, old_value: null, new_value: null, note: `Applied ${count} import suggestions (customer confirmed)` },
+        log: { change_source: TAG_SUGGESTIONS_ACTION, merchant_name: null, previous_category: null, new_category: null, change_note: `Applied ${count} import suggestions (customer confirmed)` },
       };
     } catch {
       return { state: 'failed', action, reason: 'commit_error', count: 0, reply: "I couldn't make that change, so nothing was changed. Please try again." };
@@ -340,7 +366,7 @@ export async function executeActionProposal(
       return {
         state: 'completed', action, count: r.count,
         reply: `Done — moved **${r.count}** ${r.count === 1 ? 'transaction' : 'transactions'} from **${p.fromCategory}** to **${p.toCategory}**. No rule was saved.`,
-        log: { action_type: 'bulk_move_category', merchant_name: null, old_value: p.fromCategory, new_value: p.toCategory, note: `Moved ${r.count} transactions (customer confirmed)` },
+        log: { change_source: 'bulk_move_category', merchant_name: null, previous_category: p.fromCategory, new_category: p.toCategory, change_note: `Moved ${r.count} transactions (customer confirmed)` },
       };
     }
 
@@ -351,7 +377,7 @@ export async function executeActionProposal(
       return {
         state: 'completed', action, count: r.count,
         reply: `Done — renamed **${r.count}** ${r.count === 1 ? 'transaction' : 'transactions'} from "${p.fromName}" to "${p.toName}". The original imported descriptions are unchanged.`,
-        log: { action_type: 'rename_merchant', merchant_name: p.fromName, old_value: p.fromName, new_value: p.toName, note: `Renamed ${r.count} transactions (customer confirmed; original descriptions kept)` },
+        log: { change_source: 'rename_merchant', merchant_name: p.fromName, previous_category: null, new_category: null, change_note: `Renamed ${r.count} transactions to "${p.toName}" (customer confirmed; original descriptions kept)` },
       };
     }
 
@@ -386,7 +412,7 @@ export async function executeActionProposal(
       reply: p.applyToExisting
         ? `Done — saved the rule for future "${p.merchantPattern}" imports (**${target}**) and changed **${moved}** existing ${moved === 1 ? 'transaction' : 'transactions'}.`
         : `Done — saved the rule for future "${p.merchantPattern}" imports (**${target}**). Your existing transactions were not changed.`,
-      log: { action_type: 'save_merchant_rule', merchant_name: p.merchantPattern, old_value: null, new_value: target, note: `Rule saved (customer confirmed); existing transactions changed: ${moved}` },
+      log: { change_source: 'save_merchant_rule', merchant_name: p.merchantPattern, previous_category: null, new_category: p.targetCategory, new_subcategory: p.targetSubcategory ?? null, change_note: `Rule saved (customer confirmed); existing transactions changed: ${moved}` },
     };
   } catch {
     return { state: 'failed', action, reason: 'commit_error', count: 0, reply: "I couldn't make that change, so nothing was changed. Please try again." };
