@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { engineRowsFromExtracted } from '../../../shared/statement-breakdown';
+import { buildPeriodAggregate } from '../../../shared/period-aggregate';
+import { classifyCashFlow } from '../../../shared/financial-taxonomy';
 import { Result, Ok, Err } from '../../../types/result';
 
 export const id = 'analytics_extract_patterns';
@@ -82,29 +85,29 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
     // Spending Analysis
     if (analysisType === 'spending' || analysisType === 'all') {
-      const totalSpending = transactions
-        .filter(tx => tx.amount < 0)
-        .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      
+      // AR-1b FR-041 (owner GO 2026-11-26): spending from the SHARED ENGINE. Direction from the row's
+      // sign (this tool's input convention: negative = money out); purpose from classifyCashFlow, so
+      // transfers, card/loan payments, cash withdrawals and savings are never spending.
+      const engineRows = engineRowsFromExtracted(transactions.map(tx => ({
+        direction: tx.amount < 0 ? 'debit' : tx.amount > 0 ? 'credit' : null,
+        amount: tx.amount, category: tx.category, date: tx.date,
+      })));
+      const spendAgg = buildPeriodAggregate(engineRows, { fetch: { complete: true, truncated: false, rowsFetched: engineRows.length } });
+      const totalSpending = spendAgg.cents.spending / 100;
+
       const categoryMap = new Map<string, { amount: number; count: number }>();
+      for (const c of spendAgg.categories.filter(c => c.purpose === 'spending')) {
+        categoryMap.set(c.category, { amount: c.totalCents / 100, count: c.count });
+      }
       const merchantMap = new Map<string, { amount: number; count: number }>();
-
-      transactions.forEach(tx => {
-        if (tx.amount < 0) {
-          const absAmount = Math.abs(tx.amount);
-          const category = tx.category || 'Uncategorized';
-          const merchant = tx.merchant || tx.description || 'Unknown';
-
-          categoryMap.set(category, {
-            amount: (categoryMap.get(category)?.amount || 0) + absAmount,
-            count: (categoryMap.get(category)?.count || 0) + 1,
-          });
-
-          merchantMap.set(merchant, {
-            amount: (merchantMap.get(merchant)?.amount || 0) + absAmount,
-            count: (merchantMap.get(merchant)?.count || 0) + 1,
-          });
-        }
+      transactions.forEach((tx, i) => {
+        const cls = classifyCashFlow(engineRows[i]);
+        if (cls.purpose !== 'spending' || cls.amountCents === null) return;
+        const merchant = tx.merchant || tx.description || 'Unknown';
+        merchantMap.set(merchant, {
+          amount: (merchantMap.get(merchant)?.amount || 0) + cls.amountCents / 100,
+          count: (merchantMap.get(merchant)?.count || 0) + 1,
+        });
       });
 
       const topCategories = Array.from(categoryMap.entries())
