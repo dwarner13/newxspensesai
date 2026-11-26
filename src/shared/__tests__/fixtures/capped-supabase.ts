@@ -6,6 +6,10 @@
  * production defect class.
  */
 
+import LIVE_SCHEMA_JSON from './live-schema.json';
+
+const LIVE_SCHEMA = LIVE_SCHEMA_JSON as Record<string, string[]>;
+
 export interface FakeRow { [k: string]: unknown }
 
 type Filter = (r: FakeRow) => boolean;
@@ -20,6 +24,12 @@ export interface CappedClientOptions {
   failTable?: string;
   /** Called before every request (1-based global count, table): simulate concurrent changes. */
   onRequest?: (n: number, table: string) => void;
+  /**
+   * Owner 2026-11-26: behave like PostgREST for columns. For tables in live-schema.json, any
+   * selected / filtered / ordered / written column that does not exist returns error 42703
+   * (instead of the fake silently accepting it, which hid the notifications defect).
+   */
+  liveSchema?: boolean;
 }
 
 export function makeCappedClient(tables: Record<string, FakeRow[]>, opts: CappedClientOptions = {}) {
@@ -34,8 +44,13 @@ export function makeCappedClient(tables: Record<string, FakeRow[]>, opts: Capped
     let range: [number, number] | undefined;
     let limit: number | undefined;
     let head = false;
+    const unknownCols: string[] = [];
+    const cols = opts.liveSchema ? LIVE_SCHEMA[table] : undefined;
+    const check = (c: string) => { if (cols && /^[a-z_][a-z0-9_]*$/i.test(c) && !cols.includes(c)) unknownCols.push(c); };
+    const schemaError = () => ({ data: null, error: { code: '42703', message: `column ${table}.${unknownCols[0]} does not exist` }, count: null });
 
     const exec = () => {
+      if (unknownCols.length) return Promise.resolve(schemaError());
       requests++;
       perTable.set(table, (perTable.get(table) || 0) + 1);
       opts.onRequest?.(requests, table);
@@ -67,21 +82,31 @@ export function makeCappedClient(tables: Record<string, FakeRow[]>, opts: Capped
     };
 
     const q: any = {
-      select(_cols: string, o?: { head?: boolean }) { head = !!o?.head; return q; },
-      eq(c: string, v: unknown) { filters.push(r => r[c] === v); return q; },
-      neq(c: string, v: unknown) { filters.push(r => r[c] !== v); return q; },
-      gte(c: string, v: any) { filters.push(r => r[c] != null && (r[c] as any) >= v); return q; },
-      lte(c: string, v: any) { filters.push(r => r[c] != null && (r[c] as any) <= v); return q; },
-      in(c: string, vs: unknown[]) { filters.push(r => vs.includes(r[c])); return q; },
+      select(colList: string, o?: { head?: boolean }) {
+        head = !!o?.head;
+        for (const c of String(colList ?? '').split(',').map(x => x.trim()).filter(x => x && x !== '*' && !x.includes('('))) check(c.split(':').pop()!.trim());
+        return q;
+      },
+      eq(c: string, v: unknown) { check(c); filters.push(r => r[c] === v); return q; },
+      neq(c: string, v: unknown) { check(c); filters.push(r => r[c] !== v); return q; },
+      gte(c: string, v: any) { check(c); filters.push(r => r[c] != null && (r[c] as any) >= v); return q; },
+      lte(c: string, v: any) { check(c); filters.push(r => r[c] != null && (r[c] as any) <= v); return q; },
+      in(c: string, vs: unknown[]) { check(c); filters.push(r => vs.includes(r[c])); return q; },
       or(_f: string) { return q; },
       ilike(c: string, p: string) { const re = new RegExp('^' + p.replace(/%/g, '.*') + '$', 'i'); filters.push(r => re.test(String(r[c] ?? ''))); return q; },
       not() { return q; },
       is(c: string, v: unknown) { filters.push(r => (r[c] ?? null) === v); return q; },
-      order(col: string, o: { ascending: boolean }) { orders.push({ col, asc: o?.ascending !== false }); return q; },
+      order(col: string, o: { ascending: boolean }) { check(col); orders.push({ col, asc: o?.ascending !== false }); return q; },
       range(a: number, b: number) { range = [a, b]; return q; },
       limit(n: number) { limit = n; return q; },
       insert(payload: FakeRow | FakeRow[]) {
-        (tables[table] ||= []).push(...(Array.isArray(payload) ? payload : [payload]));
+        const list = Array.isArray(payload) ? payload : [payload];
+        for (const row of list) for (const k of Object.keys(row)) check(k);
+        if (unknownCols.length) {
+          const failed = Promise.resolve(schemaError());
+          return { select: () => failed, then: failed.then.bind(failed) };
+        }
+        (tables[table] ||= []).push(...list);
         const done = Promise.resolve({ data: null, error: null });
         return { select: () => done, then: (res: any, rej: any) => done.then(res, rej) };
       },

@@ -25,7 +25,7 @@
  * employees disclose the same numbers.
  */
 
-import { amountToCents, cashFlowDirectionForType, INCOME_CATEGORIES, NON_SPEND_CATEGORY_PURPOSE } from './financial-taxonomy';
+import { amountToCents, cashFlowDirectionForType, INCOME_CATEGORIES, NON_SPEND_CATEGORY_PURPOSE, NOT_A_REFUND_CATEGORIES } from './financial-taxonomy';
 
 export interface SignalRow {
   id?: string | null;
@@ -49,9 +49,8 @@ export interface FinancialIntegritySignals {
 
 /** Categories that are not ordinary spending on an inflow (no refund signal). */
 // Income-like categories are never refund signals (interest earned, dividends, benefits…).
-const NOT_A_REFUND_CATEGORY = new Set(['', 'uncategorized', 'other', 'income', 'business income', 'employment income',
-  'interest', 'interest income', 'interest earned', 'dividends', 'dividend', 'investment income', 'rental income',
-  'government benefits', 'benefits', 'pension', 'cashback', 'rewards']);
+// Single definition (P-LIVE-03), shared with classifyCashFlow's refund purpose.
+const NOT_A_REFUND_CATEGORY = NOT_A_REFUND_CATEGORIES;
 
 function normaliseText(row: SignalRow): string {
   return String(row.merchant_name || row.merchant || row.description || '')

@@ -29,9 +29,9 @@ function client(notifications: any[], opts: any = {}) {
   return makeCappedClient({
     transactions: tx,
     imports: [{ id: IMP, user_id: 'u-brief', file_url: 'x/statement.pdf', created_at: '2026-01-15T00:00:00Z' }],
-    user_notifications: notifications.map((n, i) => ({ id: `n${i}`, user_id: 'u-brief', employee_slug: 'tag-ai', created_at: `2026-01-15T00:00:${String(10 + i).padStart(2, '0')}Z`, ...n })),
+    notifications: notifications.map((n, i) => ({ id: `n${i}`, user_id: 'u-brief', employee_slug: 'tag-ai', created_at: `2026-01-15T00:00:${String(10 + i).padStart(2, '0')}Z`, ...n })),
     profiles: [{ id: 'u-brief', first_name: 'Sam' }],
-  }, opts);
+  }, { liveSchema: true, ...opts });
 }
 async function brief(c: any) {
   state.client = c;
@@ -67,8 +67,20 @@ describe('import briefing reports only verified Tag results', () => {
   });
 
   it('notifications cannot be read → reported honestly, nothing claimed', async () => {
-    const p = await brief(client([], { failOnRequest: 1, failTable: 'user_notifications' }));
+    const p = await brief(client([], { failOnRequest: 1, failTable: 'notifications' }));
     expect(p).toContain("Tag's categorization status for this import could not be loaded");
+  });
+
+  it('the briefing is actually stored (live-schema enforced): notifications accepts it, user_notifications would not', async () => {
+    const c = client([{ type: 'import_complete', payload: { import_id: IMP, suggested_count: 3, needs_input_count: 0 } }]);
+    await brief(c);
+    const saved = await c.from('notifications').select('type, employee_slug, payload').eq('type', 'daily_briefing');
+    expect(saved.error).toBeNull();
+    expect(saved.data).toHaveLength(1);
+    expect(saved.data![0]).toMatchObject({ employee_slug: 'prime-boss' });
+    // the old target table rejects the same row shape, exactly like PostgREST (42703)
+    const old = await c.from('user_notifications').insert({ user_id: 'u-brief', employee_slug: 'prime', type: 'daily_briefing', message: 'x', priority: 'high', payload: {}, sent_at: 'now' });
+    expect(old.error).toMatchObject({ code: '42703' });
   });
 
   it('imported count is counted in the database for this import', async () => {

@@ -48,7 +48,7 @@ describe('classifyCashFlow — type decides direction, category/subcategory deci
     ['expense', 100, 'Business Income', '', 'outflow', 'classification_conflict', 10000, ['income_category_on_outflow']],
     ['expense', 100, 'Employment Income', '', 'outflow', 'classification_conflict', 10000, ['income_category_on_outflow']],
     ['Purchase', 100, 'Employment Income', '', 'outflow', 'classification_conflict', 10000, ['income_category_on_outflow']],
-    ['income', 100, 'Shopping', '', 'inflow', 'income', 10000, []],
+    ['income', 100, 'Shopping', '', 'inflow', 'refund', 10000, []],   // P-LIVE-03: money back on a spending category is a refund
     ['income', 100, 'Employment Income', '', 'inflow', 'income', 10000, []],
     // D-1 (owner 2026-11-25): a payment RECEIVED on the customer's own card/loan is internal,
     // not income (was: income + non_spend_category_on_inflow conflict).
@@ -60,7 +60,7 @@ describe('classifyCashFlow — type decides direction, category/subcategory deci
     ['expense', 25, 'Interest', '', 'outflow', 'spending', 2500, []],
     ['expense', 5, 'Bank Fees', '', 'outflow', 'spending', 500, []],
     // a refund stays income (flagged separately by the integrity signals), never debt repayment
-    ['income', 40, 'Shopping', '', 'inflow', 'income', 4000, []],
+    ['income', 40, 'Shopping', '', 'inflow', 'refund', 4000, []],    // P-LIVE-03
     ['expense', 0, 'Groceries', '', 'outflow', 'spending', 0, []],
     // subcategory decides purpose within the type-decided direction
     ['expense', 100, 'Banking', 'TFSA', 'outflow', 'savings_investment', 10000, []],
@@ -173,7 +173,7 @@ describe('buildPeriodAggregate', () => {
 
   it('buckets: income excludes transfer-in; spending excludes transfers, debt, savings, other non-spend and conflicts', () => {
     expect(agg.cents).toEqual({
-      income: 302500,                 // 3000 (Employment Income inflow) + |−25| (negative inflow, unchanged rule)
+      income: 302500, refunds: 0,                 // 3000 (Employment Income inflow) + |−25| (negative inflow, unchanged rule)
       spending: 20100,                // 120.55 + 80.45 + 0
       transferIn: 57000,              // 500 Transfers + 70 E-Transfer subcategory
       transferOut: 44000,             // 400 Transfers + 40 ATM Withdrawal subcategory (canonically a transfer)
@@ -215,7 +215,7 @@ describe('buildPeriodAggregate', () => {
     expect(c.totalInflow).toBe(c.income + c.transferIn);
     expect(c.totalOutflow).toBe(c.spending + c.transferOut + c.debtPayments + c.savingsInvestment + c.otherNonSpend + c.classificationConflict);
     expect(agg.counts).toEqual({
-      included: 16, income: 2, spending: 3, transferIn: 2, transferOut: 2,
+      included: 16, income: 2, refunds: 0, spending: 3, transferIn: 2, transferOut: 2,
       debtPayments: 2, debtRepaymentsIn: 0, savingsInvestment: 2, otherNonSpend: 0, classificationConflict: 3,
     });
   });

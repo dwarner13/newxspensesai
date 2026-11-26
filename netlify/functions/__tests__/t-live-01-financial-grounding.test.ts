@@ -83,8 +83,10 @@ describe('T-LIVE-01 — shared engine verified against deterministic fixtures', 
     expect(agg.cents.savingsInvestment).toBe(40000);
     expect(agg.cents.classificationConflict).toBe(3000);
     // D-1 (owner-approved 2026-11-25, engine 4c7e3023): the card-side payment received is a debt
-    // repayment — visible, never income, never spending. Income = payroll + Employment Income + refund.
-    expect(agg.cents.income).toBe(500000 + 100000 + 5000);
+    // repayment — visible, never income, never spending. Income = payroll + Employment Income.
+    // P-LIVE-03 (owner 2026-11-26): the Shopping refund is a refund, not income (total inflow unchanged).
+    expect(agg.cents.income).toBe(500000 + 100000);
+    expect(agg.cents.refunds).toBe(5000);
     expect(agg.cents.debtRepaymentsIn).toBe(150000);
     expect(agg.cents.totalInflow).toBe(500000 + 100000 + 5000 + 200000 + 150000);
     expect(agg.completeness.conflicts.non_spend_category_on_inflow).toBe(0);
