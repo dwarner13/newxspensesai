@@ -63,6 +63,8 @@ export interface AccountCoverage {
   latestPeriodEnd: string | null;
   /** Periods between completed statements with no completed statement (inclusive dates). */
   gaps: Array<{ from: string; to: string }>;
+  /** Each completed statement's own period, oldest first (unified engine: comparable periods). */
+  periods: Array<{ start: string; end: string }>;
 }
 
 export interface StatementCoverage {
@@ -184,6 +186,7 @@ export function summarizeStatementCoverage(records: StatementRecord[]): Statemen
       earliestPeriodStart: sorted[0].periodStart,
       latestPeriodEnd: coveredTo,
       gaps,
+      periods: sorted.map(r => ({ start: r.periodStart!, end: r.periodEnd! })),
     };
   }).sort((a, b) => a.label.localeCompare(b.label));
 
