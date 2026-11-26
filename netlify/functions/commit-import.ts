@@ -428,7 +428,7 @@ async function persistStatementBreakdown(
   return false;
 }
 
-async function buildStatementBreakdown(args: {
+export async function buildStatementBreakdown(args: {
   sb: any;
   importId: string;
   userIdText: string;
@@ -439,18 +439,23 @@ async function buildStatementBreakdown(args: {
 
   let docMeta: any = {};
   if (documentId) {
-    const { data: docRow } = await sb
+    // Live user_documents has no file_type column: selecting it made PostgREST return 42703, the
+    // error was ignored, and issuer / account / statement period were always committed as null
+    // (CLAUDE.md known issue #1). Select live columns only, and report a failed read.
+    const { data: docRow, error: docErr } = await sb
       .from('user_documents')
-      .select('extracted_data,metadata,mime_type,file_type')
+      .select('extracted_data,metadata,mime_type')
       .eq('id', documentId)
       .eq('user_id', userIdText)
       .maybeSingle();
+    if (docErr) {
+      console.warn('[CommitImport] statement breakdown document read failed', { code: docErr.code || null });
+    }
     const extractedData = docRow?.extracted_data && typeof docRow.extracted_data === 'object' ? docRow.extracted_data : {};
     const docMetadata = docRow?.metadata && typeof docRow.metadata === 'object' ? docRow.metadata : {};
     docMeta = {
       ...extractedData,
       mime_type: docRow?.mime_type || null,
-      file_type: docRow?.file_type || null,
       // Merge issuer/institution from metadata.statement_summary (written by normalize-transactions)
       institution: extractedData?.institution || docMetadata?.statement_summary?.institution || docMetadata?.issuer || null,
       issuer: extractedData?.issuer || docMetadata?.statement_summary?.issuer || docMetadata?.issuer || null,
