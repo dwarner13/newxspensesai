@@ -7,7 +7,9 @@
  * direction rule), and the result is cross-checked against buildPeriodAggregate. Any difference
  * is reported as a number, never explained by guessing (no "overdraft"/"missing deposits").
  */
-import { classifyCashFlow, type CashFlowPurpose } from './financial-taxonomy';
+import { classifyCashFlow, CANONICAL_CATEGORIES, type CashFlowPurpose } from './financial-taxonomy';
+
+const CANONICAL_SET: ReadonlySet<string> = new Set([...CANONICAL_CATEGORIES, 'Income', 'Transfers', 'Debt Payments', 'Needs Review', 'Uncategorized'].map(c => String(c).toLowerCase()));
 import { buildPeriodAggregate, type AggregateRow } from './period-aggregate';
 
 export type BreakdownLineKey =
@@ -133,4 +135,61 @@ export function buildStatementBreakdown(rows: ReadonlyArray<AggregateRow>): Stat
     reconciled: diff.deposits === 0 && diff.withdrawals === 0 && unplacedCount === 0 && engineAgrees,
     engineAgrees,
   };
+}
+
+/**
+ * Rows extracted from a document by the worker chain (Byte/Tag workers), converted to engine rows.
+ * Owner GO 2026-11-26 (UNIFIED FINANCIAL ENGINE; AR1b-TG-21): totals over extracted rows come from
+ * the shared engine, never from model-supplied is_spend / category_totals. Direction is taken ONLY
+ * from the extracted debit/credit side (bank evidence); a row without one stays unclassified and is
+ * reported as unplaced, never guessed.
+ */
+/**
+ * Tag HQ review (2026-11-26, blocking): the worker chain's category names mapped DETERMINISTICALLY to
+ * canonical engine categories, so the engine's purpose never depends on the model's wording.
+ * 'Cash Withdrawal' is Transfers / ATM Withdrawal (never spending). Unknown names → Needs Review.
+ */
+export const WORKER_CATEGORY_MAP: Readonly<Record<string, { category: string; subcategory: string | null }>> = {
+  'income': { category: 'Income', subcategory: null },
+  'transfer': { category: 'Transfers', subcategory: null },
+  'bank fee': { category: 'Bank Fees', subcategory: null },
+  'credit card payment': { category: 'Debt Payments', subcategory: 'Credit Card' },
+  'subscription': { category: 'Subscriptions', subcategory: null },
+  'software/ai': { category: 'Subscriptions', subcategory: 'Software' },
+  'fitness/health': { category: 'Healthcare', subcategory: null },
+  'retail': { category: 'Shopping', subcategory: null },
+  'groceries': { category: 'Groceries', subcategory: null },
+  'dining': { category: 'Food & Dining', subcategory: null },
+  'cash withdrawal': { category: 'Transfers', subcategory: 'ATM Withdrawal' },
+  'insurance': { category: 'Insurance', subcategory: null },
+  'utilities': { category: 'Utilities', subcategory: null },
+  'other': { category: 'Other', subcategory: null },
+};
+
+export interface ExtractedRow { direction?: unknown; amount?: unknown; category?: unknown; subcategory?: unknown; date?: unknown }
+function canonicalCategory(category: unknown, subcategory: unknown): { category: string | null; subcategory: string | null } {
+  const mapped = typeof category === 'string' ? WORKER_CATEGORY_MAP[category.trim().toLowerCase()] : undefined;
+  if (mapped) return { category: mapped.category, subcategory: mapped.subcategory ?? (typeof subcategory === 'string' ? subcategory : null) };
+  // A canonical category name passes through; anything else the worker should not have produced is
+  // flagged for review (unresolved line), never silently counted as everyday spending (Tag HQ note).
+  if (typeof category === 'string' && CANONICAL_SET.has(category.trim().toLowerCase())) {
+    return { category: category.trim(), subcategory: typeof subcategory === 'string' ? subcategory : null };
+  }
+  return { category: typeof category === 'string' && category.trim() ? 'Needs Review' : null, subcategory: null };
+}
+
+export function engineRowsFromExtracted(rows: ReadonlyArray<ExtractedRow>, fallbackDate = '1970-01-01'): AggregateRow[] {
+  return rows.map((r, i) => {
+    const dir = String(r.direction ?? '').toLowerCase();
+    const type = dir === 'credit' ? 'income' : dir === 'debit' ? 'expense' : null;
+    const abs = Math.abs(Number(r.amount));
+    const date = typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(r.date) ? r.date.slice(0, 10) : fallbackDate;
+    return {
+      id: `extracted-${i}`,
+      date,
+      amount: Number.isFinite(abs) ? (type === 'income' ? abs : -abs) : null,
+      type,
+      ...canonicalCategory(r.category, r.subcategory),
+    };
+  });
 }

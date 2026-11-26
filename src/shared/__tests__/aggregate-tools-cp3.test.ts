@@ -450,14 +450,16 @@ describe('executor — cash-flow evidence', () => {
       'Classification-conflict outflow: $10.10 (1 txns)',
       'Total inflow: $3,525.00',
       'Total outflow: $1,286.09',
-      'Raw net cash movement (all classified inflow − all classified outflow, incl. transfers and savings/investment): $2,238.91',
-      'Net excluding internal movements (income − ordinary spending, debt payments, other non-spend and conflicts; transfers and savings/investment excluded): $2,493.91',
+      'Net cash flow (total deposits − total withdrawals; the only figure to call "net cash flow"): $2,238.91',
+      'Net excluding transfers and savings (income + refunds − spending, debt payments, other non-spend and conflicts; never call this "net cash flow"): $2,493.91',
       '2 transactions totalling $130.00 could not be classified (unsupported transaction type) and are excluded from all financial totals.',
       '1 transaction has a missing or invalid amount; its monetary value is unknown and excluded from the totals.',
-      'Refunds/reversals are not identified',
+      'Refunds (money back on a spending category; not income)',
     ]) expect(msg).toContain(line);
     expect(msg).not.toMatch(/undefined|NaN/);
-    expect(msg).not.toMatch(/^\s*Net cash flow\b/m);
+    // owner 2026-11-26: "Net cash flow" is now the defined figure (deposits − withdrawals); every net line states its definition.
+    expect(msg).toMatch(/^\s*Net cash flow \(total deposits − total withdrawals/m);
+    expect(msg).not.toMatch(/^\s*Net cash flow:\s/m);
     expect(msg).not.toMatch(/^\s*Net:/m);
   });
 });

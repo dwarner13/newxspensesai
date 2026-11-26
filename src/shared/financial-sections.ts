@@ -40,21 +40,10 @@
  *
  * INCOME DECISION (Step 7):
  * ─────────────────────────
- * Two canonical income definitions serve different purposes:
- *
- * 1. isIncomeStrict(tx) — Tax Section claiming: tx.type === "income"
- *    Used by: TAX_SECTIONS[0].matchFn, TaxWorkspacePage, generate-tax-report
- *    Rationale: Only the `type` field (set by commit-import) is reliable for
- *    claiming. Merchant-pattern heuristics would cause false claiming.
- *
- * 2. isIncomeBroad(tx) — Aggregation totals: type + category + merchant
- *    Used by: usePrimeBriefingData, useDashboardData, useStoryData, etc.
- *    Rationale: Some imported transactions lack `type` but have income semantics.
- *
- * IMPACT: Using isIncomeStrict for tax section claiming means transactions with
- * category="Income" but type≠"income" will NOT be claimed by the Income section.
- * They will fall through to other sections or "other". This matches current
- * TaxWorkspacePage production behavior.
+ * Income (owner GO 2026-11-26, unified engine; FR-029): the Income section claims only rows whose
+ * shared-engine purpose is 'income' (classifyCashFlow). Refunds, transfers in and card/loan payments
+ * received are never tax-section income; a refund falls outside every section and is disclosed as
+ * unsectioned. The browser-side isIncomeBroad heuristic is not used for any total.
  *
  * Transactions that would be classified differently:
  * - A transaction with category="Income", type=null → NOT claimed by Income
@@ -64,7 +53,7 @@
  */
 
 import type { ClassifiableTransaction } from './financial-taxonomy';
-import { isIncomeStrict, classifyCashFlow, type CashFlowPurpose } from './financial-taxonomy';
+import { classifyCashFlow, type CashFlowPurpose } from './financial-taxonomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -140,7 +129,9 @@ const TAX_SECTIONS_BASE: readonly TaxSectionDef[] = [
   {
     id: 'income',
     title: 'Income',
-    matchFn: (tx) => isIncomeStrict(tx),
+    // FR-029 (owner GO 2026-11-26): income is the engine's income purpose only — refunds (money back on a
+    // spending category), transfers in and card/loan payments received are never tax-section income.
+    matchFn: (tx) => classifyCashFlow(tx as Parameters<typeof classifyCashFlow>[0]).purpose === 'income',
   },
   {
     id: 'vehicle',

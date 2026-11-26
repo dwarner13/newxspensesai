@@ -117,7 +117,7 @@ export const handler: Handler = async (event) => {
       possibleRefunds: { ...signals.possibleRefunds, amount: dollars(signals.possibleRefunds.cents) },
     },
     completeness: { ...toCompletenessOutput(agg), countVerified: read.countVerified },
-    ...buildSummaryV2({ rows: read.rows, agg, scope: { startDate: scope.startDate, endDate: scope.endDate }, coverage, accountLabels: accounts }),
+    ...buildSummaryV2({ rows: read.rows, agg, scope: { startDate: scope.startDate, endDate: scope.endDate, importIds: scope.importIds }, coverage, accountLabels: accounts }),
     notice: 'Organized financial data for you and your accountant. Not tax advice; deductibility is not determined by XspensesAI.',
     perf,
   });

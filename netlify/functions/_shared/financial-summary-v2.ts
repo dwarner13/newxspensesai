@@ -11,7 +11,8 @@ import { buildPeriodAggregate, type AggregateRow, type PeriodAggregate } from '.
 import { buildStatementBreakdown } from '../../../src/shared/statement-breakdown';
 import { toBreakdownOutput } from '../../../src/agent/tools/impl/cash_flow_summary';
 import type { StatementCoverage } from '../../../src/shared/statement-coverage';
-import { comparablePeriods, periodFigures, buildInsights, buildCategoryInsights, comparisonAllowed, type Insight } from '../../../src/shared/coverage-insights';
+import { comparablePeriods, periodFigures, buildInsights, buildCategoryInsights, comparisonAllowedInRange, STABLE_MIN_PERIODS, type Insight } from '../../../src/shared/coverage-insights';
+import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
 import { coverageForPeriod } from '../../../src/shared/statement-coverage';
 import { countNeedsCategory } from '../../../src/shared/needs-category-rule';
 
@@ -41,6 +42,24 @@ export const TOTALS_LABEL_WORDING: Readonly<Record<StatementCoverageState, strin
   none: 'Recorded transactions for {range}. No imported statement covers this period.',
 };
 
+/** G9: one wording table, served with every response (screens render, never re-word). */
+export const SUMMARY_WORDING = {
+  labels: {
+    deposits: 'Deposits', withdrawals: 'Withdrawals', netCashFlow: 'Net cash flow',
+    actualIncome: 'Actual income', actualSpending: 'Actual spending', refunds: 'Refunds',
+    netExcludingTransfersAndSavings: 'Net excluding transfers and savings',
+  },
+  insights: {
+    trend_actual_spending: 'Actual spending is {direction} {percent}% compared with the previous statement period.',
+    stable_actual_spending: `Actual spending has stayed within 10% across your last ${STABLE_MIN_PERIODS} statement periods.`,
+    trend_category: '{category} spending is {direction} {percent}% compared with the previous statement period.',
+    stable_category: `{category} spending has stayed within 10% across your last ${STABLE_MIN_PERIODS} statement periods.`,
+    not_enough_history: 'Not enough statement history to compare yet ({periodsAvailable} of {periodsRequired} complete statement periods).',
+    top_category: '{category} is {percent}% of actual spending ({count} transactions).',
+    needs_review: '{count} transactions need your review.',
+  },
+} as const;
+
 export interface SummaryV2Row extends AggregateRow { import_id?: string | null; merchant_name?: string | null; merchant?: string | null }
 
 function labelsOf(agg: PeriodAggregate) {
@@ -68,7 +87,7 @@ function periodRow(label: string, start: string, end: string, agg: PeriodAggrega
 export function buildSummaryV2(input: {
   rows: ReadonlyArray<SummaryV2Row>;
   agg: PeriodAggregate;
-  scope: { startDate: string; endDate: string };
+  scope: { startDate: string; endDate: string; importIds?: string[] | null };
   coverage: StatementCoverage;
   accountLabels: Map<string, string>;
 }) {
@@ -86,7 +105,8 @@ export function buildSummaryV2(input: {
   }));
 
   // Comparable periods inside the requested range (fully covered only).
-  const comparable = comparablePeriods(coverage).filter(p => p.start >= scope.startDate && p.end <= scope.endDate);
+  const accountScoped = Array.isArray(scope.importIds) && scope.importIds.length > 0;
+  const comparable = accountScoped ? [] : comparablePeriods(coverage).filter(p => p.start >= scope.startDate && p.end <= scope.endDate);
   const figures = periodFigures(inRange, comparable);
   const periods = figures.map(f => periodRow(f.label, f.start, f.end, f.agg));
   const insights: Insight[] = [
@@ -102,10 +122,14 @@ export function buildSummaryV2(input: {
     const end = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 0)).toISOString().slice(0, 10);
     const a = buildPeriodAggregate(inRange, { fetch: { complete: true, truncated: false, rowsFetched: inRange.length }, period: { start, end } });
     const cov = coverageForPeriod(coverage, start, end).overall;
-    return { ...periodRow(k, start, end, a), coverage: cov === 'complete' ? 'complete' as const : cov === 'unknown' ? 'unknown' as const : 'partial' as const, comparable: false as const };
+    const monthCov = accountScoped ? 'unknown' as const : cov === 'complete' ? 'complete' as const : cov === 'incomplete' ? 'partial' as const : cov === 'none' ? 'none' as const : 'unknown' as const;
+    return { ...periodRow(k, start, end, a), coverage: monthCov, comparable: false as const };
   });
-  const comparison = comparisonAllowed(coverage);
-  const rangeCov = coverageForPeriod(coverage, scope.startDate, scope.endDate).overall;
+  // G1: range-scoped; G2: account-scoped requests are conservative (unknown coverage, no comparisons).
+  const comparison = accountScoped
+    ? { allowed: false, periodsAvailable: 0, reason: 'statement coverage is not evaluated for a selection of accounts' }
+    : comparisonAllowedInRange(coverage, scope.startDate, scope.endDate);
+  const rangeCov = accountScoped ? 'unknown' : coverageForPeriod(coverage, scope.startDate, scope.endDate).overall;
   const statementCoverage: StatementCoverageState = rangeCov === 'complete' ? 'complete' : rangeCov === 'incomplete' ? 'partial' : rangeCov === 'none' ? 'none' : 'unknown';
   const dataQuality = {
     retrieval: 'complete' as const,
@@ -135,19 +159,29 @@ export function buildSummaryV2(input: {
     savingsContributions: dollars(agg.cents.savingsInvestment),
   };
 
-  // Possible business expenses: shared tax sections on outflows; needs review, never a deduction.
+  // Possible business expenses: shared tax sections on outflows, ENGINE cents (G8), refunds on the
+  // same categories netted, per-section amounts. Needs review; never a deduction.
   const outflows = inRange.filter(r => isOutflowTx(r as never)) as never[];
   const sections = classifyTransactions(outflows);
   let pbCents = 0; let pbCount = 0; const pbCats = new Set<string>();
+  const pbSections: Array<{ section: string; count: number; cents: number; amount: number }> = [];
   for (const id of BUSINESS_EXPENSE_SECTIONS) {
     const sec = sections.get(id);
     if (!sec) continue;
-    for (const tx of sec.transactions as Array<{ amount?: unknown; category?: string | null }>) {
-      pbCents += Math.round(Math.abs(Number(tx.amount) || 0) * 100);
+    let secCents = 0;
+    for (const tx of sec.transactions as Array<AggregateRow & { category?: string | null }>) {
+      secCents += classifyCashFlow(tx).amountCents ?? 0;
       pbCount++;
       if (tx.category) pbCats.add(tx.category);
     }
+    pbCents += secCents;
+    pbSections.push({ section: id, count: sec.transactions.length, cents: secCents, amount: dollars(secCents) });
   }
+  const refundCents = inRange.reduce((s2, r) => {
+    const c = classifyCashFlow(r);
+    return c.purpose === 'refund' && r.category && pbCats.has(String(r.category)) ? s2 + (c.amountCents ?? 0) : s2;
+  }, 0);
+  const pbNetCents = Math.max(0, pbCents - refundCents);
 
   return {
     dataQuality,
@@ -167,7 +201,12 @@ export function buildSummaryV2(input: {
     needsReviewCount,
     perStatement,
     goals,
-    possibleBusinessExpenses: { status: 'needs_review' as const, count: pbCount, amount: dollars(pbCents), cents: pbCents, categories: [...pbCats].sort(), wording: POSSIBLE_BUSINESS_EXPENSES_WORDING },
+    possibleBusinessExpenses: {
+      status: 'needs_review' as const, count: pbCount, amount: dollars(pbNetCents), cents: pbNetCents,
+      refundsNettedCents: refundCents, sections: pbSections, categories: [...pbCats].sort(), wording: POSSIBLE_BUSINESS_EXPENSES_WORDING,
+    },
     insights,
+    // G9: labels and insight wording are served by the engine (clients render these strings).
+    wording: SUMMARY_WORDING,
   };
 }
