@@ -189,7 +189,6 @@ export default function TransactionsPageV2() {
   const [badgePulse, setBadgePulse] = useState(false);
   const [reclassifyPreview, setReclassifyPreview] = useState<any>(null);
   const [tagInjectedMsg, setTagInjectedMsg] = useState<string | null>(null);
-  const [tagFollowupMerchants, setTagFollowupMerchants] = useState<any[] | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showProcessingBanner, setShowProcessingBanner] = useState(false);
 
@@ -337,19 +336,7 @@ export default function TransactionsPageV2() {
         // Auto-open Tag panel and inject the report
         if (sweepNotif.type === 'import_complete') {
           setTagPanelOpen(true);
-          const p = sweepNotif.payload;
-          const hasFollowup = p?.needs_input_count > 0;
           setTagInjectedMsg(sweepNotif.message);
-          if (hasFollowup) {
-            // Delay followup fetch so report shows first
-            setTimeout(async () => {
-              try {
-                const inboxRes = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
-                const inboxD = await inboxRes.json();
-                setTagFollowupMerchants((inboxD.unresolved ?? []).slice(0, 8));
-              } catch { /* silent */ }
-            }, 1200);
-          }
         }
       }
     } catch { /* silent */ }
@@ -522,7 +509,6 @@ export default function TransactionsPageV2() {
       setTagPanelTx(tx);
       setTagPanelAccountLabel(null); // D-6: no stale label from another transaction
       setTagInjectedMsg(null);
-      setTagFollowupMerchants(null);
       setTagPanelOpen(true);
     };
     const loaded = transactions.find(t => t.id === requested);
@@ -1306,7 +1292,6 @@ export default function TransactionsPageV2() {
                           if (topM.length > 0) {
                             const lines = topM.map((m: any) => `\u2022 **${m.merchant_name}** \u00d7${m.transaction_count}`).join('\n');
                             setTagInjectedMsg(`I still have **${result.needs_review} transactions** that need your input. The biggest:\n\n${lines}\n\nWant to work through them now?`);
-                            setTagFollowupMerchants(topM);
                           }
                         } catch { /* silent */ }
                       }, 1000);
@@ -1319,7 +1304,7 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
-      {tagPanelOpen && createPortal(<TagCopilotPanel focusedTransaction={tagPanelTx as any} totalCount={transactions.length} categorizedCount={transactions.filter(t => t.category && t.category !== 'Uncategorized' && t.category !== 'Other').length} flaggedCount={uncategorizedCount} avgConfidence={0} rulesCount={0} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} focusedAccountLabel={tagPanelTx ? tagPanelAccountLabel : null} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} />, document.body)}
+      {tagPanelOpen && createPortal(<TagCopilotPanel focusedTransaction={tagPanelTx as any} totalCount={transactions.length} categorizedCount={transactions.filter(t => t.category && t.category !== 'Uncategorized' && t.category !== 'Other').length} flaggedCount={uncategorizedCount} avgConfidence={0} rulesCount={0} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} focusedAccountLabel={tagPanelTx ? tagPanelAccountLabel : null} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFromPrime(false); setHighlightTxId(null); }} />, document.body)}
 
       {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(
