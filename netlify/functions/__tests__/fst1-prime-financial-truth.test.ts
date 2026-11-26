@@ -67,7 +67,8 @@ describe('P-G1 financial position: complete, exact, labelled', () => {
     ];
     const pos = await buildFinancialPosition({ supabase: makeCappedClient({ transactions: rows, goals: [] }) as any, userId: 'u' });
     expect(pos.spending.periodTotal!.amount).toBe(100);
-    expect(pos.income.periodTotal!.amount).toBe(2025);
+    // P-LIVE-03 (owner 2026-11-26): the Shopping inflow is a refund, not income.
+    expect(pos.income.periodTotal!.amount).toBe(2000);
     expect(pos.dataCoverage.unclassifiedCount).toBe(1);
     expect(pos.signals.possibleRefunds.count).toBe(1);
     const text = formatPositionForPrompt(pos);

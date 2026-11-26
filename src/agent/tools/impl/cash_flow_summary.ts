@@ -9,7 +9,9 @@ import {
   completenessOutputSchema,
   toCompletenessOutput,
   type PeriodAggregate,
+  type AggregateRow,
 } from '../../../shared/period-aggregate';
+import { buildStatementBreakdown, type StatementBreakdown } from '../../../shared/statement-breakdown';
 
 export const id = 'cash_flow_summary';
 
@@ -20,6 +22,8 @@ export const inputSchema = z.object({
 
 const centsSchema = z.object({
   income: z.number(),
+  /** P-LIVE-03: money back on an ordinary spending category (not income). */
+  refunds: z.number(),
   spending: z.number(),
   transferIn: z.number(),
   transferOut: z.number(),
@@ -71,8 +75,26 @@ export const outputSchema = z.object({
   rawNetCashMovement: z.number().optional(),
   /** income − (spending + debtPayments + otherNonSpend + classificationConflict): transfers and savings/investment excluded. */
   netExcludingInternalMovements: z.number().optional(),
+  /** P-LIVE-03: refunds (money back on a spending category) — never part of income. */
+  refunds: z.number().optional(),
   /** The same values in integer cents. */
   cents: centsSchema.optional(),
+  /**
+   * P-LIVE-03 (owner 2026-11-26): the reconciled statement breakdown. Every line comes from the
+   * shared classification; inflow lines sum to totalDeposits and outflow lines to totalWithdrawals.
+   * Present THESE lines and totals; never add lines together or re-derive totals.
+   */
+  statementBreakdown: z.object({
+    lines: z.array(z.object({ key: z.string(), label: z.string(), direction: z.enum(['inflow', 'outflow']), amount: z.number(), count: z.number() })),
+    totalDeposits: z.number(),
+    totalWithdrawals: z.number(),
+    net: z.number(),
+    depositCount: z.number(),
+    withdrawalCount: z.number(),
+    reconciled: z.boolean(),
+    unexplainedDifference: z.object({ deposits: z.number(), withdrawals: z.number() }),
+    unplacedCount: z.number(),
+  }).optional(),
   categories: z.array(z.object({
     category: z.string(),
     direction: z.enum(['inflow', 'outflow']),
@@ -129,15 +151,35 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       fetch: fetched,
       period: { start: input.startDate, end: input.endDate },
     });
-    return Ok(toCashFlowOutput(input, agg));
+    return Ok(toCashFlowOutput(input, agg, buildStatementBreakdown(inPeriod(fetched.rows, input))));
   } catch (error) {
     console.error('[cash_flow_summary] Error:', error);
     return Err(error as Error);
   }
 }
 
+/** Rows inside the requested inclusive period (the breakdown covers exactly the aggregate's rows). */
+function inPeriod(rows: ReadonlyArray<AggregateRow>, input: Input): AggregateRow[] {
+  return rows.filter(r => typeof r.date === 'string' && r.date.slice(0, 10) >= input.startDate && r.date.slice(0, 10) <= input.endDate);
+}
+
+/** P-LIVE-03: the breakdown in dollars for the tool output. */
+export function toBreakdownOutput(b: StatementBreakdown): NonNullable<Output['statementBreakdown']> {
+  return {
+    lines: b.lines.filter(l => l.count > 0).map(l => ({ key: l.key, label: l.label, direction: l.direction, amount: centsToDollars(l.cents), count: l.count })),
+    totalDeposits: centsToDollars(b.raw.depositsCents),
+    totalWithdrawals: centsToDollars(b.raw.withdrawalsCents),
+    net: centsToDollars(b.raw.netCents),
+    depositCount: b.raw.depositCount,
+    withdrawalCount: b.raw.withdrawalCount,
+    reconciled: b.reconciled,
+    unexplainedDifference: { deposits: centsToDollars(b.unexplainedDifferenceCents.deposits), withdrawals: centsToDollars(b.unexplainedDifferenceCents.withdrawals) },
+    unplacedCount: b.unplaced.count,
+  };
+}
+
 /** Pure mapping from the shared aggregate to the tool output. */
-export function toCashFlowOutput(input: Input, agg: PeriodAggregate): Output {
+export function toCashFlowOutput(input: Input, agg: PeriodAggregate, breakdown?: StatementBreakdown): Output {
   const c = agg.cents;
   const n = agg.counts;
   const nonSpendCents = c.transferOut + c.debtPayments + c.savingsInvestment + c.otherNonSpend + c.classificationConflict;
@@ -146,6 +188,7 @@ export function toCashFlowOutput(input: Input, agg: PeriodAggregate): Output {
     startDate: input.startDate,
     endDate: input.endDate,
     income: centsToDollars(c.income),
+    refunds: centsToDollars(c.refunds),
     spending: centsToDollars(c.spending),
     nonSpend: centsToDollars(nonSpendCents),
     netCashFlow: centsToDollars(c.netExcludingInternalMovements),
@@ -175,5 +218,6 @@ export function toCashFlowOutput(input: Input, agg: PeriodAggregate): Output {
       count: e.count,
     })),
     completeness: toCompletenessOutput(agg),
+    ...(breakdown ? { statementBreakdown: toBreakdownOutput(breakdown) } : {}),
   };
 }

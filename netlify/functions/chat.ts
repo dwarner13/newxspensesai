@@ -239,6 +239,7 @@ import { applyCustomerScope, negatedPeriodNote, ALL_HISTORY_SCOPE_NOTE, type Tem
 import { runStatementReview } from './_shared/statementReview';
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
+import { guardReconciledAnswer, renderReconciledAnswer, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
 import { resolveFocusedTransaction } from './_shared/focusedTransaction';
 // P3.1C: Controlled read-only evidence execution
 import {
@@ -10570,8 +10571,16 @@ export const handler: Handler = async (event, context) => {
     // Seeded from P3.1C; later successful read-tool results are added.
     // Only tx_search, transaction_category_totals, cash_flow_summary may enter — mutations NEVER.
     const p31dAccumulatedEvidence: AccumulatedEvidenceMap = new Map();
+    // P-LIVE-03: the turn's latest cash_flow_summary result carrying a reconciled statement breakdown.
+    let turnCashFlowForGuard: CashFlowForGuard | null = null;
+    const captureCashFlowForGuard = (tool: string | undefined, data: unknown) => {
+      if (tool === 'cash_flow_summary' && data && typeof data === 'object' && (data as CashFlowForGuard).statementBreakdown) {
+        turnCashFlowForGuard = data as CashFlowForGuard;
+      }
+    };
     if (p31cResult) {
       for (const r of p31cResult.results) {
+        captureCashFlowForGuard(r.tool, r.data);
         if (r.tool && EVIDENCE_ACCUMULATOR_ELIGIBLE_TOOLS.has(r.tool) &&
             (r.status === 'resolved' || r.status === 'successful_empty')) {
           const kind = r.tool === 'tx_search' ? 'transaction_data' : r.tool === 'cash_flow_summary' ? 'cash_flow' : 'category_aggregation';
@@ -10781,6 +10790,7 @@ export const handler: Handler = async (event, context) => {
     // from a verified transaction_category_totals result (never model text); last one wins.
     let financialVisual: FinancialVisual | null = null;
     const captureFinancialVisual = (tool: string, result: unknown) => {
+      captureCashFlowForGuard(tool, result); // P-LIVE-03 (every model tool-result site calls this)
       if (!isPrimeBoss || tool !== 'transaction_category_totals') return;
       const v = buildCategoryBreakdownVisual(result as Parameters<typeof buildCategoryBreakdownVisual>[0], userProfile?.currency || effectivePrimeContext?.currency || 'CAD');
       if (v) financialVisual = v;
@@ -14886,6 +14896,21 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       const durationMs = Date.now() - requestStartTime;
       const latencyMs = firstTokenTime ? firstTokenTime - requestStartTime : durationMs;
 
+      // ── P-LIVE-03 (owner 2026-11-26): every breakdown must reconcile to raw deposits/withdrawals ──
+      // A Prime reply about totals/deposits/withdrawals may state only figures cash_flow_summary
+      // returned, labelled totals must be the statement totals, and a reconciled statement may not
+      // be "explained" by an overdraft or missing deposits. Otherwise the code-owned reconciled
+      // table replaces the reply (recorded in the message metadata).
+      let breakdownGuard: { unsupportedFigures: number; mislabelledTotals: number; speculation: boolean; replaced: true } | null = null;
+      if (isPrime && isPrimeConversationSlug(finalEmployeeSlug) && assistantContent && turnCashFlowForGuard) {
+        const g = guardReconciledAnswer(assistantContent, turnCashFlowForGuard, masked);
+        if (g.applies && !g.ok) {
+          assistantContent = renderReconciledAnswer(turnCashFlowForGuard, userProfile?.currency || effectivePrimeContext?.currency || 'CAD');
+          breakdownGuard = { unsupportedFigures: g.unsupportedFigures, mislabelledTotals: g.mislabelledTotals, speculation: g.speculation, replaced: true };
+          console.warn(`[P-LIVE-03] breakdown guard replaced the reply: unsupported=${g.unsupportedFigures} mislabelled=${g.mislabelledTotals} speculation=${g.speculation}`);
+        }
+      }
+
       // ── L-C: server-side coverage safeguard (before saving) ──
       // A zero / no-match answer for a proven-empty period must state the period searched and the
       // imported coverage. If the model omitted the coverage dates, append one deterministic sentence.
@@ -14905,6 +14930,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         if (specialistConsultations.length > 0) assistantMsgMetadata.specialistConsultations = specialistConsultations;
         if (financialVisual) assistantMsgMetadata.financialVisual = financialVisual;
         if (groundingFallback) assistantMsgMetadata.groundingFallback = groundingFallback;
+        if (breakdownGuard) assistantMsgMetadata.breakdownGuard = breakdownGuard;
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,
           user_id: userId,

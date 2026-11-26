@@ -13,7 +13,7 @@
 export type Kind =
   | 'payroll'            // income
   | 'interest_earned'    // income
-  | 'refund'             // income (flagged possible refund)
+  | 'refund'             // refund (P-LIVE-03: own bucket; still flagged possible refund)
   | 'purchase'           // spending
   | 'card_purchase'      // spending (on the card account)
   | 'interest_charged'   // spending
@@ -26,13 +26,13 @@ export type Kind =
   | 'uncategorized'      // spending (type expense, no category)
   | 'credit_typed';      // unclassified (type 'Credit'): in NO total
 
-export type Bucket = 'income' | 'spending' | 'transferIn' | 'transferOut' | 'debtPayments' | 'debtRepaymentsIn' | 'savingsInvestment' | 'unclassified';
+export type Bucket = 'income' | 'refunds' | 'spending' | 'transferIn' | 'transferOut' | 'debtPayments' | 'debtRepaymentsIn' | 'savingsInvestment' | 'unclassified';
 
 /** Hand-written expected bucket per kind (the oracle). */
 export const KIND_BUCKET: Record<Kind, Bucket> = {
   payroll: 'income',
   interest_earned: 'income',
-  refund: 'income',
+  refund: 'refunds',   // P-LIVE-03: money back on a spending category is a refund, not income
   purchase: 'spending',
   card_purchase: 'spending',
   interest_charged: 'spending',
@@ -149,7 +149,7 @@ export function generateLedger(n: number, userId = 'u-fst2', opts: { dupes?: num
   const chequingPurchases = rows.filter(r => r.kind === 'purchase').slice(-dupes);
   chequingPurchases.forEach((r, k) => rows.push({ ...r, id: `${userId}-dup${String(k).padStart(5, '0')}`, import_id: IMPORTS.chequingReimport }));
 
-  const zero = (): Record<Bucket, number> => ({ income: 0, spending: 0, transferIn: 0, transferOut: 0, debtPayments: 0, debtRepaymentsIn: 0, savingsInvestment: 0, unclassified: 0 });
+  const zero = (): Record<Bucket, number> => ({ income: 0, refunds: 0, spending: 0, transferIn: 0, transferOut: 0, debtPayments: 0, debtRepaymentsIn: 0, savingsInvestment: 0, unclassified: 0 });
   const oracle: Oracle = { count: rows.length, cents: zero(), counts: zero(), taxSections: {}, unsectioned: 0, possibleDuplicates: chequingPurchases.length, possibleRefunds: 0 };
   for (const r of rows) {
     const b = KIND_BUCKET[r.kind];
@@ -169,7 +169,7 @@ export function generateLedger(n: number, userId = 'u-fst2', opts: { dupes?: num
 /** Oracle restricted to an inclusive date range (for period tests). */
 export function oracleFor(rows: readonly LedgerRow[], start: string, end: string): Oracle {
   const inRange = rows.filter(r => r.date >= start && r.date <= end);
-  const zero = (): Record<Bucket, number> => ({ income: 0, spending: 0, transferIn: 0, transferOut: 0, debtPayments: 0, debtRepaymentsIn: 0, savingsInvestment: 0, unclassified: 0 });
+  const zero = (): Record<Bucket, number> => ({ income: 0, refunds: 0, spending: 0, transferIn: 0, transferOut: 0, debtPayments: 0, debtRepaymentsIn: 0, savingsInvestment: 0, unclassified: 0 });
   const o: Oracle = { count: inRange.length, cents: zero(), counts: zero(), taxSections: {}, unsectioned: 0, possibleDuplicates: 0, possibleRefunds: 0 };
   for (const r of inRange) {
     const b = KIND_BUCKET[r.kind];

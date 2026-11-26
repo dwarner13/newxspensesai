@@ -17,6 +17,7 @@ export type ExportKind = 'transactions' | 'accountant' | 'tax';
 
 export const PURPOSE_LABEL: Record<CashFlowPurpose, string> = {
   income: 'Income',
+  refund: 'Refund',
   spending: 'Spending',
   transfer_in: 'Transfer in',
   transfer_out: 'Transfer out',
