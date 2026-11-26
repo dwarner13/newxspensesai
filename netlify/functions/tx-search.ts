@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { normalizeMerchantName, merchantKey } from './_shared/merchantNormalize.js';
+import { committedImportIds } from './_shared/importLifecycle.js';
 import { resolveCategoryOrPassthrough } from '../../src/shared/financial-taxonomy';
 import {
   fetchMerchantScopeRows,
@@ -468,8 +469,14 @@ export const handler: Handler = async (event) => {
         }
 
         const { data: pendingData, error: pendingError } = await pendingQuery.order('parsed_at', { ascending: false }).limit(limit * 2);
-        if (!pendingError) {
-          const normalizedPending = (pendingData || []).map(normalizePendingRow);
+        // S-1 (owner GO 2026-11-26): staging rows of a committed import duplicate its transactions,
+        // so they are never "pending". If import status cannot be read, no pending rows are shown.
+        const pendingLifecycle = pendingError
+          ? null
+          : await committedImportIds(sb, userId, (pendingData || []).map((r: TxRow) => r.import_id));
+        if (!pendingError && pendingLifecycle?.ok) {
+          const openPending = (pendingData || []).filter((r: TxRow) => !(r.import_id && pendingLifecycle.committed.has(String(r.import_id))));
+          const normalizedPending = openPending.map(normalizePendingRow);
           pendingRows = normalizedPending.filter((row: TxRow) => {
             if (q) {
               const hay = `${row.merchant || ''} ${row.description || ''} ${row.memo || ''}`.toLowerCase();

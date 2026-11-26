@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { learnFromCorrection } from './_shared/tag-learning.js';
+import { IMPORT_COMMITTED_ERROR, isImportCommitted } from './_shared/importLifecycle.js';
 
 type RequestBody = {
   id?: string;
@@ -189,6 +190,16 @@ export const handler: Handler = async (event) => {
     if (existingError) throw existingError;
     if (!existing) {
       return { statusCode: 404, headers, body: JSON.stringify({ error: 'Transaction not found' }) };
+    }
+
+    // S-1 (owner GO 2026-11-26): a committed import's staging copy is read-only history; the edit
+    // belongs on the committed transaction. Fail closed if the import status cannot be read.
+    const committedState = await isImportCommitted(sb, auth.userId, existing.import_id);
+    if (committedState === null) {
+      return { statusCode: 503, headers, body: JSON.stringify({ error: 'import_status_unavailable', retryable: true }) };
+    }
+    if (committedState) {
+      return { statusCode: 409, headers, body: JSON.stringify(IMPORT_COMMITTED_ERROR) };
     }
 
     const dataJson = existing?.data_json && typeof existing.data_json === 'object'

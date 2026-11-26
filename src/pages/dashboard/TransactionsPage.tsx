@@ -1608,6 +1608,27 @@ export default function TransactionsPage() {
     const idSet = new Set(pendingIds);
     const targets = pendingTransactions.filter((p) => idSet.has(p.id));
     if (targets.length === 0) return false;
+
+    // S-1 (owner GO 2026-11-26): never insert a committed import's rows a second time. The pending
+    // list already excludes committed imports; re-check now in case the import was committed after
+    // the list loaded. Fail closed if the status cannot be read.
+    const targetImportIds = [...new Set(targets.map((t) => t.import_id).filter((v): v is string => typeof v === 'string' && v.length > 0))];
+    if (targetImportIds.length > 0) {
+      const { data: importRows, error: importErr } = await supabase
+        .from('imports')
+        .select('id, status')
+        .eq('user_id', userId)
+        .in('id', targetImportIds);
+      if (importErr) {
+        toast.error("Couldn't check whether this statement is already imported, so nothing was changed. Please try again.");
+        return false;
+      }
+      const committedIds = new Set((importRows || []).filter((r: { status?: string | null }) => r.status === 'committed').map((r: { id: string }) => r.id));
+      if (targets.some((t) => t.import_id && committedIds.has(t.import_id))) {
+        toast.error('This statement is already imported, so these transactions were not added again. Refresh to see them.');
+        return false;
+      }
+    }
     const now = new Date().toISOString();
 
     const inserts = targets.map((pending) => {

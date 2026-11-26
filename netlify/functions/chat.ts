@@ -237,6 +237,8 @@ import {
 import { buildTemporalScope, buildTemporalScopeTelemetry, inheritedTemporalScope } from '../../src/shared/prime-temporal-scope';
 import { applyCustomerScope, negatedPeriodNote, ALL_HISTORY_SCOPE_NOTE, type TemporalScopeLike } from '../../src/shared/prime-request-scope';
 import { runStatementReview } from './_shared/statementReview';
+import { committedImportIds, isImportCommitted } from './_shared/importLifecycle.js';
+type LifecycleDb = Parameters<typeof committedImportIds>[0];
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
 import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
@@ -4022,7 +4024,9 @@ async function loadMerchantSpendForLatestImportBestEffort(
           .filter(Boolean)
       )
     ).slice(0, 4);
-    if (matched.length === 0) {
+    // S-1: a committed import's staging rows are read-only history, never a fallback source.
+    const importCommittedForFallback = matched.length === 0 ? await isImportCommitted(sb as unknown as LifecycleDb, userId, importId) : true;
+    if (matched.length === 0 && importCommittedForFallback === false) {
       const staged = await pagedSelectAll<any>(() => (sb as any)
         .from('transactions_staging')
         .select('id, data_json')
@@ -4941,7 +4945,14 @@ async function loadStatementQaRows(
         .select('id,import_id,data_json')
         .eq('user_id', userId)
         .order('id', { ascending: true }));
-      const staged = stagedRead.rows;
+      // S-1 (owner GO 2026-11-26): only staging rows of imports that are NOT committed are pending.
+      // A committed import's staging copies duplicate its transactions; they are never counted.
+      // If import status cannot be read, no staged rows are included and the result is partial.
+      const stagedLifecycle = stagedRead.error ? null : await committedImportIds(sb as unknown as LifecycleDb, userId, stagedRead.rows.map((r: { import_id?: string | null }) => r?.import_id));
+      if (stagedLifecycle && !stagedLifecycle.ok) rows.complete = false;
+      const staged = stagedLifecycle && stagedLifecycle.ok
+        ? stagedRead.rows.filter((r: { import_id?: string | null }) => !(r?.import_id && stagedLifecycle.committed.has(String(r.import_id))))
+        : [];
       const stagedError = stagedRead.error;
       if (!stagedRead.complete) rows.complete = false;
       if (!stagedError && Array.isArray(staged)) {
