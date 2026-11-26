@@ -18,7 +18,8 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
   const { messages, sendMessage, sessionId, history, openConversation, startNewConversation } = useEmployeeChat("crystal-analytics", {
     employeeSlug: "crystal-ai",
     // UX-FST2-3: no browser money in AI context (the server drops it anyway; FST-1 / P-G2).
-    // Counts only; Crystal's server reads figures from the shared engine itself.
+    // Counts only. Crystal's figures must come from the server; Crystal's chat tools still do their
+    // own sums, and their compliance is tracked under AR-1b FR-035…043 (not guaranteed yet).
     additionalPrimeContext: data.loading ? undefined : {
       transactionCount: data.transactionCount,
       statementCount: data.statementCount,
