@@ -9,7 +9,7 @@ import { getLocalDateParts, getMonthRange, getPreviousMonthRange } from '../../.
  *
  * Unified financial engine (owner GO 2026-11-26; AI Architecture HQ verdict REFACTOR):
  *  - NO money figures. Spending / income / averages / per-merchant amounts belong to the shared engine
- *    (transaction_category_totals, merchant_totals). The old sign/type money math counted refunds as
+ *    (transaction_category_totals; merchant_totals only once it is engine-compliant, AR-1b). The old sign/type money math counted refunds as
  *    income, never excluded transfers and was silently capped at 1,000 rows.
  *  - Complete reads (pagedSelectAll); an incomplete read is reported, never presented as the full picture.
  *  - Periods come from the shared calendar helpers (financial-dates), filtered on the engine's `date`.
@@ -34,7 +34,7 @@ export const outputSchema = z.object({
   totalTransactions: z.number(),
   firstSeenAt: z.string().nullable(),
   lastSeenAt: z.string().nullable(),
-  /** Most frequent merchants by transaction COUNT (amounts: use merchant_totals). */
+  /** Most frequent merchants by transaction COUNT (no amounts). */
   topMerchants: z.array(z.object({ name: z.string(), count: z.number() })),
   aiConfidenceSummary: z.object({
     avgConfidence: z.number().nullable(),
@@ -139,7 +139,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
 export const metadata = {
   name: 'Tag Category Brain',
-  description: 'Tag\'s categorization knowledge for one category: how many transactions, first and last seen, the most frequent merchants (by count), and how the categories were set (AI or learned) with confidence. It never states amounts: for "how much do I spend here?" use transaction_category_totals (and merchant_totals for amounts by merchant).',
+  description: 'Tag\'s categorization knowledge for one category: how many transactions, first and last seen, the most frequent merchants (by count), and how the categories were set (AI or learned) with confidence. It never states amounts: for "how much do I spend here?" use transaction_category_totals.',
   requiresConfirmation: false,
   dangerous: false,
   category: 'categorization',

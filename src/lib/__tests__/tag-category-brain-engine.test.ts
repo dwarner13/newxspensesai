@@ -62,6 +62,9 @@ describe('tag_category_brain states no money figures', () => {
     const registry = readFileSync(resolve(__dirname, '../../agent/tools/index.ts'), 'utf8');
     const i = registry.indexOf("['tag_category_brain'");
     expect(registry.slice(i, i + 400)).not.toMatch(/trending|totals,/i);
+    // merchant_totals is not engine-compliant yet (AI Architecture HQ F-6): never routed to from here.
+    const meta = src.slice(src.indexOf('export const metadata'));
+    expect(meta).not.toMatch(/merchant_totals/);
   });
 });
 
