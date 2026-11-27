@@ -241,7 +241,10 @@ import { committedImportIds, isImportCommitted } from './_shared/importLifecycle
 type LifecycleDb = Parameters<typeof committedImportIds>[0];
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
-import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
+import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, moneyFigures, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
+import { verifyReplyFigures, evidenceRegenerationInstruction, enforceReplyEvidence } from '../../src/shared/turn-evidence-ledger';
+import { toInclusiveEndDate } from '../../src/shared/prime-temporal-scope';
+import { REMEMBERED_CONTEXT_HEADER, REMEMBERED_FACTS_SUMMARY_LABEL, EARLIER_CONVERSATION_LABEL, rememberedContextBlock } from '../../src/shared/remembered-context-labels';
 import { buildStatementBreakdown, engineRowsFromExtracted } from '../../src/shared/statement-breakdown';
 import { hasComparisonClaim, applyComparisonGate } from '../../src/shared/comparison-claim-guard';
 import { comparisonAllowed } from '../../src/shared/coverage-insights';
@@ -9578,14 +9581,12 @@ export const handler: Handler = async (event, context) => {
             ...smartImportMemories.slice(0, 5),
             ...memoryFacts.filter(f => !smartImportMemories.includes(f)).slice(0, 3)
           ];
-          // Rebuild context with filtered facts
-          memoryContext = memoryFacts.length > 0
-            ? `\n\nRelevant user context:\n${memoryFacts.map(f => `- ${f.fact}`).join('\n')}`
-            : '';
+          // Rebuild context with filtered facts (C-3: remembered, never verified financial facts)
+          memoryContext = rememberedContextBlock(memoryFacts.map(f => ({ fact: f.fact, date: (f as { created_at?: string | null }).created_at ?? null })));
         }
       } else if (memoryContext) {
-        // Add prefix for non-Smart Import AI
-        memoryContext = `\n\n${memoryContext}`;
+        // C-3: the unified memory block (dated facts, past conversations) sits under ONE remembered-context header.
+        memoryContext = `\n\n${REMEMBERED_CONTEXT_HEADER}\n${memoryContext}`;
       }
       } catch (error: any) {
         console.warn('[Chat] Memory retrieval failed:', error);
@@ -9600,9 +9601,7 @@ export const handler: Handler = async (event, context) => {
             sessionId: normalizedSessionId || undefined
           });
           memoryHitScore = memoryFacts.length > 0 ? memoryFacts[0].score : null;
-          memoryContext = memoryFacts.length > 0
-            ? `\n\nRelevant user context:\n${memoryFacts.map(f => `- ${f.fact}`).join('\n')}`
-            : '';
+          memoryContext = rememberedContextBlock(memoryFacts.map(f => ({ fact: f.fact, date: (f as { created_at?: string | null }).created_at ?? null })));
         } catch (fallbackError: any) {
           console.warn('[Chat] Fallback memory retrieval also failed:', fallbackError);
           // Continue without memory if both fail
@@ -10631,6 +10630,7 @@ export const handler: Handler = async (event, context) => {
           ? (await executeTagStatus(tagInput, { userId })) as unknown as { ok: boolean; value?: TagStatus }
           : null;
         if (tagResult && tagResult.ok && tagResult.value) {
+          captureCashFlowForGuard('tag_status', tagResult.value); // C-1 ledger (Tag consultation)
           tagConsultationResult = tagResult.value;
           systemMessages.push({ role: 'system', content: formatTagConsultationEvidence(tagResult.value) });
           // L-D1: the success indicator only when the consultation actually succeeded.
@@ -10847,7 +10847,7 @@ export const handler: Handler = async (event, context) => {
         if (ms.lastUpdatedAt) primeContextMessage += `- lastUpdatedAt: ${ms.lastUpdatedAt}\n`;
         if (ms.recentFacts && ms.recentFacts.length > 0) {
           // L-D4: client-supplied facts carry no date — label them so they are never read as verified balances.
-          primeContextMessage += `- recentFacts (customer-provided earlier, date unknown — not verified balances): ${ms.recentFacts.slice(0, 3).join(', ')}\n`;
+          primeContextMessage += `${REMEMBERED_FACTS_SUMMARY_LABEL} ${ms.recentFacts.slice(0, 3).join(', ')}\n`;
         }
       }
       
@@ -11333,6 +11333,12 @@ RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categoriz
       }
     }
 
+    // C-3 (owner GO 2026-11-27): earlier turns are conversation, not evidence. Added as the last rule
+    // (the approved P-1 personality stays the LAST system block, immediately before the history).
+    if (isPrime && recentMessages.length > 0) {
+      systemMessages.push({ role: 'system', content: EARLIER_CONVERSATION_LABEL });
+    }
+
     // Build final messages: system messages + chat history + current user message
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       ...(primeAuthorityHint ? [primeAuthorityHint] : []),
@@ -11667,6 +11673,7 @@ RULE-SETTING (A5, owner 2026-11-25): you cannot save, change or delete categoriz
           mode: 'propose-confirm',
           autonomyLevel: 1,
         });
+        if (b2cData && typeof b2cData === 'object' && !('error' in b2cData)) captureCashFlowForGuard('tx_search', b2cData); // C-1 ledger
         if (b2cData && typeof b2cData === 'object' && !('error' in b2cData) && (b2cData as any).rows) {
           // P3.3C: B2C bridge is always candidate_establishment — its own authority,
           // not dependent on model purpose. It may replace an older frame.
@@ -12644,6 +12651,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   // Track tx_search IDs
                   const toolCtx: ToolContext = { userId, conversationId: finalSessionId, sessionId: finalSessionId, authHeader: authHeader || '' };
                   const tResult = toolCallBudget.take() ? await executeTool(tm, tArgs, toolCtx) : TOOL_BUDGET_EXCEEDED_RESULT;
+                  if (tResult && typeof tResult === 'object' && !('error' in tResult)) captureCashFlowForGuard(tn, tResult); // C-1 ledger (specialist)
 
                   if (tn === 'tx_search' && finalSessionId && tResult && typeof tResult === 'object' && !('error' in tResult)) {
                     // P3.3C: ownership from model-declared purpose. Only candidate_establishment
@@ -13324,6 +13332,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
                   });
 
                   if (preResult && typeof preResult === 'object' && !('error' in preResult)) {
+                    captureCashFlowForGuard(plan.toolName, preResult); // C-1 ledger (grounding pre-execution)
                     // Determine queryStatus from result
                     let qs = 'verified';
                     if (plan.toolName === 'tax_summary') {
@@ -14686,6 +14695,60 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       const durationMs = Date.now() - requestStartTime;
       const latencyMs = firstTokenTime ? firstTokenTime - requestStartTime : durationMs;
 
+      // ── C-1 (owner GO 2026-11-27): TurnEvidenceLedger reply verifier — first slice ──
+      // Runs on every reply shown in Prime's conversation, whoever authored it and regardless of
+      // classifyFinancialQuery. A money claim about the customer's ACTUAL finances must come from a
+      // financial tool THIS turn; customer-provided, hypothetical and derived figures are allowed;
+      // earlier replies and remembered context are never evidence. Evidence first: one bounded
+      // cash_flow_summary for the resolved period + one regeneration, re-verified (no loop); else ask
+      // for the period; else state the limitation. Only verified text reaches the save below.
+      let evidenceCheck: { ok: boolean; unsupportedCount: number; action: 'kept' | 'regenerated' | 'asked' | 'unavailable' } | null = null;
+      if (isPrime && isPrimeConversationSlug(finalEmployeeSlug) && assistantContent) {
+        const positionFigures = moneyFigures(financialPositionText || '');
+        const verifyReply = (text: string) => verifyReplyFigures(text, { toolFigures: turnToolFigures, userMessage: String(masked || ''), positionFigures });
+        const remainingMs = 60000 - (Date.now() - requestStartTime);
+        const cashFlowModule = toolModules['cash_flow_summary'];
+        const evidence = await enforceReplyEvidence({
+          reply: assistantContent,
+          verify: verifyReply,
+          period: temporalScope?.primary ?? null,
+          remainingMs,
+          runCashFlow: cashFlowModule ? async (p) => {
+            const cf = await executeTool(cashFlowModule, { startDate: p.from, endDate: toInclusiveEndDate(p.to) },
+              { userId, conversationId: finalSessionId, sessionId: finalSessionId, authHeader: authHeader || '' } as ToolContext,
+              { employeeSlug: finalEmployeeSlug, mode: 'propose-confirm', autonomyLevel: 1 });
+            if (!cf || typeof cf !== 'object' || 'error' in cf) return null;
+            captureCashFlowForGuard('cash_flow_summary', cf); // the ledger the re-verification reads
+            return cf;
+          } : null,
+          regenerate: async (cf) => {
+            try {
+              const regenCompletion = await withTimeout(
+                openai.chat.completions.create(buildModelCallParams(modelConfig, [
+                  ...messages,
+                  { role: 'system' as const, content: `VERIFIED CASH FLOW FOR ${temporalScope?.primary?.label ?? 'the requested period'} (cash_flow_summary, this turn):\n${JSON.stringify(cf).slice(0, 6000)}` },
+                  { role: 'system' as const, content: evidenceRegenerationInstruction() },
+                ], { stream: false }) as Parameters<typeof openai.chat.completions.create>[0]) as Promise<{ choices?: Array<{ message?: { content?: string | null } }> }>,
+                Math.min(resolveOpenAiTimeoutMs(), Math.max(5000, remainingMs - 12000)),
+                'evidence_regeneration',
+                orchCtx,
+              );
+              return regenCompletion?.choices?.[0]?.message?.content ?? null;
+            } catch (e: unknown) {
+              console.warn('[C-1] evidence-first regeneration failed:', e instanceof Error ? e.message : String(e));
+              return null;
+            }
+          },
+        });
+        if (evidence.action !== 'kept') {
+          assistantContent = evidence.text;
+          evidenceCheck = { ok: false, unsupportedCount: evidence.first.unsupported.length, action: evidence.action };
+          console.warn(`[C-1] evidence check: unsupported=${evidence.first.unsupported.length} action=${evidence.action} counts=${JSON.stringify(evidence.first.counts)}`);
+        } else if (evidence.first.figures.length > 0) {
+          evidenceCheck = { ok: true, unsupportedCount: 0, action: 'kept' };
+        }
+      }
+
       // ── P-LIVE-03 (owner 2026-11-26): every breakdown must reconcile to raw deposits/withdrawals ──
       // A Prime reply about totals/deposits/withdrawals may state only figures cash_flow_summary
       // returned, labelled totals must be the statement totals, and a reconciled statement may not
@@ -14745,6 +14808,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
         if (financialVisual) assistantMsgMetadata.financialVisual = financialVisual;
         if (groundingFallback) assistantMsgMetadata.groundingFallback = groundingFallback;
         if (breakdownGuard) assistantMsgMetadata.breakdownGuard = breakdownGuard;
+        if (evidenceCheck) assistantMsgMetadata.evidenceCheck = evidenceCheck; // C-1: counts only, never figures
         if (comparisonGate) assistantMsgMetadata.comparisonGate = comparisonGate;
         await sb.from('chat_messages').insert({
           session_id: finalSessionId,

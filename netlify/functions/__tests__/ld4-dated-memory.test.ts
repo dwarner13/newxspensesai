@@ -9,6 +9,7 @@ import * as path from 'path';
 import { formatSnippetDate } from '../../../src/shared/memory-dating';
 import { buildPrimeSourceTransparency } from '../../../src/shared/prime-source-transparency';
 import { buildPrimeAuthoritySystemMessage } from '../_shared/primePolicy';
+import { REMEMBERED_FACTS_SUMMARY_LABEL } from '../../../src/shared/remembered-context-labels';
 
 describe('L-D4 past-conversation snippets', () => {
   it('use the actual recorded date', () => {
@@ -30,9 +31,13 @@ describe('L-D4 past-conversation snippets', () => {
 });
 
 describe('L-D4 client-supplied facts and Prime rule', () => {
-  it('client recentFacts are labelled customer-provided, date unknown, not verified balances', () => {
+  // C-3 (owner GO 2026-11-27) unified the wording: same protection ("customer-provided earlier",
+  // never verified), now "not verified financial facts" (covers balances AND every other figure).
+  it('client recentFacts are labelled customer-provided and not verified financial facts', () => {
     const chat = fs.readFileSync(path.resolve(__dirname, '../chat.ts'), 'utf8');
-    expect(chat).toMatch(/- recentFacts \(customer-provided earlier, date unknown — not verified balances\):/);
+    expect(chat).toMatch(/\$\{REMEMBERED_FACTS_SUMMARY_LABEL\} \$\{ms\.recentFacts/);
+    expect(REMEMBERED_FACTS_SUMMARY_LABEL).toBe('- remembered facts (customer-provided earlier; not verified financial facts):');
+    expect(chat).not.toMatch(/Relevant user context:/);
   });
   it('Prime distinguishes verified imported, historical customer-provided and undated information', () => {
     const rule = buildPrimeSourceTransparency();
