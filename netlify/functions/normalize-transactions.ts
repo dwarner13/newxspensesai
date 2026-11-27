@@ -8,6 +8,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
+import { mergePrintedTotals, recordRowsSource, rowsSourceFromViaMethod } from './_shared/printedTotals.js';
 import { createHash } from 'crypto';
 import { admin } from './_shared/supabase.js';
 import { authorizeUserOrJobRequest, claimedUserIdMatches, type OwnershipClient } from './_shared/internalJobAuth.js';
@@ -1108,14 +1109,16 @@ async function processNormalizationInBackground(
           importSbdRowEarly?.statement_breakdown_json && typeof importSbdRowEarly.statement_breakdown_json === 'object'
             ? (importSbdRowEarly.statement_breakdown_json as Record<string, unknown>)
             : {};
-        // Architecture A': If Vision statementTotals already exist, preserve them
-        // and store flat-text totals in flatTextTotals diagnostic key instead.
-        const existingTotalsSource = (existingSbdEarly?.statementTotals as any)?.source;
-        const totalsKey = existingTotalsSource === 'claude_vision' ? 'flatTextTotals' : 'statementTotals';
+        // Architecture A' + AR-1c §C5 (owner GO 2026-11-26): every printed-total source is kept
+        // (printedTotalsSources / flatTextTotals); flat-text totals never overwrite Vision totals.
+        const mergedSbdEarly = mergePrintedTotals(existingSbdEarly, bmoTotalsEarly);
+        const totalsKey = (mergedSbdEarly.statementTotals as { source?: unknown } | undefined)?.source === bmoTotalsEarly.source
+          ? 'statementTotals'
+          : 'flatTextTotals';
         await sb
           .from('imports')
           .update({
-            statement_breakdown_json: { ...existingSbdEarly, [totalsKey]: bmoTotalsEarly },
+            statement_breakdown_json: mergedSbdEarly,
             updated_at: new Date().toISOString(),
           })
           .eq('id', importRecord.id);
@@ -1325,7 +1328,10 @@ async function processNormalizationInBackground(
               await sb
                 .from('imports')
                 .update({
-                  statement_breakdown_json: { ...existingSbd, statementTotals: visionTotals },
+                  // AR-1c §C5: Vision totals stay the statementTotals contract, but the independent
+                  // OCR-text totals already captured are preserved (printedTotalsSources /
+                  // flatTextTotals) instead of being overwritten.
+                  statement_breakdown_json: mergePrintedTotals(existingSbd, visionTotals),
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', importRecord.id);
@@ -1526,6 +1532,31 @@ async function processNormalizationInBackground(
       preCategorizationPiiTypes: guardrailedInput.piiTypes,
       preCategorizationBlockedReasons: guardrailedInput.blockedReasons,
     });
+
+    // AR-1c §C5: record which extraction channel produced the rows, so independence of the printed
+    // totals is decided against the right reader. Non-fatal; printed totals are not modified.
+    if (normalizedTransactions && normalizedTransactions.length > 0) {
+      try {
+        const { data: sbdRowRows } = await sb
+          .from('imports')
+          .select('statement_breakdown_json')
+          .eq('id', importRecord.id)
+          .maybeSingle();
+        const existingSbdRows =
+          sbdRowRows?.statement_breakdown_json && typeof sbdRowRows.statement_breakdown_json === 'object'
+            ? (sbdRowRows.statement_breakdown_json as Record<string, unknown>)
+            : {};
+        await sb
+          .from('imports')
+          .update({ statement_breakdown_json: recordRowsSource(existingSbdRows, rowsSourceFromViaMethod(viaMethod)), updated_at: new Date().toISOString() })
+          .eq('id', importRecord.id);
+      } catch (rowsSourceErr: unknown) {
+        console.warn('[normalize-transactions] Failed to record rows source (non-fatal)', {
+          importId: importRecord.id,
+          code: (rowsSourceErr as { code?: string } | null)?.code || null,
+        });
+      }
+    }
 
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
       const hasStructuredSignals = Boolean(
