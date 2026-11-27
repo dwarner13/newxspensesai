@@ -3,6 +3,9 @@
  *
  * POST { kind: 'transactions' | 'accountant', startDate, endDate, importIds? }
  *    | { kind: 'tax', year: 2015…2100, importIds? }
+ *    | { kind: 'rows', startDate?, endDate?, importIds? }   — Transactions page export (UI/UX TX-PAGING):
+ *      plain CSV Date,Merchant,Amount (engine-direction sign),Category,Subcategory,Statement; both
+ *      dates omitted = all time with no date filter (undated rows kept). Same completeness rules.
  * Authorization: Bearer <Supabase access token>   (customer taken ONLY from the token)
  *
  * Fails closed: a file is produced ONLY from a complete, count-verified read. Otherwise:
@@ -13,8 +16,8 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
-import { readAuthoritativeLedger, loadAccountLabels, loadProfileCurrency, parseScope } from './_shared/financial-ledger';
-import { buildExportCsv, type ExportKind } from './_shared/financial-export-csv';
+import { readAuthoritativeLedger, loadAccountLabels, loadProfileCurrency, parseScope, parseRowsScope, LEDGER_MAX_ROWS, type LedgerRead } from './_shared/financial-ledger';
+import { buildExportCsv, buildRowsCsv, type ExportKind } from './_shared/financial-export-csv';
 import { buildPeriodAggregate } from '../../src/shared/period-aggregate';
 import { computeIntegritySignals } from '../../src/shared/financial-integrity-signals';
 import { merchantGroupingKey } from './_shared/merchantNormalize';
@@ -28,7 +31,39 @@ const cors = {
 };
 const json = (statusCode: number, body: unknown) => ({ statusCode, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-const KINDS: readonly ExportKind[] = ['transactions', 'accountant', 'tax'];
+const KINDS: readonly (ExportKind | 'rows')[] = ['transactions', 'accountant', 'tax', 'rows'];
+
+/** Synchronous function responses are capped at 6 MB; refuse honestly instead of a broken download. */
+export const EXPORT_MAX_BYTES = 5_500_000;
+
+function refuseIncomplete(read: LedgerRead) {
+  if (read.status === 'unavailable') return json(503, { status: 'unavailable', error: 'The export could not be prepared right now. No file was created. Please try again.' });
+  if (read.status === 'no_data') return json(200, { status: 'no_data', message: 'No transactions have been imported yet, so there is nothing to export.' });
+  if (read.status === 'partial' && read.truncated) {
+    return json(409, { status: 'partial', reason: 'over_limit', limit: LEDGER_MAX_ROWS, transactionsRead: read.rowsFetched, error: `This scope has more than ${LEDGER_MAX_ROWS.toLocaleString('en-CA')} transactions, so no file was created. Choose a year, date range or statement and export again.` });
+  }
+  if (read.status === 'partial') {
+    return json(409, { status: 'partial', transactionsRead: read.rowsFetched, error: 'Not every transaction could be read consistently, so no file was created (an incomplete export would mislead your accountant). Please try again.' });
+  }
+  return null;
+}
+
+function csvResponse(csv: string, filename: string, rowCount: number) {
+  if (Buffer.byteLength(csv, 'utf8') > EXPORT_MAX_BYTES) {
+    return json(413, { status: 'too_large', transactionCount: rowCount, error: 'This export is too large to download in one file, so no file was created. Choose a year, date range or statement and export again.' });
+  }
+  return {
+    statusCode: 200,
+    headers: {
+      ...cors,
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'X-Financial-Status': rowCount === 0 ? 'verified_zero' : 'verified',
+      'X-Transaction-Count': String(rowCount),
+    },
+    body: csv,
+  };
+}
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
@@ -40,8 +75,24 @@ export const handler: Handler = async (event) => {
 
   let body: Record<string, unknown>;
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON body' }); }
-  const kind = body.kind as ExportKind;
-  if (!KINDS.includes(kind)) return json(400, { error: "kind must be 'transactions', 'accountant' or 'tax'." });
+  const requested = body.kind as ExportKind | 'rows';
+  if (!KINDS.includes(requested)) return json(400, { error: "kind must be 'transactions', 'accountant', 'tax' or 'rows'." });
+
+  if (requested === 'rows') {
+    const rs = parseRowsScope(body);
+    if (!rs.ok) return json(400, { error: rs.error });
+    const sbRows = admin();
+    const [read, accounts] = await Promise.all([
+      readAuthoritativeLedger(sbRows, { userId, startDate: rs.startDate, endDate: rs.endDate, importIds: rs.importIds, extraColumns: ['posted_at'] }),
+      loadAccountLabels(sbRows, userId).catch(() => new Map<string, string>()),
+    ]);
+    const refused = refuseIncomplete(read);
+    if (refused) return refused;
+    const out = buildRowsCsv({ rows: read.rows, accounts });
+    const span = rs.startDate ? `${rs.startDate}-to-${rs.endDate}` : 'all-time';
+    return csvResponse(out.csv, `xspensesai-transactions-${rs.importIds ? 'statement-' : ''}${span}.csv`, out.rowCount);
+  }
+  const kind: ExportKind = requested;
 
   let scopeBody = body;
   if (kind === 'tax') {
@@ -59,11 +110,8 @@ export const handler: Handler = async (event) => {
     loadAccountLabels(sb, userId).catch(() => new Map<string, string>()),
   ]);
 
-  if (read.status === 'unavailable') return json(503, { status: 'unavailable', error: 'The export could not be prepared right now. No file was created. Please try again.' });
-  if (read.status === 'no_data') return json(200, { status: 'no_data', message: 'No transactions have been imported yet, so there is nothing to export.' });
-  if (read.status === 'partial') {
-    return json(409, { status: 'partial', transactionsRead: read.rowsFetched, error: 'Not every transaction could be read consistently, so no file was created (an incomplete export would mislead your accountant). Please try again.' });
-  }
+  const refused = refuseIncomplete(read);
+  if (refused) return refused;
 
   const agg = buildPeriodAggregate(read.rows, {
     fetch: { complete: true, truncated: false, rowsFetched: read.rows.length },
@@ -78,15 +126,5 @@ export const handler: Handler = async (event) => {
     agg, signals, countVerified: read.countVerified,
   });
   const filename = kind === 'tax' ? `xspensesai-tax-${scope.startDate.slice(0, 4)}.csv` : `xspensesai-${kind}-${scope.startDate}-to-${scope.endDate}.csv`;
-  return {
-    statusCode: 200,
-    headers: {
-      ...cors,
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'X-Financial-Status': read.rows.length === 0 ? 'verified_zero' : 'verified',
-      'X-Transaction-Count': String(out.rowCount),
-    },
-    body: out.csv,
-  };
+  return csvResponse(out.csv, filename, out.rowCount);
 };

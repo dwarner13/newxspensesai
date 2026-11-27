@@ -15,6 +15,7 @@
  */
 import {
   fetchTransactionsInRange,
+  fetchAllTransactions,
   TRANSACTION_SIGNAL_COLUMNS,
   type RangeFetchClient,
   type TransactionRangeRow,
@@ -59,11 +60,16 @@ export interface LedgerRead {
 
 export interface LedgerScopeInput {
   userId: string;
-  startDate: string;
-  endDate: string;
+  /** Both null = all time with NO date filter (undated rows included). Otherwise both YYYY-MM-DD. */
+  startDate: string | null;
+  endDate: string | null;
   /** Optional account scope (imports). Rows outside are excluded after the complete read. */
   importIds?: readonly string[] | null;
+  /** Extra columns for this read (validated names only; see rangeFetchColumns). */
+  extraColumns?: readonly string[];
 }
+
+const isAllTime = (s: LedgerScopeInput) => s.startDate === null && s.endDate === null;
 
 /** Minimal Supabase-compatible query chain used here (injectable for tests). */
 interface QueryChain extends PromiseLike<{ data: unknown; error: { message?: string } | null; count?: number | null }> {
@@ -82,7 +88,7 @@ type CountClient = DbClient;
 async function countRows(sb: CountClient, s: LedgerScopeInput, ranged: boolean): Promise<number | null> {
   try {
     let q: QueryChain = sb.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', s.userId);
-    if (ranged) q = q.gte('date', s.startDate).lte('date', s.endDate);
+    if (ranged && !isAllTime(s)) q = q.gte('date', s.startDate).lte('date', s.endDate);
     const { count, error } = await q;
     return error || typeof count !== 'number' ? null : count;
   } catch {
@@ -102,11 +108,15 @@ export async function readAuthoritativeLedger(sb: unknown, scope: LedgerScopeInp
 
   let last: LedgerRead | null = null;
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const read = await fetchTransactionsInRange(counting, { userId: scope.userId, startDate: scope.startDate, endDate: scope.endDate }, {
+    const fetchOpts = {
       pageSize: LEDGER_PAGE_SIZE,
       maxRows: LEDGER_MAX_ROWS,
-      columns: LEDGER_EXTRA_COLUMNS,
-    }).catch((e: unknown) => ({ rows: [], rowsFetched: 0, pagesFetched: 0, complete: false, truncated: false, duplicatesSkipped: 0, error: e instanceof Error ? e.message : 'read_failed' }));
+      columns: [...LEDGER_EXTRA_COLUMNS, ...(scope.extraColumns ?? [])],
+    };
+    const fetching = isAllTime(scope)
+      ? fetchAllTransactions(counting, { userId: scope.userId }, fetchOpts)
+      : fetchTransactionsInRange(counting, { userId: scope.userId, startDate: String(scope.startDate), endDate: String(scope.endDate) }, fetchOpts);
+    const read = await fetching.catch((e: unknown) => ({ rows: [], rowsFetched: 0, pagesFetched: 0, complete: false, truncated: false, duplicatesSkipped: 0, error: e instanceof Error ? e.message : 'read_failed' }));
     if (read.error) {
       return { status: 'unavailable', rows: [], rowsFetched: 0, complete: false, truncated: false, countVerified: false, attempts: attempt, requests, error: read.error };
     }
@@ -189,4 +199,17 @@ export function parseScope(body: Record<string, unknown>): { ok: true; startDate
     importIds = [...new Set(body.importIds as string[])];
   }
   return { ok: true, startDate, endDate, importIds };
+}
+
+/**
+ * Scope for the rows-only export: BOTH dates omitted = all time (no date filter, undated rows kept);
+ * otherwise both dates are required and validated exactly as parseScope. importIds as parseScope.
+ */
+export function parseRowsScope(body: Record<string, unknown>): { ok: true; startDate: string | null; endDate: string | null; importIds: string[] | null } | { ok: false; error: string } {
+  const has = (v: unknown) => v !== undefined && v !== null && v !== '';
+  if (has(body.startDate) !== has(body.endDate)) return { ok: false, error: 'Give both startDate and endDate (YYYY-MM-DD), or neither for all time.' };
+  if (has(body.startDate)) return parseScope(body);
+  const ids = parseScope({ ...body, startDate: '2000-01-01', endDate: '2000-01-01' });
+  if (!ids.ok) return ids;
+  return { ok: true, startDate: null, endDate: null, importIds: ids.importIds };
 }

@@ -7,7 +7,7 @@
  * scope, completeness, reconciliation totals per classification and integrity notes, so the
  * accountant can check that the rows add up to the stated totals.
  */
-import { classifyCashFlow, amountToCents, type CashFlowPurpose } from '../../../src/shared/financial-taxonomy';
+import { classifyCashFlow, amountToCents, parseTransactionAmount, type CashFlowPurpose } from '../../../src/shared/financial-taxonomy';
 import { TAX_SECTIONS } from '../../../src/shared/financial-sections';
 import type { PeriodAggregate } from '../../../src/shared/period-aggregate';
 import type { FinancialIntegritySignals } from '../../../src/shared/financial-integrity-signals';
@@ -63,6 +63,41 @@ export interface ExportResult {
   rowCount: number;
   /** Cents per classification label, from the rows written (for reconciliation). */
   rowTotalsCents: Record<string, number>;
+}
+
+/**
+ * Rows-only transactions CSV (Transactions page export; UI/UX TX-PAGING). No header block: one
+ * header line and one line per transaction from the complete, count-verified ledger read.
+ *  - Amount sign from the ENGINE direction (inflow +, outflow −); only a row whose type has no
+ *    direction keeps its stored sign (same rule as the Transactions page rows).
+ *  - Date: `date`, else the posted date (undated rows are kept in all-time exports, sorted last).
+ *  - Statement: the import's account label.
+ */
+export function buildRowsCsv(input: { rows: readonly (LedgerRow & { posted_at?: string | null })[]; accounts: Map<string, string> }): { csv: string; rowCount: number } {
+  const header = ['Date', 'Merchant', 'Amount', 'Category', 'Subcategory', 'Statement'];
+  const sorted = [...input.rows].sort((a, b) => {
+    if (a.date == null && b.date != null) return 1;
+    if (b.date == null && a.date != null) return -1;
+    return String(a.date ?? '').localeCompare(String(b.date ?? '')) || String(a.id).localeCompare(String(b.id));
+  });
+  const lines = sorted.map(r => {
+    const c = classifyCashFlow(r);
+    const parsed = parseTransactionAmount(r.amount);
+    let amount = '';
+    if (parsed !== null) {
+      const abs = Math.round(Math.abs(parsed) * 100);
+      amount = c.direction === 'inflow' ? money(abs) : c.direction === 'outflow' ? money(-abs) : money(Math.round(parsed * 100));
+    }
+    return [
+      r.date || (r.posted_at ? String(r.posted_at).slice(0, 10) : ''),
+      r.merchant_name || r.merchant || 'Unknown',
+      amount,
+      r.category || 'Uncategorized',
+      r.subcategory ?? '',
+      r.import_id ? (input.accounts.get(String(r.import_id)) ?? 'Imported statement') : '',
+    ].map(cell).join(',');
+  });
+  return { csv: [header.map(cell).join(','), ...lines].join('\r\n') + '\r\n', rowCount: lines.length };
 }
 
 export function buildExportCsv(input: ExportInput): ExportResult {
