@@ -102,11 +102,17 @@ describe('tag-explain confidence source and wording', () => {
     expect(r.merchantSeenCount).toBe(1300);
     expect(r.proactiveInsights.join(' ')).toMatch(/you've spent \$65000\.00 at SOBEYS in 1300 purchases/);
   });
-  it('an incomplete history read says "at least", never a full total', async () => {
+  it('an incomplete history read gives NO money figure — not even "at least $X" (Financial Evidence Trust)', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test client
-    const r = await explainTransactionCategory(client(baseTx, history(12), [], { failRange: true }) as any, 'u1', 't1');
+    const r = await explainTransactionCategory(client({ ...baseTx, amount: -900 }, history(12), [], { failRange: true }) as any, 'u1', 't1');
     expect(r.merchantSeenCapped).toBe(true);
-    expect(r.proactiveInsights.join(' ')).not.toMatch(/you've spent \$/);
+    const text = r.proactiveInsights.join(' ');
+    expect(text).not.toMatch(/\$\d/);
+    expect(text).not.toMatch(/at least \$/);
+    expect(text).toMatch(/I couldn't read all of your transactions at SOBEYS, so I can't give a spending figure/);
+    expect([r.merchantTotalSpent, r.merchantAvgAmount, r.merchantRefundTotal]).toEqual([0, 0, 0]);
+    // No "Nx your usual spend" from a partial history.
+    expect(r.isAmountAnomaly).toBe(false);
   });
   it('never promises automatic merchant learning (C4: explicit consent, default off)', () => {
     const src = read('netlify/functions/_shared/tag_explain.ts');
