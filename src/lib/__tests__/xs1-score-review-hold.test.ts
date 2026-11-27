@@ -28,11 +28,12 @@ describe('score display hold', () => {
 
 describe('Xspense Score page', () => {
   it('returns the review notice before rendering any score content', () => {
-    const holdIdx = page.indexOf('if (!isXspenseScoreVisible())');
-    expect(holdIdx).toBeGreaterThan(-1);
-    expect(holdIdx).toBeLessThan(page.indexOf('<ScoreRing'));
-    expect(holdIdx).toBeLessThan(page.indexOf('Share Score'));
-    expect(page).toMatch(/\{XSPENSE_SCORE_REVIEW_MESSAGE\}/);
+    // XS-2: score content lives only in XspenseScoreVisible; the page mounts it only when the
+    // score is visible and otherwise returns the review notice (no score hook runs while held).
+    const main = page.slice(page.indexOf('export default function XspenseScorePage'));
+    expect(main).toMatch(/if \(isXspenseScoreVisible\(\)\) return <XspenseScoreVisible \/>;/);
+    expect(main).not.toMatch(/<ScoreRing|Share Score|useXspenseScore\(/);
+    expect(main).toMatch(/\{XSPENSE_SCORE_REVIEW_MESSAGE\}/);
   });
 
   it('has no simulated score-history chart', () => {
@@ -44,15 +45,16 @@ describe('Xspense Score page', () => {
 
 describe('Dashboard home', () => {
   it('gates both score surfaces on the hold', () => {
-    expect(dashboard).toMatch(/\{isXspenseScoreVisible\(\) && !scoreData\.loading && !isMobile && \(/);
-    expect(dashboard).toMatch(/\{isXspenseScoreVisible\(\) && isMobile && !scoreData\.loading && \(/);
+    // XS-2: gated through WithXspenseScore (hold checked inside; the hook only runs when visible).
+    expect(dashboard).toMatch(/\{!isMobile && <WithXspenseScore render=\{\(scoreData\) => \(/);
+    expect(dashboard).toMatch(/\{isMobile && <WithXspenseScore render=\{\(scoreData\) => \(/);
   });
 });
 
 describe('Header score chip', () => {
   const header = read('src/components/ui/DashboardHeader.tsx');
   it('is gated on the hold; Ask Prime untouched', () => {
-    expect(header).toMatch(/\{isXspenseScoreVisible\(\) && !scoreData\.loading && \(/);
+    expect(header).toMatch(/<WithXspenseScore render=\{\(scoreData\) => \(/);
     expect(header).toMatch(/data-testid="ask-prime-header"/);
   });
 });

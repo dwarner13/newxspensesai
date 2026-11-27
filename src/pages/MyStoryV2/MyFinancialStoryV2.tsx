@@ -5,7 +5,6 @@ import toast from "react-hot-toast";
 import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import { THEME } from "./storyConfig";
 import { useStoryData, buildCrystalIntro } from "./useStoryData";
-import { HealthRing } from "./HealthRing";
 import { StorySection } from "./StorySection";
 import { ReportPreviewSidebar } from "./ReportPreviewSidebar";
 import { Reveal } from "../PrimeChatV2/Reveal";
@@ -13,18 +12,24 @@ import { AgentDot } from "../PrimeChatV2/AgentDot";
 import { useTypewriter } from "../PrimeChatV2/useTypewriter";
 
 import { CrystalCopilotPanel } from "./CrystalCopilotPanel";
+import { FinancialStateNotice, formatMoney } from "@/components/finance/FinancialState";
+import { FINANCIAL_LABELS } from "@/lib/financialLabels";
+import { POSSIBLE_BUSINESS_EXPENSES_TEXT } from "@/lib/insightWording";
 
 export default function MyFinancialStoryV2() {
   const location = useLocation();
   const data = useStoryData();
   const [loaded, setLoaded] = useState(false);
-  const [copilotOpen, setCopilotOpen] = useState(false);
+  // SC-1: other pages link here with ?crystal=1 to open Crystal (Smart Categories "Ask Crystal").
+  const [copilotOpen, setCopilotOpen] = useState(() => new URLSearchParams(location.search).get('crystal') === '1');
   const [reportOpen, setReportOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   useEffect(() => setLoaded(true), []);
   useEffect(() => { const h = () => setIsMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
 
   const crystalIntro = data.loading ? "" : buildCrystalIntro(data);
+  const sum = data.summary;
+  const cur = sum?.scope.currency ?? "CAD";
   const [introTyped, introDone] = useTypewriter(crystalIntro, 14, 600, !data.loading);
 
   if (data.loading) {
@@ -51,7 +56,7 @@ export default function MyFinancialStoryV2() {
               <div>
                 <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>My Financial Story</h1>
                 <p style={{ fontSize: 13, color: THEME.textMuted, marginTop: 4 }}>
-                  Narrated by Crystal {"\u2022"} {data.statementCount} statements {"\u2022"} {data.transactionCount} transactions {"\u2022"} {data.periodStart} {"\u2013"} {data.periodEnd}
+                  Narrated by Crystal {"\u2022"} {data.statementCount} statements{data.transactionCount !== null && <> {"\u2022"} {data.transactionCount} transactions</>}{data.periodStart && <> {"\u2022"} {data.periodStart} {"\u2013"} {data.periodEnd}</>}
                 </p>
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, flexDirection: isMobile ? "column" as const : "row" as const }}>
@@ -105,41 +110,34 @@ export default function MyFinancialStoryV2() {
             </div>
           </Reveal>
 
-          {/* Health + Stats */}
-          <div style={{ display: "flex", gap: 16, marginBottom: 24, flexDirection: isMobile ? "column" as const : "row" as const }}>
-            <Reveal delay={300} style={{ flex: isMobile ? "0 0 auto" : "0 0 200px", width: isMobile ? "100%" : "auto" }}>
-              <div style={{
-                background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 18,
-                padding: "24px", display: "flex", flexDirection: "column", alignItems: "center",
-                boxShadow: "0 4px 20px rgba(167,139,250,0.08)",
-              }}>
-                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.4, color: THEME.textDim, fontWeight: 700, marginBottom: 16 }}>Financial Health</div>
-                <HealthRing grade={data.healthGrade} />
-              </div>
-            </Reveal>
-
-            <div style={{ flex: 1, display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
-              {[
-                { label: "Total Income", value: `$${data.income.toLocaleString()}`, color: "#34d399", sub: `${data.periodMonths} months` },
-                { label: "Total Expenses", value: `$${data.expenses.toLocaleString()}`, color: "#f87171", sub: `${data.expenseTrendPct > 0 ? "+" : ""}${data.expenseTrendPct}% vs previous month` },
-                { label: "Net Position", value: `$${data.netPosition.toLocaleString()}`, color: "#fb923c", sub: data.netPosition < 0 ? "Deficit" : "Surplus" },
-                { label: "Statements", value: `${data.statementCount}`, color: "#60a5fa", sub: "Processed" },
-                { label: "Transactions", value: `${data.transactionCount}`, color: "#22d3ee", sub: "Imported" },
-                { label: "Possibly deductible", value: `$${data.deductions.toLocaleString()}`, color: THEME.accent, sub: "Needs review" },
-              ].map((s, i) => (
-                <Reveal key={s.label} delay={350 + i * 50}>
-                  <div style={{
-                    background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14,
-                    padding: "14px 16px", boxShadow: `0 4px 16px ${s.color}06`,
-                  }}>
-                    <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700, marginBottom: 4 }}>{s.label}</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
-                    <div style={{ fontSize: 10, color: THEME.textDim, marginTop: 2 }}>{s.sub}</div>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
+          {/* UX-FST2-3: the A–F grade is removed (owner). Stats are the server's (fst2-summary-2). */}
+          {!sum ? (
+            <div style={{ marginBottom: 24 }}><FinancialStateNotice state={data.financial} onRetry={data.financial.status !== "loading" ? data.financial.refetch : undefined} /></div>
+          ) : (<>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12, marginBottom: sum.dataQuality.statementCoverage !== "complete" ? 10 : 24 }}>
+            {[
+              { label: FINANCIAL_LABELS.deposits, value: formatMoney(sum.labels.deposits.amount, cur), color: "#34d399", sub: `${sum.labels.deposits.count ?? 0} transactions` },
+              { label: FINANCIAL_LABELS.withdrawals, value: formatMoney(sum.labels.withdrawals.amount, cur), color: "#f87171", sub: `${sum.labels.withdrawals.count ?? 0} transactions` },
+              { label: FINANCIAL_LABELS.netCashFlow, value: `${sum.labels.netCashFlow.amount > 0 ? "+" : ""}${formatMoney(sum.labels.netCashFlow.amount, cur)}`, color: sum.labels.netCashFlow.amount >= 0 ? "#34d399" : "#fb923c", sub: "Deposits minus withdrawals" },
+              { label: FINANCIAL_LABELS.actualIncome, value: formatMoney(sum.labels.actualIncome.amount, cur), color: "#34d399", sub: "Excludes transfers and refunds" },
+              { label: FINANCIAL_LABELS.actualSpending, value: formatMoney(sum.labels.actualSpending.amount, cur), color: "#f87171", sub: "Excludes transfers, debt and savings" },
+              { label: FINANCIAL_LABELS.possibleBusinessExpenses, value: formatMoney(sum.possibleBusinessExpenses.amount, cur), color: THEME.accent, sub: `${sum.possibleBusinessExpenses.count} transaction${sum.possibleBusinessExpenses.count === 1 ? "" : "s"} \u00b7 needs your review (not a tax decision)` },
+            ].map((s, i) => (
+              <Reveal key={s.label} delay={350 + i * 50} style={{ minWidth: 0 }}>
+                <div style={{
+                  background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14,
+                  padding: "14px 16px", boxShadow: `0 4px 16px ${s.color}06`, height: "100%", boxSizing: "border-box",
+                }}>
+                  <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1.2, color: THEME.textDim, fontWeight: 700, marginBottom: 4, lineHeight: 1.3 }}>{s.label}</div>
+                  <div style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: s.color, whiteSpace: "nowrap" }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: THEME.textDim, marginTop: 2, lineHeight: 1.4 }}>{s.sub}</div>
+                </div>
+              </Reveal>
+            ))}
           </div>
+          {sum.dataQuality.statementCoverage !== "complete" && (
+            <div data-testid="totals-label" style={{ fontSize: 12, color: THEME.textMuted, lineHeight: 1.5, marginBottom: 24 }}>{sum.dataQuality.totalsLabel}</div>
+          )}
 
           {/* Where Your Money Went */}
           <StorySection title="Where Your Money Went" icon={"\uD83D\uDCCA"} agent="Crystal" agentColor="#a78bfa" delay={600}>
@@ -151,7 +149,7 @@ export default function MyFinancialStoryV2() {
                     <span style={{ fontSize: 13, color: THEME.text, fontWeight: 500 }}>{c.cat}</span>
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 700, color: THEME.text }}>
-                    ${c.amount.toLocaleString()} <span style={{ color: THEME.textDim, fontWeight: 400 }}>({c.pct}%)</span>
+                    {formatMoney(c.amount, cur)} <span style={{ color: THEME.textDim, fontWeight: 400 }}>({c.pct}%)</span>
                   </span>
                 </div>
                 <div style={{ height: 6, borderRadius: 3, background: THEME.bg, overflow: "hidden" }}>
@@ -161,66 +159,63 @@ export default function MyFinancialStoryV2() {
             ))}
             <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 12, background: "rgba(167,139,250,0.04)", borderLeft: "3px solid rgba(167,139,250,0.3)" }}>
               <div style={{ fontSize: 12, color: THEME.textMuted, lineHeight: 1.5 }}>
-                <span style={{ fontWeight: 700, color: "#a78bfa" }}>Crystal:</span> {data.categoryBreakdown[0] ? `${data.categoryBreakdown[0].cat} is your largest spending category at ${data.categoryBreakdown[0].pct}% of the total.` : "No spending to summarise yet."}
+                <span style={{ fontWeight: 700, color: "#a78bfa" }}>Crystal:</span> {data.topCategoryText ?? "No spending to summarise yet."}
               </div>
             </div>
           </StorySection>
 
           {/* Trends */}
           <StorySection title="Spending Trends" icon={"\uD83D\uDCC8"} agent="Crystal" agentColor="#a78bfa" delay={800}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {data.trends.length === 0 ? (
+              <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6 }}>{data.spendingClaimText ?? "Not enough statement history to compare yet."}</div>
+            ) : (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
               {data.trends.map(t => (
                 <div key={t.label} style={{ padding: "14px 16px", borderRadius: 14, background: THEME.bg, border: `1px solid ${THEME.border}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: THEME.text }}>{t.label}</span>
                     <span style={{
-                      fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
-                      background: t.trend === "up" ? "rgba(248,113,113,0.08)" : t.trend === "down" ? "rgba(52,211,153,0.08)" : "rgba(96,165,250,0.08)",
-                      color: t.trend === "up" ? "#f87171" : t.trend === "down" ? "#34d399" : "#60a5fa",
-                    }}>{t.pct}</span>
+                      fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap",
+                      background: t.direction === "up" ? "rgba(248,113,113,0.08)" : t.direction === "down" ? "rgba(52,211,153,0.08)" : "rgba(96,165,250,0.08)",
+                      color: t.direction === "up" ? "#f87171" : t.direction === "down" ? "#34d399" : "#60a5fa",
+                    }}>{t.kind === "stable" ? "Steady" : `${t.direction === "up" ? "\u2191" : "\u2193"} ${t.percent}%`}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: THEME.textDim }}>{t.months}</div>
+                  <div style={{ fontSize: 11, color: THEME.textDim, lineHeight: 1.45 }}>{t.text}</div>
                 </div>
               ))}
             </div>
+            )}
           </StorySection>
 
           {/* Prime Advisory */}
           <StorySection title="Prime's Advisory Note" icon={"\u2655"} agent="Prime" agentColor={THEME.accent} delay={1000}>
             <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.65 }}>
-              {data.netPosition < 0
-                ? `Over this period your spending was $${Math.abs(data.netPosition).toLocaleString()} more than your income.`
-                : `Over this period your income was $${data.netPosition.toLocaleString()} more than your spending.`}
-              {data.deductions > 0 && ` Spending in categories that are sometimes tax-deductible totals $${data.deductions.toLocaleString()}. Whether any of it is deductible depends on your situation — confirm with an accountant.`}
+              {`${FINANCIAL_LABELS.netCashFlow} for this period is ${sum.labels.netCashFlow.amount > 0 ? "+" : ""}${formatMoney(sum.labels.netCashFlow.amount, cur)} (deposits minus withdrawals). ${FINANCIAL_LABELS.actualIncome} was ${formatMoney(sum.labels.actualIncome.amount, cur)} and ${FINANCIAL_LABELS.actualSpending} was ${formatMoney(sum.labels.actualSpending.amount, cur)}.`}
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-              {data.deductionBreakdown.map(d => (
-                <div key={d.label} style={{ flex: 1, padding: "12px 14px", borderRadius: 12, background: THEME.bg, border: `1px solid ${THEME.border}`, textAlign: "center" }}>
-                  <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: THEME.textDim, fontWeight: 700, marginBottom: 4 }}>{d.label}</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: d.color }}>${d.amount.toLocaleString()}</div>
-                </div>
-              ))}
-            </div>
+            {sum.possibleBusinessExpenses.count > 0 && (
+              <div data-testid="possible-business-expenses" style={{ marginTop: 12, padding: "12px 14px", borderRadius: 12, background: THEME.bg, border: `1px solid ${THEME.border}`, fontSize: 12.5, color: THEME.textMuted, lineHeight: 1.5 }}>
+                {POSSIBLE_BUSINESS_EXPENSES_TEXT(sum.possibleBusinessExpenses.count, formatMoney(sum.possibleBusinessExpenses.amount, cur))}
+              </div>
+            )}
           </StorySection>
 
           {/* Tag Category Health */}
           <StorySection title="Category Health Report" icon={"\uD83C\uDFF7\uFE0F"} agent="Tag" agentColor="#22d3ee" delay={1200}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {data.categoryHealth.map(c => (
-                <div key={c.cat} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 12, background: THEME.bg, border: `1px solid ${THEME.border}` }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: THEME.text, flex: 1 }}>{c.cat}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: `${c.statusColor}12`, color: c.statusColor, border: `1px solid ${c.statusColor}22` }}>{c.status}</span>
-                </div>
-              ))}
+            <div style={{ fontSize: 13, color: THEME.textMuted, lineHeight: 1.6 }}>
+              {(data.needsReviewCount ?? 0) > 0
+                ? `${data.needsReviewCount} transaction${data.needsReviewCount === 1 ? "" : "s"} need${data.needsReviewCount === 1 ? "s" : ""} your review (uncategorized or marked Needs Review).`
+                : "Every transaction has a category."}
             </div>
           </StorySection>
+
+          </>)}
 
           {/* Export/Share */}
           <Reveal delay={1400}>
             <div style={{
               background: `linear-gradient(135deg, ${THEME.accent}08, ${THEME.accent}03)`,
               border: `1px solid ${THEME.accent}18`, borderRadius: 18, padding: "24px",
-              display: "flex", alignItems: "center", gap: 20,
+              display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap",
             }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: THEME.text, marginBottom: 6 }}>Share Your Financial Story</div>

@@ -13,7 +13,6 @@ import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
 import { useSetAtom } from 'jotai';
 import { isUploadModalOpenAtom } from '../../lib/uiStore';
 import { CompactScoreRing } from '../../pages/XspenseScore/ScoreRing';
-import { useXspenseScore } from '../../pages/XspenseScore/useXspenseScore';
 
 interface DesktopSidebarProps {
   collapsed?: boolean;
@@ -30,7 +29,6 @@ export default function DesktopSidebar({ collapsed = false, onToggleCollapse }: 
   const profile = useProfile();
   const tagStats = useSmartCategoriesStats();
   const setUploadOpen = useSetAtom(isUploadModalOpenAtom);
-  const scoreData = useXspenseScore();
   // N0-d: the Inbox nav item has no count badge until a real unread-notification count
   // exists (UX-N1 phase N2). The previous badge showed tag-inbox badge_count, i.e. the
   // number of uncategorized merchant groups, not Inbox messages.

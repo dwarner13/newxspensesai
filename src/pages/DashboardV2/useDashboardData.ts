@@ -1,171 +1,63 @@
+/**
+ * Home (Dashboard) data — UX-FST2-1 (owner GO 2026-11-26; AR-1b FR-001).
+ * Every money figure, count and claim comes from the shared financial engine through
+ * useFinancialSummary (fst2-summary-2). This file does no money arithmetic, applies no
+ * income or spending rule of its own, and makes no month comparison: the browser income
+ * regex, the calendar-month trends, the deductions label sum and the 3-month
+ * 'trend alert' are retired. Import facts (statement count, pending imports, recent
+ * imports) still come from the import list; they are not money.
+ */
 import { useMemo } from "react";
-import { useTransactions } from "@/hooks/useTransactions";
 import { useImportList } from "@/hooks/useImportList";
-
-const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
-
-function isIncome(t: { amount: number; category?: string; merchant_name?: string }): boolean {
-  const cat = (t.category || "").toLowerCase();
-  const merchant = (t.merchant_name || "").toUpperCase().trim();
-  const txType = ((t as Record<string, unknown>).type as string || "").toLowerCase();
-  // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign - expenses are stored as negative values
-  return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
-}
-
-const NON_SPEND_CATEGORIES = new Set([
-  "transfers", "transfer", "loan payments", "loan payment",
-  "credit card payments", "credit card payment",
-  "investments", "investment", "debt payments", "debt payment",
-  "income", "business income",
-]);
-function isNonSpend(t: { category?: string }): boolean {
-  return NON_SPEND_CATEGORIES.has((t.category || "").toLowerCase().trim());
-}
+import { useFinancialSummary } from "@/hooks/useFinancialSummary";
+import { allTimeRange, type FinancialSummary } from "@/lib/financialSummary";
+import { hasFigures } from "@/components/finance/FinancialState";
 
 export interface DashboardData {
-  income: number;
-  expenses: number;
-  netFlow: number;
-  deductions: number;
+  /** The shared engine's answer for all imported data. */
+  financial: ReturnType<typeof useFinancialSummary>;
+  /** Present only for verified / verified_zero. */
+  summary: FinancialSummary | null;
   statementCount: number;
-  transactionCount: number;
-  incomeTrend: number;
-  expenseTrend: number;
-  deductionNew: number;
-  uncategorizedCount: number;
   pendingImports: number;
-  topCategory: { name: string; amount: number; pct: number; trend: number };
-  trendAlert: { category: string; months: number[]; direction: "up" | "down" } | null;
+  /** Server counts (null until verified). */
+  transactionCount: number | null;
+  needsReviewCount: number | null;
   recentAgentActions: { agent: string; action: string; detail: string; time: string }[];
   loading: boolean;
 }
 
 export function useDashboardData(): DashboardData {
-  const { transactions, isLoading: txLoading } = useTransactions();
   const { imports, isLoading: impLoading } = useImportList();
+  // Stable "all time" scope for this page load.
+  const scope = useMemo(() => allTimeRange(), []);
+  const financial = useFinancialSummary(scope);
 
   return useMemo(() => {
-    if (txLoading || impLoading) {
-      return {
-        income: 0, expenses: 0, netFlow: 0, deductions: 0,
-        statementCount: 0, transactionCount: 0,
-        incomeTrend: 0, expenseTrend: 0, deductionNew: 0,
-        uncategorizedCount: 0, pendingImports: 0,
-        topCategory: { name: "", amount: 0, pct: 0, trend: 0 },
-        trendAlert: null, recentAgentActions: [], loading: true,
-      };
-    }
-
-    const incTxs = transactions.filter(t => isIncome(t));
-    const expTxs = transactions.filter(t => !isIncome(t) && !isNonSpend(t));
-    const income = incTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
-    const expenses = expTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
-    const netFlow = income - expenses;
-
-    // Month buckets for trends
-    const monthBuckets: Record<string, { inc: number; exp: number; catMap: Record<string, number> }> = {};
-    transactions.forEach(t => {
-      const d = new Date(t.posted_at || "");
-      if (isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
-      if (!monthBuckets[key]) monthBuckets[key] = { inc: 0, exp: 0, catMap: {} };
-      const amt = Math.abs(t.amount);
-      if (isIncome(t)) { monthBuckets[key].inc += amt; }
-      else if (!isNonSpend(t)) {
-        monthBuckets[key].exp += amt;
-        const cat = t.category || "Other";
-        monthBuckets[key].catMap[cat] = (monthBuckets[key].catMap[cat] || 0) + amt;
-      }
-    });
-    const sorted = Object.keys(monthBuckets).sort().reverse();
-    const cur = sorted[0] ? monthBuckets[sorted[0]] : null;
-    const prev = sorted[1] ? monthBuckets[sorted[1]] : null;
-
-    const incomeTrend = prev && prev.inc > 0
-      ? Math.round(((cur?.inc || 0) - prev.inc) / prev.inc * 100) : 0;
-    const expenseTrend = prev && prev.exp > 0
-      ? Math.round(((cur?.exp || 0) - prev.exp) / prev.exp * 100) : 0;
-
-    // Category totals (expenses)
-    const catMap: Record<string, number> = {};
-    expTxs.forEach(t => {
-      const cat = t.category || "Other";
-      catMap[cat] = (catMap[cat] || 0) + Math.abs(t.amount);
-    });
-
-    // Top category
-    const catEntries = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
-    const topEntry = catEntries[0];
-    const topPct = topEntry && expenses > 0 ? Math.round((topEntry[1] / expenses) * 100) : 0;
-    const topCatTrend = topEntry && prev?.catMap[topEntry[0]] && prev.catMap[topEntry[0]] > 0
-      ? Math.round(((cur?.catMap[topEntry[0]] || 0) - prev.catMap[topEntry[0]]) / prev.catMap[topEntry[0]] * 100) : 0;
-
-    // Deductions
-    const deductLabels = ["Home Office", "Vehicle", "Supplies", "Business Meals"];
-    const deductions = deductLabels.reduce((s, l) => s + (catMap[l] || 0), 0);
-
-    // Uncategorized
-    const uncategorizedCount = transactions.filter(t => !t.category || t.category === "Uncategorized" || t.category === "Needs Review").length;
+    const summary = hasFigures(financial) ? financial.summary : null;
     const pendingImports = imports.filter(i => i.status === "parsed" || i.status === "pending").length;
-
-    // Trend alert: 3 months increasing
-    let trendAlert: DashboardData["trendAlert"] = null;
-    const m3 = sorted[2] ? monthBuckets[sorted[2]] : null;
-    if (m3 && prev && cur) {
-      for (const cat of Object.keys(catMap)) {
-        const v3 = m3.catMap[cat] || 0;
-        const v2 = prev.catMap[cat] || 0;
-        const v1 = cur.catMap[cat] || 0;
-        if (v3 > 0 && v2 > v3 && v1 > v2) {
-          trendAlert = { category: cat, months: [Math.round(v3), Math.round(v2), Math.round(v1)], direction: "up" };
-          break;
-        }
+    const actions: DashboardData["recentAgentActions"] = [];
+    for (const imp of [...imports].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 3)) {
+      actions.push({ agent: "Byte", action: `Imported ${imp.statementLabel || imp.docName}`, detail: `Status: ${imp.status}`, time: getTimeAgo(imp.created_at) });
+    }
+    if (summary) {
+      if (summary.needsReviewCount > 0) {
+        actions.push({ agent: "Tag", action: `Flagged ${summary.needsReviewCount} for review`, detail: "Uncategorized or marked Needs Review", time: "recently" });
+      } else if (summary.transactionCount > 0) {
+        actions.push({ agent: "Tag", action: "All transactions categorized", detail: "Every transaction has a category", time: "recently" });
       }
     }
-
-    // Recent agent actions from imports
-    const actions: DashboardData["recentAgentActions"] = [];
-    const recentImports = [...imports].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 3);
-    for (const imp of recentImports) {
-      const ago = getTimeAgo(imp.created_at);
-      actions.push({ agent: "Byte", action: `Imported ${imp.statementLabel || imp.docName}`, detail: `Status: ${imp.status}`, time: ago });
-    }
-    if (uncategorizedCount === 0 && transactions.length > 0) {
-      actions.push({ agent: "Tag", action: "All transactions categorized", detail: "Every transaction has a category", time: "recently" });
-    } else if (uncategorizedCount > 0) {
-      actions.push({ agent: "Tag", action: `Flagged ${uncategorizedCount} for review`, detail: "Uncategorized or low confidence", time: "recently" });
-    }
-    if (trendAlert) {
-      actions.push({ agent: "Crystal", action: `Trend detected: ${trendAlert.category}`, detail: `${trendAlert.months.length}-month acceleration`, time: "recently" });
-    }
-    if (deductions > 0) {
-      actions.push({ agent: "Prime", action: `Found $${Math.round(deductions).toLocaleString()} in deductions`, detail: `Across ${deductLabels.filter(l => (catMap[l] || 0) > 0).length} categories`, time: "recently" });
-    }
-
     return {
-      income: Math.round(income),
-      expenses: Math.round(expenses),
-      netFlow: Math.round(netFlow),
-      deductions: Math.round(deductions),
+      financial,
+      summary,
       statementCount: imports.length,
-      transactionCount: transactions.length,
-      incomeTrend,
-      expenseTrend,
-      deductionNew: 0,
-      uncategorizedCount,
       pendingImports,
-      topCategory: {
-        name: topEntry?.[0] || "",
-        amount: Math.round(topEntry?.[1] || 0),
-        pct: topPct,
-        trend: topCatTrend,
-      },
-      trendAlert,
+      transactionCount: summary ? summary.transactionCount : null,
+      needsReviewCount: summary ? summary.needsReviewCount : null,
       recentAgentActions: actions,
-      loading: false,
+      loading: impLoading || financial.status === "loading",
     };
-  }, [transactions, imports, txLoading, impLoading]);
+  }, [imports, impLoading, financial]);
 }
 
 function getTimeAgo(iso: string): string {
@@ -178,21 +70,15 @@ function getTimeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
+/** The recap line: facts only (import counts, review count). No money, no trend claims. */
 export function buildRecapText(d: DashboardData): string {
   const parts: string[] = [];
-  if (d.statementCount > 0) {
+  if (d.statementCount > 0 && d.transactionCount !== null) {
     parts.push(`Byte imported ${d.statementCount} statement${d.statementCount !== 1 ? "s" : ""} (${d.transactionCount} transactions)`);
   }
-  if (d.uncategorizedCount === 0 && d.transactionCount > 0) {
-    parts.push("every transaction has a category");
-  } else if (d.uncategorizedCount > 0) {
-    parts.push(`Tag flagged ${d.uncategorizedCount} transaction${d.uncategorizedCount !== 1 ? "s" : ""} for review`);
-  }
-  if (d.trendAlert) {
-    parts.push(`Crystal flagged a ${d.trendAlert.months.length}-month ${d.trendAlert.category.toLowerCase()} trend`);
-  }
-  if (d.deductions > 0) {
-    parts.push(`Prime identified $${d.deductions.toLocaleString()} in potential tax deductions`);
+  if (d.needsReviewCount !== null) {
+    if (d.needsReviewCount === 0 && (d.transactionCount ?? 0) > 0) parts.push("every transaction has a category");
+    else if (d.needsReviewCount > 0) parts.push(`Tag flagged ${d.needsReviewCount} transaction${d.needsReviewCount !== 1 ? "s" : ""} for review`);
   }
   return parts.length > 0 ? `So far: ${parts.join(", ")}.` : "Your AI team is standing by. Upload a statement to get started.";
 }

@@ -8,13 +8,59 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import type { CommittedTransaction } from '../types/transactions';
+import { pagedSelectAll, type PagedQuery, type PagedSelectResult } from '../shared/paged-select';
 
 export interface UseTransactionsResult {
   transactions: CommittedTransaction[];
   isLoading: boolean;
   isError: boolean;
   errorMessage?: string;
+  /**
+   * TX-PAGING (owner 2026-11-26: no silent transaction limits). True only when every matching
+   * row was read (paged until an empty page). False on a truncated read (over the safety
+   * ceiling) or before the first read. Screens must not present an incomplete list or export
+   * as complete.
+   */
+  isComplete: boolean;
+  /** Rows exist beyond the read ceiling (PAGED_SELECT_MAX_ROWS). */
+  isTruncated: boolean;
   refetch: () => Promise<void>;
+}
+
+export const TRANSACTION_LIST_COLUMNS = [
+  'id', 'user_id', 'posted_at', 'merchant_name', 'merchant', 'description', 'amount',
+  'category', 'subcategory', 'subcategory_source', 'category_source', 'date', 'type',
+  'import_id', 'document_id', 'created_at', 'updated_at',
+].join(',');
+
+/**
+ * TX-PAGING: complete paged read of the user's committed transactions, optionally narrowed to a
+ * date range (on `date`) and/or imports. Same rules as the shared engine helper: total order,
+ * stop only on an empty page, truncation probed at the ceiling. Used by useTransactions and by
+ * scoped exports when the whole-account read is over the ceiling.
+ */
+export async function readTransactionsPaged(scope: {
+  userId: string;
+  importIds?: string[];
+  startDate?: string;
+  endDate?: string;
+}): Promise<PagedSelectResult<CommittedTransaction>> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return { rows: [], rowsFetched: 0, pagesFetched: 0, complete: false, truncated: false, duplicatesSkipped: 0, error: 'Supabase client not available' };
+  }
+  const makeQuery = (): PagedQuery => {
+    let q = supabase
+      .from('transactions')
+      .select(TRANSACTION_LIST_COLUMNS)
+      .eq('user_id', scope.userId);
+    if (scope.importIds && scope.importIds.length === 1) q = q.eq('import_id', scope.importIds[0]);
+    else if (scope.importIds && scope.importIds.length > 1) q = q.in('import_id', scope.importIds);
+    if (scope.startDate) q = q.gte('date', scope.startDate);
+    if (scope.endDate) q = q.lte('date', scope.endDate);
+    return q.order('posted_at', { ascending: false }).order('id', { ascending: false }) as unknown as PagedQuery;
+  };
+  return pagedSelectAll<CommittedTransaction>(makeQuery);
 }
 
 const TRANSACTIONS_CACHE_TTL_MS = 90 * 1000;
@@ -29,6 +75,8 @@ export function useTransactions(options?: {
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [isComplete, setIsComplete] = useState(false);
+  const [isTruncated, setIsTruncated] = useState(false);
   const hasRenderedDataRef = useRef(false);
   const fetchInFlightRef = useRef<Promise<void> | null>(null);
   const lastFetchAtRef = useRef(0);
@@ -56,57 +104,22 @@ export function useTransactions(options?: {
     setErrorMessage(undefined);
 
     try {
-      const supabase = getSupabase();
-      if (!supabase) {
-        throw new Error('Supabase client not available');
-      }
-
-      // Simplified query without nested joins to avoid 400 errors
-      // If relationships are needed, fetch them separately
-      let query = supabase
-        .from('transactions')
-        .select(
-          [
-            'id',
-            'user_id',
-            'posted_at',
-            'merchant_name',
-            'merchant',
-            'description',
-            'amount',
-            'category',
-            'subcategory',
-            'subcategory_source',
-            'category_source',
-            'date',
-            'type',
-            'import_id',
-            'document_id',
-            'created_at',
-            'updated_at',
-          ].join(',')
-        )
-        .eq('user_id', userId)
-        .order('posted_at', { ascending: false })
-        // Supabase silently caps un-limited SELECTs at 1000 rows. Users with more
-        // than ~1000 transactions would see truncated data on dashboards and in Tag.
-        // 5000 covers multi-year histories without killing client memory.
-        .limit(5000);
-
-      if (options?.importId) {
-        query = query.eq('import_id', options.importId);
-      }
-
-      const { data, error } = await query;
+      // TX-PAGING: a complete, paged read (shared engine helper, FST-1). The old single request
+      // with .limit(5000) silently dropped older rows, and the hosted API cap (1,000) could cut it
+      // further. Pages advance by rows actually returned and stop only on an empty page; a total
+      // order (posted_at, then id) keeps pages stable.
+      const read = await readTransactionsPaged({ userId, ...(options?.importId ? { importIds: [options.importId] } : {}) });
+      const data = read.rows;
+      const error = read.error ? { message: read.error, code: undefined as string | undefined } : null;
 
       if (error) {
         // Handle schema errors gracefully (table might not exist)
-        if (error.code === 'PGRST116' || 
-            error.code === '42P01' ||
-            error.message?.includes('does not exist') ||
+        if (error.message?.includes('does not exist') ||
             (error.message?.includes('relation') && error.message?.includes('does not exist'))) {
           // Table doesn't exist - return empty array
           setTransactions([]);
+          setIsComplete(true);
+          setIsTruncated(false);
           hasRenderedDataRef.current = true;
           setIsError(false);
           return;
@@ -116,13 +129,16 @@ export function useTransactions(options?: {
 
       const nextData = (data as CommittedTransaction[]) || [];
       setTransactions(nextData);
+      setIsComplete(read.complete);
+      setIsTruncated(read.truncated);
       hasRenderedDataRef.current = true;
       if (typeof window !== 'undefined') {
         const cacheKey = `xspenses:transactions-cache:${userId}:${options?.importId || 'all'}`;
         // Avoid expensive stringify/storage on very large datasets.
-        if (nextData.length <= MAX_CACHE_ROWS) {
+        if (read.complete && nextData.length <= MAX_CACHE_ROWS) {
           const payload = JSON.stringify({
             ts: Date.now(),
+            complete: true,
             data: nextData,
           });
           if (payload.length <= MAX_CACHE_CHARS) {
@@ -160,10 +176,12 @@ export function useTransactions(options?: {
       const raw = window.sessionStorage.getItem(`xspenses:transactions-cache:${userId}:${options?.importId || 'all'}`);
       if (!raw) return;
       if (raw.length > MAX_CACHE_CHARS) return;
-      const parsed = JSON.parse(raw) as { ts?: number; data?: CommittedTransaction[] };
-      if (!parsed?.ts || !Array.isArray(parsed?.data)) return;
+      const parsed = JSON.parse(raw) as { ts?: number; complete?: boolean; data?: CommittedTransaction[] };
+      if (!parsed?.ts || !Array.isArray(parsed?.data) || parsed.complete !== true) return;
       if (Date.now() - parsed.ts > TRANSACTIONS_CACHE_TTL_MS) return;
       setTransactions(parsed.data);
+      setIsComplete(true);
+      setIsTruncated(false);
       hasRenderedDataRef.current = true;
       setIsLoading(false);
     } catch {
@@ -220,6 +238,8 @@ export function useTransactions(options?: {
     isLoading,
     isError,
     errorMessage,
+    isComplete,
+    isTruncated,
     refetch: fetchTransactions,
   };
 }

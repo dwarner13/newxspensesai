@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { THEME, getScoreColor, getScoreGrade, getScoreLabel } from "./scoreConfig";
 import { useXspenseScore } from "./useXspenseScore";
@@ -7,25 +7,13 @@ import { PillarBreakdown } from "./PillarBreakdown";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { isXspenseScoreVisible, XSPENSE_SCORE_REVIEW_MESSAGE } from "./scoreDisplay";
 
-export default function XspenseScorePage() {
+/** The visible Score (only mounted when the hold is off, so useXspenseScore never runs while held). */
+function XspenseScoreVisible() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
   const data = useXspenseScore();
   const [loaded, setLoaded] = useState(false);
   useEffect(() => setLoaded(true), []);
-
-  // Score review hold: show no number, ring, pillar scores or point impacts until the
-  // score's accuracy is reviewed (see scoreDisplay.ts). No placeholder score is shown.
-  if (!isXspenseScoreVisible()) {
-    return (
-      <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", padding: isMobile ? "20px 16px" : "28px 36px" }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>Xspense Score</h1>
-        <div role="status" style={{ marginTop: 20, maxWidth: 560, background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: "20px 22px", fontSize: 14, lineHeight: 1.6, color: THEME.textMuted }}>
-          {XSPENSE_SCORE_REVIEW_MESSAGE}
-        </div>
-      </div>
-    );
-  }
 
   if (data.loading) {
     return (
@@ -114,4 +102,24 @@ export default function XspenseScorePage() {
       </div>
     </div>
   );
+}
+
+/**
+ * XS-2 (owner 2026-11-26: keep the Score hidden; no hidden calculation). The hold is checked
+ * BEFORE any score hook runs; while held only the review message renders.
+ */
+export default function XspenseScorePage() {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
+  useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
+  if (isXspenseScoreVisible()) return <XspenseScoreVisible />;
+  // Score review hold: show no number, ring, pillar scores or point impacts until the
+  // score's accuracy is reviewed (see scoreDisplay.ts). No placeholder score is shown.
+    return (
+      <div style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: THEME.bg, color: THEME.text, minHeight: "100vh", padding: isMobile ? "20px 16px" : "28px 36px" }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>Xspense Score</h1>
+        <div role="status" style={{ marginTop: 20, maxWidth: 560, background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 16, padding: "20px 22px", fontSize: 14, lineHeight: 1.6, color: THEME.textMuted }}>
+          {XSPENSE_SCORE_REVIEW_MESSAGE}
+        </div>
+      </div>
+    );
 }

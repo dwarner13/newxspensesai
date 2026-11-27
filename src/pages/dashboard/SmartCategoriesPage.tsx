@@ -14,6 +14,15 @@ import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
 import type { EmployeeStat } from '../../config/employeeDisplayConfig';
 import toast from 'react-hot-toast';
 import { newClientMessageId } from '@/lib/tagConversation';
+import { useSetAtom } from 'jotai';
+import { isPrimeBriefingOpenAtom } from '@/lib/uiStore';
+import { useFinancialSummary } from '@/hooks/useFinancialSummary';
+import { allTimeRange } from '@/lib/financialSummary';
+import { hasFigures, formatMoney } from '@/components/finance/FinancialState';
+import { FINANCIAL_LABELS } from '@/lib/financialLabels';
+import { categoryTrend, insightText } from '@/lib/insightWording';
+import { classifyCashFlow } from '@/shared/financial-taxonomy';
+import { FinancialStateNotice } from '@/components/finance/FinancialState';
 
 // Local Transaction type for Smart Categories page
 interface Transaction {
@@ -32,10 +41,7 @@ interface Transaction {
 
 export type SmartCategorySummary = {
   category: string;
-  totalAmount: number;
   transactionCount: number;
-  averageAmount: number;
-  isExpenseCategory: boolean;
   trend: 'up' | 'down' | 'flat'; // Placeholder for now
   // Tag learning metrics
   learnedCount: number;        // category_source = 'learned'
@@ -104,7 +110,6 @@ const SmartCategoriesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // Removed workspace overlay state - now using unified chat slideout
-  const [selectedCategoryForChat, setSelectedCategoryForChat] = useState<SmartCategorySummary | null>(null);
   const [isGeneratingStarterRules, setIsGeneratingStarterRules] = useState(false);
   const [isRunningHandoffTag, setIsRunningHandoffTag] = useState(false);
   const [breakdownSort, setBreakdownSort] = useState<'amount_desc' | 'tx_desc' | 'alpha' | 'trend_desc'>('amount_desc');
@@ -210,17 +215,8 @@ const SmartCategoriesPage: React.FC = () => {
 
     // Calculate stats for each category including Tag learning metrics
     const summaries: SmartCategorySummary[] = Array.from(categoryMap.entries()).map(([category, txs]) => {
-      const totalAmount = txs.reduce((sum, tx) => {
-        const amount = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-        return sum + amount;
-      }, 0);
-
+      // SC-5 (AR-1b R2): no money here; counts and Tag learning metrics only. Figures come from the engine.
       const transactionCount = txs.length;
-      const averageAmount = transactionCount > 0 ? totalAmount / transactionCount : 0;
-
-      // Determine if expense category: net is negative OR most transactions are expenses
-      const expenseCount = txs.filter(tx => tx.type === 'expense').length;
-      const isExpenseCategory = totalAmount < 0 || expenseCount > transactionCount / 2;
 
       // Tag learning metrics
       const learnedCount = txs.filter(tx => tx.source_type === 'learned').length;
@@ -259,10 +255,7 @@ const SmartCategoriesPage: React.FC = () => {
 
       return {
         category,
-        totalAmount,
         transactionCount,
-        averageAmount,
-        isExpenseCategory,
         trend,
         learnedCount,
         aiCount,
@@ -272,26 +265,10 @@ const SmartCategoriesPage: React.FC = () => {
       };
     });
 
-    // Sort by absolute totalAmount descending (biggest categories at top)
-    return summaries.sort((a, b) => Math.abs(b.totalAmount) - Math.abs(a.totalAmount));
+    // Most-used categories first (no money ranking).
+    return summaries.sort((a, b) => b.transactionCount - a.transactionCount || a.category.localeCompare(b.category));
   }, [transactions]);
 
-  // Calculate overall stats
-  const stats = useMemo(() => {
-    const totalExpenses = categorySummaries
-      .filter(cat => cat.isExpenseCategory)
-      .reduce((sum, cat) => sum + Math.abs(cat.totalAmount), 0);
-
-    const totalIncome = categorySummaries
-      .filter(cat => !cat.isExpenseCategory)
-      .reduce((sum, cat) => sum + cat.totalAmount, 0);
-
-    return {
-      categoryCount: categorySummaries.length,
-      totalExpenses,
-      totalIncome,
-    };
-  }, [categorySummaries]);
 
   // O(1) lookup: category name -> SmartCategorySummary (for learning metrics)
   const summaryMap = useMemo(() => {
@@ -362,119 +339,11 @@ const SmartCategoriesPage: React.FC = () => {
       return key === selectedMonth;
     });
   }, [transactions, selectedMonth]);
-  const getTxDirection = (tx: Transaction): 'income' | 'expense' | 'unknown' => {
-    const amount = Number(tx.amount) || 0;
-    const category = String(tx.category || '').toLowerCase();
-    const merchant = String(tx.merchant || '').toUpperCase().trim();
-    const description = String(tx.description || '').toUpperCase().trim();
-
-    // 1. Category override — if Tag/user explicitly set "Income", trust it
-    if (category === 'income') return 'income';
-
-    // 2. Merchant/description patterns — payments, credits, refunds are income
-    const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
-    const INCOME_CONTAINS = /\b(PAYMENT RECEIVED|PAYMENT THANK YOU|CREDIT ADJUSTMENT|REFUND|DEPOSIT|E-TRANSFER IN|PAYROLL)\b/;
-    if (INCOME_PATTERNS.test(merchant) || INCOME_CONTAINS.test(merchant) || INCOME_CONTAINS.test(description)) {
-      return 'income';
-    }
-
-    // 3. Explicit income type from DB (if import ever sets it correctly)
-    const txType = String(tx.type || '').toLowerCase();
-    if (txType === 'income' || txType === 'credit') return 'income';
-
-    // 4. Everything else with a positive amount on a credit card statement is a charge
-    return 'expense';
-  };
-  const isExpenseTx = (tx: Transaction): boolean => {
-    return getTxDirection(tx) === 'expense';
-  };
-  const isIncomeTx = (tx: Transaction): boolean => {
-    return getTxDirection(tx) === 'income';
-  };
-
-  // Previous month's per-category spending (for trend arrows on breakdown rows)
-  const prevMonthBreakdown = useMemo(() => {
-    if (!selectedMonth) return new Map<string, number>();
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const prevDate = new Date(y, m - 2, 1); // step back one month (month is 1-based, Date is 0-based)
-    const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-    const map = new Map<string, number>();
-    for (const tx of transactions) {
-      const raw = tx.date || '';
-      if (!raw) continue;
-      const d = new Date(raw);
-      if (isNaN(d.getTime())) continue;
-      const txKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (txKey !== prevKey) continue;
-      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (!isExpenseTx(tx)) continue;
-      const cat = tx.category || 'Uncategorized';
-      map.set(cat, (map.get(cat) || 0) + Math.abs(amt));
-    }
-    return map;
-  }, [selectedMonth, transactions]);
-
-  // Category spending breakdown (expenses only, sorted desc) - enriched with learning + trend
-  const breakdownEntries = useMemo(() => {
-    const map = new Map<string, { amount: number; count: number }>();
-    for (const tx of monthFilteredTransactions) {
-      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (!isExpenseTx(tx)) continue;
-      const cat = tx.category || 'Uncategorized';
-      const prev = map.get(cat) || { amount: 0, count: 0 };
-      map.set(cat, { amount: prev.amount + Math.abs(amt), count: prev.count + 1 });
-    }
-    return [...map.entries()]
-      .map(([category, { amount, count }]) => {
-        const summary = summaryMap.get(category);
-        const prevAmount = prevMonthBreakdown.get(category);
-        let trend: 'up' | 'down' | 'flat' = 'flat';
-        let trendPct: number | undefined;
-        if (selectedMonth && prevAmount !== undefined && prevAmount > 0) {
-          const delta = ((amount - prevAmount) / prevAmount) * 100;
-          if (Math.abs(delta) >= 5) { // only surface meaningful changes (≥5%)
-            trend = delta > 0 ? 'up' : 'down';
-            trendPct = Math.abs(Math.round(delta));
-          }
-        }
-        return {
-          category,
-          amount,
-          count,
-          learningDominance: summary?.learningDominance,
-          avgConfidence: summary?.avgConfidence ?? null,
-          trend,
-          trendPct,
-        };
-      })
-      .sort((a, b) => b.amount - a.amount);
-  }, [monthFilteredTransactions, summaryMap, prevMonthBreakdown, selectedMonth]);
-
-  // Income breakdown (positive amounts only, sorted desc)
-  const incomeBreakdownEntries = useMemo(() => {
-    const map = new Map<string, { amount: number; count: number }>();
-    for (const tx of monthFilteredTransactions) {
-      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (!isIncomeTx(tx)) continue;
-      const cat = tx.category || 'Uncategorized';
-      const prev = map.get(cat) || { amount: 0, count: 0 };
-      map.set(cat, { amount: prev.amount + amt, count: prev.count + 1 });
-    }
-    return [...map.entries()]
-      .map(([category, { amount, count }]) => {
-        const summary = summaryMap.get(category);
-        return {
-          category,
-          amount,
-          count,
-          learningDominance: summary?.learningDominance,
-          avgConfidence: summary?.avgConfidence ?? null,
-          trend: 'flat' as const,
-          trendPct: undefined,
-        };
-      })
-      .sort((a, b) => b.amount - a.amount);
-  }, [monthFilteredTransactions, summaryMap]);
+  // FST-2 (AR-1b FR-009): the pasted merchant-name income patterns
+  // (getTxDirection, isExpenseTx, isIncomeTx) and the unused month / breakdown memos built on it
+  // are retired. Rows that need a direction use the engine classifier (classifyCashFlow).
+  const rowPurpose = (tx: Transaction) =>
+    classifyCashFlow({ type: (tx as { type?: string | null }).type, category: tx.category, subcategory: (tx as { subcategory?: string | null }).subcategory, amount: tx.amount }).purpose;
   // ────────────────────────────────────────────────────────────────────────────
 
   const formatCurrency = (amount: number) => {
@@ -515,7 +384,6 @@ const SmartCategoriesPage: React.FC = () => {
 
   const handleAskTag = (categorySummary: SmartCategorySummary) => {
     // Open unified chat with Tag employee
-    setSelectedCategoryForChat(categorySummary);
     openChat({
       initialEmployeeSlug: 'tag-ai',
       force: true,
@@ -528,7 +396,6 @@ const SmartCategoriesPage: React.FC = () => {
           aiCount: categorySummary.aiCount,
           avgConfidence: categorySummary.avgConfidence,
           transactionCount: categorySummary.transactionCount,
-          totalAmount: categorySummary.totalAmount,
         },
       },
     });
@@ -545,7 +412,6 @@ const SmartCategoriesPage: React.FC = () => {
         aiCount: categorySummary.aiCount,
         avgConfidence: categorySummary.avgConfidence,
         transactionCount: categorySummary.transactionCount,
-        totalAmount: categorySummary.totalAmount,
       },
     });
   };
@@ -561,7 +427,6 @@ const SmartCategoriesPage: React.FC = () => {
         aiCount: categorySummary.aiCount,
         avgConfidence: categorySummary.avgConfidence,
         transactionCount: categorySummary.transactionCount,
-        totalAmount: categorySummary.totalAmount,
       },
     });
   };
@@ -627,132 +492,20 @@ const SmartCategoriesPage: React.FC = () => {
     }
   };
 
-  // Build category context for workspace overlay (matches EmployeeChatPage format)
-  const chatContext = useMemo(() => {
-    if (!selectedCategoryForChat) return null;
-    return {
-      type: 'category' as const,
-      data: {
-        category: selectedCategoryForChat.category,
-        learnedCount: selectedCategoryForChat.learnedCount,
-        aiCount: selectedCategoryForChat.aiCount,
-        avgConfidence: selectedCategoryForChat.avgConfidence,
-        transactionCount: selectedCategoryForChat.transactionCount,
-        totalAmount: selectedCategoryForChat.totalAmount,
-      },
-    };
-  }, [selectedCategoryForChat]);
-
-  // Build system prompt for Tag with category context (for workspace overlay)
-  const systemPrompt = useMemo(() => {
-    if (!chatContext || chatContext.type !== 'category') return null;
-    
-    const cat = chatContext.data;
-    const learnedPercent = cat.transactionCount > 0 
-      ? Math.round((cat.learnedCount / cat.transactionCount) * 100) 
-      : 0;
-    const aiPercent = cat.transactionCount > 0 
-      ? Math.round((cat.aiCount / cat.transactionCount) * 100) 
-      : 0;
-    
-    return `You are Tag, a friendly transaction categorization AI within **XspensesAI**. The user is asking about the "${cat.category}" category.
-
-**CRITICAL: The category name is "${cat.category}" - you MUST use this EXACT name (case-sensitive) when calling tag_category_brain.**
-
-**Category Stats (from UI - use these as fallback only):**
-- Category: ${cat.category}
-- Total transactions: ${cat.transactionCount}
-- Learned from your corrections: ${cat.learnedCount} (${learnedPercent}%)
-- AI categorized: ${cat.aiCount} (${aiPercent}%)
-${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average confidence: ${Math.round(cat.avgConfidence * 100)}%` : ''}
-- Total amount: $${Math.abs(cat.totalAmount).toFixed(2)}
-
-**Your Role & Tool Usage:**
-
-**IMPORTANT: Only call tools when the user asks a question. Do NOT call tools automatically on conversation start or without a user query.**
-
-1. **Category-level questions -> ALWAYS use tag_category_brain FIRST:**
-   - When users ask ANY of these patterns: "What have you learned about this category?", "How much do I usually spend here?", "Which merchants are most common?", "Is this trending up or down?", "Tell me about this category", "What can you tell me about ${cat.category}?", "What do you know about ${cat.category}?", "Show me stats for this category", "Analyze this category", "how much can I save?", "where does my money come from?", "what are my top sources?"
-   - **ACTION:** Immediately call tag_category_brain with category="${cat.category}" (use the EXACT name from above, case-sensitive).
-   - **DO NOT call this tool automatically** - wait for the user to ask a question first.
-   - The tool returns: totalTransactions, totalSpent, totalIncome, avgTransactionAmount, topMerchants[], aiConfidenceSummary (avgConfidence, aiCount, learnedCount), notes[], firstSeenAt, lastSeenAt.
-   - **USE THE TOOL'S DATA, NOT THE UI STATS** - the tool has the most accurate, up-to-date information from the database.
-   
-2. **Using tool data in follow-up questions:**
-   - When answering questions like "how much can I save?" or "where does my money come from?", use the data from tag_category_brain that was already called in this conversation.
-   - Reference specific numbers from the tool results: totalSpent, totalIncome, topMerchants, avgTransactionAmount.
-   - Example: "Based on your Income category (~$${cat.totalAmount.toFixed(2)} from ${cat.transactionCount} transactions, mostly from [top merchant names]), here's a rough saving suggestion..."
-   - If tag_category_brain hasn't been called yet for this question, call it first, then use its data to answer.
-
-3. **Formatting Guidelines:**
-   - Format currency: "$1,234.56" (use commas for thousands, 2 decimal places)
-   - Format percentages: "75%" (round to whole numbers)
-   - Format dates: "January 15, 2024" (readable format)
-   - Keep responses concise: 2-4 sentences max, then invite follow-up questions
-
-4. **Response Structure (when tag_category_brain returns data):**
-   - Start with a warm greeting: "Great question! Let me check what I've learned..."
-   - Share key stats: totalTransactions, totalSpent (or totalIncome if it's an income category)
-   - Highlight top merchants: "Your top merchants here are [name1] with X transactions, [name2] with Y transactions..."
-   - Include learning progress: Reference aiConfidenceSummary.learnedCount and celebrate if high
-   - Use notes[] array: These contain helpful insights - incorporate them naturally
-   - End with invitation: "Want to know more about any specific merchant or pattern?"
-
-5. **Example Response (after calling tag_category_brain):**
-   "Great question! I've analyzed ${cat.transactionCount} transactions in ${cat.category}. Here's what I found:
-
-   - Total spending: $${Math.abs(cat.totalAmount).toFixed(2)}
-   - Average per transaction: $[use avgTransactionAmount from tool]
-   - Top merchants: [list top 3 from topMerchants array]
-   - Learning progress: I've learned from [learnedCount] of your corrections (${learnedPercent}%) - ${learnedPercent >= 70 ? 'excellent!' : 'keep correcting and I\'ll learn faster!'}
-
-   [Include relevant insights from notes[] array]
-
-   Want to dive deeper into any specific merchant or pattern?"
-
-6. **If tool returns empty/error:**
-   - Say: "I don't have enough data yet for this category, but here's what I can see from the UI: ${cat.transactionCount} transaction${cat.transactionCount !== 1 ? 's' : ''} so far. As you add more transactions and correct my categorizations, I'll learn your patterns better!"
-
-7. **Other Tools:**
-   - Specific transaction "why" -> Use tag_explain_category with transaction ID
-   - Merchant history -> Use tag_merchant_insights with merchant name
-
-**Handoff Rules (XspensesAI Org Chart):**
-- **Byte** (slug: byte-docs) handles: Smart Import, OCR, document uploads, bank statements, PDF/PNG parsing
-- **Prime** (slug: prime-boss) handles: High-level strategy, "who should I talk to" questions, app-wide questions
-- If user asks about document uploads, OCR, Smart Import, or bank statements -> **immediately call request_employee_handoff** with targetEmployeeSlug: "byte-docs"
-- If user asks "who handles X?" or "which employee should I talk to?" -> call request_employee_handoff to the appropriate employee
-- **DO NOT try to answer questions outside your domain** - hand off immediately
-
-**Your Tools:**
-- tag_category_brain: Get aggregated stats for a spending category
-- tag_explain_category: Explain why a transaction is categorized a certain way
-- tag_merchant_insights: Show learning history for a merchant
-- request_employee_handoff: Transfer conversation to another employee (use this for upload/Smart Import questions)
-- sheet_export: Export data to spreadsheets
-
-**Tone:**
-- Be warm, friendly, and encouraging
-- Celebrate learning progress
-- Keep it conversational, not robotic
-- Use emojis sparingly (only when celebrating: 🎉 ✅)`;
-  }, [chatContext]);
 
   // Removed all inline chat code - chat is now only in unified slideout
 
-  // Handler to open unified chat with Tag
-  const openTagWorkspace = () => {
-    openChat({
-      initialEmployeeSlug: 'tag-ai',
-      force: true,
-      context: {
-        page: 'smart-categories',
-        data: {
-          source: 'workspace-tag',
-        },
-      },
-    });
+  // SC-1 (owner 2026-11-26: restore supported active employee navigation). The unified chat
+  // launcher (openChat) has no mounted renderer, so its buttons opened nothing. Each Ask button now
+  // goes to the employee's working surface: Tag on Transactions (scoped to the statement), Prime's
+  // briefing panel (as the header button), Crystal on My Story. Finley stays hidden (not active).
+  const setIsPrimeBriefingOpen = useSetAtom(isPrimeBriefingOpenAtom);
+  const askTag = () => {
+    navigate(`/dashboard/transactions?openTag=1${selectedImportFilter ? `&import_id=${encodeURIComponent(selectedImportFilter)}` : ''}`);
   };
+  const askPrime = () => setIsPrimeBriefingOpen(true);
+  const askCrystal = () => navigate('/dashboard/my-story?crystal=1');
+  const openTagWorkspace = askTag;
   const dismissHandoffBanner = () => {
     const next = new URLSearchParams(searchParams);
     next.delete('handoff');
@@ -830,7 +583,6 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
     handoffChatOpenedRef.current = true;
   }, [handoffBannerVisible, handoffSource, handoffImportId, openChat]);
 
-  const totalSpendAll = transactions.reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
   const selectedImportFilter = String(searchParams.get('importId') || '').trim();
   const handleSelectImportFilter = (importId: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -841,149 +593,59 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
   const scopedForBreakdown = selectedImportFilter
     ? monthFilteredTransactions.filter((tx) => String(tx.import_id || '').trim() === selectedImportFilter)
     : monthFilteredTransactions;
-  const totalSpent = scopedForBreakdown
-    .filter((tx) => isExpenseTx(tx))
-    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
-  const incomeTotal = scopedForBreakdown
-    .filter((tx) => isIncomeTx(tx))
-    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
-  const netTotal = incomeTotal - totalSpent;
-  const scopedExpenseBreakdownEntries = (() => {
-    const map = new Map<string, { amount: number; count: number; confidenceSum: number; confidenceCount: number }>();
+  // FST-2: every money figure below is the shared engine's for the page scope (all time or the
+  // ?month, plus the selected statement). Rows keep non-money facts (counts, confidence, drill-down).
+  const allTimeScope = useMemo(() => allTimeRange(), []);
+  const allTimeFinancial = useFinancialSummary(allTimeScope);
+  const allTimeSum = hasFigures(allTimeFinancial) ? allTimeFinancial.summary : null;
+  const primeScope = useMemo(() => {
+    let dates = allTimeRange();
+    if (selectedMonth && /^[0-9]{4}-[0-9]{2}$/.test(selectedMonth)) {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      dates = { startDate: `${selectedMonth}-01`, endDate: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) };
+    }
+    return { ...dates, ...(selectedImportFilter ? { importIds: [selectedImportFilter] } : {}) };
+  }, [selectedMonth, selectedImportFilter]);
+  const primeFinancial = useFinancialSummary(primeScope);
+  const primeSum = hasFigures(primeFinancial) ? primeFinancial.summary : null;
+  const pageCurrency = primeSum?.scope.currency ?? 'CAD';
+  const confidenceByCategory = useMemo(() => {
+    const m = new Map<string, { sum: number; n: number }>();
     for (const tx of scopedForBreakdown) {
-      const amount = Number(tx.amount) || 0;
-      if (!isExpenseTx(tx)) continue;
+      if (typeof tx.confidence !== 'number') continue;
       const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
-      const prev = map.get(cat) || { amount: 0, count: 0, confidenceSum: 0, confidenceCount: 0 };
-      const confidence = typeof tx.confidence === 'number' ? tx.confidence : null;
-      map.set(cat, {
-        amount: prev.amount + Math.abs(amount),
-        count: prev.count + 1,
-        confidenceSum: prev.confidenceSum + (confidence ?? 0),
-        confidenceCount: prev.confidenceCount + (confidence !== null ? 1 : 0),
-      });
+      const prev = m.get(cat) || { sum: 0, n: 0 };
+      m.set(cat, { sum: prev.sum + tx.confidence, n: prev.n + 1 });
     }
-    let rows = Array.from(map.entries()).map(([category, value]) => {
-      const prevAmount = prevMonthBreakdown.get(category) ?? 0;
-      const pctOfTotal = totalSpent > 0 ? Math.round((value.amount / totalSpent) * 100) : 0;
-      const trendDelta = prevAmount > 0 ? ((value.amount - prevAmount) / prevAmount) * 100 : 0;
-      const trend: 'up' | 'down' | 'flat' =
-        prevAmount <= 0 || Math.abs(trendDelta) < 5 ? 'flat' : trendDelta > 0 ? 'up' : 'down';
-      const trendPct = prevAmount > 0 && Math.abs(trendDelta) >= 5 ? Math.abs(Math.round(trendDelta)) : undefined;
-      const avgConfidence = value.confidenceCount > 0 ? value.confidenceSum / value.confidenceCount : null;
-      return {
-        category,
-        amount: value.amount,
-        count: value.count,
-        pctOfTotal,
-        trend,
-        trendPct,
-        trendDeltaAbs: Math.abs(trendDelta),
-        avgConfidence,
-      };
-    });
-    if (rows.length === 0) {
-      const fallbackMap = new Map<string, { amount: number; count: number; confidenceSum: number; confidenceCount: number }>();
-      for (const tx of scopedForBreakdown) {
-        const amount = Math.abs(Number(tx.amount) || 0);
-        if (amount <= 0) continue;
-        const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
-        const prev = fallbackMap.get(cat) || { amount: 0, count: 0, confidenceSum: 0, confidenceCount: 0 };
-        const confidence = typeof tx.confidence === 'number' ? tx.confidence : null;
-        fallbackMap.set(cat, {
-          amount: prev.amount + amount,
-          count: prev.count + 1,
-          confidenceSum: prev.confidenceSum + (confidence ?? 0),
-          confidenceCount: prev.confidenceCount + (confidence !== null ? 1 : 0),
-        });
-      }
-      const fallbackTotal = Array.from(fallbackMap.values()).reduce((sum, value) => sum + value.amount, 0);
-      rows = Array.from(fallbackMap.entries()).map(([category, value]) => ({
-        category,
-        amount: value.amount,
-        count: value.count,
-        pctOfTotal: fallbackTotal > 0 ? Math.round((value.amount / fallbackTotal) * 100) : 0,
-        trend: 'flat' as const,
-        trendPct: undefined,
-        trendDeltaAbs: 0,
-        avgConfidence: value.confidenceCount > 0 ? value.confidenceSum / value.confidenceCount : null,
-      }));
-    }
-    rows.sort((a, b) => {
-      if (breakdownSort === 'tx_desc') return b.count - a.count;
-      if (breakdownSort === 'alpha') return a.category.localeCompare(b.category);
-      if (breakdownSort === 'trend_desc') return b.trendDeltaAbs - a.trendDeltaAbs;
-      return b.amount - a.amount;
-    });
-    return rows;
-  })();
-  const scopedIncomeBreakdownEntries = (() => {
-    const map = new Map<string, { amount: number; count: number }>();
-    for (const tx of scopedForBreakdown) {
-      const amount = Number(tx.amount) || 0;
-      if (!isIncomeTx(tx)) continue;
-      const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
-      const prev = map.get(cat) || { amount: 0, count: 0 };
-      map.set(cat, {
-        amount: prev.amount + amount,
-        count: prev.count + 1,
-      });
-    }
-    return Array.from(map.entries())
-      .map(([category, value]) => ({ category, amount: value.amount, count: value.count }))
-      .sort((a, b) => b.amount - a.amount);
-  })();
-  const expenseCategorySet = new Set(
-    scopedExpenseBreakdownEntries.map((entry) => String(entry.category || '').trim().toLowerCase())
-  );
-  const scopedCategoryEntries = [
-    ...scopedExpenseBreakdownEntries.map((entry) => ({ ...entry, isIncome: false })),
-    ...scopedIncomeBreakdownEntries
-      .filter((entry) => {
-        const key = String(entry.category || '').trim().toLowerCase();
-        return key === 'income' || !expenseCategorySet.has(key);
-      })
-      .map((entry) => {
-      const summary = summaryMap.get(entry.category);
-      return {
-        category: entry.category,
-        amount: entry.amount,
-        count: entry.count,
-        pctOfTotal: incomeTotal > 0 ? Math.round((entry.amount / incomeTotal) * 100) : 0,
-        trend: 'flat' as const,
-        trendPct: undefined,
-        trendDeltaAbs: 0,
-        avgConfidence: summary?.avgConfidence ?? null,
-        isIncome: true,
-      };
-    }),
-  ].sort((a, b) => b.amount - a.amount);
+    return new Map([...m.entries()].map(([k, v]) => [k, v.n > 0 ? v.sum / v.n : null] as const));
+  }, [scopedForBreakdown]);
+  const scopedCategoryEntries: Array<{ category: string; amount: number; count: number; pctOfTotal: number | null; avgConfidence: number | null; isIncome: boolean }> = primeSum
+    ? [
+        ...primeSum.spendingByCategory.map((c) => ({ category: c.category, amount: c.amount, count: c.count, pctOfTotal: c.share as number | null, avgConfidence: confidenceByCategory.get(c.category) ?? null, isIncome: false })),
+        ...(primeSum.categories ?? []).filter((c) => c.purpose === 'income').map((c) => ({ category: c.category, amount: c.amount, count: c.count, pctOfTotal: null as number | null, avgConfidence: confidenceByCategory.get(c.category) ?? null, isIncome: true })),
+      ]
+    : [];
   const maxBreakdownAmount = Math.max(...scopedCategoryEntries.map((entry) => entry.amount), 0);
-  const otherBucket = scopedExpenseBreakdownEntries.find((entry) => entry.category.toLowerCase() === 'other');
-  const otherPct = otherBucket ? (totalSpent > 0 ? (otherBucket.amount / totalSpent) * 100 : 0) : 0;
+  const otherBucket = primeSum?.spendingByCategory.find((c) => c.category.toLowerCase() === 'other') ?? null;
+  const otherPct = otherBucket ? otherBucket.share : 0;
   const shouldWarnOther = otherPct >= 35 && (otherBucket?.amount || 0) > 0;
   const otherMerchantSuggestions = useMemo(() => {
-    const map = new Map<string, { count: number; amount: number }>();
+    const map = new Map<string, { count: number }>();
     for (const tx of scopedForBreakdown) {
-      const amount = Number(tx.amount) || 0;
-      if (!isExpenseTx(tx)) continue;
+      if (rowPurpose(tx) !== 'spending') continue;
       const category = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
       if (category.toLowerCase() !== 'other') continue;
       const merchant = String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase();
-      const prev = map.get(merchant) || { count: 0, amount: 0 };
-      map.set(merchant, {
-        count: prev.count + 1,
-        amount: prev.amount + Math.abs(amount),
-      });
+      const prev = map.get(merchant) || { count: 0 };
+      map.set(merchant, { count: prev.count + 1 });
     }
     return Array.from(map.entries())
       .map(([merchant, value]) => ({
         merchant,
         count: value.count,
-        amount: value.amount,
         suggestedCategory: inferStarterCategory(merchant),
       }))
-      .sort((a, b) => b.amount - a.amount)
+      .sort((a, b) => b.count - a.count)
       .slice(0, 10);
   }, [scopedForBreakdown]);
   const confidentMerchantSuggestions = useMemo(
@@ -1009,17 +671,14 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
     ],
     [importList]
   );
-  const topExpenseCategory = scopedExpenseBreakdownEntries[0] || null;
-  const topIncomeCategory = scopedIncomeBreakdownEntries[0] || null;
   const tagSceneBrief = `${confidentMerchantSuggestions.length} merchant group${
     confidentMerchantSuggestions.length === 1 ? '' : 's'
   } confident, ${uncertainMerchantSuggestions.length} need review.`;
-  const primeSceneBrief = topExpenseCategory
-    ? `Top spend: ${topExpenseCategory.category} (${formatCurrency(topExpenseCategory.amount)}). Net ${netTotal >= 0 ? 'positive' : 'negative'} at ${formatCurrency(netTotal)}.`
-    : 'No major spend detected in this scope.';
-  const finleySceneBrief = topIncomeCategory
-    ? `Main income source: ${topIncomeCategory.category}. Cash flow is ${incomeTotal > totalSpent ? 'healthy' : 'tight'} this scene.`
-    : 'No income mapped in this scope yet.';
+  // FST-2: Prime's line uses the shared engine's figures for the same scope, never browser sums.
+  const primeTop = primeSum?.spendingByCategory[0] ?? null;
+  const primeSceneBrief = !primeSum
+    ? 'Figures for this scope are not available right now.'
+    : `${primeTop ? `Top spending: ${primeTop.category} (${formatMoney(primeTop.amount, primeSum.scope.currency)}). ` : ''}${FINANCIAL_LABELS.netCashFlow}: ${primeSum.labels.netCashFlow.amount > 0 ? '+' : ''}${formatMoney(primeSum.labels.netCashFlow.amount, primeSum.scope.currency)}.`;
   const inspectorRows = useMemo(() => {
     if (!selectedInspectorCategory) return [];
     return scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === selectedInspectorCategory);
@@ -1365,8 +1024,8 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
         <div className="grid grid-cols-1 gap-3 p-4">
         <section className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">Total spend</div>
-            <div className="mt-1 text-sm font-semibold text-slate-100">{formatCurrency(totalSpendAll)}</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">{FINANCIAL_LABELS.actualSpending}</div>
+            <div className="mt-1 text-sm font-semibold text-slate-100">{allTimeSum ? formatMoney(allTimeSum.labels.actualSpending.amount, allTimeSum.scope.currency) : '-'}</div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Auto-tagged %</div>
@@ -1424,7 +1083,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                 <div className="flex items-center justify-between gap-2">
                   <span>
                     <span className="font-semibold">Other is high:</span>{' '}
-                    {formatCurrency(otherBucket?.amount || 0)} ({Math.round(otherPct)}% of spend)
+                    {formatMoney(otherBucket?.amount || 0, pageCurrency)} ({otherPct}% of actual spending)
                   </span>
                   <button
                     type="button"
@@ -1440,36 +1099,38 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
 
             <div className="grid grid-cols-3 gap-2 border-b border-slate-800 px-4 py-3 bg-slate-900/70">
               <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-                <div className="text-[11px] text-slate-400">Total spent</div>
-                <div className="mt-1 text-sm font-semibold text-red-300">{formatCurrency(totalSpent)}</div>
+                <div className="text-[11px] text-slate-400">{FINANCIAL_LABELS.actualSpending}</div>
+                <div className="mt-1 text-sm font-semibold text-red-300">{primeSum ? formatMoney(primeSum.labels.actualSpending.amount, pageCurrency) : '-'}</div>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-                <div className="text-[11px] text-slate-400">Income</div>
-                <div className="mt-1 text-sm font-semibold text-emerald-300">{formatCurrency(incomeTotal)}</div>
+                <div className="text-[11px] text-slate-400">{FINANCIAL_LABELS.actualIncome}</div>
+                <div className="mt-1 text-sm font-semibold text-emerald-300">{primeSum ? formatMoney(primeSum.labels.actualIncome.amount, pageCurrency) : '-'}</div>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-                <div className="text-[11px] text-slate-400">Net</div>
-                <div className={`mt-1 text-sm font-semibold ${netTotal >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                  {formatCurrency(netTotal)}
+                <div className="text-[11px] text-slate-400">{FINANCIAL_LABELS.netCashFlow}</div>
+                <div className={`mt-1 text-sm font-semibold ${(primeSum?.labels.netCashFlow.amount ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {primeSum ? `${primeSum.labels.netCashFlow.amount > 0 ? '+' : ''}${formatMoney(primeSum.labels.netCashFlow.amount, pageCurrency)}` : '-'}
                 </div>
               </div>
             </div>
 
             <div className="overflow-x-auto">
-              <div className="grid grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] gap-2 border-b border-slate-800 px-4 py-2 text-[11px] uppercase tracking-wide text-slate-500">
+              <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] md:grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] gap-2 border-b border-slate-800 px-4 py-2 text-[11px] uppercase tracking-wide text-slate-500">
                 <div />
                 <div>Category</div>
-                <div>Bar</div>
-                <div className="text-right">% Total</div>
+                <div className="hidden md:block">Bar</div>
+                <div className="hidden md:block text-right">% Total</div>
                 <div className="text-right">Amount</div>
-                <div className="text-right">Trend</div>
-                <div className="text-right">Conf</div>
-                <div className="text-right">Txns</div>
+                <div className="hidden md:block text-right">Trend</div>
+                <div className="hidden md:block text-right">Conf</div>
+                <div className="hidden md:block text-right">Txns</div>
               </div>
 
               <div className="max-h-[56vh] overflow-y-auto">
                 {isLoading ? (
                   <div className="px-4 py-4 text-sm text-slate-400">Loading category breakdown...</div>
+                ) : !primeSum ? (
+                  <div className="px-4 py-4"><FinancialStateNotice state={primeFinancial} compact onRetry={primeFinancial.status !== 'loading' ? primeFinancial.refetch : undefined} /></div>
                 ) : scopedCategoryEntries.length === 0 ? (
                   <div className="px-4 py-4 text-sm text-slate-400">No transactions available for this scope.</div>
                 ) : (
@@ -1479,31 +1140,24 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                     const isExpanded = expandedCategory === entry.category;
                     const activeTab = expandedTabs[entry.category] || 'subcategories';
                     const categoryTxs = scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === entry.category);
-                    const subcategoryMap = new Map<string, { amount: number; count: number }>();
+                    // SC-5: grouped and ranked by count only (no hidden spend ranking; amounts are G6).
+                    const subcategoryMap = new Map<string, number>();
                     categoryTxs.forEach((tx) => {
                       const sub = String((tx as any).subcategory || 'Unspecified').trim() || 'Unspecified';
-                      const prev = subcategoryMap.get(sub) || { amount: 0, count: 0 };
-                      subcategoryMap.set(sub, {
-                        amount: prev.amount + Math.abs(Number(tx.amount) || 0),
-                        count: prev.count + 1,
-                      });
+                      subcategoryMap.set(sub, (subcategoryMap.get(sub) || 0) + 1);
                     });
                     const subRows = Array.from(subcategoryMap.entries())
-                      .map(([subcategory, value]) => ({ subcategory, amount: value.amount, count: value.count }))
-                      .sort((a, b) => b.amount - a.amount);
-                    const maxSubAmount = Math.max(...subRows.map((s) => s.amount), 0);
-                    const merchantMap = new Map<string, { amount: number; count: number }>();
+                      .map(([subcategory, count]) => ({ subcategory, count }))
+                      .sort((a, b) => b.count - a.count || a.subcategory.localeCompare(b.subcategory));
+                    const maxSubCount = Math.max(...subRows.map((s) => s.count), 0);
+                    const merchantMap = new Map<string, number>();
                     categoryTxs.forEach((tx) => {
                       const merchant = String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase();
-                      const prev = merchantMap.get(merchant) || { amount: 0, count: 0 };
-                      merchantMap.set(merchant, {
-                        amount: prev.amount + Math.abs(Number(tx.amount) || 0),
-                        count: prev.count + 1,
-                      });
+                      merchantMap.set(merchant, (merchantMap.get(merchant) || 0) + 1);
                     });
                     const topMerchants = Array.from(merchantMap.entries())
-                      .map(([merchant, value]) => ({ merchant, amount: value.amount, count: value.count }))
-                      .sort((a, b) => b.amount - a.amount)
+                      .map(([merchant, count]) => ({ merchant, count }))
+                      .sort((a, b) => b.count - a.count || a.merchant.localeCompare(b.merchant))
                       .slice(0, 8);
                     const categorySourceMap = new Map<string, number>();
                     categoryTxs.forEach((tx) => {
@@ -1523,7 +1177,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                     const categorySourceBreakdown = Array.from(categorySourceMap.entries())
                       .map(([source, count]) => ({ source, count }))
                       .sort((a, b) => b.count - a.count);
-                    const maxMerchantAmount = Math.max(...topMerchants.map((m) => m.amount), 0);
+                    const maxMerchantCount = Math.max(...topMerchants.map((m) => m.count), 0);
                     const selectedMerchant = selectedMerchantByCategory[entry.category] || topMerchants[0]?.merchant || '';
                     const selectedMerchantTxs = selectedMerchant
                       ? categoryTxs
@@ -1534,7 +1188,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                     return (
                       <div key={entry.category} className="border-b border-slate-800/80 last:border-b-0 group">
                         <div
-                          className={`grid cursor-pointer grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] items-center gap-2 px-4 py-2 transition-colors ${
+                          className={`grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] md:grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] items-center gap-2 px-4 py-2 transition-colors ${
                             isExpanded ? 'bg-violet-500/12 border-l-2 border-violet-400' : 'hover:bg-slate-800/40 border-l-2 border-transparent'
                           }`}
                           onClick={() => {
@@ -1580,16 +1234,22 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                               </span>
                             )}
                           </button>
-                          <div className="h-2 rounded-full bg-slate-800">
+                          <div className="hidden md:block h-2 rounded-full bg-slate-800">
                             <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: categoryColor }} />
                           </div>
-                          <div className="text-right text-sm text-slate-300">{entry.pctOfTotal}%</div>
-                          <div className="text-right text-sm font-medium text-slate-100">{formatCurrency(entry.amount)}</div>
-                          <div className={`text-right text-xs ${
-                            entry.trend === 'up' ? 'text-red-300' : entry.trend === 'down' ? 'text-emerald-300' : 'text-slate-400'
-                          }`}>
-                            {entry.trend === 'flat' ? '-' : `${entry.trend === 'up' ? '↑' : '↓'} ${entry.trendPct ?? ''}%`}
-                          </div>
+                          <div className="hidden md:block text-right text-sm text-slate-300">{entry.pctOfTotal === null ? '-' : `${entry.pctOfTotal}%`}</div>
+                          <div className="text-right text-sm font-medium text-slate-100">{formatMoney(entry.amount, pageCurrency)}</div>
+                          {(() => {
+                            // FST-2: only the server's coverage-gated category trend; never a browser month comparison.
+                            const t = primeSum ? categoryTrend(primeSum.insights, entry.category) : null;
+                            return (
+                              <div title={t ? (insightText(t, primeSum?.wording) ?? undefined) : 'Not enough statement history to compare'} className={`hidden md:block text-right text-xs ${
+                                t?.direction === 'up' ? 'text-red-300' : t?.direction === 'down' ? 'text-emerald-300' : 'text-slate-400'
+                              }`}>
+                                {t ? `${t.direction === 'up' ? '↑' : '↓'} ${t.percent}%` : '-'}
+                              </div>
+                            );
+                          })()}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1598,7 +1258,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                               setInspectorMoveCategory(entry.category);
                               setInspectorMoveSubcategory('');
                             }}
-                            className={`text-right text-xs ${
+                            className={`hidden md:block text-right text-xs ${
                               entry.avgConfidence !== null && entry.avgConfidence < 0.7
                                 ? 'text-amber-300 underline decoration-dotted underline-offset-2'
                                 : 'text-slate-300'
@@ -1613,7 +1273,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                               ? 'Learning'
                               : `${Math.round(entry.avgConfidence * 100)}%`}
                           </button>
-                          <div className="text-right text-sm text-slate-300">{entry.count}</div>
+                          <div className="hidden md:block text-right text-sm text-slate-300">{entry.count}</div>
                         </div>
                         <div
                           className={`overflow-hidden transition-all duration-300 ease-out ${
@@ -1644,7 +1304,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                             {activeTab === 'subcategories' && (
                               <div className="space-y-1.5">
                                 {subRows.map((sub) => {
-                                  const subWidth = maxSubAmount > 0 ? Math.max(6, (sub.amount / maxSubAmount) * 100) : 0;
+                                  const subWidth = maxSubCount > 0 ? Math.max(6, (sub.count / maxSubCount) * 100) : 0;
                                   return (
                                     <button
                                       key={`${entry.category}-${sub.subcategory}`}
@@ -1660,7 +1320,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                                       <div className="h-1.5 rounded-full bg-slate-800">
                                         <div className="h-full rounded-full" style={{ width: `${subWidth}%`, backgroundColor: categoryColor }} />
                                       </div>
-                                      <div className="text-right text-[12px] text-slate-300">{formatCurrency(sub.amount)}</div>
+                                      <div className="text-right text-[12px] text-slate-500" title="Amounts by subcategory and merchant are not available yet">-</div>
                                       <div className="text-right text-[12px] text-slate-400">{sub.count}</div>
                                     </button>
                                   );
@@ -1687,9 +1347,11 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                                   Sources: {categorySourceBreakdown.map((src) => `${src.source} ${src.count}`).join(' | ') || 'No source data'}
                                 </div>
                                 <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2 text-slate-300">
-                                  {entry.trend === 'flat'
-                                    ? 'Trend is flat vs last month.'
-                                    : `Trend is ${entry.trend} by ${entry.trendPct ?? 0}% vs last month.`}{' '}
+                                  {(() => {
+                                    // FST-2: the server's coverage-gated wording only; no "vs last month" from the browser.
+                                    const t = primeSum ? categoryTrend(primeSum.insights, entry.category) : null;
+                                    return t ? (insightText(t, primeSum?.wording) ?? '') : 'Not enough statement history to compare this category yet.';
+                                  })()}{' '}
                                   {entry.avgConfidence !== null && entry.avgConfidence < 0.7
                                     ? 'Low confidence suggests inconsistent merchant mapping.'
                                     : 'Confidence looks stable.'}
@@ -1729,7 +1391,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                             {activeTab === 'merchants' && (
                               <div className="space-y-1.5">
                                 {topMerchants.map((merchantRow) => {
-                                  const merchantWidth = maxMerchantAmount > 0 ? Math.max(6, (merchantRow.amount / maxMerchantAmount) * 100) : 0;
+                                  const merchantWidth = maxMerchantCount > 0 ? Math.max(6, (merchantRow.count / maxMerchantCount) * 100) : 0;
                                   const selected = selectedMerchant === merchantRow.merchant;
                                   return (
                                     <button
@@ -1748,7 +1410,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                                       <div className="h-1.5 rounded-full bg-slate-800">
                                         <div className="h-full rounded-full bg-cyan-400" style={{ width: `${merchantWidth}%` }} />
                                       </div>
-                                      <div className="text-right text-[12px] text-slate-300">{formatCurrency(merchantRow.amount)}</div>
+                                      <div className="text-right text-[12px] text-slate-500" title="Amounts by subcategory and merchant are not available yet">-</div>
                                       <div className="text-right text-[12px] text-slate-400">{merchantRow.count}</div>
                                     </button>
                                   );
@@ -1876,7 +1538,6 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
               <div className="mt-2 space-y-1 text-[11px] text-slate-300">
                 <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-violet-300">Tag:</span> {tagSceneBrief}</div>
                 <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-cyan-300">Prime:</span> {primeSceneBrief}</div>
-                <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-emerald-300">Finley:</span> {finleySceneBrief}</div>
               </div>
               <div className="mt-3 grid grid-cols-1 gap-2">
                 <button
@@ -1900,24 +1561,24 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                 <div className="grid grid-cols-3 gap-1">
                   <button
                     type="button"
-                    onClick={() => openChat({ initialEmployeeSlug: 'tag-ai', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    onClick={askTag}
                     className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
                   >
                     Ask Tag
                   </button>
                   <button
                     type="button"
-                    onClick={() => openChat({ initialEmployeeSlug: 'prime-boss', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    onClick={askPrime}
                     className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
                   >
                     Ask Prime
                   </button>
                   <button
                     type="button"
-                    onClick={() => openChat({ initialEmployeeSlug: 'finley-forecasts', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    onClick={askCrystal}
                     className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
                   >
-                    Ask Finley
+                    Ask Crystal
                   </button>
                 </div>
               </div>
@@ -1929,7 +1590,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                   {uncertainMerchantSuggestions.map((item) => (
                     <div key={`uncertain-${item.merchant}`} className="rounded-md border border-amber-400/20 bg-slate-950/40 p-2">
                       <div className="truncate text-[11px] font-medium text-slate-100">{item.merchant}</div>
-                      <div className="mt-1 text-[10px] text-amber-100/80">{item.count} tx · {formatCurrency(item.amount)} · Tag needs confirmation</div>
+                      <div className="mt-1 text-[10px] text-amber-100/80">{item.count} tx · Tag needs confirmation</div>
                     </div>
                   ))}
                 </div>

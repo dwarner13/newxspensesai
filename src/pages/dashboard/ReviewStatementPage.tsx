@@ -59,6 +59,10 @@ export default function ReviewStatementPage() {
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
   const [committed, setCommitted] = useState(false);
+  // IMPORTED-1: the server's own result (never the on-screen row count) and honest outcomes.
+  const [committedCount, setCommittedCount] = useState<number | null>(null);
+  const [alreadyImported, setAlreadyImported] = useState(false);
+  const [commitError, setCommitError] = useState<string | null>(null);
 
   // Edit state
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -261,6 +265,7 @@ export default function ReviewStatementPage() {
   const handleCommit = useCallback(async () => {
     if (!session?.access_token || !importId || committing) return;
     setCommitting(true);
+    setCommitError(null);
     try {
       // First approve
       await fetch('/.netlify/functions/approve-import', {
@@ -274,13 +279,20 @@ export default function ReviewStatementPage() {
         headers: { 'Content-Type': 'application/json', 'x-user-id': userId || '', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ importId }),
       });
-      const data = await res.json();
-      if (data.ok || data.committed || data.insertedCount) {
+      const data = await res.json().catch(() => null);
+      if (data?.idempotent === true || data?.error === 'already_committed') {
+        // Committed earlier: nothing was imported again.
+        setAlreadyImported(true);
+      } else if (res.ok && (data?.ok || data?.success) && typeof data?.insertedCount === 'number') {
+        setCommittedCount(data.insertedCount);
         setCommitted(true);
         setTimeout(() => navigate(`/dashboard/transactions?import_id=${importId}`), 2000);
+      } else {
+        setCommitError("This statement couldn't be imported, so nothing was added. Please try again.");
       }
     } catch (err) {
       console.error('[ReviewStatementPage] commit failed:', err);
+      setCommitError("Couldn't confirm whether the import finished \u2014 check your transactions before trying again.");
     } finally {
       setCommitting(false);
     }
@@ -333,13 +345,27 @@ export default function ReviewStatementPage() {
     );
   }
 
+  // ── Already imported (IMPORTED-1): a committed statement is never reviewed or committed again ──
+  if (!committed && (alreadyImported || importStatus === 'committed')) {
+    return (
+      <div role="status" data-testid="statement-already-imported" style={{ padding: '60px 24px', textAlign: 'center', maxWidth: 520, margin: '0 auto' }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.text, marginBottom: 8 }}>This statement is already imported</div>
+        <div style={{ fontSize: 15, color: T.dim, lineHeight: 1.5, marginBottom: 20 }}>Its transactions are in your Transactions list. Nothing was imported again.</div>
+        <button type="button" onClick={() => navigate(`/dashboard/transactions?import_id=${importId}`)}
+          style={{ minHeight: 44, padding: '0 20px', borderRadius: 12, fontSize: 15, fontWeight: 700, background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.4)', color: T.green, cursor: 'pointer' }}>
+          View its transactions
+        </button>
+      </div>
+    );
+  }
+
   // ── Committed success state ──
   if (committed) {
     return (
       <div style={{ padding: 60, textAlign: 'center' }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>{'\u2705'}</div>
         <div style={{ fontSize: 20, fontWeight: 700, color: T.green, marginBottom: 8 }}>
-          Imported {rows.length} transactions
+          {committedCount === null ? 'Statement imported' : `Imported ${committedCount} transaction${committedCount !== 1 ? 's' : ''}`}
         </div>
         <div style={{ fontSize: 13, color: T.dim }}>Redirecting to transactions{'\u2026'}</div>
       </div>
@@ -533,6 +559,7 @@ export default function ReviewStatementPage() {
             {discrepancyBanner}
             {heldStateBanner}
 
+        {commitError && (<div role="alert" data-testid="commit-error" style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.35)', color: '#fde68a', fontSize: 14, lineHeight: 1.5 }}>{commitError}</div>)}
         {/* Import button */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
           <button
@@ -779,6 +806,7 @@ export default function ReviewStatementPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', maxHeight: 'calc(100vh - 200px)' }}>
           {/* Pinned header: buttons + custodian */}
           <div style={{ flexShrink: 0, padding: '12px 16px 0' }}>
+          {commitError && (<div role="alert" data-testid="commit-error" style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.35)', color: '#fde68a', fontSize: 14, lineHeight: 1.5 }}>{commitError}</div>)}
           {/* Buttons */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
             <button

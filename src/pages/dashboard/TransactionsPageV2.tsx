@@ -3,7 +3,10 @@ import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
 import { Search, ChevronRight, ChevronDown, Upload, Download } from 'lucide-react';
-import { useTransactions } from '@/hooks/useTransactions';
+import { useTransactions, readTransactionsPaged } from '@/hooks/useTransactions';
+import { useAuth } from '@/contexts/AuthContext';
+import { PAGED_SELECT_MAX_ROWS } from '@/shared/paged-select';
+import { fetchRowsExport, saveBlob } from '@/lib/financialExport';
 import { useImportList } from '@/hooks/useImportList';
 import { groupImportsIntoAccounts } from '@/lib/accountGroups';
 import { needsCategory, countNeedsCategory } from '@/lib/needsCategory';
@@ -23,8 +26,14 @@ import { newClientMessageId } from '@/lib/tagConversation';
 import { TagCopilotPanel } from '@/components/transactions/TagCopilotPanel';
 import { AgentFloatingBubble } from '@/components/ui/AgentFloatingBubble';
 import { useProfile } from '@/hooks/useProfile';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { loadChatReturnContext, clearChatReturnContext } from '@/lib/chatReturnContext';
 import type { ChatReturnContext } from '@/lib/chatReturnContext';
+import { useFinancialSummary } from '@/hooks/useFinancialSummary';
+import { allTimeRange, yearRange, type SummaryRequest } from '@/lib/financialSummary';
+import { FinancialStateNotice, hasFigures, formatMoney } from '@/components/finance/FinancialState';
+import { FINANCIAL_LABELS } from '@/lib/financialLabels';
+import { classifyCashFlow } from '@/shared/financial-taxonomy';
 
 const CAT_COLORS: Record<string, string> = {
   'Personal Care': '#ec4899', Subscriptions: '#818cf8', Shopping: '#a78bfa',
@@ -33,18 +42,18 @@ const CAT_COLORS: Record<string, string> = {
 };
 const colorFor = (c?: string) => CAT_COLORS[c || ''] || '#475569';
 
-const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
-function isIncomeTx(t: CommittedTransaction): boolean {
-  const cat = (t.category || '').toLowerCase();
-  const merchant = (t.merchant_name || '').toUpperCase().trim();
-  const txType = ((t as Record<string, unknown>).type as string || '').toLowerCase();
-  // type field is set by commit-import from balance-delta math — most reliable signal.
-  // Always trust it when present so "Debit Card Purchase, FLAME & BARREL" (type=expense)
-  // never shows as income even if category_rules tagged the merchant as Business Income.
-  if (txType === 'income') return true;
-  if (txType === 'expense') return false;
-  // Fallback when type field is not set (older imports)
-  return cat === 'income' || cat === 'business income' || INCOME_PATTERNS.test(merchant);
+// UX-FST2-4b (AR-1b R1): rows are classified by the shared engine (classifyCashFlow), the same
+// rule the totals use, so a row never reads "Income" while the strip counts it as a refund or a
+// card payment. Direction comes from the transaction type; when the type is missing the stored
+// amount's sign is used (never merchant patterns). Switch to the AR-1c direction module when it lands.
+function classifyRow(t: CommittedTransaction) {
+  return classifyCashFlow({ type: (t as { type?: string | null }).type, category: t.category, subcategory: t.subcategory, amount: t.amount });
+}
+function isInflowRow(t: CommittedTransaction): boolean {
+  const c = classifyRow(t);
+  if (c.direction === 'inflow') return true;
+  if (c.direction === 'outflow') return false;
+  return Number(t.amount) > 0;
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -88,7 +97,8 @@ export default function TransactionsPageV2() {
       return result;
     } catch { return { importId: null, issuer: null, openTag: false }; }
   })();
-  const { transactions, isLoading, refetch } = useTransactions();
+  const { transactions, isLoading, refetch, isComplete: listReadComplete, isTruncated: listReadTruncated } = useTransactions();
+  const { userId } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
@@ -118,6 +128,9 @@ export default function TransactionsPageV2() {
   const [rangeTo, setRangeTo] = useState<string>(initialToolbar.to);
   // M-TX: on phones the secondary filters fold behind one "Filters" button.
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  // TAG-BUBBLE-1: on phones the floating Tag bubble covered the amount column; Tag opens from
+  // the toolbar instead (same action and review count). Desktop keeps the bubble.
+  const isPhone = useIsMobile();
   // X-3: 'Needs category' quick filter (same check as the page's existing review count).
   const [needsCategoryOnly, setNeedsCategoryOnly] = useState<boolean>(!!initialToolbar.needsCategory);
   const [tagFilterLabel, setTagFilterLabel] = useState('');
@@ -181,15 +194,12 @@ export default function TransactionsPageV2() {
       } catch { /* per-viewer convenience only */ }
     };
   }, []);
-  const [tagBadgeCount, setTagBadgeCount] = useState(0);
   const [tagInboxData, setTagInboxData] = useState<any>(null);
   const [tagActivityOpen, setTagActivityOpen] = useState(false);
-  const [lastBulkAction, setLastBulkAction] = useState<{ ids: string[]; previousCategory: string } | null>(null);
   const [pendingSweep, setPendingSweep] = useState<any>(null);
   const [badgePulse, setBadgePulse] = useState(false);
   const [reclassifyPreview, setReclassifyPreview] = useState<any>(null);
   const [tagInjectedMsg, setTagInjectedMsg] = useState<string | null>(null);
-  const [tagFollowupMerchants, setTagFollowupMerchants] = useState<any[] | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showProcessingBanner, setShowProcessingBanner] = useState(false);
 
@@ -356,7 +366,7 @@ export default function TransactionsPageV2() {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) return;
       const res = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) { const d = await res.json(); setTagInboxData(d); setTagBadgeCount(d.badge_count ?? 0); }
+      if (res.ok) { const d = await res.json(); setTagInboxData(d); }
     } catch { /* silent */ }
   }, []);
   useEffect(() => { fetchTagInbox(); }, [fetchTagInbox]);
@@ -377,19 +387,7 @@ export default function TransactionsPageV2() {
         // Auto-open Tag panel and inject the report
         if (sweepNotif.type === 'import_complete') {
           setTagPanelOpen(true);
-          const p = sweepNotif.payload;
-          const hasFollowup = p?.needs_input_count > 0;
           setTagInjectedMsg(sweepNotif.message);
-          if (hasFollowup) {
-            // Delay followup fetch so report shows first
-            setTimeout(async () => {
-              try {
-                const inboxRes = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
-                const inboxD = await inboxRes.json();
-                setTagFollowupMerchants((inboxD.unresolved ?? []).slice(0, 8));
-              } catch { /* silent */ }
-            }, 1200);
-          }
         }
       }
     } catch { /* silent */ }
@@ -562,7 +560,6 @@ export default function TransactionsPageV2() {
       setTagPanelTx(tx);
       setTagPanelAccountLabel(null); // D-6: no stale label from another transaction
       setTagInjectedMsg(null);
-      setTagFollowupMerchants(null);
       setTagPanelOpen(true);
     };
     const loaded = transactions.find(t => t.id === requested);
@@ -604,15 +601,13 @@ export default function TransactionsPageV2() {
     type: 'Credit Card' | 'Chequing';
     statementCount: number;
     importIds: string[];
-    totalSpent: number;
-    totalIncome: number;
     uncategorizedCount: number;
   };
   const accounts: AccountCard[] = useMemo(() => {
     // K-d: grouping moved unchanged to lib/accountGroups.ts so Categories uses the same accounts.
     const groups = new Map<string, AccountCard>();
     for (const a of groupImportsIntoAccounts(imports)) {
-      groups.set(a.id, { ...a, statementCount: 0, totalSpent: 0, totalIncome: 0, uncategorizedCount: 0 });
+      groups.set(a.id, { ...a, statementCount: 0, uncategorizedCount: 0 });
     }
     const byImportId = new Map<string, AccountCard>();
     for (const a of groups.values()) {
@@ -628,8 +623,6 @@ export default function TransactionsPageV2() {
       const a = byImportId.get(t.import_id || '');
       if (!a) return;
       if (t.import_id) importsWithActivity.add(t.import_id);
-      if (isIncomeTx(t)) a.totalIncome += Math.abs(t.amount);
-      else a.totalSpent += Math.abs(t.amount);
       if (needsCategory(t.category)) {
         a.uncategorizedCount += 1;
       }
@@ -666,21 +659,22 @@ export default function TransactionsPageV2() {
     return Array.from(years).sort((a, b) => b - a);
   }, [transactions, yearFilter]);
 
-  const filtered = useMemo(() => {
+  // Rows in the server scope (date / statement / account): compared with the server's count to
+  // tell when the loaded list is incomplete (AR-1b R4, interim until list paging).
+  const scoped = useMemo(() => {
     let list = transactions;
     const range = (rangeFrom || rangeTo) && !(rangeFrom && rangeTo && rangeFrom > rangeTo) ? { from: rangeFrom || undefined, to: rangeTo || undefined } : null;
     if (isRangeActive(range)) {
       // X-1: an active custom range replaces the year filter (calendar days, as in Categories).
       list = list.filter(t => inDateRange(calendarDayOfTx(t), range));
-    } else if (yearFilter !== 'all') {
+    } else if (yearFilter !== 'all' && statementFilter === 'all') {
+      // LA-2: a selected statement is its own scope; the year filter does not cut it.
       const y = String(yearFilter);
       list = list.filter(t => {
         const d = (t.date || t.posted_at || (t as any).transaction_date || (t as any).txn_date || '').slice(0, 4);
         return d === y;
       });
     }
-    if (filter === 'expenses') list = list.filter(t => !isIncomeTx(t));
-    else if (filter === 'income') list = list.filter(t => isIncomeTx(t));
     if (statementFilter !== 'all') list = list.filter(t => t.import_id === statementFilter);
     if (accountFilter !== 'all') {
       const acct = accounts.find(a => a.id === accountFilter);
@@ -689,6 +683,14 @@ export default function TransactionsPageV2() {
         list = list.filter(t => ids.has(t.import_id || ''));
       }
     }
+    return list;
+  }, [transactions, statementFilter, accountFilter, accounts, yearFilter, rangeFrom, rangeTo]);
+
+  const applyClientFilters = useCallback((input: CommittedTransaction[]) => {
+    let list = input;
+    // Same purposes as the engine's Actual Spending / Actual Income.
+    if (filter === 'expenses') list = list.filter(t => classifyRow(t).purpose === 'spending');
+    else if (filter === 'income') list = list.filter(t => classifyRow(t).purpose === 'income');
     if (needsCategoryOnly) list = list.filter(t => needsCategory(t.category));
     if (tagCategoryFilter) {
       list = list.filter(t => (t.category || '').toLowerCase() === tagCategoryFilter.toLowerCase());
@@ -709,43 +711,91 @@ export default function TransactionsPageV2() {
       });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [transactions, filter, statementFilter, accountFilter, accounts, searchQuery, tagCategoryFilter, tagSubcategoryFilter, yearFilter, rangeFrom, rangeTo, needsCategoryOnly]);
+  }, [filter, searchQuery, tagCategoryFilter, tagSubcategoryFilter, needsCategoryOnly]);
+  const filtered = useMemo(() => applyClientFilters(scoped), [applyClientFilters, scoped]);
 
-  const handleExport = useCallback(() => {
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const rows = filtered.map(t => [
-      t.date || t.posted_at?.slice(0, 10) || '',
-      escape(t.merchant_name || 'Unknown'),
-      (isIncomeTx(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
-      escape(t.category || 'Uncategorized'),
-      escape(t.import_id || ''),
-    ].join(','));
-    const csv = ['Date,Merchant,Amount,Category,Statement Source', ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [filtered]);
 
   // Duplicate detector — any tx flagged by the drawer's "Mark Duplicate"
   const isDuplicate = (t: CommittedTransaction): boolean =>
     ((t as any).is_duplicate === true) || (t.category === 'Duplicate');
 
-  // Stats — computed from filtered list, duplicates excluded
-  const totalSpent = useMemo(() => filtered.reduce((s, t) => (!isIncomeTx(t) && !isDuplicate(t)) ? s + Math.abs(t.amount) : s, 0), [filtered]);
-  const totalIncome = useMemo(() => filtered.reduce((s, t) => (isIncomeTx(t) && !isDuplicate(t)) ? s + Math.abs(t.amount) : s, 0), [filtered]);
-  const netFlow = totalIncome - totalSpent;
-
-  // Spending by category for the compact summary — duplicates excluded
-  const catData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(t => { if (!isIncomeTx(t) && !isDuplicate(t)) map[t.category || 'Other'] = (map[t.category || 'Other'] || 0) + Math.abs(t.amount); });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
-  }, [filtered]);
-  const catTotal = catData.reduce((s, d) => s + d.value, 0);
+  // UX-FST2-4 (owner 2026-11-26; AR-1b FR-008): the strip shows the shared engine's totals for
+  // the date + account/statement scope (server filters). Possible duplicates stay in the totals
+  // and are disclosed (owner). Client-only filters (type, review, category, search) show
+  // "N of M transactions shown" and NO money. No totals are computed in the browser.
+  const summaryReq: SummaryRequest | null = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const customRange = (rangeFrom || rangeTo) && !(rangeFrom && rangeTo && rangeFrom > rangeTo);
+    const dates = customRange
+      ? { startDate: rangeFrom || '2000-01-01', endDate: rangeTo || today }
+      : yearFilter === 'all' || statementFilter !== 'all' ? allTimeRange() : yearRange(Number(yearFilter));
+    if (statementFilter !== 'all') return { ...dates, importIds: [statementFilter] };
+    if (accountFilter !== 'all') {
+      const acct = accounts.find(a => a.id === accountFilter);
+      if (!acct || acct.importIds.length === 0) return null;
+      return { ...dates, importIds: acct.importIds };
+    }
+    return dates;
+  }, [rangeFrom, rangeTo, yearFilter, statementFilter, accountFilter, accounts]);
+  const financial = useFinancialSummary(summaryReq);
+  const sum = hasFigures(financial) ? financial.summary : null;
+  const clientOnlyFilter = filter !== 'all' || needsCategoryOnly || !!tagCategoryFilter || !!tagSubcategoryFilter || !!searchQuery;
+  const dupes = sum?.signals?.possibleDuplicates?.count ?? 0;
+  // The list holds fewer rows in scope than the server counted: older rows were not loaded.
+  const listIncomplete = !listReadComplete || (!!sum && scoped.length < sum.transactionCount);
+  // TX-EXPORT (owner 2026-11-26: no silent transaction limits; no incomplete export presented as
+  // complete). A view without client-only filters is exported by the SERVER (financial-export,
+  // kind 'rows'): every row in the date / account / statement scope, count-verified, or a refusal
+  // in the server's own words. Dates are sent only for a real date range, so an all-time statement
+  // export keeps undated rows. A filtered view (search, type, category, Needs category) is built
+  // from the complete paged list with the same columns, and refuses while the list is incomplete.
+  const handleExport = useCallback(async () => {
+    const allTime = !summaryReq || summaryReq.startDate === allTimeRange().startDate;
+    if (!clientOnlyFilter && summaryReq) {
+      const r = await fetchRowsExport({ importIds: summaryReq.importIds, ...(allTime ? {} : { startDate: summaryReq.startDate, endDate: summaryReq.endDate }) });
+      if (r.status === 'ok') {
+        saveBlob(r.blob, r.filename);
+        toast.success(r.count !== null ? `Exported ${r.count.toLocaleString('en-CA')} transaction${r.count === 1 ? '' : 's'}` : 'Export ready');
+      } else if (r.status === 'no_data') {
+        toast(r.message);
+      } else {
+        toast.error(r.message);
+      }
+      return;
+    }
+    let exportRows = filtered;
+    if (listIncomplete) {
+      if (!listReadTruncated) {
+        toast.error("Export stopped: not every transaction has loaded, so the file would be incomplete. Please try again.");
+        return;
+      }
+      // The account is over the read ceiling: read just this view's scope, completely, or refuse.
+      const ceiling = PAGED_SELECT_MAX_ROWS.toLocaleString('en-CA');
+      const narrow = summaryReq && (summaryReq.importIds || !allTime);
+      const tooBig = `Your account has more than ${ceiling} transactions, so this filtered view can't be exported yet. Clear the search or filters to export the full period, or choose a year, date range, account or statement.`;
+      if (!narrow || !userId || !summaryReq) { toast.error(tooBig); return; }
+      const res = await readTransactionsPaged({ userId, importIds: summaryReq.importIds, ...(allTime ? {} : { startDate: summaryReq.startDate, endDate: summaryReq.endDate }) });
+      if (!res.complete) { toast.error(res.truncated ? tooBig : "Export stopped: this period couldn't be read completely. Please try again."); return; }
+      exportRows = applyClientFilters(res.rows);
+    }
+    // Same columns as the server file (Date, Merchant, Amount, Category, Subcategory, Statement).
+    const accountByImport = new Map<string, string>();
+    for (const acct of accounts) for (const id of acct.importIds) accountByImport.set(id, acct.name);
+    const cell = (v: string) => {
+      const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v; // CSV-injection guard, as the server does
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
+    const rows = exportRows.map(t => [
+      t.date || t.posted_at?.slice(0, 10) || '',
+      cell(t.merchant_name || 'Unknown'),
+      (isInflowRow(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
+      cell(t.category || 'Uncategorized'),
+      cell(t.subcategory || ''),
+      cell(t.import_id ? accountByImport.get(t.import_id) || '' : ''),
+    ].join(','));
+    const csv = ['Date,Merchant,Amount,Category,Subcategory,Statement', ...rows].join('\r\n');
+    saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `xspensesai-transactions-filtered-${new Date().toISOString().slice(0, 10)}.csv`);
+  }, [filtered, listIncomplete, listReadTruncated, clientOnlyFilter, summaryReq, userId, applyClientFilters, accounts]);
 
   // Statement options for dropdown (each individual import with filename)
   const stmtOptions = useMemo(() => {
@@ -893,6 +943,13 @@ export default function TransactionsPageV2() {
             Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
             <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${mobileFiltersOpen ? 'rotate-180' : ''}`} />
           </button>
+          <button type="button" className="md:hidden flex items-center gap-1.5 rounded-[10px] border px-3 text-[14px] font-semibold"
+            onClick={() => setTagPanelOpen(true)}
+            aria-label={uncategorizedCount > 0 ? `Ask Tag — ${uncategorizedCount} need review` : 'Ask Tag'}
+            style={{ minHeight: 44, background: 'rgba(34,211,238,0.10)', borderColor: 'rgba(34,211,238,0.35)', color: '#67e8f9' }}>
+            Ask Tag
+            {uncategorizedCount > 0 && <span aria-hidden="true" className="rounded-full px-1.5 text-[12px] font-bold" style={{ background: '#ef4444', color: '#fff', lineHeight: '18px' }}>{uncategorizedCount}</span>}
+          </button>
           <div id="tx-filters" className={mobileFiltersOpen ? 'grid grid-cols-2 gap-2 w-full md:contents [&>*]:min-w-0 [&_select]:w-full md:[&_select]:w-auto' : 'hidden md:contents'}>
           <select aria-label="Year" value={yearFilter === 'all' ? 'all' : String(yearFilter)} disabled={!!(rangeFrom || rangeTo)}
             onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
@@ -996,7 +1053,7 @@ export default function TransactionsPageV2() {
           <div role="group" aria-label="Transaction type" className="flex p-1 rounded-[10px] bg-slate-800/40 border border-slate-700/30">
             {(['all', 'expenses', 'income'] as const).map(f => (
               <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`px-3.5 text-[13px] font-bold rounded-md transition-colors ${filter === f ? 'bg-slate-700/60 text-white' : 'text-slate-400 hover:text-slate-200'}`} style={{ minHeight: 36 }}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === 'all' ? 'All' : f === 'expenses' ? FINANCIAL_LABELS.actualSpending : FINANCIAL_LABELS.actualIncome}
               </button>
             ))}
           </div>
@@ -1005,7 +1062,8 @@ export default function TransactionsPageV2() {
         {/* TX-FIRST: a genuine transaction-first page. One summary strip; an optional compact
             summary opens under it (the dashboard-style account, KPI, chart and insight cards are gone from above the
             list). An account with no transactions gets one getting-started card instead. */}
-        {!isStatementMode && !hasNoTransactions && (
+        {/* LA-2: a single statement shows the same server strip, scoped to that statement. */}
+        {!hasNoTransactions && (
           <button
             type="button"
             onClick={() => setOverviewOpen(v => !v)}
@@ -1014,9 +1072,23 @@ export default function TransactionsPageV2() {
             aria-expanded={overviewOpen}
             aria-controls="tx-overview-content"
           >
-            <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{filtered.length}</strong> transaction{filtered.length !== 1 ? 's' : ''}</span>
-            <span className="text-[14px] text-slate-300">Spent <strong className="text-white tabular-nums">${fmt(totalSpent)}</strong></span>
-            <span className="text-[14px] text-slate-300">Income <strong className="text-emerald-300 tabular-nums">${fmt(totalIncome)}</strong></span>
+            {clientOnlyFilter ? (
+              <span className="text-[14px] text-slate-300" data-testid="tx-strip-filtered">
+                <strong className="text-white tabular-nums">{filtered.length}</strong>{sum ? <> of <strong className="text-white tabular-nums">{sum.transactionCount}</strong></> : null} transaction{(sum ? sum.transactionCount : filtered.length) !== 1 ? 's' : ''} shown
+                {listIncomplete && <span className="text-amber-200" data-testid="tx-strip-loaded"> ({scoped.length} loaded)</span>}
+                <span className="text-slate-400"> · totals hidden while filters are on</span>
+              </span>
+            ) : sum ? (
+              <>
+                <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{sum.transactionCount}</strong> transaction{sum.transactionCount !== 1 ? 's' : ''}</span>
+                <span className="text-[14px] text-slate-300">{FINANCIAL_LABELS.withdrawals} <strong className="text-white tabular-nums">{formatMoney(sum.labels.withdrawals.amount, sum.scope.currency)}</strong></span>
+                <span className="text-[14px] text-slate-300">{FINANCIAL_LABELS.deposits} <strong className="text-emerald-300 tabular-nums">{formatMoney(sum.labels.deposits.amount, sum.scope.currency)}</strong></span>
+                {listIncomplete && <span className="text-[14px] text-amber-200" data-testid="tx-strip-loaded">list shows the latest {scoped.length} loaded</span>}
+                {dupes > 0 && <span className="text-[14px] text-amber-200" data-testid="tx-strip-dupes">includes <strong className="tabular-nums">{dupes}</strong> possible duplicate{dupes !== 1 ? 's' : ''}</span>}
+              </>
+            ) : (
+              <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{filtered.length}</strong> transaction{filtered.length !== 1 ? 's' : ''}{financial.status === 'loading' ? '' : ' · figures unavailable'}</span>
+            )}
             {uncategorizedCount > 0 && <span className="text-[14px] text-amber-200"><strong className="tabular-nums">{uncategorizedCount}</strong> need review</span>}
             <span className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-slate-400">
               {overviewOpen ? 'Hide summary' : 'Summary'}
@@ -1024,24 +1096,39 @@ export default function TransactionsPageV2() {
             </span>
           </button>
         )}
-        {isStatementMode && (
-          <p style={{ fontSize: 13, color: '#9ba8bc', margin: '0 0 12px', fontWeight: 500 }}>
-            {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
-          </p>
-        )}
 
-        {!isStatementMode && !hasNoTransactions && overviewOpen && (
+        {!hasNoTransactions && overviewOpen && (
           <div id="tx-overview-content" className="mb-3 rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-3 flex flex-col gap-3">
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[14px] text-slate-300">
-              <span>Net <strong className={`tabular-nums ${netFlow >= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>{netFlow >= 0 ? '+' : '−'}${fmt(Math.abs(netFlow))}</strong></span>
-              {catData.slice(0, 4).map(d => (
-                <span key={d.name} className="flex items-center gap-1.5">
-                  <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: colorFor(d.name) }} />
-                  {d.name} <strong className="text-white tabular-nums">${fmt(d.value)}</strong>
-                  {catTotal > 0 && <span className="text-slate-500 tabular-nums">{Math.round((d.value / catTotal) * 100)}%</span>}
-                </span>
-              ))}
-            </div>
+            {clientOnlyFilter ? (
+              <p className="text-[14px] text-slate-400">Clear the filters to see totals for this period.</p>
+            ) : !sum ? (
+              <FinancialStateNotice state={financial} compact onRetry={financial.status !== 'loading' ? financial.refetch : undefined} />
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-[14px] text-slate-300">
+                  <span>{FINANCIAL_LABELS.netCashFlow} <strong className={`tabular-nums ${sum.labels.netCashFlow.amount >= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>{sum.labels.netCashFlow.amount > 0 ? '+' : ''}{formatMoney(sum.labels.netCashFlow.amount, sum.scope.currency)}</strong></span>
+                  <span>{FINANCIAL_LABELS.actualIncome} <strong className="text-white tabular-nums">{formatMoney(sum.labels.actualIncome.amount, sum.scope.currency)}</strong></span>
+                  <span>{FINANCIAL_LABELS.actualSpending} <strong className="text-white tabular-nums">{formatMoney(sum.labels.actualSpending.amount, sum.scope.currency)}</strong></span>
+                </div>
+                {sum.spendingByCategory.length > 0 && (
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-[14px] text-slate-300">
+                    {sum.spendingByCategory.slice(0, 4).map(d => (
+                      <span key={d.category} className="flex items-center gap-1.5">
+                        <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: colorFor(d.category) }} />
+                        {d.category} <strong className="text-white tabular-nums">{formatMoney(d.amount, sum.scope.currency)}</strong>
+                        <span className="text-slate-500 tabular-nums">{d.share}%</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {sum.dataQuality && sum.dataQuality.statementCoverage !== 'complete' && (
+                  <p className="text-[13px] text-slate-400" data-testid="totals-label">{sum.dataQuality.totalsLabel}</p>
+                )}
+                {dupes > 0 && (
+                  <p className="text-[13px] text-amber-200">These totals include {dupes} possible duplicate{dupes !== 1 ? 's' : ''} (the same transaction imported from two statements). Review them in the list.</p>
+                )}
+              </>
+            )}
             {accounts.length > 1 && (
               <div className="flex flex-wrap gap-2" role="group" aria-label="Account">
                 {[{ id: 'all', name: 'All accounts' }, ...accounts].map(a => (
@@ -1145,11 +1232,11 @@ export default function TransactionsPageV2() {
               {g.txs.map(t => {
                 const cat = t.category || 'Uncategorized';
                 const isUncat = needsCategory(t.category);
-                const isIncome = isIncomeTx(t);
+                const inflow = isInflowRow(t);
                 const isDupe = isDuplicate(t);
                 const accountName = t.import_id ? accountNameByImport.get(t.import_id) || null : null;
                 const dayText = formatCalendarDate(calendarDayOfTx(t), 'medium') || '';
-                const amountText = `${isIncome ? '+' : '-'}$${fmt(Math.abs(t.amount))}`;
+                const amountText = `${inflow ? '+' : '-'}$${fmt(Math.abs(t.amount))}`;
                 const categoryText = isUncat ? 'Needs a category' : `${cat}${t.subcategory ? ` \u00b7 ${t.subcategory}` : ''}`;
                 return (
                   <button key={t.id} data-tx-id={t.id} aria-current={highlightTxId === t.id ? 'true' : undefined}
@@ -1182,7 +1269,7 @@ export default function TransactionsPageV2() {
                       <span className="truncate">{categoryText}</span>
                     </span>
                     {/* Amount */}
-                    <span aria-hidden="true" className={`shrink-0 text-right text-[16px] md:text-[15px] font-bold tabular-nums ${isDupe ? 'text-red-400 line-through opacity-60' : isIncome ? 'text-emerald-400' : 'text-slate-100'}`}>{amountText}</span>
+                    <span aria-hidden="true" className={`shrink-0 text-right text-[16px] md:text-[15px] font-bold tabular-nums ${isDupe ? 'text-red-400 line-through opacity-60' : inflow ? 'text-emerald-400' : 'text-slate-100'}`}>{amountText}</span>
                     <ChevronRight aria-hidden="true" className="h-4 w-4 text-slate-500 shrink-0" />
                   </button>
                 );
@@ -1202,8 +1289,8 @@ export default function TransactionsPageV2() {
       </div>
 
       {/* Tag floating bubble */}
-      {!tagPanelOpen && !selectedTx && location.pathname.includes('/transactions') && createPortal(
-        <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setTagPanelOpen(true)} label="Open Tag Copilot" badgeCount={tagBadgeCount} pulse={badgePulse} />,
+      {!isPhone && !tagPanelOpen && !selectedTx && location.pathname.includes('/transactions') && createPortal(
+        <AgentFloatingBubble letter="T" color="#22d3ee" colorTo="#0891b2" onClick={() => setTagPanelOpen(true)} label="Open Tag Copilot" badgeCount={uncategorizedCount} pulse={badgePulse} />,
         document.body
       )}
 
@@ -1340,7 +1427,6 @@ export default function TransactionsPageV2() {
                           if (topM.length > 0) {
                             const lines = topM.map((m: any) => `\u2022 **${m.merchant_name}** \u00d7${m.transaction_count}`).join('\n');
                             setTagInjectedMsg(`I still have **${result.needs_review} transactions** that need your input. The biggest:\n\n${lines}\n\nWant to work through them now?`);
-                            setTagFollowupMerchants(topM);
                           }
                         } catch { /* silent */ }
                       }, 1000);
@@ -1353,142 +1439,7 @@ export default function TransactionsPageV2() {
           </div>
         );
       })()}
-      {tagPanelOpen && createPortal(<TagCopilotPanel focusedTransaction={tagPanelTx as any} totalCount={transactions.length} categorizedCount={transactions.filter(t => t.category && t.category !== 'Uncategorized' && t.category !== 'Other').length} flaggedCount={uncategorizedCount} avgConfidence={0} rulesCount={0} firstName={firstName} totalSpent={totalSpent} totalIncome={totalIncome} netFlow={netFlow} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} injectedFollowupMerchants={tagFollowupMerchants} onMerchantCategorize={async (merchantName, category) => {
-        try {
-          const sb = getSupabase(); if (!sb) return;
-          const { data: { session } } = await sb.auth.getSession(); if (!session) return;
-          const { data: matching } = await sb.from('transactions').select('id').ilike('merchant_name', `%${merchantName}%`).or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
-          const ids = matching?.map(t => t.id) ?? [];
-          if (ids.length > 0) {
-            await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category }] }) });
-            await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'save_rule', matchValue: merchantName, targetCategory: category, matchType: 'contains' }) });
-          }
-          void refetch(); void fetchTagInbox();
-        } catch { /* silent */ }
-      }} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} focusedAccountLabel={tagPanelTx ? tagPanelAccountLabel : null} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFollowupMerchants(null); setTagFromPrime(false); setHighlightTxId(null); }} onCategoryUpdated={() => { void refetch(); void fetchTagInbox(); }} onToggleActivity={() => setTagActivityOpen(v => !v)} onTagAction={async (action) => {
-        if (action.type === 'handoff') {
-          const slugMap: Record<string, string> = {
-            'prime-boss': 'prime-boss', 'prime': 'prime-boss',
-            'byte-docs': 'byte-docs', 'byte': 'byte-docs',
-            'goalie-goals': 'goalie-goals', 'goalie': 'goalie-goals',
-            'finley-forecasts': 'finley-forecasts', 'finley': 'finley-forecasts',
-            'crystal-analytics': 'crystal-analytics', 'crystal': 'crystal-analytics',
-            'ledger-tax': 'ledger-tax', 'ledger': 'ledger-tax',
-            'tag-ai': 'tag-ai', 'tag': 'tag-ai',
-          };
-          const targetSlug = slugMap[action.to || ''] || 'prime-boss';
-          setTagPanelOpen(false);
-          setTagPanelTx(null);
-          setTimeout(() => {
-            openChat({
-              initialEmployeeSlug: targetSlug,
-              initialQuestion: action.reason || undefined,
-              force: true,
-            });
-          }, 300);
-          return;
-        }
-        else if (action.type === 'filter') {
-          console.log('[onTagAction] filter fired:', action);
-          // Strip conversational noise from search term
-          const rawQ = (action.search || '').trim();
-          const cleanQ = rawQ.replace(/^(show me all of the|show me all of|show me all|show me|find me all|find all|all the|all)\s+/i, '').replace(/\s+(transactions?|purchases?|charges?)\s*$/i, '').trim();
-          // Only apply if it looks like a real merchant/category (not a question/sentence)
-          const questionWords = /^(how|can|what|where|when|why|who|is|are|do|does|show|find|get|them|there|all|my)\b/i;
-          if (cleanQ.length > 40 || questionWords.test(cleanQ) || cleanQ.split(' ').length > 3) return;
-          setStatementFilter('all');
-          setFilter('all');
-          const sp = new URLSearchParams(window.location.search);
-          if (sp.has('importId') || sp.has('category') || sp.has('filter')) {
-            sp.delete('importId'); sp.delete('category'); sp.delete('filter');
-            const clean = sp.toString();
-            window.history.replaceState({}, '', clean ? `?${clean}` : window.location.pathname);
-          }
-          setTimeout(() => setSearchQuery(cleanQ), 50);
-          // Auto-close Tag panel then scroll to results
-          setTimeout(() => { setTagPanelOpen(false); setTagPanelTx(null); }, 800);
-          setTimeout(() => { document.getElementById('tx-list-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 1000);
-          setTagCategoryFilter(action.category || '');
-          setTagSubcategoryFilter(action.subcategory || '');
-          const label = action.category || action.subcategory || cleanQ;
-          setTagFilterLabel(label);
-          setTimeout(() => { document.getElementById('tx-list-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
-        }
-        else if (action.type === 'update_transaction' && action.id && action.category) {
-          try {
-            const sb = getSupabase(); if (!sb) return;
-            const { data: { session: s } } = await sb.auth.getSession(); if (!s) return;
-            const payload: Record<string, unknown> = { category: action.category, category_source: 'user_chat', updated_at: new Date().toISOString() };
-            if (action.subcategory) payload.subcategory = action.subcategory;
-            if (action.merchant) { payload.merchant_name = action.merchant; payload.merchant = action.merchant; }
-            await sb.from('transactions').update(payload).eq('id', action.id).eq('user_id', s.user.id);
-            // Save rule if merchant is known
-            if (action.saveRule && (action.merchant || selectedTx?.merchant_name)) {
-              const pattern = (action.merchant || selectedTx?.merchant_name || '').toUpperCase();
-              if (pattern) {
-                // Query builders have no .catch(): the old `.upsert(...).catch(...)` threw AFTER the
-                // category update succeeded, so the rule was never saved and the row flash / refresh /
-                // drawer update below were silently skipped (customer saw the old category).
-                const { error: ruleErr } = await sb.from('category_rules').upsert({
-                  user_id: s.user.id, match_value: pattern, merchant_pattern: pattern, match_type: 'contains',
-                  category: action.category, subcategory: action.subcategory || null, is_active: true, updated_at: new Date().toISOString(),
-                }, { onConflict: 'user_id,merchant_pattern' });
-                if (ruleErr) console.error('[update_transaction] save rule failed');
-              }
-            }
-            // Flash the row briefly
-            const el = document.getElementById(`tx-row-${action.id}`);
-            if (el) { el.style.transition = 'background 0.3s'; el.style.background = 'rgba(34,211,238,0.12)'; setTimeout(() => { el.style.background = ''; }, 1500); }
-            void refetch(); void fetchTagInbox();
-            // Update selectedTx in drawer if it matches
-            if (selectedTx?.id === action.id) {
-              setSelectedTx(prev => prev ? { ...prev, category: action.category, subcategory: action.subcategory || prev.subcategory, merchant_name: action.merchant || prev.merchant_name } : null);
-            }
-          } catch { /* silent */ }
-        }
-        else if (action.type === 'bulk_change' && action.merchant && !action.confirm) {
-          try {
-            const sb = getSupabase(); if (!sb) return;
-            const { data: { session } } = await sb.auth.getSession(); if (!session) return;
-            const { data: matching } = await sb.from('transactions').select('id, category').eq('user_id', session.user.id).ilike('merchant_name', `%${action.merchant}%`);
-            const ids = matching?.map(t => t.id) ?? [];
-            const prevCat = matching?.[0]?.category ?? 'Needs Review';
-            await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category: action.category }] }) });
-            setLastBulkAction({ ids, previousCategory: prevCat });
-            void refetch(); void fetchTagInbox();
-          } catch { /* silent */ }
-        }
-        else if (action.type === 'undo' && lastBulkAction) {
-          try {
-            const sb = getSupabase(); if (!sb) return;
-            const { data: { session } } = await sb.auth.getSession(); if (!session) return;
-            await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'undo', affectedIds: lastBulkAction.ids, previousCategory: lastBulkAction.previousCategory }) });
-            setLastBulkAction(null); void refetch();
-          } catch { /* silent */ }
-        }
-        else if (action.type === 'reclassify_preview') {
-          try {
-            const sb = getSupabase(); if (!sb) return;
-            const { data: { session } } = await sb.auth.getSession(); if (!session) return;
-            const res = await fetch('/.netlify/functions/tag-reclassify-other?preview=true', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
-            const d = await res.json();
-            if (d.ok) setReclassifyPreview(d);
-          } catch { /* silent */ }
-        }
-        else if (action.type === 'categorize' && action.merchant && action.category) {
-          try {
-            const sb = getSupabase(); if (!sb) return;
-            const { data: { session } } = await sb.auth.getSession(); if (!session) return;
-            const { data: matching } = await sb.from('transactions').select('id').ilike('merchant_name', `%${action.merchant}%`).or('category.eq.Needs Review,category.eq.Other,category.eq.Uncategorized,category.is.null');
-            const ids = matching?.map(t => t.id) ?? [];
-            if (ids.length > 0) {
-              await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'bulk_apply', groups: [{ ids, category: action.category, subcategory: action.subcategory ?? null }] }) });
-              await fetch('/.netlify/functions/tag-action', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ intent: 'save_rule', matchValue: action.merchant, targetCategory: action.category, targetSubcategory: action.subcategory ?? null, matchType: 'contains' }) });
-            }
-            void refetch(); void fetchTagInbox();
-          } catch { /* silent */ }
-        }
-      }} />, document.body)}
+      {tagPanelOpen && createPortal(<TagCopilotPanel focusedTransaction={tagPanelTx as any} totalCount={transactions.length} categorizedCount={transactions.filter(t => t.category && t.category !== 'Uncategorized' && t.category !== 'Other').length} flaggedCount={uncategorizedCount} avgConfidence={0} rulesCount={0} firstName={firstName} importId={isStatementMode ? statementFilter : undefined} importLabel={isStatementMode ? activeStatementLabel : undefined} importTxCount={isStatementMode ? filtered.length : undefined} injectedMessage={tagInjectedMsg} onBackToPrime={tagFromPrime ? handleBackToPrime : undefined} focusedAccountLabel={tagPanelTx ? tagPanelAccountLabel : null} onBackToTransaction={tagPanelTx ? () => { const tx = tagPanelTx as CommittedTransaction; setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFromPrime(false); setHighlightTxId(null); setSelectedTx(tx); setTagInsight(null); void fetchTagInsight(tx); } : undefined} onClose={() => { setTagPanelOpen(false); setTagPanelTx(null); setTagPanelAccountLabel(null); setTagInjectedMsg(null); setTagFromPrime(false); setHighlightTxId(null); }} />, document.body)}
 
       {/* Drawer — portalled to body to escape any stacking context from DashboardLayout */}
       {createPortal(

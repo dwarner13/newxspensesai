@@ -40,7 +40,8 @@ describe('HONEST-1 — no example goals or debts', () => {
     expect(read('src/pages/DashboardV2/useDashboardData.ts')).not.toMatch(/Since your last visit|High confidence across the board/);
     const story = read('src/pages/MyStoryV2/MyFinancialStoryV2.tsx');
     expect(story).not.toMatch(/Personal Care dominates|Dining acceleration|\$820-\$985|April deadline|\{c\.confidence\}%/);
-    expect(story).toMatch(/\$\{data\.categoryBreakdown\[0\]\.cat\} is your largest spending category/);
+    // UX-FST2-3: the top-category line is now the server's top_category insight (fixed wording).
+    expect(story).toMatch(/\{data\.topCategoryText \?\? "No spending to summarise yet\."\}/);
     const debt = read('src/pages/GoalsDebtV2/DebtTracker.tsx');
     expect(debt).not.toMatch(/Save \$340|\$500\/mo extra/);
     expect(debt).toMatch(/No debts recorded\./);

@@ -17,25 +17,14 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
   // Universal conversation history: the shared hook (restore, resume, history, New conversation).
   const { messages, sendMessage, sessionId, history, openConversation, startNewConversation } = useEmployeeChat("crystal-analytics", {
     employeeSlug: "crystal-ai",
+    // UX-FST2-3: no browser money in AI context (the server drops it anyway; FST-1 / P-G2).
+    // Counts only. Crystal's figures must come from the server; Crystal's chat tools still do their
+    // own sums, and their compliance is tracked under AR-1b FR-035…043 (not guaranteed yet).
     additionalPrimeContext: data.loading ? undefined : {
-      totalIncome: data.income,
-      totalSpent: data.expenses,
-      netPosition: data.netPosition,
       transactionCount: data.transactionCount,
       statementCount: data.statementCount,
       periodStart: data.periodStart,
       periodEnd: data.periodEnd,
-      categorySummary: data.categoryBreakdown.slice(0, 10).map(c => ({
-        category: c.cat,
-        amount: c.amount,
-        pct: c.pct,
-      })),
-      trends: data.trends.map(t => ({
-        label: t.label,
-        trend: t.trend,
-        pct: t.pct,
-        months: t.months,
-      })),
     },
   });
   const [open, setOpen] = useState(false);
@@ -45,9 +34,8 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
   useEffect(() => { requestAnimationFrame(() => setOpen(true)); }, []);
   const handleClose = () => { setOpen(false); setTimeout(onClose, 300); };
 
-  const NON_SPEND = new Set(["Transfers", "Transfer", "Loan Payments", "Credit Card Payments", "Investments", "Debt Payments", "Income"]);
-  const topCat = data.categoryBreakdown.find(c => !NON_SPEND.has(c.cat));
-  const statusText = `I've been tracking your spending patterns across ${data.categoryBreakdown.length} categories. ${topCat ? `${topCat.cat} is your top spend at ${topCat.pct}%.` : ""} ${data.trends.filter(t => t.trend === "up").length > 0 ? `I spotted ${data.trends.filter(t => t.trend === "up").length} accelerating trend${data.trends.filter(t => t.trend === "up").length !== 1 ? "s" : ""}.` : "No concerning trends detected."}`;
+  // Server insights only: the top-category line and the spending claim (no client trend counting).
+  const statusText = [data.topCategoryText, data.spendingClaimText].filter(Boolean).join(" ") || "Your spending insights will appear here once your figures are available.";
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
@@ -87,11 +75,11 @@ export function CrystalCopilotPanel({ onClose, data }: Props) {
 
           {typeDone && data.trends.length > 0 && (
             <Reveal delay={200} style={{ marginLeft: 38, marginBottom: 24 }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: PURPLE, marginBottom: 12 }}>Trend Alerts</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, fontWeight: 700, color: PURPLE, marginBottom: 12 }}>Spending Trends</div>
               {data.trends.map((t, i) => (
                 <div key={t.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, marginBottom: 8 }}>
-                  <div><div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t.label}</div><div style={{ fontSize: 10, color: T.dim }}>{t.months}</div></div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: t.trend === "up" ? "#f87171" : t.trend === "down" ? "#34d399" : T.dim }}>{t.pct}</span>
+                  <div style={{ minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{t.label}</div><div style={{ fontSize: 10, color: T.dim, lineHeight: 1.4 }}>{t.text}</div></div>
+                  <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", marginLeft: 8, color: t.direction === "up" ? "#f87171" : t.direction === "down" ? "#34d399" : T.dim }}>{t.kind === "stable" ? "Steady" : `${t.direction === "up" ? "\u2191" : "\u2193"} ${t.percent}%`}</span>
                 </div>
               ))}
             </Reveal>
