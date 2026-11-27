@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { NEEDS_CATEGORY_OR_FILTER } from '../../src/shared/needs-category-rule';
 import { gateReplyForCoverage } from '../../src/shared/comparison-claim-guard';
 import { loadStatementCoverage, type CoverageDbClient } from '../../src/shared/statement-coverage';
 import { logAiActivity } from './_shared/logAiActivity.js';
@@ -227,7 +228,7 @@ export function buildSystemPrompt(
 RULES I HAVE LEARNED (vendor → category):
 ${rulesText}
 
-TRANSACTIONS NEEDING A CATEGORY (newest):
+TRANSACTIONS NEEDING A CATEGORY (newest; up to 5 EXAMPLES — not the full list and not a total. Never add these amounts up):
 ${flaggedText}`;
 
   return `You are Tag — XspensesAI's sharp, friendly categorization expert. You are speaking with the user from the Categories dashboard. Your job is categorization: categories, subcategories, merchant names and the rules you have learned.
@@ -528,7 +529,7 @@ export const handler: Handler = async (event) => {
         .from('transactions')
         .select('amount, category, merchant_name')
         .eq('user_id', auth.userId)
-        .or('category.is.null,category.eq.,category.eq.Uncategorized,category.eq.Needs Review')
+        .or(NEEDS_CATEGORY_OR_FILTER)
         .order('posted_at', { ascending: false, nullsFirst: false });
       if (importId) flaggedQuery = flaggedQuery.eq('import_id', importId);
       const { data: flaggedData } = await flaggedQuery.limit(5);

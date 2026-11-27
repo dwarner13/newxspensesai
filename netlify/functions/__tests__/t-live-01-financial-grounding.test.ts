@@ -249,14 +249,19 @@ describe('T-LIVE-01 — search totals (a partial sample presented as a total, re
 });
 
 describe('T-LIVE-01 — categorization progress (full scope, customer-kept "Other" preserved)', () => {
-  it('Other kept by the customer is not unfinished; automatic Other is', () => {
+  // LA-4 (owner-approved review rule, needs-category-rule.ts): only no category / Uncategorized / Needs
+  // Review need review; an automatic Other is reported separately but is not counted, so Prime and Tag agree.
+  it('Other (kept or automatic) never counts as needing review; automatic Other is reported separately', () => {
     const p = categorizationProgressFromCounts({ total: 100, uncategorized: 0, needsReview: 0, otherTotal: 7, otherUnconfirmed: 0 }, 'all');
     expect(p.allCategorized).toBe(true);
     expect(p.otherKeptByCustomer).toBe(7);
     expect(formatProgressBlock(p)).toContain('everything in this scope is categorized');
     const q = categorizationProgressFromCounts({ total: 100, uncategorized: 0, needsReview: 2, otherTotal: 7, otherUnconfirmed: 3 }, 'all');
     expect(q.allCategorized).toBe(false);
-    expect(q.unfinished).toBe(5);
+    expect(q.unfinished).toBe(2);
+    expect(q.otherUnconfirmed).toBe(3);
+    expect(formatProgressBlock(q)).toContain('"Other" chosen automatically (not confirmed; does not need review');
+    expect(formatProgressBlock(q)).toMatch(/NEVER add up transaction amounts yourself/);
     expect(formatProgressBlock(q)).toContain('Do NOT say everything is categorized');
   });
   it('unavailable counts never allow a completeness claim', () => {
@@ -395,5 +400,25 @@ describe('T-LIVE-01 / P-G4 — legacy tag-chat no longer presents capped totals 
   it('formatCents is exact for large values', () => {
     expect(formatCents(123456789)).toBe('$1,234,567.89');
     expect(formatCents(0)).toBe('$0.00');
+  });
+});
+
+describe('LA-4 — Tag uses the ONE owner-approved review rule (Prime×Tag parity)', () => {
+  it('progress counts and the example list use exactly needs-category-rule; no model-made review total', async () => {
+    const { readFileSync } = await import('fs');
+    const { resolve } = await import('path');
+    const ctx = readFileSync(resolve(__dirname, '../_shared/tagFinancialContext.ts'), 'utf8');
+    const rule = await import('../../../src/shared/needs-category-rule');
+    // The two count queries together are NEEDS_CATEGORY_OR_FILTER, case-insensitive, with no "Other".
+    expect(rule.NEEDS_CATEGORY_OR_FILTER).toBe('category.is.null,category.eq.,category.ilike.uncategorized,category.ilike.needs review');
+    expect(ctx).toContain("base().or('category.is.null,category.eq.,category.ilike.uncategorized')");
+    expect(ctx).toContain("base().ilike('category', 'needs review')");
+    expect(ctx).toMatch(/const unfinished = counts\.uncategorized \+ counts\.needsReview;/);
+    const copilot = readFileSync(resolve(__dirname, '../tag-copilot.ts'), 'utf8');
+    expect(copilot).toContain('.or(NEEDS_CATEGORY_OR_FILTER)');
+    expect(copilot).toMatch(/EXAMPLES — not the full list and not a total\. Never add these amounts up/);
+    // Same rule as the shared helper on synthetic rows.
+    const rows = [{ category: null }, { category: '' }, { category: 'uncategorized' }, { category: 'Needs Review' }, { category: 'Other' }, { category: 'Groceries' }];
+    expect(rule.countNeedsCategory(rows)).toBe(4);
   });
 });

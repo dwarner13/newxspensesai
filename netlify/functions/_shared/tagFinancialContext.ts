@@ -90,7 +90,10 @@ export interface CategorizationProgress {
   total: number;
   uncategorized: number;
   needsReview: number;
-  /** Other not confirmed by the customer (automatic or unknown source). */
+  /**
+   * "Other" chosen automatically (not confirmed by the customer). Informational only: under the ONE
+   * owner-approved review rule (src/shared/needs-category-rule.ts) it does NOT need review.
+   */
   otherUnconfirmed: number;
   /** Protected Other (customer-set or origin unverified): never "unfinished". */
   otherKeptByCustomer: number;
@@ -338,7 +341,9 @@ export function categorizationProgressFromCounts(
     return { available: false, scopeLabel, total: 0, uncategorized: 0, needsReview: 0, otherUnconfirmed: 0, otherKeptByCustomer: 0, allCategorized: null, unfinished: 0 };
   }
   const otherUnconfirmed = Math.min(counts.otherUnconfirmed, counts.otherTotal);
-  const unfinished = counts.uncategorized + counts.needsReview + otherUnconfirmed;
+  // LA-4 (Prime×Tag parity, owner rule 2026-11-25/26): "needs review" = no category, Uncategorized or
+  // Needs Review — exactly needsCategory(); an "Other" is never counted, so Tag and Prime agree.
+  const unfinished = counts.uncategorized + counts.needsReview;
   return {
     available: true,
     scopeLabel,
@@ -360,11 +365,13 @@ export function formatProgressBlock(p: CategorizationProgress): string {
     `CATEGORIZATION PROGRESS (exact counts across ${p.scopeLabel}: ${plural(p.total, 'transaction')})`,
     `  Uncategorized: ${p.uncategorized}`,
     `  Needs Review: ${p.needsReview}`,
-    `  "Other" not yet confirmed by the customer: ${p.otherUnconfirmed}`,
+    `  "Other" chosen automatically (not confirmed; does not need review — you may offer to check them): ${p.otherUnconfirmed}`,
     `  "Other" protected (set by the customer or origin unverified — never call it customer-approved): ${p.otherKeptByCustomer} (never count as unfinished and never propose changing)`,
     p.allCategorized
       ? `  Status: everything in this scope is categorized.`
       : `  Status: ${plural(p.unfinished, 'transaction')} still need a category. Do NOT say everything is categorized.`,
+    // LA-4: no review AMOUNT is served yet; the model must never assemble one.
+    `  Amount needing review: not available here. NEVER add up transaction amounts yourself; if asked for that total, say you can't state it yet.`,
   ].join('\n');
 }
 
@@ -390,8 +397,9 @@ export async function loadCategorizationProgress(
     const kept = CUSTOMER_KEPT_SOURCES.join(',');
     const results = await Promise.all([
       base(),
-      base().or('category.is.null,category.eq.,category.eq.Uncategorized'),
-      base().eq('category', 'Needs Review'),
+      // The ONE review rule (needs-category-rule.ts): case-insensitive, as NEEDS_CATEGORY_OR_FILTER.
+      base().or('category.is.null,category.eq.,category.ilike.uncategorized'),
+      base().ilike('category', 'needs review'),
       base().eq('category', 'Other'),
       base().eq('category', 'Other').or(`category_source.is.null,category_source.not.in.(${kept})`),
     ]);
