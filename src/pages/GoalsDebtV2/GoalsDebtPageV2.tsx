@@ -115,8 +115,8 @@ export default function GoalsDebtPageV2() {
         {[
           { label: "Goal Progress", value: `${goalPct}%`, sub: `$${data.totalGoalCurrent.toLocaleString()} / $${data.totalGoalTarget.toLocaleString()}`, color: "#34d399", icon: "\uD83C\uDFAF" },
           { label: "Total Debt", value: `$${data.totalDebt.toLocaleString()}`, sub: `${data.debts.length} accounts`, color: "#f87171", icon: "\uD83D\uDCB3" },
-          { label: "Monthly Savings", value: `$${data.monthlySavings}`, sub: "Latest month", color: "#60a5fa", icon: "\uD83D\uDCB0" },
-          { label: "Debt-Free Date", value: `${data.debtFreeMonths > 0 ? Math.ceil(data.debtFreeMonths / 12) > 1 ? `${data.debtFreeMonths} mo` : `${data.debtFreeMonths} mo` : "N/A"}`, sub: "At current pace", color: "#a78bfa", icon: "\uD83D\uDCC5" },
+          { label: "Avg Net Cash Flow", value: data.averageNetCashFlowPerPeriod !== null ? `${data.averageNetCashFlowPerPeriod > 0 ? "+" : ""}$${Math.abs(data.averageNetCashFlowPerPeriod).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${data.averageNetCashFlowPerPeriod < 0 ? " out" : ""}` : "Not enough history", sub: data.averageNetCashFlowPerPeriod !== null ? `Per statement period (${data.periodsUsed})` : "Needs complete statement periods", color: "#60a5fa", icon: "\uD83D\uDCB0" },
+          { label: "Debt-Free Date", value: "Not available yet", sub: "Projections aren't calculated yet", color: "#a78bfa", icon: "\uD83C\uDFAF" },
         ].map((s, i) => (
           <Reveal key={s.label} delay={100 + i * 60} style={{ flex: isMobile ? "1 1 calc(50% - 6px)" : 1 }}>
             <div style={{

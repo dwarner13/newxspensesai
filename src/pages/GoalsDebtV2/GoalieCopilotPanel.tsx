@@ -29,7 +29,7 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
   const hasPlan = data.goals.length > 0 || data.debts.length > 0;
   const statusText = !hasPlan
     ? (data.unavailable ? "Goal and debt tracking isn't set up yet, so I have nothing of yours to summarise. I won't use example figures." : data.loadError ? "I couldn't load your goals and debts just now, so I won't guess at them. Please try again shortly." : "You haven't added any goals or debts yet. Add one on this page and I'll help you plan for it.")
-    : `You're ${goalPct}% toward your total goal target of $${data.totalGoalTarget.toLocaleString()}. ${data.totalDebt > 0 ? `You also have $${data.totalDebt.toLocaleString()} in total debt.` : ""} ${data.monthlySavings > 0 ? `At $${data.monthlySavings.toLocaleString()}/mo savings, you're making progress.` : "Let\'s work on building your savings rate."}`;
+    : `You're ${goalPct}% toward your total goal target of $${data.totalGoalTarget.toLocaleString()}. ${data.totalDebt > 0 ? `You also have $${data.totalDebt.toLocaleString()} in total debt.` : ""} ${data.averageNetCashFlowPerPeriod !== null ? `Your Net Cash Flow averages $${data.averageNetCashFlowPerPeriod.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per statement period.` : "Once you have complete statement periods, I can show your average Net Cash Flow."}`;
   const [typed, typeDone] = useTypewriter(statusText, 14, 500);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [typed, messages.length]);
@@ -71,7 +71,7 @@ export function GoalieCopilotPanel({ onClose, data }: Props) {
                 {[
                   { label: "Goals", value: String(data.goals.length), color: YELLOW },
                   { label: "Debts", value: String(data.debts.length), color: "#f87171" },
-                  { label: "Savings/mo", value: `$${data.monthlySavings.toLocaleString()}`, color: "#34d399" },
+                  { label: "Avg net / period", value: data.averageNetCashFlowPerPeriod !== null ? `$${data.averageNetCashFlowPerPeriod.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Not enough history", color: "#34d399" },
                   { label: "Progress", value: `${goalPct}%`, color: "#60a5fa" },
                 ].map(s => (
                   <div key={s.label} style={{ minWidth: 0, padding: "10px 12px", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, textAlign: "center" }}>
