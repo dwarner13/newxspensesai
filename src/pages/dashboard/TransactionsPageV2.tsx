@@ -667,7 +667,8 @@ export default function TransactionsPageV2() {
     if (isRangeActive(range)) {
       // X-1: an active custom range replaces the year filter (calendar days, as in Categories).
       list = list.filter(t => inDateRange(calendarDayOfTx(t), range));
-    } else if (yearFilter !== 'all') {
+    } else if (yearFilter !== 'all' && statementFilter === 'all') {
+      // LA-2: a selected statement is its own scope; the year filter does not cut it.
       const y = String(yearFilter);
       list = list.filter(t => {
         const d = (t.date || t.posted_at || (t as any).transaction_date || (t as any).txn_date || '').slice(0, 4);
@@ -727,7 +728,7 @@ export default function TransactionsPageV2() {
     const customRange = (rangeFrom || rangeTo) && !(rangeFrom && rangeTo && rangeFrom > rangeTo);
     const dates = customRange
       ? { startDate: rangeFrom || '2000-01-01', endDate: rangeTo || today }
-      : yearFilter === 'all' ? allTimeRange() : yearRange(Number(yearFilter));
+      : yearFilter === 'all' || statementFilter !== 'all' ? allTimeRange() : yearRange(Number(yearFilter));
     if (statementFilter !== 'all') return { ...dates, importIds: [statementFilter] };
     if (accountFilter !== 'all') {
       const acct = accounts.find(a => a.id === accountFilter);
@@ -1061,7 +1062,8 @@ export default function TransactionsPageV2() {
         {/* TX-FIRST: a genuine transaction-first page. One summary strip; an optional compact
             summary opens under it (the dashboard-style account, KPI, chart and insight cards are gone from above the
             list). An account with no transactions gets one getting-started card instead. */}
-        {!isStatementMode && !hasNoTransactions && (
+        {/* LA-2: a single statement shows the same server strip, scoped to that statement. */}
+        {!hasNoTransactions && (
           <button
             type="button"
             onClick={() => setOverviewOpen(v => !v)}
@@ -1094,13 +1096,8 @@ export default function TransactionsPageV2() {
             </span>
           </button>
         )}
-        {isStatementMode && (
-          <p style={{ fontSize: 13, color: '#9ba8bc', margin: '0 0 12px', fontWeight: 500 }}>
-            {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
-          </p>
-        )}
 
-        {!isStatementMode && !hasNoTransactions && overviewOpen && (
+        {!hasNoTransactions && overviewOpen && (
           <div id="tx-overview-content" className="mb-3 rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-3 flex flex-col gap-3">
             {clientOnlyFilter ? (
               <p className="text-[14px] text-slate-400">Clear the filters to see totals for this period.</p>

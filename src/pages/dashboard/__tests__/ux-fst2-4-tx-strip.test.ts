@@ -59,6 +59,11 @@ describe('UX-FST2-4 Transactions strip', () => {
     expect(code).toMatch(/'Date,Merchant,Amount,Category,Subcategory,Statement'/);
     expect(code).not.toMatch(/Statement Source/);
   });
+  it('LA-2: a single statement shows the server strip for the whole statement', () => {
+    expect(code).not.toMatch(/!isStatementMode && !hasNoTransactions/);
+    expect(code).toMatch(/\} else if \(yearFilter !== 'all' && statementFilter === 'all'\) \{/);
+    expect(code).toMatch(/yearFilter === 'all' \|\| statementFilter !== 'all' \? allTimeRange\(\)/);
+  });
   it('says when the loaded list is incomplete', () => {
     expect(code).toMatch(/\(\{scoped\.length\} loaded\)/);
   });

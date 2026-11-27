@@ -63,7 +63,8 @@ describe('summary strip and overview', () => {
     expect(page).not.toMatch(/PieChart|ResponsiveContainer/);
     expect(page).not.toMatch(/label: 'Total Spent'/);
     // the compact summary renders only when opened, and starts closed
-    expect(page).toMatch(/\{!isStatementMode && !hasNoTransactions && overviewOpen && \(\s*<div id="tx-overview-content"/);
+    // LA-2: the compact summary is also available for a single statement (server figures, statement scope).
+    expect(page).toMatch(/\{!hasNoTransactions && overviewOpen && \(\s*<div id="tx-overview-content"/);
     expect(page).toMatch(/getItem\('xai\.tx\.summary\.open'\) === '1'/);
   });
 
