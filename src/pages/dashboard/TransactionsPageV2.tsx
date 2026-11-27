@@ -756,7 +756,10 @@ export default function TransactionsPageV2() {
       const narrow = summaryReq && (summaryReq.importIds || summaryReq.startDate !== allTimeRange().startDate);
       const tooBig = `Your account has more than ${ceiling} transactions, so this view can't be exported from this page yet. Choose a year, date range, account or statement and export again.`;
       if (!narrow || !userId || !summaryReq) { toast.error(tooBig); return; }
-      const res = await readTransactionsPaged({ userId, importIds: summaryReq.importIds, startDate: summaryReq.startDate, endDate: summaryReq.endDate });
+      // A statement / account export over all time must not drop undated rows: only a real date
+      // range filters on `date`.
+      const allTime = summaryReq.startDate === allTimeRange().startDate;
+      const res = await readTransactionsPaged({ userId, importIds: summaryReq.importIds, ...(allTime ? {} : { startDate: summaryReq.startDate, endDate: summaryReq.endDate }) });
       if (!res.complete) { toast.error(res.truncated ? tooBig : "Export stopped: this period couldn't be read completely. Please try again."); return; }
       exportRows = applyClientFilters(res.rows);
     }
@@ -1217,11 +1220,11 @@ export default function TransactionsPageV2() {
               {g.txs.map(t => {
                 const cat = t.category || 'Uncategorized';
                 const isUncat = needsCategory(t.category);
-                const isIncome = isInflowRow(t);
+                const inflow = isInflowRow(t);
                 const isDupe = isDuplicate(t);
                 const accountName = t.import_id ? accountNameByImport.get(t.import_id) || null : null;
                 const dayText = formatCalendarDate(calendarDayOfTx(t), 'medium') || '';
-                const amountText = `${isIncome ? '+' : '-'}$${fmt(Math.abs(t.amount))}`;
+                const amountText = `${inflow ? '+' : '-'}$${fmt(Math.abs(t.amount))}`;
                 const categoryText = isUncat ? 'Needs a category' : `${cat}${t.subcategory ? ` \u00b7 ${t.subcategory}` : ''}`;
                 return (
                   <button key={t.id} data-tx-id={t.id} aria-current={highlightTxId === t.id ? 'true' : undefined}
@@ -1254,7 +1257,7 @@ export default function TransactionsPageV2() {
                       <span className="truncate">{categoryText}</span>
                     </span>
                     {/* Amount */}
-                    <span aria-hidden="true" className={`shrink-0 text-right text-[16px] md:text-[15px] font-bold tabular-nums ${isDupe ? 'text-red-400 line-through opacity-60' : isIncome ? 'text-emerald-400' : 'text-slate-100'}`}>{amountText}</span>
+                    <span aria-hidden="true" className={`shrink-0 text-right text-[16px] md:text-[15px] font-bold tabular-nums ${isDupe ? 'text-red-400 line-through opacity-60' : inflow ? 'text-emerald-400' : 'text-slate-100'}`}>{amountText}</span>
                     <ChevronRight aria-hidden="true" className="h-4 w-4 text-slate-500 shrink-0" />
                   </button>
                 );

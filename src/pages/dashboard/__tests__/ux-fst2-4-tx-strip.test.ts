@@ -29,7 +29,7 @@ describe('UX-FST2-4 Transactions strip', () => {
     expect(code).toMatch(/classifyRow\(t\)\.purpose === 'spending'/);
     expect(code).toMatch(/classifyRow\(t\)\.purpose === 'income'/);
     expect(code).toMatch(/\(isInflowRow\(t\) \? '' : '-'\)/); // CSV sign
-    expect(code).toMatch(/const isIncome = isInflowRow\(t\);/); // row sign
+    expect(code).toMatch(/const inflow = isInflowRow\(t\);/); // row sign
     expect(code).toMatch(/FINANCIAL_LABELS\.actualSpending : FINANCIAL_LABELS\.actualIncome/); // filter labels
   });
   it('TX-PAGING: paged complete read; incomplete list is stated; export refuses when incomplete', () => {
@@ -46,7 +46,9 @@ describe('UX-FST2-4 Transactions strip', () => {
   });
   it('over the ceiling: honest message, and a scoped export read completely or refused', () => {
     expect(code).toMatch(/Your account has more than \$\{ceiling\} transactions, so this view can't be exported from this page yet/);
-    expect(code).toMatch(/await readTransactionsPaged\(\{ userId, importIds: summaryReq\.importIds, startDate: summaryReq\.startDate, endDate: summaryReq\.endDate \}\)/);
+    expect(code).toMatch(/await readTransactionsPaged\(\{ userId, importIds: summaryReq\.importIds, \.\.\.\(allTime \? \{\} : \{ startDate: summaryReq\.startDate, endDate: summaryReq\.endDate \}\) \}\)/);
+    // statement / account exports over all time keep undated rows (no date filter)
+    expect(code).toMatch(/const allTime = summaryReq\.startDate === allTimeRange\(\)\.startDate;/);
     expect(code).toMatch(/if \(!res\.complete\)/);
     expect(code).toMatch(/exportRows = applyClientFilters\(res\.rows\)/);
     expect(code).toMatch(/const filtered = useMemo\(\(\) => applyClientFilters\(scoped\)/);

@@ -3,7 +3,7 @@
  * Every money figure, count and claim comes from the shared financial engine through
  * useFinancialSummary (fst2-summary-2). This file does no money arithmetic, applies no
  * income or spending rule of its own, and makes no month comparison: the browser income
- * regex, the calendar-month trends, the 'Deductions Found' label sum and the 3-month
+ * regex, the calendar-month trends, the deductions label sum and the 3-month
  * 'trend alert' are retired. Import facts (statement count, pending imports, recent
  * imports) still come from the import list; they are not money.
  */

@@ -339,11 +339,11 @@ const SmartCategoriesPage: React.FC = () => {
       return key === selectedMonth;
     });
   }, [transactions, selectedMonth]);
-  // FST-2 (AR-1b FR-009): the pasted PAYMENT|CREDIT|REFUND / PAYROLL merchant rule
+  // FST-2 (AR-1b FR-009): the pasted merchant-name income patterns
   // (getTxDirection, isExpenseTx, isIncomeTx) and the unused month / breakdown memos built on it
   // are retired. Rows that need a direction use the engine classifier (classifyCashFlow).
-  const isSpendingRow = (tx: Transaction): boolean =>
-    classifyCashFlow({ type: (tx as { type?: string | null }).type, category: tx.category, subcategory: (tx as { subcategory?: string | null }).subcategory, amount: tx.amount }).purpose === 'spending';
+  const rowPurpose = (tx: Transaction) =>
+    classifyCashFlow({ type: (tx as { type?: string | null }).type, category: tx.category, subcategory: (tx as { subcategory?: string | null }).subcategory, amount: tx.amount }).purpose;
   // ────────────────────────────────────────────────────────────────────────────
 
   const formatCurrency = (amount: number) => {
@@ -632,7 +632,7 @@ const SmartCategoriesPage: React.FC = () => {
   const otherMerchantSuggestions = useMemo(() => {
     const map = new Map<string, { count: number }>();
     for (const tx of scopedForBreakdown) {
-      if (!isSpendingRow(tx)) continue;
+      if (rowPurpose(tx) !== 'spending') continue;
       const category = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
       if (category.toLowerCase() !== 'other') continue;
       const merchant = String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase();
