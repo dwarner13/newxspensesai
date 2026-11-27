@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { THEME } from "../PrimeChatV2/agentConfig";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFinancialSummary } from "@/hooks/useFinancialSummary";
+import { yearRange } from "@/lib/financialSummary";
+import { hasFigures } from "@/components/finance/FinancialState";
+import { FINANCIAL_LABELS } from "@/lib/financialLabels";
 
 /* ── Types matching actual DB schema ── */
 
@@ -33,6 +37,8 @@ interface SectionDef {
 /* ── Section definitions using EXACT category strings from DB ── */
 
 const SECTIONS: SectionDef[] = [
+  // UX-FST2-9: display metadata only; the server (tax-summary) assigns transactions to sections.
+  { id: "internal", icon: "\uD83D\uDD01", title: "Transfers & Payments (not income or expense)", matchFn: () => false },
   { id: "income", icon: "\uD83D\uDCB0", title: "Income", matchFn: (tx) => tx.type === "income" },
   { id: "vehicle", icon: "\uD83D\uDE97", title: "Vehicle Expenses", matchFn: (tx) => tx.category === "Transportation" || tx.category === "Automotive" || tx.subcategory === "Vehicle Insurance" || ["Gas & Fuel", "Parking", "Vehicle Maintenance", "Vehicle Registration", "Car Loan", "Car Wash"].includes(tx.subcategory || "") },
   { id: "home", icon: "\uD83C\uDFE0", title: "Home / Rent / Lease", matchFn: (tx) => tx.category === "Rent or Lease" || tx.category === "Utilities" || tx.category === "Housing" || tx.category === "Home / Rent / Lease" || tx.subcategory === "Mortgage / Rent" || tx.subcategory === "Condo Fees" || tx.subcategory === "Home Insurance" },
@@ -42,235 +48,22 @@ const SECTIONS: SectionDef[] = [
   { id: "other", icon: "\uD83D\uDCE6", title: "Other / Uncategorized", matchFn: (tx) => tx.type === "expense" },
 ];
 
-/* ── Subcategory bucket definitions per section ── */
-
-interface Bucket {
-  label: string;
-  keywords: string[];
-}
-
-const VEHICLE_BUCKETS: Bucket[] = [
-  { label: "Gas / Fuel", keywords: ["petro", "esso", "shell", "gas", "fuel", "co-op", "mobil", "7-eleven fuel", "husky", "gas & fuel", "kollbrook", "canco petroleum", "circle k"] },
-  { label: "Car Payments", keywords: ["td loan", "car payment", "auto loan", "lns/pre", "car loan"] },
-  { label: "Registration", keywords: ["registry", "registration", "northtown registry"] },
-  { label: "Insurance", keywords: ["economical", "peace hills", "imperial pfs", "vehicle insurance", "auto insurance", "car insurance"] },
-  { label: "Repairs / Maintenance", keywords: ["oil change", "repair", "tire", "mechanic", "midas", "canadian tire auto", "maintenance", "auto service", "vehicle maintenance", "jiffy lube", "revolution moto", "river city hyundai"] },
-  { label: "Parking", keywords: ["parking", "impark", "parkade"] },
-  { label: "Car Wash", keywords: ["car wash", "kenyon", "triangle cp"] },
-  { label: "Car Rental", keywords: ["enterprise", "avis", "budget rent", "hertz", "national car", "car rental"] },
-  { label: "Rideshare / Taxi", keywords: ["uber", "lyft", "taxi", "rideshare"] },
-  { label: "Traffic Fines", keywords: ["myalberta fine", "traffic fine", "photo radar", "parking fine"] },
-];
-
-const MEALS_BUCKETS: Bucket[] = [
-  { label: "Coffee", keywords: ["tim hortons", "starbucks", "booster juice", "second cup", "good earth", "coffee", "coffee & drinks"] },
-  { label: "Restaurants / Dining", keywords: ["pizza", "restaurant", "restaurants", "pub", "grill", "diner", "kitchen", "smittys", "wendys", "mcdonalds", "popeyes", "mr sub", "halong bay", "sushi", "thai", "wok", "buffet", "a&w", "subway", "kfc", "burger", "boston pizza", "earls", "cactus", "moxies", "original joe", "joey", "montanas", "restaurants / dining"] },
-  { label: "Fast Food / Takeout", keywords: ["uber eats", "doordash", "skip the dishes", "instacart"] },
-  { label: "Groceries / Convenience", keywords: ["7-eleven", "7 eleven", "mac's", "circle k"] },
-  { label: "Entertainment", keywords: ["movie", "concert", "sport", "fitness", "theatre", "cinema", "netflix", "spotify"] },
-  { label: "Alcohol", keywords: ["liquor", "econo liquor", "beer", "wine", "alcanna", "wine and beyond"] },
-  { label: "Supplements / Health Food", keywords: ["supplement", "ls supplement", "popeye supplement", "gnc", "nutrition"] },
-];
-
-const HOME_BUCKETS: Bucket[] = [
-  { label: "Mortgage / Rent", keywords: ["mortgage", "b/m payt", "rent", "rnt payt"] },
-  { label: "Condo Fees", keywords: ["celtic", "condo fee", "strata", "hoa"] },
-  { label: "Utilities - Electric", keywords: ["epcor", "electricity", "electric"] },
-  { label: "Utilities - Gas / Heat", keywords: ["atco", "direct energy", "enmax"] },
-  { label: "Utilities - Water", keywords: ["epcor water", "water bill"] },
-  { label: "Internet", keywords: ["telus", "shaw", "internet"] },
-  { label: "Home Insurance", keywords: ["sandbox mutual", "home insurance", "property insurance", "tenant insurance"] },
-];
-
-const BUSINESS_BUCKETS: Bucket[] = [
-  { label: "Advertising / Marketing", keywords: ["advertising", "marketing", "dreamhost", "seo", "amazon prime business", "amazon", "google ads", "facebook"] },
-  { label: "Software / Subscriptions", keywords: ["software", "subscriptions", "cursor", "openai", "youtube", "everlance", "ranked ai", "adobe", "microsoft", "canva", "zoom", "slack", "notion", "dropbox", "chatgpt", "2nd site", "stackblitz", "dodopay", "netlify", "paddle.net", "paddle.com", "netflix", "aiprm", "envato", "supabase", "anthropic", "github", "vercel", "cloudflare", "figma", "zapier", "airtable", "linear", "fastmail", "n8n"] },
-  { label: "Professional Fees", keywords: ["professional fees", "professional services", "accounting", "ncube", "2nd site", "legal", "bookkeeping", "consulting"] },
-  { label: "Bank Fees", keywords: ["bank fees", "bank fee", "premium plan", "handling chg", "interest charge", "service charge", "nsf", "overdraft"] },
-  { label: "Business Insurance", keywords: ["imperial pfs", "business insurance", "liability"] },
-  { label: "Phone / Cell", keywords: ["phone / cell", "rogers", "fido", "koodo", "virgin mobile", "bell", "freedom mobile", "public mobile", "chatr", "cell phone"] },
-];
-
-const PERSONAL_BUCKETS: Bucket[] = [
-  { label: "Dental", keywords: ["dental", "chandra", "mcallister", "dentist", "orthodon"] },
-  { label: "Pharmacy / Medical", keywords: ["pharmacy / medical", "medical", "healthcare", "pharmacy", "shoppers drug mart", "rexall", "clinic", "doctor", "beaumaris", "callingwood", "royal alexandra", "specsavers", "vitality health"] },
-  { label: "Groceries", keywords: ["groceries", "sobeys", "save on", "saveonfoods", "safeway", "loblaws", "walmart", "wal-mart", "wmt suprctr", "mac's", "superstore", "costco", "no frills", "freshco", "dollarama", "dollar tree", "intercity packers", "lm st albert"] },
-  { label: "Grooming / Salon", keywords: ["grooming / salon", "grooming", "salon", "barber", "hair", "q-nails", "nails spot", "nails", "cutbypat", "ss edmonton", "shadified", "q hair"] },
-  { label: "Fitness", keywords: ["fitness", "la fitness", "simply health", "yoga", "gym"] },
-  { label: "Supplements", keywords: ["supplements", "supplement", "ls supplement", "lssupplementworld", "unimeal", "v support unimeal", "vsa_support", "popeye", "gnc", "nutrition"] },
-  { label: "Wellness / Massage", keywords: ["wellness / massage", "massage", "ting ting", "yo yo", "lewis massage", "tulip garden", "songblossom", "spa", "wellness"] },
-  { label: "Cash / ATM", keywords: ["cash / atm", "abm withdrawal", "abmwithdrawal", "other bank abm", "atm withdrawal", "rbc atm"] },
-  { label: "Travel & Leisure", keywords: ["travel & leisure", "passport", "holiday inn", "hotel", "balgonie", "travel", "sportsnet", "rmi-sportsnet"] },
-  { label: "Transfers", keywords: ["transfers", "payment", "interac etrnsfr sent", "e-transfer", "etransfer", "online transfer", "payback with points"] },
-  { label: "Loan Payments", keywords: ["loan payments", "lend direct", "lenddirect", "borrowell", "easyfinancial", "cash money", "springfinancial", "national money", "nationalmoney", "flexiti"] },
-  { label: "Credit Card Payments", keywords: ["credit card payments", "ctfs", "capital one", "canadian tire bank", "cc payment"] },
-  { label: "Investments", keywords: ["investments", "investment", "bmo inv", "bmoinv", "tfsa", "rrsp", "wealthsimple", "questrade"] },
-  { label: "Shopping", keywords: ["general shopping", "hardware / auto", "online shopping", "clothing", "shopping", "winners", "marshalls", "homesense", "amazon", "amzn", "best buy", "pandora", "sport chek", "american eagle", "shoe company", "mountain warehouse", "urban kids", "mark's", "rona", "canadian tire", "cdn tire", "great computers"] },
-  { label: "Golf", keywords: ["golf", "alberta beach golf", "ls alberta beach", "twin willows", "glendale golf", "golfzon", "golf traders", "golf town", "golf avenue", "golf av", "sezzle*golf", "canada golf card", "lewis estates golf", "montgomery glen", "sanpiper golf", "silver creek golf", "leduc golf", "leducgolfclub", "lonespruce", "longshotz", "golf club"] },
-  { label: "Gambling", keywords: ["gambling", "bingo", "castledowns", "west end bingo", "river cree", "bear hills", "bearhills", "casino"] },
-  { label: "Events / Tickets", keywords: ["events / tickets", "landmark web", "ticketmaster", "eventbrite"] },
-];
-
-const INCOME_BUCKETS: Bucket[] = []; // Income groups by merchant (no predefined buckets)
-
-/** Map section id -> its buckets */
-const SECTION_BUCKETS: Record<string, Bucket[]> = {
-  income: INCOME_BUCKETS,
-  vehicle: VEHICLE_BUCKETS,
-  home: HOME_BUCKETS,
-  meals: MEALS_BUCKETS,
-  business: BUSINESS_BUCKETS,
-  personal: PERSONAL_BUCKETS,
-  other: [],
-};
-
-/* ── Helpers ── */
+/* UX-FST2-9: the page's own bucket rules, grouping and totals are retired; the server (tax-summary)
+   returns sections and buckets. */
 
 const fmt = (n: number) =>
   n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/**
- * Group transactions into predefined subcategory buckets by matching
- * merchant name against keywords. Unmatched txs go to "Other".
- * Empty buckets are shown with $0.
- */
-function groupIntoBuckets(txs: Transaction[], buckets: Bucket[]): SubRow[] {
-  const map = new Map<string, { count: number; total: number; details: { merchant: string; amount: number; date: string }[] }>();
-  for (const b of buckets) map.set(b.label, { count: 0, total: 0, details: [] });
-  map.set("Other", { count: 0, total: 0, details: [] });
-
-  for (const tx of txs) {
-    const merch = (tx.merchant_name || tx.merchant || "").toLowerCase();
-    const subcat = (tx.subcategory || "").toLowerCase();
-    const detail = { merchant: tx.merchant_name || tx.merchant || "(unknown)", amount: Math.abs(tx.amount), date: tx.date };
-    let matched = false;
-
-    if (subcat) {
-      for (const b of buckets) {
-        if (b.label.toLowerCase() === subcat || b.keywords.some((kw) => subcat === kw.toLowerCase())) {
-          const entry = map.get(b.label)!;
-          entry.count += 1;
-          entry.total += Math.abs(tx.amount);
-          entry.details.push(detail);
-          matched = true;
-          break;
-        }
-      }
-    }
-
-    if (!matched) {
-      for (const b of buckets) {
-        if (b.keywords.some((kw) => merch.includes(kw.toLowerCase()))) {
-          const entry = map.get(b.label)!;
-          entry.count += 1;
-          entry.total += Math.abs(tx.amount);
-          entry.details.push(detail);
-          matched = true;
-          break;
-        }
-      }
-    }
-
-    if (!matched) {
-      const entry = map.get("Other")!;
-      entry.count += 1;
-      entry.total += Math.abs(tx.amount);
-      entry.details.push(detail);
-    }
-  }
-
-  const rows: SubRow[] = [];
-  for (const b of buckets) {
-    const entry = map.get(b.label)!;
-    rows.push({ label: b.label, count: entry.count, amount: entry.total, txDetails: entry.details });
-  }
-  const other = map.get("Other")!;
-  if (other.total > 0 || other.count > 0) {
-    rows.push({ label: "Other", count: other.count, amount: other.total, txDetails: other.details });
-  }
-  return rows;
-}
-
-/** For income: group by merchant name (payer/client) */
-function groupByMerchant(txs: Transaction[]): SubRow[] {
-  const map = new Map<string, { count: number; total: number }>();
-  for (const tx of txs) {
-    const key = tx.merchant_name?.trim() || tx.merchant?.trim() || "(unknown payer)";
-    const entry = map.get(key) || { count: 0, total: 0 };
-    entry.count += 1;
-    entry.total += Math.abs(tx.amount);
-    map.set(key, entry);
-  }
-  return Array.from(map.entries())
-    .sort((a, b) => b[1].total - a[1].total)
-    .map(([label, v]) => ({ label, count: v.count, amount: v.total }));
-}
-
-/* ── Bucket label → DB filter mapping ── */
-
-const BUCKET_FILTER_MAP: Record<string, { category?: string; subcategory?: string }> = {
-  // Vehicle
-  "Gas / Fuel":               { subcategory: "Gas & Fuel" },
-  "Car Payments":             { subcategory: "Car Loan" },
-  "Registration":             { subcategory: "Vehicle Registration" },
-  "Insurance":                { subcategory: "Vehicle Insurance" },
-  "Repairs / Maintenance":    { subcategory: "Vehicle Maintenance" },
-  "Parking":                  { subcategory: "Parking" },
-  "Car Wash":                 { subcategory: "Car Wash" },
-  "Car Rental":               { subcategory: "Car Rental" },
-  "Rideshare / Taxi":         { subcategory: "Rideshare" },
-  "Traffic Fines":            { subcategory: "Traffic Fines" },
-  // Home
-  "Mortgage / Rent":          { subcategory: "Mortgage / Rent" },
-  "Condo Fees":               { subcategory: "Condo Fees" },
-  "Utilities - Electric":     { category: "Utilities" },
-  "Utilities - Gas / Heat":   { category: "Utilities" },
-  "Utilities - Water":        { category: "Utilities" },
-  "Internet":                 { category: "Utilities" },
-  "Home Insurance":           { subcategory: "Home Insurance" },
-  // Meals
-  "Coffee":                   { category: "Food & Dining" },
-  "Restaurants / Dining":     { category: "Food & Dining" },
-  "Fast Food / Takeout":      { category: "Food & Dining" },
-  "Groceries / Convenience":  { category: "Food & Dining" },
-  "Entertainment":            { category: "Entertainment" },
-  "Alcohol":                  { category: "Food & Dining" },
-  "Supplements / Health Food":{ category: "Food & Dining" },
-  // Business
-  "Advertising / Marketing":  { category: "Advertising" },
-  "Software / Subscriptions": { category: "Subscriptions" },
-  "Professional Fees":        { category: "Professional Services" },
-  "Bank Fees":                { category: "Bank Fees" },
-  "Business Insurance":       { subcategory: "Business Insurance" },
-  "Phone / Cell":             { subcategory: "Phone / Cell" },
-  // Personal
-  "Dental":                   { subcategory: "Dental" },
-  "Pharmacy / Medical":       { category: "Healthcare" },
-  "Groceries":                { category: "Groceries" },
-  "Grooming / Salon":         { category: "Personal Care" },
-  "Wellness / Massage":       { category: "Personal Care" },
-  "Cash / ATM":               { subcategory: "ATM" },
-  "Travel & Leisure":         { category: "Travel" },
-  "Transfers":                { category: "Transfers" },
-  "Loan Payments":            { category: "Debt Payments" },
-  "Credit Card Payments":     { category: "Debt Payments" },
-  "Investments":              { category: "Transfers" },
-  "Shopping":                 { category: "Shopping" },
-  "Golf":                     { subcategory: "Golf" },
-  "Gambling":                 { subcategory: "Gambling" },
-  "Events / Tickets":         { subcategory: "Events / Tickets" },
-};
 
 /* ── CSV export ── */
 
 function exportCSV(
   year: number,
-  sectionResults: Map<string, { txs: Transaction[]; rows: SubRow[]; total: number }>,
+  sectionResults: Map<string, { count: number; rows: SubRow[]; total: number }>,
 ) {
   const csvRows: string[][] = [["Section", "Subcategory", "# Transactions", "Amount"]];
   for (const section of SECTIONS) {
     const res = sectionResults.get(section.id);
-    if (!res || res.txs.length === 0) continue;
+    if (!res || res.count === 0) continue;
     csvRows.push([section.title, "", "", `$${res.total.toFixed(2)}`]);
     for (const sr of res.rows) {
       csvRows.push(["", sr.label, String(sr.count), `$${sr.amount.toFixed(2)}`]);
@@ -295,8 +88,17 @@ export default function TaxWorkspacePage() {
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(false);
   const [year, setYear] = useState(2025);
-  const [needsReviewCount, setNeedsReviewCount] = useState(0);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // UX-FST2-9 (AR-1b FR-011): the server's tax summary for the year (complete, count-verified read;
+  // refunds are not income, internal movement is its own section). Nothing is summed in the browser.
+  type TaxSection = { id: string; title: string; total: number; count: number; buckets: { label: string; total: number; count: number }[] };
+  type TaxState =
+    | { status: 'loading' }
+    | { status: 'verified' | 'verified_zero'; sections: TaxSection[]; transactionCount: number; unsectionedCount: number; engine: { incomeCents: number; spendingCents: number } | null }
+    | { status: 'partial' | 'unavailable'; message: string };
+  const [tax, setTax] = useState<TaxState>({ status: 'loading' });
+  const reviewScope = useMemo(() => yearRange(year), [year]);
+  const reviewFinancial = useFinancialSummary(reviewScope);
+  const needsReviewCount = hasFigures(reviewFinancial) ? reviewFinancial.summary.needsReviewCount : 0;
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(SECTIONS.map((s) => s.id)),
@@ -340,64 +142,61 @@ export default function TaxWorkspacePage() {
     })();
   }, [userId, year]);
 
-  // Fetch transactions for selected year
+  // Fetch the server tax summary for the selected year
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const supabase = getSupabase();
-      if (!supabase) { setLoading(false); return; }
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("category, merchant, merchant_name, amount, type, date, subcategory")
-        .eq("user_id", userId)
-        .gte("date", `${year}-01-01`)
-        .lt("date", `${year + 1}-01-01`)
-        .order("date", { ascending: false })
-        .limit(5000);
-      if (!cancelled) {
-        if (error) console.error("[TaxWorkspace] fetch error:", error);
-        setTransactions((data as Transaction[]) || []);
-        setLoading(false);
-        // Count Needs Review transactions for the banner
-        const nrCount = (data || []).filter((t: any) => t.category === 'Needs Review').length;
-        setNeedsReviewCount(nrCount);
+      setTax({ status: 'loading' });
+      try {
+        const supabase = getSupabase();
+        const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
+        if (!token) throw new Error('signed_out');
+        const res = await fetch('/.netlify/functions/tax-summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ year }),
+          cache: 'no-store',
+        });
+        const body = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!res.ok || !body) {
+          setTax({ status: 'unavailable', message: (body && body.error) || "The tax summary couldn't be loaded; nothing was guessed. Please try again." });
+        } else if (body.queryStatus === 'partial') {
+          setTax({ status: 'partial', message: body.message || "Not every transaction for this year could be read, so no section totals are shown." });
+        } else {
+          setTax({
+            status: body.queryStatus === 'verified_zero' ? 'verified_zero' : 'verified',
+            sections: Array.isArray(body.sections) ? body.sections : [],
+            transactionCount: Number(body.transactionCount) || 0,
+            unsectionedCount: Number(body.unsectionedCount) || 0,
+            engine: body.engine && typeof body.engine.incomeCents === 'number' ? { incomeCents: body.engine.incomeCents, spendingCents: body.engine.spendingCents } : null,
+          });
+        }
+      } catch {
+        if (!cancelled) setTax({ status: 'unavailable', message: "The tax summary couldn't be loaded; nothing was guessed. Please try again." });
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, [userId, year, refreshKey]);
 
-  // Assign each tx to FIRST matching section (no double-counting)
+  // Server sections by id (rows = the server's buckets; no browser grouping or sums).
   const sectionResults = useMemo(() => {
-    const results = new Map<string, { txs: Transaction[]; rows: SubRow[]; total: number }>();
-    const claimed = new Set<number>(); // index-based since we don't have id
-
-    for (const section of SECTIONS) {
-      const matched: Transaction[] = [];
-      transactions.forEach((tx, idx) => {
-        if (claimed.has(idx)) return;
-        if (section.matchFn(tx)) {
-          matched.push(tx);
-          claimed.add(idx);
-        }
-      });
-      const buckets = SECTION_BUCKETS[section.id];
-      const rows = buckets && buckets.length > 0
-        ? groupIntoBuckets(matched, buckets)
-        : groupByMerchant(matched); // Income: group by payer
-      const total = matched.reduce((s, t) => s + Math.abs(t.amount), 0);
-      results.set(section.id, { txs: matched, rows, total });
+    const results = new Map<string, { count: number; rows: SubRow[]; total: number; title: string }>();
+    if (tax.status !== 'verified' && tax.status !== 'verified_zero') return results;
+    for (const sec of tax.sections) {
+      results.set(sec.id, { count: sec.count, total: sec.total, title: sec.title, rows: (sec.buckets || []).map(b => ({ label: b.label, count: b.count, amount: b.total })) });
     }
     return results;
-  }, [transactions]);
+  }, [tax]);
 
-  // Summary totals
-  const totalIncome = sectionResults.get("income")?.total ?? 0;
-  const totalExpenses = useMemo(
-    () => transactions.filter((t) => t.type === "expense").reduce((s, t) => s + Math.abs(t.amount), 0),
-    [transactions],
-  );
+  // Summary figures: the engine's Actual Income / Actual Spending for the year; Personal = server section.
+  const taxFigures = tax.status === 'verified' || tax.status === 'verified_zero';
+  const totalIncome = taxFigures && tax.engine ? tax.engine.incomeCents / 100 : 0;
+  const totalExpenses = taxFigures && tax.engine ? tax.engine.spendingCents / 100 : 0;
   const totalPersonal = sectionResults.get("personal")?.total ?? 0;
 
   const toggleSection = useCallback((id: string) => {
@@ -529,7 +328,7 @@ export default function TaxWorkspacePage() {
             {!isMobile && <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>}
           </button>
           <span style={{ fontSize: 12, color: THEME.textDim }}>
-            {transactions.length} transactions loaded
+            {taxFigures ? tax.transactionCount : 0} transactions
           </span>
         </div>
         <p style={{ fontSize: 13, color: THEME.textMuted, margin: "0 0 16px 0" }}>
@@ -606,10 +405,10 @@ export default function TaxWorkspacePage() {
         gap: 16, marginBottom: 32,
       }}>
         {[
-          { label: "Total Income", value: `$${fmt(totalIncome)}`, color: THEME.green },
-          { label: "Total Expenses", value: `$${fmt(totalExpenses)}`, color: "#f87171" },
-          { label: "Total Personal", value: `$${fmt(totalPersonal)}`, color: THEME.textMuted },
-          { label: "Transactions", value: String(transactions.length), color: THEME.accent },
+          { label: FINANCIAL_LABELS.actualIncome, value: taxFigures && tax.engine ? `$${fmt(totalIncome)}` : "\u2014", color: THEME.green },
+          { label: FINANCIAL_LABELS.actualSpending, value: taxFigures && tax.engine ? `$${fmt(totalExpenses)}` : "\u2014", color: "#f87171" },
+          { label: "Personal", value: taxFigures ? `$${fmt(totalPersonal)}` : "\u2014", color: THEME.textMuted },
+          { label: "Transactions", value: taxFigures ? String(tax.transactionCount) : "—", color: THEME.accent },
         ].map((card) => (
           <div key={card.label} style={{
             background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14,
@@ -627,32 +426,41 @@ export default function TaxWorkspacePage() {
       </div>
 
       {/* ══════ ALL SECTIONS ══════ */}
-      {SECTIONS.map((section) => {
+      {(tax.status === 'partial' || tax.status === 'unavailable') && (
+        <div role="status" data-testid="tax-state" style={{ margin: "0 0 16px", padding: "12px 16px", borderRadius: 12, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)", color: "#fde68a", fontSize: 14, lineHeight: 1.5 }}>
+          {tax.message}
+        </div>
+      )}
+      {taxFigures && SECTIONS.map((section) => {
         const res = sectionResults.get(section.id);
-        const txs = res?.txs ?? [];
+        const count = res?.count ?? 0;
         const subRows = res?.rows ?? [];
         const sectionTotal = res?.total ?? 0;
         const isExpanded = expandedSections.has(section.id);
         const headerColor = section.id === "income" ? THEME.green : section.id === "personal" ? THEME.textDim : THEME.accent;
 
         // Hide "other" section if it has no transactions
-        if (section.id === "other" && txs.length === 0) return null;
+        if ((section.id === "other" || section.id === "internal") && count === 0) return null;
 
         return (
           <SectionCard
             key={section.id}
             icon={section.icon}
-            title={section.title}
+            title={res?.title || section.title}
             total={sectionTotal}
-            count={txs.length}
+            count={count}
             color={headerColor}
             expanded={isExpanded}
             onToggle={() => toggleSection(section.id)}
             isMobile={isMobile}
           >
-            {txs.length === 0 ? (
+            {count === 0 ? (
               <div style={{ fontSize: 13, color: THEME.textDim, padding: "12px 0" }}>
                 No transactions found for {year}.
+              </div>
+            ) : subRows.length === 0 ? (
+              <div style={{ fontSize: 13, color: THEME.textDim, padding: "12px 0" }}>
+                {count} transaction{count === 1 ? "" : "s"}. A breakdown by {section.id === "income" ? "payer" : "subcategory"} isn't available yet.
               </div>
             ) : (
               <SubcategoryTable
