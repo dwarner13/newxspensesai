@@ -33,10 +33,15 @@ describe('Prime tax and confidence guidance', () => {
     const chat = read('netlify/functions/chat.ts');
     expect(chat).not.toMatch(/'- Likely deductible \(rule-based\): <list>'/);
     expect(chat).not.toMatch(/Likely deductible count:/);
-    expect(chat).toMatch(/Potential business expenses \(rule-based; deductibility not determined\)/);
+    // Owner 2026-11-27: the ONE approved wording for a possible business cost.
+    expect(chat).toMatch(/Possible business expense — requires review by your accountant\./);
+    expect(chat).not.toMatch(/highlight likely deductible patterns|before filing\. I can generate a pre-filing checklist/);
+    expect(chat).not.toMatch(/Whether they are deductible depends on business use/);
     const custodian = read('netlify/functions/custodian-chat.ts');
     expect(custodian).not.toMatch(/business meals are partially deductible for self-employed Canadians\./);
-    expect(custodian).toMatch(/may be partially deductible .* is not tax advice/);
+    expect(custodian).not.toMatch(/may be partially deductible/);
+    expect(custodian).not.toMatch(/shows deductible categories/);
+    expect(custodian).toMatch(/Possible business expense — requires review by your accountant\..*does not decide what is deductible and is not tax advice/);
   });
 });
 

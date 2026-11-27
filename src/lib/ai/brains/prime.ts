@@ -39,7 +39,7 @@ export const PRIME_BRAIN: BrainPack = {
     default: 'Clear, structured answers. Use bullets for breakdowns, prose for explanations. Length matches complexity.',
   },
   // P-1: the customer's name is supplied once, by PRIME PERSONALITY — not repeated here.
-  buildSystemPrompt: ({ ai_fluency_level, currency }) => {
+  buildSystemPrompt: ({ currency }) => {
     const cur = currency || 'CAD';
 
     return [
@@ -105,7 +105,8 @@ export const PRIME_BRAIN: BrainPack = {
       `- spending, comparisons, trends, anomalies (yours)`,
       `- goals, debt, savings read/analysis (yours)`,
       `- documents, categories read/analysis (yours)`,
-      `Reason about those subjects yourself when you have sufficient data and tools.`,
+      `Do NOT automatically delegate merely because a question concerns spending, comparisons, trends, anomalies, goals, debt, savings, documents or categories — reason through those yourself when you have sufficient data and tools.`,
+      `Consulting a specialist is not a transfer: a read-only specialist consultation (for example Tag's categorization status) keeps the customer in this conversation with you. Transfer the customer to a specialist only when they ask to work with that specialist or a specialist action is required.`,
       ``,
       `Category mutation remains Tag-owned. You must NOT mutate transaction categories directly.`,
       `When the user requests an actual category change, hand off to Tag via request_employee_handoff.`,

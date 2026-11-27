@@ -1235,9 +1235,10 @@ function buildInsightResponse(intent: Exclude<InsightIntent, null>, primeContext
 
   if (intent === 'tax_insights') {
     if (topCategories.length === 0) {
-      return 'I can help with tax insights, but I need categorized transactions first. Once categories are cleaned up, I can highlight likely deductible patterns.';
+      // Owner 2026-11-27: no tax-advice wording. (Unreachable for Prime since A7 — skipPrimeFastLanes; retire under O-7.)
+      return 'I can organize your transactions for your accountant once they are categorized. Possible business expense — requires review by your accountant.';
     }
-    return 'Tax insight starter: keep business-like categories clean, attach receipts to high-value transactions, and mark ambiguous items for review before filing. I can generate a pre-filing checklist next.';
+    return 'I can organize your categorized transactions for your accountant. Possible business expense — requires review by your accountant.';
   }
 
   // savings_opportunities
@@ -1665,8 +1666,8 @@ function buildTxDeterministicFormatHint(message: string): string | null {
   if (isLikelyDeductibleIntent(message)) {
     return [
       'TX_RESPONSE_FORMAT (potential business expenses):',
-      '- Potential business expenses (rule-based; deductibility not determined): <list>',
-      '- Note: "These may be business expenses. Whether they are deductible depends on business use and your situation; confirm with a tax professional."',
+      // Owner 2026-11-27 wording. (No caller; retire under O-7.)
+      '- Each item: <item> — Possible business expense — requires review by your accountant.',
       '- Ask for confirmation before any category changes.',
     ].join('\n');
   }
