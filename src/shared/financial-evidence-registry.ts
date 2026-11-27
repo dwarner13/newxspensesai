@@ -108,9 +108,10 @@ export function admitToolEvidence(tool: string | null | undefined, data: unknown
     if (!isObj(scope) || scope.filtered !== false) return { admit: null, payload: null, reason: 'filtered_scope' };
     return { admit: 'engine', payload: { totals }, reason: 'admitted' };
   }
-  if ('queryStatus' in data && !completeStatus((data as Obj).queryStatus)) {
-    return { admit: null, payload: null, reason: 'incomplete_read' };
-  }
-  if ((data as Obj).complete === false || (data as Obj).truncated === true) return { admit: null, payload: null, reason: 'incomplete_read' };
+  // A POSITIVE completeness signal is required (fail closed): a payload with no marker, an error
+  // shape or an alternative return shape is not evidence.
+  const d = data as Obj;
+  const positive = 'queryStatus' in d ? completeStatus(d.queryStatus) : d.complete === true;
+  if (!positive || d.complete === false || d.truncated === true) return { admit: null, payload: null, reason: 'incomplete_read' };
   return { admit: 'engine', payload: data, reason: 'admitted' };
 }

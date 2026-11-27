@@ -51,14 +51,27 @@ describe('registry: authorization is not evidence', () => {
   });
 
   it('every engine-class tool is AR-1b compliant (no financial-rule copy outside the shared engine)', () => {
-    // merchant_totals' entry is a reviewed scanner false positive: its `isRefund` is classifyCashFlow's purpose.
-    const reviewedFalsePositives = new Set(['src/agent/tools/impl/merchant_totals.ts|R1|isRefund']);
     const entries: string[] = (BASELINE as any).entries;
     for (const [tool, cls] of Object.entries(FINANCIAL_EVIDENCE_REGISTRY)) {
       if (cls !== 'engine') continue;
-      const hits = entries.filter(e => e.startsWith(`src/agent/tools/impl/${tool}.ts|`) && !reviewedFalsePositives.has(e));
+      const hits = entries.filter(e => e.startsWith(`src/agent/tools/impl/${tool}.ts|`));
       expect(hits, tool).toEqual([]);
     }
+  });
+
+  it('every engine tool declares a positive completeness signal (queryStatus or totals.complete)', () => {
+    for (const [tool, cls] of Object.entries(FINANCIAL_EVIDENCE_REGISTRY)) {
+      if (cls !== 'engine') continue;
+      const src = fs.readFileSync(path.join(__dirname, `../../../src/agent/tools/impl/${tool}.ts`), 'utf8');
+      expect(/queryStatus: z\.enum\(\[\s*'verified', 'verified_zero'/.test(src) || /complete: z\.boolean\(\)/.test(src), tool).toBe(true);
+    }
+  });
+
+  it('fail closed: an engine payload without a completeness marker is not evidence', () => {
+    expect(admitToolEvidence('cash_flow_summary', { income: 4000 }).admit).toBeNull();
+    expect(admitToolEvidence('cash_flow_summary', { error: 'boom', income: 4000 }).admit).toBeNull();
+    expect(admitToolEvidence('cash_flow_summary', { queryStatus: 'query_error', income: 4000 }).admit).toBeNull();
+    expect(admitToolEvidence('cash_flow_summary', { queryStatus: 'verified_zero', income: 0 }).admit).toBe('engine');
   });
 
   it('every registry entry names a registered tool', () => {

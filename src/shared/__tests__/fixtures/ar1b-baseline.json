@@ -55,7 +55,6 @@
   "netlify/functions/tx-split.ts|R2|reduce(amount)",
   "src/agent/tools/impl/detect_anomalies.ts|R2|reduce(amount)",
   "src/agent/tools/impl/get_transactions_by_document.ts|R2|reduce(amount)",
-  "src/agent/tools/impl/merchant_totals.ts|R1|isRefund",
   "src/agent/tools/impl/tag_create_manual_transaction.ts|R1|isIncome",
   "src/agents/agents/categorizerAgent.ts|R4|transactions .limit(",
   "src/agents/insightsAgent.ts|R2|reduce(amount)",
