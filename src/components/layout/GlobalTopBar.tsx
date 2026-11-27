@@ -20,7 +20,9 @@ export function GlobalTopBar() {
   const { signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [inboxCount, setInboxCount] = useState(0);
+  // Tag HQ 424b7fe7: badge_count is null when the review read was incomplete; then no badge is shown
+  // (never a 0 that would understate it).
+  const [inboxCount, setInboxCount] = useState<number | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   // Fetch inbox badge count
@@ -37,7 +39,7 @@ export function GlobalTopBar() {
         });
         if (res.ok) {
           const d = await res.json();
-          setInboxCount(d.badge_count ?? 0);
+          setInboxCount(typeof d.badge_count === 'number' ? d.badge_count : null);
         }
       } catch { /* silent */ }
     })();
@@ -90,7 +92,7 @@ export function GlobalTopBar() {
           aria-label="Inbox"
         >
           <Inbox className="w-4 h-4 text-slate-300" />
-          {inboxCount > 0 && (
+          {inboxCount !== null && inboxCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium border-2 border-[#030816]">
               {inboxCount > 99 ? '99+' : inboxCount}
             </span>
