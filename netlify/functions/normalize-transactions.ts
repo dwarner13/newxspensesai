@@ -1535,6 +1535,9 @@ async function processNormalizationInBackground(
 
     // AR-1c §C5: record which extraction channel produced the rows, so independence of the printed
     // totals is decided against the right reader. Non-fatal; printed totals are not modified.
+    // Read-modify-write of statement_breakdown_json: safe while normalize's writes are sequential.
+    // Any other writer of this JSON (prime-summary, commit-import) must MERGE (mergePrintedTotals /
+    // recordRowsSource or spread the existing object), never replace it.
     if (normalizedTransactions && normalizedTransactions.length > 0) {
       try {
         const { data: sbdRowRows } = await sb
