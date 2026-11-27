@@ -118,6 +118,30 @@ export function verifyReplyFigures(reply: string, input: VerifyInput): ReplyVeri
   return { ok: unsupported.length === 0, figures, unsupported, counts };
 }
 
+/**
+ * Ledger rule (C-5 T7; folds P-LIVE-03's overdraft rule onto the ledger so it applies on EVERY reply,
+ * not only when a statement breakdown was fetched): a claim about an overdraft, a negative balance or
+ * a bounced payment needs BALANCE evidence from a tool this turn. Without it the sentence is removed.
+ * Hypothetical phrasing ("if you went overdrawn…") is kept.
+ */
+const BALANCE_SPECULATION = /\b(overdraft|overdrawn|negative balance|below zero|bounced|NSF|insufficient funds|running (low|out of money)|heading toward (an )?overdraft)\b/i;
+
+export function removeUnsupportedBalanceSpeculation(reply: string, hasBalanceEvidence: boolean): { text: string; removed: number } {
+  if (hasBalanceEvidence || !BALANCE_SPECULATION.test(reply)) return { text: reply, removed: 0 };
+  let removed = 0;
+  const kept = reply.split(/\n/).map(line => {
+    const parts = line.split(/(?<=[.!?])\s+/);
+    const keep = parts.filter(s => {
+      const drop = BALANCE_SPECULATION.test(s) && !/\b(if|suppose|assum\w*|hypothetical\w*|for example|what if)\b/i.test(s);
+      if (drop) removed++;
+      return !drop;
+    });
+    return keep.join(' ');
+  });
+  const text = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return { text: text || reply, removed: text ? removed : 0 };
+}
+
 /** Code-owned limitation text (owner: explain the limitation rather than guess). */
 export const VERIFIED_FIGURES_UNAVAILABLE_TEXT =
   "I can't get verified figures for that right now, so I won't guess. Please try again in a moment.";

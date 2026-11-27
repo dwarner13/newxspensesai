@@ -105,6 +105,28 @@ describe('C-1 ledger reads served cents as dollars (LA-4 review figure, engine c
   });
 });
 
+describe('C-5 T7 / T8', () => {
+  it('T7 overdraft speculation without balance evidence is removed; hypothetical and evidenced cases are kept', async () => {
+    const { removeUnsupportedBalanceSpeculation } = await import('../../../src/shared/turn-evidence-ledger');
+    const r = removeUnsupportedBalanceSpeculation('Deposits: $1,525.84\nYou may be heading toward an overdraft. Spending was steady.', false);
+    expect(r.removed).toBe(1);
+    expect(r.text).not.toMatch(/overdraft/i);
+    expect(r.text).toContain('Deposits: $1,525.84');
+    expect(r.text).toContain('Spending was steady.');
+    expect(removeUnsupportedBalanceSpeculation('If you went overdrawn, the fee would apply.', false).removed).toBe(0);
+    expect(removeUnsupportedBalanceSpeculation('Your chequing account is overdrawn.', true).removed).toBe(0); // balance tool ran
+  });
+  it('T8 non-financial chat is untouched: no tool forced, text unchanged', async () => {
+    const t = turn('hi Prime, how does the app work?');
+    const reply = "Hey! I'm Prime — I run your money team. Want me to walk you through uploading a statement?";
+    const regenerate = vi.fn(async () => null);
+    const r = await enforceReplyEvidence({ reply, verify: t.verify, period: null, remainingMs: 40_000, runCashFlow: t.runCashFlow, regenerate });
+    expect(r).toMatchObject({ action: 'kept', text: reply });
+    expect(t.runCashFlow).not.toHaveBeenCalled();
+    expect(regenerate).not.toHaveBeenCalled();
+  });
+});
+
 describe('C-1 does not block legitimate answers (owner: hypotheticals, customer figures)', () => {
   it('hypothetical calculation and customer-provided figures pass with no tool at all', async () => {
     const t = turn('If I put $250 a month aside, how much is that in a year?');
@@ -128,8 +150,46 @@ describe('C-1 / C-3 wiring in chat.ts', () => {
     expect(plive).toBeGreaterThan(c1);
     expect(save).toBeGreaterThan(plive);
     const gate = chat.slice(chat.lastIndexOf('if (', c1), c1);
-    expect(gate).toMatch(/isPrime && isPrimeConversationSlug\(finalEmployeeSlug\) && assistantContent/);
-    expect(gate).not.toMatch(/requiresGrounding/);
+    // Author-aware (clarification #2): every reply in a turn that started with Prime — including a
+    // specialist's reply after a handoff — is checked; no requiresGrounding / author-slug condition.
+    expect(gate).toMatch(/if \(isPrime && assistantContent\) \{/);
+    expect(gate).not.toMatch(/requiresGrounding|isPrimeConversationSlug/);
+  });
+
+  it('C-5 AR no-skip: no Prime reply path bypasses the verifier except three tracked code-built lanes', () => {
+    // Every forced deterministic lane is fed by an intent that is OFF for Prime (skipPrimeFastLanes is
+    // true for every Prime slug since A7). Removing any of these guards would let a code-built money
+    // answer reach Prime without the ledger check, so each is pinned.
+    for (const decl of [
+      'const pipelineReuseIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? null',
+      'const explicitSummaryRecallIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false',
+      'const recallLastUploadIntent = (isPrimeSummaryRequest || skipPrimeFastLanes)',
+      'const recallLastUploadDetailIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false',
+      'const workspaceActivityIntent = (isPrimeSummaryRequest || skipPrimeFastLanes) ? false',
+      'const statementBreakdownIntent = (!isPrimeSummaryRequest && !skipPrimeFastLanes)',
+      'if (!forcedPrimeDecision && !isPrimeSummaryRequest && !skipPrimeFastLanes) {', // help fast lane
+      'if (!forcedPrimeDecision && !isPrimeSummaryRequest && !skipPrimeFastLanes && isPayoffProjectionIntent(masked)', // payoff
+    ]) expect(chat, decl).toContain(decl);
+    for (const name of ['statementCountIntent', 'statementScopeSelectionIntent', 'statementQaIntent']) {
+      const at = chat.indexOf(`const ${name} =`);
+      expect(at, name).toBeGreaterThan(0);
+      expect(chat.slice(at, at + 200), name).toMatch(/!skipPrimeFastLanes/);
+    }
+    for (const lane of ['temporalIntent && !hasAttachments', 'coachingIntent && isPrimeEmployeeForCoaching', 'predictiveIntent && isPrimeEmployeeForPredictive', 'automationIntent && isPrimeEmployeeForAutomation', 'effectiveClarificationDecision']) {
+      const at = chat.indexOf(`if (${lane}`);
+      expect(at, lane).toBeGreaterThan(0);
+      expect(chat.slice(at, chat.indexOf('{', at)), lane).toMatch(/!skipPrimeFastLanes/);
+    }
+    expect(chat).toMatch(/const skipPrimeFastLanes = isPrimeBossRequest;/);
+    // routePrime returns only 'model' or 'worker_chain' outside the disabled block comment.
+    const rp = chat.slice(chat.indexOf('function routePrime('), chat.indexOf('// ── PRE-PHASE-1.2 DETERMINISTIC LANES (disabled) ──'));
+    expect([...rp.matchAll(/lane: '([a-z_]+)'/g)].map(m => m[1]).sort()).toEqual(['model', 'model', 'model', 'worker_chain']);
+    // The three lanes that DO reach Prime without the ledger (tracked exceptions):
+    //  - temporal (current date/time; no money),
+    //  - import_summary_display (stored post-import summary; FR-024/026 — fold onto engine + ledger),
+    //  - worker_chain (upload pipeline breakdown; engine totals since fst3).
+    expect(chat).toContain('if (!forcedPrimeDecision && isPrimeBossRequest) {\n      const temporalIntent = detectTemporalIntent(masked);');
+    expect((chat.match(/deterministic_path: 'import_summary_display'/g) ?? []).length).toBe(2);
   });
   it('every tool result point feeds the same ledger (pre-exec, model loop, specialist, bridge, Tag consultation)', () => {
     for (const marker of ['C-1 ledger (grounding pre-execution)', 'C-1 ledger (specialist)', "captureCashFlowForGuard('tx_search', b2cData); // C-1 ledger", 'C-1 ledger (Tag consultation)']) {
