@@ -39,9 +39,11 @@ function isStrictPdfStructureError(error: unknown): boolean {
  *   - items on the same baseline are concatenated with NO separator;
  *   - a baseline change starts a new line;
  *   - pages are joined with a blank line ("\n\n" before each page), then the result is trimmed.
- * Modern PDF.js also emits synthetic whitespace-only items for column gaps (as wide as the gap);
- * pdf-parse's v1.10 never did, so they are skipped (a real space glyph is narrower than the font
- * size). Verified identical to pdf-parse 1.1.4 on synthetic statement fixtures.
+ * Modern PDF.js also emits zero-height whitespace items to mark column gaps; pdf-parse's v1.10 did
+ * not, so those are skipped (real space glyphs have a height and are kept).
+ * Known limit: when two text runs TOUCH, PDF.js 6 merges them into one item with a space between,
+ * which v1.10 did not; there is no option to disable it. Text then differs by that one space.
+ * Parsed rows, amounts and direction were identical in the fixture comparison (see tests).
  */
 export async function extractPdfTextPlain(pdfBuffer: Buffer): Promise<string> {
   const pdfjs = await loadPdfJs();
@@ -62,7 +64,7 @@ export async function extractPdfTextPlain(pdfBuffer: Buffer): Promise<string> {
       let text = "";
       for (const item of content.items as Array<{ str?: string; transform?: number[]; width?: number; height?: number }>) {
         if (typeof item?.str !== "string" || !Array.isArray(item.transform)) continue;
-        if (item.str.trim() === "" && Number(item.width) > Number(item.height || 0)) continue;
+        if (item.str.trim() === "" && !Number(item.height)) continue; // PDF.js gap marker (height 0)
         const y = item.transform[5];
         // pdf-parse's exact rule (including its falsy-lastY quirk).
         if (lastY == y || !lastY) text += item.str;
