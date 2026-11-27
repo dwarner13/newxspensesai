@@ -41,8 +41,15 @@ describe('UX-FST2-4 Transactions strip', () => {
     expect(hook).toMatch(/read\.complete && nextData\.length <= MAX_CACHE_ROWS/); // only complete sets are cached
     expect(code).toMatch(/isComplete: listReadComplete/);
     expect(code).toMatch(/const listIncomplete = !listReadComplete \|\| \(!!sum && scoped\.length < sum\.transactionCount\);/);
-    expect(code).toMatch(/if \(listIncomplete\) \{\s*toast\.error\("Export stopped/);
+    expect(code).toMatch(/if \(listIncomplete\) \{\s*if \(!listReadTruncated\) \{\s*toast\.error\("Export stopped/);
     expect(code).toMatch(/transactions-\$\{clientOnlyFilter \? 'filtered-' : ''\}/);
+  });
+  it('over the ceiling: honest message, and a scoped export read completely or refused', () => {
+    expect(code).toMatch(/Your account has more than \$\{ceiling\} transactions, so this view can't be exported from this page yet/);
+    expect(code).toMatch(/await readTransactionsPaged\(\{ userId, importIds: summaryReq\.importIds, startDate: summaryReq\.startDate, endDate: summaryReq\.endDate \}\)/);
+    expect(code).toMatch(/if \(!res\.complete\)/);
+    expect(code).toMatch(/exportRows = applyClientFilters\(res\.rows\)/);
+    expect(code).toMatch(/const filtered = useMemo\(\(\) => applyClientFilters\(scoped\)/);
   });
   it('says when the loaded list is incomplete', () => {
     expect(code).toMatch(/\(\{scoped\.length\} loaded\)/);

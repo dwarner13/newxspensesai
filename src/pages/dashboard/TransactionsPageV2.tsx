@@ -3,7 +3,9 @@ import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useSetAtom } from 'jotai';
 import { Search, ChevronRight, ChevronDown, Upload, Download } from 'lucide-react';
-import { useTransactions } from '@/hooks/useTransactions';
+import { useTransactions, readTransactionsPaged } from '@/hooks/useTransactions';
+import { useAuth } from '@/contexts/AuthContext';
+import { PAGED_SELECT_MAX_ROWS } from '@/shared/paged-select';
 import { useImportList } from '@/hooks/useImportList';
 import { groupImportsIntoAccounts } from '@/lib/accountGroups';
 import { needsCategory, countNeedsCategory } from '@/lib/needsCategory';
@@ -94,7 +96,8 @@ export default function TransactionsPageV2() {
       return result;
     } catch { return { importId: null, issuer: null, openTag: false }; }
   })();
-  const { transactions, isLoading, refetch, isComplete: listReadComplete } = useTransactions();
+  const { transactions, isLoading, refetch, isComplete: listReadComplete, isTruncated: listReadTruncated } = useTransactions();
+  const { userId } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
@@ -681,8 +684,8 @@ export default function TransactionsPageV2() {
     return list;
   }, [transactions, statementFilter, accountFilter, accounts, yearFilter, rangeFrom, rangeTo]);
 
-  const filtered = useMemo(() => {
-    let list = scoped;
+  const applyClientFilters = useCallback((input: CommittedTransaction[]) => {
+    let list = input;
     // Same purposes as the engine's Actual Spending / Actual Income.
     if (filter === 'expenses') list = list.filter(t => classifyRow(t).purpose === 'spending');
     else if (filter === 'income') list = list.filter(t => classifyRow(t).purpose === 'income');
@@ -706,7 +709,8 @@ export default function TransactionsPageV2() {
       });
     }
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
-  }, [scoped, filter, searchQuery, tagCategoryFilter, tagSubcategoryFilter, needsCategoryOnly]);
+  }, [filter, searchQuery, tagCategoryFilter, tagSubcategoryFilter, needsCategoryOnly]);
+  const filtered = useMemo(() => applyClientFilters(scoped), [applyClientFilters, scoped]);
 
 
   // Duplicate detector — any tx flagged by the drawer's "Mark Duplicate"
@@ -740,13 +744,24 @@ export default function TransactionsPageV2() {
   // TX-PAGING (owner 2026-11-26: no incomplete export presented as complete). The export holds
   // every row the list holds for the current filters, and refuses when the list itself is
   // incomplete. A filtered export says so in its file name.
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
+    let exportRows = filtered;
     if (listIncomplete) {
-      toast.error("Export stopped: not every transaction has loaded, so the file would be incomplete. Please try again.");
-      return;
+      if (!listReadTruncated) {
+        toast.error("Export stopped: not every transaction has loaded, so the file would be incomplete. Please try again.");
+        return;
+      }
+      // The account is over the read ceiling: read just this view's scope, completely, or refuse.
+      const ceiling = PAGED_SELECT_MAX_ROWS.toLocaleString('en-CA');
+      const narrow = summaryReq && (summaryReq.importIds || summaryReq.startDate !== allTimeRange().startDate);
+      const tooBig = `Your account has more than ${ceiling} transactions, so this view can't be exported from this page yet. Choose a year, date range, account or statement and export again.`;
+      if (!narrow || !userId || !summaryReq) { toast.error(tooBig); return; }
+      const res = await readTransactionsPaged({ userId, importIds: summaryReq.importIds, startDate: summaryReq.startDate, endDate: summaryReq.endDate });
+      if (!res.complete) { toast.error(res.truncated ? tooBig : "Export stopped: this period couldn't be read completely. Please try again."); return; }
+      exportRows = applyClientFilters(res.rows);
     }
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const rows = filtered.map(t => [
+    const rows = exportRows.map(t => [
       t.date || t.posted_at?.slice(0, 10) || '',
       escape(t.merchant_name || 'Unknown'),
       (isInflowRow(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
@@ -761,7 +776,7 @@ export default function TransactionsPageV2() {
     a.download = `transactions-${clientOnlyFilter ? 'filtered-' : ''}${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filtered, listIncomplete, clientOnlyFilter]);
+  }, [filtered, listIncomplete, listReadTruncated, clientOnlyFilter, summaryReq, userId, applyClientFilters]);
 
   // Statement options for dropdown (each individual import with filename)
   const stmtOptions = useMemo(() => {
