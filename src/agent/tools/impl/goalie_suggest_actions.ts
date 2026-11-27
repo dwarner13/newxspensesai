@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { Result, Ok, Err } from '../../../types/result';
 import { getSupabaseServerClient } from '../../../server/db';
+import { fetchTransactionsInRange, type RangeFetchClient } from '../../../shared/transaction-range-fetch';
+import { buildPeriodAggregate } from '../../../shared/period-aggregate';
 
 export const id = 'goalie_suggest_actions';
 
@@ -42,7 +44,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
     const supabase = getSupabaseServerClient();
 
     // Get all active goals
-    let goalsQuery = supabase
+    const goalsQuery = supabase
       .from('goals')
       .select('*')
       .eq('user_id', userId)
@@ -88,20 +90,18 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       focusGoal = activeGoals.find(g => g.id === input.focusGoalId);
     }
 
-    // Get recent spending data for context (last 30 days)
+    // N2 / AR-1b FR-040 (owner GO 2026-11-27): last-30-day ACTUAL SPENDING from the shared engine —
+    // a complete paged read classified by classifyCashFlow (transfers, debt payments, savings and
+    // refunds are not spending). Incomplete read → null: no spending-based suggestion, never a guess.
+    const today = new Date().toISOString().split('T')[0];
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const startDate = thirtyDaysAgo.toISOString().split('T')[0];
-
-    const { data: recentTransactions, error: txError } = await supabase
-      .from('transactions')
-      .select('amount, type, category')
-      .eq('user_id', userId)
-      .eq('type', 'expense')
-      .gte('date', startDate);
-
-    // Calculate total spending in last 30 days
-    const totalSpending = (recentTransactions || []).reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+    const spendRead = await fetchTransactionsInRange(supabase as unknown as RangeFetchClient, { userId, startDate, endDate: today });
+    const spendAgg = spendRead.complete && !spendRead.error
+      ? buildPeriodAggregate(spendRead.rows, { fetch: { complete: true, truncated: false, rowsFetched: spendRead.rowsFetched } })
+      : null;
+    const totalSpending: number | null = spendAgg ? spendAgg.cents.spending / 100 : null;
 
     // Generate action suggestions based on goals
     const nextActions: Array<{
@@ -165,7 +165,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         }
       } else if (goalType === 'debt_payoff') {
         // Debt payoff: suggest extra payment
-        if (remaining > 0 && totalSpending > 0) {
+        if (remaining > 0 && totalSpending !== null && totalSpending > 0) {
           // Suggest cutting spending by 5-10% and applying to debt
           const suggestedCut = Math.min(remaining, totalSpending * 0.1);
           if (suggestedCut > 0) {
@@ -192,13 +192,13 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       }
     }
 
-    // Add general spending optimization if we have transaction data
-    if (totalSpending > 0 && activeGoals.length > 0) {
-      const avgMonthlySpending = totalSpending;
-      const potentialSavings = avgMonthlySpending * 0.05; // 5% reduction
-      
+    // General spending suggestion — only from verified actual spending (shared engine)
+    if (totalSpending === null && activeGoals.length > 0) {
+      notes.push("Recent spending couldn't be verified right now, so no spending-based suggestion is included.");
+    } else if (totalSpending !== null && totalSpending > 0 && activeGoals.length > 0) {
+      const potentialSavings = totalSpending * 0.05; // 5% reduction (an estimate)
       if (potentialSavings > 50) { // Only suggest if meaningful
-        notes.push(`You spent $${avgMonthlySpending.toFixed(2)} in the last 30 days. A 5% reduction could free up $${potentialSavings.toFixed(2)}/month for your goals.`);
+        notes.push(`Your actual spending in the last 30 days was $${totalSpending.toFixed(2)} (excluding transfers, debt payments, savings and refunds). A 5% reduction could free up about $${potentialSavings.toFixed(2)} for your goals (estimate).`);
       }
     }
 
