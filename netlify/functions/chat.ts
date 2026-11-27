@@ -10442,7 +10442,7 @@ export const handler: Handler = async (event, context) => {
       if (ev.admit === 'engine') {
         meaningFiguresFromToolResult(ev.payload, turnMeaningFigures);
         figuresFromToolResult(ev.payload, turnToolFigures);
-      } else if (ev.admit === 'statement_records') {
+      } else if (ev.admit === 'single_value') {
         figuresFromToolResult(ev.payload, turnRecordFigures);
       }
       if (tool === 'cash_flow_summary' && data && typeof data === 'object' && (data as CashFlowForGuard).statementBreakdown) {
