@@ -93,6 +93,18 @@ describe('C-1 regression (owner five)', () => {
   });
 });
 
+describe('C-1 ledger reads served cents as dollars (LA-4 review figure, engine cents fields)', () => {
+  it('a reply quoting the served review amount in dollars is verified', async () => {
+    const { figuresFromToolResult } = await import('../../../src/shared/statement-reconciliation-guard');
+    const ledger = figuresFromToolResult({ needsReview: { complete: true, count: 3, outflow: { count: 3, cents: 6366 }, inflow: { count: 0, cents: 0 }, netCents: -6366 } });
+    const r = verifyReplyFigures('You have 3 transactions needing a category: $63.66 going out.', { toolFigures: ledger, userMessage: 'what needs review?' });
+    expect(r.ok).toBe(true);
+    expect(r.counts.verified).toBe(1);
+    // a wrong review amount is still rejected
+    expect(verifyReplyFigures('Your 3 transactions needing a category total $57.88.', { toolFigures: ledger, userMessage: 'what needs review?' }).ok).toBe(false);
+  });
+});
+
 describe('C-1 does not block legitimate answers (owner: hypotheticals, customer figures)', () => {
   it('hypothetical calculation and customer-provided figures pass with no tool at all', async () => {
     const t = turn('If I put $250 a month aside, how much is that in a year?');
