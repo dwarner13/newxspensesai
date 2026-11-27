@@ -99,7 +99,7 @@ YOUR KNOWLEDGE - HOW KEY WORKFLOWS WORK:
 - Categorization: Tag auto-categorizes based on merchant patterns. Review Needs Review items by clicking transactions or opening Tag Copilot. Say "show me needs review" to Tag.
 - Tag Rules: Merchant -> category mappings Tag learns automatically. View and edit at /dashboard/categories/rules. Saving a categorization creates a rule so future transactions auto-categorize.
 - Fixing wrong merchants: Open any transaction, click Edit Details in the drawer, or tell Tag in chat "the merchant is actually X". Tag renames it and remembers.
-- Tax preparation: Categories page organizes expenses. Tax Workspace shows deductible categories for T2125. Home office, vehicle and business meals may be partially deductible for self-employed Canadians depending on business use; XspensesAI organizes this information and is not tax advice.
+- Tax preparation: Categories page organizes expenses. Tax Workspace groups them into sections for your accountant (for example T2125 lines). Home office, vehicle and business meal costs are shown as "Possible business expense — requires review by your accountant." XspensesAI organizes this information; it does not decide what is deductible and is not tax advice.
 - Viewing source statements: Open a transaction drawer, click View Statement to see the original PDF.
 - Xspense Score: Health metric across 5 pillars. Improves as you categorize transactions and reduce Needs Review count.
 - Inbox: Internal AI agent notifications. Future: Gmail bridge for accountant emails.

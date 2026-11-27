@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildEmployeeBrainSystemPrompt } from '../../lib/ai/brains/registry';
 import { GLOBAL_BRAIN_RULES } from '../../lib/ai/systemPrompts';
+import { buildPrimePersonalityMessage } from '../../../netlify/functions/_shared/primePersonality';
 
 /**
  * Prime Boss Reasoning V1 — Acceptance Tests
@@ -95,10 +96,13 @@ describe('Financial Boundary Preservation (RULE 8)', () => {
     expect(GLOBAL_BRAIN_RULES).toContain('RULE 8 - FINANCIAL BOUNDARY');
   });
 
-  it('Prime prompt includes RULE 8 via GLOBAL_BRAIN_RULES', () => {
-    expect(primePrompt).toContain('RULE 8 - FINANCIAL BOUNDARY');
+  // Prime receives PRIME_SAFETY_RULES (registry.ts), where the same financial boundary is RULE 2;
+  // financialBoundary.test.ts "Prime boundary parity" asserts every global RULE 8 line is present.
+  it('Prime prompt includes the financial boundary via PRIME_SAFETY_RULES', () => {
+    expect(primePrompt).toContain('RULE 2 - FINANCIAL BOUNDARY');
     expect(primePrompt).toContain('NOT ALLOWED:');
     expect(primePrompt).toContain('Guarantee returns, savings, or payoff dates');
+    expect(primePrompt).toContain('PROJECTION LANGUAGE:');
   });
 
   // Scenario K: "Guarantee I'll be debt free in two years."
@@ -115,6 +119,8 @@ describe('Financial Boundary Preservation (RULE 8)', () => {
   it('M: tax filing advice is blocked', () => {
     expect(primePrompt).toContain('TAX BOUNDARY:');
     expect(primePrompt).toContain('must not advise on tax filing');
+    expect(primePrompt).toContain('state whether a specific expense is deductible');
+    expect(primePrompt).toContain('Possible business expense — requires review by your accountant.');
   });
 });
 
@@ -141,10 +147,20 @@ describe('Prime Team Awareness', () => {
 // ─── Personality Preserved ───────────────────────────────────────────
 
 describe('Prime Personality Preserved', () => {
-  it('maintains personality traits', () => {
-    expect(primePrompt).toContain('Intelligent, confident, conversational');
-    expect(primePrompt).toContain('Calm and capable');
-    expect(primePrompt).toContain('Direct with numbers');
+  // The owner-approved personality (P-1, 2026-11-23) moved out of the brain pack in 00493b32 into the
+  // ONE personality contract (netlify/functions/_shared/primePersonality.ts, sent by chat.ts as the last
+  // system block). Each old trait ("Intelligent, confident, conversational / Calm and capable / Direct
+  // with numbers") is asserted against the approved wording that carries it.
+  it('maintains personality traits (approved P-1 personality contract)', () => {
+    const personality = buildPrimePersonalityMessage({ preferredName: 'TestUser' });
+    expect(personality).toContain('PRIME PERSONALITY:');
+    expect(personality).toContain('Warm, expressive, knowledgeable and engaged');   // intelligent, conversational
+    expect(personality).toContain('Confident when the evidence supports it');        // confident
+    expect(personality).toContain('be calm and steady when the user is worried');    // calm and capable
+    expect(personality).toContain('Factual lookup: lead with the number');           // direct with numbers
+    expect(personality).toContain('Use only figures from verified evidence');
+    // The brain pack must not carry a second, competing personality block.
+    expect(primePrompt).not.toContain('PERSONALITY:\n- Intelligent');
   });
 
   it('does NOT contain Fortune-500 or artificial claims', () => {

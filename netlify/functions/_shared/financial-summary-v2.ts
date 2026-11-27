@@ -25,7 +25,7 @@ const money = (cents: number, count?: number) => (count === undefined ? { amount
 
 export const BUSINESS_EXPENSE_SECTIONS = ['vehicle', 'home', 'meals', 'business'] as const;
 export const POSSIBLE_BUSINESS_EXPENSES_WORDING =
-  'Possible business expenses — needs your review (not a tax decision): {count} transactions, {amount}.';
+  'Possible business expense — requires review by your accountant. {count} transactions, {amount}.';
 
 /**
  * Owner decision 2026-11-26 (FINANCIAL CONTRACT DECISIONS): two separate signals.

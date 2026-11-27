@@ -16,6 +16,14 @@ import { buildEmployeeBrainSystemPrompt } from '../../lib/ai/brains/registry';
 // buildEmployeeBrainSystemPrompt() receives the resolved employee_key.
 // Both the production slug (pre-resolution) and the resolved key are tested.
 
+/**
+ * Prime receives PRIME_SAFETY_RULES instead of GLOBAL_BRAIN_RULES by design (registry.ts: Prime has
+ * its own personality contract), where the financial boundary is RULE 2 rather than RULE 8. The
+ * content must still be at least as strict: see "Prime boundary parity" below.
+ */
+const isPrimeKey = (k: string | null) => k === 'prime' || k === 'prime-boss';
+const boundaryHeadingFor = (k: string | null) => (isPrimeKey(k) ? 'RULE 2 - FINANCIAL BOUNDARY' : 'RULE 8 - FINANCIAL BOUNDARY');
+
 /** Exact production slugs from employee_profiles / runtime routing */
 const PRODUCTION_SLUGS = [
   'prime-boss',
@@ -94,9 +102,10 @@ describe('Financial Boundary — Resolved Employee Key Coverage', () => {
         preferredName: 'TestUser',
         currency: 'USD',
       });
-      expect(prompt).toContain('RULE 8 - FINANCIAL BOUNDARY');
+      expect(prompt).toContain(boundaryHeadingFor(key));
       expect(prompt).toContain('NOT ALLOWED:');
       expect(prompt).toContain('PROJECTION LANGUAGE:');
+      expect(prompt).toContain('TAX BOUNDARY:');
     },
   );
 
@@ -125,10 +134,32 @@ describe('Financial Boundary — Production Slug Resolution', () => {
         preferredName: 'TestUser',
         currency: 'USD',
       });
-      expect(prompt).toContain('RULE 8 - FINANCIAL BOUNDARY');
+      expect(prompt).toContain(boundaryHeadingFor(resolvedKey));
       expect(prompt).toContain('NOT ALLOWED:');
+      expect(prompt).toContain('TAX BOUNDARY:');
     },
   );
+});
+
+describe('Prime boundary parity (Prime is never weaker than GLOBAL RULE 8)', () => {
+  // Every ALLOWED / NOT ALLOWED bullet, the PROJECTION LANGUAGE examples and every TAX BOUNDARY line of
+  // the global rule must appear verbatim in Prime's prompt. Only BOUNDARY RESPONSE (a scripted 4-step
+  // reply shape) is deliberately not given to Prime: it conflicts with the owner-approved personality
+  // ("start with the answer"); its substance (data first, not professional advice, see a professional)
+  // is carried by RULE 2 and TAX BOUNDARY.
+  const section = (from: string, to: string) => {
+    const s = GLOBAL_BRAIN_RULES.indexOf(from);
+    const e = GLOBAL_BRAIN_RULES.indexOf(to, s + from.length);
+    return GLOBAL_BRAIN_RULES.slice(s, e).split('\n').map(l => l.trim()).filter(l => l && l !== from);
+  };
+  const ruleLines = section('RULE 8 - FINANCIAL BOUNDARY', 'BOUNDARY RESPONSE:');
+  for (const key of ['prime-boss', 'prime'] as const) {
+    const prompt = buildEmployeeBrainSystemPrompt({ employee_key: key, ai_fluency_level: 'Explorer', preferredName: 'TestUser', currency: 'USD' });
+    it(`${key}: carries every global boundary line (${ruleLines.length} lines)`, () => {
+      expect(ruleLines.length).toBeGreaterThan(20);
+      for (const line of ruleLines) expect(prompt, line).toContain(line);
+    });
+  }
 });
 
 // ─── Scenario Tests A–I ─────────────────────────────────────────────
@@ -223,10 +254,17 @@ describe('Financial Boundary — Forecast Tool Assumptions', () => {
     expect(shape.assumptions).toBeDefined();
   });
 
+  // analytics_forecast nests its result under `forecast` (assumptions is forecast.assumptions, not a
+  // top-level field). Assert the nested schema AND that a real forecast states its assumptions.
   it('analytics forecast output schema includes assumptions field', async () => {
-    const { outputSchema } = await import('../../agent/tools/impl/analytics_forecast');
-    const shape = outputSchema.shape;
-    expect(shape.assumptions).toBeDefined();
+    const { outputSchema, execute } = await import('../../agent/tools/impl/analytics_forecast');
+    expect(outputSchema.shape.forecast.shape.assumptions).toBeDefined();
+    const result = await execute({ currentBalance: 2000, monthlyPayment: 200, annualRate: 20, timeframe: '1year' }, { userId: 'synthetic-user' });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.forecast.assumptions.length).toBeGreaterThan(0);
+      expect(result.value.forecast.assumptions.join(' ')).toMatch(/assumed/i);
+    }
   });
 
   it('debt payoff forecast returns assumptions in output', async () => {
