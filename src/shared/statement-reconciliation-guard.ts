@@ -51,12 +51,23 @@ const LABELLED_TOTALS: ReadonlyArray<{ rx: RegExp; pick: (b: BreakdownOutput, cf
 const STRICT_TOPIC = /\b(reconcil\w*|breakdown|break (?:it|this) down|total deposits?|total withdrawals?|deposits and withdrawals)\b/i;
 const BREAKDOWN_TOPIC = /\b(deposit|deposits|withdrawal|withdrawals|reconcil\w*|breakdown|net cash|cash ?flow|total (?:income|spending|inflows?|outflows?)|money (?:in|out))\b/i;
 
-/** Every number in any same-turn read-tool result (deep walk; absolute values, dollars). */
-export function figuresFromToolResult(result: unknown, out: number[] = [], depth = 0): number[] {
+/**
+ * Every number in any same-turn read-tool result (deep walk; absolute values, dollars).
+ * Engine fields carried in integer CENTS (keys ending in "cents", or numbers under a "cents" object,
+ * e.g. needsReview.outflow.cents, netCents, agg.cents.*) are also recorded in dollars, so a reply that
+ * quotes the served amount in dollars is recognised as verified (C-1 ledger).
+ */
+export function figuresFromToolResult(result: unknown, out: number[] = [], depth = 0, inCents = false): number[] {
   if (depth > 6 || out.length > 5000) return out;
-  if (typeof result === 'number' && Number.isFinite(result)) { out.push(Math.abs(result)); return out; }
-  if (Array.isArray(result)) { for (const v of result) figuresFromToolResult(v, out, depth + 1); return out; }
-  if (result && typeof result === 'object') for (const v of Object.values(result)) figuresFromToolResult(v, out, depth + 1);
+  if (typeof result === 'number' && Number.isFinite(result)) {
+    out.push(Math.abs(result));
+    if (inCents && Number.isInteger(result)) out.push(Math.abs(result) / 100);
+    return out;
+  }
+  if (Array.isArray(result)) { for (const v of result) figuresFromToolResult(v, out, depth + 1, inCents); return out; }
+  if (result && typeof result === 'object') {
+    for (const [k, v] of Object.entries(result)) figuresFromToolResult(v, out, depth + 1, inCents || /cents$/i.test(k));
+  }
   return out;
 }
 
