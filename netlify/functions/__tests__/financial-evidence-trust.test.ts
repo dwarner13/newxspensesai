@@ -22,7 +22,7 @@ function ledgerFrom(results: Array<[string, unknown]>) {
   for (const [tool, data] of results) {
     const ev = admitToolEvidence(tool, data);
     if (ev.admit === 'engine') { meaningFiguresFromToolResult(ev.payload, meaningFigures); figuresFromToolResult(ev.payload, toolFigures); }
-    else if (ev.admit === 'statement_records') figuresFromToolResult(ev.payload, recordFigures);
+    else if (ev.admit === 'single_value') figuresFromToolResult(ev.payload, recordFigures);
   }
   return { toolFigures, recordFigures, meaningFigures };
 }
@@ -41,11 +41,14 @@ const txq = (scope: Record<string, unknown>, totals = txqTotals()) => ({
 });
 
 describe('registry: authorization is not evidence', () => {
-  it('classifies the owner\'s four categories; unknown tools fail closed', () => {
+  it('classifies the owner\'s distinctions; unknown tools fail closed', () => {
     expect(evidenceClassFor('cash_flow_summary')).toBe('engine');
     expect(evidenceClassFor('tx_get')).toBe('statement_records');
+    expect(evidenceClassFor('account_balances_query')).toBe('stored_values');
+    expect(evidenceClassFor('tag_status')).toBe('review');
+    expect(evidenceClassFor('finley_savings_forecast')).toBe('forecast');
     expect(evidenceClassFor('statement_coverage')).toBe('non_financial');
-    expect(evidenceClassFor('finley_savings_forecast')).toBe('ineligible');
+    expect(evidenceClassFor('tag_document_findings')).toBe('ineligible');
     expect(evidenceClassFor('some_future_tool')).toBe('ineligible');
     expect(evidenceClassFor(undefined)).toBe('ineligible');
   });
@@ -151,6 +154,31 @@ describe('partial or non-compliant totals cannot pass verification', () => {
     const bal = { accounts: [{ id: 'a', balance: 1200.0 }, { id: 'b', balance: 300.0 }], totalBalance: 1500.0, sourceNote: '' };
     expect(verify('Your chequing balance is $1,200.00 as recorded.', [['account_balances_query', bal]]).ok).toBe(true);
     expect(verify('Your balance across accounts is $1,500.00.', [['account_balances_query', bal]]).ok).toBe(false);
+  });
+});
+
+describe('owner distinctions: review counts, forecasts, stored values, historical AI statements', () => {
+  it('review counts and forecasts are never evidence of actual money', () => {
+    expect(admitToolEvidence('tag_status', { status: 'ok', needsReviewCount: 12 }).admit).toBeNull();
+    expect(admitToolEvidence('finley_debt_payoff_forecast', { monthsToPayoff: 18, totalInterest: 812.4 }).admit).toBeNull();
+    expect(verify('You paid $812.40 in interest.', [['finley_debt_payoff_forecast', { totalInterest: 812.4 }]]).ok).toBe(false);
+  });
+
+  it('stored goal / obligation summaries are not admitted until a per-item extractor is verified', () => {
+    expect(admitToolEvidence('goalie_summarize_goals', { totalSaved: 5000 }).reason).toBe('no_verified_extractor');
+    expect(admitToolEvidence('chime_summarize_upcoming_obligations', { totalDue: 900 }).reason).toBe('no_verified_extractor');
+  });
+
+  it('unverified historical AI statements never validate a figure (ledger = this turn only)', () => {
+    // a figure Prime said in an EARLIER reply is not in this turn's tools or the customer's message
+    const r = verify('Your spending last month was $3,456.78, as I mentioned.', [], 'remind me what you said about spending?');
+    expect(r.ok).toBe(false);
+    const chat = fs.readFileSync(path.join(__dirname, '../chat.ts'), 'utf8');
+    const call = chat.match(/const verifyReply = \(text: string\) => verifyReplyFigures\(text, \{([^}]*)\}\)/);
+    expect(call).not.toBeNull();
+    // only same-turn ledgers, the engine position and the customer's CURRENT message
+    expect(call![1].replace(/\s+/g, ' ').trim()).toBe(
+      "toolFigures: turnToolFigures, userMessage: String(masked || ''), positionFigures, meaningFigures: turnMeaningFigures, recordFigures: turnRecordFigures");
   });
 });
 
