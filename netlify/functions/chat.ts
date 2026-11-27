@@ -241,7 +241,7 @@ import { committedImportIds, isImportCommitted } from './_shared/importLifecycle
 type LifecycleDb = Parameters<typeof committedImportIds>[0];
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools, TRANSACTION_MUTATION_TOOLS } from '../../src/shared/ai-action-safety';
-import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, moneyFigures, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
+import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, meaningFiguresFromToolResult, moneyFigures, type CashFlowForGuard, type FigureMeaning } from '../../src/shared/statement-reconciliation-guard';
 import { verifyReplyFigures, evidenceRegenerationInstruction, enforceReplyEvidence, removeUnsupportedBalanceSpeculation } from '../../src/shared/turn-evidence-ledger';
 import { toInclusiveEndDate } from '../../src/shared/prime-temporal-scope';
 import { REMEMBERED_CONTEXT_HEADER, REMEMBERED_FACTS_SUMMARY_LABEL, EARLIER_CONVERSATION_LABEL, rememberedContextBlock } from '../../src/shared/remembered-context-labels';
@@ -10410,8 +10410,11 @@ export const handler: Handler = async (event, context) => {
     const turnToolFigures: number[] = [];
     // C-1 ledger: which tools produced evidence this turn (e.g. balance evidence for the speculation rule).
     const turnToolNames = new Set<string>();
+    // C-1 ledger: figures by financial meaning (deposits / withdrawals / net / income / spending), in cents.
+    const turnMeaningFigures = new Map<FigureMeaning, Set<number>>();
     const captureCashFlowForGuard = (tool: string | undefined, data: unknown) => {
       if (tool && data && typeof data === 'object') turnToolNames.add(tool);
+      if (data && typeof data === 'object') meaningFiguresFromToolResult(data, turnMeaningFigures);
       if (data && typeof data === 'object') figuresFromToolResult(data, turnToolFigures);
       if (tool === 'cash_flow_summary' && data && typeof data === 'object' && (data as CashFlowForGuard).statementBreakdown) {
         turnCashFlowForGuard = data as CashFlowForGuard;
@@ -14727,7 +14730,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       let evidenceCheck: { ok: boolean; unsupportedCount: number; action: 'kept' | 'regenerated' | 'asked' | 'unavailable'; speculationRemoved?: number; author?: string } | null = null;
       if (isPrime && assistantContent) {
         const positionFigures = moneyFigures(financialPositionText || '');
-        const verifyReply = (text: string) => verifyReplyFigures(text, { toolFigures: turnToolFigures, userMessage: String(masked || ''), positionFigures });
+        const verifyReply = (text: string) => verifyReplyFigures(text, { toolFigures: turnToolFigures, userMessage: String(masked || ''), positionFigures, meaningFigures: turnMeaningFigures });
         const remainingMs = 60000 - (Date.now() - requestStartTime);
         const cashFlowModule = toolModules['cash_flow_summary'];
         const evidence = await enforceReplyEvidence({
