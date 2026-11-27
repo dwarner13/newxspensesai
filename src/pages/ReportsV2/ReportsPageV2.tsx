@@ -1,10 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
+import { FINANCIAL_LABELS } from "@/lib/financialLabels";
+import { FinancialStateNotice } from "@/components/finance/FinancialState";
+import { fetchRowsExport, saveBlob } from "@/lib/financialExport";
 import { useNavigate } from "react-router-dom";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Reveal } from "../PrimeChatV2/Reveal";
 import { useReportsData } from "@/hooks/useReportsData";
 import type { IssuerGroup } from "@/hooks/useReportsData";
 import { getSupabase } from "@/lib/supabase";
+import toast from "react-hot-toast";
 
 // ─── Design tokens ──────────────────────────────────────────────────────
 const T = {
@@ -63,7 +67,6 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
         <div style={{ width: 10, height: 10, borderRadius: "50%", background: dot, flexShrink: 0 }} />
         <span style={{ fontSize: 15, fontWeight: 600, color: T.text, flex: 1 }}>{group.issuer}</span>
         <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: dot + "18", color: dot }}>{group.statements.length}</span>
-        <span style={{ fontSize: 12, color: T.muted, marginLeft: 8 }}>{fmtCAD(group.totalSpent)} spent</span>
         <span style={{ fontSize: 12, color: T.dim, marginLeft: 4 }}>{group.txCount} txns</span>
         <span style={{ fontSize: 14, color: T.dim, marginLeft: 8, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0)" }}>{"\u25BE"}</span>
       </button>
@@ -72,24 +75,24 @@ function IssuerSection({ group, navigate }: { group: IssuerGroup; navigate: (pat
         <div style={{ borderTop: "1px solid " + T.border }}>
           {/* Column headers - desktop only */}
           <div className="reports-row-header" style={{ display: window.innerWidth >= 768 ? "grid" : "none", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "8px 18px", fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: 1 }}>
-            <span>Statement Period</span><span>Transactions</span><span>Spent</span><span>Income</span><span />
+            <span>Transaction dates</span><span>Transactions</span><span>{FINANCIAL_LABELS.actualSpending}</span><span>{FINANCIAL_LABELS.actualIncome}</span><span />
           </div>
           {group.statements.map(s => (
             <div key={s.importId} style={{ borderTop: "1px solid " + T.border }}>
               {/* Desktop row */}
               <div className="reports-desktop-row" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr auto", padding: "10px 18px", alignItems: "center", fontSize: 12, display: window.innerWidth >= 768 ? "grid" : "none" }}>
-                <span style={{ color: T.text }}>{s.earliestDate && s.latestDate ? fmtDate(s.earliestDate) + " – " + fmtDateFull(s.latestDate) : "Imported " + fmtDateFull(s.createdAt)}</span>
+                <span style={{ color: T.text }}>{s.earliestDate && s.latestDate ? "Transactions from " + fmtDate(s.earliestDate) + " to " + fmtDateFull(s.latestDate) : "Imported " + fmtDateFull(s.createdAt)}</span>
                 <span style={{ color: T.muted }}>{s.txCount}</span>
-                <span style={{ color: T.red, fontWeight: 600 }}>{fmtCAD(s.totalSpent)}</span>
-                <span style={{ color: T.green, fontWeight: 600 }}>{fmtCAD(s.totalIncome)}</span>
+                <span style={{ color: T.red, fontWeight: 600 }}>{s.totalSpent !== null ? fmtCAD(s.totalSpent) : "\u2014"}</span>
+                <span style={{ color: T.green, fontWeight: 600 }}>{s.totalIncome !== null ? fmtCAD(s.totalIncome) : "\u2014"}</span>
                 <button onClick={() => navigate("/dashboard/transactions?importId=" + s.importId)} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: T.gold + "12", border: "1px solid " + T.gold + "28", color: T.gold, cursor: "pointer" }}>{"View ->"}</button>
               </div>
               {/* Mobile card */}
               <div style={{ display: window.innerWidth < 768 ? "flex" : "none", alignItems: "center", padding: "10px 18px", gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: T.text, fontWeight: 600, fontSize: 13 }}>{s.earliestDate && s.latestDate ? fmtDate(s.earliestDate) + " – " + fmtDateFull(s.latestDate) : "Imported " + fmtDateFull(s.createdAt)}</div>
-                  <div style={{ color: T.muted, fontSize: 12, marginTop: 2 }}>{s.txCount} transactions · {fmtCAD(s.totalSpent)} spent</div>
-                  {s.totalIncome > 0 && <div style={{ color: T.green, fontSize: 12, marginTop: 1 }}>{fmtCAD(s.totalIncome)} income</div>}
+                  <div style={{ color: T.text, fontWeight: 600, fontSize: 13 }}>{s.earliestDate && s.latestDate ? "Transactions from " + fmtDate(s.earliestDate) + " to " + fmtDateFull(s.latestDate) : "Imported " + fmtDateFull(s.createdAt)}</div>
+                  <div style={{ color: T.muted, fontSize: 12, marginTop: 2 }}>{s.txCount} transactions{s.totalSpent !== null ? " · " + FINANCIAL_LABELS.actualSpending + " " + fmtCAD(s.totalSpent) : ""}</div>
+                  {s.totalIncome !== null && s.totalIncome > 0 && <div style={{ color: T.green, fontSize: 12, marginTop: 1 }}>{FINANCIAL_LABELS.actualIncome} {fmtCAD(s.totalIncome)}</div>}
                 </div>
                 <button onClick={() => navigate("/dashboard/transactions?importId=" + s.importId)} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: T.gold + "12", border: "1px solid " + T.gold + "28", color: T.gold, cursor: "pointer", flexShrink: 0 }}>{"View ->"}</button>
               </div>
@@ -120,74 +123,26 @@ export default function ReportsPageV2() {
 
   // ── CSV export ──
   const exportCSV = useCallback(async () => {
-    const sb = getSupabase();
-    if (!sb) return;
-    const { data: userData } = await sb.auth.getUser();
-    if (!userData?.user) return;
-    const { data: txs } = await sb
-      .from("transactions")
-      .select("posted_at, merchant_name, amount, category, subcategory, import_id")
-      .eq("user_id", userData.user.id)
-      .order("posted_at", { ascending: false });
-    if (!txs) return;
-    const importIssuerMap = new Map<string, string>();
-    data.issuerGroups.forEach(g => g.statements.forEach(s => importIssuerMap.set(s.importId, g.issuer)));
-    const rows = [
-      ["Date", "Merchant", "Amount", "Category", "Subcategory", "Issuer", "Import ID"],
-      ...txs.map((t: any) => [
-        t.posted_at || "", t.merchant_name || "", t.amount?.toFixed(2) || "",
-        t.category || "", t.subcategory || "",
-        importIssuerMap.get(t.import_id) || "Unknown", t.import_id || "",
-      ]),
-    ];
-    const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "xspensesai-export-" + new Date().toISOString().slice(0, 10) + ".csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [data.issuerGroups]);
+    // UX-FST2-10: the server's count-verified rows export (all time); never a capped browser read.
+    const r = await fetchRowsExport({});
+    if (r.status === 'ok') saveBlob(r.blob, r.filename);
+    else if (r.status === 'no_data') toast(r.message);
+    else toast.error(r.message);
+  }, []);
 
   // Destructure for cleaner access in callbacks
   const { issuerGroups, grandTotalSpent, grandTotalIncome, grandTxCount, monthlyTrends, topCategories } = data;
 
   // Build real financial context from live data for all agents
-  const buildPrimeContext = useCallback(() => {
-    const topCats = topCategories.slice(0, 8).map(c => ({
-      name: c.category,
-      amount: c.total,
-    }));
-
-    const issuerSummaries = issuerGroups.map(g => ({
-      importId: g.statements[0]?.importId || '',
-      label: g.issuer,
-      totalSpend: g.totalSpent,
-      totalIncome: g.totalIncome,
-      txCount: g.txCount,
-      topCategories: topCats,
-      topMerchants: [],
-      displayedAt: new Date().toISOString(),
-    }));
-
-    return {
-      displayName: null,
-      timezone: 'America/Edmonton',
-      currency: 'CAD',
-      currentStage: 'power' as const,
-      financialSnapshot: {
-        hasTransactions: grandTxCount > 0,
-        uncategorizedCount: 0,
-        monthlySpend: grandTotalSpent,
-        topCategories: topCats,
-        hasDebt: false,
-        hasGoals: false,
-      },
-      memorySummary: null,
-      recentImportSummaries: issuerSummaries,
-    };
-  }, [topCategories, issuerGroups, grandTotalSpent, grandTotalIncome, grandTxCount]);
+  const buildPrimeContext = useCallback(() => ({
+    displayName: null,
+    timezone: 'America/Edmonton',
+    currency: 'CAD',
+    currentStage: 'power' as const,
+    // UX-FST2-10: counts only; Prime reads figures from the server.
+    financialSnapshot: { hasTransactions: grandTxCount > 0, uncategorizedCount: 0, hasDebt: false, hasGoals: false },
+    memorySummary: null,
+  }), [grandTxCount]);
 
   // ── Inline chat ──
   const sendChat = useCallback(async (text?: string) => {
@@ -218,12 +173,13 @@ export default function ReportsPageV2() {
             ? {
                 kind: "reports",
                 data: {
+                  // UX-FST2-10: server figures (financial-summary), never browser sums.
                   totalSpent: grandTotalSpent,
                   totalIncome: grandTotalIncome,
                   transactionCount: grandTxCount,
                   topCategories: topCategories.slice(0, 8).map(c => ({ category: c.category, total: c.total })),
                   monthlyTrends: monthlyTrends.slice(-6).map(m => ({ month: m.month, spent: m.spent })),
-                  statements: issuerGroups.map(g => ({ issuer: g.issuer, transactionCount: g.txCount, totalSpent: g.totalSpent })),
+                  statements: issuerGroups.flatMap(g => g.statements.map(st => ({ issuer: g.issuer, transactionCount: st.txCount, totalSpent: st.totalSpent ?? 0 }))),
                 },
               }
             : undefined,
@@ -279,21 +235,11 @@ export default function ReportsPageV2() {
   }, [chatInput, chatMessages, chatLoading, chatAgent, buildPrimeContext, grandTotalSpent, grandTotalIncome, grandTxCount, issuerGroups, monthlyTrends, topCategories]);
 
   // ── Chart insights ──
-  const chartInsights = useMemo(() => {
-    const trends = data.monthlyTrends;
-    if (trends.length === 0) return { highMonth: "-", avgSpend: 0, trendPct: 0 };
-    const sorted = [...trends].sort((a, b) => b.spent - a.spent);
-    const highMonth = sorted[0]?.month || "-";
-    const avgSpend = Math.round(trends.reduce((s, t) => s + t.spent, 0) / trends.length);
-    const trendPct = trends.length >= 2 ? Math.round(((trends[trends.length - 1].spent - trends[trends.length - 2].spent) / (trends[trends.length - 2].spent || 1)) * 100) : 0;
-    return { highMonth, avgSpend, trendPct };
-  }, [data.monthlyTrends]);
-
   // ── Missing issuers for checklist ──
   const presentIssuers = new Set(data.issuerGroups.map(g => g.issuer));
   const checklist = Array.from(presentIssuers).map(name => ({ name, present: true }));
 
-  const net = data.grandTotalIncome - data.grandTotalSpent;
+  const net = data.netCashFlow; // server Net Cash Flow
   const agentColor = chatAgent === "Prime" ? T.gold : chatAgent === "Crystal" ? T.purple : T.cyan;
   const agentLabel = chatAgent === "Prime" ? "\u265B" : chatAgent === "Crystal" ? "C" : "T";
 
@@ -346,10 +292,14 @@ export default function ReportsPageV2() {
         {/* ═══ C. Grand Total Stat Cards ═══ */}
         <Reveal delay={100}>
           <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-            <StatCard label="Total Spent" value={fmtCAD(data.grandTotalSpent)} color={T.red} />
-            <StatCard label="Total Income" value={fmtCAD(data.grandTotalIncome)} color={T.green} />
-            <StatCard label="Net" value={(net < 0 ? "-" : "") + fmtCAD(Math.abs(net))} color={net < 0 ? T.red : T.green} />
+            {data.summary ? (<>
+            <StatCard label={FINANCIAL_LABELS.actualSpending} value={fmtCAD(data.grandTotalSpent)} color={T.red} />
+            <StatCard label={FINANCIAL_LABELS.actualIncome} value={fmtCAD(data.grandTotalIncome)} color={T.green} />
+            <StatCard label={FINANCIAL_LABELS.netCashFlow} value={(net < 0 ? "-" : "+") + fmtCAD(Math.abs(net))} color={net < 0 ? T.red : T.green} />
             <StatCard label="Transactions" value={data.grandTxCount.toLocaleString()} color={T.gold} />
+            </>) : (
+              <div style={{ flex: 1 }}><FinancialStateNotice state={data.financial} onRetry={data.financial.status !== 'loading' ? data.financial.refetch : undefined} /></div>
+            )}
           </div>
         </Reveal>
 
@@ -393,12 +343,10 @@ export default function ReportsPageV2() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ height: 160, display: "flex", alignItems: "center", justifyContent: "center", color: T.dim, fontSize: 12 }}>No trend data yet</div>
+                <div style={{ height: 160, display: "flex", alignItems: "center", justifyContent: "center", color: T.dim, fontSize: 12, textAlign: "center", padding: "0 12px" }}>Not enough complete statement periods to compare yet</div>
               )}
               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, background: T.purple + "12", color: T.purple, fontWeight: 600 }}>Highest: {chartInsights.highMonth}</span>
-                <span style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, background: T.purple + "12", color: T.purple, fontWeight: 600 }}>Avg: {fmtCAD(chartInsights.avgSpend)}/mo</span>
-                <span style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, background: T.purple + "12", color: T.purple, fontWeight: 600 }}>{chartInsights.trendPct >= 0 ? "\u2191" : "\u2193"} {Math.abs(chartInsights.trendPct)}%</span>
+                {data.spendingClaimText && <span style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: T.purple + "12", color: T.purple, fontWeight: 600, lineHeight: 1.4 }}>{data.spendingClaimText}</span>}
               </div>
               <button onClick={() => { setChatAgent("Crystal"); sendChat("What are my spending trends?"); }} style={{ marginTop: 12, width: "100%", padding: "8px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, background: T.purple + "12", border: "1px solid " + T.purple + "28", color: T.purple, cursor: "pointer" }}>{"Ask Crystal ->"}</button>
             </div>
@@ -415,7 +363,7 @@ export default function ReportsPageV2() {
                 </div>
               </div>
               <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>
-                {data.issuerGroups.reduce((s, g) => s + g.statements.length, 0)} statements &middot; {data.grandTxCount} transactions &middot; {data.monthlyTrends.length} months covered
+                {data.issuerGroups.reduce((s, g) => s + g.statements.length, 0)} statements &middot; {data.grandTxCount} transactions &middot; {data.monthlyTrends.length} complete statement period{data.monthlyTrends.length === 1 ? "" : "s"}
               </div>
               {checklist.map(item => (
                 <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", fontSize: 12 }}>

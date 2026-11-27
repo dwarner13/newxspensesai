@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Tag, Brain, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
@@ -9,9 +8,7 @@ import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
 import { useImportList } from '../../hooks/useImportList';
 import { useCategoryRules } from '../../hooks/useCategoryRules';
-import { createCategoryRule } from '../../lib/categoryRules';
 import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
-import type { EmployeeStat } from '../../config/employeeDisplayConfig';
 import toast from 'react-hot-toast';
 import { newClientMessageId } from '@/lib/tagConversation';
 import { useSetAtom } from 'jotai';
@@ -52,28 +49,6 @@ export type SmartCategorySummary = {
 };
 
 const SmartCategoriesPage: React.FC = () => {
-  const CANONICAL_CATEGORIES = [
-    'Income',
-    'Groceries',
-    'Food & Dining',
-    'Transportation',
-    'Housing',
-    'Utilities',
-    'Shopping',
-    'Subscriptions',
-    'Entertainment',
-    'Healthcare',
-    'Insurance',
-    'Education',
-    'Travel',
-    'Transfers',
-    'Bank Fees',
-    'Business',
-    'Personal Care',
-    'Home & Garden',
-    'Other',
-    'Uncategorized',
-  ] as const;
   // Scroll to top when page loads
   useScrollToTop();
   const navigate = useNavigate();
@@ -86,33 +61,12 @@ const SmartCategoriesPage: React.FC = () => {
   const { imports: importList } = useImportList();
   const categoryRules = useCategoryRules();
 
-  // Build EmployeeStat[] for the Tag card hero - "-" when data is unavailable
-  const tagCardStats: EmployeeStat[] = [
-    {
-      value: tagStats.isLoading ? '...' : tagStats.itemsTagged !== null ? tagStats.itemsTagged.toLocaleString() : '-',
-      label: 'Items Tagged',
-      colorClass: 'text-cyan-400',
-    },
-    {
-      value: tagStats.isLoading ? '...' : tagStats.autoTaggedPct !== null ? `${tagStats.autoTaggedPct}%` : '-',
-      label: 'Auto-Tagged',
-      colorClass: 'text-green-400',
-    },
-    {
-      value: tagStats.isLoading ? '...' : tagStats.categoryCount !== null ? String(tagStats.categoryCount) : '-',
-      label: 'Categories',
-      colorClass: 'text-purple-400',
-    },
-  ];
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Removed workspace overlay state - now using unified chat slideout
-  const [isGeneratingStarterRules, setIsGeneratingStarterRules] = useState(false);
   const [isRunningHandoffTag, setIsRunningHandoffTag] = useState(false);
-  const [breakdownSort, setBreakdownSort] = useState<'amount_desc' | 'tx_desc' | 'alpha' | 'trend_desc'>('amount_desc');
   const [selectedInspectorCategory, setSelectedInspectorCategory] = useState<string | null>(null);
   const [inspectorMoveCategory, setInspectorMoveCategory] = useState<string>('Other');
   const [inspectorMoveSubcategory, setInspectorMoveSubcategory] = useState<string>('');
@@ -270,14 +224,6 @@ const SmartCategoriesPage: React.FC = () => {
   }, [transactions]);
 
 
-  // O(1) lookup: category name -> SmartCategorySummary (for learning metrics)
-  const summaryMap = useMemo(() => {
-    const map = new Map<string, SmartCategorySummary>();
-    for (const s of categorySummaries) {
-      map.set(s.category, s);
-    }
-    return map;
-  }, [categorySummaries]);
 
   // ── Month filter state ──────────────────────────────────────────────────────
   // selectedMonth: "2025-01" ISO year-month key, or null = All time
@@ -294,38 +240,7 @@ const SmartCategoriesPage: React.FC = () => {
     setSearchParams(next, { replace: true });
   };
 
-  // Derive available months from transaction dates (most-recent first)
-  const availableMonths = useMemo(() => {
-    const seen = new Set<string>();
-    const months: Array<{ label: string; value: string }> = [];
-    for (const tx of transactions) {
-      const raw = tx.date || '';
-      if (!raw) continue;
-      const d = new Date(raw);
-      if (isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        months.push({
-          value: key,
-          label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        });
-      }
-    }
-    return months;
-  }, [transactions]);
 
-  // Month range from selectedMonth key -> ISO date strings for Supabase queries
-  const monthRange = useMemo(() => {
-    if (!selectedMonth) return undefined;
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const start = new Date(y, m - 1, 1);
-    const end = new Date(y, m, 0, 23, 59, 59, 999); // last ms of month
-    return {
-      start: start.toISOString(),
-      end: end.toISOString(),
-    };
-  }, [selectedMonth]);
 
   // Transactions filtered by selectedMonth
   const monthFilteredTransactions = useMemo(() => {
@@ -355,81 +270,9 @@ const SmartCategoriesPage: React.FC = () => {
     }).format(amount);
   };
 
-  const getLearningBadge = (summary: SmartCategorySummary) => {
-    if (summary.learningDominance === 'mostly-learned') {
-      return {
-        text: 'Mostly Learned',
-        className: 'bg-green-500/20 text-green-300 border-green-500/30',
-        icon: <Brain className="w-3 h-3" />
-      };
-    } else if (summary.learningDominance === 'mostly-ai') {
-      return {
-        text: 'Mostly AI',
-        className: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-        icon: <Sparkles className="w-3 h-3" />
-      };
-    } else if (summary.learningDominance === 'mixed') {
-      return {
-        text: 'Mixed Source',
-        className: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-        icon: <Tag className="w-3 h-3" />
-      };
-    }
-    return {
-      text: 'Unknown',
-      className: 'bg-white/10 text-white/60 border-white/20',
-      icon: null
-    };
-  };
 
-  const handleAskTag = (categorySummary: SmartCategorySummary) => {
-    // Open unified chat with Tag employee
-    openChat({
-      initialEmployeeSlug: 'tag-ai',
-      force: true,
-      context: {
-        page: 'smart-categories',
-        data: {
-          source: 'workspace-tag',
-          category: categorySummary.category,
-          learnedCount: categorySummary.learnedCount,
-          aiCount: categorySummary.aiCount,
-          avgConfidence: categorySummary.avgConfidence,
-          transactionCount: categorySummary.transactionCount,
-        },
-      },
-    });
-  };
 
-  const handleAskCrystal = (categorySummary: SmartCategorySummary) => {
-    navigate('/dashboard/chat/crystal', {
-      state: {
-        source: 'smart-categories',
-        contextType: 'category',
-        from: location.pathname, // Return origin: Smart Categories page
-        category: categorySummary.category,
-        learnedCount: categorySummary.learnedCount,
-        aiCount: categorySummary.aiCount,
-        avgConfidence: categorySummary.avgConfidence,
-        transactionCount: categorySummary.transactionCount,
-      },
-    });
-  };
 
-  const handleAskPrime = (categorySummary: SmartCategorySummary) => {
-    navigate('/dashboard/chat/prime', {
-      state: {
-        source: 'smart-categories',
-        contextType: 'category',
-        from: location.pathname, // Return origin: Smart Categories page
-        category: categorySummary.category,
-        learnedCount: categorySummary.learnedCount,
-        aiCount: categorySummary.aiCount,
-        avgConfidence: categorySummary.avgConfidence,
-        transactionCount: categorySummary.transactionCount,
-      },
-    });
-  };
 
   const inferStarterCategory = (merchant: string): string => {
     const label = String(merchant || '').toLowerCase();
@@ -440,56 +283,6 @@ const SmartCategoriesPage: React.FC = () => {
     if (/(uber|lyft|taxi|transit|bus|train|parking)/i.test(label)) return 'Transportation';
     if (/(rent|mortgage|lease|property)/i.test(label)) return 'Housing';
     return 'Other';
-  };
-  const starterRuleSuggestions = useMemo(() => {
-    const activeRuleValues = new Set(
-      categoryRules.rules
-        .filter((rule) => rule.is_active)
-        .map((rule) => String(rule.match_value || '').toLowerCase().trim())
-        .filter(Boolean)
-    );
-    const counts = new Map<string, number>();
-    for (const tx of transactions) {
-      const merchant = String(tx.merchant || tx.description || '').trim();
-      if (!merchant) continue;
-      const key = merchant.toLowerCase();
-      counts.set(key, (counts.get(key) || 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .filter(([merchantKey, count]) => count >= 2 && !activeRuleValues.has(merchantKey))
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([merchantKey, count]) => ({
-        merchant: merchantKey.replace(/\b\w/g, (c) => c.toUpperCase()),
-        category: inferStarterCategory(merchantKey),
-        count,
-      }));
-  }, [categoryRules.rules, transactions]);
-  const handleGenerateStarterRules = async () => {
-    if (!userId) {
-      toast.error('Sign in required');
-      return;
-    }
-    if (starterRuleSuggestions.length === 0) {
-      toast('No starter rules available right now');
-      return;
-    }
-    setIsGeneratingStarterRules(true);
-    try {
-      let created = 0;
-      for (const suggestion of starterRuleSuggestions) {
-        const result = await createCategoryRule(userId, suggestion.merchant, suggestion.category, 'contains');
-        if (result.ok) created += 1;
-      }
-      if (created > 0) {
-        toast.success(`Created ${created} starter rule${created === 1 ? '' : 's'}`);
-        categoryRules.refresh();
-      } else {
-        toast('No new starter rules were created');
-      }
-    } finally {
-      setIsGeneratingStarterRules(false);
-    }
   };
 
 
@@ -506,11 +299,6 @@ const SmartCategoriesPage: React.FC = () => {
   const askPrime = () => setIsPrimeBriefingOpen(true);
   const askCrystal = () => navigate('/dashboard/my-story?crystal=1');
   const openTagWorkspace = askTag;
-  const dismissHandoffBanner = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete('handoff');
-    setSearchParams(next, { replace: true });
-  };
   const runHandoffCategorization = async () => {
     if (!supabase) {
       toast.error('Database connection unavailable');
@@ -679,38 +467,6 @@ const SmartCategoriesPage: React.FC = () => {
   const primeSceneBrief = !primeSum
     ? 'Figures for this scope are not available right now.'
     : `${primeTop ? `Top spending: ${primeTop.category} (${formatMoney(primeTop.amount, primeSum.scope.currency)}). ` : ''}${FINANCIAL_LABELS.netCashFlow}: ${primeSum.labels.netCashFlow.amount > 0 ? '+' : ''}${formatMoney(primeSum.labels.netCashFlow.amount, primeSum.scope.currency)}.`;
-  const inspectorRows = useMemo(() => {
-    if (!selectedInspectorCategory) return [];
-    return scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === selectedInspectorCategory);
-  }, [selectedInspectorCategory, scopedForBreakdown]);
-  const inspectorSourceBreakdown = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const tx of inspectorRows) {
-      const source = String(tx.source_type || 'unknown').toLowerCase();
-      const normalized =
-        source === 'learned'
-          ? 'Vendor memory'
-          : source === 'rule' || source === 'rules'
-          ? 'DB rule'
-          : source === 'tag_chat' || source === 'manual'
-          ? 'Inline/manual'
-          : source === 'ai'
-          ? 'AI'
-          : 'Unknown';
-      counts.set(normalized, (counts.get(normalized) || 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .map(([source, count]) => ({ source, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [inspectorRows]);
-  const inspectorAvgConfidence = useMemo(() => {
-    if (!inspectorRows.length) return null;
-    const values = inspectorRows
-      .map((tx) => (typeof tx.confidence === 'number' ? tx.confidence : null))
-      .filter((v): v is number => v !== null);
-    if (!values.length) return null;
-    return values.reduce((sum, v) => sum + v, 0) / values.length;
-  }, [inspectorRows]);
   const categoryColors: Record<string, string> = {
     'Groceries': '#1D9E75',
     'Transportation': '#8b5cf6',
@@ -741,21 +497,8 @@ const SmartCategoriesPage: React.FC = () => {
     }
     return byCategory;
   }, [transactions]);
-  const [ruleMerchantContains, setRuleMerchantContains] = useState('');
   const [ruleCategory, setRuleCategory] = useState<string>('');
   const [ruleSubcategory, setRuleSubcategory] = useState<string>('');
-  const [isRuleBuilderSaving, setIsRuleBuilderSaving] = useState(false);
-  const [isRuleBuilderCreateAndRun, setIsRuleBuilderCreateAndRun] = useState(false);
-  const ruleMatchPreviewCount = useMemo(() => {
-    const needle = ruleMerchantContains.trim().toLowerCase();
-    if (!needle) return 0;
-    let count = 0;
-    for (const tx of transactions) {
-      const haystack = `${String(tx.merchant || '')} ${String(tx.description || '')}`.toLowerCase();
-      if (haystack.includes(needle)) count += 1;
-    }
-    return count;
-  }, [ruleMerchantContains, transactions]);
   const subcategoryOptionsForSelectedCategory = subcategoryOptionsByCategory.get(ruleCategory) || [];
 
   useEffect(() => {
@@ -774,47 +517,6 @@ const SmartCategoriesPage: React.FC = () => {
     setRuleSubcategory('');
   }, [ruleSubcategory, subcategoryOptionsForSelectedCategory]);
 
-  const handleCreateRuleFromBuilder = async (runTagAfterCreate: boolean) => {
-    if (!userId) {
-      toast.error('Sign in required');
-      return;
-    }
-    const merchantPattern = ruleMerchantContains.trim();
-    if (!merchantPattern) {
-      toast.error('Enter merchant text first');
-      return;
-    }
-    const targetCategory = ruleCategory.trim() || 'Other';
-    setIsRuleBuilderSaving(true);
-    setIsRuleBuilderCreateAndRun(runTagAfterCreate);
-    try {
-      const result = await createCategoryRule(
-        userId,
-        merchantPattern,
-        targetCategory,
-        'contains',
-        ruleSubcategory.trim() || null
-      );
-      if (!result.ok) {
-        throw new Error(result.error || 'Failed to create rule');
-      }
-      toast.success(
-        ruleSubcategory.trim()
-          ? `Rule saved: ${targetCategory} > ${ruleSubcategory.trim()}`
-          : `Rule saved: ${targetCategory}`
-      );
-      setRuleMerchantContains('');
-      categoryRules.refresh();
-      if (runTagAfterCreate) {
-        await runHandoffCategorization();
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to create rule');
-    } finally {
-      setIsRuleBuilderSaving(false);
-      setIsRuleBuilderCreateAndRun(false);
-    }
-  };
   const getAccessToken = async (): Promise<string | null> => {
     if (!supabase) return null;
     const { data } = await supabase.auth.getSession();
@@ -992,27 +694,6 @@ const SmartCategoriesPage: React.FC = () => {
       }
     } catch (err: any) {
       toast.error(err?.message || 'Rename/merge failed');
-    } finally {
-      setIsInspectorApplying(false);
-    }
-  };
-  const applyInspectorBulkMove = async () => {
-    if (!selectedInspectorCategory || !userId) return;
-    const toCategory = inspectorMoveCategory.trim() || 'Other';
-    const affected = scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === selectedInspectorCategory);
-    const confirmed = window.confirm(
-      `Move ${affected.length} "${selectedInspectorCategory}" transaction${affected.length === 1 ? '' : 's'} to ${toCategory}${inspectorMoveSubcategory.trim() ? ` > ${inspectorMoveSubcategory.trim()}` : ''}?`
-    );
-    if (!confirmed) return;
-    setIsInspectorApplying(true);
-    try {
-      const moved = await moveCategoryTransactions(selectedInspectorCategory, toCategory, inspectorMoveSubcategory.trim() || null);
-      if (moved) {
-        setSelectedInspectorCategory(toCategory);
-        setExpandedCategory(toCategory);
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to move category');
     } finally {
       setIsInspectorApplying(false);
     }
@@ -1370,16 +1051,6 @@ const SmartCategoriesPage: React.FC = () => {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setRuleCategory(entry.category);
-                                      if (topMerchants[0]?.merchant) setRuleMerchantContains(topMerchants[0].merchant);
-                                    }}
-                                    className="rounded-md border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-[11px] text-violet-200 hover:bg-violet-500/20"
-                                  >
-                                    Create rule from top merchant
-                                  </button>
-                                  <button
-                                    type="button"
                                     onClick={openTagWorkspace}
                                     className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200 hover:bg-cyan-500/20"
                                   >
@@ -1437,16 +1108,6 @@ const SmartCategoriesPage: React.FC = () => {
                                 className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800"
                               >
                                 View all transactions
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRuleCategory(entry.category);
-                                  if (topMerchants[0]?.merchant) setRuleMerchantContains(topMerchants[0].merchant);
-                                }}
-                                className="rounded-md border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-[11px] text-violet-200 hover:bg-violet-500/20"
-                              >
-                                Create a rule
                               </button>
                               <button
                                 type="button"

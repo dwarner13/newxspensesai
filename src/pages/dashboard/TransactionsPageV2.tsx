@@ -368,6 +368,8 @@ export default function TransactionsPageV2() {
       if (!session) return;
       const res = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) { const d = await res.json(); setTagInboxData(d); }
+      // Tag HQ 424b7fe7: errors are 503 inbox_unavailable; say so instead of showing an empty inbox.
+      else setTagInboxData({ unresolved: [], resolved: [], rule_suggestions: [], badge_count: null, unresolved_complete: false });
     } catch { /* silent */ }
   }, []);
   useEffect(() => { fetchTagInbox(); }, [fetchTagInbox]);
@@ -1318,7 +1320,8 @@ export default function TransactionsPageV2() {
                   <div key={item.merchant_name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: "#f1f5f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.merchant_name}</div>
-                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{item.transaction_count} txns &middot; ${item.total_amount.toFixed(2)}</div>
+                      {/* Tag HQ 424b7fe7: total_amount is money going out only; money back is inflow_amount (never added in). */}
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{item.transaction_count} txns &middot; ${Number(item.total_amount || 0).toFixed(2)} out{Number(item.inflow_amount) > 0 ? <> &middot; ${Number(item.inflow_amount).toFixed(2)} back</> : null}</div>
                     </div>
                     <button onClick={() => { setTagActivityOpen(false); setSearchQuery(item.merchant_name); setTimeout(() => { const tx = transactions.find(t => (t.merchant_name || '').toLowerCase() === item.merchant_name.toLowerCase()); if (tx) { setSelectedTx(tx); void fetchTagInsight(tx); } }, 100); }} style={{ padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "rgba(34,211,238,0.12)", border: "1px solid rgba(34,211,238,0.25)", color: "#22d3ee", cursor: "pointer", flexShrink: 0, marginLeft: 8 }}>Answer</button>
                   </div>
@@ -1365,7 +1368,10 @@ export default function TransactionsPageV2() {
               </div>
             )}
 
-            {tagInboxData?.badge_count === 0 && !tagInboxData?.rule_suggestions?.length && (
+            {tagInboxData && tagInboxData.unresolved_complete === false && (
+              <div role="status" style={{ padding: 16, textAlign: "center", color: "#fde68a", fontSize: 12 }}>Couldn't load everything that needs review. Please try again.</div>
+            )}
+            {tagInboxData?.unresolved_complete !== false && tagInboxData?.badge_count === 0 && !tagInboxData?.rule_suggestions?.length && (
               <div style={{ padding: 24, textAlign: "center", color: "#475569", fontSize: 12 }}>All caught up {"\u2713"}</div>
             )}
           </div>
@@ -1426,6 +1432,7 @@ export default function TransactionsPageV2() {
                       setTimeout(async () => {
                         try {
                           const inboxRes = await fetch('/.netlify/functions/tag-inbox', { headers: { Authorization: `Bearer ${session.access_token}` } });
+                          if (!inboxRes.ok) return; // 503 inbox_unavailable: no follow-up rather than a guess
                           const inboxD = await inboxRes.json();
                           const topM = (inboxD.unresolved ?? []).slice(0, 5);
                           if (topM.length > 0) {

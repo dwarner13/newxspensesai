@@ -57,6 +57,12 @@ describe('SC-1 Smart Categories', () => {
     expect(page).not.toMatch(/formatCurrency\(sub\.amount\)|formatCurrency\(merchantRow\.amount\)|formatCurrency\(item\.amount\)/);
     expect(page).toMatch(/Amounts by subcategory and merchant are not available yet/);
   });
+  it('W13 retired: dead handlers, rule builder and inert buttons are gone; live Tag flow kept', () => {
+    expect(page).not.toMatch(/handleAskTag|handleAskCrystal|handleAskPrime|handleCreateRuleFromBuilder|handleGenerateStarterRules|applyInspectorBulkMove|dismissHandoffBanner|starterRuleSuggestions|Create rule from top merchant|>\s*Create a rule\s*</);
+    expect(page).toMatch(/const proposeTagRule = async/);
+    expect(page).toMatch(/handleClassifyConfidentMerchants/);
+    expect(page).toMatch(/inferStarterCategory/); // still used by the live merchant suggestions
+  });
   it('both routes preserved; My Story opens Crystal from ?crystal=1', () => {
     const app = read('src/App.tsx');
     expect(app).toMatch(/path="smart-categories" element=\{<Suspense fallback=\{<LoadingSpinner \/>\}><SmartCategoriesPage \/>/);
