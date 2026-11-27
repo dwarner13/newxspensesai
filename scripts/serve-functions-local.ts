@@ -138,7 +138,6 @@ async function buildAll() {
       'undici',
       'jsdom',
       '@mozilla/readability',
-      'pdf-parse',
       'pdf-lib',
       '@napi-rs/canvas',
       '@napi-rs/canvas-win32-x64-msvc',

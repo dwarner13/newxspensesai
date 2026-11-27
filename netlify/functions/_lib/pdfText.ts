@@ -1,14 +1,5 @@
 import type { Buffer } from "buffer";
 
-async function loadPdfParse(): Promise<(buf: Buffer) => Promise<{ text?: string }>> {
-  const mod: any = await import("pdf-parse");
-  const fn = mod?.default ?? mod;
-  if (typeof fn !== "function") {
-    throw new Error(`[pdf-parse] no callable export; keys=${JSON.stringify(Object.keys(mod || {}))}`);
-  }
-  return fn;
-}
-
 async function loadPdfJs(): Promise<any> {
   const mod: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
   return mod?.default ?? mod;
@@ -39,17 +30,64 @@ function isStrictPdfStructureError(error: unknown): boolean {
   return msg.includes("invalid pdf structure") || msg.includes("bad fcheck");
 }
 
+/**
+ * Plain embedded-text extraction on the patched pdfjs-dist (owner security GO 2026-11-27).
+ *
+ * Replaces the `pdf-parse` package, which bundled its own unmaintained PDF.js v1.10 with no
+ * isEvalSupported option. The OUTPUT FORMAT is pdf-parse's, so downstream cleanup tuned to it
+ * (lib/ocr/cleanupOcrText.ts: BMO "glued" text) sees identical text:
+ *   - items on the same baseline are concatenated with NO separator;
+ *   - a baseline change starts a new line;
+ *   - pages are joined with a blank line ("\n\n" before each page), then the result is trimmed.
+ * Modern PDF.js also emits synthetic whitespace-only items for column gaps (as wide as the gap);
+ * pdf-parse's v1.10 never did, so they are skipped (a real space glyph is narrower than the font
+ * size). Verified identical to pdf-parse 1.1.4 on synthetic statement fixtures.
+ */
+export async function extractPdfTextPlain(pdfBuffer: Buffer): Promise<string> {
+  const pdfjs = await loadPdfJs();
+  const doc = await pdfjs.getDocument({
+    isEvalSupported: false, // CVE-2024-4367
+    data: new Uint8Array(pdfBuffer),
+    stopOnErrors: false,
+    disableAutoFetch: true,
+    disableStream: true,
+    verbosity: 0,
+  }).promise;
+  try {
+    let out = "";
+    for (let pageNo = 1; pageNo <= Number(doc.numPages || 0); pageNo += 1) {
+      const page = await doc.getPage(pageNo);
+      const content = await page.getTextContent();
+      let lastY: number | undefined;
+      let text = "";
+      for (const item of content.items as Array<{ str?: string; transform?: number[]; width?: number; height?: number }>) {
+        if (typeof item?.str !== "string" || !Array.isArray(item.transform)) continue;
+        if (item.str.trim() === "" && Number(item.width) > Number(item.height || 0)) continue;
+        const y = item.transform[5];
+        // pdf-parse's exact rule (including its falsy-lastY quirk).
+        if (lastY == y || !lastY) text += item.str;
+        else text += "\n" + item.str;
+        lastY = y;
+      }
+      out = `${out}\n\n${text}`;
+      try { page.cleanup?.(); } catch { /* no-op */ }
+    }
+    return out.trim();
+  } finally {
+    try { if (typeof doc?.cleanup === "function") await doc.cleanup(); } catch { /* no-op */ }
+  }
+}
+
+/** @deprecated Kept for existing callers; no longer uses pdf-parse. Use extractPdfTextPlain. */
 export async function extractPdfTextWithPdfParse(pdfBuffer: Buffer): Promise<string> {
-  const pdfParse = await loadPdfParse();
-  const result = await pdfParse(pdfBuffer);
-  return (result?.text || "").trim();
+  return extractPdfTextPlain(pdfBuffer);
 }
 
 export async function extractEmbeddedPdfText(pdfBuffer: Buffer): Promise<string> {
   try {
     const text = await extractPdfTextWithPdfParse(pdfBuffer);
     const usable = hasUsableEmbeddedText(text);
-    console.log(`[pdfText] path=pdf-parse usableText=${usable} chars=${text.length}`);
+    console.log(`[pdfText] path=plain_text usableText=${usable} chars=${text.length}`);
     return text;
   } catch (error: unknown) {
     if (isStrictPdfStructureError(error)) {

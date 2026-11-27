@@ -124,9 +124,9 @@ function scrubPii(text: string): string {
  */
 async function extractFromText(buffer: Buffer): Promise<{ text: string; confidence: number }> {
   try {
-    const { default: pdfParse } = await import('pdf-parse');
-    const result = await pdfParse(buffer);
-    const text = result.text || '';
+    // pdf-parse removed (bundled an unmaintained PDF.js); same output format on patched pdfjs-dist.
+    const { extractPdfTextPlain } = await import('./_lib/pdfText.js');
+    const text = (await extractPdfTextPlain(buffer)) || '';
     const confidence = computeConfidence(text);
     return { text, confidence };
   } catch (err: any) {

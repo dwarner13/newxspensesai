@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import pdfParse from 'pdf-parse';
 
 import { extractPdfTextWithLayout, extractPdfTextWithPdfParse } from '../netlify/functions/_lib/pdfText.ts';
 
@@ -99,8 +98,8 @@ async function extractInputText(filePath: string): Promise<{ text: string; pageC
     }
     let pageCount: number | null = null;
     try {
-      const parsed = await pdfParse(buffer as Buffer);
-      pageCount = Number.isFinite(parsed.numpages) ? parsed.numpages : null;
+      const { countPdfPages } = await import('../netlify/functions/_shared/documentPurpose.ts');
+      pageCount = await countPdfPages(buffer as Buffer);
     } catch {
       pageCount = null;
     }

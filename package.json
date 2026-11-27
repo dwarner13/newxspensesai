@@ -135,7 +135,6 @@
     "openai": "^4.73.0",
     "papaparse": "^5.5.3",
     "pdf-lib": "^1.17.1",
-    "pdf-parse": "^1.1.1",
     "pdfjs-dist": "6.5.438",
     "puppeteer-core": "^24.41.0",
     "react": "^18.2.0",
