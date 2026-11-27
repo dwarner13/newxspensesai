@@ -234,7 +234,7 @@ export async function pdfToImages(
     });
     loggedPdfPolyfillStatus = true;
   }
-  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.js');
+  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
   const loadingTask = pdfjs.getDocument({
     isEvalSupported: false, // CVE-2024-4367

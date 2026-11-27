@@ -1676,7 +1676,7 @@ async function runOCR(
       // Read true page count with pdfjs-dist (handles bank PDFs that pdf-lib rejects)
       let totalPages: number;
       try {
-        const pdfjsModule: any = await import('pdfjs-dist/legacy/build/pdf.js');
+        const pdfjsModule: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
         const pdfjs = pdfjsModule.default || pdfjsModule;
         const loadingTask = pdfjs.getDocument({
           isEvalSupported: false, // CVE-2024-4367

@@ -1,6 +1,37 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
+
+/**
+ * Self-hosts PDF.js character maps and standard font data from the INSTALLED pdfjs-dist at
+ * /pdfjs/cmaps/ and /pdfjs/standard_fonts/ (owner security GO 2026-11-27: no CDN, library /
+ * worker / assets all from one version). Dev: served by middleware. Build: emitted as assets.
+ */
+function pdfjsSelfHostedAssets(): Plugin {
+  const pkgRoot = path.resolve(__dirname, 'node_modules/pdfjs-dist');
+  const dirs = ['cmaps', 'standard_fonts'];
+  return {
+    name: 'pdfjs-self-hosted-assets',
+    configureServer(server) {
+      server.middlewares.use('/pdfjs/', (req, res, next) => {
+        const rel = decodeURIComponent(String(req.url || '').split('?')[0]).replace(/^\/+/, '');
+        const [dir, file, ...rest] = rel.split('/');
+        if (!dirs.includes(dir) || !file || rest.length || file.includes('..')) return next();
+        const full = path.join(pkgRoot, dir, file);
+        if (!full.startsWith(path.join(pkgRoot, dir) + path.sep) || !fs.existsSync(full)) return next();
+        fs.createReadStream(full).pipe(res);
+      });
+    },
+    generateBundle() {
+      for (const dir of dirs) {
+        for (const file of fs.readdirSync(path.join(pkgRoot, dir))) {
+          this.emitFile({ type: 'asset', fileName: `pdfjs/${dir}/${file}`, source: fs.readFileSync(path.join(pkgRoot, dir, file)) });
+        }
+      }
+    },
+  };
+}
 
 const disableFunctionsProxy =
   process.env.VITE_DISABLE_FUNCTION_PROXY === '1' ||
@@ -17,6 +48,7 @@ export default defineConfig({
       jsxRuntime: 'automatic',
       jsxImportSource: 'react',
     }),
+    pdfjsSelfHostedAssets(),
   ],
   resolve: {
     alias: {
@@ -29,7 +61,7 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    exclude: ['pdfjs-dist/build/pdf.worker.entry', 'openai', 'openai/_shims/auto/runtime'],
+    exclude: ['openai', 'openai/_shims/auto/runtime'],
     esbuildOptions: {
       target: 'es2020'
     }
@@ -50,7 +82,7 @@ export default defineConfig({
     rollupOptions: {
       maxParallelFileOps: 2,
       treeshake: true,
-      external: ['pdfjs-dist/build/pdf.worker.entry', 'openai', 'openai/_shims/auto/runtime', 'openai/_shims'],
+      external: ['openai', 'openai/_shims/auto/runtime', 'openai/_shims'],
       output: {
         format: 'esm', // Ensure ESM output
         manualChunks: {

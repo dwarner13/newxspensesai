@@ -1,10 +1,6 @@
 // src/client/pdf/extractText.ts
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Configure worker properly for Vite
-// Use CDN worker (pdfjs-dist/build/pdf.worker.entry doesn't resolve correctly in Vite)
-// Matches installed version: pdfjs-dist@4.4.168
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js';
+// Self-hosted PDF.js; library and worker from the same installed version; eval always off.
+import { loadPdfDocument } from './pdfjsBrowser';
 
 // Safe extraction with proper error handling
 export async function extractPdfTextSafe(file: File): Promise<string> {
@@ -15,13 +11,7 @@ export async function extractPdfTextSafe(file: File): Promise<string> {
     const arrayBuffer = await file.arrayBuffer();
     
     // Load PDF with specific settings to handle encoding
-    const loadingTask = pdfjsLib.getDocument({
-      isEvalSupported: false, // CVE-2024-4367
-      data: arrayBuffer,
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-      cMapPacked: true,
-      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/'
-    });
+    const loadingTask = loadPdfDocument({ data: arrayBuffer });
     
     const pdf = await loadingTask.promise;
     console.log('PDF loaded, pages:', pdf.numPages);
@@ -79,13 +69,7 @@ export async function extractStructuredData(file: File): Promise<{
 }> {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({
-      isEvalSupported: false, // CVE-2024-4367
-      data: arrayBuffer,
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-      cMapPacked: true,
-      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/'
-    });
+    const loadingTask = loadPdfDocument({ data: arrayBuffer });
     
     const pdf = await loadingTask.promise;
     const metadata = await pdf.getMetadata();

@@ -1,7 +1,6 @@
 // src/client/pdf/pdfjs.ts
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+// Kept for compatibility. Use ./pdfjsBrowser (loadPdfDocument) for every document load.
+import { pdfjsLib, loadPdfDocument } from './pdfjsBrowser';
 
-// Use CDN worker that matches the installed version
-GlobalWorkerOptions.workerSrc = "https://unpkg.com/pdfjs-dist@5.4.149/build/pdf.worker.min.js";
-
-export { getDocument, GlobalWorkerOptions };
+export const GlobalWorkerOptions = pdfjsLib.GlobalWorkerOptions;
+export { loadPdfDocument };
