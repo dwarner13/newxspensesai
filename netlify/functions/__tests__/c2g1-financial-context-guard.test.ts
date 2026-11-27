@@ -78,7 +78,8 @@ describe('2. imported spending/income are labelled as imported-only, with the re
   const text = formatPositionForPrompt(pos);
 
   it('spending: imported only, may not be all accounts/household, not annual, real dates from the data', () => {
-    const line = text.split('\n').find(l => l.startsWith('Spending:'))!;
+    // C-4: shared fst2-summary-2 labels ("Actual Spending" / "Actual Income").
+    const line = text.split('\n').find(l => l.startsWith('Actual Spending:'))!;
     expect(line).toContain('2023-02-01 to 2026-05-31');
     expect(line).toContain('verified sum of imported transactions only');
     expect(line).toContain('may not include every account or all household spending');
@@ -86,8 +87,14 @@ describe('2. imported spending/income are labelled as imported-only, with the re
     expect(line).toContain('do not annualize');
   });
 
+  it('C-4: the block states it is never a statement or period total, with shared labels', () => {
+    expect(text).toContain('it is NOT a statement or period total');
+    expect(text).toContain('if you quote a figure from here, say it covers all your accounts, all time');
+    expect(text).not.toMatch(/^Income:|^Spending:|^Cash flow \(/m);
+  });
+
   it('income: imported only, not an annual salary', () => {
-    const line = text.split('\n').find(l => l.startsWith('Income:'))!;
+    const line = text.split('\n').find(l => l.startsWith('Actual Income:'))!;
     expect(line).toContain('verified sum of imported transactions only');
     expect(line).toContain('not an annual salary');
   });
@@ -125,5 +132,21 @@ describe('4. planning questions — extends the existing personality contract', 
     expect(msg).toContain('do not call it their total household or annual living cost');
     expect(msg).toContain(`Ask at most ${PRIME_PERSONALITY_V1.planning.maxClarifyingQuestions} clarifying question`);
     expect(msg).not.toMatch(/\$\d/); // still no real figures in personality text
+  });
+});
+
+describe('C-4: all-time deposits / withdrawals / net cash flow with the shared labels', () => {
+  it('a built position carries engine deposits, withdrawals and net = deposits − withdrawals', () => {
+    const pos = {
+      currency: 'CAD',
+      income: { status: 'unavailable', source: 'unavailable' }, spending: { status: 'unavailable', source: 'unavailable' },
+      cashFlow: { status: 'estimated', source: 'derived', allTime: { deposits: 1525.84, withdrawals: 1603.92, netCashFlow: -78.08, transactionCount: 12 } },
+      savings: { status: 'unavailable', source: 'unavailable' }, debt: { status: 'unavailable', source: 'unavailable' },
+      goals: { status: 'verified_zero', source: 'verified_db', activeCount: 0 }, timeHorizon: { status: 'unavailable', source: 'unavailable' },
+      dataCoverage: { firstTransaction: '2026-10-01', lastTransaction: '2026-10-31', transactionCount: 12, monthsCovered: 1, complete: true },
+      missingAreas: [],
+    } as unknown as Parameters<typeof formatPositionForPrompt>[0];
+    const text = formatPositionForPrompt(pos);
+    expect(text).toContain('Deposits: $1,525.84 · Withdrawals: $1,603.92 · Net Cash Flow (deposits − withdrawals): $-78.08 (all imported accounts, all time; 12 transactions)');
   });
 });

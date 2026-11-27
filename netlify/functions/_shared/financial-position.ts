@@ -30,6 +30,7 @@ import {
 import { buildPeriodAggregate, type PeriodAggregate } from '../../../src/shared/period-aggregate';
 import { computeIntegritySignals, type FinancialIntegritySignals } from '../../../src/shared/financial-integrity-signals';
 import { merchantGroupingKey } from './merchantNormalize';
+import { SUMMARY_WORDING } from './financial-summary-v2';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -82,6 +83,8 @@ export interface SpendingArea extends FinancialArea {
 
 export interface CashFlowArea extends FinancialArea {
   monthlyNet?: FinancialValue;
+  /** C-4: all imported accounts, all time — engine deposits / withdrawals / net cash flow (dollars). */
+  allTime?: { deposits: number; withdrawals: number; netCashFlow: number; transactionCount: number };
 }
 
 export interface GoalsArea extends FinancialArea {
@@ -278,7 +281,14 @@ export async function buildFinancialPosition(
           periodStart: monthStart,
           periodEnd: monthEnd,
           transactionCount: month.counts.included,
-          basis: 'current-month income minus spending, debt payments and classification conflicts (transfers and savings/investment movements excluded)',
+          // C-4: the label matches the value (owner definition since ca5f423d).
+          basis: 'current-month total deposits minus total withdrawals (all imported accounts)',
+        },
+        allTime: {
+          deposits: dollars(all.cents.totalInflow),
+          withdrawals: dollars(all.cents.totalOutflow),
+          netCashFlow: dollars(all.cents.rawNetCashMovement),
+          transactionCount: all.counts.included,
         },
       };
 
@@ -328,6 +338,10 @@ export async function buildFinancialPosition(
 
 const money = (n: number) => `$${n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** C-4: the scope note carried with every FINANCIAL POSITION block. */
+export const POSITION_SCOPE_NOTE =
+  'SCOPE NOTE: every figure in this block covers all imported accounts and all time — it is NOT a statement or period total. For a specific statement or period, use the financial tools; if you quote a figure from here, say it covers all your accounts, all time.';
+
 export function formatPositionForPrompt(pos: FinancialPosition): string {
   const lines: string[] = ['FINANCIAL POSITION:'];
   const cov = pos.dataCoverage;
@@ -340,18 +354,25 @@ export function formatPositionForPrompt(pos: FinancialPosition): string {
   if (partial) {
     lines.push('WARNING: these figures are PARTIAL. Never call them total, complete or verified; say they cover only the transactions that could be read, and offer to retry.');
   }
+  // C-4 (owner GO 2026-11-27): scope honesty — never a statement or period total.
+  lines.push(POSITION_SCOPE_NOTE);
+  const L = SUMMARY_WORDING.labels;
+  if (pos.cashFlow.allTime && pos.cashFlow.status !== 'unavailable') {
+    const a = pos.cashFlow.allTime;
+    lines.push(`${L.deposits}: ${money(a.deposits)} · ${L.withdrawals}: ${money(a.withdrawals)} · ${L.netCashFlow} (deposits − withdrawals): ${money(a.netCashFlow)} (all imported accounts, all time; ${a.transactionCount} transactions)`);
+  }
 
   // Income
   if ((pos.income.status === 'verified' || pos.income.status === 'partial') && pos.income.periodTotal) {
     const pt = pos.income.periodTotal;
     const label = pos.income.status === 'verified' ? 'verified sum of imported transactions only' : 'PARTIAL sum (incomplete read)';
     // C2-G1: imported records only — not necessarily all income sources
-    lines.push(`Income: ${money(pt.amount)} (${pt.periodStart} to ${pt.periodEnd}; ${pt.transactionCount ?? 0} transactions; ${label} — may not include every income source or account; a multi-month total, not an annual salary)`);
+    lines.push(`${L.actualIncome}: ${money(pt.amount)} (${pt.periodStart} to ${pt.periodEnd}; ${pt.transactionCount ?? 0} transactions; ${label} — may not include every income source or account; a multi-month total, not an annual salary)`);
     if (pos.income.monthlyIncome) {
       lines.push(`  Current month (${pos.income.monthlyIncome.periodStart} to ${pos.income.monthlyIncome.periodEnd}): ${money(pos.income.monthlyIncome.amount)} (${pos.income.monthlyIncome.transactionCount ?? 0} transactions)`);
     }
   } else {
-    lines.push('Income: unavailable');
+    lines.push(`${L.actualIncome}: unavailable`);
   }
 
   // Spending
@@ -359,7 +380,7 @@ export function formatPositionForPrompt(pos: FinancialPosition): string {
     const pt = pos.spending.periodTotal;
     const label = pos.spending.status === 'verified' ? 'verified sum of imported transactions only' : 'PARTIAL sum (incomplete read)';
     // C2-G1: imported records only — never complete household or annual living expenses
-    lines.push(`Spending: ${money(pt.amount)} (${pt.periodStart} to ${pt.periodEnd}; ${pt.transactionCount ?? 0} transactions; ${label}, excludes transfers/debt/investments — may not include every account or all household spending; a multi-month total, not annual living expenses; do not annualize or treat it as a retirement spending need without saying so)`);
+    lines.push(`${L.actualSpending}: ${money(pt.amount)} (${pt.periodStart} to ${pt.periodEnd}; ${pt.transactionCount ?? 0} transactions; ${label}, excludes transfers/debt/investments — may not include every account or all household spending; a multi-month total, not annual living expenses; do not annualize or treat it as a retirement spending need without saying so)`);
     if (pos.spending.monthlySpend) {
       lines.push(`  Current month (${pos.spending.monthlySpend.periodStart} to ${pos.spending.monthlySpend.periodEnd}): ${money(pos.spending.monthlySpend.amount)} (${pos.spending.monthlySpend.transactionCount ?? 0} transactions)`);
     }
@@ -367,13 +388,13 @@ export function formatPositionForPrompt(pos: FinancialPosition): string {
       lines.push(`  Top: ${pos.spending.topCategories.map(c => `${c.category}=${money(c.amount)}`).join(', ')}`);
     }
   } else {
-    lines.push('Spending: unavailable');
+    lines.push(`${L.actualSpending}: unavailable`);
   }
 
   // Cash flow
   if (pos.cashFlow.status !== 'unavailable' && pos.cashFlow.monthlyNet) {
     const mn = pos.cashFlow.monthlyNet;
-    lines.push(`Cash flow (current month, ${pos.cashFlow.status === 'partial' ? 'PARTIAL' : 'estimated'}): ${money(mn.amount)}`);
+    lines.push(`${L.netCashFlow} (current month, deposits − withdrawals, ${pos.cashFlow.status === 'partial' ? 'PARTIAL' : 'estimated'}): ${money(mn.amount)}`);
   }
 
   // Disclosures: rows in no total, conflicts, possible duplicates/refunds.

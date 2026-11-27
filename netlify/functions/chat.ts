@@ -242,7 +242,7 @@ type LifecycleDb = Parameters<typeof committedImportIds>[0];
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools } from '../../src/shared/ai-action-safety';
 import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, moneyFigures, type CashFlowForGuard } from '../../src/shared/statement-reconciliation-guard';
-import { verifyReplyFigures, evidenceRegenerationInstruction, enforceReplyEvidence } from '../../src/shared/turn-evidence-ledger';
+import { verifyReplyFigures, evidenceRegenerationInstruction, enforceReplyEvidence, removeUnsupportedBalanceSpeculation } from '../../src/shared/turn-evidence-ledger';
 import { toInclusiveEndDate } from '../../src/shared/prime-temporal-scope';
 import { REMEMBERED_CONTEXT_HEADER, REMEMBERED_FACTS_SUMMARY_LABEL, EARLIER_CONVERSATION_LABEL, rememberedContextBlock } from '../../src/shared/remembered-context-labels';
 import { buildStatementBreakdown, engineRowsFromExtracted } from '../../src/shared/statement-breakdown';
@@ -10395,7 +10395,10 @@ export const handler: Handler = async (event, context) => {
     let turnCashFlowForGuard: CashFlowForGuard | null = null;
     // Figures from every same-turn read tool: a reply may quote them, or a sum/difference of two.
     const turnToolFigures: number[] = [];
+    // C-1 ledger: which tools produced evidence this turn (e.g. balance evidence for the speculation rule).
+    const turnToolNames = new Set<string>();
     const captureCashFlowForGuard = (tool: string | undefined, data: unknown) => {
+      if (tool && data && typeof data === 'object') turnToolNames.add(tool);
       if (data && typeof data === 'object') figuresFromToolResult(data, turnToolFigures);
       if (tool === 'cash_flow_summary' && data && typeof data === 'object' && (data as CashFlowForGuard).statementBreakdown) {
         turnCashFlowForGuard = data as CashFlowForGuard;
@@ -14702,8 +14705,10 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       // earlier replies and remembered context are never evidence. Evidence first: one bounded
       // cash_flow_summary for the resolved period + one regeneration, re-verified (no loop); else ask
       // for the period; else state the limitation. Only verified text reaches the save below.
-      let evidenceCheck: { ok: boolean; unsupportedCount: number; action: 'kept' | 'regenerated' | 'asked' | 'unavailable' } | null = null;
-      if (isPrime && isPrimeConversationSlug(finalEmployeeSlug) && assistantContent) {
+      // Author-aware (clarification #2): `isPrime` is fixed when the turn starts, so a reply a specialist
+      // (e.g. Tag) writes inside chat.ts after a handoff is checked against the SAME ledger and rules.
+      let evidenceCheck: { ok: boolean; unsupportedCount: number; action: 'kept' | 'regenerated' | 'asked' | 'unavailable'; speculationRemoved?: number; author?: string } | null = null;
+      if (isPrime && assistantContent) {
         const positionFigures = moneyFigures(financialPositionText || '');
         const verifyReply = (text: string) => verifyReplyFigures(text, { toolFigures: turnToolFigures, userMessage: String(masked || ''), positionFigures });
         const remainingMs = 60000 - (Date.now() - requestStartTime);
@@ -14740,12 +14745,20 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
             }
           },
         });
+        const author = isPrimeConversationSlug(finalEmployeeSlug) ? 'prime' : String(finalEmployeeSlug || 'specialist');
         if (evidence.action !== 'kept') {
           assistantContent = evidence.text;
-          evidenceCheck = { ok: false, unsupportedCount: evidence.first.unsupported.length, action: evidence.action };
-          console.warn(`[C-1] evidence check: unsupported=${evidence.first.unsupported.length} action=${evidence.action} counts=${JSON.stringify(evidence.first.counts)}`);
+          evidenceCheck = { ok: false, unsupportedCount: evidence.first.unsupported.length, action: evidence.action, author };
+          console.warn(`[C-1] evidence check: author=${author} unsupported=${evidence.first.unsupported.length} action=${evidence.action} counts=${JSON.stringify(evidence.first.counts)}`);
         } else if (evidence.first.figures.length > 0) {
-          evidenceCheck = { ok: true, unsupportedCount: 0, action: 'kept' };
+          evidenceCheck = { ok: true, unsupportedCount: 0, action: 'kept', author };
+        }
+        // Ledger rule (T7): overdraft / negative-balance claims need balance evidence THIS turn.
+        const spec = removeUnsupportedBalanceSpeculation(assistantContent, turnToolNames.has('account_balances_query'));
+        if (spec.removed > 0) {
+          assistantContent = spec.text;
+          evidenceCheck = { ...(evidenceCheck ?? { ok: true, unsupportedCount: 0, action: 'kept' as const, author }), speculationRemoved: spec.removed };
+          console.warn(`[C-1] balance speculation removed: sentences=${spec.removed} author=${author}`);
         }
       }
 
