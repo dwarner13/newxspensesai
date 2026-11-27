@@ -10,8 +10,9 @@ export const FINANCIAL_LABELS = {
   actualSpending: 'Actual Spending',
   refunds: 'Refunds',
   netExcludingTransfersAndSavings: 'Net Excluding Transfers and Savings',
-  possibleBusinessExpenses: 'Possible business expenses',
-  possibleBusinessExpensesSub: 'Needs your review (not a tax decision)',
+  // Owner wording 2026-11-27: "Possible business expense — requires review by your accountant."
+  possibleBusinessExpenses: 'Possible business expense',
+  possibleBusinessExpensesSub: 'Requires review by your accountant',
   needsReview: 'Need review',
 } as const;
 

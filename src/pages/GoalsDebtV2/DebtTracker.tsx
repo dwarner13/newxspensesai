@@ -90,8 +90,9 @@ export function DebtTracker({ debts, debtFreeMonths }: DebtTrackerProps) {
           border: "1px solid rgba(52,211,153,0.12)", textAlign: "center",
         }}>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1.6, color: "#34d399", fontWeight: 700, marginBottom: 8 }}>Debt Freedom Countdown</div>
-          <div style={{ fontSize: 36, fontWeight: 800, color: THEME.text }}>{countdown}</div>
-          <div style={{ fontSize: 12, color: THEME.textMuted, marginTop: 4 }}>At your latest month&apos;s savings</div>
+          {/* UX-FST2-7: no projection is served yet (G7); never imply a savings-based calculation. */}
+          <div style={{ fontSize: 24, fontWeight: 800, color: THEME.text }}>{debtFreeMonths > 0 && debtFreeMonths < 999 ? countdown : "Not available yet"}</div>
+          <div style={{ fontSize: 12, color: THEME.textMuted, marginTop: 4 }}>A debt-free date isn&apos;t calculated yet.</div>
         </div>
       </Reveal>
     </div>

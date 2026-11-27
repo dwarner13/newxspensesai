@@ -7,6 +7,7 @@
  * what the server returns. `partial` carries no totals and is never shown as numbers.
  */
 import { getSupabase } from '@/lib/supabase';
+import type { NeedsReviewSummary } from '@/shared/needs-review-summary';
 
 export type SummaryStatus = 'verified' | 'verified_zero' | 'partial' | 'no_data' | 'unavailable';
 
@@ -52,6 +53,8 @@ export interface FinancialSummary {
   periods: PeriodRow[];
   calendarMonths: CalendarMonth[];
   needsReviewCount: number;
+  /** LA-4 (Prime HQ a1ed1256): served review count AND amounts; amounts null unless complete. */
+  needsReview?: NeedsReviewSummary;
   perStatement: StatementTotals[];
   goals: { averageNetCashFlowPerPeriod: number | null; periodsUsed: number; savingsContributions: number };
   possibleBusinessExpenses: { status: 'needs_review'; count: number; amount: number; cents: number; categories: string[] };

@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useMemo } from "react";
+import { useFinancialSummary } from "@/hooks/useFinancialSummary";
+import { allTimeRange } from "@/lib/financialSummary";
+import { hasFigures } from "@/components/finance/FinancialState";
 import type { GoalData, DebtData, LessonData } from "./goalsConfig";
 
 export interface GoalsPageData {
@@ -11,23 +14,20 @@ export interface GoalsPageData {
   totalDebt: number;
   totalGoalTarget: number;
   totalGoalCurrent: number;
-  monthlySavings: number;
+  /**
+   * UX-FST2-7 (AR-1b FR-005): the server's average Net Cash Flow per comparable statement period
+   * (goals.averageNetCashFlowPerPeriod); null without enough statement coverage. Replaces the
+   * browser 'latest month income minus expenses' figure.
+   */
+  averageNetCashFlowPerPeriod: number | null;
+  periodsUsed: number;
+  /** Retired: a browser projection (debt / monthly savings). Always 0 = not available. */
   debtFreeMonths: number;
   loading: boolean;
   /** The goals or debts could not be loaded (shown as an error, never as example data). */
   loadError: boolean;
   /** Goal / debt storage is not set up in the database (missing table or column). */
   unavailable: boolean;
-}
-
-const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
-function isIncome(t: { amount: number; category?: string; merchant_name?: string }): boolean {
-  const cat = (t.category || "").toLowerCase();
-  const merchant = (t.merchant_name || "").toUpperCase().trim();
-  const txType = ((t as Record<string, unknown>).type as string || "").toLowerCase();
-  // Primary signal: type field set by commit-import (most reliable)
-  // Do NOT use amount sign - expenses are stored as negative values
-  return txType === "income" || cat === "income" || cat === "business income" || INCOME_PATTERNS.test(merchant);
 }
 
 // HONEST-1: no example goals or debts. They were shown as the customer's own when the
@@ -50,7 +50,10 @@ function isSchemaMissing(e: { code?: string } | null): boolean {
 
 export function useGoalsData(): GoalsPageData {
   const { userId } = useAuth();
-  const { transactions, isLoading: txLoading } = useTransactions();
+  // UX-FST2-7: figures from the shared engine (all statements); no browser month buckets.
+  const scope = useMemo(() => allTimeRange(), []);
+  const financial = useFinancialSummary(scope);
+  const summary = hasFigures(financial) ? financial.summary : null;
   const [goals, setGoals] = useState<GoalData[]>([]);
   const [debts, setDebts] = useState<DebtData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,30 +131,15 @@ export function useGoalsData(): GoalsPageData {
   const totalGoalTarget = goals.reduce((s, g) => s + g.target, 0);
   const totalGoalCurrent = goals.reduce((s, g) => s + g.current, 0);
 
-  // Monthly savings from transactions (income - expenses for most recent month)
-  let monthlySavings = 0;
-  if (!txLoading && transactions.length > 0) {
-    const monthBuckets: Record<string, { inc: number; exp: number }> = {};
-    transactions.forEach(t => {
-      const d = new Date(t.posted_at || "");
-      if (isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
-      if (!monthBuckets[key]) monthBuckets[key] = { inc: 0, exp: 0 };
-      if (isIncome(t)) monthBuckets[key].inc += Math.abs(t.amount);
-      else monthBuckets[key].exp += Math.abs(t.amount);
-    });
-    const sorted = Object.keys(monthBuckets).sort().reverse();
-    const latest = sorted[0] ? monthBuckets[sorted[0]] : null;
-    if (latest) monthlySavings = Math.max(0, Math.round(latest.inc - latest.exp));
-  }
-
-  const debtFreeMonths = monthlySavings > 0 ? Math.ceil(totalDebt / monthlySavings) : totalDebt > 0 ? 999 : 0;
+  const averageNetCashFlowPerPeriod = summary ? summary.goals.averageNetCashFlowPerPeriod : null;
+  const periodsUsed = summary ? summary.goals.periodsUsed : 0;
+  const debtFreeMonths = 0;
 
   return {
     goals, debts, lessons: LESSONS,
     totalDebt, totalGoalTarget, totalGoalCurrent,
-    monthlySavings, debtFreeMonths,
-    loading: loading || txLoading,
+    averageNetCashFlowPerPeriod, periodsUsed, debtFreeMonths,
+    loading: loading || financial.status === 'loading',
     loadError,
     unavailable,
   };

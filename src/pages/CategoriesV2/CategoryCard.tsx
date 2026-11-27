@@ -132,9 +132,11 @@ export function CategoryCard({ category, onClick, onSubcategoryClick }: Category
       <div style={{ flex: 1 }} />
 
       {/* Top merchant */}
-      <div style={{ marginTop: 10, fontSize: 10, color: THEME.textDim }}>
-        Top: <span style={{ color: THEME.textMuted }}>{category.topMerchant}</span>
-      </div>
+      {category.topMerchant && (
+        <div style={{ marginTop: 10, fontSize: 10, color: THEME.textDim }}>
+          Top: <span style={{ color: THEME.textMuted }}>{category.topMerchant}</span>
+        </div>
+      )}
     </button>
   );
 }

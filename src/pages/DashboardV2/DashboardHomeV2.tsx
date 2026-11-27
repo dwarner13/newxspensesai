@@ -17,7 +17,7 @@ import { WithXspenseScore } from "../XspenseScore/WithXspenseScore";
 import toast from "react-hot-toast";
 import { FinancialStateNotice, formatMoney } from "@/components/finance/FinancialState";
 import { FINANCIAL_LABELS } from "@/lib/financialLabels";
-import { insightText, spendingClaim } from "@/lib/insightWording";
+import { insightText, spendingClaim, needsReviewText } from "@/lib/insightWording";
 
 export default function DashboardHomeV2() {
   const data = useDashboardData();
@@ -207,7 +207,7 @@ export default function DashboardHomeV2() {
               ? `${needsReview} transaction${needsReview !== 1 ? "s" : ""} need your review`
               : txCount > 0 ? "All transactions categorized" : "No transactions yet"}
             body={needsReview > 0
-              ? `Found ${needsReview} uncategorized or suspicious item${needsReview !== 1 ? "s" : ""}. Should take about ${Math.max(1, Math.ceil(needsReview / 3))} minute${needsReview > 3 ? "s" : ""} to resolve.`
+              ? `${needsReviewText(sum?.needsReview, needsReview, c => formatMoney(c / 100, cur))}.`
               : txCount > 0 ? "Every transaction has a category. No action needed." : "Upload a statement and Tag will categorize each transaction."}
             cta="Review Now" ctaColor={needsReview > 0 ? "#f87171" : undefined}
             onCtaClick={() => navigate("/dashboard/categories")}
@@ -244,7 +244,7 @@ export default function DashboardHomeV2() {
                   <SmartAction delay={1200} icon={"\uD83D\uDD0D"} label={`Review ${needsReview} flagged transactions`} reason="Tag found items needing review" agentColor="#22d3ee" onClick={() => navigate("/dashboard/categories")} />
                 )}
                 {pbe && pbe.count > 0 && (
-                  <SmartAction delay={1280} icon={"\uD83E\uDDFE"} label="Review possible business expenses" reason={`${pbe.count} transactions, ${formatMoney(pbe.amount, cur)} \u2014 not a tax decision`} agentColor={THEME.accent} onClick={() => navigate("/dashboard/tax-workspace")} />
+                  <SmartAction delay={1280} icon={"\uD83E\uDDFE"} label="Review possible business expenses" reason={`${pbe.count} transactions, ${formatMoney(pbe.amount, cur)} \u2014 requires review by your accountant`} agentColor={THEME.accent} onClick={() => navigate("/dashboard/tax-workspace")} />
                 )}
                 {claim?.kind === "trend" && claimText && (
                   <SmartAction delay={1360} icon={"\uD83D\uDCCA"} label="See the spending trend" reason={claimText} agentColor="#a78bfa" onClick={() => navigate("/dashboard/my-story")} />

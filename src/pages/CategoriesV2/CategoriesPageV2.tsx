@@ -1,4 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { FINANCIAL_LABELS } from "@/lib/financialLabels";
+import { FinancialStateNotice, formatMoney } from "@/components/finance/FinancialState";
+import { needsReviewText } from "@/lib/insightWording";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -128,10 +131,11 @@ export default function CategoriesPageV2() {
   const handleExport = useCallback(() => {
     if (data.categories.length === 0) { toast.error("No categories to export"); return; }
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    // UX-FST2-6: server figures only (no budget, browser month trend or top merchant).
     const rows = data.categories.map(c => [
-      escape(c.name), c.spent, c.budget, c.transactionCount, c.trend, escape(c.topMerchant),
+      escape(c.name), c.spent.toFixed(2), c.share ?? '', c.transactionCount,
     ].join(","));
-    const csv = ["Category,Spent,Budget,Transactions,MoM Trend %,Top Merchant", ...rows].join("\n");
+    const csv = ["Category,Actual Spending,Share of Actual Spending %,Transactions", ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -148,7 +152,7 @@ export default function CategoriesPageV2() {
     : mainCategories;
 
   const totalTxCount = data.categories.reduce((s, c) => s + c.transactionCount, 0);
-  const net = data.totalIncome - data.totalSpent;
+  const net = data.netCashFlow; // server Net Cash Flow (deposits minus withdrawals)
 
   if (data.loading) {
     return (
@@ -312,27 +316,30 @@ export default function CategoriesPageV2() {
           </div>
         </Reveal>
 
-        {/* K-a: compact income / expenses / net strip */}
-        <Reveal delay={50}>
+        {/* K-a: compact strip — UX-FST2-6: the shared engine's figures for this scope, or an honest notice. */}
+        {!data.summary && (
+          <div style={{ marginBottom: 14 }}><FinancialStateNotice state={data.financial} onRetry={data.financial.status !== 'loading' ? data.financial.refetch : undefined} /></div>
+        )}
+        {data.summary && <Reveal delay={50}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: 12, padding: "14px 18px", borderRadius: 14, background: THEME.surface, border: `1px solid ${THEME.border}`, marginBottom: 14 }}>
             <div>
-              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Income</div>
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>{FINANCIAL_LABELS.actualIncome}</div>
               <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, color: THEME.green }}>${fmt(data.totalIncome)}</div>
             </div>
             <div>
               {/* M-CAT: the note sits on its own line so the half-width phone tile never wraps mid-label. */}
-              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Expenses</div>
-              <div style={{ fontSize: 11, color: KA.dim, marginTop: 1 }}>Excludes transfers</div>
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>{FINANCIAL_LABELS.actualSpending}</div>
+              <div style={{ fontSize: 11, color: KA.dim, marginTop: 1 }}>Excludes transfers, debt and savings</div>
               <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, color: THEME.red }}>${fmt(data.totalSpent)}</div>
             </div>
             {!isMobile && (
               <div>
-                <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>Net</div>
+                <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: KA.dim, fontWeight: 700 }}>{FINANCIAL_LABELS.netCashFlow}</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: net >= 0 ? THEME.green : THEME.red }}>{net >= 0 ? "+$" : "-$"}{fmt(Math.abs(net))}</div>
               </div>
             )}
           </div>
-        </Reveal>
+        </Reveal>}
 
         {/* Review banner — opens Tag on request (no auto-open) */}
         <Reveal delay={100}>
@@ -340,7 +347,7 @@ export default function CategoriesPageV2() {
             style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", minHeight: 52, padding: "10px 16px", borderRadius: 14, marginBottom: 14, background: `${CYAN}06`, border: `1px solid ${CYAN}24`, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
             <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: CYAN }}>T</span>
             <span style={{ flex: 1, fontSize: 15, color: KA.muted }}>
-              <span style={{ color: CYAN, fontWeight: 700 }}>{data.uncategorizedCount} items need review</span>
+              <span style={{ color: CYAN, fontWeight: 700 }}>{needsReviewText(data.summary?.needsReview, data.uncategorizedCount, c => formatMoney(c / 100, data.summary?.scope.currency ?? 'CAD'))}</span>
               {data.subcategorySuggestions?.length > 0 && <>{" • "}{data.subcategorySuggestions.length} subcategory split{data.subcategorySuggestions.length !== 1 ? "s" : ""} suggested</>}
             </span>
             <span style={{ fontSize: 14, fontWeight: 700, color: CYAN }}>Review with Tag</span>

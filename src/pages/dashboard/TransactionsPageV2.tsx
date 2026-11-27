@@ -34,6 +34,7 @@ import { allTimeRange, yearRange, type SummaryRequest } from '@/lib/financialSum
 import { FinancialStateNotice, hasFigures, formatMoney } from '@/components/finance/FinancialState';
 import { FINANCIAL_LABELS } from '@/lib/financialLabels';
 import { classifyCashFlow } from '@/shared/financial-taxonomy';
+import { needsReviewText } from '@/lib/insightWording';
 
 const CAT_COLORS: Record<string, string> = {
   'Personal Care': '#ec4899', Subscriptions: '#818cf8', Shopping: '#a78bfa',
@@ -1089,7 +1090,10 @@ export default function TransactionsPageV2() {
             ) : (
               <span className="text-[14px] text-slate-300"><strong className="text-white tabular-nums">{filtered.length}</strong> transaction{filtered.length !== 1 ? 's' : ''}{financial.status === 'loading' ? '' : ' · figures unavailable'}</span>
             )}
-            {uncategorizedCount > 0 && <span className="text-[14px] text-amber-200"><strong className="tabular-nums">{uncategorizedCount}</strong> need review</span>}
+            {/* LA-4: unfiltered views show the server's review line (count and amounts); filtered views the count of what's shown. */}
+            {!clientOnlyFilter && sum && sum.needsReviewCount > 0
+              ? <span className="text-[14px] text-amber-200" data-testid="tx-strip-review">{needsReviewText(sum.needsReview, sum.needsReviewCount, c => formatMoney(c / 100, sum.scope.currency))}</span>
+              : uncategorizedCount > 0 && <span className="text-[14px] text-amber-200"><strong className="tabular-nums">{uncategorizedCount}</strong> need review</span>}
             <span className="ml-auto flex items-center gap-1 text-[13px] font-semibold text-slate-400">
               {overviewOpen ? 'Hide summary' : 'Summary'}
               <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${overviewOpen ? 'rotate-180' : ''}`} />

@@ -121,7 +121,7 @@ export default function MyFinancialStoryV2() {
               { label: FINANCIAL_LABELS.netCashFlow, value: `${sum.labels.netCashFlow.amount > 0 ? "+" : ""}${formatMoney(sum.labels.netCashFlow.amount, cur)}`, color: sum.labels.netCashFlow.amount >= 0 ? "#34d399" : "#fb923c", sub: "Deposits minus withdrawals" },
               { label: FINANCIAL_LABELS.actualIncome, value: formatMoney(sum.labels.actualIncome.amount, cur), color: "#34d399", sub: "Excludes transfers and refunds" },
               { label: FINANCIAL_LABELS.actualSpending, value: formatMoney(sum.labels.actualSpending.amount, cur), color: "#f87171", sub: "Excludes transfers, debt and savings" },
-              { label: FINANCIAL_LABELS.possibleBusinessExpenses, value: formatMoney(sum.possibleBusinessExpenses.amount, cur), color: THEME.accent, sub: `${sum.possibleBusinessExpenses.count} transaction${sum.possibleBusinessExpenses.count === 1 ? "" : "s"} \u00b7 needs your review (not a tax decision)` },
+              { label: FINANCIAL_LABELS.possibleBusinessExpenses, value: formatMoney(sum.possibleBusinessExpenses.amount, cur), color: THEME.accent, sub: `${sum.possibleBusinessExpenses.count} transaction${sum.possibleBusinessExpenses.count === 1 ? "" : "s"} \u00b7 requires review by your accountant` },
             ].map((s, i) => (
               <Reveal key={s.label} delay={350 + i * 50} style={{ minWidth: 0 }}>
                 <div style={{

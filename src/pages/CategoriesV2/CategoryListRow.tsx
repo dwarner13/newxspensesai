@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import type { CategoryData } from "./categoryConfig";
-import { categoryShare, trendLabel } from "@/lib/categoryList";
+import { trendLabel } from "@/lib/categoryList";
 
 /**
  * K-a — compact, accessible Categories list row (replaces the 3-column card grid).
@@ -22,7 +22,9 @@ interface CategoryListRowProps {
 }
 
 export function CategoryListRow({ category, totalSpent, isMobile, onOpen, onSubcategory, showShare = true }: CategoryListRowProps) {
-  const share = showShare ? categoryShare(category.spent, totalSpent) : 0;
+  // UX-FST2-6: the server's share of actual spending (no browser division).
+  void totalSpent;
+  const share = showShare ? (category.share ?? 0) : 0;
   const trend = trendLabel(category.trend);
   const subs = category.subcategories || [];
   const [expanded, setExpanded] = useState(false);

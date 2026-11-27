@@ -124,10 +124,8 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
 
   if (!category) return null;
 
-  // When filtered, compute subcategory spent from matched transactions
-  const displaySpent = subcategoryFilter
-    ? Math.round(allCatTransactions.reduce((s, t) => s + Math.abs(t.amount), 0))
-    : category.spent;
+  // UX-FST2-6 (G6): no browser sum for a subcategory; its amount is not served yet.
+  const displaySpent = category.spent;
   const displayCount = subcategoryFilter ? allCatTransactions.length : category.transactionCount;
   const periodText = (isRangeActive(range)
     ? rangeLabel(range, d => formatCalendarDate(d, 'medium') || d)
@@ -174,15 +172,16 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
 
           {/* Spend summary */}
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: isOver && !subcategoryFilter ? THEME.red : THEME.text }}>
-              ${displaySpent.toLocaleString()}
-            </div>
             {subcategoryFilter ? (
-              <div style={{ fontSize: 12, color: THEME.textDim, marginTop: 6 }}>
-                of ${category.spent.toLocaleString()} total {category.name} spend
-                ({category.spent > 0 ? Math.round((displaySpent / category.spent) * 100) : 0}%)
+              <div style={{ fontSize: 13, color: THEME.textDim, marginTop: 6 }}>
+                Amounts by subcategory aren't available yet. Showing {displayCount} matching transaction{displayCount === 1 ? '' : 's'}.
               </div>
-            ) : category.budget > 0 ? (
+            ) : (
+              <div style={{ fontSize: 28, fontWeight: 800, color: isOver ? THEME.red : THEME.text }}>
+                ${displaySpent.toLocaleString()}
+              </div>
+            )}
+            {subcategoryFilter ? null : category.budget > 0 ? (
               <>
                 <div style={{ fontSize: 12, color: THEME.textDim, margin: "6px 0 10px" }}>
                   of ${category.budget.toLocaleString()} budget ({pct}%)
@@ -214,7 +213,7 @@ export function CategoryDetailDrawer({ category, onClose, subcategoryFilter, onA
           {/* Trend */}
           {!subcategoryFilter && category.trend !== 0 && (
             <div style={{ padding: "10px 14px", borderRadius: 10, background: category.trend > 0 ? "rgba(248,113,113,0.08)" : "rgba(52,211,153,0.08)", border: `1px solid ${category.trend > 0 ? "rgba(248,113,113,0.15)" : "rgba(52,211,153,0.15)"}`, marginBottom: 20, fontSize: 12, color: category.trend > 0 ? THEME.red : THEME.green }}>
-              {category.trend > 0 ? "\u2191" : "\u2193"} {Math.abs(category.trend)}% vs last month
+              {category.trend > 0 ? "\u2191" : "\u2193"} {Math.abs(category.trend)}% compared with the previous statement period
             </div>
           )}
 
