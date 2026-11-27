@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { TRANSACTION_MUTATION_TOOLS } from '../../shared/ai-action-safety';
 import * as deleteMyData from './impl/delete_my_data';
 import * as exportMyData from './impl/export_my_data';
 import * as ingestStatementEnhanced from './impl/ingest_statement_enhanced';
@@ -893,6 +894,18 @@ export async function executeTool(
     autonomyLevel?: number;
   }
 ): Promise<any> {
+  // Owner GO 2026-11-27 (EMPLOYEE TOOL SAFETY): final-execution enforcement. No model, chat confirmation
+  // or code path may run a transaction-changing tool here — the ONLY approved AI correction path is
+  // Tag's signed proposal + explicit customer confirmation (tag-action commit, which does not use this).
+  if (TRANSACTION_MUTATION_TOOLS.has(tool.id)) {
+    console.warn(`[T-ACT-SAFE] executeTool refused transaction-changing tool: ${tool.id}`);
+    return {
+      error: 'tool_not_permitted',
+      message: tool.id === 'ingest_statement_enhanced'
+        ? 'This statement tool is retired (AR4-ATT-01): statements are imported through the upload, never written directly.'
+        : "Category changes are made through Tag's review, where the customer confirms each change.",
+    };
+  }
   // Validate input
   const validation = tool.inputSchema.safeParse(input);
   if (!validation.success) {

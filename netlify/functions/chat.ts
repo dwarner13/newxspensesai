@@ -241,6 +241,7 @@ import { committedImportIds, isImportCommitted } from './_shared/importLifecycle
 type LifecycleDb = Parameters<typeof committedImportIds>[0];
 import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools, TRANSACTION_MUTATION_TOOLS } from '../../src/shared/ai-action-safety';
+import { isEmployeeProfileAvailable } from '../../src/shared/employee-availability';
 import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, meaningFiguresFromToolResult, moneyFigures, type CashFlowForGuard, type FigureMeaning } from '../../src/shared/statement-reconciliation-guard';
 import { verifyReplyFigures, evidenceRegenerationInstruction, enforceReplyEvidence, removeUnsupportedBalanceSpeculation } from '../../src/shared/turn-evidence-ledger';
 import { toInclusiveEndDate } from '../../src/shared/prime-temporal-scope';
@@ -495,6 +496,8 @@ type RuntimeCacheEntry<T> = { expiresAt: number; value: T };
 type EmployeeProfileCacheEntry = {
   tools_allowed: string[] | null;
   system_prompt: string | null;
+  /** T5: the profile exists and is_active / is_enabled are not false. */
+  available: boolean;
   fetchedAt: number;
 };
 type LastTxSearchCacheEntry = {
@@ -619,11 +622,13 @@ export async function getEmployeeProfileCached(
   sb: SupabaseClient,
   slug: string,
   orchCtx?: OrchCtx | null
-): Promise<{ tools_allowed: string[] | null; system_prompt: string | null }> {
+): Promise<{ tools_allowed: string[] | null; system_prompt: string | null; available: boolean }> {
+  // Owner GO 2026-11-27 (T5): availability is enforced server-side — an unknown, inactive or disabled
+  // employee (or an unreadable profile) is NOT available (fail closed; never rely on UI visibility).
   const normalizedSlug = String(slug || '').trim().toLowerCase();
   if (!normalizedSlug) {
     if (orchCtx) orchCtx.employee_profile_cache_hit = false;
-    return { tools_allowed: [], system_prompt: null };
+    return { tools_allowed: [], system_prompt: null, available: false };
   }
 
   const now = Date.now();
@@ -633,6 +638,7 @@ export async function getEmployeeProfileCached(
     return {
       tools_allowed: Array.isArray(cacheHit.tools_allowed) ? cacheHit.tools_allowed : [],
       system_prompt: typeof cacheHit.system_prompt === 'string' ? cacheHit.system_prompt : null,
+      available: cacheHit.available === true,
     };
   }
 
@@ -640,26 +646,28 @@ export async function getEmployeeProfileCached(
   try {
     const { data, error } = await sb
       .from('employee_profiles')
-      .select('tools_allowed, system_prompt')
+      .select('tools_allowed, system_prompt, is_active, is_enabled')
       .eq('slug', normalizedSlug)
       .maybeSingle();
     if (error) {
       console.warn(`[Chat] Employee profile query failed for ${normalizedSlug}:`, error);
-      return { tools_allowed: [], system_prompt: null };
+      return { tools_allowed: [], system_prompt: null, available: false };
     }
     const entry: EmployeeProfileCacheEntry = {
       tools_allowed: Array.isArray((data as any)?.tools_allowed) ? (data as any).tools_allowed : [],
       system_prompt: typeof (data as any)?.system_prompt === 'string' ? (data as any).system_prompt : null,
+      available: isEmployeeProfileAvailable(data as { is_active?: unknown; is_enabled?: unknown } | null),
       fetchedAt: now,
     };
     employeeProfileCache.set(normalizedSlug, entry);
     return {
       tools_allowed: entry.tools_allowed,
       system_prompt: entry.system_prompt,
+      available: entry.available,
     };
   } catch (error: any) {
     console.warn(`[Chat] Employee profile cache fallback for ${normalizedSlug}:`, error?.message || error);
-    return { tools_allowed: [], system_prompt: null };
+    return { tools_allowed: [], system_prompt: null, available: false };
   }
 }
 
@@ -6963,6 +6971,16 @@ export const handler: Handler = async (event, context) => {
       const _tEmployeeProfile = Date.now(); // V1-A CP4.3
       const employeeProfile = await getEmployeeProfileCached(sb, finalEmployeeSlug, orchCtx);
       timingLogs.employee_profile = Date.now() - _tEmployeeProfile;
+      // T5 (owner GO 2026-11-27): the requested employee must be available — enforced on the server,
+      // never by UI visibility. Unknown, inactive or disabled employees are refused (fail closed).
+      if (!employeeProfile.available) {
+        console.warn(`[Chat] EMPLOYEE UNAVAILABLE: ${finalEmployeeSlug} (refused server-side)`);
+        return {
+          statusCode: 200,
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'assistant', content: "That team member isn't available right now. Prime can help you in the meantime.", unavailableEmployee: true }),
+        };
+      }
       if (employeeProfile.tools_allowed && Array.isArray(employeeProfile.tools_allowed) && employeeProfile.tools_allowed.length > 0) {
         employeeTools = employeeProfile.tools_allowed;
         toolModules = pickTools(employeeTools);
@@ -12669,7 +12687,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
 
                   // Track tx_search IDs
                   const toolCtx: ToolContext = { userId, conversationId: finalSessionId, sessionId: finalSessionId, authHeader: authHeader || '' };
-                  const tResult = toolCallBudget.take() ? await executeTool(tm, tArgs, toolCtx) : TOOL_BUDGET_EXCEEDED_RESULT;
+                  const tResult = toolCallBudget.take() ? await executeTool(tm, tArgs, toolCtx, { employeeSlug: finalEmployeeSlug, mode: 'propose-confirm', autonomyLevel: 1 }) : TOOL_BUDGET_EXCEEDED_RESULT; // acting employee → entitlement + audit
                   if (tResult && typeof tResult === 'object' && !('error' in tResult)) captureCashFlowForGuard(tn, tResult); // C-1 ledger (specialist)
 
                   if (tn === 'tx_search' && finalSessionId && tResult && typeof tResult === 'object' && !('error' in tResult)) {
@@ -13506,6 +13524,12 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
           }
 
           const targetSlug = handoffData.target_slug;
+          // T5 (owner GO 2026-11-27): a handoff target must be an available employee (server-side; fail closed).
+          const handoffTargetProfile = await getEmployeeProfileCached(sb, String(targetSlug), orchCtx);
+          if (!handoffTargetProfile.available) {
+            console.warn(`[Chat] HANDOFF REFUSED (${sourceLabel}): target ${targetSlug} is not an available employee`);
+            return null;
+          }
           const reason = handoffData.reason || 'Better suited for this question';
           const summary = handoffData.summary_for_next_employee;
           let handoffType: 'standard' | 'plugin' =
