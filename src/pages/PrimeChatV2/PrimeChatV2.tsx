@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { THEME, AGENT_COLORS } from "./agentConfig";
 import { AgentDot } from "./AgentDot";
 import { AgentCallout } from "./AgentCallout";
-import { TaxDeductionsCard } from "./TaxDeductionsCard";
 import { QuickActionChips } from "./QuickActionChips";
 import { PrimeChatInput } from "./PrimeChatInput";
 import { resolvePreferredName } from "@/shared/preferred-name";
@@ -29,6 +28,8 @@ import {
   buildSummaryText,
   buildThoughtsText,
 } from "./usePrimeBriefingData";
+import { FINANCIAL_LABELS } from "@/lib/financialLabels";
+import { formatMoney } from "@/components/finance/FinancialState";
 import type { ChatMessage } from "@/hooks/usePrimeChat";
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard";
 import { ActionReceiptCard, parseActionReceipt } from "@/components/chat/ActionReceiptCard";
@@ -161,40 +162,15 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     initialMessages: history,
     conversationId: sessionId,
     additionalPrimeContext: data.loading ? undefined : {
-      // Real financial snapshot from usePrimeBriefingData
-      financialSnapshot: {
-        hasTransactions: data.transactionCount > 0,
-        uncategorizedCount: data.uncategorizedCount,
-        monthlySpend: data.totalSpent,
-        topCategories: data.categoryBreakdown.slice(0, 6).map(c => ({
-          name: c.label,
-          amount: c.amount,
-        })),
-        hasDebt: data.categoryBreakdown.some(c =>
-          c.label.toLowerCase().includes('debt') || c.label.toLowerCase().includes('loan')
-        ),
-      },
-      // Real income/expense summary
-      totalIncome: data.totalIncome,
-      totalSpent: data.totalSpent,
+      // UX-FST2-8: counts only. Browser money (monthlySpend, topCategories, totals) is dropped by the
+      // server sanitizer and taxSummary is no longer read (Prime HQ 792b4200); Prime's figures come
+      // from the server.
+      financialSnapshot: { hasTransactions: data.transactionCount > 0, uncategorizedCount: data.uncategorizedCount },
       statementCount: data.statementCount,
       transactionCount: data.transactionCount,
       uncategorizedCount: data.uncategorizedCount,
-      categorySummary: data.categorySummary,
       topMerchant: data.topMerchant?.name ?? null,
       pendingImports: data.pendingImports,
-      // Tax-workspace mirror (section totals + top subcategories) so Prime answers
-      // "how much did I pay on car payments" etc. without routing to Ledger.
-      taxSummary: data.taxSummary.map(s => ({
-        section: s.title,
-        total: s.total,
-        count: s.count,
-        topSubcategories: s.topBuckets.map(b => ({
-          name: b.label,
-          amount: b.amount,
-          count: b.count,
-        })),
-      })),
     },
   });
 
@@ -410,40 +386,20 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     if (data.pendingImports > 0) {
       openers.push({ weight: 10, lead: `${data.pendingImports} import${data.pendingImports > 1 ? 's' : ''} waiting to commit${nameSuffix}.` });
     }
-    if (data.trendAlert) {
-      const dir = data.trendAlert.direction === 'up' ? 'climbing' : 'dropping';
-      openers.push({ weight: 9, lead: `Your ${data.trendAlert.category.toLowerCase()} is ${dir} three months running${nameSuffix}.` });
+    // UX-FST2-8: openers state only what the server summary holds (Prime HQ).
+    if (data.summary && data.summary.labels.netCashFlow.amount !== 0) {
+      const net = data.netCashFlow;
+      const shown = formatMoney(Math.abs(net), data.currency);
+      openers.push({ weight: 6, lead: net < 0 ? `${FINANCIAL_LABELS.netCashFlow} is ${shown} out${nameSuffix}.` : `${FINANCIAL_LABELS.netCashFlow} is +${shown}${nameSuffix}.` });
     }
-
-    // Priority 2: Net flow framing (if meaningful income/expense)
-    if (data.totalIncome > 0 && data.totalSpent > 0) {
-      const net = data.totalIncome - data.totalSpent;
-      if (net < -1000) {
-        openers.push({ weight: 6, lead: `Expenses outpacing income by $${Math.abs(net).toLocaleString()}${nameSuffix}.` });
-        openers.push({ weight: 5, lead: `${namePrefix}${firstName ? 'the' : 'The'} gap is $${Math.abs(net).toLocaleString()} this period.` });
-      } else if (net > 1000) {
-        openers.push({ weight: 6, lead: `Net positive by $${net.toLocaleString()}${nameSuffix}.` });
-      }
+    if (data.spendingClaimText && data.summary?.insights.some(i => i.subject === 'actual_spending' && i.kind === 'trend')) {
+      openers.push({ weight: 5, lead: data.spendingClaimText });
     }
-
-    // Priority 3: Month-over-month framing
-    if (Math.abs(data.monthOverMonthPct) >= 15 && Math.abs(data.monthOverMonthPct) < 500) {
-      const dir = data.monthOverMonthPct > 0 ? 'up' : 'down';
-      openers.push({ weight: 5, lead: `Spending ${dir} ${Math.abs(data.monthOverMonthPct)}% from last month${nameSuffix}.` });
+    if (data.categoryBreakdown[0] && data.categoryBreakdown[0].label !== 'Other' && data.categoryBreakdown[0].share >= 30) {
+      openers.push({ weight: 4, lead: `${data.categoryBreakdown[0].label} is ${data.categoryBreakdown[0].share}% of your actual spending${nameSuffix}.` });
     }
-
-    // Priority 4: Top category framing
-    if (data.categoryBreakdown[0] && data.categoryBreakdown[0].label !== 'Other' && data.totalSpent > 0) {
-      const top = data.categoryBreakdown[0];
-      const pct = Math.round((top.amount / data.totalSpent) * 100);
-      if (pct >= 30) {
-        openers.push({ weight: 4, lead: `${top.label} is ${pct}% of your spend${nameSuffix}.` });
-      }
-    }
-
-    // Priority 5: Deductions
-    if (data.deductions.total > 500) {
-      openers.push({ weight: 4, lead: `$${data.deductions.total.toLocaleString()} in potential deductions on the table${nameSuffix}.` });
+    if (data.possibleBusinessExpensesLine) {
+      openers.push({ weight: 3, lead: `Some possible business expenses need your review${nameSuffix}.` });
     }
 
     // Priority 6: Generic varied openers (always available as fallback)
@@ -464,7 +420,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
     for (const o of pool) { r -= o.weight; if (r <= 0) { pick = o; break; } }
     try { sessionStorage.setItem('prime_last_opener', pick.lead); } catch { /* ignore */ }
     return pick.lead;
-  }, [data.loading, data.uncategorizedCount, data.pendingImports, data.trendAlert, data.totalIncome, data.totalSpent, data.monthOverMonthPct, data.categoryBreakdown, data.deductions.total, firstName, nameSuffix, namePrefix]);
+  }, [data.loading, data.uncategorizedCount, data.pendingImports, data.summary, data.netCashFlow, data.currency, data.spendingClaimText, data.categoryBreakdown, data.possibleBusinessExpensesLine, firstName, nameSuffix, namePrefix]);
 
   // Filter to only visible messages - skip hidden user prompts and greeting instructions
   const chatMessages = messages.filter(m => {
@@ -1089,7 +1045,9 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
                 Prime&apos;s Briefing
               </div>
               <div style={{ fontSize: 11, color: THEME.textMuted }}>
-                ${data.totalIncome.toLocaleString()} income · ${data.totalSpent.toLocaleString()} expenses · {data.transactionCount} transactions
+                {data.summary
+                  ? <>{FINANCIAL_LABELS.actualIncome} {formatMoney(data.totalIncome, data.currency)} · {FINANCIAL_LABELS.actualSpending} {formatMoney(data.totalSpent, data.currency)} · {data.transactionCount} transactions</>
+                  : 'Figures unavailable right now'}
               </div>
             </div>
             <svg
@@ -1194,7 +1152,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             )}
             {revealStep >= 4 && (
               <div style={{ marginLeft: 38, marginBottom: 6, animation: 'primeReveal 0.4s ease forwards' }}>
-                <AgentCallout agent="Tag" text={data.uncategorizedCount > 0 ? `Found ${data.uncategorizedCount} transactions that need your call \u2014 some look like duplicates, others are uncategorized.` : "All clear \u2014 every transaction is categorized. Nice work."} cta="Review with Tag" onCtaClick={() => { onClose?.(); navigate("/dashboard/smart-categories"); }} />
+                <AgentCallout agent="Tag" text={data.needsReviewLine ? `${data.needsReviewLine}.` : data.summary ? "All clear \u2014 every transaction is categorized. Nice work." : "Review counts aren't available right now."} cta="Review with Tag" onCtaClick={() => { onClose?.(); navigate("/dashboard/smart-categories"); }} />
               </div>
             )}
 
@@ -1208,7 +1166,7 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             {/* STEP 6 - Crystal callout */}
             {revealStep >= 6 && (
               <div style={{ marginLeft: 38, marginBottom: 6, animation: 'primeReveal 0.4s ease forwards' }}>
-                <AgentCallout agent="Crystal" text={data.trendAlert ? `${data.trendAlert.category} has ${data.trendAlert.direction === "up" ? "increased" : "decreased"} ${data.trendAlert.months.length} months straight: ${data.trendAlert.months.map((m) => "$" + m.toLocaleString()).join(" \u2192 ")}.` : data.categoryBreakdown.length > 0 ? `Your top category is ${data.categoryBreakdown[0].label} at $${data.categoryBreakdown[0].amount.toLocaleString()}. No unusual trends detected.` : "Not enough data yet to spot trends."} cta="See trend analysis" onCtaClick={() => { onClose?.(); navigate("/dashboard/my-story"); }} />
+                <AgentCallout agent="Crystal" text={[data.topCategoryText, data.spendingClaimText].filter(Boolean).join(" ") || "Not enough data yet to spot trends."} cta="See trend analysis" onCtaClick={() => { onClose?.(); navigate("/dashboard/my-story"); }} />
               </div>
             )}
             {/* Typing dots before Prime's Take */}
@@ -1223,9 +1181,9 @@ export function PrimeChatV2Content({ onClose }: PrimeChatV2ContentProps) {
             )}
 
             {/* STEP 7 - Tax deductions + Prime's Take */}
-            {revealStep >= 7 && data.deductions.total > 0 && (
+            {revealStep >= 7 && data.possibleBusinessExpensesLine && (
               <div style={{ marginLeft: 38, marginTop: 14, marginBottom: 18, animation: 'primeReveal 0.4s ease forwards' }}>
-                <TaxDeductionsCard total={data.deductions.total} categories={data.deductions.categories} />
+                <div data-testid="briefing-pbe" style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: "12px 16px", fontSize: 13, color: THEME.textMuted, lineHeight: 1.5 }}>{data.possibleBusinessExpensesLine}</div>
               </div>
             )}
             {revealStep >= 7 && (
