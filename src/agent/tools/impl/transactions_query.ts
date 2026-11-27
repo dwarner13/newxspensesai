@@ -64,6 +64,17 @@ export const outputSchema = z.object({
     excludedFromSpending: z.object({ transfersOut: money, debtPayments: money, savingsInvestment: money }),
     note: z.string(),
   }),
+  /**
+   * The scope the totals were computed for (financial evidence registry): `filtered` is true when any
+   * filter other than the date range narrowed the rows, so the totals describe a SUBSET (one merchant,
+   * category, amount band or legacy type) and never evidence an overall income / spending claim.
+   */
+  scope: z.object({
+    filtered: z.boolean(),
+    filters: z.array(z.string()),
+    startDate: z.string().nullable(),
+    endDate: z.string().nullable(),
+  }),
   summary: z.object({
     transactionCount: z.number().nullable(),
     dateRange: z.object({ start: z.string().nullable(), end: z.string().nullable() }),
@@ -80,6 +91,18 @@ type Row = AggregateRow & {
   id: string; date: string; description: string | null; merchant: string | null;
   amount: number; category: string | null; type: string | null;
 };
+
+/** Non-date filters in effect (a subset scope). */
+export function activeFilters(input: Input): string[] {
+  const f: string[] = [];
+  if (input.category) f.push('category');
+  if (input.categories && input.categories.length > 0) f.push('categories');
+  if (input.type && input.type !== 'all') f.push('type');
+  if (input.minAmount !== undefined) f.push('minAmount');
+  if (input.maxAmount !== undefined) f.push('maxAmount');
+  if (input.merchant) f.push('merchant');
+  return f;
+}
 
 /** Same filters for the display page, the count and the complete read. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase query builder chain
@@ -137,6 +160,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       : null;
     const c = agg?.cents;
     const dates = (complete ? full.rows : rows).map(t => t.date).filter(Boolean).sort();
+    const filters = activeFilters(input);
 
     return Ok({
       transactions: rows.map(t => ({
@@ -164,8 +188,16 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
           savingsInvestment: c ? dollars(c.savingsInvestment) : null,
         },
         note: complete
-          ? 'Complete totals for every matching transaction (shared engine). Actual spending excludes transfers, debt payments, savings/investments and refunds.'
+          ? (filters.length > 0
+            ? `Complete totals for the FILTERED subset only (${filters.join(', ')}) — not overall totals. A type filter uses the stored transaction type; the totals use the shared engine's meaning. Actual spending excludes transfers, debt payments, savings/investments and refunds.`
+            : 'Complete totals for every matching transaction (shared engine). Actual spending excludes transfers, debt payments, savings/investments and refunds.')
           : 'Totals unavailable: not every matching transaction could be read. Do not state a total; say the figures could not be verified.',
+      },
+      scope: {
+        filtered: filters.length > 0,
+        filters,
+        startDate: input.startDate ?? null,
+        endDate: input.endDate ?? null,
       },
       summary: {
         transactionCount: totalMatching,
