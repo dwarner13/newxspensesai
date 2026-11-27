@@ -632,7 +632,7 @@ Currently, handoff is semi-manual (tool call -> backend routing). Full autonomou
 | K11 | **useChatHistory.ts is dead code** | `src/hooks/useChatHistory.ts` | OPEN (delete) |
 | K12 | **Em-dash mojibake in source comment** — `"a"\u20ac\u201c"` | `PrimeChatV2.tsx` line 21 | COSMETIC |
 | K13 | **Employee color definitions duplicated** in `employeeThemes.ts` + `employeeDisplayConfig.ts` | `src/config/` | By design (different purposes) |
-| K14 | **ByteCopilotPanel.tsx is dead code** — never imported | `src/components/` | OPEN (delete) |
+| K14 | **ByteCopilotPanel.tsx is dead code** — never imported | `src/pages/CategoriesV2/` | CLOSED 2026-11-27 — deleted in 0315a6cc (owner GO) |
 | K15 | **crystal-analyze-import.ts is a stub** — returns `{ ok: true, skipped: true }` | `netlify/functions/` | PLACEHOLDER |
 | K16 | **Goalie pages fully implemented** but data hooks may use placeholder data | `src/pages/GoalsDebtV2/` | VERIFY |
 | K17 | **BMO dropped rows** — balance column confused with transaction amount in edge cases | `process-statement.ts` prompt | OPEN |
