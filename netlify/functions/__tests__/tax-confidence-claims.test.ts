@@ -110,7 +110,8 @@ describe('tag-explain confidence source and wording', () => {
     expect(text).not.toMatch(/\$\d/);
     expect(text).not.toMatch(/at least \$/);
     expect(text).toMatch(/I couldn't read all of your transactions at SOBEYS, so I can't give a spending figure/);
-    expect([r.merchantTotalSpent, r.merchantAvgAmount, r.merchantRefundTotal]).toEqual([0, 0, 0]);
+    // null, never 0: a caller could show 0 as "$0 spent" (engine convention: incomplete → null).
+    expect([r.merchantTotalSpent, r.merchantAvgAmount, r.merchantRefundTotal]).toEqual([null, null, null]);
     // No "Nx your usual spend" from a partial history.
     expect(r.isAmountAnomaly).toBe(false);
   });
@@ -187,5 +188,24 @@ describe('tag-explain "learned" claims count only corrections for the exact merc
     const r = await explainTransactionCategory(client(baseTx, history(1), [...fb('SOBEYS', 2), ...fb('SOBEYS LIQUOR', 3)]) as any, 'u1', 't1');
     expect(r.learnedCount).toBe(2);
     expect(r.message).toMatch(/I learned from your 2 past corrections/);
+  });
+});
+
+describe('the drawer money fields are never rendered as a false zero (Financial Evidence Trust)', () => {
+  it('only tag_explain reads merchantTotalSpent / merchantAvgAmount / merchantRefundTotal — a new consumer must be reviewed for null', () => {
+    const { readdirSync } = fs;
+    const { join } = path;
+    const root = join(__dirname, '../../..');
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(join(root, dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) { if (!['node_modules', '__tests__', 'functions_old', 'functions-backup'].includes(e.name)) walk(rel); continue; }
+        if (/\.(tsx?|jsx?)$/.test(e.name) && /\bmerchant(TotalSpent|AvgAmount|RefundTotal)\b/.test(read(rel))) hits.push(rel);
+      }
+    };
+    walk('netlify/functions');
+    walk('src');
+    expect(hits).toEqual(['netlify/functions/_shared/tag_explain.ts']);
   });
 });

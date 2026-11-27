@@ -27,12 +27,16 @@ export type TagExplanationResult = {
   message: string;
   // Enhanced fields
   merchantSeenCount: number;
-  /** Unified engine (owner GO 2026-11-26): SPENDING only (classifyCashFlow), exact merchant, refunds excluded. */
-  merchantTotalSpent: number;
-  /** Average of the spending transactions above. */
-  merchantAvgAmount: number;
-  /** Refunds at this merchant (money back), reported separately, never netted into spending. */
-  merchantRefundTotal: number;
+  /**
+   * Unified engine (owner GO 2026-11-26): SPENDING only (classifyCashFlow), exact merchant, refunds
+   * excluded. null when the history read was incomplete (Financial Evidence Trust): never 0, which a
+   * caller could show as "$0 spent".
+   */
+  merchantTotalSpent: number | null;
+  /** Average of the spending transactions above; null when incomplete. */
+  merchantAvgAmount: number | null;
+  /** Refunds at this merchant (money back), never netted into spending; null when incomplete. */
+  merchantRefundTotal: number | null;
   isAmountAnomaly: boolean;
   anomalyRatio: number;
   proactiveInsights: string[];
@@ -55,7 +59,7 @@ export async function explainTransactionCategory(
   const empty: TagExplanationResult = {
     category: null, categorySource: 'unknown', confidence: null, confidenceSource: 'none', confidenceLevel: null, merchantSeenCapped: false, accountLabel: null,
     learnedCount: 0, lastLearnedAt: null, message: '',
-    merchantSeenCount: 0, merchantTotalSpent: 0, merchantAvgAmount: 0, merchantRefundTotal: 0,
+    merchantSeenCount: 0, merchantTotalSpent: null, merchantAvgAmount: null, merchantRefundTotal: null,
     isAmountAnomaly: false, anomalyRatio: 1, proactiveInsights: [],
   };
 
@@ -103,13 +107,13 @@ export async function explainTransactionCategory(
     // Financial Evidence Trust (owner approval 2026-11-27): a figure is evidence only from a COMPLETE
     // retrieval. On an incomplete read no money figure is returned or shown — not even a labelled
     // minimum ("at least $X"), which a customer can read as the amount.
-    const merchantTotalSpent = merchantSeenCapped ? 0 : spendCents / 100;
-    const merchantRefundTotal = merchantSeenCapped ? 0 : refundCents / 100;
-    const merchantAvgAmount = !merchantSeenCapped && spendCount > 0 ? merchantTotalSpent / spendCount : 0;
+    const merchantTotalSpent: number | null = merchantSeenCapped ? null : spendCents / 100;
+    const merchantRefundTotal: number | null = merchantSeenCapped ? null : refundCents / 100;
+    const merchantAvgAmount: number | null = merchantSeenCapped ? null : spendCount > 0 ? spendCents / 100 / spendCount : 0;
     // Anomaly hint only for a SPENDING transaction compared with >= 3 prior spending transactions here.
     const thisTx = classifyCashFlow({ type: (tx as { type?: string | null }).type ?? null, category: tx.category, subcategory: (tx as { subcategory?: string | null }).subcategory ?? null, amount: tx.amount });
     const thisIsSpending = thisTx.purpose === 'spending' && thisTx.excluded === null;
-    const anomalyRatio = thisIsSpending && merchantAvgAmount > 0 ? amount / merchantAvgAmount : 1;
+    const anomalyRatio = thisIsSpending && merchantAvgAmount !== null && merchantAvgAmount > 0 ? amount / merchantAvgAmount : 1;
     // No "Nx your usual spend" from a partial history (the average would be from part of the data).
     const isAmountAnomaly = !merchantSeenCapped && thisIsSpending && spendCount >= 3 && anomalyRatio > 2.0;
 
@@ -195,7 +199,7 @@ export async function explainTransactionCategory(
     // 7. Proactive insights — Tag volunteers these unprompted
     const proactiveInsights: string[] = [];
 
-    if (isAmountAnomaly) {
+    if (isAmountAnomaly && merchantAvgAmount !== null) {
       proactiveInsights.push(`⚠️ This amount ($${amount.toFixed(2)}) is ${anomalyRatio.toFixed(1)}x your usual spend here (avg $${merchantAvgAmount.toFixed(2)}). Worth a second look.`);
     }
 
@@ -210,7 +214,7 @@ export async function explainTransactionCategory(
 
     if (merchantSeenCapped && merchantKey) {
       proactiveInsights.push(`📊 I couldn't read all of your transactions at ${merchant}, so I can't give a spending figure for it right now.`);
-    } else if (merchantSeenCount >= 5 && spendCount > 0) {
+    } else if (merchantSeenCount >= 5 && spendCount > 0 && merchantTotalSpent !== null && merchantRefundTotal !== null) {
       const refunds = merchantRefundTotal > 0 ? ` You also got $${merchantRefundTotal.toFixed(2)} back in refunds there (not counted as spending).` : '';
       proactiveInsights.push(`📊 Across your imported transactions, you've spent $${merchantTotalSpent.toFixed(2)} at ${merchant} in ${spendCount} purchase${spendCount === 1 ? '' : 's'}.${refunds}`);
     }
