@@ -216,3 +216,32 @@ describe('C-1 / C-3 wiring in chat.ts', () => {
     expect(rememberedContextBlock([{ fact: 'Saving for a car', date: '2026-09-14T10:00:00Z' }])).toContain('(remembered, 2026-09-14)');
   });
 });
+
+describe('BMO 1,800 mechanism (owner diagnostic 2026-11-27; synthetic figures)', () => {
+  it('a transfer-in deposit is in Deposits, not in Actual Income; "Deposits" quoted as the income figure is rejected', async () => {
+    const { buildPeriodAggregate } = await import('../../../src/shared/period-aggregate');
+    const { figuresFromToolResult, meaningFiguresFromToolResult } = await import('../../../src/shared/statement-reconciliation-guard');
+    const rows = [
+      { id: 'i1', date: '2026-10-02', type: 'income', category: 'Income', subcategory: null, amount: 2000 },
+      { id: 'i2', date: '2026-10-09', type: 'income', category: 'Transfers', subcategory: null, amount: 1800 },
+      { id: 'o1', date: '2026-10-15', type: 'expense', category: 'Groceries', subcategory: null, amount: -900 },
+    ];
+    const agg = buildPeriodAggregate(rows as never, { fetch: { complete: true, truncated: false, rowsFetched: rows.length } });
+    expect(agg.cents.totalInflow).toBe(380000);   // Deposits: every inflow
+    expect(agg.cents.income).toBe(200000);        // Actual Income: the transfer in is not income
+    expect(agg.cents.transferIn).toBe(180000);
+    // The served deposits figure (engine cents → dollars) is the evidence; the income figure is NOT deposits.
+    const ledger = figuresFromToolResult({ labels: { deposits: { amount: 3800, cents: 380000 }, actualIncome: { amount: 2000, cents: 200000 } } });
+    const meaning = meaningFiguresFromToolResult({ labels: { deposits: { amount: 3800, cents: 380000 }, actualIncome: { amount: 2000, cents: 200000 } } });
+    const ev = { toolFigures: ledger, userMessage: 'statement summary', meaningFigures: meaning };
+    expect(verifyReplyFigures('Deposits: $3,800.00', ev).ok).toBe(true);
+    expect(verifyReplyFigures('Actual Income: $2,000.00', ev).ok).toBe(true);
+    // owner: evidence must match the financial MEANING, not merely a number — the income figure
+    // presented as deposits (the f64d820f / BMO 1,800 shape) is rejected even though $2,000.00 is in the ledger
+    const mislabel = verifyReplyFigures('Deposits: $2,000.00', ev);
+    expect(mislabel.ok).toBe(false);
+    expect(verifyReplyFigures('Your deposits for the statement were $2,000.00.', ev).ok).toBe(false);
+    // without meaning-tagged evidence for a total, the numeric rule still applies (no false rejects)
+    expect(verifyReplyFigures('Your spending at the cafe totalled $2,000.00.', { toolFigures: ledger, userMessage: 'cafe?' }).ok).toBe(true);
+  });
+});

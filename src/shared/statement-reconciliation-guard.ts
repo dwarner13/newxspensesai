@@ -71,6 +71,43 @@ export function figuresFromToolResult(result: unknown, out: number[] = [], depth
   return out;
 }
 
+/** The financial MEANING of a figure, from the tool's own field name (owner: meaning, not just value). */
+export type FigureMeaning = 'deposits' | 'withdrawals' | 'net' | 'income' | 'spending';
+const MEANING_KEYS: ReadonlyArray<[FigureMeaning, RegExp]> = [
+  ['deposits', /^(deposits|totalDeposits|totalInflow|depositsCents)$/],
+  ['withdrawals', /^(withdrawals|totalWithdrawals|totalOutflow|withdrawalsCents)$/],
+  ['net', /^(netCashFlow|rawNetCashMovement|net)$/],
+  ['income', /^(income|actualIncome)$/],
+  ['spending', /^(spending|actualSpending)$/],
+];
+
+/**
+ * Dollar figures by meaning (C-1 ledger). A field named for a meaning tags every number beneath it
+ * (e.g. labels.deposits.{amount,cents}); cents fields are also recorded in dollars.
+ */
+export function meaningFiguresFromToolResult(result: unknown, out: Map<FigureMeaning, Set<number>> = new Map(), depth = 0, meaning: FigureMeaning | null = null, inCents = false): Map<FigureMeaning, Set<number>> {
+  if (depth > 7) return out;
+  if (typeof result === 'number' && Number.isFinite(result)) {
+    if (meaning) {
+      const set = out.get(meaning) ?? new Set<number>();
+      set.add(Math.round(Math.abs(result) * 100));
+      if (inCents && Number.isInteger(result)) set.add(Math.abs(result));
+      out.set(meaning, set);
+    }
+    return out;
+  }
+  if (Array.isArray(result)) { for (const v of result) meaningFiguresFromToolResult(v, out, depth + 1, meaning, inCents); return out; }
+  if (result && typeof result === 'object') {
+    for (const [k, v] of Object.entries(result)) {
+      const tagged = MEANING_KEYS.find(([, re]) => re.test(k))?.[0] ?? null;
+      // a meaning applies to the field and what is under it; an unrelated nested field resets it
+      const next = tagged ?? (meaning && /^(amount|cents|value|total)$/i.test(k) ? meaning : null);
+      meaningFiguresFromToolResult(v, out, depth + 1, next, inCents || /cents$/i.test(k));
+    }
+  }
+  return out;
+}
+
 /** Every dollar figure the cash-flow tool returned (absolute values, dollars). */
 export function knownFigures(cf: CashFlowForGuard): number[] {
   const out = new Set<number>();

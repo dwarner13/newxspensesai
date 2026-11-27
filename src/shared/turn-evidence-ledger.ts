@@ -33,6 +33,25 @@ export interface VerifyInput {
   userMessage: string;
   /** FINANCIAL POSITION figures (all accounts, all time): accepted only when the sentence says so. */
   positionFigures?: readonly number[];
+  /**
+   * Same-turn tool figures by financial MEANING, in cents (meaningFiguresFromToolResult). A named total
+   * ("Deposits: …") must match a figure of the SAME meaning when the tools served one — a matching
+   * number with another meaning (e.g. the income figure presented as deposits) is rejected.
+   */
+  meaningFigures?: ReadonlyMap<string, ReadonlySet<number>>;
+}
+
+/** The meaning a named-total sentence asserts, or null. */
+function namedTotalMeaning(sentence: string): 'deposits' | 'withdrawals' | 'net' | 'income' | 'spending' | null {
+  const m = sentence.match(NAMED_TOTAL);
+  if (!m) return null;
+  const term = (m[2] || m[5] || '').toLowerCase();
+  if (/deposit/.test(term)) return 'deposits';
+  if (/withdrawal/.test(term)) return 'withdrawals';
+  if (/net|cash flow/.test(term)) return 'net';
+  if (/income/.test(term)) return 'income';
+  if (/spending/.test(term)) return 'spending';
+  return null;
 }
 
 /** $1,234.56 · CA$12 · 1,234.56 CAD · -$45 (a bare number is not treated as money). */
@@ -102,7 +121,12 @@ export function verifyReplyFigures(reply: string, input: VerifyInput): ReplyVeri
       const cents = toCents(m[0]);
       if (!Number.isFinite(cents) || cents === 0) continue;
       let category: FigureCategory;
-      if (near(toolSet, cents)) category = 'verified';
+      const asserted = namedTotalMeaning(sentence);
+      const sameMeaning = asserted ? input.meaningFigures?.get(asserted) : undefined;
+      if (asserted && sameMeaning && sameMeaning.size > 0 && !near(sameMeaning as ReadonlySet<number>, cents)) {
+        // meaning mismatch: the tools served this total and the reply's figure is not it
+        category = 'unverified_actual';
+      } else if (near(toolSet, cents)) category = 'verified';
       else if (near(customerSet, cents)) category = 'customer';
       else if (position.size > 0 && near(position, cents) && POSITION_SCOPE.test(sentence)) category = 'verified';
       else if (HYPOTHETICAL.test(sentence)) category = 'hypothetical';
