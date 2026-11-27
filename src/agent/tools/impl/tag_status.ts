@@ -54,6 +54,13 @@ export const outputSchema = z.object({
   totals: z.object({ transactionCount: z.number(), categorized: z.number(), uncategorized: z.number(), otherCount: z.number() }),
   provenance: z.object({ verified_customer: z.number(), protected_unverified: z.number(), automatic: z.number(), needs_review: z.number(), unknown: z.number() }),
   needsReviewCount: z.number(),
+  needsReview: z.object({
+    complete: z.boolean(), count: z.number().nullable(),
+    inflow: z.object({ count: z.number(), cents: z.number() }).nullable(),
+    outflow: z.object({ count: z.number(), cents: z.number() }).nullable(),
+    unclassified: z.object({ count: z.number(), cents: z.number() }).nullable(),
+    netCents: z.number().nullable(), rowIds: z.array(z.string()), rowIdsTruncated: z.boolean(),
+  }).optional(),
   protectedFromProposals: z.number(),
   recentCorrections: z.object({ available: z.boolean(), count: z.number(), topMerchants: z.array(z.string()), windowDays: z.number().nullable().optional() }),
   completedActions: z.object({ available: z.boolean(), count: z.number(), byType: z.record(z.number()), windowDays: z.number().nullable() }).optional(),
@@ -90,7 +97,7 @@ export async function execute(
   const read = await pagedSelectAll<TagStatusRow>(() => {
     let q = sb
       .from('transactions')
-      .select('id, merchant_name, category, category_source, amount, date')
+      .select('id, merchant_name, category, category_source, amount, date, type, subcategory')
       .eq('user_id', userId);
     if (scope.startDate && scope.endDate) q = q.gte('date', scope.startDate).lte('date', scope.endDate);
     if (scope.importId) q = q.eq('import_id', scope.importId);

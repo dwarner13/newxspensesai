@@ -14,6 +14,7 @@ import { buildActionProposal, TOOL_TO_ACTION } from './_shared/tagProposals.js';
 import {
   loadTagSpendingSummary,
   loadCategorizationProgress,
+  loadTagNeedsReview,
   formatSpendingBlock,
   formatProgressBlock,
   summarizeSearchTotals,
@@ -508,11 +509,12 @@ export const handler: Handler = async (event) => {
     let flaggedMerchants: { merchant: string; amount: number; category: string }[] = [];
     let accountCurrency = 'CAD';
     if (!smallTalk) {
-      const [spendingSummary, progress] = await Promise.all([
+      const [spendingSummary, progress, review] = await Promise.all([
         loadTagSpendingSummary(supabase, auth.userId, { importId: importId || null }),
         loadCategorizationProgress(supabase, auth.userId, importId || null),
+        loadTagNeedsReview(supabase, auth.userId, importId || null),
       ]);
-      progressBlock = formatProgressBlock(progress);
+      progressBlock = formatProgressBlock(progress, review);
       accountCurrency = spendingSummary.scope.currency;
 
       // Recent rows (row facts, not totals) with source attribution.
