@@ -37,7 +37,7 @@ never retry automatically; `duplicate` / `conflict` replies are display-only.
 | 1 | Crystal | `src/pages/MyStoryV2/CrystalCopilotPanel.tsx` | `crystal-ai` | `crystal-analytics` |
 | 2 | Goalie | `src/pages/GoalsDebtV2/GoalieCopilotPanel.tsx` | `goalie-ai` | `goalie-goals` |
 | 3 | Custodian | `src/components/settings/tabs/CustodianSupportTab.tsx` | `custodian` | `custodian` |
-| 4 | Byte | `src/pages/CategoriesV2/ByteCopilotPanel.tsx` | `byte-docs` | `byte-docs` |
+| 4 | Byte | ~~`src/pages/CategoriesV2/ByteCopilotPanel.tsx`~~ retired 2026-11-27 (owner GO; never mounted) | `byte-docs` | `byte-docs` |
 | 5 | Ledger | `src/pages/TaxBusinessV2/LedgerCopilotPanel.tsx` | `ledger-tax` | `ledger-tax` |
 | — | Future employees | any panel on `useUnifiedChatEngine` | — | add to `CONVERSATION_EMPLOYEES` |
 
@@ -49,7 +49,7 @@ never retry automatically; `duplicate` / `conflict` replies are display-only.
 | Tag | `TagCopilotPanel` | Done (`34e14cf` + Tag HQ `4ae4e6e`) |
 | Crystal | `CrystalCopilotPanel` | Done: shared hook (`4f1e2f0`) |
 | Goalie | `GoalieCopilotPanel` | Done: shared hook |
-| Byte | `ByteCopilotPanel` | Done: shared hook, **history only** (no document access) |
+| Byte | `ByteCopilotPanel` | Retired 2026-11-27 (unused). Byte chat returns in the Upload Centre plan, phase U-E (shared hook) |
 | Ledger | `LedgerCopilotPanel` | Done: shared hook |
 | Custodian | `CustodianPanel` (`components/onboarding/CustodianPanelChat.tsx`, opened from Settings) | Done: keeps its own `custodian-chat` endpoint (Prime HQ `0b71326`: same contract as Tag); restore, history, New conversation, notices via the shared `useEndpointConversation` hook. Read-only, no tools. |
 | Finley, Liberty, Chime, Blitz | No live panel found; `src/pages/chat/*` are legacy, with routes commented out in `App.tsx` | Unverified. Wire when a live panel exists and Prime HQ verifies the server side. |

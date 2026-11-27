@@ -12,7 +12,6 @@ const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
 
 const panels = [
   { file: 'src/pages/GoalsDebtV2/GoalieCopilotPanel.tsx', canonical: 'goalie-goals', slug: 'goalie-ai', name: 'Goalie' },
-  { file: 'src/pages/CategoriesV2/ByteCopilotPanel.tsx', canonical: 'byte-docs', slug: 'byte-docs', name: 'Byte' },
   { file: 'src/pages/TaxBusinessV2/LedgerCopilotPanel.tsx', canonical: 'ledger-tax', slug: 'ledger-tax', name: 'Ledger' },
 ];
 
@@ -33,11 +32,9 @@ describe.each(panels)('$name', ({ file, canonical, slug, name }) => {
   });
 });
 
-describe('Byte: history only', () => {
-  const byte = read('src/pages/CategoriesV2/ByteCopilotPanel.tsx');
-  it('no new document access: sendMessage gets no documentIds; existing upload buttons unchanged', () => {
-    expect(byte).not.toMatch(/documentIds/);
-    expect(byte).toMatch(/<ChatAttachmentButton onFileSelected=\{\(file\) => \{ setUploadOpen\(true\); \}\} \/>/);
+describe('Byte: the unused copilot panel is retired (owner GO 2026-11-27, W5)', () => {
+  it('ByteCopilotPanel.tsx no longer exists; Byte chat returns through the Upload Centre plan (U-E)', () => {
+    expect(fs.existsSync(path.join(root, 'src/pages/CategoriesV2/ByteCopilotPanel.tsx'))).toBe(false);
   });
 });
 
