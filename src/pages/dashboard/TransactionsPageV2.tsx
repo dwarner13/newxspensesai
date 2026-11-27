@@ -94,7 +94,7 @@ export default function TransactionsPageV2() {
       return result;
     } catch { return { importId: null, issuer: null, openTag: false }; }
   })();
-  const { transactions, isLoading, refetch } = useTransactions();
+  const { transactions, isLoading, refetch, isComplete: listReadComplete } = useTransactions();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
@@ -708,24 +708,6 @@ export default function TransactionsPageV2() {
     return [...list].sort((a, b) => (b.date || b.posted_at || '').localeCompare(a.date || a.posted_at || ''));
   }, [scoped, filter, searchQuery, tagCategoryFilter, tagSubcategoryFilter, needsCategoryOnly]);
 
-  const handleExport = useCallback(() => {
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const rows = filtered.map(t => [
-      t.date || t.posted_at?.slice(0, 10) || '',
-      escape(t.merchant_name || 'Unknown'),
-      (isInflowRow(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
-      escape(t.category || 'Uncategorized'),
-      escape(t.import_id || ''),
-    ].join(','));
-    const csv = ['Date,Merchant,Amount,Category,Statement Source', ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [filtered]);
 
   // Duplicate detector — any tx flagged by the drawer's "Mark Duplicate"
   const isDuplicate = (t: CommittedTransaction): boolean =>
@@ -754,7 +736,32 @@ export default function TransactionsPageV2() {
   const clientOnlyFilter = filter !== 'all' || needsCategoryOnly || !!tagCategoryFilter || !!tagSubcategoryFilter || !!searchQuery;
   const dupes = sum?.signals?.possibleDuplicates?.count ?? 0;
   // The list holds fewer rows in scope than the server counted: older rows were not loaded.
-  const listIncomplete = !!sum && scoped.length < sum.transactionCount;
+  const listIncomplete = !listReadComplete || (!!sum && scoped.length < sum.transactionCount);
+  // TX-PAGING (owner 2026-11-26: no incomplete export presented as complete). The export holds
+  // every row the list holds for the current filters, and refuses when the list itself is
+  // incomplete. A filtered export says so in its file name.
+  const handleExport = useCallback(() => {
+    if (listIncomplete) {
+      toast.error("Export stopped: not every transaction has loaded, so the file would be incomplete. Please try again.");
+      return;
+    }
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = filtered.map(t => [
+      t.date || t.posted_at?.slice(0, 10) || '',
+      escape(t.merchant_name || 'Unknown'),
+      (isInflowRow(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
+      escape(t.category || 'Uncategorized'),
+      escape(t.import_id || ''),
+    ].join(','));
+    const csv = ['Date,Merchant,Amount,Category,Statement Source', ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `transactions-${clientOnlyFilter ? 'filtered-' : ''}${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filtered, listIncomplete, clientOnlyFilter]);
 
   // Statement options for dropdown (each individual import with filename)
   const stmtOptions = useMemo(() => {

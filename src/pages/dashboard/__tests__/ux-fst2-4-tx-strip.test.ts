@@ -32,8 +32,19 @@ describe('UX-FST2-4 Transactions strip', () => {
     expect(code).toMatch(/const isIncome = isInflowRow\(t\);/); // row sign
     expect(code).toMatch(/FINANCIAL_LABELS\.actualSpending : FINANCIAL_LABELS\.actualIncome/); // filter labels
   });
-  it('says when the loaded list is incomplete (interim until paging)', () => {
-    expect(code).toMatch(/const listIncomplete = !!sum && scoped\.length < sum\.transactionCount;/);
+  it('TX-PAGING: paged complete read; incomplete list is stated; export refuses when incomplete', () => {
+    const hook = fs.readFileSync(path.resolve(__dirname, '../../../hooks/useTransactions.ts'), 'utf8').replace(/\/\/.*$/gm, '');
+    expect(hook).toMatch(/pagedSelectAll<CommittedTransaction>\(makeQuery\)/);
+    expect(hook).not.toMatch(/\.limit\(5000\)/);
+    expect(hook).toMatch(/\.order\('posted_at', \{ ascending: false \}\)\s*\.order\('id', \{ ascending: false \}\)/);
+    expect(hook).toMatch(/setIsComplete\(read\.complete\)/);
+    expect(hook).toMatch(/read\.complete && nextData\.length <= MAX_CACHE_ROWS/); // only complete sets are cached
+    expect(code).toMatch(/isComplete: listReadComplete/);
+    expect(code).toMatch(/const listIncomplete = !listReadComplete \|\| \(!!sum && scoped\.length < sum\.transactionCount\);/);
+    expect(code).toMatch(/if \(listIncomplete\) \{\s*toast\.error\("Export stopped/);
+    expect(code).toMatch(/transactions-\$\{clientOnlyFilter \? 'filtered-' : ''\}/);
+  });
+  it('says when the loaded list is incomplete', () => {
     expect(code).toMatch(/\(\{scoped\.length\} loaded\)/);
   });
   it('owner labels, duplicates disclosed, coverage label, honest state', () => {
