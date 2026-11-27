@@ -13,7 +13,6 @@ import { AgentFloatingBubble } from "@/components/ui/AgentFloatingBubble";
 import StatementProcessingOverlay, { StatementImportResult } from "@/components/upload/StatementProcessingOverlay";
 import { PrimeWelcomeModal } from "@/components/onboarding/PrimeWelcomeModal";
 import JSZip from "jszip";
-import { buildProposeBody, buildCommitBody, readProposeResponse, readCommitResponse, moreGroupsBeyondReply, UNKNOWN_OUTCOME_TEXT, SIGNED_OUT_TEXT, SignedOutError, type ImportProposal } from "@/lib/importSuggestionsFlow";
 
 function buildStatementLabel(filename: string): string {
   const f = (filename || '').toLowerCase().replace(/[_\-]/g, ' ');
@@ -288,54 +287,6 @@ export default function UploadPageV2() {
   const [allDone, setAllDone] = useState(false);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [sweepSuggestion, setSweepSuggestion] = useState<any>(null);
-  // APPLY-ALL: Tag's signed proposal flow. phase: idle -> proposing -> confirm -> committing -> done | failed.
-  const [applyFlow, setApplyFlow] = useState<{ phase: "idle" | "proposing" | "confirm" | "committing" | "done" | "failed"; proposal?: ImportProposal; message?: string; notice?: string }>({ phase: "idle" });
-  const applyInFlightRef = useRef(false);
-  const postTagAction = async (body: Record<string, unknown>) => {
-    const token = session?.access_token;
-    if (!token) throw new SignedOutError();
-    const res = await fetch("/.netlify/functions/tag-action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) throw new SignedOutError();
-    return res.json();
-  };
-  // Step 1: ask Tag for a proposal for this statement. Nothing changes.
-  const proposeImportSuggestions = async () => {
-    const importId = typeof sweepSuggestion?.importId === "string" ? sweepSuggestion.importId : "";
-    if (!importId || applyInFlightRef.current) return;
-    applyInFlightRef.current = true;
-    setApplyFlow({ phase: "proposing" });
-    try {
-      const r = readProposeResponse(await postTagAction(buildProposeBody(importId)));
-      setApplyFlow(r.kind === "proposed" ? { phase: "confirm", proposal: r.proposal } : { phase: "failed", message: r.reply });
-    } catch (e) {
-      setApplyFlow({ phase: "failed", message: e instanceof SignedOutError ? SIGNED_OUT_TEXT : "Tag couldn't check those suggestions, so nothing has changed." });
-    } finally { applyInFlightRef.current = false; }
-  };
-  // Step 2: only from the Confirm button. One request at a time; the proposal is used once.
-  const confirmImportSuggestions = async () => {
-    const proposal = applyFlow.proposal;
-    if (!proposal || applyFlow.phase !== "confirm" || applyInFlightRef.current) return;
-    applyInFlightRef.current = true;
-    setApplyFlow({ phase: "committing", proposal });
-    try {
-      const r = readCommitResponse(await postTagAction(buildCommitBody(proposal)));
-      if (r.kind === "completed") {
-        setApplyFlow({ phase: "done", message: `Saved: ${r.count} transaction${r.count !== 1 ? "s" : ""} categorized.` });
-        setHistoryRefreshKey(k => k + 1);
-      } else if (r.kind === "retry") {
-        // Conflict: nothing changed; the same proposal may be confirmed again (fresh message id).
-        setApplyFlow({ phase: "confirm", proposal, notice: r.reply });
-      } else {
-        setApplyFlow({ phase: "failed", message: r.reply });
-      }
-    } catch (e) {
-      setApplyFlow({ phase: "failed", message: e instanceof SignedOutError ? SIGNED_OUT_TEXT : UNKNOWN_OUTCOME_TEXT });
-    } finally { applyInFlightRef.current = false; }
-  };
   const [bytePanelOpen, setBytePanelOpen] = useState(false);
   const [byteInput, setByteInput] = useState('');
   const [uploadMode, setUploadMode] = useState<'statement' | 'receipt'>('statement');
@@ -623,7 +574,7 @@ export default function UploadPageV2() {
           });
           if (sweepRes.ok) {
             const sweepData = await sweepRes.json();
-            if (sweepData.confident_count > 0) { setSweepSuggestion({ ...sweepData, importId: importIdForSweep, statementLabel: current.file.name }); setApplyFlow({ phase: "idle" }); }
+            if (sweepData.confident_count > 0) setSweepSuggestion(sweepData);
           }
         } catch { /* silent */ }
       }
@@ -1149,7 +1100,7 @@ export default function UploadPageV2() {
             <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(34,211,238,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#22d3ee', flexShrink: 0 }}>T</div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>I scanned your import. Suggested categories:</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>I scanned your import:</div>
                 <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
                   {sweepSuggestion.confident_groups.slice(0, 4).map((g: any) => (
                     <div key={g.merchant_name}>{"\u2713"} {g.merchant_name} x{g.count} {"\u2192"} {g.category}</div>
@@ -1159,48 +1110,24 @@ export default function UploadPageV2() {
                 </div>
               </div>
             </div>
-            {/* APPLY-ALL: Tag's signed proposal. The browser sends only the import reference;
-                the count and wording below are the server's. Nothing changes until Confirm. */}
-            {applyFlow.phase === "idle" || applyFlow.phase === "proposing" ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                <button type="button" onClick={() => void proposeImportSuggestions()} disabled={applyFlow.phase === "proposing"} aria-busy={applyFlow.phase === "proposing"}
-                  style={{ minHeight: 44, padding: '0 18px', borderRadius: 22, fontSize: 13, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: applyFlow.phase === "proposing" ? 'wait' : 'pointer', opacity: applyFlow.phase === "proposing" ? 0.7 : 1 }}>
-                  {applyFlow.phase === "proposing" ? "Checking with Tag…" : "Review and apply"}
-                </button>
-                <button type="button" onClick={() => setSweepSuggestion(null)} disabled={applyFlow.phase === "proposing"}
-                  style={{ minHeight: 44, padding: '0 18px', borderRadius: 22, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#94a3b8', cursor: 'pointer' }}>Skip</button>
-              </div>
-            ) : applyFlow.phase === "confirm" || applyFlow.phase === "committing" ? (
-              <div role="group" aria-label="Confirm Tag's changes" data-testid="apply-all-confirm"
-                style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(34,211,238,0.3)' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>
-                  {applyFlow.proposal!.affected} transaction{applyFlow.proposal!.affected !== 1 ? 's' : ''} will be categorized
-                </div>
-                {sweepSuggestion.statementLabel && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Statement: {sweepSuggestion.statementLabel}</div>}
-                <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.55, marginTop: 8, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{applyFlow.proposal!.reply}</div>
-                {moreGroupsBeyondReply(applyFlow.proposal!.groups) > 0 && (
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>and {moreGroupsBeyondReply(applyFlow.proposal!.groups)} more merchant group{moreGroupsBeyondReply(applyFlow.proposal!.groups) !== 1 ? 's' : ''}</div>
-                )}
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>Transactions you categorized yourself are not changed.</div>
-                {applyFlow.notice && <div role="status" style={{ fontSize: 13, color: '#fde68a', marginTop: 8 }}>{applyFlow.notice}</div>}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                  <button type="button" data-testid="apply-all-confirm-btn" onClick={() => void confirmImportSuggestions()} disabled={applyFlow.phase === "committing"} aria-busy={applyFlow.phase === "committing"}
-                    style={{ minHeight: 44, padding: '0 20px', borderRadius: 22, fontSize: 13, fontWeight: 700, background: 'linear-gradient(135deg, #22d3ee, #0891b2)', border: 'none', color: '#0b1220', cursor: applyFlow.phase === "committing" ? 'wait' : 'pointer', opacity: applyFlow.phase === "committing" ? 0.7 : 1 }}>
-                    {applyFlow.phase === "committing" ? "Saving…" : "Confirm"}
-                  </button>
-                  <button type="button" onClick={() => setApplyFlow({ phase: "idle" })} disabled={applyFlow.phase === "committing"}
-                    style={{ minHeight: 44, padding: '0 18px', borderRadius: 22, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#cbd5e1', cursor: 'pointer' }}>Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <div role="status" data-testid="apply-all-result"
-                style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.5,
-                  ...(applyFlow.phase === "done" ? { background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.35)', color: '#a7f3d0' } : { background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.35)', color: '#fde68a' }) }}>
-                <span style={{ flex: 1, minWidth: 0 }}>{applyFlow.message}</span>
-                <button type="button" onClick={() => { setSweepSuggestion(null); setApplyFlow({ phase: "idle" }); }}
-                  style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'inherit', cursor: 'pointer' }}>Close</button>
-              </div>
-            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={async () => {
+                try {
+                  const token = session?.access_token;
+                  if (!token) return;
+                  await fetch('/.netlify/functions/tag-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ intent: 'bulk_apply', groups: sweepSuggestion.confident_groups }),
+                  });
+                  toast.success(`Applied ${sweepSuggestion.confident_count} categorizations`);
+                  setSweepSuggestion(null);
+                } catch { toast.error('Could not apply'); }
+              }} style={{ padding: '8px 18px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: 'rgba(34,211,238,0.15)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee', cursor: 'pointer' }}>
+                Apply all {sweepSuggestion.confident_count} {"\u2192"}
+              </button>
+              <button onClick={() => setSweepSuggestion(null)} style={{ padding: '8px 18px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#475569', cursor: 'pointer' }}>Skip</button>
+            </div>
           </div>
         )}
 

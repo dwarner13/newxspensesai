@@ -306,7 +306,8 @@ describe('browser callers send the session token read at call time', () => {
   const cases: Array<[string, string]> = [
     ['src/pages/dashboard/TaxWorkspacePage.tsx', '/.netlify/functions/generate-tax-report'],
     ['src/pages/dashboard/TransactionsPageV2.tsx', '/.netlify/functions/tag-explain'],
-    ['src/pages/TransactionsPageV2.tsx', '/.netlify/functions/tag-explain'],
+    // TB-5 W7 (owner GO 2026-11-26): the unrouted orphan src/pages/TransactionsPageV2.tsx was
+    // retired; the live page's row above stays.
   ];
   for (const [file, endpoint] of cases) {
     it(`${file} → ${endpoint}`, () => {

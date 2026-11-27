@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { makeCappedClient, type FakeRow } from '../../../src/shared/__tests__/fixtures/capped-supabase';
-import { generateLedger, oracleFor, IMPORTS, type LedgerRow, type Bucket } from '../../../src/shared/__tests__/fixtures/ledger-generator';
+import { generateLedger, oracleFor, IMPORTS, KIND_BUCKET, type LedgerRow, type Bucket } from '../../../src/shared/__tests__/fixtures/ledger-generator';
 import { PURPOSE_LABEL } from '../_shared/financial-export-csv';
 
 const state: { client: any; tokens: Record<string, string> } = { client: null, tokens: {} };
@@ -135,6 +135,17 @@ describe('S0/S2b financial-summary reconciles with the oracle at 119 / 1,000 / 1
       expect(Math.round(b.perStatement.reduce((x: number, p: any) => x + p.withdrawals * 100, 0))).toBe(withdrawals);
       // the ONE review rule (no category / Uncategorized / Needs Review; not 'Other'), computed independently here
       expect(b.needsReviewCount).toBe(rows.filter(r => { const c = (r.category ?? '').trim().toLowerCase(); return c === '' || c === 'uncategorized' || c === 'needs review'; }).length);
+      // LA-4: the served review figure — same count; amounts by the hand-written bucket oracle (inflow vs outflow), never abs-summed
+      const review = rows.filter(r => { const c = (r.category ?? '').trim().toLowerCase(); return c === '' || c === 'uncategorized' || c === 'needs review'; });
+      const INFLOW_B = new Set(['income', 'refunds', 'transferIn', 'debtRepaymentsIn']);
+      const cents = (xs: typeof review) => xs.reduce((s, r) => s + Math.round(Math.abs(r.amount) * 100), 0);
+      const rin = review.filter(r => INFLOW_B.has(KIND_BUCKET[r.kind]));
+      const rout = review.filter(r => KIND_BUCKET[r.kind] !== 'unclassified' && !INFLOW_B.has(KIND_BUCKET[r.kind]));
+      expect(b.needsReview.complete).toBe(true);
+      expect(b.needsReview.count).toBe(b.needsReviewCount);
+      expect(b.needsReview.inflow).toEqual({ count: rin.length, cents: cents(rin) });
+      expect(b.needsReview.outflow).toEqual({ count: rout.length, cents: cents(rout) });
+      expect(b.needsReview.netCents).toBe(cents(rin) - cents(rout));
       // no statement periods recorded in this fixture → coverage unknown → nothing comparable, no trend/stable
       expect(b.coverage.comparison.allowed).toBe(false);
       expect(b.periods).toEqual([]);

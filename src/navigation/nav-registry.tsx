@@ -1,5 +1,6 @@
 // src/navigation/nav-registry.tsx
 import type { ReactNode } from "react";
+import { isXspenseScoreVisible } from "../pages/XspenseScore/scoreDisplay";
 import {
   Home, Receipt, Tags, Brain, FileText, Star,
   Target, Mic, Briefcase, Settings, Mail
@@ -57,13 +58,15 @@ const NAV_ITEMS: NavItem[] = [
     group: "PRIMARY",
     description: "Export and share financial reports",
   },
-  {
+  // XS-2 (owner 2026-11-26): the held Score has no nav entry (desktop sidebar and mobile navs);
+  // its route stays and shows the review message.
+  ...(isXspenseScoreVisible() ? [{
     label: "Xspense Score",
     to: "/dashboard/xspense-score",
     icon: <Star className="w-5 h-5" />,
-    group: "PRIMARY",
+    group: "PRIMARY" as const,
     description: "Your financial health score",
-  },
+  }] : []),
   {
     label: "Inbox",
     to: "/dashboard/inbox",
