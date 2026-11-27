@@ -243,6 +243,7 @@ import { loadProfileCurrency } from './_shared/financial-ledger';
 import { stripTransactionMutationTools, TRANSACTION_MUTATION_TOOLS } from '../../src/shared/ai-action-safety';
 import { isEmployeeProfileAvailable } from '../../src/shared/employee-availability';
 import { guardReconciledAnswer, renderReconciledAnswer, figuresFromToolResult, meaningFiguresFromToolResult, moneyFigures, type CashFlowForGuard, type FigureMeaning } from '../../src/shared/statement-reconciliation-guard';
+import { admitToolEvidence } from '../../src/shared/financial-evidence-registry';
 import { verifyReplyFigures, evidenceRegenerationInstruction, enforceReplyEvidence, removeUnsupportedBalanceSpeculation } from '../../src/shared/turn-evidence-ledger';
 import { toInclusiveEndDate } from '../../src/shared/prime-temporal-scope';
 import { REMEMBERED_CONTEXT_HEADER, REMEMBERED_FACTS_SUMMARY_LABEL, EARLIER_CONVERSATION_LABEL, rememberedContextBlock } from '../../src/shared/remembered-context-labels';
@@ -10430,10 +10431,20 @@ export const handler: Handler = async (event, context) => {
     const turnToolNames = new Set<string>();
     // C-1 ledger: figures by financial meaning (deposits / withdrawals / net / income / spending), in cents.
     const turnMeaningFigures = new Map<FigureMeaning, Set<number>>();
+    // Financial evidence registry (owner GO 2026-11-27): single stored values (statement_records) —
+    // quotable as themselves only, never totals or sums.
+    const turnRecordFigures: number[] = [];
     const captureCashFlowForGuard = (tool: string | undefined, data: unknown) => {
       if (tool && data && typeof data === 'object') turnToolNames.add(tool);
-      if (data && typeof data === 'object') meaningFiguresFromToolResult(data, turnMeaningFigures);
-      if (data && typeof data === 'object') figuresFromToolResult(data, turnToolFigures);
+      // An authorized tool's figure is NOT evidence by itself: only an approved evidence class, a
+      // complete read and (for engine totals) an unfiltered scope enter the ledger.
+      const ev = admitToolEvidence(tool, data);
+      if (ev.admit === 'engine') {
+        meaningFiguresFromToolResult(ev.payload, turnMeaningFigures);
+        figuresFromToolResult(ev.payload, turnToolFigures);
+      } else if (ev.admit === 'statement_records') {
+        figuresFromToolResult(ev.payload, turnRecordFigures);
+      }
       if (tool === 'cash_flow_summary' && data && typeof data === 'object' && (data as CashFlowForGuard).statementBreakdown) {
         turnCashFlowForGuard = data as CashFlowForGuard;
       }
@@ -14754,7 +14765,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       let evidenceCheck: { ok: boolean; unsupportedCount: number; action: 'kept' | 'regenerated' | 'asked' | 'unavailable'; speculationRemoved?: number; author?: string } | null = null;
       if (isPrime && assistantContent) {
         const positionFigures = moneyFigures(financialPositionText || '');
-        const verifyReply = (text: string) => verifyReplyFigures(text, { toolFigures: turnToolFigures, userMessage: String(masked || ''), positionFigures, meaningFigures: turnMeaningFigures });
+        const verifyReply = (text: string) => verifyReplyFigures(text, { toolFigures: turnToolFigures, userMessage: String(masked || ''), positionFigures, meaningFigures: turnMeaningFigures, recordFigures: turnRecordFigures });
         const remainingMs = 60000 - (Date.now() - requestStartTime);
         const cashFlowModule = toolModules['cash_flow_summary'];
         const evidence = await enforceReplyEvidence({
@@ -14813,7 +14824,7 @@ This is a SAME-TURN continuation. The user is waiting for you to act, not to int
       // table replaces the reply (recorded in the message metadata).
       let breakdownGuard: { unsupportedFigures: number; mislabelledTotals: number; speculation: boolean; replaced: true } | null = null;
       if (isPrime && isPrimeConversationSlug(finalEmployeeSlug) && assistantContent && turnCashFlowForGuard) {
-        const g = guardReconciledAnswer(assistantContent, turnCashFlowForGuard, masked, turnToolFigures);
+        const g = guardReconciledAnswer(assistantContent, turnCashFlowForGuard, masked, [...turnToolFigures, ...turnRecordFigures]);
         if (g.applies && g.ok && g.unsupportedFigures > 0) {
           console.log(`[P-LIVE-03] breakdown guard (log only, not a breakdown answer): unsupported=${g.unsupportedFigures}`);
         }

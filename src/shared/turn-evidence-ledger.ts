@@ -39,6 +39,12 @@ export interface VerifyInput {
    * number with another meaning (e.g. the income figure presented as deposits) is rejected.
    */
   meaningFigures?: ReadonlyMap<string, ReadonlySet<number>>;
+  /**
+   * Financial evidence registry `statement_records`: individual stored values (one transaction's
+   * amount). Verified only when quoted as themselves — never as a named total, never combined by the
+   * sum / difference / multiple rule (two records never make a pseudo-total).
+   */
+  recordFigures?: readonly number[];
 }
 
 /** The meaning a named-total sentence asserts, or null. */
@@ -113,6 +119,7 @@ export function verifyReplyFigures(reply: string, input: VerifyInput): ReplyVeri
   const customer = [...new Set((input.userMessage.match(MONEY) ?? []).map(toCents))];
   const customerSet = new Set(customer);
   const position = new Set((input.positionFigures ?? []).filter(n => Number.isFinite(n)).map(n => Math.round(Math.abs(n) * 100)));
+  const records = new Set((input.recordFigures ?? []).filter(n => Number.isFinite(n)).map(n => Math.round(Math.abs(n) * 100)));
   const base = [...tool, ...customer];
 
   const figures: ReplyFigure[] = [];
@@ -127,6 +134,7 @@ export function verifyReplyFigures(reply: string, input: VerifyInput): ReplyVeri
         // meaning mismatch: the tools served this total and the reply's figure is not it
         category = 'unverified_actual';
       } else if (near(toolSet, cents)) category = 'verified';
+      else if (records.size > 0 && records.has(cents) && !NAMED_TOTAL.test(sentence)) category = 'verified';
       else if (near(customerSet, cents)) category = 'customer';
       else if (position.size > 0 && near(position, cents) && POSITION_SCOPE.test(sentence)) category = 'verified';
       else if (HYPOTHETICAL.test(sentence)) category = 'hypothetical';
