@@ -158,6 +158,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@eslint/js": "8.57.1",
     "@mozilla/readability": "^0.4.4",
     "@netlify/functions": "^5.0.0",
     "@playwright/test": "^1.58.2",
@@ -179,6 +180,7 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "glob": "^10.5.0",
+    "globals": "13.24.0",
     "jsdom": "^24.0.0",
     "netlify-cli": "^23.9.0",
     "pdfkit": "^0.17.2",
