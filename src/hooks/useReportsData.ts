@@ -1,14 +1,30 @@
-﻿import { useEffect, useState, useCallback, useMemo } from 'react';
+﻿/**
+ * Reports data — UX-FST2-10 (owner FST-2 GO: Reports in scope; AR-1b FR-010 launch blocker).
+ * Every figure is the shared engine's (fst2-summary-2, all imported data): grand totals with the
+ * owner's labels, perStatement[] for each statement, spendingByCategory, and periods[] (comparable
+ * statement periods only) for the trend chart. Retired from the browser: the type/category income
+ * rule (everything else, transfers and debt included, counted as 'spent'), per-statement and
+ * issuer sums, calendar-month buckets and category sums. Gap G5 (Prime HQ): perStatement dates are
+ * the first and last transaction dates, not the printed statement period, so they are labelled as
+ * transaction dates and no period or reconciliation claim is made.
+ */
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useFinancialSummary } from './useFinancialSummary';
+import { allTimeRange, type FinancialSummary } from '../lib/financialSummary';
+import { hasFigures } from '../components/finance/FinancialState';
+import { insightText, spendingClaim } from '../lib/insightWording';
 
 export interface StatementSummary {
   importId: string;
   issuer: string;
   createdAt: string;
   txCount: number;
-  totalSpent: number;
-  totalIncome: number;
+  /** Server Actual Spending / Actual Income for this statement (null when the server has no rows for it). */
+  totalSpent: number | null;
+  totalIncome: number | null;
+  /** First / last TRANSACTION dates in the statement (G5: not the printed statement period). */
   earliestDate: string | null;
   latestDate: string | null;
 }
@@ -16,11 +32,10 @@ export interface StatementSummary {
 export interface IssuerGroup {
   issuer: string;
   statements: StatementSummary[];
-  totalSpent: number;
-  totalIncome: number;
   txCount: number;
 }
 
+/** A comparable statement period (server periods[]); never a calendar-month bucket. */
 export interface MonthlyTrend {
   month: string;
   spent: number;
@@ -33,168 +48,100 @@ export interface CategoryTotal {
 }
 
 export interface ReportsData {
+  financial: ReturnType<typeof useFinancialSummary>;
+  summary: FinancialSummary | null;
   issuerGroups: IssuerGroup[];
   grandTotalSpent: number;
   grandTotalIncome: number;
+  netCashFlow: number;
   grandTxCount: number;
   monthlyTrends: MonthlyTrend[];
   topCategories: CategoryTotal[];
+  spendingClaimText: string | null;
   loading: boolean;
   error: string | null;
   refetch: () => void;
 }
 
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
 export function useReportsData(): ReportsData {
   const { userId } = useAuth();
-  const [imports, setImports] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [imports, setImports] = useState<Array<{ id: string; issuer: string | null; created_at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const scope = useMemo(() => allTimeRange(), []);
+  const financial = useFinancialSummary(scope);
 
-  const fetchData = useCallback(async () => {
+  // Statement list (labels only, no money): committed imports.
+  const fetchImports = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
       const sb = getSupabase();
       if (!sb) throw new Error('Supabase not available');
-
-      const [impRes, txRes] = await Promise.all([
-        sb.from('imports')
-          .select('id, issuer, created_at, status')
-          .eq('user_id', userId)
-          .eq('status', 'committed')
-          .order('created_at', { ascending: false }),
-        sb.from('transactions')
-          .select('id, import_id, amount, posted_at, date, category, type')
-          .eq('user_id', userId),
-      ]);
-
-      if (impRes.error) throw impRes.error;
-      if (txRes.error) throw txRes.error;
-
-      setImports(impRes.data || []);
-      setTransactions(txRes.data || []);
-    } catch (err: any) {
-      console.error('[useReportsData] fetch error:', err);
-      setError(err?.message || 'Failed to load report data');
+      const { data, error: e } = await sb
+        .from('imports')
+        .select('id, issuer, created_at, status')
+        .eq('user_id', userId)
+        .eq('status', 'committed')
+        .order('created_at', { ascending: false });
+      if (e) throw e;
+      setImports(data || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load report data');
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { void fetchImports(); }, [fetchImports]);
+
+  const refetch = useCallback(() => { void fetchImports(); financial.refetch(); }, [fetchImports, financial]);
 
   return useMemo(() => {
-    if (loading || error) {
-      return {
-        issuerGroups: [], grandTotalSpent: 0, grandTotalIncome: 0, grandTxCount: 0,
-        monthlyTrends: [], topCategories: [], loading, error, refetch: fetchData,
-      };
-    }
+    const summary = hasFigures(financial) ? financial.summary : null;
+    const perStatement = new Map((summary?.perStatement ?? []).map(p => [p.importId, p]));
 
-    // Build per-import summaries
-    const txByImport = new Map<string, any[]>();
-    for (const tx of transactions) {
-      const key = tx.import_id || '__none__';
-      if (!txByImport.has(key)) txByImport.set(key, []);
-      txByImport.get(key)!.push(tx);
-    }
-
-    const summaries: StatementSummary[] = imports.map(imp => {
-      const txs = txByImport.get(imp.id) || [];
-      let totalSpent = 0;
-      let totalIncome = 0;
-      let earliest: string | null = null;
-      let latest: string | null = null;
-
-      for (const tx of txs) {
-        const amt = Math.abs(Number(tx.amount) || 0);
-        const isIncome = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
-        if (isIncome) totalIncome += amt;
-        else totalSpent += amt;
-        const d = tx.posted_at || tx.date;
-        if (d) {
-          if (!earliest || d < earliest) earliest = d;
-          if (!latest || d > latest) latest = d;
-        }
-      }
-
+    const statements: StatementSummary[] = imports.map(imp => {
+      const p = perStatement.get(imp.id);
       return {
         importId: imp.id,
-        issuer: imp.issuer || 'Unknown',
+        issuer: imp.issuer || p?.label || 'Unknown',
         createdAt: imp.created_at,
-        txCount: txs.length,
-        totalSpent,
-        totalIncome,
-        earliestDate: earliest,
-        latestDate: latest,
+        txCount: p ? p.count : 0,
+        totalSpent: p ? p.actualSpending : null,
+        totalIncome: p ? p.actualIncome : null,
+        earliestDate: p?.periodStart ?? null,
+        latestDate: p?.periodEnd ?? null,
       };
     });
 
-    // Group by issuer
     const issuerMap = new Map<string, StatementSummary[]>();
-    for (const s of summaries) {
+    for (const s of statements) {
       if (!issuerMap.has(s.issuer)) issuerMap.set(s.issuer, []);
       issuerMap.get(s.issuer)!.push(s);
     }
     const issuerGroups: IssuerGroup[] = Array.from(issuerMap.entries()).map(([issuer, stmts]) => ({
       issuer,
       statements: stmts,
-      totalSpent: stmts.reduce((s, st) => s + st.totalSpent, 0),
-      totalIncome: stmts.reduce((s, st) => s + st.totalIncome, 0),
-      txCount: stmts.reduce((s, st) => s + st.txCount, 0),
+      txCount: stmts.reduce((n, st) => n + st.txCount, 0), // a count, not money
     }));
 
-    // Grand totals
-    const grandTotalSpent = issuerGroups.reduce((s, g) => s + g.totalSpent, 0);
-    const grandTotalIncome = issuerGroups.reduce((s, g) => s + g.totalIncome, 0);
-    const grandTxCount = transactions.length;
-
-    // Monthly trends
-    const monthMap = new Map<string, { spent: number; income: number }>();
-    for (const tx of transactions) {
-      const d = tx.posted_at || tx.date;
-      if (!d) continue;
-      const dt = new Date(d);
-      const key = MONTH_NAMES[dt.getMonth()] + ' ' + dt.getFullYear();
-      if (!monthMap.has(key)) monthMap.set(key, { spent: 0, income: 0 });
-      const entry = monthMap.get(key)!;
-      const amt = Math.abs(Number(tx.amount) || 0);
-      const isInc = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
-      if (isInc) entry.income += amt;
-      else entry.spent += amt;
-    }
-    const monthlyTrends: MonthlyTrend[] = Array.from(monthMap.entries())
-      .map(([month, v]) => ({ month, spent: Math.round(v.spent), income: Math.round(v.income) }))
-      .sort((a, b) => {
-        const pa = a.month.split(' ');
-        const pb = b.month.split(' ');
-        const ya = Number(pa[1]), yb = Number(pb[1]);
-        if (ya !== yb) return ya - yb;
-        return MONTH_NAMES.indexOf(pa[0]) - MONTH_NAMES.indexOf(pb[0]);
-      });
-
-    // Top categories (expenses only)
-    const catMap = new Map<string, number>();
-    for (const tx of transactions) {
-      const isInc = tx.type === 'income' || (tx.category || '').toLowerCase() === 'income';
-      if (isInc) continue;
-      const amt = Math.abs(Number(tx.amount) || 0);
-      const cat = tx.category || 'Other';
-      catMap.set(cat, (catMap.get(cat) || 0) + amt);
-    }
-    const topCategories: CategoryTotal[] = Array.from(catMap.entries())
-      .map(([category, total]) => ({ category, total: Math.round(total) }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
-
+    const claim = summary ? spendingClaim(summary.insights) : null;
     return {
-      issuerGroups, grandTotalSpent, grandTotalIncome, grandTxCount,
-      monthlyTrends, topCategories, loading, error, refetch: fetchData,
+      financial,
+      summary,
+      issuerGroups,
+      grandTotalSpent: summary ? summary.labels.actualSpending.amount : 0,
+      grandTotalIncome: summary ? summary.labels.actualIncome.amount : 0,
+      netCashFlow: summary ? summary.labels.netCashFlow.amount : 0,
+      grandTxCount: summary ? summary.transactionCount : 0,
+      monthlyTrends: (summary?.periods ?? []).map(p => ({ month: p.label, spent: p.actualSpending, income: p.actualIncome })),
+      topCategories: (summary?.spendingByCategory ?? []).slice(0, 8).map(c => ({ category: c.category, total: c.amount })),
+      spendingClaimText: claim && summary ? insightText(claim, summary.wording) : null,
+      loading: loading || financial.status === 'loading',
+      error,
+      refetch,
     };
-  }, [imports, transactions, loading, error, fetchData]);
+  }, [imports, loading, error, financial, refetch]);
 }
-

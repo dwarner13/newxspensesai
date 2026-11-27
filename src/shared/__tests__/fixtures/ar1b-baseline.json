@@ -73,7 +73,6 @@
   "src/components/transactions/TransactionRow.tsx|R1|CREDIT|REFUND",
   "src/components/transactions/TransactionRow.tsx|R1|isCredit",
   "src/components/transactions/TransactionRow.tsx|R1|isIncomeTx",
-  "src/hooks/useReportsData.ts|R1|isIncome",
   "src/hooks/useUncategorizedTransactions.ts|R4|transactions .limit(",
   "src/lib/duplicateDetection.ts|R4|transactions .limit(",
   "src/lib/multiLayerCategorizationEngine.ts|R4|transactions .limit(",
