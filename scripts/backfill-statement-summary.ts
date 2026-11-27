@@ -299,10 +299,8 @@ async function processImports(sb: any, imports: any[], dryRun: boolean): Promise
     const mimeType = String(doc.mime_type || '');
     if (mimeType === 'application/pdf' || storagePath.toLowerCase().endsWith('.pdf')) {
       try {
-        const pdfParseMod: any = await import('pdf-parse');
-        const pdfParseFn = pdfParseMod?.default ?? pdfParseMod;
-        const parseResult = await pdfParseFn(pdfBuffer);
-        rawText = (parseResult?.text || '').trim();
+        const { extractPdfTextPlain } = await import('../netlify/functions/_lib/pdfText.ts');
+        rawText = (await extractPdfTextPlain(pdfBuffer)).trim();
         console.log(`[${importId}] Extracted ${rawText.length} chars from PDF`);
       } catch (pdfErr: any) {
         console.warn(`[${importId}] pdf-parse failed: ${pdfErr?.message}`);

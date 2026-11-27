@@ -124,7 +124,7 @@ describe('generated module', () => {
 describe('build wiring', () => {
   it('runs only from the netlify.toml build command, before the app build', () => {
     const toml = fs.readFileSync(path.join(root, 'netlify.toml'), 'utf8');
-    expect(toml).toMatch(/command = "pnpm install --no-frozen-lockfile && node scripts\/write-deploy-metadata\.mjs && pnpm build"/);
+    expect(toml).toMatch(/command = "pnpm install --frozen-lockfile && node scripts\/write-deploy-metadata\.mjs && pnpm build"/);
   });
 
   it('is not part of `pnpm build`, so local builds never produce deploy metadata', () => {
