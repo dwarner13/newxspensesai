@@ -23,5 +23,8 @@ describe('UX-FST2-7 Goals', () => {
     expect(page).toMatch(/Avg Net Cash Flow/);
     expect(page).toMatch(/Debt-Free Date", value: "Not available yet"/);
     expect(code(read('GoalieCopilotPanel.tsx'))).not.toMatch(/monthlySavings|Savings\/mo/);
+    const tracker = read('DebtTracker.tsx');
+    expect(tracker).not.toMatch(/latest month&apos;s savings|latest month's savings/);
+    expect(tracker).toMatch(/A debt-free date isn&apos;t calculated yet\./);
   });
 });
