@@ -149,8 +149,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       // reported separately and never adds to spending; a row with no direction or amount is skipped.
       const cls = classifyCashFlow(t);
       if (cls.excluded !== null || cls.amountCents === null) continue;
-      const isRefund = cls.purpose === 'refund';
-      const amount = isRefund ? 0 : cls.amountCents / 100;
+      const refundPurpose = cls.purpose === 'refund';
+      const amount = refundPurpose ? 0 : cls.amountCents / 100;
       const date = t.date || '';
 
       let group = groups.get(key);
@@ -166,7 +166,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         groups.set(key, group);
       }
 
-      if (isRefund) { group.refundCents += cls.amountCents; } else { group.total += amount; group.count++; }
+      if (refundPurpose) { group.refundCents += cls.amountCents; } else { group.total += amount; group.count++; }
       group.rawVariants.set(rawMerchant, (group.rawVariants.get(rawMerchant) || 0) + 1);
 
       if (date && (!group.firstSeen || date < group.firstSeen)) group.firstSeen = date;
