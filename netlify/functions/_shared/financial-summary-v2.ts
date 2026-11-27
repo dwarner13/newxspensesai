@@ -15,6 +15,7 @@ import { comparablePeriods, periodFigures, buildInsights, buildCategoryInsights,
 import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
 import { coverageForPeriod } from '../../../src/shared/statement-coverage';
 import { countNeedsCategory } from '../../../src/shared/needs-category-rule';
+import { buildNeedsReview } from '../../../src/shared/needs-review-summary';
 
 export const CATEGORY_INSIGHT_TOP_N = 5;
 import { classifyTransactions, isOutflowTx } from '../../../src/shared/financial-sections';
@@ -97,6 +98,8 @@ export function buildSummaryV2(input: {
   const breakdown = buildStatementBreakdown(inRange);
   // The ONE review rule (shared with the client's needsCategory): no category / Uncategorized / Needs Review.
   const needsReviewCount = countNeedsCategory(inRange);
+  // LA-4: the served review count AND amount (this block exists only after a complete read).
+  const needsReview = buildNeedsReview(inRange, { complete: true });
 
   // Spending by category: purpose 'spending' only.
   const spendCats = agg.categories.filter(c => c.purpose === 'spending');
@@ -200,6 +203,7 @@ export function buildSummaryV2(input: {
     periods,
     calendarMonths,
     needsReviewCount,
+    needsReview,
     perStatement,
     goals,
     possibleBusinessExpenses: {
