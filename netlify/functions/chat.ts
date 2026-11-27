@@ -1196,59 +1196,7 @@ function detectInsightIntent(message: string): InsightIntent {
   return null;
 }
 
-function buildInsightResponse(intent: Exclude<InsightIntent, null>, primeContext: ChatRequest['prime_context']): string {
-  const fs = primeContext?.financialSnapshot;
-  const currency = String(primeContext?.currency || 'CAD');
-  const hasData = Boolean(fs?.hasTransactions);
-  const monthlySpend = typeof fs?.monthlySpend === 'number' ? fs.monthlySpend : null;
-  const uncategorizedCount = typeof fs?.uncategorizedCount === 'number' ? fs.uncategorizedCount : null;
-  const topCategories = Array.isArray(fs?.topCategories) ? fs?.topCategories : [];
-
-  if (!hasData) {
-    return "I don't have enough transaction data loaded yet for reliable insights. If you just uploaded a statement, I'm processing it now and will share a concrete analysis shortly. You can also sync an account for immediate baseline data.";
-  }
-
-  if (intent === 'spending_analysis') {
-    const top = topCategories.slice(0, 3).map((c) => `${c.name} (${formatCurrency(Number(c.amount || 0), currency)})`).join(', ');
-    const parts: string[] = [];
-    if (monthlySpend !== null) parts.push(`monthly spend is ${formatCurrency(monthlySpend, currency)}`);
-    if (top) parts.push(`top categories are ${top}`);
-    if (uncategorizedCount !== null) parts.push(`${uncategorizedCount} transactions are uncategorized`);
-    return `Here is your current spending analysis: ${parts.join(' | ')}. If you want, I can turn this into a prioritized action plan.`;
-  }
-
-  if (intent === 'risk_alerts') {
-    const alerts: string[] = [];
-    if (uncategorizedCount !== null && uncategorizedCount > 20) {
-      alerts.push(`high uncategorized volume (${uncategorizedCount}) may hide true category risk`);
-    } else if (uncategorizedCount !== null && uncategorizedCount > 0) {
-      alerts.push(`${uncategorizedCount} uncategorized transactions should be cleaned up`);
-    }
-    if (monthlySpend !== null && monthlySpend > 0) {
-      alerts.push(`watch your highest category because most monthly leakage usually comes from top-1 spending`);
-    }
-    if (alerts.length === 0) {
-      alerts.push('no major structural risk signal in this snapshot, but continue weekly monitoring');
-    }
-    return `Risk scan: ${alerts.join(' | ')}.`;
-  }
-
-  if (intent === 'tax_insights') {
-    if (topCategories.length === 0) {
-      // Owner 2026-11-27: no tax-advice wording. (Unreachable for Prime since A7 — skipPrimeFastLanes; retire under O-7.)
-      return 'I can organize your transactions for your accountant once they are categorized. Possible business expense — requires review by your accountant.';
-    }
-    return 'I can organize your categorized transactions for your accountant. Possible business expense — requires review by your accountant.';
-  }
-
-  // savings_opportunities
-  const topCategory = topCategories[0];
-  if (!topCategory) {
-    return 'Savings opportunity: first classify uncategorized transactions, then target your largest category for a 10% cut to create immediate savings room.';
-  }
-  const cutAmount = Math.max(10, Math.round(Number(topCategory.amount || 0) * 0.1));
-  return `Savings opportunity: your largest category is ${topCategory.name}. A 10% reduction there would free about ${formatCurrency(cutAmount, currency)} this month.`;
-}
+// O-7 (owner GO 2026-11-27): buildInsightResponse retired — canned tax/insight text, unreachable since A7.
 
 function detectPredictiveIntent(message: string): PredictiveIntent {
   const text = String(message || '').trim().toLowerCase();
@@ -1635,52 +1583,7 @@ function isPolicyCheckIntent(message: string): boolean {
   return /\b(policy|limit|over \$?\d+|exceed|cap|meals over)\b/.test(text);
 }
 
-function buildTxDeterministicFormatHint(message: string): string | null {
-  if (isCompareIntent(message)) {
-    return [
-      'TX_RESPONSE_FORMAT (compare):',
-      '- Period A total: <amount>',
-      '- Period B total: <amount>',
-      '- Delta: <amount> (<percent>)',
-      '- Narrative: <one sentence on biggest driver>',
-    ].join('\n');
-  }
-  if (isTopCategoryIntent(message)) {
-    return [
-      'TX_RESPONSE_FORMAT (top categories):',
-      '- 1) <Category> | <Amount>',
-      '- 2) <Category> | <Amount>',
-      '- 3) <Category> | <Amount>',
-      '- Narrative: <one sentence insight>',
-    ].join('\n');
-  }
-  if (isTopMerchantIntent(message)) {
-    return [
-      'TX_RESPONSE_FORMAT (top merchants):',
-      '- 1) <Merchant> | <Amount>',
-      '- 2) <Merchant> | <Amount>',
-      '- 3) <Merchant> | <Amount>',
-      '- Narrative: <one sentence insight>',
-    ].join('\n');
-  }
-  if (isLikelyDeductibleIntent(message)) {
-    return [
-      'TX_RESPONSE_FORMAT (potential business expenses):',
-      // Owner 2026-11-27 wording. (No caller; retire under O-7.)
-      '- Each item: <item> — Possible business expense — requires review by your accountant.',
-      '- Ask for confirmation before any category changes.',
-    ].join('\n');
-  }
-  if (isPolicyCheckIntent(message)) {
-    return [
-      'TX_RESPONSE_FORMAT (policy warnings):',
-      '- Warning: <item> | <amount> | <rule>',
-      '- This is advisory only (no automatic writes).',
-      '- Ask if user wants recategorization support.',
-    ].join('\n');
-  }
-  return null;
-}
+// O-7 (owner GO 2026-11-27): buildTxDeterministicFormatHint retired (it had no callers).
 
 function txNum(value: unknown): number {
   const n = Number(value);
@@ -1816,9 +1719,10 @@ function buildTxDeterministicMetricsHint(message: string, toolCalls: any[], tool
     }).slice(0, 5);
     return [
       'TX_COMPUTED_METRICS:',
-      `- Potential business expense count (rule-based; deductibility not determined): ${likely.length}`,
+      // Owner 2026-11-27: the ONE approved wording; never a deductibility determination.
+      `- Possible business expense — requires review by your accountant. Rule-based matches: ${likely.length}`,
       ...likely.map((r: any) => `- ${String(r?.date || 'UNKNOWN-DATE')} | ${String(r?.merchant_normalized || r?.merchant || 'UNKNOWN-MERCHANT')} | ${formatCurrency(Math.abs(txNum(r?.amount)), 'CAD')} | ${String(r?.category || 'Uncategorized')}`),
-      '- Mark these as likely only and ask for confirmation.',
+      '- Describe each only as "Possible business expense — requires review by your accountant." Never say whether it is deductible.',
     ].join('\n');
   }
 
@@ -9379,107 +9283,8 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    const insightIntent = detectInsightIntent(masked);
-    const isPrimeEmployeeForInsights = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
-    if (insightIntent && isPrimeEmployeeForInsights && !hasAttachments && !skipPrimeFastLanes) {
-      const assistantContent = sanitizePrimeAssistantPresentation(
-        buildInsightResponse(insightIntent, effectivePrimeContext),
-        finalEmployeeSlug
-      );
-
-      console.log('[Chat] ⚡ Deterministic financial insight response path', {
-        insightIntent,
-        employee: finalEmployeeSlug,
-        hasPrimeContext: Boolean(effectivePrimeContext),
-      });
-
-      try {
-        await sb.from('chat_messages').insert({
-          session_id: finalSessionId,
-          user_id: userId,
-          role: 'user',
-          content: masked,
-          tokens: estimateTokens(masked),
-          thread_id: threadId,
-          employee_key: employeeKey, // owner P-2: live default is 'user'
-          metadata: withAttachmentRefs((client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined, turnAttachmentRefs),
-        }).throwOnError();
-
-        await sb.from('chat_messages').insert({
-          session_id: finalSessionId,
-          user_id: userId,
-          role: 'assistant',
-          content: assistantContent,
-          tokens: estimateTokens(assistantContent),
-          thread_id: threadId,
-          employee_key: employeeKey, // owner P-2: live default is 'user'
-          metadata: request_id ? { request_id } : undefined,
-        }).throwOnError();
-      } catch (persistError: any) {
-        conversationPersisted = false;
-        console.warn('[Chat] Failed to persist deterministic financial insight response (non-fatal):', persistError?.message || persistError);
-      }
-
-      // Memory extraction for deterministic financial insight responses
-      await enqueueMemoryExtraction(userId, finalSessionId, masked, assistantContent);
-
-      const headers = buildResponseHeaders({
-        guardrailsActive: true,
-        piiMaskEnabled: (guardrailResult.signals?.piiTypes || []).length > 0,
-        employee: finalEmployeeSlug,
-        routeConfidence: 1,
-        sessionId: finalSessionId || undefined,
-      });
-      const guardrailsStatus = buildGuardrailsStatus(stream ? 'streaming' : 'json');
-      await logUsageMetrics({
-        sessionIdForLog: finalSessionId,
-        employeeForLog: finalEmployeeSlug,
-        promptTokens: estimateTokens(masked),
-        completionTokens: estimateTokens(assistantContent),
-        totalTokens: estimateTokens(masked) + estimateTokens(assistantContent),
-        model: 'deterministic:financial_insight',
-        latencyMs: null,
-        durationMs: 0,
-        toolsUsed: null,
-        success: true,
-        deterministicPath: 'financial_insight',
-        deterministicIntent: insightIntent,
-      });
-
-      if (stream) {
-        return {
-          statusCode: 200,
-          headers: {
-            ...baseHeaders,
-            ...headers,
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'X-Chat-Backend': 'v2',
-          },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: assistantContent, persisted: conversationPersisted, employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug, sessionId: finalSessionId, thread_id: threadId, guardrails: guardrailsStatus })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
-        };
-      }
-
-      return {
-        statusCode: 200,
-        headers: {
-          ...baseHeaders,
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ok: true,
-          content: assistantContent,
-          employee: finalEmployeeSlug,
-          employeeSlug: finalEmployeeSlug,
-          sessionId: finalSessionId,
-          thread_id: threadId,
-          guardrails: guardrailsStatus,
-          meta: { deterministic: 'financial_insight', intent: insightIntent },
-        }),
-      };
-    }
+    // O-7 (owner GO 2026-11-27): the Prime-only deterministic financial-insight lane was retired here —
+    // unreachable since A7 (skipPrimeFastLanes is true for every Prime slug; other employees never matched).
 
     const predictiveIntent = detectPredictiveIntent(masked);
     const isPrimeEmployeeForPredictive = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';

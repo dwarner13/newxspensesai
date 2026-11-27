@@ -22,7 +22,8 @@ function rowFor(i: number): string {
 
 describe('chat.ts chat_messages inserts', () => {
   it('finds every insert site (object literal and messageData forms)', () => {
-    expect(sites.length).toBeGreaterThanOrEqual(24);
+    // 22: O-7 (owner GO 2026-11-27) retired the unreachable Prime insight lane and its 2 inserts (was 24).
+    expect(sites.length).toBeGreaterThanOrEqual(22);
     expect(sites.filter(i => /insert\(messageData\)/.test(lines[i]))).toHaveLength(2);
   });
   it('every insert sets employee_key explicitly', () => {
@@ -44,9 +45,11 @@ describe('chat.ts chat_messages inserts', () => {
   });
   it('save failures mark the request not persisted, and every reply payload reports it', () => {
     expect(chat).toContain('let conversationPersisted = true;');
-    expect((chat.match(/conversationPersisted = false;/g) || []).length).toBeGreaterThanOrEqual(15);
+    // 14 / 8: the retired O-7 insight lane carried one of each (was 15 / 9). Every remaining insert is
+    // still checked one by one above (employee_key, thread_id, throwOnError).
+    expect((chat.match(/conversationPersisted = false;/g) || []).length).toBeGreaterThanOrEqual(14);
     expect(chat).toContain("const donePayload = { type: 'done', guardrails: guardrailsMetadata, thread_id: threadId, persisted: conversationPersisted };");
-    expect((chat.match(/content: assistantContent, persisted: conversationPersisted,/g) || []).length).toBe(9);
+    expect((chat.match(/content: assistantContent, persisted: conversationPersisted,/g) || []).length).toBe(8);
     expect(chat).toContain('persisted: conversationPersisted, // owner: save failures are reported, never silent');
   });
   it("streaming 'done' is sent after the reply save (so it can report persisted)", () => {

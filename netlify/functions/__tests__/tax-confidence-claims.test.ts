@@ -43,6 +43,15 @@ describe('Prime tax and confidence guidance', () => {
     expect(custodian).not.toMatch(/shows deductible categories/);
     expect(custodian).toMatch(/Possible business expense — requires review by your accountant\..*does not decide what is deductible and is not tax advice/);
   });
+  it('O-7 (owner GO 2026-11-27): the unreachable canned insight lane stays retired; the live metrics hint uses the approved wording', () => {
+    const chat = read('netlify/functions/chat.ts');
+    expect(chat).not.toMatch(/^function buildInsightResponse\(/m);
+    expect(chat).not.toMatch(/^function buildTxDeterministicFormatHint\(/m);
+    expect(chat).not.toMatch(/const isPrimeEmployeeForInsights =/);
+    expect(chat).not.toMatch(/deductibility not determined/);
+    expect(chat).toMatch(/`- Possible business expense — requires review by your accountant\. Rule-based matches: \$\{likely\.length\}`/);
+    expect(chat).toMatch(/Never say whether it is deductible\./);
+  });
 });
 
 // ── tag-explain with an in-memory client ───────────────────────────────────

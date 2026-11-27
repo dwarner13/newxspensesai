@@ -243,7 +243,7 @@ describe('chat.ts C3 wiring (static)', () => {
   const ORIGINAL_MAIN = '(client_message_id || safeHidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(safeHidden ? { hidden: true } : {}) } : undefined';
 
   it('every user-message insert keeps its original metadata expression, only wrapped', () => {
-    expect(chat.split(`metadata: withAttachmentRefs(${ORIGINAL_DET}, turnAttachmentRefs),`).length - 1).toBe(9);
+    expect(chat.split(`metadata: withAttachmentRefs(${ORIGINAL_DET}, turnAttachmentRefs),`).length - 1).toBe(8); // 8: O-7 (owner GO 2026-11-27) retired the unreachable Prime insight lane (was 9)
     expect(chat.split(`metadata: withAttachmentRefs(${ORIGINAL_MAIN}, turnAttachmentRefs),`).length - 1).toBe(1);
     // no unwrapped user-message metadata left
     expect(chat.split(`metadata: ${ORIGINAL_DET},`).length - 1).toBe(0);
