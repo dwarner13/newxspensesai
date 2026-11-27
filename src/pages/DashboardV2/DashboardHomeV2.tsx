@@ -244,7 +244,7 @@ export default function DashboardHomeV2() {
                   <SmartAction delay={1200} icon={"\uD83D\uDD0D"} label={`Review ${needsReview} flagged transactions`} reason="Tag found items needing review" agentColor="#22d3ee" onClick={() => navigate("/dashboard/categories")} />
                 )}
                 {pbe && pbe.count > 0 && (
-                  <SmartAction delay={1280} icon={"\uD83E\uDDFE"} label="Review possible business expenses" reason={`${pbe.count} transactions, ${formatMoney(pbe.amount, cur)} \u2014 not a tax decision`} agentColor={THEME.accent} onClick={() => navigate("/dashboard/tax-workspace")} />
+                  <SmartAction delay={1280} icon={"\uD83E\uDDFE"} label="Review possible business expenses" reason={`${pbe.count} transactions, ${formatMoney(pbe.amount, cur)} \u2014 requires review by your accountant`} agentColor={THEME.accent} onClick={() => navigate("/dashboard/tax-workspace")} />
                 )}
                 {claim?.kind === "trend" && claimText && (
                   <SmartAction delay={1360} icon={"\uD83D\uDCCA"} label="See the spending trend" reason={claimText} agentColor="#a78bfa" onClick={() => navigate("/dashboard/my-story")} />

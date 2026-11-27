@@ -21,7 +21,7 @@ const TOGGLES: ReportToggle[] = [
   { label: "Crystal analytics", agent: "Crystal", color: "#a78bfa", defaultOn: true },
   { label: "Trend analysis", agent: "Crystal", color: "#a78bfa", defaultOn: false },
   { label: "All transactions list", agent: "Byte", color: "#34d399", defaultOn: false },
-  { label: "Possible business expenses (needs review)", agent: "Prime", color: "#c8a64e", defaultOn: true },
+  { label: "Possible business expense (requires review by your accountant)", agent: "Prime", color: "#c8a64e", defaultOn: true },
 ];
 
 export function ReportPreviewSidebar({ data }: ReportPreviewSidebarProps) {

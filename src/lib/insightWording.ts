@@ -81,4 +81,5 @@ export function spendingClaim(insights: ReadonlyArray<Insight>): Insight | null 
 }
 
 export const POSSIBLE_BUSINESS_EXPENSES_TEXT = (count: number, amount: string) =>
-  `Possible business expenses — needs your review (not a tax decision): ${count} transactions, ${amount}.`;
+  // Owner wording 2026-11-27 (relayed by Prime HQ; matches the server's POSSIBLE_BUSINESS_EXPENSES_WORDING).
+  `Possible business expense — requires review by your accountant. ${count} transactions, ${amount}.`;

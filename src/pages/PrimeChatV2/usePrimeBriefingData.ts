@@ -55,7 +55,7 @@ export interface PrimeBriefingData {
   topCategoryText: string | null;
   /** The served review line (LA-4). */
   needsReviewLine: string | null;
-  /** Possible business expenses (needs review; not a tax decision), from the server. */
+  /** Possible business expense — requires review by your accountant (server figures). */
   possibleBusinessExpensesLine: string | null;
   loading: boolean;
 }
