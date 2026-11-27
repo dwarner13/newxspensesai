@@ -70,6 +70,7 @@ export async function extractPdfTextWithLayout(pdfBuffer: Buffer): Promise<strin
   try {
     const pdfjs = await loadPdfJs();
     const loadingTask = pdfjs.getDocument({
+      isEvalSupported: false, // CVE-2024-4367
       data: new Uint8Array(pdfBuffer),
       disableWorker: true,
       stopOnErrors: false,
@@ -142,6 +143,7 @@ export async function extractPdfTextFirst(pdfBuffer: Buffer): Promise<PdfTextFir
   try {
     const pdfjs = await loadPdfJs();
     const loadingTask = pdfjs.getDocument({
+      isEvalSupported: false, // CVE-2024-4367
       data: new Uint8Array(pdfBuffer),
       disableWorker: true,
       stopOnErrors: false,

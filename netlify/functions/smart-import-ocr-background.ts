@@ -1679,6 +1679,7 @@ async function runOCR(
         const pdfjsModule: any = await import('pdfjs-dist/legacy/build/pdf.js');
         const pdfjs = pdfjsModule.default || pdfjsModule;
         const loadingTask = pdfjs.getDocument({
+          isEvalSupported: false, // CVE-2024-4367
           data: new Uint8Array(buf),
           disableWorker: true,
           stopAtErrors: false,

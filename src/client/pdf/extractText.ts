@@ -16,6 +16,7 @@ export async function extractPdfTextSafe(file: File): Promise<string> {
     
     // Load PDF with specific settings to handle encoding
     const loadingTask = pdfjsLib.getDocument({
+      isEvalSupported: false, // CVE-2024-4367
       data: arrayBuffer,
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
       cMapPacked: true,
@@ -79,6 +80,7 @@ export async function extractStructuredData(file: File): Promise<{
   try {
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({
+      isEvalSupported: false, // CVE-2024-4367
       data: arrayBuffer,
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
       cMapPacked: true,

@@ -120,7 +120,7 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
           pdfjsLib.GlobalWorkerOptions.workerSrc = '';
           
           const arrayBuffer = await pdfFile.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ 
+          const pdf = await pdfjsLib.getDocument({ isEvalSupported: false, 
             data: arrayBuffer,
             disableWorker: true
           }).promise;

@@ -66,7 +66,7 @@ async function extractPdfTextWithLayout(pdfBuffer: Buffer): Promise<string> {
   const pdfJsMod: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const pdfjs = pdfJsMod?.default ?? pdfJsMod;
 
-  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(pdfBuffer) });
+  const loadingTask = pdfjs.getDocument({ isEvalSupported: false, data: new Uint8Array(pdfBuffer) });
   const doc = await loadingTask.promise;
   const numPages = doc.numPages;
 

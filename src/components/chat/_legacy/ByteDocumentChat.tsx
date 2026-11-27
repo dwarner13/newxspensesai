@@ -1322,7 +1322,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
           
           const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
-          const pdf = await pdfjsLib.getDocument(typedArray).promise;
+          const pdf = await pdfjsLib.getDocument({ data: typedArray, isEvalSupported: false }).promise;
           
           let fullText = '';
           for (let i = 1; i <= pdf.numPages; i++) {
@@ -1352,7 +1352,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
           
           const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
-          const pdf = await pdfjsLib.getDocument(typedArray).promise;
+          const pdf = await pdfjsLib.getDocument({ data: typedArray, isEvalSupported: false }).promise;
           
           const images: File[] = [];
           const canvas = document.createElement('canvas');

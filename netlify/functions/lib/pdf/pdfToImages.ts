@@ -237,6 +237,7 @@ export async function pdfToImages(
   const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.js');
 
   const loadingTask = pdfjs.getDocument({
+    isEvalSupported: false, // CVE-2024-4367
     data: new Uint8Array(pdfBuffer),
     disableWorker: true,
     stopAtErrors: false,
@@ -255,6 +256,7 @@ export async function pdfToImages(
     });
     try {
       const recoveryTask = pdfjs.getDocument({
+        isEvalSupported: false, // CVE-2024-4367
         data: new Uint8Array(pdfBuffer),
         disableWorker: true,
         stopAtErrors: false,

@@ -58,7 +58,7 @@ async function extractTextFromPDF(file: File, onProgress?: (msg: string, progres
     const arrayBuffer = await file.arrayBuffer();
     
     // Load the PDF document using PDF.js
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjsLib.getDocument({ isEvalSupported: false, data: arrayBuffer }).promise;
     
     let fullText = '';
     const BATCH_SIZE = 3;

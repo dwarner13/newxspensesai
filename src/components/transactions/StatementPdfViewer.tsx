@@ -157,7 +157,7 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
         setLoading(true);
         setError(null);
         const pdfjs = await loadPdfJs();
-        const loadingTask = pdfjs.getDocument(url);
+        const loadingTask = pdfjs.getDocument({ url, isEvalSupported: false });
         const pdfDoc = await loadingTask.promise;
         setPdf(pdfDoc);
         setPageCount(pdfDoc.numPages);
