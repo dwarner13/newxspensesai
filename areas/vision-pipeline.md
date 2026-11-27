@@ -71,7 +71,10 @@ The existing codebase convention for OCR feature flags is `OCR_PREFER_AI_*`:
 - `OCR_PREFER_AI_CREDIT_CARDS` (normalize-transactions.ts:1227)
 - `OCR_PREFER_AI_STATEMENTS` (smart-import-sync.ts:47, ocr_normalize.ts:263)
 
-The exact feature-flag name has not yet been selected. Record the actual name here when the implementation commit ships. Safe default must be OFF.
+**Shipped flag: `OCR_PREFER_VISION_EXTRACTION`** (`'1'` = on; any other value = off), read in
+`smart-import-ocr-background.ts` (`VISION_ENABLED`) and `normalize-transactions.ts`. Default OFF in code.
+On staging it is on: inferred from the live logs of the 2026-11-26 acceptance upload; the Netlify value
+itself was not read.
 
 ---
 
@@ -188,6 +191,20 @@ When both Vision and flat-text produce totals:
 - Vision result writes to `imports.statement_breakdown_json.statementTotals`
 - Flat-text result writes to `imports.statement_breakdown_json.flatTextTotals` (diagnostic key)
 - Guard: if `statementTotals.source !== 'claude_vision'`, do not overwrite with flat-text result (prevents crash-retakeover from moving Vision's value into the diagnostic key)
+
+**Implementation gap found 2026-11-26 (fix pending owner deploy):** the flat-text totals are captured
+BEFORE the Vision branch runs. They were written into `statementTotals`, then the Vision branch replaced
+`statementTotals`, and the independent flat-text values were lost instead of moving to
+`flatTextTotals`. Fix (branch `fix/byte-independent-totals`, `_shared/printedTotals.ts`):
+- every source is kept in `printedTotalsSources` (`claude_vision`, `ocr_text`), and `flatTextTotals`
+  always carries the OCR-text totals;
+- `statementTotals` keeps the contract above (Vision when present);
+- `printedTotalsCheck` records which sources exist and whether they agree (±$0.05).
+
+**Independence:** Vision's totals come from the same response as Vision's rows, so they are not
+independent of the row extractor. Only the OCR-text totals are independent. AR-1c §C5/§C6 decide the
+reconciliation states (`reconciled_independent` / `reconciled_same_source` / `sources_disagree` / …);
+the gate in this document is unchanged until then.
 
 ---
 
@@ -363,15 +380,24 @@ This is recorded for awareness. Do not fix it within the Vision implementation c
 | COMPLETE | Reconciliation gate (shipped, production) |
 | COMPLETE | Netlify background runtime proof — 60,209 ms (commit `324bb1c`) |
 | COMPLETE | Compatibility SELECT bug fix (commit `cee10bd9`) |
-| NEXT | Convert `smart-import-ocr` to background function (`-background` suffix) |
-| PENDING | Run Google OCR + Claude Vision in parallel inside background function |
-| PENDING | Persist Claude Vision result to `extracted_data.claude_vision` |
-| PENDING | Vision-primary normalize consumption in `normalize-transactions.ts` |
-| PENDING | Vision `statementTotals` precedence (Vision wins, flat-text diagnostic) |
-| PENDING | Feature flag gating (`OCR_PREFER_VISION` or similar) |
-| PENDING | End-to-end BMO application upload acceptance test |
+| COMPLETE | Convert `smart-import-ocr` to background function (`0fdcc435`, 2026-08-17) |
+| COMPLETE | Google OCR + Claude Vision in parallel inside the background function (`15c5cb7f`, 2026-08-17). Claude receives the ORIGINAL PDF as a base64 `document` block (`claude-sonnet-4-6`, 8192 max tokens, 90 s timeout `529cb5cd`) |
+| COMPLETE | Persist the Claude Vision result to `extracted_data.claude_vision` (`15c5cb7f`) |
+| COMPLETE | Vision-primary normalize consumption; multi-account (primary account only) (`15c5cb7f`, `e1def124`) |
+| PARTIAL | Vision `statementTotals` precedence: Vision wins (`c3ee6812`), but flat-text totals were overwritten rather than kept as diagnostic. Fix pending (see §4) |
+| COMPLETE | Feature flag gating: `OCR_PREFER_VISION_EXTRACTION` (default OFF; on for staging) |
+| COMPLETE | End-to-end BMO application upload acceptance: staging 2026-11-26, 5-page chequing statement, 119/119 committed, totals reconciled (`BYTE-LIVE-01_retest_acceptance.md`) |
 | PENDING | End-to-end RBC application upload acceptance test |
 | PENDING | PC Financial fixture validation |
+| PENDING | Independent printed totals for unfamiliar institutions (AR-1c §C5/§C6; see `BYTE_EXTRACTION_RECOVERY_REPORT.md`) |
+
+Known gaps (recovery report 2026-11-26):
+- the Vision totals are not independent of Vision's rows;
+- Vision rows carry no row-level provenance or confidence, and Claude's printed `type` is dropped;
+- no targeted re-extraction;
+- no line-of-credit convention;
+- the prompt has bank-specific hints, and currency is hard-coded to CAD;
+- no abort on the Claude timeout and no page/size guard; a reply cut off at the token limit makes Vision fall back silently.
 
 ---
 
