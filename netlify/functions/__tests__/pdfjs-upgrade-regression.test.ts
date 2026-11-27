@@ -36,6 +36,23 @@ describe('installed PDF.js', () => {
     expect(fs.readFileSync(path.join(root, 'pnpm-lock.yaml'), 'utf8')).toMatch(/pdfjs-dist@6\.5\.438/);
   });
 
+  it('ONE @napi-rs/canvas version, inside the range pdfjs-dist 6 declares (deploy resolution unambiguous)', () => {
+    const app = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    const pdfjsPkg = JSON.parse(fs.readFileSync(path.join(root, 'node_modules/pdfjs-dist/package.json'), 'utf8'));
+    const range = String({ ...pdfjsPkg.dependencies, ...pdfjsPkg.optionalDependencies }['@napi-rs/canvas'] || '');
+    const pinned = String(app.dependencies['@napi-rs/canvas']);
+    expect(pinned).toMatch(/^\d+\.\d+\.\d+$/); // exact pin
+    // Caret range check: same major, and not below the range's minimum.
+    const [rMaj, rMin, rPat] = range.replace(/^\^/, '').split('.').map(Number);
+    const [pMaj, pMin, pPat] = pinned.split('.').map(Number);
+    expect(range.startsWith('^')).toBe(true);
+    expect(pMaj).toBe(rMaj);
+    expect(pMin > rMin || (pMin === rMin && pPat >= rPat)).toBe(true);
+    const lock = fs.readFileSync(path.join(root, 'pnpm-lock.yaml'), 'utf8');
+    const versions = new Set([...lock.matchAll(/'?@napi-rs\/canvas@(\d+\.\d+\.\d+)/g)].map((m) => m[1]));
+    expect([...versions]).toEqual([pinned]);
+  });
+
   it('the app targets Node 22 (pdfjs-dist 6 requires >= 22.13)', () => {
     expect(fs.readFileSync(path.join(root, '.nvmrc'), 'utf8').trim()).toBe('22');
     const [major, minor] = process.versions.node.split('.').map(Number);
