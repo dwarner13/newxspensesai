@@ -34,7 +34,8 @@ describe('every count, filter and banner uses it', () => {
     expect(tx).not.toMatch(/t\.category === 'Uncategorized'/);
   });
   it('Categories: review count and flagged list', () => {
-    expect(cat).toMatch(/const uncategorizedCount = countNeedsCategory\(periodFiltered\);/);
+    // UX-FST2-6: the server's needsReviewCount (same shared rule), else the shared rule on the period rows.
+    expect(cat).toMatch(/const uncategorizedCount = summary \? summary\.needsReviewCount : countNeedsCategory\(inPeriod\);/);
     expect(cat).toMatch(/\.filter\(t => needsCategory\(t\.category\)\)/);
     expect(cat).not.toMatch(/t\.category === "Other"/);
   });

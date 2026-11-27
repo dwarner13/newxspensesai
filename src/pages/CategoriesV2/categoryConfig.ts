@@ -36,6 +36,8 @@ export interface CategoryData {
   trend: number;
   topMerchant: string;
   transactionCount: number;
+  /** FST-2: the server's share of actual spending (%), when available. */
+  share?: number;
   subcategories?: SubcategoryChip[];
 }
 

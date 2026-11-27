@@ -50,8 +50,10 @@ describe('boundaries (independent of the viewer timezone)', () => {
 describe('Categories uses calendar grouping everywhere', () => {
   it('useCategoriesData no longer reads posted_at as an instant', () => {
     expect(hook).not.toMatch(/new Date\(t\.posted_at/);
+    // UX-FST2-6: the period becomes the server scope (categoriesDates); rows match by calendar day.
     expect(hook).toMatch(/yearOf\(calendarDayOfTx\(t\)\) === selectedYear/);
-    expect(hook).toMatch(/periodKeyOf\(calendarDayOfTx\(t\)\) === selectedPeriod/);
+    expect(hook).toMatch(/const d = calendarDayOfTx\(t\); return !!d && d >= dates\.startDate && d <= dates\.endDate;/);
+    expect(hook).toMatch(/export function categoriesDates\(/);
   });
 
   it('the detail drawer uses the same rule', () => {

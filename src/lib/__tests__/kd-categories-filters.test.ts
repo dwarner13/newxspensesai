@@ -94,7 +94,8 @@ describe('filters survive navigation (URL)', () => {
 describe('page, hook and drawer use one rule', () => {
   it('hook: account scope first, custom range replaces year / month', () => {
     expect(hook).toMatch(/allTransactions\.filter\(t => importIds\.has\(t\.import_id \|\| ""\)\)/);
-    expect(hook).toMatch(/isRangeActive\(range\)\s*\? transactions\.filter\(t => inDateRange\(calendarDayOfTx\(t\), range\)\)/);
+    // UX-FST2-6: an active custom range replaces year / month in the server scope.
+    expect(hook).toMatch(/if \(isRangeActive\(range \?\? null\)\) \{/);
   });
   it('drawer: same filters, same rule', () => {
     expect(drawer).toMatch(/matchesCategoryFilters\(t, \{ selectedYear, selectedPeriod, range, importIds \}\)/);

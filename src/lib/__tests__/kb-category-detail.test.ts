@@ -34,8 +34,10 @@ describe('period predicate (mirrors useCategoriesData)', () => {
   });
 
   it('uses the same date rules as the page hook (K-c: calendar day)', () => {
+    // UX-FST2-6: the period becomes the server scope (categoriesDates); rows match by calendar day.
     expect(hook).toMatch(/yearOf\(calendarDayOfTx\(t\)\) === selectedYear/);
-    expect(hook).toMatch(/periodKeyOf\(calendarDayOfTx\(t\)\) === selectedPeriod/);
+    expect(hook).toMatch(/const d = calendarDayOfTx\(t\); return !!d && d >= dates\.startDate && d <= dates\.endDate;/);
+    expect(hook).toMatch(/export function categoriesDates\(/);
   });
 });
 
