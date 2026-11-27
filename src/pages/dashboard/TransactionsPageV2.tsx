@@ -6,6 +6,7 @@ import { Search, ChevronRight, ChevronDown, Upload, Download } from 'lucide-reac
 import { useTransactions, readTransactionsPaged } from '@/hooks/useTransactions';
 import { useAuth } from '@/contexts/AuthContext';
 import { PAGED_SELECT_MAX_ROWS } from '@/shared/paged-select';
+import { fetchRowsExport, saveBlob } from '@/lib/financialExport';
 import { useImportList } from '@/hooks/useImportList';
 import { groupImportsIntoAccounts } from '@/lib/accountGroups';
 import { needsCategory, countNeedsCategory } from '@/lib/needsCategory';
@@ -741,10 +742,26 @@ export default function TransactionsPageV2() {
   const dupes = sum?.signals?.possibleDuplicates?.count ?? 0;
   // The list holds fewer rows in scope than the server counted: older rows were not loaded.
   const listIncomplete = !listReadComplete || (!!sum && scoped.length < sum.transactionCount);
-  // TX-PAGING (owner 2026-11-26: no incomplete export presented as complete). The export holds
-  // every row the list holds for the current filters, and refuses when the list itself is
-  // incomplete. A filtered export says so in its file name.
+  // TX-EXPORT (owner 2026-11-26: no silent transaction limits; no incomplete export presented as
+  // complete). A view without client-only filters is exported by the SERVER (financial-export,
+  // kind 'rows'): every row in the date / account / statement scope, count-verified, or a refusal
+  // in the server's own words. Dates are sent only for a real date range, so an all-time statement
+  // export keeps undated rows. A filtered view (search, type, category, Needs category) is built
+  // from the complete paged list with the same columns, and refuses while the list is incomplete.
   const handleExport = useCallback(async () => {
+    const allTime = !summaryReq || summaryReq.startDate === allTimeRange().startDate;
+    if (!clientOnlyFilter && summaryReq) {
+      const r = await fetchRowsExport({ importIds: summaryReq.importIds, ...(allTime ? {} : { startDate: summaryReq.startDate, endDate: summaryReq.endDate }) });
+      if (r.status === 'ok') {
+        saveBlob(r.blob, r.filename);
+        toast.success(r.count !== null ? `Exported ${r.count.toLocaleString('en-CA')} transaction${r.count === 1 ? '' : 's'}` : 'Export ready');
+      } else if (r.status === 'no_data') {
+        toast(r.message);
+      } else {
+        toast.error(r.message);
+      }
+      return;
+    }
     let exportRows = filtered;
     if (listIncomplete) {
       if (!listReadTruncated) {
@@ -753,33 +770,31 @@ export default function TransactionsPageV2() {
       }
       // The account is over the read ceiling: read just this view's scope, completely, or refuse.
       const ceiling = PAGED_SELECT_MAX_ROWS.toLocaleString('en-CA');
-      const narrow = summaryReq && (summaryReq.importIds || summaryReq.startDate !== allTimeRange().startDate);
-      const tooBig = `Your account has more than ${ceiling} transactions, so this view can't be exported from this page yet. Choose a year, date range, account or statement and export again.`;
+      const narrow = summaryReq && (summaryReq.importIds || !allTime);
+      const tooBig = `Your account has more than ${ceiling} transactions, so this filtered view can't be exported yet. Clear the search or filters to export the full period, or choose a year, date range, account or statement.`;
       if (!narrow || !userId || !summaryReq) { toast.error(tooBig); return; }
-      // A statement / account export over all time must not drop undated rows: only a real date
-      // range filters on `date`.
-      const allTime = summaryReq.startDate === allTimeRange().startDate;
       const res = await readTransactionsPaged({ userId, importIds: summaryReq.importIds, ...(allTime ? {} : { startDate: summaryReq.startDate, endDate: summaryReq.endDate }) });
       if (!res.complete) { toast.error(res.truncated ? tooBig : "Export stopped: this period couldn't be read completely. Please try again."); return; }
       exportRows = applyClientFilters(res.rows);
     }
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    // Same columns as the server file (Date, Merchant, Amount, Category, Subcategory, Statement).
+    const accountByImport = new Map<string, string>();
+    for (const acct of accounts) for (const id of acct.importIds) accountByImport.set(id, acct.name);
+    const cell = (v: string) => {
+      const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v; // CSV-injection guard, as the server does
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     const rows = exportRows.map(t => [
       t.date || t.posted_at?.slice(0, 10) || '',
-      escape(t.merchant_name || 'Unknown'),
+      cell(t.merchant_name || 'Unknown'),
       (isInflowRow(t) ? '' : '-') + Math.abs(t.amount).toFixed(2),
-      escape(t.category || 'Uncategorized'),
-      escape(t.import_id || ''),
+      cell(t.category || 'Uncategorized'),
+      cell(t.subcategory || ''),
+      cell(t.import_id ? accountByImport.get(t.import_id) || '' : ''),
     ].join(','));
-    const csv = ['Date,Merchant,Amount,Category,Statement Source', ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transactions-${clientOnlyFilter ? 'filtered-' : ''}${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [filtered, listIncomplete, listReadTruncated, clientOnlyFilter, summaryReq, userId, applyClientFilters]);
+    const csv = ['Date,Merchant,Amount,Category,Subcategory,Statement', ...rows].join('\r\n');
+    saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `xspensesai-transactions-filtered-${new Date().toISOString().slice(0, 10)}.csv`);
+  }, [filtered, listIncomplete, listReadTruncated, clientOnlyFilter, summaryReq, userId, applyClientFilters, accounts]);
 
   // Statement options for dropdown (each individual import with filename)
   const stmtOptions = useMemo(() => {

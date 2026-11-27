@@ -42,16 +42,22 @@ describe('UX-FST2-4 Transactions strip', () => {
     expect(code).toMatch(/isComplete: listReadComplete/);
     expect(code).toMatch(/const listIncomplete = !listReadComplete \|\| \(!!sum && scoped\.length < sum\.transactionCount\);/);
     expect(code).toMatch(/if \(listIncomplete\) \{\s*if \(!listReadTruncated\) \{\s*toast\.error\("Export stopped/);
-    expect(code).toMatch(/transactions-\$\{clientOnlyFilter \? 'filtered-' : ''\}/);
+    expect(code).toMatch(/xspensesai-transactions-filtered-/);
   });
   it('over the ceiling: honest message, and a scoped export read completely or refused', () => {
-    expect(code).toMatch(/Your account has more than \$\{ceiling\} transactions, so this view can't be exported from this page yet/);
+    expect(code).toMatch(/Your account has more than \$\{ceiling\} transactions, so this filtered view can't be exported yet/);
     expect(code).toMatch(/await readTransactionsPaged\(\{ userId, importIds: summaryReq\.importIds, \.\.\.\(allTime \? \{\} : \{ startDate: summaryReq\.startDate, endDate: summaryReq\.endDate \}\) \}\)/);
     // statement / account exports over all time keep undated rows (no date filter)
-    expect(code).toMatch(/const allTime = summaryReq\.startDate === allTimeRange\(\)\.startDate;/);
+    expect(code).toMatch(/const allTime = !summaryReq \|\| summaryReq\.startDate === allTimeRange\(\)\.startDate;/);
     expect(code).toMatch(/if \(!res\.complete\)/);
     expect(code).toMatch(/exportRows = applyClientFilters\(res\.rows\)/);
     expect(code).toMatch(/const filtered = useMemo\(\(\) => applyClientFilters\(scoped\)/);
+  });
+  it('TX-EXPORT: unfiltered views export from the server; filtered views match its columns', () => {
+    expect(code).toMatch(/if \(!clientOnlyFilter && summaryReq\) \{\s*const r = await fetchRowsExport\(\{ importIds: summaryReq\.importIds, \.\.\.\(allTime \? \{\} : \{ startDate: summaryReq\.startDate, endDate: summaryReq\.endDate \}\) \}\);/);
+    expect(code).toMatch(/toast\.error\(r\.message\)/);
+    expect(code).toMatch(/'Date,Merchant,Amount,Category,Subcategory,Statement'/);
+    expect(code).not.toMatch(/Statement Source/);
   });
   it('says when the loaded list is incomplete', () => {
     expect(code).toMatch(/\(\{scoped\.length\} loaded\)/);
