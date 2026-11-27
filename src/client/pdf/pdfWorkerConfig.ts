@@ -1,24 +1,10 @@
 // src/client/pdf/pdfWorkerConfig.ts
-import * as pdfjsLib from 'pdfjs-dist';
+// Kept for existing imports. The worker is configured once, self-hosted, in ./pdfjsBrowser
+// (same installed pdfjs-dist version as the library; no CDN fallback).
+import { pdfjsLib } from './pdfjsBrowser';
 
-// Use CDN worker as fallback if local worker fails
 export function configurePdfWorker() {
-  // Try local worker first
-  try {
-    const workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.js',
-      import.meta.url
-    ).toString();
-    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-  } catch (error) {
-    console.warn('Local worker failed, using CDN fallback');
-    // Use CDN fallback with correct version
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
+  // No-op: ./pdfjsBrowser sets GlobalWorkerOptions.workerSrc on import.
 }
-
-// Initialize on import
-configurePdfWorker();
 
 export { pdfjsLib };

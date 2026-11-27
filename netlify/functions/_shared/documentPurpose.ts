@@ -110,7 +110,7 @@ export type ChatDocumentFileCheck =
 export async function countPdfPages(buf: Buffer): Promise<number | null> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs legacy build is untyped here
-    const pdfjsModule: any = await import('pdfjs-dist/legacy/build/pdf.js');
+    const pdfjsModule: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const pdfjs = pdfjsModule.default || pdfjsModule;
     const task = pdfjs.getDocument({ isEvalSupported: false, data: new Uint8Array(buf), disableWorker: true, stopAtErrors: false, verbosity: 0 });
     const doc = await task.promise;

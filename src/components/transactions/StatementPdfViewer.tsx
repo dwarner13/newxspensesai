@@ -1,12 +1,14 @@
 /**
  * StatementPdfViewer
  *
- * Renders a bank statement PDF inline using PDF.js (loaded from CDN).
- * - Skips page 1 (contains personal info: name, account number, address)
+ * Renders a bank statement PDF inline using the self-hosted PDF.js (src/client/pdf/pdfjsBrowser.ts).
+ * - Skips drawing page 1 (name, account number, address)
  * - Renders pages 2+ on canvas elements
- * - Redacts the top header band on each page (bank logo / account number area)
+ * - Covers the top header band ON SCREEN only. This is visual masking, NOT redaction: the browser
+ *   loads the customer's ORIGINAL statement from private storage (a signed URL), so the full
+ *   document, including page 1 and its text layer, is present in the browser. Real redaction is
+ *   the server-rendered design in DISCREPANCY_VIEWER_AUDIT_AND_DESIGN.md.
  * - Works on mobile (pinch zoom via CSS) and desktop
- * - PDF is never uploaded to any server - blob URL stays in browser memory only
  *
  * Usage:
  *   <StatementPdfViewer url={fileUrl} label="BMO Aug 2025" onClose={() => {}} />
@@ -14,6 +16,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { loadPdfDocument } from '../../client/pdf/pdfjsBrowser';
 
 interface StatementPdfViewerProps {
   url: string;
@@ -22,36 +25,8 @@ interface StatementPdfViewerProps {
   inline?: boolean;
 }
 
-// Height in px to black out at the top of each page (account number / bank header area)
+// Height in px covered ON SCREEN at the top of each page (bank header area). Visual masking only.
 const REDACT_HEADER_PX = 80;
-
-// PDF.js CDN - no npm install required
-const PDFJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-declare global {
-  interface Window {
-    pdfjsLib?: any;
-  }
-}
-
-function loadPdfJs(): Promise<any> {
-  return new Promise((resolve, reject) => {
-    if (window.pdfjsLib) { resolve(window.pdfjsLib); return; }
-    const script = document.createElement('script');
-    script.src = PDFJS_CDN;
-    script.onload = () => {
-      if (window.pdfjsLib) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-        resolve(window.pdfjsLib);
-      } else {
-        reject(new Error('PDF.js failed to load'));
-      }
-    };
-    script.onerror = () => reject(new Error('Failed to load PDF.js from CDN'));
-    document.head.appendChild(script);
-  });
-}
 
 interface PageCanvasProps {
   pdf: any;
@@ -84,16 +59,16 @@ function PageCanvas({ pdf, pageNumber, scale, draggable }: PageCanvasProps) {
         await page.render({ canvasContext: ctx, viewport }).promise;
         if (cancelled) return;
 
-        // Redact header band - black rectangle over top portion
+        // Cover the header band on screen (visual masking only; the original is in the browser)
         ctx.fillStyle = '#0b1220';
         ctx.fillRect(0, 0, canvas.width, REDACT_HEADER_PX * scale);
 
-        // Subtle "Redacted for privacy" label
+        // Honest label: masking is not redaction (owner direction 2026-11-27)
         ctx.fillStyle = 'rgba(100,116,139,0.6)';
         ctx.font = `${Math.round(11 * scale)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillText(
-          '\u2014 Account details redacted for privacy \u2014',
+          'Header hidden on screen \u2014 this is the original statement, private to you',
           canvas.width / 2,
           (REDACT_HEADER_PX * scale) / 2 + 4
         );
@@ -156,8 +131,7 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
       try {
         setLoading(true);
         setError(null);
-        const pdfjs = await loadPdfJs();
-        const loadingTask = pdfjs.getDocument({ url, isEvalSupported: false });
+        const loadingTask = loadPdfDocument({ url });
         const pdfDoc = await loadingTask.promise;
         setPdf(pdfDoc);
         setPageCount(pdfDoc.numPages);
@@ -263,7 +237,7 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
         }}>
           <span style={{ fontSize: 13 }}>{"\uD83D\uDD12"}</span>
           <span style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>
-            Viewed locally only {"\u2014"} never uploaded to any server
+            Your original statement {"\u2014"} private to you
           </span>
         </div>
 

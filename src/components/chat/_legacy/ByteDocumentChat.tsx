@@ -1318,11 +1318,11 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       reader.onload = async (e) => {
         try {
           // Dynamic import PDF.js
-          const pdfjsLib = await import('pdfjs-dist');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+          // Self-hosted PDF.js (owner security GO 2026-11-27); eval always off.
+          const { loadPdfDocument } = await import('../../../client/pdf/pdfjsBrowser');
           
           const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
-          const pdf = await pdfjsLib.getDocument({ data: typedArray, isEvalSupported: false }).promise;
+          const pdf = await loadPdfDocument({ data: typedArray }).promise;
           
           let fullText = '';
           for (let i = 1; i <= pdf.numPages; i++) {
@@ -1348,11 +1348,11 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          const pdfjsLib = await import('pdfjs-dist');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+          // Self-hosted PDF.js (owner security GO 2026-11-27); eval always off.
+          const { loadPdfDocument } = await import('../../../client/pdf/pdfjsBrowser');
           
           const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
-          const pdf = await pdfjsLib.getDocument({ data: typedArray, isEvalSupported: false }).promise;
+          const pdf = await loadPdfDocument({ data: typedArray }).promise;
           
           const images: File[] = [];
           const canvas = document.createElement('canvas');

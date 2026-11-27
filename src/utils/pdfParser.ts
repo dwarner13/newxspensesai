@@ -1,8 +1,5 @@
 import { Transaction } from '../types/database.types';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import { loadPdfDocument } from '../client/pdf/pdfjsBrowser';
 
 interface OpenAITransaction {
   date: string;
@@ -58,7 +55,7 @@ async function extractTextFromPDF(file: File, onProgress?: (msg: string, progres
     const arrayBuffer = await file.arrayBuffer();
     
     // Load the PDF document using PDF.js
-    const pdf = await pdfjsLib.getDocument({ isEvalSupported: false, data: arrayBuffer }).promise;
+    const pdf = await loadPdfDocument({ data: arrayBuffer }).promise;
     
     let fullText = '';
     const BATCH_SIZE = 3;

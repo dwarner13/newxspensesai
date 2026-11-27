@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { PdfService } from '../../client/pdf/pdfService';
+import { loadPdfDocument } from '../../client/pdf/pdfjsBrowser';
 import { isScannedPdf, extractWithOCR } from '../../client/pdf/ocrFallback';
 
 interface PDFToImageConverterProps {
@@ -117,13 +118,8 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
       if (error instanceof Error && error.message.includes('worker')) {
         try {
           setProgress('Retrying without worker...');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-          
           const arrayBuffer = await pdfFile.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ isEvalSupported: false, 
-            data: arrayBuffer,
-            disableWorker: true
-          }).promise;
+          const pdf = await loadPdfDocument({ data: arrayBuffer }).promise;
           
           const images: string[] = [];
           const totalPages = pdf.numPages;
