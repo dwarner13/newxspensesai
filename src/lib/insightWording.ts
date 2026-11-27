@@ -7,6 +7,23 @@ import type { Insight, FinancialSummary } from '@/lib/financialSummary';
 
 type ServerWording = FinancialSummary['wording'];
 
+/**
+ * LA-4: the review line every screen uses (Prime HQ wording guide). Amounts only when the
+ * server's read was complete; unclassified named only when non-zero. No arithmetic here.
+ */
+export function needsReviewText(
+  nr: FinancialSummary['needsReview'] | undefined,
+  fallbackCount: number,
+  money: (cents: number) => string,
+): string {
+  const count = nr && typeof nr.count === 'number' ? nr.count : fallbackCount;
+  const noun = `${count} need${count === 1 ? 's' : ''} a category`;
+  if (!nr || !nr.complete || !nr.outflow || !nr.inflow) return noun;
+  const parts = [`${money(nr.outflow.cents)} going out`, `${money(nr.inflow.cents)} coming in`];
+  if (nr.unclassified && nr.unclassified.count > 0) parts.push(`${money(nr.unclassified.cents)} without a direction`);
+  return `${noun}: ${parts.join(', ')}`;
+}
+
 /** Fill a server template ({category}, {direction}, {percent}, {count}, {periodsAvailable}, {periodsRequired}). */
 function fill(t: string, i: Insight): string | null {
   const v: Record<string, string | number | undefined> = { category: i.category, direction: i.direction, percent: i.percent, count: i.count ?? 0, periodsAvailable: i.coverage.periodsAvailable, periodsRequired: i.coverage.periodsRequired };

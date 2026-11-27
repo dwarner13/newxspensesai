@@ -17,7 +17,7 @@ import { WithXspenseScore } from "../XspenseScore/WithXspenseScore";
 import toast from "react-hot-toast";
 import { FinancialStateNotice, formatMoney } from "@/components/finance/FinancialState";
 import { FINANCIAL_LABELS } from "@/lib/financialLabels";
-import { insightText, spendingClaim } from "@/lib/insightWording";
+import { insightText, spendingClaim, needsReviewText } from "@/lib/insightWording";
 
 export default function DashboardHomeV2() {
   const data = useDashboardData();
@@ -207,7 +207,7 @@ export default function DashboardHomeV2() {
               ? `${needsReview} transaction${needsReview !== 1 ? "s" : ""} need your review`
               : txCount > 0 ? "All transactions categorized" : "No transactions yet"}
             body={needsReview > 0
-              ? `Found ${needsReview} uncategorized or suspicious item${needsReview !== 1 ? "s" : ""}. Should take about ${Math.max(1, Math.ceil(needsReview / 3))} minute${needsReview > 3 ? "s" : ""} to resolve.`
+              ? `${needsReviewText(sum?.needsReview, needsReview, c => formatMoney(c / 100, cur))}.`
               : txCount > 0 ? "Every transaction has a category. No action needed." : "Upload a statement and Tag will categorize each transaction."}
             cta="Review Now" ctaColor={needsReview > 0 ? "#f87171" : undefined}
             onCtaClick={() => navigate("/dashboard/categories")}

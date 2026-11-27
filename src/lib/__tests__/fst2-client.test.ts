@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { readSummaryResponse, allTimeRange, yearRange } from '../financialSummary';
-import { insightText, categoryTrend, spendingClaim } from '../insightWording';
+import { insightText, categoryTrend, spendingClaim, needsReviewText } from '../insightWording';
 import { FINANCIAL_LABELS } from '../financialLabels';
 import { needsCategory, NEEDS_CATEGORY_OR_FILTER } from '../needsCategory';
 import type { Insight } from '../financialSummary';
@@ -73,6 +73,20 @@ describe('insight wording — fixed table, server decides', () => {
     expect(spendingClaim([n, s])).toBe(s);
     expect(spendingClaim([n])).toBe(n);
     expect(spendingClaim([])).toBeNull();
+  });
+});
+
+describe('LA-4 review line (served count and amounts)', () => {
+  const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const side = (count: number, cents: number) => ({ count, cents });
+  const base = { complete: true, count: 3, inflow: side(1, 1999), outflow: side(2, 18200), unclassified: side(0, 0), netCents: -16201, rowIds: [], rowIdsTruncated: false };
+  it('count and both directions when complete; unclassified only when non-zero', () => {
+    expect(needsReviewText(base, 0, money)).toBe('3 need a category: $182.00 going out, $19.99 coming in');
+    expect(needsReviewText({ ...base, count: 4, unclassified: side(1, 500) }, 0, money)).toBe('4 need a category: $182.00 going out, $19.99 coming in, $5.00 without a direction');
+  });
+  it('count only when the read was incomplete or the field is missing', () => {
+    expect(needsReviewText({ ...base, complete: false, count: null, inflow: null, outflow: null, unclassified: null, netCents: null }, 2, money)).toBe('2 need a category');
+    expect(needsReviewText(undefined, 1, money)).toBe('1 needs a category');
   });
 });
 

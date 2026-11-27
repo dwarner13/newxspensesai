@@ -51,7 +51,9 @@ describe('toolbar', () => {
 describe('summary strip and overview', () => {
   it('one strip with counts from the existing calculations (no new review counter)', () => {
     expect(page).toMatch(/aria-expanded=\{overviewOpen\}\s*aria-controls="tx-overview-content"/);
-    expect(page).toMatch(/\{uncategorizedCount > 0 && <span[^>]*><strong[^>]*>\{uncategorizedCount\}<\/strong> need review<\/span>\}/);
+    // LA-4: unfiltered views show the server's review line; filtered views keep the shown-rows count.
+    expect(page).toMatch(/uncategorizedCount > 0 && <span[^>]*><strong[^>]*>\{uncategorizedCount\}<\/strong> need review<\/span>\}/);
+    expect(page).toMatch(/needsReviewText\(sum\.needsReview, sum\.needsReviewCount/);
     expect(page.match(/const uncategorizedCount = /g)?.length).toBe(1);
   });
 

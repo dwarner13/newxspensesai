@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { FINANCIAL_LABELS } from "@/lib/financialLabels";
-import { FinancialStateNotice } from "@/components/finance/FinancialState";
+import { FinancialStateNotice, formatMoney } from "@/components/finance/FinancialState";
+import { needsReviewText } from "@/lib/insightWording";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -346,7 +347,7 @@ export default function CategoriesPageV2() {
             style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", minHeight: 52, padding: "10px 16px", borderRadius: 14, marginBottom: 14, background: `${CYAN}06`, border: `1px solid ${CYAN}24`, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
             <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: `${CYAN}20`, border: `1.5px solid ${CYAN}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: CYAN }}>T</span>
             <span style={{ flex: 1, fontSize: 15, color: KA.muted }}>
-              <span style={{ color: CYAN, fontWeight: 700 }}>{data.uncategorizedCount} items need review</span>
+              <span style={{ color: CYAN, fontWeight: 700 }}>{needsReviewText(data.summary?.needsReview, data.uncategorizedCount, c => formatMoney(c / 100, data.summary?.scope.currency ?? 'CAD'))}</span>
               {data.subcategorySuggestions?.length > 0 && <>{" • "}{data.subcategorySuggestions.length} subcategory split{data.subcategorySuggestions.length !== 1 ? "s" : ""} suggested</>}
             </span>
             <span style={{ fontSize: 14, fontWeight: 700, color: CYAN }}>Review with Tag</span>
