@@ -43,8 +43,6 @@
   "netlify/functions/tag-background-sweep.ts|R2|total",
   "netlify/functions/tag-categorize-committed.ts|R4|transactions .limit(",
   "netlify/functions/tag-chat.ts|R4|transactions .limit(",
-  "netlify/functions/tag-inbox.ts|R2|total_amount",
-  "netlify/functions/tag-inbox.ts|R4|transactions .limit(",
   "netlify/functions/tag-merchant-sweep.ts|R4|transactions .limit(",
   "netlify/functions/tag-reclassify-other.ts|R4|transactions .limit(",
   "netlify/functions/tag-smart-review.ts|R4|transactions .limit(",

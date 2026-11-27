@@ -34,6 +34,43 @@ import { classifyCashFlow } from '../../../src/shared/financial-taxonomy';
 import { computeIntegritySignals, type FinancialIntegritySignals } from '../../../src/shared/financial-integrity-signals';
 import { PROTECTED_SOURCES } from '../../../src/shared/tag-status';
 import { merchantGroupingKey } from './merchantNormalize';
+import { readAuthoritativeLedger } from './financial-ledger';
+import { buildNeedsReview, type NeedsReviewSummary } from '../../../src/shared/needs-review-summary';
+
+/**
+ * LA-4 (Prime×Tag parity, owner acceptance 2026-11-26): the SERVED review figure — the same
+ * buildNeedsReview over the same complete authoritative ledger read that financial-summary uses.
+ * One statement (importId) or all imported transactions. An incomplete read ⇒ every figure null.
+ */
+export async function loadTagNeedsReview(sb: unknown, userId: string, importId?: string | null): Promise<NeedsReviewSummary> {
+  try {
+    const read = await readAuthoritativeLedger(sb, { userId, startDate: null, endDate: null, importIds: importId ? [importId] : null });
+    return buildNeedsReview(read.rows, { complete: read.status === 'ok' });
+  } catch {
+    return buildNeedsReview([], { complete: false });
+  }
+}
+
+const money = (cents: number) => `$${(Math.abs(cents) / 100).toFixed(2)}`;
+
+/** The review line Tag may quote. Only server figures; never anything for the model to add up. */
+export function formatNeedsReviewLine(review: NeedsReviewSummary | null | undefined, expectedCount: number): string {
+  const never = 'NEVER add up transaction amounts yourself';
+  if (!review || !review.complete || review.count === null || !review.inflow || !review.outflow || !review.unclassified) {
+    return `  Amount needing review: not available right now. ${never}; if asked for that total, say you can't state it yet.`;
+  }
+  if (review.count !== expectedCount) {
+    // Two server reads disagree: state no amount rather than a figure that may not match the count.
+    return `  Amount needing review: not available right now (the counts are being refreshed). ${never}.`;
+  }
+  if (review.count === 0) return '  Amount needing review: none.';
+  const parts = [
+    `${review.outflow.count} going out, totalling ${money(review.outflow.cents)}`,
+    `${review.inflow.count} coming in, totalling ${money(review.inflow.cents)}`,
+  ];
+  if (review.unclassified.count > 0) parts.push(`${review.unclassified.count} with no direction recorded (${money(review.unclassified.cents)}, counted in neither)`);
+  return `  Amount needing review (server-calculated; quote exactly, keep money out and money in separate, ${never}): ${parts.join('; ')}.`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -90,7 +127,10 @@ export interface CategorizationProgress {
   total: number;
   uncategorized: number;
   needsReview: number;
-  /** Other not confirmed by the customer (automatic or unknown source). */
+  /**
+   * "Other" chosen automatically (not confirmed by the customer). Informational only: under the ONE
+   * owner-approved review rule (src/shared/needs-category-rule.ts) it does NOT need review.
+   */
   otherUnconfirmed: number;
   /** Protected Other (customer-set or origin unverified): never "unfinished". */
   otherKeptByCustomer: number;
@@ -338,7 +378,9 @@ export function categorizationProgressFromCounts(
     return { available: false, scopeLabel, total: 0, uncategorized: 0, needsReview: 0, otherUnconfirmed: 0, otherKeptByCustomer: 0, allCategorized: null, unfinished: 0 };
   }
   const otherUnconfirmed = Math.min(counts.otherUnconfirmed, counts.otherTotal);
-  const unfinished = counts.uncategorized + counts.needsReview + otherUnconfirmed;
+  // LA-4 (Prime×Tag parity, owner rule 2026-11-25/26): "needs review" = no category, Uncategorized or
+  // Needs Review — exactly needsCategory(); an "Other" is never counted, so Tag and Prime agree.
+  const unfinished = counts.uncategorized + counts.needsReview;
   return {
     available: true,
     scopeLabel,
@@ -352,7 +394,7 @@ export function categorizationProgressFromCounts(
   };
 }
 
-export function formatProgressBlock(p: CategorizationProgress): string {
+export function formatProgressBlock(p: CategorizationProgress, review?: NeedsReviewSummary | null): string {
   if (!p.available) {
     return `CATEGORIZATION PROGRESS: unavailable right now. Do not say whether everything is categorized.`;
   }
@@ -360,11 +402,13 @@ export function formatProgressBlock(p: CategorizationProgress): string {
     `CATEGORIZATION PROGRESS (exact counts across ${p.scopeLabel}: ${plural(p.total, 'transaction')})`,
     `  Uncategorized: ${p.uncategorized}`,
     `  Needs Review: ${p.needsReview}`,
-    `  "Other" not yet confirmed by the customer: ${p.otherUnconfirmed}`,
+    `  "Other" chosen automatically (not confirmed; does not need review — you may offer to check them): ${p.otherUnconfirmed}`,
     `  "Other" protected (set by the customer or origin unverified — never call it customer-approved): ${p.otherKeptByCustomer} (never count as unfinished and never propose changing)`,
     p.allCategorized
       ? `  Status: everything in this scope is categorized.`
       : `  Status: ${plural(p.unfinished, 'transaction')} still need a category. Do NOT say everything is categorized.`,
+    // LA-4: only the served review figure (buildNeedsReview); the model never assembles one.
+    formatNeedsReviewLine(review, p.unfinished),
   ].join('\n');
 }
 
@@ -390,8 +434,9 @@ export async function loadCategorizationProgress(
     const kept = CUSTOMER_KEPT_SOURCES.join(',');
     const results = await Promise.all([
       base(),
-      base().or('category.is.null,category.eq.,category.eq.Uncategorized'),
-      base().eq('category', 'Needs Review'),
+      // The ONE review rule (needs-category-rule.ts): case-insensitive, as NEEDS_CATEGORY_OR_FILTER.
+      base().or('category.is.null,category.eq.,category.ilike.uncategorized'),
+      base().ilike('category', 'needs review'),
       base().eq('category', 'Other'),
       base().eq('category', 'Other').or(`category_source.is.null,category_source.not.in.(${kept})`),
     ]);

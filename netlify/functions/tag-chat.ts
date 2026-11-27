@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import {
   loadTagSpendingSummary,
   loadCategorizationProgress,
+  loadTagNeedsReview,
   formatSpendingBlock,
   formatProgressBlock,
   isSmallTalk,
@@ -873,11 +874,12 @@ export const handler: Handler = async (event) => {
   // 4.6 Verified financial context (skipped for a pure greeting).
   let categoryTotalsBlock = '';
   if (!isQuickChange && !isSmallTalk(message)) {
-    const [summary, progress] = await Promise.all([
+    const [summary, progress, review] = await Promise.all([
       loadTagSpendingSummary(supabase, auth.userId, { focusMerchant: focusForTotals }),
       loadCategorizationProgress(supabase, auth.userId),
+      loadTagNeedsReview(supabase, auth.userId, null),
     ]);
-    categoryTotalsBlock = `${formatSpendingBlock(summary)}\n\n${formatProgressBlock(progress)}`;
+    categoryTotalsBlock = `${formatSpendingBlock(summary)}\n\n${formatProgressBlock(progress, review)}`;
   } else if (!isQuickChange) {
     categoryTotalsBlock = 'THIS MESSAGE IS A GREETING OR PLEASANTRY. Reply warmly and briefly; do not mention any amount, total, count or opinion about their finances.';
   }

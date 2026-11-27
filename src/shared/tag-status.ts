@@ -16,6 +16,8 @@
  */
 
 import { detectReviewIssues, type ReviewTx } from './tag-review-rules';
+import { countNeedsCategory } from './needs-category-rule';
+import { buildNeedsReview, type NeedsReviewSummary } from './needs-review-summary';
 
 export type ScopeSource = 'requested_period' | 'conversation_period' | 'document' | 'all_history' | 'default_current_month';
 /**
@@ -137,6 +139,9 @@ export interface TagStatusRow {
   category_source: string | null;
   amount: number | null;
   date: string | null;
+  /** For the served review figure (engine direction). */
+  type?: string | null;
+  subcategory?: string | null;
 }
 
 export interface TagStatusAnomaly {
@@ -153,7 +158,10 @@ export interface TagStatus {
   scope: TagStatusScope;
   totals: { transactionCount: number; categorized: number; uncategorized: number; otherCount: number };
   provenance: Record<Provenance, number>;
+  /** LA-4: the ONE owner-approved review rule (needs-category-rule), not a category-source label. */
   needsReviewCount: number;
+  /** LA-4: served review count and amounts (buildNeedsReview); figures null when the read was partial. */
+  needsReview?: NeedsReviewSummary;
   protectedFromProposals: number;
   /**
    * Completed corrections recorded by Tag (tag_category_feedback). windowDays null = all time.
@@ -282,7 +290,8 @@ export function summarizeTagStatus(input: {
     scope,
     totals: { transactionCount: rows.length, categorized: rows.length - uncategorized, uncategorized, otherCount },
     provenance,
-    needsReviewCount: provenance.needs_review,
+    needsReviewCount: countNeedsCategory(rows),
+    needsReview: buildNeedsReview(rows, { complete: !input.capped }),
     protectedFromProposals: provenance.verified_customer + provenance.protected_unverified,
     recentCorrections: { available: feedback !== null, count: feedback?.length ?? 0, topMerchants, windowDays: input.feedbackWindowDays === undefined ? 90 : input.feedbackWindowDays },
     ...(input.completedActionTypes === undefined ? {} : {
