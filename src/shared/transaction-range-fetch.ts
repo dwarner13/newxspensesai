@@ -91,9 +91,6 @@ export async function fetchTransactionsInRange(
   if (!userId || !YMD.test(startDate) || !YMD.test(endDate) || startDate > endDate) {
     return failed('invalid_range', 0);
   }
-  const pageSize = Math.max(1, Math.floor(opts.pageSize ?? TRANSACTION_RANGE_PAGE_SIZE));
-  const maxRows = Math.max(1, Math.floor(opts.maxRows ?? TRANSACTION_RANGE_MAX_ROWS));
-
   const page = (from: number, to: number) =>
     client.from('transactions')
       .select(rangeFetchColumns(opts.columns))
@@ -103,6 +100,36 @@ export async function fetchTransactionsInRange(
       .order('date', { ascending: true })
       .order('id', { ascending: true })
       .range(from, to);
+  return pagedFetch(page, opts);
+}
+
+/**
+ * Fetch EVERY transaction for `userId` with no date filter (all time), ordered by date then id.
+ * Unlike fetchTransactionsInRange, rows whose `date` is NULL ARE included (they sort last), so an
+ * all-time statement export never drops undated rows. Same paging, ceiling and probe rules.
+ */
+export async function fetchAllTransactions(
+  client: RangeFetchClient,
+  input: { userId: string },
+  opts: { pageSize?: number; maxRows?: number; columns?: ReadonlyArray<string> } = {},
+): Promise<TransactionRangeFetchResult> {
+  if (!input.userId) return failed('invalid_user', 0);
+  const page = (from: number, to: number) =>
+    client.from('transactions')
+      .select(rangeFetchColumns(opts.columns))
+      .eq('user_id', input.userId)
+      .order('date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+  return pagedFetch(page, opts);
+}
+
+async function pagedFetch(
+  page: (from: number, to: number) => RangeFetchQuery,
+  opts: { pageSize?: number; maxRows?: number },
+): Promise<TransactionRangeFetchResult> {
+  const pageSize = Math.max(1, Math.floor(opts.pageSize ?? TRANSACTION_RANGE_PAGE_SIZE));
+  const maxRows = Math.max(1, Math.floor(opts.maxRows ?? TRANSACTION_RANGE_MAX_ROWS));
 
   const rows: TransactionRangeRow[] = [];
   const seen = new Set<string>();
