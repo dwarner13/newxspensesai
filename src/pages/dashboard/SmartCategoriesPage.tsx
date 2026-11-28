@@ -651,28 +651,36 @@ const SmartCategoriesPage: React.FC = () => {
       toast.error(err?.message || 'Failed to approve suggested rules');
     }
   };
+  // Owner safeguard 5 (FINAL A-2, 2026-11-27): "rename / merge a category" no longer writes from the
+  // browser (it overwrote every row, customer-set ones included, and showed a count it never verified).
+  // It is Tag's signed bulk-move proposal: the server states the exact count and keeps protected rows;
+  // the change happens only after the customer confirms that count, and every change is reversible.
   const moveCategoryTransactions = async (fromCategory: string, toCategory: string, toSubcategory?: string | null) => {
-    if (!userId || !supabase) return false;
-    const affected = scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === fromCategory);
-    if (affected.length === 0) {
-      toast('No transactions in current scope');
+    const token = await getAccessToken();
+    if (!token) throw new Error('Session expired - please refresh');
+    const res = await fetch('/.netlify/functions/tag-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        intent: 'propose_bulk_move', fromCategory, toCategory, ...(toSubcategory ? { toSubcategory } : {}),
+        conversation: { customerText: `Smart Categories: move ${fromCategory} to ${toCategory}`, clientMessageId: newClientMessageId() },
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    const serverReply = String(data?.conversation?.reply || data?.error || 'Tag could not check those transactions, so nothing has changed.').replace(/\*\*/g, '');
+    const prop = data?.proposal;
+    if (!res.ok || !prop || prop.kind !== 'action' || data?.conversation?.receipt?.state !== 'proposed') {
+      toast(serverReply);
       return false;
     }
-    const ids = affected.map((tx) => tx.id);
-    const { error } = await supabase
-      .from('transactions')
-      .update({
-        category: toCategory,
-        subcategory: String(toSubcategory || '').trim() || null,
-        category_source: 'manual',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
-      .in('id', ids);
-    if (error) {
-      throw new Error(error.message || 'Bulk move failed');
+    // The server's own wording carries the exact count and the protected rows it will keep.
+    if (!window.confirm(serverReply)) return false;
+    const r = await confirmTagProposal({ action: String(prop.action), subject: prop.subject, sessionId: data.conversation.sessionId ?? null, reply: serverReply, affected: Number(prop.subject?.affected ?? 0) });
+    if (!r.completed) {
+      toast(r.reply.replace(/\*\*/g, ''));
+      return false;
     }
-    toast.success(`Moved ${ids.length} transaction${ids.length === 1 ? '' : 's'} to ${toCategory}`);
+    toast.success(`Moved ${r.count} transaction${r.count === 1 ? '' : 's'} to ${toCategory}`);
     await fetchTransactions();
     return true;
   };
@@ -680,10 +688,7 @@ const SmartCategoriesPage: React.FC = () => {
     const toCategory = window.prompt(`Rename / merge "${fromCategory}" to category:`, fromCategory)?.trim();
     if (!toCategory || toCategory === fromCategory) return;
     const toSubcategory = window.prompt('Subcategory (optional):', '')?.trim() || null;
-    const confirmed = window.confirm(
-      `Move all "${fromCategory}" transactions in current scope to ${toCategory}${toSubcategory ? ` > ${toSubcategory}` : ''}?`
-    );
-    if (!confirmed) return;
+    // The confirmation (with the exact server count) happens inside moveCategoryTransactions.
     setIsInspectorApplying(true);
     try {
       const moved = await moveCategoryTransactions(fromCategory, toCategory, toSubcategory);

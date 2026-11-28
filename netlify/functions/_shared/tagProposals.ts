@@ -83,6 +83,7 @@ export type TagActivityEntry = {
   previous_category: string | null;
   new_category: string | null;
   new_subcategory?: string | null;
+  previous_subcategory?: string | null;
   transaction_id?: string | null;
 };
 
@@ -92,6 +93,7 @@ export function toActivityRow(userId: string, e: TagActivityEntry): Record<strin
     user_id: userId, change_source: e.change_source, change_note: e.change_note, merchant_name: e.merchant_name,
     previous_category: e.previous_category, new_category: e.new_category,
     ...(e.new_subcategory !== undefined ? { new_subcategory: e.new_subcategory } : {}),
+    ...(e.previous_subcategory !== undefined ? { previous_subcategory: e.previous_subcategory } : {}),
     ...(e.transaction_id !== undefined ? { transaction_id: e.transaction_id } : {}),
     created_at: new Date().toISOString(),
   };
@@ -105,6 +107,20 @@ export type ActionExecutionOutcome = {
   reply: string;
   /** For the activity log (no amounts). LIVE tag_activity_log columns only (AR-SCHEMA 2026-11-26). */
   log?: TagActivityEntry;
+  /**
+   * Owner safeguard 5 (FINAL A-2, 2026-11-27): every EXISTING transaction a confirmed proposal changed,
+   * with its value before the change, so the change can be reversed exactly. Only rows the database
+   * confirmed were updated.
+   */
+  changes?: RowChange[];
+};
+
+export type RowChange = {
+  transaction_id: string;
+  previous_category: string | null;
+  previous_subcategory: string | null;
+  new_category: string;
+  new_subcategory: string | null;
 };
 
 const PROTECTED = new Set<string>(PROTECTED_SOURCES);
@@ -120,11 +136,11 @@ export function scopeFingerprint(ids: ReadonlyArray<string>): string {
 }
 
 interface ScopeRow { id: string; merchant_name?: string | null; category?: string | null; subcategory?: string | null; category_source?: string | null }
-interface Scope { matched: number; eligible: string[]; kept: number; complete: boolean }
+interface Scope { matched: number; eligible: string[]; kept: number; complete: boolean; previous: Map<string, { category: string | null; subcategory: string | null }> }
 
 type Params =
   | { action: typeof TAG_RULE_ACTION; merchantPattern: string; targetCategory: string; targetSubcategory: string | null; applyToExisting: boolean; exact?: boolean }
-  | { action: typeof TAG_BULK_ACTION; fromCategory: string; toCategory: string }
+  | { action: typeof TAG_BULK_ACTION; fromCategory: string; toCategory: string; toSubcategory?: string | null }
   | { action: typeof TAG_RENAME_ACTION; fromName: string; toName: string };
 
 /** Every row in the action's scope, owner-scoped and paged past the API row cap. */
@@ -136,10 +152,12 @@ async function readScope(sb: SupabaseClient, userId: string, p: Params): Promise
     else q = q.ilike('merchant_name', escLike(p.fromName));
     return q.order('id', { ascending: true }) as unknown as PagedQuery;
   });
-  if (res.error || !res.complete) return { matched: res.rowsFetched, eligible: [], kept: 0, complete: false };
+  if (res.error || !res.complete) return { matched: res.rowsFetched, eligible: [], kept: 0, complete: false, previous: new Map() };
   const rows = res.rows;
   let kept = 0;
   const eligible: string[] = [];
+  const previous: Scope['previous'] = new Map();
+  for (const r of rows) previous.set(String(r.id), { category: r.category ?? null, subcategory: r.subcategory ?? null });
   for (const r of rows) {
     if (p.action === TAG_RENAME_ACTION) {
       // A rename changes the display name only (never a category): every matching row is in scope.
@@ -154,7 +172,7 @@ async function readScope(sb: SupabaseClient, userId: string, p: Params): Promise
       eligible.push(String(r.id));
     }
   }
-  return { matched: rows.length, eligible, kept, complete: true };
+  return { matched: rows.length, eligible, kept, complete: true, previous };
 }
 
 function paramsFromSubject(action: string, s: ProposalSubject): Params | null {
@@ -162,7 +180,7 @@ function paramsFromSubject(action: string, s: ProposalSubject): Params | null {
     return { action, merchantPattern: s.merchantPattern, targetCategory: s.targetCategory, targetSubcategory: typeof s.targetSubcategory === 'string' ? s.targetSubcategory : null, applyToExisting: s.applyToExisting === 'yes', exact: s.matchType === 'exact' };
   }
   if (action === TAG_BULK_ACTION && typeof s.fromCategory === 'string' && typeof s.toCategory === 'string') {
-    return { action, fromCategory: s.fromCategory, toCategory: s.toCategory };
+    return { action, fromCategory: s.fromCategory, toCategory: s.toCategory, toSubcategory: typeof s.toSubcategory === 'string' ? s.toSubcategory : null };
   }
   if (action === TAG_RENAME_ACTION && typeof s.fromName === 'string' && typeof s.toName === 'string') {
     return { action, fromName: s.fromName, toName: s.toName };
@@ -235,7 +253,7 @@ export async function buildActionProposal(
       const problem = categoryProblem(to);
       if (problem || (to.status !== 'exact' && to.status !== 'closest')) return failed(action, 'category_unresolved', problem || 'Which category should they move to?');
       if (from.category === to.category) return failed(action, 'same_category', `Those are both **${from.category}**, so there's nothing to move.`);
-      const p: Params = { action: TAG_BULK_ACTION, fromCategory: from.category, toCategory: to.category };
+      const p: Params = { action: TAG_BULK_ACTION, fromCategory: from.category, toCategory: to.category, toSubcategory: to.subcategory ?? null };
       const scope = await readScope(sb, userId, p);
       if (!scope.complete) return failed(action, 'scope_incomplete', INCOMPLETE);
       if (scope.eligible.length === 0) {
@@ -247,8 +265,8 @@ export async function buildActionProposal(
       const keptLine = scope.kept > 0 ? ` ${plural(scope.kept, 'transaction')} in ${from.category} with a protected category (set by you, or of unverified origin) will stay as they are.` : '';
       return {
         state: 'proposed', action,
-        reply: `${note}Move **${scope.eligible.length}** existing ${scope.eligible.length === 1 ? 'transaction' : 'transactions'} from **${from.category}** to **${to.category}**?${keptLine} This changes existing transactions only — no rule is saved for future imports. Say yes to confirm.`,
-        subject: { fromCategory: from.category, toCategory: to.category, affected: scope.eligible.length, fingerprint: scopeFingerprint(scope.eligible) },
+        reply: `${note}Move **${scope.eligible.length}** existing ${scope.eligible.length === 1 ? 'transaction' : 'transactions'} from **${from.category}** to **${catLabel(to.category, to.subcategory ?? null)}**?${keptLine} This changes existing transactions only — no rule is saved for future imports. Say yes to confirm.`,
+        subject: { fromCategory: from.category, toCategory: to.category, ...(to.subcategory ? { toSubcategory: to.subcategory } : {}), affected: scope.eligible.length, fingerprint: scopeFingerprint(scope.eligible) },
       };
     }
 
@@ -321,10 +339,18 @@ export function sameProposalSubject(a: ProposalSubject | undefined, b: ProposalS
 
 const CHUNK = 200;
 
+function rowChanges(ids: ReadonlyArray<string>, previous: Scope['previous'], category: string, subcategory: string | null, keepSub: boolean): RowChange[] {
+  return ids.map(id => {
+    const prev = previous.get(id) ?? { category: null, subcategory: null };
+    return { transaction_id: id, previous_category: prev.category, previous_subcategory: prev.subcategory, new_category: category, new_subcategory: keepSub ? prev.subcategory : subcategory };
+  });
+}
+
 async function updateIds(
   sb: SupabaseClient, userId: string, ids: string[], payload: Record<string, unknown>, opts: { gapOnly?: boolean; renameOnly?: boolean } = {},
-): Promise<{ count: number; error: boolean }> {
+): Promise<{ count: number; error: boolean; ids: string[] }> {
   let count = 0;
+  const done: string[] = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
     // A row that became protected after the proposal is never overwritten (re-checked here).
     let q = sb.from('transactions').update(payload).in('id', ids.slice(i, i + CHUNK)).eq('user_id', userId);
@@ -332,10 +358,12 @@ async function updateIds(
     if (!opts.renameOnly) q = q.or(AUTO_UPDATE_SOURCE_FILTER);
     if (opts.gapOnly) q = q.or(AUTO_UPDATE_CATEGORY_FILTER);
     const { data, error } = await q.select('id');
-    if (error) return { count, error: true };
-    count += Array.isArray(data) ? data.length : 0;
+    if (error) return { count, error: true, ids: done };
+    const got = Array.isArray(data) ? (data as Array<{ id: unknown }>).map(r => String(r.id)) : [];
+    done.push(...got);
+    count += got.length;
   }
-  return { count, error: false };
+  return { count, error: false, ids: done };
 }
 
 /**
@@ -361,11 +389,14 @@ export async function executeActionProposal(
         return { state: 'failed', action, reason: 'stale', count: 0, reply: `Your transactions changed since I proposed this (it would now affect ${plural(affected, 'transaction')}, not ${subject.affected}), so I didn't change anything. Want me to check it again?` };
       }
       let count = 0;
+      const changes: RowChange[] = [];
       for (const g of sug.groups) {
         const payload: Record<string, unknown> = { category: g.category, category_source: 'tag_chat', updated_at: now };
         if (g.subcategory) { payload.subcategory = g.subcategory; payload.subcategory_source = 'tag_chat'; }
         const r = await updateIds(sb, userId, g.ids, payload, { gapOnly: true });
         count += r.count;
+        const before = new Map(g.rows.map(row => [row.id, row.fromCategory]));
+        for (const id of r.ids) changes.push({ transaction_id: id, previous_category: before.get(id) ?? null, previous_subcategory: null, new_category: g.category, new_subcategory: g.subcategory ?? null });
         if (r.error) {
           return { state: 'failed', action, reason: count ? 'partial' : 'update_failed', count, reply: count ? `I applied ${count} of ${affected} before an error stopped me. Please check your transactions before trying again.` : "I couldn't apply those suggestions, so nothing was changed." };
         }
@@ -376,6 +407,7 @@ export async function executeActionProposal(
           ? `Done — applied Tag's suggestions to **${count}** ${count === 1 ? 'transaction' : 'transactions'}. No rules were saved.`
           : `Applied Tag's suggestions to **${count}** of ${affected} transactions; the rest changed in the meantime and were left as they are.`,
         log: { change_source: TAG_SUGGESTIONS_ACTION, merchant_name: null, previous_category: null, new_category: null, change_note: `Applied ${count} import suggestions (customer confirmed)` },
+        changes,
       };
     } catch {
       return { state: 'failed', action, reason: 'commit_error', count: 0, reply: "I couldn't make that change, so nothing was changed. Please try again." };
@@ -386,6 +418,7 @@ export async function executeActionProposal(
   try {
     const needsRows = !(p.action === TAG_RULE_ACTION && !p.applyToExisting);
     let ids: string[] = [];
+    let previous: Scope['previous'] = new Map();
     if (needsRows) {
       const scope = await readScope(sb, userId, p);
       if (!scope.complete) return { state: 'failed', action, reason: 'scope_incomplete', count: 0, reply: INCOMPLETE.replace("haven't proposed anything", "haven't changed anything") };
@@ -396,15 +429,19 @@ export async function executeActionProposal(
         };
       }
       ids = scope.eligible;
+      previous = scope.previous;
     }
 
     if (p.action === TAG_BULK_ACTION) {
-      const r = await updateIds(sb, userId, ids, { category: p.toCategory, category_source: 'tag_chat', updated_at: now });
+      const bulkPayload: Record<string, unknown> = { category: p.toCategory, category_source: 'tag_chat', updated_at: now };
+      if (p.toSubcategory) { bulkPayload.subcategory = p.toSubcategory; bulkPayload.subcategory_source = 'tag_chat'; }
+      const r = await updateIds(sb, userId, ids, bulkPayload);
       if (r.error) return { state: 'failed', action, reason: r.count ? 'partial' : 'update_failed', count: r.count, reply: r.count ? `I moved ${r.count} of ${ids.length} before an error stopped me. Please check your transactions before trying again.` : "I couldn't move those transactions, so nothing was changed." };
       return {
         state: 'completed', action, count: r.count,
         reply: `Done — moved **${r.count}** ${r.count === 1 ? 'transaction' : 'transactions'} from **${p.fromCategory}** to **${p.toCategory}**. No rule was saved.`,
         log: { change_source: 'bulk_move_category', merchant_name: null, previous_category: p.fromCategory, new_category: p.toCategory, change_note: `Moved ${r.count} transactions (customer confirmed)` },
+        changes: rowChanges(r.ids, previous, p.toCategory, p.toSubcategory ?? null, !p.toSubcategory),
       };
     }
 
@@ -421,11 +458,13 @@ export async function executeActionProposal(
 
     // Rule (and, only when proposed, the existing transactions).
     let moved = 0;
+    let ruleChanges: RowChange[] = [];
     if (p.applyToExisting && ids.length > 0) {
       const payload: Record<string, unknown> = { category: p.targetCategory, category_source: 'tag_rule', updated_at: now };
       if (p.targetSubcategory) { payload.subcategory = p.targetSubcategory; payload.subcategory_source = 'tag_rule'; }
       const r = await updateIds(sb, userId, ids, payload);
       moved = r.count;
+      ruleChanges = rowChanges(r.ids, previous, p.targetCategory, p.targetSubcategory, !p.targetSubcategory);
       if (r.error) return { state: 'failed', action, reason: moved ? 'partial' : 'update_failed', count: moved, reply: moved ? `I changed ${moved} of ${ids.length} existing transactions before an error stopped me, and the rule was not saved. Please check before trying again.` : "I couldn't change those transactions, so nothing was changed and the rule was not saved." };
     }
     const vendorKey = p.merchantPattern.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -451,6 +490,7 @@ export async function executeActionProposal(
         ? `Done — saved the rule for future "${p.merchantPattern}" imports (**${target}**) and changed **${moved}** existing ${moved === 1 ? 'transaction' : 'transactions'}.`
         : `Done — saved the rule for future "${p.merchantPattern}" imports (**${target}**). Your existing transactions were not changed.`,
       log: { change_source: 'save_merchant_rule', merchant_name: p.merchantPattern, previous_category: null, new_category: p.targetCategory, new_subcategory: p.targetSubcategory ?? null, change_note: `Rule saved (customer confirmed); existing transactions changed: ${moved}` },
+      changes: ruleChanges,
     };
   } catch {
     return { state: 'failed', action, reason: 'commit_error', count: 0, reply: "I couldn't make that change, so nothing was changed. Please try again." };

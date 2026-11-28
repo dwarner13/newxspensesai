@@ -139,7 +139,11 @@ export async function execute(
     return q.order('created_at', { ascending: true }).order('id', { ascending: true });
   }, { maxRows: MAX_ROWS });
   if (!act.error) {
-    completedActionTypes = act.rows.map(r => (typeof r.change_source === 'string' && r.change_source ? r.change_source : 'other'));
+    // Owner safeguard 5: '<action>.row' records are per-transaction change history (for reversal), not
+    // separate completed actions — one confirmed bulk move stays one action.
+    completedActionTypes = act.rows
+      .map(r => (typeof r.change_source === 'string' && r.change_source ? r.change_source : 'other'))
+      .filter(t => !t.endsWith('.row'));
   }
 
   const coverage = rows && rows.length === 0 ? await fetchTransactionCoverage(sb as unknown as CoverageClient, userId) : null;

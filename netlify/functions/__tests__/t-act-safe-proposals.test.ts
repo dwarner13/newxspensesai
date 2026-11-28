@@ -24,6 +24,12 @@ function builder(table: string) {
   const rows = () => (db[table] ||= []);
   const matches = () => rows().filter(r => filters.every(f => f(r)));
   const run = () => {
+    if (op === 'insert' && Array.isArray(payload)) {
+      // Batch insert (per-row change history, owner safeguard 5): one row per element.
+      if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
+      for (const one of payload as unknown as Row[]) rows().push({ id: `${table}-${rows().length + 1}`, ...one });
+      return { data: null, error: null };
+    }
     if (op === 'insert') {
       if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
       if (table === 'chat_messages' && faults.uniqueOnClaim && payload!.role === 'user' && payload!.client_message_id) return { data: null, error: { code: '23505', message: 'duplicate key' } };
@@ -209,7 +215,9 @@ describe('T-ACT-SAFE — bulk category moves', () => {
     expect(t(7).category).toBe('Other');
     expect(t(9).category).toBe('Other');
     expect(db.category_rules ?? []).toHaveLength(0);
-    expect(db.tag_activity_log).toEqual([expect.objectContaining({ user_id: ALICE, change_source: 'bulk_move_category', previous_category: 'Other', new_category: 'Food & Dining' })]);
+    expect((db.tag_activity_log ?? []).filter(x => !String(x.change_source).endsWith('.row'))).toEqual([expect.objectContaining({ user_id: ALICE, change_source: 'bulk_move_category', previous_category: 'Other', new_category: 'Food & Dining' })]);
+    // Owner safeguard 5: plus one reversible history record per moved transaction.
+    expect((db.tag_activity_log ?? []).filter(x => x.change_source === 'bulk_move_category.row').every(x => x.previous_category === 'Other' && x.new_category === 'Food & Dining')).toBe(true);
   });
 });
 
