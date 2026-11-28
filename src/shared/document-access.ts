@@ -7,6 +7,8 @@
  *    for that one object; the model never supplies a URL.
  *  - Retention: originals are temporary (owner U-A decision: 72 hours). After that the original is not
  *    read, even if the object still exists; structured evidence (extracted rows) is unaffected.
+ *    This is a READ limit only — no deletion lifecycle is switched on (owner: no document deletion
+ *    yet), so customer-facing text must never say originals "are deleted".
  * Shared so U-A (Attachments HQ) and the tools use one definition.
  */
 

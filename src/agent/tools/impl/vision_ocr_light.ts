@@ -53,7 +53,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
     if (!doc || !isOwnedStoragePath(doc.storage_path, ctx.userId)) return refuse('That document is not available.');
     if (!String(doc.mime_type || '').startsWith('image/')) return refuse('Only uploaded images can be read with this tool.');
     if (!isOriginalWithinRetention(doc.created_at)) {
-      return refuse('The original file is no longer kept (originals are deleted after 72 hours); the extracted details remain available.');
+      // Wording: this is a re-reading limit, not deletion (the deletion lifecycle is not switched on).
+      return refuse('The original file isn\'t available for re-reading after 72 hours; the details already extracted from it remain available.');
     }
     const { data: signed, error: signErr } = await supabase.storage
       .from(DOCUMENTS_BUCKET)
