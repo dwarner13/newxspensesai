@@ -87,12 +87,20 @@ describe('server helpers on PDF.js 6 (synthetic statement)', () => {
       fs.writeFileSync(pdfPath, pdf);
       const entry = path.join(dir, 'entry.ts');
       fs.writeFileSync(entry, [
-        `import { pdfToImages } from ${JSON.stringify(path.join(root, 'netlify/functions/lib/pdf/pdfToImages').replace(/\\/g, '/'))};`,
+        `import { pdfToImages, pdfRenderTaskStats } from ${JSON.stringify(path.join(root, 'netlify/functions/lib/pdf/pdfToImages').replace(/\\/g, '/'))};`,
         `import * as fs from 'fs';`,
         `console.log = () => undefined; console.warn = () => undefined;`,
-        `pdfToImages(fs.readFileSync(${JSON.stringify(pdfPath.replace(/\\/g, '/'))}), { maxPages: 2 })`,
-        `  .then((o: any) => { process.stdout.write('RESULT ' + JSON.stringify(o.pages.map((p: any) => ({ bytes: p.imageBuffer.length, width: p.width })))); process.exit(0); })`,
-        `  .catch((e: any) => { process.stdout.write('ERROR ' + String(e && e.message)); process.exit(1); });`,
+        `const buf = fs.readFileSync(${JSON.stringify(pdfPath.replace(/\\/g, '/'))});`,
+        `(async () => {`,
+        `  const o: any = await pdfToImages(buf, { maxPages: 2 });`,
+        `  const afterOk = { ...pdfRenderTaskStats };`,
+        // A render that throws mid-document (continueOnPageError false): the task must still be released.
+        `  let threw = false;`,
+        `  try { await pdfToImages(buf, { maxPages: 2, continueOnPageError: false, onPageRendered: async () => { throw new Error('render failed'); } }); } catch { threw = true; }`,
+        `  const afterThrow = { ...pdfRenderTaskStats };`,
+        `  process.stdout.write('RESULT ' + JSON.stringify({ pages: o.pages.map((p: any) => ({ bytes: p.imageBuffer.length, width: p.width })), afterOk, afterThrow, threw }));`,
+        `  process.exit(0);`,
+        `})().catch((e: any) => { process.stdout.write('ERROR ' + String(e && e.message)); process.exit(1); });`,
       ].join('\n'));
       const out = path.join(dir, 'bundle.cjs');
       await esbuild.build({
@@ -103,12 +111,18 @@ describe('server helpers on PDF.js 6 (synthetic statement)', () => {
       const stdout = execFileSync(process.execPath, [out], { cwd: root, encoding: 'utf8', env: { ...process.env, NODE_PATH: path.join(root, 'node_modules') }, timeout: 60_000 });
       const m = stdout.match(/RESULT (.*)$/m);
       expect(m, stdout.slice(0, 300)).toBeTruthy();
-      const pages = JSON.parse(m![1]) as Array<{ bytes: number; width: number }>;
-      expect(pages).toHaveLength(2);
-      for (const p of pages) {
+      type Stats = { opened: number; released: number };
+      const result = JSON.parse(m![1]) as { pages: Array<{ bytes: number; width: number }>; afterOk: Stats; afterThrow: Stats; threw: boolean };
+      expect(result.pages).toHaveLength(2);
+      for (const p of result.pages) {
         expect(p.bytes).toBeGreaterThan(1000);
         expect(p.width).toBeGreaterThan(0);
       }
+      // pdfjs-dist 6 releases documents only via the loading task: released after a normal render...
+      expect(result.afterOk).toEqual({ opened: 1, released: 1 });
+      // ...and after a render that throws.
+      expect(result.threw).toBe(true);
+      expect(result.afterThrow).toEqual({ opened: 2, released: 2 });
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

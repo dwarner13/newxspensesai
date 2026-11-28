@@ -127,20 +127,28 @@ export function StatementPdfViewer({ url, label, onClose, inline }: StatementPdf
   }, []);
 
   useEffect(() => {
+    // pdfjs-dist 6 frees a document only through its loading task; release it when the viewer
+    // closes or the URL changes, so reopening reviews doesn't accumulate documents.
+    let cancelled = false;
+    const loadingTask = loadPdfDocument({ url });
     (async () => {
       try {
         setLoading(true);
         setError(null);
-        const loadingTask = loadPdfDocument({ url });
         const pdfDoc = await loadingTask.promise;
+        if (cancelled) return;
         setPdf(pdfDoc);
         setPageCount(pdfDoc.numPages);
       } catch (err: any) {
-        setError(err.message || 'Could not load PDF');
+        if (!cancelled) setError(err.message || 'Could not load PDF');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+      loadingTask.destroy().catch(() => undefined);
+    };
   }, [url]);
 
   const handleClose = useCallback(() => {

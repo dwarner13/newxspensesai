@@ -78,6 +78,10 @@ describe('held-statement discrepancy viewer', () => {
     expect(viewer).toMatch(/loadPdfDocument\(\{ url \}\)/);
     expect(viewer).not.toMatch(/window\.pdfjsLib|document\.createElement\('script'\)/);
   });
+  it('releases the document via the loading task when it closes (pdfjs-dist 6 documents have no destroy())', () => {
+    expect(viewer).toMatch(/return \(\) => \{\s*cancelled = true;\s*loadingTask\.destroy\(\)/);
+    expect(viewer).not.toMatch(/pdfDoc\.destroy\(|pdf\.destroy\(/);
+  });
   it('still skips page 1 and covers the header band (behaviour preserved)', () => {
     expect(viewer).toMatch(/const REDACT_HEADER_PX = 80;/);
     expect(viewer).toMatch(/i \+ 2/);
