@@ -143,7 +143,7 @@ export async function execute(
     // separate completed actions — one confirmed bulk move stays one action.
     completedActionTypes = act.rows
       .map(r => (typeof r.change_source === 'string' && r.change_source ? r.change_source : 'other'))
-      .filter(t => !t.endsWith('.row'));
+      .filter(t => !/(\.row|\.void)$/.test(t));
   }
 
   const coverage = rows && rows.length === 0 ? await fetchTransactionCoverage(sb as unknown as CoverageClient, userId) : null;

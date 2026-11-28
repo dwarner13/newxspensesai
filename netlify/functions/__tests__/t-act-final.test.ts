@@ -23,6 +23,12 @@ function builder(table: string) {
   const rows = () => (db[table] ||= []);
   const matches = () => rows().filter(r => filters.every(f => f(r)));
   const run = () => {
+    if (op === 'insert' && Array.isArray(payload)) {
+      // Batch insert (history-first change records): one row per element; returns the inserted rows.
+      if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
+      const inserted = (payload as unknown as Row[]).map(one => ({ id: `${table}-${rows().length + 1}`, ...one })).map(r => { rows().push(r); return r; });
+      return { data: inserted, error: null };
+    }
     if (op === 'insert') {
       if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
       if (table === 'chat_messages' && faults.uniqueOnClaim && payload!.role === 'user' && payload!.client_message_id) return { data: null, error: { code: '23505', message: 'duplicate key' } };

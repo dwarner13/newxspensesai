@@ -339,6 +339,64 @@ export function sameProposalSubject(a: ProposalSubject | undefined, b: ProposalS
 
 const CHUNK = 200;
 
+/**
+ * AI Architecture HQ ruling (Integrity Engine Part 2 §9, 2026-11-27): no change ships without its record.
+ * Without a migration (no atomic database function), the change FAILS CLOSED: for each chunk the
+ * per-row history is written FIRST; if that write fails, the chunk is not updated (the customer is told
+ * nothing changed). The guarded update then runs; any row it did not change (protected meanwhile,
+ * already changed, or an update error) has its history record VOIDED ('<action>.row.void'), so the
+ * history never claims a change that did not happen. A failed void is reported in `voidFailed`.
+ */
+export type HistoryContext = { action: string; receiptRef: string | null };
+type HistoryResult = { count: number; ids: string[]; error: boolean; historyFailed: boolean; voidFailed: number };
+
+async function historyFirstUpdate(
+  sb: SupabaseClient, userId: string, ids: string[], payload: Record<string, unknown>,
+  opts: { gapOnly?: boolean },
+  history: HistoryContext,
+  describe: (id: string) => RowChange,
+): Promise<HistoryResult> {
+  let count = 0; let voidFailed = 0;
+  const done: string[] = [];
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const rows = chunk.map(id => {
+      const c = describe(id);
+      return toActivityRow(userId, {
+        change_source: `${history.action}.row`, change_note: `Before this change (receipt ${history.receiptRef ?? 'unknown'}); reversible`,
+        merchant_name: null, transaction_id: id,
+        previous_category: c.previous_category, previous_subcategory: c.previous_subcategory,
+        new_category: c.new_category, new_subcategory: c.new_subcategory,
+      });
+    });
+    // 1. History first. No record → no change.
+    const { data: written, error: histErr } = await sb.from('tag_activity_log').insert(rows).select('id, transaction_id');
+    if (histErr || !Array.isArray(written) || written.length !== rows.length) {
+      return { count, ids: done, error: false, historyFailed: true, voidFailed };
+    }
+    const historyIdByTx = new Map((written as Array<{ id: unknown; transaction_id: unknown }>).map(w => [String(w.transaction_id), String(w.id)]));
+    // 2. The guarded update (the same conditions as before).
+    let q = sb.from('transactions').update(payload).in('id', chunk).eq('user_id', userId);
+    q = q.or(AUTO_UPDATE_SOURCE_FILTER);
+    if (opts.gapOnly) q = q.or(AUTO_UPDATE_CATEGORY_FILTER);
+    const { data, error } = await q.select('id');
+    const got = !error && Array.isArray(data) ? (data as Array<{ id: unknown }>).map(r => String(r.id)) : [];
+    done.push(...got); count += got.length;
+    // 3. Void the records of rows that did not change.
+    const changed = new Set(got);
+    const voidIds = chunk.filter(id => !changed.has(id)).map(id => historyIdByTx.get(id)).filter((v): v is string => !!v);
+    if (voidIds.length > 0) {
+      const { error: voidErr } = await sb.from('tag_activity_log').update({ change_source: `${history.action}.row.void`, change_note: 'Not applied (row unchanged); kept for the record' })
+        .in('id', voidIds).eq('user_id', userId);
+      if (voidErr) { voidFailed += voidIds.length; console.warn('[tagProposals] could not void unapplied history records'); }
+    }
+    if (error) return { count, ids: done, error: true, historyFailed: false, voidFailed };
+  }
+  return { count, ids: done, error: false, historyFailed: false, voidFailed };
+}
+
+const HISTORY_FAILED_REPLY = "I couldn't save the record of this change, so I didn't change anything. Please try again.";
+
 function rowChanges(ids: ReadonlyArray<string>, previous: Scope['previous'], category: string, subcategory: string | null, keepSub: boolean): RowChange[] {
   return ids.map(id => {
     const prev = previous.get(id) ?? { category: null, subcategory: null };
@@ -376,8 +434,10 @@ export async function executeActionProposal(
   userId: string,
   action: string,
   subject: ProposalSubject,
+  history?: HistoryContext,
 ): Promise<ActionExecutionOutcome> {
   const now = new Date().toISOString();
+  const hist: HistoryContext = history ?? { action, receiptRef: null };
   if (action === TAG_SUGGESTIONS_ACTION) {
     const importId = typeof subject.importId === 'string' ? subject.importId : '';
     if (!importId) return { state: 'failed', action, reason: 'invalid_proposal', count: 0, reply: "I couldn't read that proposal, so nothing has changed." };
@@ -393,10 +453,16 @@ export async function executeActionProposal(
       for (const g of sug.groups) {
         const payload: Record<string, unknown> = { category: g.category, category_source: 'tag_chat', updated_at: now };
         if (g.subcategory) { payload.subcategory = g.subcategory; payload.subcategory_source = 'tag_chat'; }
-        const r = await updateIds(sb, userId, g.ids, payload, { gapOnly: true });
-        count += r.count;
         const before = new Map(g.rows.map(row => [row.id, row.fromCategory]));
-        for (const id of r.ids) changes.push({ transaction_id: id, previous_category: before.get(id) ?? null, previous_subcategory: null, new_category: g.category, new_subcategory: g.subcategory ?? null });
+        const describe = (id: string): RowChange => ({ transaction_id: id, previous_category: before.get(id) ?? null, previous_subcategory: null, new_category: g.category, new_subcategory: g.subcategory ?? null });
+        const r = await historyFirstUpdate(sb, userId, g.ids, payload, { gapOnly: true }, hist, describe);
+        count += r.count;
+        for (const id of r.ids) changes.push(describe(id));
+        if (r.historyFailed) {
+          return count === 0
+            ? { state: 'failed', action, reason: 'history_not_saved', count: 0, reply: HISTORY_FAILED_REPLY }
+            : { state: 'failed', action, reason: 'partial', count, changes, reply: `I applied ${count} of ${affected} before I couldn't save the record of the rest, so I stopped. Please check your transactions before trying again.` };
+        }
         if (r.error) {
           return { state: 'failed', action, reason: count ? 'partial' : 'update_failed', count, reply: count ? `I applied ${count} of ${affected} before an error stopped me. Please check your transactions before trying again.` : "I couldn't apply those suggestions, so nothing was changed." };
         }
@@ -435,7 +501,8 @@ export async function executeActionProposal(
     if (p.action === TAG_BULK_ACTION) {
       const bulkPayload: Record<string, unknown> = { category: p.toCategory, category_source: 'tag_chat', updated_at: now };
       if (p.toSubcategory) { bulkPayload.subcategory = p.toSubcategory; bulkPayload.subcategory_source = 'tag_chat'; }
-      const r = await updateIds(sb, userId, ids, bulkPayload);
+      const r = await historyFirstUpdate(sb, userId, ids, bulkPayload, {}, hist, id => rowChanges([id], previous, p.toCategory, p.toSubcategory ?? null, !p.toSubcategory)[0]);
+      if (r.historyFailed && r.count === 0) return { state: 'failed', action, reason: 'history_not_saved', count: 0, reply: HISTORY_FAILED_REPLY };
       if (r.error) return { state: 'failed', action, reason: r.count ? 'partial' : 'update_failed', count: r.count, reply: r.count ? `I moved ${r.count} of ${ids.length} before an error stopped me. Please check your transactions before trying again.` : "I couldn't move those transactions, so nothing was changed." };
       return {
         state: 'completed', action, count: r.count,
@@ -462,7 +529,8 @@ export async function executeActionProposal(
     if (p.applyToExisting && ids.length > 0) {
       const payload: Record<string, unknown> = { category: p.targetCategory, category_source: 'tag_rule', updated_at: now };
       if (p.targetSubcategory) { payload.subcategory = p.targetSubcategory; payload.subcategory_source = 'tag_rule'; }
-      const r = await updateIds(sb, userId, ids, payload);
+      const r = await historyFirstUpdate(sb, userId, ids, payload, {}, hist, id => rowChanges([id], previous, p.targetCategory, p.targetSubcategory, !p.targetSubcategory)[0]);
+      if (r.historyFailed && r.count === 0) return { state: 'failed', action, reason: 'history_not_saved', count: 0, reply: HISTORY_FAILED_REPLY };
       moved = r.count;
       ruleChanges = rowChanges(r.ids, previous, p.targetCategory, p.targetSubcategory, !p.targetSubcategory);
       if (r.error) return { state: 'failed', action, reason: moved ? 'partial' : 'update_failed', count: moved, reply: moved ? `I changed ${moved} of ${ids.length} existing transactions before an error stopped me, and the rule was not saved. Please check before trying again.` : "I couldn't change those transactions, so nothing was changed and the rule was not saved." };

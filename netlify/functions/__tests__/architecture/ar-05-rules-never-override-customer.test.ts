@@ -27,9 +27,10 @@ function builder(table: string) {
   const matches = () => rows().filter(r => filters.every(f => f(r)));
   const run = () => {
     if (op === 'insert' && Array.isArray(payload)) {
+      // Batch insert (history-first change records): one row per element; returns the inserted rows.
       if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
-      for (const one of payload as unknown as Row[]) rows().push({ id: `${table}-${rows().length + 1}`, ...one });
-      return { data: null, error: null };
+      const inserted = (payload as unknown as Row[]).map(one => ({ id: `${table}-${rows().length + 1}`, ...one })).map(r => { rows().push(r); return r; });
+      return { data: inserted, error: null };
     }
     if (op === 'insert') {
       if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
@@ -233,21 +234,57 @@ describe('Safeguard 5 (b) — nothing overrides a customer-approved correction',
   });
 });
 
-describe('Safeguard 5 — a failed history write is reported, never implied away (Prime HQ review of 66a5e6c4)', () => {
-  it('the change commits, and the reply says the undo record could not be saved', async () => {
+describe('Part 2 §9 — no change ships without its record (history first, fail closed)', () => {
+  const voided = () => (db.tag_activity_log ?? []).filter(x => String(x.change_source).endsWith('.void'));
+  it('history write fails → NOTHING changes and the customer is told so', async () => {
     const p = await act({ intent: 'propose_bulk_move', fromCategory: 'Food & Dining', toCategory: 'Groceries', ...convo('move', 'msg_ar5_0101') });
     faults.activityLog = true;
     const c = await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_ar5_0102', { sessionId: p.json.conversation.sessionId }) });
-    expect(c.json.conversation.receipt).toMatchObject({ state: 'completed', count: 1 });
-    expect(t('ar5-ai').category).toBe('Groceries');
-    expect(history()).toHaveLength(0);
-    expect(c.json.conversation.reply).toMatch(/I couldn't save the undo record for these changes, so it can't be reversed automatically./);
+    expect(c.json.conversation.receipt).toMatchObject({ state: 'failed', reason: 'history_not_saved' });
+    expect(c.json.conversation.reply).toBe("I couldn't save the record of this change, so I didn't change anything. Please try again.");
+    expect(t('ar5-ai').category).toBe('Food & Dining');
+    expect(txUpdateCalls).toBe(0);
   });
-  it('when the history is saved, no such note is added', async () => {
+  it('the update fails after the record was written → the record is voided, nothing changed', async () => {
     const p = await act({ intent: 'propose_bulk_move', fromCategory: 'Food & Dining', toCategory: 'Groceries', ...convo('move', 'msg_ar5_0103') });
+    faults.txUpdate = true;
     const c = await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_ar5_0104', { sessionId: p.json.conversation.sessionId }) });
-    expect(c.json.conversation.reply).not.toMatch(/undo record/);
-    expect(history()).toHaveLength(1);
+    expect(c.json.conversation.receipt.state).toBe('failed');
+    expect(t('ar5-ai').category).toBe('Food & Dining');
+    expect(history()).toHaveLength(0);
+    expect(voided().map(v => [v.transaction_id, v.change_source])).toEqual([['ar5-ai', 'bulk_move_category.row.void']]);
+  });
+  it('a row the write filter skipped (protected meanwhile) has its record voided — history never claims an unapplied change', async () => {
+    const p = await act({ intent: 'propose_bulk_move', fromCategory: 'Food & Dining', toCategory: 'Groceries', ...convo('move', 'msg_ar5_0105') });
+    const realFrom = fakeClient.from;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fakeClient as any).from = (tb: string) => {
+      const b = realFrom(tb);
+      if (tb === 'transactions') { const up = b.update; b.update = (pl: Row) => { t('ar5-ai').category_source = 'manual'; return up(pl); }; }
+      return b;
+    };
+    await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_ar5_0106', { sessionId: p.json.conversation.sessionId }) });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fakeClient as any).from = realFrom;
+    expect(t('ar5-ai')).toMatchObject({ category: 'Food & Dining', category_source: 'manual' });
+    expect(history()).toHaveLength(0);
+    expect(voided()).toHaveLength(1);
+  });
+  it('a successful change keeps exactly one live record per changed row', async () => {
+    const p = await act({ intent: 'propose_bulk_move', fromCategory: 'Food & Dining', toCategory: 'Groceries', ...convo('move', 'msg_ar5_0107') });
+    await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_ar5_0108', { sessionId: p.json.conversation.sessionId }) });
+    expect(history().map(h => h.transaction_id)).toEqual(['ar5-ai']);
+    expect(voided()).toHaveLength(0);
+  });
+  it('a single-transaction confirmation is fail-closed too', async () => {
+    db.transactions.push(r('eeeeeeee-0000-4000-8000-0000000000a5', 'Uncategorized', null));
+    const pre = await act({ intent: 'preview_single', transactionId: 'eeeeeeee-0000-4000-8000-0000000000a5', targetPhrase: 'groceries', ...convo('make this groceries', 'msg_ar5_0109') });
+    expect(pre.json.conversation.receipt.state).toBe('proposed');
+    faults.activityLog = true;
+    const c = await act({ intent: 'commit_single', transactionId: 'eeeeeeee-0000-4000-8000-0000000000a5', targetCategory: 'Groceries', targetSubcategory: null, ...convo('yes', 'msg_ar5_0110', { sessionId: pre.json.conversation.sessionId }) });
+    expect(c.json.conversation.receipt).toMatchObject({ state: 'failed', reason: 'history_not_saved' });
+    expect(c.json.conversation.reply).toBe("I couldn't save the record of this change, so I didn't change anything. Please try again.");
+    expect(t('eeeeeeee-0000-4000-8000-0000000000a5').category).toBe('Uncategorized');
   });
 });
 
@@ -302,7 +339,7 @@ describe('Safeguard 5 (c) — every rule / automation path is classified and gua
     }
   });
   it('per-row change history is never counted as separate completed actions (tag_status)', () => {
-    expect(read('src/agent/tools/impl/tag_status.ts')).toMatch(/\.filter\(t => !t\.endsWith\('\.row'\)\)/);
+    expect(read('src/agent/tools/impl/tag_status.ts')).toMatch(/\.filter\(t => !\/\(\\\.row\|\\\.void\)\$\/\.test\(t\)\)/);
   });
   it('the automatic writers are covered by behavioural protection tests (C4)', () => {
     const c4 = read('netlify/functions/__tests__/c4-customer-correction-protection.test.ts');
