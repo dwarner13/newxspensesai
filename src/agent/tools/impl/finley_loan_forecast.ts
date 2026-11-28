@@ -40,6 +40,8 @@ export const outputSchema = z.object({
   paymentAmount: z.number(),
   paymentFrequency: z.enum(['weekly', 'biweekly', 'monthly']),
   extraPerPeriod: z.number(),
+  payableOriginal: z.boolean(),
+  payableWithExtra: z.boolean(),
   periodsOriginal: z.number(),
   yearsOriginal: z.number(),
   interestOriginal: z.number(),
@@ -48,6 +50,8 @@ export const outputSchema = z.object({
   interestWithExtra: z.number(),
   interestSaved: z.number(),
   yearsSaved: z.number(),
+  /** Stated model assumptions (forecast verification, owner safeguard 1). */
+  assumptions: z.array(z.string()),
 });
 
 export type Input = z.infer<typeof inputSchema>;
@@ -109,7 +113,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       console.log(`[Finley Loan Forecast] Loaded snapshot: principal=$${principal}, rate=${annualRatePct}%, payment=$${paymentAmount} ${paymentFrequency}`);
     } else {
       // Use manual inputs
-      if (!input.principal || !input.annualRatePct || !input.paymentAmount || !input.paymentFrequency) {
+      // 0% is a valid rate (checked with === undefined, not falsiness)
+      if (input.principal === undefined || input.annualRatePct === undefined || input.paymentAmount === undefined || !input.paymentFrequency) {
         return Err(new Error('Missing required inputs: principal, annualRatePct, paymentAmount, and paymentFrequency are required when loanSnapshotId is not provided'));
       }
 
@@ -130,11 +135,11 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
     const result = calculateLoanForecast(forecastInput);
 
-    // Check if payment is too small (will never pay off)
-    if (result.periodsOriginal >= 40 * (paymentFrequency === 'weekly' ? 52 : paymentFrequency === 'biweekly' ? 26 : 12)) {
+    // A payment that never pays the loan off within 40 years: say so, never an invented figure
+    if (!result.payableOriginal) {
       return Err(new Error(
-        `Your payment of $${paymentAmount.toFixed(2)} per ${paymentFrequency} is too small to ever pay off this loan. ` +
-        `The interest alone exceeds your payment. Consider increasing your payment amount.`
+        `A payment of $${paymentAmount.toFixed(2)} per ${paymentFrequency} doesn't pay this loan off within 40 years ` +
+        `at ${annualRatePct}% — the interest takes up most or all of it. A larger payment would be needed.`
       ));
     }
 

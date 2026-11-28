@@ -38,8 +38,13 @@ export interface EmployeeAuthorization {
 export const FORECAST_TOOLS: ReadonlySet<string> = new Set([
   'analytics_forecast', 'finley_debt_payoff_forecast', 'finley_savings_forecast', 'finley_loan_forecast',
 ]);
-/** Forecast tools whose calculations and stated assumptions have passed verification tests. */
-export const VERIFIED_FORECAST_TOOLS: ReadonlySet<string> = new Set<string>([]);
+/**
+ * Forecast tools whose calculations and stated assumptions have passed verification tests
+ * (netlify/functions/__tests__/forecast-verification.test.ts: independent closed-form checks).
+ */
+export const VERIFIED_FORECAST_TOOLS: ReadonlySet<string> = new Set<string>([
+  'analytics_forecast', 'finley_debt_payoff_forecast', 'finley_savings_forecast', 'finley_loan_forecast',
+]);
 
 const r = (id: string, extra: Partial<EmployeeToolEntry> = {}): EmployeeToolEntry => ({ id, access: 'read', ...extra });
 const c = (id: string): EmployeeToolEntry => ({ id, access: 'confirm_mutate' });

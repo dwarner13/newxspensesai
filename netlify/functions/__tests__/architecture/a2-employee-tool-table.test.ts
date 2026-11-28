@@ -95,16 +95,16 @@ describe('A-2 table: approved snapshot (a change here is a permission change —
   it('effective tools per employee', () => {
     const snap = Object.fromEntries(Object.keys(EMPLOYEE_TOOLS).map(e => [e, effectiveEmployeeTools(e, { chatDocuments: true }).sort().join(',')]));
     expect(snap).toEqual({
-      'prime-boss': 'account_balances_query,cash_flow_summary,goalie_list_goals,merchant_analysis_refine,merchant_totals,request_employee_handoff,select_transaction,statement_coverage,tag_document_findings,tag_status,tax_summary,transaction_category_totals,tx_get,tx_search',
+      'prime-boss': 'account_balances_query,analytics_forecast,cash_flow_summary,finley_debt_payoff_forecast,finley_loan_forecast,finley_savings_forecast,goalie_list_goals,merchant_analysis_refine,merchant_totals,request_employee_handoff,select_transaction,statement_coverage,tag_document_findings,tag_status,tax_summary,transaction_category_totals,tx_get,tx_search',
       'tag-ai': 'request_employee_handoff,tag_category_brain,tag_explain_category,tag_merchant_insights,transactions_query',
       'tag-copilot': 'bulk_recategorize,rename_merchant,search_transactions,set_category_rule,update_single_transaction',
       'byte-docs': 'byte_rename_import,get_document_by_id,get_recent_documents,request_employee_handoff,transaction_category_totals,transactions_query,vision_ocr_light',
       crystal: 'crystal_summarize_expenses,crystal_summarize_income',
       custodian: '',
-      'finley-ai': 'account_balances_query,goals_query,transactions_query',
-      'goalie-ai': 'crystal_summarize_expenses,crystal_summarize_income,goalie_create_goal,goalie_list_goals,goalie_suggest_actions,goalie_summarize_goals,goalie_update_goal_progress,request_employee_handoff,transactions_query',
+      'finley-ai': 'account_balances_query,finley_debt_payoff_forecast,finley_loan_forecast,finley_savings_forecast,goals_query,transactions_query',
+      'goalie-ai': 'crystal_summarize_expenses,crystal_summarize_income,finley_debt_payoff_forecast,finley_savings_forecast,goalie_create_goal,goalie_list_goals,goalie_suggest_actions,goalie_summarize_goals,goalie_update_goal_progress,request_employee_handoff,transactions_query',
       'goalie-coach': '',
-      'liberty-ai': 'crystal_summarize_expenses,crystal_summarize_income,goalie_list_goals,goalie_suggest_actions,goalie_summarize_goals,request_employee_handoff,tag_explain_category,tag_merchant_insights,transactions_query',
+      'liberty-ai': 'crystal_summarize_expenses,crystal_summarize_income,finley_debt_payoff_forecast,finley_loan_forecast,finley_savings_forecast,goalie_list_goals,goalie_suggest_actions,goalie_summarize_goals,request_employee_handoff,tag_explain_category,tag_merchant_insights,transactions_query',
       'ledger-tax': '',
       'blitz-debt': '',
       'chime-ai': 'chime_draft_notification_copy,chime_generate_notification,chime_list_obligations,chime_list_upcoming_notifications,chime_summarize_upcoming_obligations',

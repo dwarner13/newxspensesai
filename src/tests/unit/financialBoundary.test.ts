@@ -243,6 +243,7 @@ describe('Financial Boundary — Forecast Tool Assumptions', () => {
       totalPaid: 2200,
       projectionTimeline: [{ monthIndex: 1, remainingBalance: 1900 }],
       isPayoffPossible: true,
+      rateAssumed: false, // forecast verification 2026-11-27: a default rate is always flagged
       assumptions: ['Rate constant at 20%', 'Estimate only'],
     });
     expect(parsed.assumptions).toHaveLength(2);
