@@ -5,6 +5,56 @@ async function loadPdfJs(): Promise<any> {
   return mod?.default ?? mod;
 }
 
+/**
+ * THE server-side way to open a PDF with pdfjs-dist (owner security GO 2026-11-27).
+ * - Security options are fixed here: isEvalSupported is always false (CVE-2024-4367), and callers
+ *   cannot override it.
+ * - The document is always released: pdfjs-dist 6 has destroy() on the LOADING TASK only (the
+ *   document has none), so `loadingTask.destroy()` runs in `finally`, even when loading or `fn`
+ *   throws. A failed release never masks the result or the original error.
+ * `loadOptions` carries each caller's existing load options unchanged (no behaviour change).
+ * The only other server getDocument call is lib/pdf/pdfToImages.ts (retry + Ghostscript fallback).
+ */
+/** The parts of a pdfjs-dist document that the server readers use. */
+export type PdfJsDocument = {
+  numPages: number;
+  getPage(pageNumber: number): Promise<{
+    getTextContent(): Promise<{ items: unknown[] }>;
+    cleanup?: () => void;
+  }>;
+};
+
+export async function withPdfDocument<T>(
+  pdfBuffer: Buffer | Uint8Array,
+  loadOptions: Record<string, unknown>,
+  fn: (doc: PdfJsDocument) => Promise<T> | T,
+): Promise<T> {
+  const pdfjs = await loadPdfJs();
+  const loadingTask = pdfjs.getDocument({
+    ...loadOptions,
+    data: new Uint8Array(pdfBuffer),
+    isEvalSupported: false, // CVE-2024-4367: never compile fonts with eval
+  });
+  try {
+    const doc = await loadingTask.promise;
+    return await fn(doc);
+  } finally {
+    try {
+      await loadingTask.destroy();
+    } catch {
+      /* release failure must not mask the result or the original error */
+    }
+  }
+}
+
+/**
+ * Page count for the OCR background function. It throws on an unreadable PDF, and the caller maps
+ * that to ocr_page_count_invalid. Uses the same load options that function always used.
+ */
+export async function readPdfPageCount(pdfBuffer: Buffer | Uint8Array): Promise<number> {
+  return withPdfDocument(pdfBuffer, { disableWorker: true, stopAtErrors: false, verbosity: 0 }, (doc) => doc.numPages);
+}
+
 function spaceRatio(text: string): number {
   if (!text) return 0;
   const spaces = text.split("").filter((ch) => ch === " ").length;
@@ -46,16 +96,8 @@ function isStrictPdfStructureError(error: unknown): boolean {
  * Parsed rows, amounts and direction were identical in the fixture comparison (see tests).
  */
 export async function extractPdfTextPlain(pdfBuffer: Buffer): Promise<string> {
-  const pdfjs = await loadPdfJs();
-  const doc = await pdfjs.getDocument({
-    isEvalSupported: false, // CVE-2024-4367
-    data: new Uint8Array(pdfBuffer),
-    stopOnErrors: false,
-    disableAutoFetch: true,
-    disableStream: true,
-    verbosity: 0,
-  }).promise;
-  try {
+  const loadOptions = { stopOnErrors: false, disableAutoFetch: true, disableStream: true, verbosity: 0 };
+  return withPdfDocument(pdfBuffer, loadOptions, async (doc) => {
     let out = "";
     for (let pageNo = 1; pageNo <= Number(doc.numPages || 0); pageNo += 1) {
       const page = await doc.getPage(pageNo);
@@ -75,9 +117,7 @@ export async function extractPdfTextPlain(pdfBuffer: Buffer): Promise<string> {
       try { page.cleanup?.(); } catch { /* no-op */ }
     }
     return out.trim();
-  } finally {
-    try { if (typeof doc?.cleanup === "function") await doc.cleanup(); } catch { /* no-op */ }
-  }
+  });
 }
 
 /** @deprecated Kept for existing callers; no longer uses pdf-parse. Use extractPdfTextPlain. */
@@ -108,54 +148,7 @@ type TextItem = {
 
 export async function extractPdfTextWithLayout(pdfBuffer: Buffer): Promise<string> {
   try {
-    const pdfjs = await loadPdfJs();
-    const loadingTask = pdfjs.getDocument({
-      isEvalSupported: false, // CVE-2024-4367
-      data: new Uint8Array(pdfBuffer),
-      disableWorker: true,
-      stopOnErrors: false,
-      disableAutoFetch: true,
-      disableStream: true,
-      verbosity: 0,
-    });
-    const doc = await loadingTask.promise;
-    const lines: string[] = [];
-
-    for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
-      const page = await doc.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const items = (textContent.items || []) as TextItem[];
-      const lineBuckets = new Map<number, TextItem[]>();
-
-      for (const item of items) {
-        const y = item.transform?.[5] ?? 0;
-        const bucket = Math.round(y * 2) / 2; // 0.5pt buckets
-        const list = lineBuckets.get(bucket) || [];
-        list.push(item);
-        lineBuckets.set(bucket, list);
-      }
-
-      const sortedYs = Array.from(lineBuckets.keys()).sort((a, b) => b - a);
-      lines.push(`Page ${pageNum}`);
-      for (const y of sortedYs) {
-        const row = lineBuckets.get(y) || [];
-        row.sort((a, b) => (a.transform?.[4] ?? 0) - (b.transform?.[4] ?? 0));
-        let line = "";
-        let lastEndX = 0;
-        for (const item of row) {
-          const x = item.transform?.[4] ?? 0;
-          const width = item.width ?? 0;
-          if (line && x - lastEndX > 3) {
-            line += " ";
-          }
-          line += item.str;
-          lastEndX = x + width;
-        }
-        const trimmed = line.trim();
-        if (trimmed) lines.push(trimmed);
-      }
-    }
-    return lines.join("\n").trim();
+    return await withPdfDocument(pdfBuffer, LAYOUT_LOAD_OPTIONS, layoutTextFromDocument);
   } catch (error: unknown) {
     if (isStrictPdfStructureError(error)) {
       console.warn("[pdfText] layout parser strict structure error, forcing image OCR handoff");
@@ -163,6 +156,48 @@ export async function extractPdfTextWithLayout(pdfBuffer: Buffer): Promise<strin
     }
     throw error;
   }
+}
+
+const LAYOUT_LOAD_OPTIONS = { disableWorker: true, stopOnErrors: false, disableAutoFetch: true, disableStream: true, verbosity: 0 };
+
+async function layoutTextFromDocument(doc: PdfJsDocument): Promise<string> {
+  const lines: string[] = [];
+
+  for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
+    const page = await doc.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    const items = (textContent.items || []) as TextItem[];
+    const lineBuckets = new Map<number, TextItem[]>();
+
+    for (const item of items) {
+      const y = item.transform?.[5] ?? 0;
+      const bucket = Math.round(y * 2) / 2; // 0.5pt buckets
+      const list = lineBuckets.get(bucket) || [];
+      list.push(item);
+      lineBuckets.set(bucket, list);
+    }
+
+    const sortedYs = Array.from(lineBuckets.keys()).sort((a, b) => b - a);
+    lines.push(`Page ${pageNum}`);
+    for (const y of sortedYs) {
+      const row = lineBuckets.get(y) || [];
+      row.sort((a, b) => (a.transform?.[4] ?? 0) - (b.transform?.[4] ?? 0));
+      let line = "";
+      let lastEndX = 0;
+      for (const item of row) {
+        const x = item.transform?.[4] ?? 0;
+        const width = item.width ?? 0;
+        if (line && x - lastEndX > 3) {
+          line += " ";
+        }
+        line += item.str;
+        lastEndX = x + width;
+      }
+      const trimmed = line.trim();
+      if (trimmed) lines.push(trimmed);
+    }
+  }
+  return lines.join("\n").trim();
 }
 
 export type PdfTextFirstResult = {
@@ -181,24 +216,7 @@ export async function extractPdfTextFirst(pdfBuffer: Buffer): Promise<PdfTextFir
   };
 
   try {
-    const pdfjs = await loadPdfJs();
-    const loadingTask = pdfjs.getDocument({
-      isEvalSupported: false, // CVE-2024-4367
-      data: new Uint8Array(pdfBuffer),
-      disableWorker: true,
-      stopOnErrors: false,
-      disableAutoFetch: true,
-      disableStream: true,
-      verbosity: 0,
-    });
-    const doc = await loadingTask.promise;
-    result.pageCount = Number(doc?.numPages || 0);
-    try {
-      if (typeof doc?.cleanup === "function") doc.cleanup();
-      if (typeof doc?.destroy === "function") await doc.destroy();
-    } catch {
-      // no-op
-    }
+    result.pageCount = await withPdfDocument(pdfBuffer, LAYOUT_LOAD_OPTIONS, (doc) => Number(doc?.numPages || 0));
   } catch (error: any) {
     result.layoutError = error?.message || String(error);
   }

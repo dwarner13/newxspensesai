@@ -24,7 +24,7 @@ import { safeTextMetrics } from './_shared/textHash.js';
 import { callGoogleVisionOnImage, callGoogleVisionOnPdf } from './_shared/vision/googleVisionClient.js';
 // AI Fluency: Event logging
 import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
-import { extractPdfTextWithPdfParse, extractPdfTextWithLayout } from './_lib/pdfText.js';
+import { extractPdfTextWithPdfParse, extractPdfTextWithLayout, readPdfPageCount } from './_lib/pdfText.js';
 import { pdfToImages } from './lib/pdf/pdfToImages.js';
 import {
   ocrPageImage,
@@ -1676,18 +1676,9 @@ async function runOCR(
       // Read true page count with pdfjs-dist (handles bank PDFs that pdf-lib rejects)
       let totalPages: number;
       try {
-        const pdfjsModule: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
-        const pdfjs = pdfjsModule.default || pdfjsModule;
-        const loadingTask = pdfjs.getDocument({
-          isEvalSupported: false, // CVE-2024-4367
-          data: new Uint8Array(buf),
-          disableWorker: true,
-          stopAtErrors: false,
-          verbosity: 0,
-        });
-        const pdfDoc = await loadingTask.promise;
-        totalPages = pdfDoc.numPages;
-        pdfDoc.destroy();
+        // Shared loader: eval disabled; released via the loading task. pdfjs-dist 6 documents have no
+        // destroy(), and calling it here failed every PDF as ocr_page_count_invalid.
+        totalPages = await readPdfPageCount(buf);
       } catch (pdfjsErr: any) {
         throw new OcrIntegrityError('ocr_page_count_invalid', `pdfjs failed to read page count: ${pdfjsErr?.message || pdfjsErr}`);
       }
