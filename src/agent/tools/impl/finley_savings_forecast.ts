@@ -7,8 +7,11 @@ export const inputSchema = z.object({
   startingBalance: z.number().min(0).optional().default(0),
   monthlyContribution: z.number().min(0, 'Monthly contribution must be 0 or greater'),
   months: z.number().int().positive('Months must be a positive integer'),
-  annualInterestRate: z.number().min(0).max(1).optional().default(0.04), // Default 4% APR
+  annualInterestRate: z.number().min(0).max(1).optional(), // e.g. 0.04 for 4%; default flagged below
 });
+
+/** Used only when no rate is given — always flagged in `assumptions` and `rateAssumed`. */
+export const DEFAULT_SAVINGS_APR = 0.04;
 
 export const outputSchema = z.object({
   endingBalance: z.number(),
@@ -18,6 +21,8 @@ export const outputSchema = z.object({
     monthIndex: z.number(),
     balance: z.number(),
   })),
+  /** True when no rate was given and DEFAULT_SAVINGS_APR was assumed. */
+  rateAssumed: z.boolean(),
   assumptions: z.array(z.string()),
 });
 
@@ -37,7 +42,9 @@ export type Output = z.infer<typeof outputSchema>;
  */
 export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
   try {
-    const { startingBalance, monthlyContribution, months, annualInterestRate } = input;
+    const { startingBalance, monthlyContribution, months } = input;
+    const rateAssumed = input.annualInterestRate === undefined;
+    const annualInterestRate = rateAssumed ? DEFAULT_SAVINGS_APR : (input.annualInterestRate as number);
     const { userId } = ctx;
 
     // Log tool invocation (dev only)
@@ -84,9 +91,13 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       totalContributions: Math.round(totalContributions * 100) / 100,
       totalGrowth: Math.round(totalGrowth * 100) / 100,
       timeline,
+      rateAssumed,
       assumptions: [
-        `Interest rate assumed constant at ${(annualInterestRate * 100).toFixed(1)}% APR`,
-        `Monthly contribution assumed constant at $${monthlyContribution.toFixed(2)}`,
+        rateAssumed
+          ? `No interest rate was given, so ${(annualInterestRate * 100).toFixed(1)}% a year was assumed — give your account's actual rate for a better estimate`
+          : `Interest rate assumed constant at ${(annualInterestRate * 100).toFixed(2)}% a year, compounded monthly (rate ÷ 12)`,
+        `Each monthly contribution of $${monthlyContribution.toFixed(2)} is added at the start of the month and earns that month's interest`,
+        'Interest is before tax (unless the account is tax-sheltered, e.g. a TFSA)',
         'No withdrawals during the projection period',
         'Estimate only — actual results depend on these assumptions holding',
       ],

@@ -1,23 +1,30 @@
 import { z } from 'zod';
 import { Result, Ok, Err } from '../../../types/result';
+import { amortize } from '../../../../netlify/functions/_shared/loanForecast';
 
 export const id = 'finley_debt_payoff_forecast';
+
+/** Used only when the customer gives no rate — always flagged in `assumptions` and `rateAssumed`. */
+export const DEFAULT_DEBT_APR = 0.2;
+const MAX_MONTHS = 600; // 50 years
 
 export const inputSchema = z.object({
   balance: z.number().positive('Balance must be greater than 0'),
   monthlyPayment: z.number().positive('Monthly payment must be greater than 0'),
-  annualInterestRate: z.number().min(0).max(1).optional().default(0.2), // Default 20% APR
+  annualInterestRate: z.number().min(0).max(1).optional(), // e.g. 0.1999 for 19.99% APR
 });
 
 export const outputSchema = z.object({
-  monthsToPayoff: z.number(),
-  totalInterestPaid: z.number(),
-  totalPaid: z.number(),
+  monthsToPayoff: z.number().nullable(),
+  totalInterestPaid: z.number().nullable(),
+  totalPaid: z.number().nullable(),
   projectionTimeline: z.array(z.object({
     monthIndex: z.number(),
     remainingBalance: z.number(),
   })),
   isPayoffPossible: z.boolean(),
+  /** True when no rate was given and DEFAULT_DEBT_APR was assumed. */
+  rateAssumed: z.boolean(),
   errorMessage: z.string().optional(),
   assumptions: z.array(z.string()),
 });
@@ -25,104 +32,66 @@ export const outputSchema = z.object({
 export type Input = z.infer<typeof inputSchema>;
 export type Output = z.infer<typeof outputSchema>;
 
+const money = (n: number) => Math.round(n * 100) / 100;
+
 /**
- * Forecast debt payoff timeline
- * 
- * Calculates how long it will take to pay off a debt given a balance, monthly payment, and interest rate.
- * Returns a month-by-month projection showing remaining balance over time.
- * 
+ * Forecast debt payoff timeline (forecast verification 2026-11-27: shared amortization routine;
+ * total paid = balance + interest; the final payment is only what is owed; no 10-year cutoff
+ * reported as "impossible"; a default rate is always flagged).
+ *
  * Use this when users ask questions like:
  * - "How long will it take to pay off my $2,000 credit card if I pay $200/month?"
- * - "When will my debt be paid off?"
  * - "How much interest will I pay?"
  */
 export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
   try {
-    const { balance, monthlyPayment, annualInterestRate } = input;
-    const { userId } = ctx;
+    const { balance, monthlyPayment } = input;
+    const rateAssumed = input.annualInterestRate === undefined;
+    const annualInterestRate = rateAssumed ? DEFAULT_DEBT_APR : (input.annualInterestRate as number);
+    void ctx;
 
-    // Log tool invocation (dev only)
-    if (process.env.NODE_ENV === 'development' || process.env.NETLIFY_DEV === 'true') {
-      console.log(`[Finley Debt Payoff] Executing for userId: ${userId}, balance: $${balance}, monthlyPayment: $${monthlyPayment}, interestRate: ${(annualInterestRate * 100).toFixed(1)}%`);
-    }
-
-    // Convert annual interest rate to monthly
-    const monthlyInterestRate = annualInterestRate / 12;
-
-    // Check if payment is too small (doesn't cover interest)
-    const monthlyInterest = balance * monthlyInterestRate;
     const assumptions = [
-      `Interest rate assumed constant at ${(annualInterestRate * 100).toFixed(1)}% APR`,
-      'Payments made on schedule with no missed payments',
-      'No additional charges or fees added to balance',
+      rateAssumed
+        ? `No interest rate was given, so ${(annualInterestRate * 100).toFixed(1)}% APR (a typical credit card rate) was assumed — give your actual rate for a better estimate`
+        : `Interest rate assumed constant at ${(annualInterestRate * 100).toFixed(2)}% APR, charged monthly (APR ÷ 12)`,
+      'The same payment is made every month on time; no missed payments',
+      'No new purchases, fees or charges are added to the balance',
       'Estimate only — actual results depend on these assumptions holding',
     ];
 
-    if (monthlyPayment <= monthlyInterest) {
+    const monthlyInterest = balance * (annualInterestRate / 12);
+    const result = amortize({ principal: balance, rPeriod: annualInterestRate / 12, payment: monthlyPayment, maxPeriods: MAX_MONTHS });
+
+    if (!result.payable) {
+      const coversInterest = monthlyPayment > monthlyInterest;
       return Ok({
-        monthsToPayoff: Infinity,
-        totalInterestPaid: 0,
-        totalPaid: 0,
+        monthsToPayoff: null,
+        totalInterestPaid: null,
+        totalPaid: null,
         projectionTimeline: [],
         isPayoffPossible: false,
-        errorMessage: `Your monthly payment of $${monthlyPayment.toFixed(2)} is too small. The monthly interest alone is $${monthlyInterest.toFixed(2)}. You need to pay at least $${(monthlyInterest + 0.01).toFixed(2)} per month to make progress.`,
+        rateAssumed,
+        errorMessage: coversInterest
+          ? `At $${monthlyPayment.toFixed(2)} a month this balance would take more than ${MAX_MONTHS / 12} years to pay off.`
+          : `A payment of $${monthlyPayment.toFixed(2)} doesn't cover the monthly interest of about $${monthlyInterest.toFixed(2)}, so the balance would never go down. At least $${(monthlyInterest + 0.01).toFixed(2)} a month is needed to make progress.`,
         assumptions,
       });
     }
 
-    // Simulate month-by-month payoff
-    let currentBalance = balance;
-    let totalInterestPaid = 0;
-    let totalPaid = 0;
-    const timeline: { monthIndex: number; remainingBalance: number }[] = [];
-    const maxMonths = 120; // Cap at 10 years for safety
+    // months 1–12, then every 3rd month, and the final month (once)
+    const timeline = result.balances
+      .map((b, i) => ({ monthIndex: i + 1, remainingBalance: Math.max(0, money(b)) }))
+      .filter(p => p.monthIndex <= 12 || p.monthIndex % 3 === 0 || p.monthIndex === result.periods);
 
-    for (let month = 0; month < maxMonths; month++) {
-      // Calculate interest for this month
-      const interest = currentBalance * monthlyInterestRate;
-      totalInterestPaid += interest;
-
-      // Apply payment (interest first, then principal)
-      const principalPayment = Math.min(monthlyPayment - interest, currentBalance);
-      currentBalance -= principalPayment;
-      totalPaid += monthlyPayment;
-
-      // Record timeline (every month for first year, then quarterly)
-      if (month < 12 || month % 3 === 0) {
-        timeline.push({
-          monthIndex: month + 1,
-          remainingBalance: Math.max(0, Math.round(currentBalance * 100) / 100),
-        });
-      }
-
-      // Check if paid off
-      if (currentBalance <= 0.01) {
-        timeline.push({
-          monthIndex: month + 1,
-          remainingBalance: 0,
-        });
-        return Ok({
-          monthsToPayoff: month + 1,
-          totalInterestPaid: Math.round(totalInterestPaid * 100) / 100,
-          totalPaid: Math.round(totalPaid * 100) / 100,
-          projectionTimeline: timeline,
-          isPayoffPossible: true,
-          assumptions,
-        });
-      }
-    }
-
-    // If we hit max months, return partial result
     return Ok({
-      monthsToPayoff: maxMonths,
-      totalInterestPaid: Math.round(totalInterestPaid * 100) / 100,
-      totalPaid: Math.round(totalPaid * 100) / 100,
+      monthsToPayoff: result.periods,
+      totalInterestPaid: money(result.totalInterest),
+      totalPaid: money(result.totalPaid),
       projectionTimeline: timeline,
-      isPayoffPossible: false,
-      errorMessage: `With your current payment of $${monthlyPayment.toFixed(2)}/month, the estimated payoff period exceeds ${maxMonths} months (${(maxMonths / 12).toFixed(1)} years).`,
+      isPayoffPossible: true,
+      rateAssumed,
       assumptions,
     });
-
   } catch (error) {
     console.error('[Finley Debt Payoff] Error:', error);
     return Err(error as Error);
@@ -136,8 +105,3 @@ export const metadata = {
   dangerous: false,
   category: 'forecasting',
 };
-
-
-
-
-
