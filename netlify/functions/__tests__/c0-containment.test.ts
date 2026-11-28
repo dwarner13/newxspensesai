@@ -285,41 +285,22 @@ describe('vision-ocr — verified auth before any paid Google Vision call', () =
   });
 });
 
-describe('ocr-ingest-simple — verified auth before any paid OpenAI call', () => {
+// Retired 2026-11-27 (owner: "Authentication alone is insufficient ... Disable obsolete endpoints").
+// It used to forward ANY imageUrl / imageDataUrl to OpenAI; now every request gets 410 and nothing is read.
+describe('ocr-ingest-simple — retired: 410 for every request, never calls OpenAI', () => {
   beforeEach(() => { process.env.OPENAI_API_KEY = 'test-openai-key'; });
 
-  it('no token → 401, OpenAI never constructed or called', async () => {
-    const res = await invoke(ingest.handler, { body: { ocrText: 'RECEIPT Shop $1.00' } });
-    expect(res.statusCode).toBe(401);
+  it.each([
+    ['no token', { body: { ocrText: 'RECEIPT Shop $1.00' } }],
+    ['forged token + remote URL', { token: 'forged', body: { imageUrl: 'https://example.test/x.png' } }],
+    ['VALID token + remote URL', { token: OWNER_TOKEN, body: { imageUrl: 'https://example.test/x.png' } }],
+    ['VALID token + text', { token: OWNER_TOKEN, body: { ocrText: 'RECEIPT Shop $1.00' } }],
+  ])('%s → 410 ENDPOINT_RETIRED, OpenAI never constructed or called', async (_label, req) => {
+    const res = await invoke(ingest.handler, req as Parameters<typeof invoke>[1]);
+    expect(res.statusCode).toBe(410);
+    expect(res.json.error.code).toBe('ENDPOINT_RETIRED');
     expect(openaiConstructed).not.toHaveBeenCalled();
     expect(openaiCreate).not.toHaveBeenCalled();
-  });
-
-  it('invalid token → 401, no OpenAI call', async () => {
-    const res = await invoke(ingest.handler, { token: 'forged', body: { imageUrl: 'https://example.test/x.png' } });
-    expect(res.statusCode).toBe(401);
-    expect(openaiCreate).not.toHaveBeenCalled();
-  });
-
-  it('missing API key is not revealed to unauthenticated callers', async () => {
-    delete process.env.OPENAI_API_KEY;
-    const res = await invoke(ingest.handler, { body: { ocrText: 'x' } });
-    expect(res.statusCode).toBe(401);
     expect(res.body).not.toContain('OPENAI_API_KEY');
-  });
-
-  it('valid token → parses the receipt', async () => {
-    const res = await invoke(ingest.handler, { token: OWNER_TOKEN, body: { ocrText: 'RECEIPT Shop $1.00' } });
-    expect(res.statusCode).toBe(200);
-    expect(res.json.ok).toBe(true);
-    expect(openaiCreate).toHaveBeenCalled();
-  });
-
-  it('OpenAI errors are not echoed', async () => {
-    openaiCreate.mockRejectedValueOnce(new Error('401 Incorrect API key sk-leaked-detail'));
-    const res = await invoke(ingest.handler, { token: OWNER_TOKEN, body: { ocrText: 'RECEIPT Shop $1.00' } });
-    expect(res.statusCode).toBe(500);
-    expect(res.body).not.toContain('sk-leaked-detail');
-    expect(loggedText()).not.toContain('sk-leaked-detail');
   });
 });
