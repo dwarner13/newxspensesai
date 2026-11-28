@@ -233,6 +233,24 @@ describe('Safeguard 5 (b) — nothing overrides a customer-approved correction',
   });
 });
 
+describe('Safeguard 5 — a failed history write is reported, never implied away (Prime HQ review of 66a5e6c4)', () => {
+  it('the change commits, and the reply says the undo record could not be saved', async () => {
+    const p = await act({ intent: 'propose_bulk_move', fromCategory: 'Food & Dining', toCategory: 'Groceries', ...convo('move', 'msg_ar5_0101') });
+    faults.activityLog = true;
+    const c = await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_ar5_0102', { sessionId: p.json.conversation.sessionId }) });
+    expect(c.json.conversation.receipt).toMatchObject({ state: 'completed', count: 1 });
+    expect(t('ar5-ai').category).toBe('Groceries');
+    expect(history()).toHaveLength(0);
+    expect(c.json.conversation.reply).toMatch(/I couldn't save the undo record for these changes, so it can't be reversed automatically./);
+  });
+  it('when the history is saved, no such note is added', async () => {
+    const p = await act({ intent: 'propose_bulk_move', fromCategory: 'Food & Dining', toCategory: 'Groceries', ...convo('move', 'msg_ar5_0103') });
+    const c = await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_ar5_0104', { sessionId: p.json.conversation.sessionId }) });
+    expect(c.json.conversation.reply).not.toMatch(/undo record/);
+    expect(history()).toHaveLength(1);
+  });
+});
+
 describe('Safeguard 5 (c) — every rule / automation path is classified and guarded (static AR)', () => {
   const ROOT = resolve(__dirname, '../../../..');
   const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');

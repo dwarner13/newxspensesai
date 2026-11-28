@@ -355,7 +355,15 @@ async function handleConversationalAction(
       // change, tied to this receipt, so the change can be reversed exactly. change_source
       // '<action>.row' keeps these out of the completed-action counts.
       if (outcome.changes && outcome.changes.length > 0) {
-        await logTagRowChanges(supabase, userId, pending.receipt.action, outcome.changes, pending.replyTo ?? null);
+        const saved = await logTagRowChanges(supabase, userId, pending.receipt.action, outcome.changes, pending.replyTo ?? null);
+        // Prime HQ review of 66a5e6c4: the change has already committed, so a failed history write is
+        // reported, never implied away ("reversible" only for the rows whose history was saved).
+        const missing = outcome.changes.length - saved;
+        if (missing > 0) {
+          reply = `${reply}
+
+I couldn't save the undo record for ${missing === outcome.changes.length ? 'these changes' : `${missing} of the ${outcome.changes.length} changed transactions`}, so ${missing === 1 ? 'it' : 'they'} can't be reversed automatically.`;
+        }
       }
       // Reliability round 2: the inbox / Prime briefing learn the SAVED result (the database-verified
       // count), never the suggestion count. Non-blocking: a failed notification never fails the change.
@@ -521,22 +529,27 @@ async function handleConversationalAction(
 // succeeded, so fix_type / fix_type_bulk / bulk_normalize_subcategory returned 500 for completed
 // changes and never wrote the log. A failed log write must never fail the customer's action.
 /** Per-row change history (owner safeguard 5): live tag_activity_log columns, batched, never blocking. */
-async function logTagRowChanges(supabase: SupabaseClient, userId: string, action: string, changes: ReadonlyArray<RowChange>, receiptRef: string | null): Promise<void> {
+/** Returns how many history records were saved (the rest are reported to the customer). */
+async function logTagRowChanges(supabase: SupabaseClient, userId: string, action: string, changes: ReadonlyArray<RowChange>, receiptRef: string | null): Promise<number> {
   const rows = changes.map(c => toActivityRow(userId, {
     change_source: `${action}.row`, change_note: `Before this change (receipt ${receiptRef ?? 'unknown'}); reversible`,
     merchant_name: null, transaction_id: c.transaction_id,
     previous_category: c.previous_category, previous_subcategory: c.previous_subcategory,
     new_category: c.new_category, new_subcategory: c.new_subcategory,
   }));
+  let saved = 0;
   for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
     try {
-      const { error } = await supabase.from('tag_activity_log').insert(rows.slice(i, i + 500));
-      if (error) { console.warn('[tag-action] row change history not fully written'); return; }
+      const { error } = await supabase.from('tag_activity_log').insert(chunk);
+      if (error) { console.warn('[tag-action] row change history not fully written'); return saved; }
+      saved += chunk.length;
     } catch {
       console.warn('[tag-action] row change history not fully written');
-      return;
+      return saved;
     }
   }
+  return saved;
 }
 
 async function logTagActivity(supabase: SupabaseClient, userId: string, entry: TagActivityEntry): Promise<void> {
