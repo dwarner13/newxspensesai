@@ -190,6 +190,13 @@ async function compressImage(buffer: Buffer, maxBytes: number): Promise<Buffer> 
   return buffer;
 }
 
+/**
+ * Diagnostics: pdfjs loading tasks opened and released by pdfToImages. pdfjs-dist 6 releases a
+ * document only through its loading task (the document has no destroy()), so every task opened here,
+ * main or recovery, is destroyed on every exit path. opened === released when nothing leaks.
+ */
+export const pdfRenderTaskStats = { opened: 0, released: 0 };
+
 export async function pdfToImages(
   pdfBuffer: Buffer,
   options: PdfToImagesOptions = {}
@@ -246,6 +253,18 @@ export async function pdfToImages(
     disableStream: true,
     verbosity: 0,
   });
+  const openedTasks: Array<{ destroy: () => Promise<void> }> = [loadingTask];
+  pdfRenderTaskStats.opened += 1;
+  const releaseAll = async () => {
+    for (const task of openedTasks.splice(0)) {
+      try {
+        await task.destroy();
+      } catch {
+        // release failure must not mask the result or the original error
+      }
+      pdfRenderTaskStats.released += 1;
+    }
+  };
   let doc: any = null;
   try {
     doc = await loadingTask.promise;
@@ -265,6 +284,8 @@ export async function pdfToImages(
         disableStream: true,
         verbosity: 0,
       });
+      openedTasks.push(recoveryTask);
+      pdfRenderTaskStats.opened += 1;
       doc = await recoveryTask.promise;
       console.log('[OCR] pdfjs loading recovery succeeded');
     } catch (recoveryError: any) {
@@ -274,6 +295,7 @@ export async function pdfToImages(
         recoveryError: secondError,
       });
       console.warn('[OCR] pdfjs failed; invoking ghostscript fallback path');
+      await releaseAll();
       const gsFallback = await tryGhostscriptRasterize({
         pdfBuffer,
         dpi: renderDpi,
@@ -286,76 +308,81 @@ export async function pdfToImages(
       throw recoveryError;
     }
   }
-  const totalPages = Number(doc.numPages || 0);
-  const pagesToProcess = Math.min(totalPages, maxPages);
-  const truncated = totalPages > maxPages;
-  const pages: PdfPageImage[] = [];
-  const failedPages: Array<{ pageIndex: number; error: string }> = [];
+  try {
+    const totalPages = Number(doc.numPages || 0);
+    const pagesToProcess = Math.min(totalPages, maxPages);
+    const truncated = totalPages > maxPages;
+    const pages: PdfPageImage[] = [];
+    const failedPages: Array<{ pageIndex: number; error: string }> = [];
 
-  for (let idx = 1; idx <= pagesToProcess; idx += 1) {
-    let page: any = null;
-    try {
-      page = await doc.getPage(idx);
-      const viewport = page.getViewport({ scale });
-      const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
-      const ctx = canvas.getContext('2d');
-      await page.render({
-        canvasContext: ctx,
-        viewport,
-      }).promise;
-      const pngBuffer = toBufferFromCanvas(canvas);
-      const imageBuffer = await compressImage(pngBuffer, maxImageBytes);
-      pages.push({
-        pageIndex: idx - 1,
-        imageBuffer,
-        width: Math.ceil(viewport.width),
-        height: Math.ceil(viewport.height),
-      });
-      if (options.onPageRendered) {
-        await options.onPageRendered(idx, totalPages);
-      }
-    } catch (pageError: any) {
-      const message = String(pageError?.message || pageError || 'page_render_error');
-      failedPages.push({ pageIndex: idx - 1, error: message });
-      console.warn('[OCR] pdfjs page render failed; skipping page', {
-        pageIndex: idx - 1,
-        error: message,
-      });
-      if (!continueOnPageError) {
-        throw pageError;
-      }
-      continue;
-    } finally {
+    for (let idx = 1; idx <= pagesToProcess; idx += 1) {
+      let page: any = null;
       try {
-        page?.cleanup?.();
-      } catch {
-        // no-op
+        page = await doc.getPage(idx);
+        const viewport = page.getViewport({ scale });
+        const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        const ctx = canvas.getContext('2d');
+        await page.render({
+          canvasContext: ctx,
+          viewport,
+        }).promise;
+        const pngBuffer = toBufferFromCanvas(canvas);
+        const imageBuffer = await compressImage(pngBuffer, maxImageBytes);
+        pages.push({
+          pageIndex: idx - 1,
+          imageBuffer,
+          width: Math.ceil(viewport.width),
+          height: Math.ceil(viewport.height),
+        });
+        if (options.onPageRendered) {
+          await options.onPageRendered(idx, totalPages);
+        }
+      } catch (pageError: any) {
+        const message = String(pageError?.message || pageError || 'page_render_error');
+        failedPages.push({ pageIndex: idx - 1, error: message });
+        console.warn('[OCR] pdfjs page render failed; skipping page', {
+          pageIndex: idx - 1,
+          error: message,
+        });
+        if (!continueOnPageError) {
+          throw pageError;
+        }
+        continue;
+      } finally {
+        try {
+          page?.cleanup?.();
+        } catch {
+          // no-op
+        }
       }
     }
-  }
 
-  const bypassed = failedPages.length > 0;
-  if (bypassed) {
-    console.log('[OCR] pdfjs rendering bypassed stream errors -> images generated', {
-      requestedPages: pagesToProcess,
-      generatedPages: pages.length,
-      failedPages: failedPages.length,
-    });
-  }
-  const warningParts: string[] = [];
-  if (truncated) {
-    warningParts.push(`PDF exceeded max pages (${maxPages}); processed first ${pagesToProcess}.`);
-  }
-  if (failedPages.length > 0) {
-    warningParts.push(`Skipped ${failedPages.length} page(s) due to render errors.`);
-  }
+    const bypassed = failedPages.length > 0;
+    if (bypassed) {
+      console.log('[OCR] pdfjs rendering bypassed stream errors -> images generated', {
+        requestedPages: pagesToProcess,
+        generatedPages: pages.length,
+        failedPages: failedPages.length,
+      });
+    }
+    const warningParts: string[] = [];
+    if (truncated) {
+      warningParts.push(`PDF exceeded max pages (${maxPages}); processed first ${pagesToProcess}.`);
+    }
+    if (failedPages.length > 0) {
+      warningParts.push(`Skipped ${failedPages.length} page(s) due to render errors.`);
+    }
 
-  return {
-    pages,
-    totalPages,
-    processedPages: pages.length,
-    truncated,
-    warning: warningParts.length > 0 ? warningParts.join(' ') : undefined,
-  };
+    return {
+      pages,
+      totalPages,
+      processedPages: pages.length,
+      truncated,
+      warning: warningParts.length > 0 ? warningParts.join(' ') : undefined,
+    };
+  } finally {
+    // pdfjs-dist 6: release every task (main and recovery) after rendering, including on a render throw.
+    await releaseAll();
+  }
 }
 
