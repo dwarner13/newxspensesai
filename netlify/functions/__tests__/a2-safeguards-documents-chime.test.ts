@@ -97,6 +97,8 @@ describe('safeguard 2: Byte document access', () => {
     const r: any = await visionOcr({ documentId: DOC, extractText: true, maxLength: 500 } as any, { userId: U });
     expect(r.value.ok).toBe(false);
     expect(r.value.message).toMatch(/72 hours/);
+    // a read limit, not deletion: never claim originals are deleted (no deletion lifecycle is on)
+    expect(r.value.message).not.toMatch(/delet/i);
     expect(state.signCalls).toEqual([]);
   });
 
