@@ -117,10 +117,100 @@ describe('server helpers on PDF.js 6 (synthetic statement)', () => {
 
 describe('server loads the ESM legacy build (v4+ layout)', () => {
   it('no server file imports the removed legacy/build/pdf.js path', () => {
-    for (const f of ['netlify/functions/_lib/pdfText.ts', 'netlify/functions/_shared/documentPurpose.ts', 'netlify/functions/lib/pdf/pdfToImages.ts', 'netlify/functions/smart-import-ocr-background.ts']) {
+    // The two modules that load pdfjs-dist themselves (documentPurpose and the OCR background page
+    // count now go through _lib/pdfText's shared loader; see the resource-release tests below).
+    for (const f of ['netlify/functions/_lib/pdfText.ts', 'netlify/functions/lib/pdf/pdfToImages.ts']) {
       const src = fs.readFileSync(path.join(root, f), 'utf8');
       expect(src, f).not.toMatch(/pdfjs-dist\/legacy\/build\/pdf\.js['"]/);
       expect(src, f).toMatch(/pdfjs-dist\/legacy\/build\/pdf\.mjs['"]/);
     }
+    for (const f of ['netlify/functions/_shared/documentPurpose.ts', 'netlify/functions/smart-import-ocr-background.ts']) {
+      expect(fs.readFileSync(path.join(root, f), 'utf8'), f).not.toMatch(/pdfjs-dist\/legacy\/build\/pdf\.js['"]/);
+    }
+  });
+});
+
+describe('PDF.js 6 resource release: one shared server loader (withPdfDocument)', () => {
+  it('real pdfjs-dist 6 API: the document has no destroy(); the loading task does', async () => {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = pdfjs.getDocument({ isEvalSupported: false, data: new Uint8Array(pdf), verbosity: 0 });
+    const doc = await task.promise;
+    expect(typeof (doc as unknown as { destroy?: unknown }).destroy).toBe('undefined');
+    expect(typeof task.destroy).toBe('function');
+    await task.destroy();
+  });
+
+  it('every server entry point counts/reads a real PDF on pdfjs 6 with no TypeError', async () => {
+    const { readPdfPageCount, extractPdfTextPlain, extractPdfTextWithLayout, extractPdfTextFirst } = await import('../_lib/pdfText');
+    const { countPdfPages } = await import('../_shared/documentPurpose');
+    // OCR background page count (the live Vision path; this threw on pdfjs 6 before the fix)
+    await expect(readPdfPageCount(pdf)).resolves.toBe(3);
+    // documentPurpose (chat-document page count)
+    await expect(countPdfPages(pdf)).resolves.toBe(3);
+    // plain text reader (pdf-parse replacement)
+    await expect(extractPdfTextPlain(pdf)).resolves.toContain('Closing totals');
+    // layout text reader
+    await expect(extractPdfTextWithLayout(pdf)).resolves.toContain('Closing totals');
+    // text-first path (its page count was the silent doc.destroy() site)
+    const first = await extractPdfTextFirst(pdf);
+    expect(first.pageCount).toBe(3);
+    expect(first.layoutError).toBeUndefined();
+  });
+
+  it('readPdfPageCount still THROWS on an unreadable PDF (the caller maps it to ocr_page_count_invalid)', async () => {
+    const { readPdfPageCount } = await import('../_lib/pdfText');
+    await expect(readPdfPageCount(Buffer.from('not a pdf'))).rejects.toBeTruthy();
+  });
+
+  it('the document is really released afterwards, including when the work throws', async () => {
+    const { withPdfDocument } = await import('../_lib/pdfText');
+    let kept: { getPage: (n: number) => Promise<unknown> } | null = null;
+    await withPdfDocument(pdf, { verbosity: 0 }, (doc) => { kept = doc; return doc.numPages; });
+    // A released document can no longer reach its transport (pdfjs throws/rejects on use).
+    await expect((async () => kept!.getPage(1))()).rejects.toBeTruthy();
+
+    let kept2: { getPage: (n: number) => Promise<unknown> } | null = null;
+    await expect(withPdfDocument(pdf, { verbosity: 0 }, (doc) => { kept2 = doc; throw new Error('work failed'); }))
+      .rejects.toThrow('work failed'); // the original error, not a release error
+    await expect((async () => kept2!.getPage(1))()).rejects.toBeTruthy();
+  });
+
+  it('the OCR background function counts pages through the shared helper', () => {
+    const src = fs.readFileSync(path.join(root, 'netlify/functions/smart-import-ocr-background.ts'), 'utf8');
+    expect(src).toMatch(/totalPages = await readPdfPageCount\(buf\);/);
+  });
+
+  const SKIP = new Set(['node_modules', 'dist', '.netlify', '__tests__', 'functions_old']);
+  const walk = (dir: string, out: string[] = []): string[] => {
+    if (!fs.existsSync(dir)) return out;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (SKIP.has(e.name)) continue;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (/\.(ts|js|mjs|cjs)$/.test(e.name)) out.push(p);
+    }
+    return out;
+  };
+
+  it('guard: server getDocument() only in the shared helper (+ the documented pdfToImages render path)', () => {
+    // pdfToImages keeps its own load (retry + Ghostscript fallback across rendering); tracked separately.
+    const ALLOWED = new Set(['netlify/functions/_lib/pdfText.ts', 'netlify/functions/lib/pdf/pdfToImages.ts']);
+    const callers = walk(path.join(root, 'netlify'))
+      .filter((f) => /\bgetDocument\(/.test(fs.readFileSync(f, 'utf8')))
+      .map((f) => path.relative(root, f).split(path.sep).join('/'));
+    expect(callers.filter((f) => !ALLOWED.has(f))).toEqual([]);
+    const helper = fs.readFileSync(path.join(root, 'netlify/functions/_lib/pdfText.ts'), 'utf8');
+    expect(helper.match(/\bgetDocument\(/g)?.length).toBe(1);
+  });
+
+  it('guard: no server code or script calls destroy() on a PDF.js document object', () => {
+    const offenders = ['netlify', 'scripts']
+      .flatMap((d) => walk(path.join(root, d)))
+      .filter((f) => {
+        const s = fs.readFileSync(f, 'utf8');
+        return /pdfjs-dist|_lib\/pdfText/.test(s) && /\b(pdfDoc|doc|pdf|document)\??\.destroy\(/.test(s);
+      })
+      .map((f) => path.relative(root, f));
+    expect(offenders).toEqual([]);
   });
 });

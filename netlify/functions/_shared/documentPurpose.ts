@@ -16,6 +16,7 @@
  * Never logs or returns document contents.
  */
 import { detectFileType, type DetectedFileType } from './uploadFileValidation.js';
+import { withPdfDocument } from '../_lib/pdfText.js';
 
 export type DocumentPurpose = 'chat_document' | 'import';
 
@@ -109,17 +110,8 @@ export type ChatDocumentFileCheck =
 /** Count PDF pages with pdfjs (same loader the OCR function uses). Returns null if unreadable. */
 export async function countPdfPages(buf: Buffer): Promise<number | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs legacy build is untyped here
-    const pdfjsModule: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    const pdfjs = pdfjsModule.default || pdfjsModule;
-    const task = pdfjs.getDocument({ isEvalSupported: false, data: new Uint8Array(buf), disableWorker: true, stopAtErrors: false, verbosity: 0 });
-    const doc = await task.promise;
-    const n = Number(doc.numPages);
-    try {
-      await doc.destroy();
-    } catch {
-      /* ignore */
-    }
+    // Shared loader: eval disabled; the document is released via the loading task (pdfjs-dist 6).
+    const n = await withPdfDocument(buf, { disableWorker: true, stopAtErrors: false, verbosity: 0 }, (doc) => Number(doc.numPages));
     return Number.isFinite(n) && n > 0 ? n : null;
   } catch {
     return null;

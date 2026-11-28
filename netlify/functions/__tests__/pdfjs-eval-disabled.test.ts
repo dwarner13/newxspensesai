@@ -75,9 +75,10 @@ describe('CVE-2024-4367: PDF.js eval is disabled at every document load', () => 
       }
     }
     expect(offenders).toEqual([]);
-    // 14 call sites before the 6.x upgrade; browser loads now go through the single
-    // src/client/pdf/pdfjsBrowser.ts loadPdfDocument, so there are fewer, never zero.
-    expect(checked).toBeGreaterThanOrEqual(7);
+    // 14 call sites before the 6.x upgrade. Browser loads now go through the single
+    // src/client/pdf/pdfjsBrowser.ts loadPdfDocument, and server loads through _lib/pdfText's
+    // withPdfDocument (plus pdfToImages' load and recovery, and one script), so there are 5, never zero.
+    expect(checked).toBeGreaterThanOrEqual(5);
   });
 
   it('no call enables eval explicitly', () => {
