@@ -431,7 +431,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['vision_ocr_light', {
     id: 'vision_ocr_light',
-    description: 'Light Vision OCR for reading simple text from images (not full financial parsing - use Byte/Prime for that). Use this for quick text extraction when needed, but prefer Byte/Prime for full statement parsing.',
+    description: 'Light Vision OCR for reading simple text from ONE OF THE CUSTOMER\'S OWN uploaded images, by documentId (from get_recent_documents). Not full financial parsing. Originals are kept for 72 hours; after that only extracted details are available.',
     inputSchema: visionOcrLight.inputSchema,
     outputSchema: visionOcrLight.outputSchema,
     run: visionOcrLight.execute,

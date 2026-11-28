@@ -16,8 +16,14 @@ export const outputSchema = z.object({
     balance: z.number().nullable(),
     currency: z.string().nullable(),
     source: z.enum(['verified_db']),
+    /** When this stored balance was last recorded (owner safeguard 4: quote with source, account and date). */
+    asOf: z.string().nullable(),
   })),
-  totalBalance: z.number().nullable(),
+  /**
+   * Owner safeguard 4 (2026-11-27): always null — no aggregate balance is computed or claimed.
+   * Each account's stored balance may be quoted singly, with its account, source and date.
+   */
+  totalBalance: z.null(),
   hasVerifiedBalances: z.boolean(),
   provenance: z.enum(['verified_db', 'unavailable']),
   /** PB-04: there is no live bank connection; these are stored records, never real-time balances. */
@@ -26,7 +32,7 @@ export const outputSchema = z.object({
 });
 
 /** PB-04: what the model must say about where balances come from. */
-export const ACCOUNT_BALANCE_SOURCE_NOTE = 'Stored account records only. XspensesAI has no live bank connection; balances are as recorded, may be out of date, and are not real-time.';
+export const ACCOUNT_BALANCE_SOURCE_NOTE = 'Stored account records only. XspensesAI has no live bank connection; balances are as recorded, may be out of date, and are not real-time. Quote each balance with its account name, that it is a stored record, and its "as of" date. Never add balances together or state a total balance.';
 
 export type Input = z.infer<typeof inputSchema>;
 export type Output = z.infer<typeof outputSchema>;
@@ -45,7 +51,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 
     let query = supabase
       .from('accounts')
-      .select('id, name, type, balance, currency')
+      .select('id, name, type, balance, currency, updated_at')
       .eq('user_id', userId);
 
     if (input.accountType !== 'all') {
@@ -72,13 +78,12 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       balance: a.balance ?? null,
       currency: a.currency || 'CAD',
       source: 'verified_db' as const,
+      asOf: (a as { updated_at?: string | null }).updated_at ?? null,
     }));
-
-    const totalBalance = accountsList.reduce((sum, a) => sum + (a.balance || 0), 0);
 
     return Ok({
       accounts: accountsList,
-      totalBalance,
+      totalBalance: null,
       hasVerifiedBalances: true,
       provenance: 'verified_db' as const,
       liveConnection: false as const,

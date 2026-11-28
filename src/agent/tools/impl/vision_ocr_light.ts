@@ -1,11 +1,21 @@
 import { z } from 'zod';
 import { Result, Ok, Err } from '../../../types/result';
 import OpenAI from 'openai';
+import { getSupabaseServerClient } from '../../../server/db';
+import {
+  isOwnedStoragePath, isOriginalWithinRetention, DOCUMENTS_BUCKET, DOCUMENT_SIGNED_URL_TTL_SECONDS,
+} from '../../../shared/document-access';
 
 export const id = 'vision_ocr_light';
 
+/**
+ * Owner safeguard 2 (2026-11-27): reads ONLY the customer's own uploaded image, by document id.
+ * The model never supplies a URL (previously any URL was accepted). Ownership (row + storage prefix),
+ * a 60-second signed URL created here, and the 72-hour original retention are enforced; masking
+ * fails CLOSED (no unmasked text is ever returned).
+ */
 export const inputSchema = z.object({
-  imageUrl: z.string().url('Image URL must be valid'),
+  documentId: z.string().uuid('documentId must be the id of one of your uploaded documents'),
   extractText: z.boolean().default(true),
   maxLength: z.number().min(100).max(5000).default(2000), // Limit text extraction
 });
@@ -28,7 +38,28 @@ export type Output = z.infer<typeof outputSchema>;
  */
 export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
   try {
-    const { imageUrl, extractText, maxLength } = input;
+    const { documentId, extractText, maxLength } = input;
+    const refuse = (message: string) => Ok({ ok: false, text: '', extracted: false, message });
+
+    // Ownership + retention + temporary access (never a model-supplied URL)
+    const supabase = getSupabaseServerClient();
+    const { data: doc, error: docErr } = await supabase
+      .from('user_documents')
+      .select('id, user_id, storage_path, mime_type, created_at')
+      .eq('id', documentId)
+      .eq('user_id', ctx.userId)
+      .maybeSingle();
+    if (docErr) return Err(new Error('Document lookup failed'));
+    if (!doc || !isOwnedStoragePath(doc.storage_path, ctx.userId)) return refuse('That document is not available.');
+    if (!String(doc.mime_type || '').startsWith('image/')) return refuse('Only uploaded images can be read with this tool.');
+    if (!isOriginalWithinRetention(doc.created_at)) {
+      return refuse('The original file is no longer kept (originals are deleted after 72 hours); the extracted details remain available.');
+    }
+    const { data: signed, error: signErr } = await supabase.storage
+      .from(DOCUMENTS_BUCKET)
+      .createSignedUrl(doc.storage_path as string, DOCUMENT_SIGNED_URL_TTL_SECONDS);
+    if (signErr || !signed?.signedUrl) return refuse('That document could not be opened right now.');
+    const imageUrl = signed.signedUrl;
 
     if (!process.env.OPENAI_API_KEY) {
       return Err(new Error('OpenAI API key not configured'));
@@ -45,7 +76,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       });
     }
 
-    console.log(`[Vision OCR Light] Extracting text from image: ${imageUrl.substring(0, 50)}...`);
+    console.log(`[Vision OCR Light] Extracting text from document ${documentId.slice(0, 8)}…`);
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -104,9 +135,9 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         });
       }
     } catch (guardrailError: any) {
-      // Guardrails failed - log warning but fail open (don't block tool)
-      console.warn('[Vision OCR Light] Guardrails check failed (non-fatal):', guardrailError.message || guardrailError);
-      // Use original text - fail open in dev
+      // Fail CLOSED: never return text that was not masked
+      console.warn('[Vision OCR Light] Guardrails check failed; text withheld:', guardrailError?.message || guardrailError);
+      return refuse('The text could not be checked for personal information, so it was not returned.');
     }
 
     return Ok({
