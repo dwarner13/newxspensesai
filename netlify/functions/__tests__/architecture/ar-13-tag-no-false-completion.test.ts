@@ -24,6 +24,12 @@ function builder(table: string) {
   const rows = () => (db[table] ||= []);
   const matches = () => rows().filter(r => filters.every(f => f(r)));
   const run = () => {
+    if (op === 'insert' && Array.isArray(payload)) {
+      // Batch insert (per-row change history, owner safeguard 5): one row per element.
+      if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
+      for (const one of payload as unknown as Row[]) rows().push({ id: `${table}-${rows().length + 1}`, ...one });
+      return { data: null, error: null };
+    }
     if (op === 'insert') {
       if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
       if (table === 'chat_messages' && faults.uniqueOnClaim && payload!.role === 'user' && payload!.client_message_id) return { data: null, error: { code: '23505', message: 'duplicate key' } };
@@ -206,7 +212,9 @@ describe('AR-13 / AR-SCHEMA — Tag activity records use only LIVE tag_activity_
     await act({ intent: 'commit_proposal', action: p.json.proposal.action, subject: p.json.proposal.subject, ...convo('yes', 'msg_ar13_0102', { sessionId: p.json.conversation.sessionId }) });
     await act({ intent: 'save_rule', matchValue: 'grains bakery', targetCategory: 'Food & Dining' });
     const rows = assertLive();
-    expect(rows.map(r => r.change_source)).toEqual(['apply_import_suggestions', 'save_merchant_rule']);
+    expect(rows.filter(r => !String(r.change_source).endsWith('.row')).map(r => r.change_source)).toEqual(['apply_import_suggestions', 'save_merchant_rule']);
+    // Owner safeguard 5: plus one reversible history record per changed transaction (live columns too).
+    expect(rows.filter(r => r.change_source === 'apply_import_suggestions.row').every(r => typeof r.transaction_id === 'string' && r.new_category === 'Food & Dining')).toBe(true);
     expect(rows.every(r => r.user_id === ALICE && typeof r.change_note === 'string')).toBe(true);
   });
   it('the shared row builder can only emit live columns', async () => {

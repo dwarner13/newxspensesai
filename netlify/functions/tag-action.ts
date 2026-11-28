@@ -26,7 +26,7 @@ import {
 } from './_shared/conversation-platform.js';
 import { resolveCategoryRequest } from './_shared/tagCategories.js';
 import { TAG_SINGLE_ACTION, UUID_RE, loadOwnedTransaction, buildSingleProposal, catLabel } from './_shared/tagSingleTransaction.js';
-import { TAG_PROPOSAL_ACTIONS, TAG_RULE_ACTION, TAG_SUGGESTIONS_ACTION, sameProposalSubject, executeActionProposal, buildActionProposal, buildImportSuggestionsProposal, type ProposalSubject, type TagActivityEntry, toActivityRow } from './_shared/tagProposals.js';
+import { TAG_PROPOSAL_ACTIONS, TAG_RULE_ACTION, TAG_SUGGESTIONS_ACTION, sameProposalSubject, executeActionProposal, buildActionProposal, buildImportSuggestionsProposal, type ProposalSubject, type TagActivityEntry, type RowChange, toActivityRow, TAG_BULK_ACTION } from './_shared/tagProposals.js';
 import { isAutoWritable, AUTO_UPDATE_CATEGORY_FILTER, AUTO_UPDATE_SOURCE_FILTER } from './_shared/categorySource.js';
 
 const CORS = {
@@ -211,7 +211,7 @@ const sameSubject = (a: ActionReceipt['subject'] | undefined, b: Subject) => !!a
 async function handleConversationalAction(
   supabase: TagSupabase,
   userId: string,
-  intent: 'preview' | 'commit' | 'cancel_proposal' | 'preview_single' | 'commit_single' | 'commit_proposal' | 'propose_import_suggestions',
+  intent: 'preview' | 'commit' | 'cancel_proposal' | 'preview_single' | 'commit_single' | 'commit_proposal' | 'propose_import_suggestions' | 'propose_bulk_move',
   convo: ConversationFields,
   ctx: {
     subject: Subject | null; importId?: string | null; affectedIds?: unknown; parsedTarget?: { category: string; subcategory: string | null };
@@ -223,6 +223,8 @@ async function handleConversationalAction(
     typed?: { matchValue: string; targetCategory: string; matchType: 'contains' | 'exact' };
     /** "Apply Tag's suggestions" for one import (server-computed; never the browser's id list). */
     suggestions?: { importId: string };
+    /** Owner safeguard 5: a customer button "move every X to Y" — the same signed bulk-move proposal. */
+    bulkMove?: { fromCategory: string; toCategory: string };
   },
 ) {
   const isSingle = intent === 'preview_single' || intent === 'commit_single';
@@ -231,7 +233,8 @@ async function handleConversationalAction(
     : isGeneric && ctx.generic ? ctx.generic.action
       : intent === 'preview' && ctx.typed ? TAG_RULE_ACTION
         : intent === 'propose_import_suggestions' ? TAG_SUGGESTIONS_ACTION
-          : TAG_ACTION;
+          : intent === 'propose_bulk_move' ? TAG_BULK_ACTION
+            : TAG_ACTION;
   // 1. The customer's own Tag conversation.
   let sessionId: string | null = null;
   try {
@@ -348,6 +351,12 @@ async function handleConversationalAction(
       if (outcome.log) {
         await logTagActivity(supabase, userId, outcome.log);
       }
+      // Owner safeguard 5 (FINAL A-2): one record per changed transaction with its value BEFORE the
+      // change, tied to this receipt, so the change can be reversed exactly. change_source
+      // '<action>.row' keeps these out of the completed-action counts.
+      if (outcome.changes && outcome.changes.length > 0) {
+        await logTagRowChanges(supabase, userId, pending.receipt.action, outcome.changes, pending.replyTo ?? null);
+      }
       // Reliability round 2: the inbox / Prime briefing learn the SAVED result (the database-verified
       // count), never the suggestion count. Non-blocking: a failed notification never fails the change.
       if (executed && pending.receipt.action === TAG_SUGGESTIONS_ACTION && typeof signedSubject.importId === 'string') {
@@ -433,6 +442,21 @@ async function handleConversationalAction(
       receipt = { ...base, state: 'failed', reason: outcome.reason };
       legacy = { ok: false, error: outcome.reason };
     }
+  } else if (intent === 'propose_bulk_move' && ctx.bulkMove) {
+    // Owner safeguard 5: a customer button that moves every transaction in one category to another is
+    // the SAME signed bulk-move proposal as Tag's: exact count stated, protected rows kept, nothing
+    // changes until the customer confirms (commit_proposal), every change reversible.
+    const outcome = await buildActionProposal(supabase, userId, 'bulk_recategorize', {
+      from_category: ctx.bulkMove.fromCategory, to_category: ctx.bulkMove.toCategory,
+    });
+    reply = outcome.reply;
+    if (outcome.state === 'proposed') {
+      receipt = { ...base, subject: outcome.subject, state: 'proposed', result: { matchCount: Number(outcome.subject.affected ?? 0) } };
+      legacy = { ok: true, matchCount: Number(outcome.subject.affected ?? 0), proposal: { kind: 'action', action: outcome.action, subject: outcome.subject } };
+    } else {
+      receipt = { ...base, state: 'failed', reason: outcome.reason };
+      legacy = { ok: false, error: outcome.reason };
+    }
   } else if (intent === 'preview' && ctx.typed) {
     // T-ACT-FINAL: "change all X to Y" typed by the customer is the SAME contract as Tag's own
     // proposals: verified scope (complete, owner-scoped), customer-confirmed rows kept, explicit
@@ -496,6 +520,25 @@ async function handleConversationalAction(
 // `insert(...).catch(() => {})` threw a TypeError after the transaction update had already
 // succeeded, so fix_type / fix_type_bulk / bulk_normalize_subcategory returned 500 for completed
 // changes and never wrote the log. A failed log write must never fail the customer's action.
+/** Per-row change history (owner safeguard 5): live tag_activity_log columns, batched, never blocking. */
+async function logTagRowChanges(supabase: SupabaseClient, userId: string, action: string, changes: ReadonlyArray<RowChange>, receiptRef: string | null): Promise<void> {
+  const rows = changes.map(c => toActivityRow(userId, {
+    change_source: `${action}.row`, change_note: `Before this change (receipt ${receiptRef ?? 'unknown'}); reversible`,
+    merchant_name: null, transaction_id: c.transaction_id,
+    previous_category: c.previous_category, previous_subcategory: c.previous_subcategory,
+    new_category: c.new_category, new_subcategory: c.new_subcategory,
+  }));
+  for (let i = 0; i < rows.length; i += 500) {
+    try {
+      const { error } = await supabase.from('tag_activity_log').insert(rows.slice(i, i + 500));
+      if (error) { console.warn('[tag-action] row change history not fully written'); return; }
+    } catch {
+      console.warn('[tag-action] row change history not fully written');
+      return;
+    }
+  }
+}
+
 async function logTagActivity(supabase: SupabaseClient, userId: string, entry: TagActivityEntry): Promise<void> {
   try {
     const { error } = await supabase.from('tag_activity_log').insert(toActivityRow(userId, entry));
@@ -630,6 +673,18 @@ export const handler: Handler = async (event) => {
     const importIdIn = typeof body.importId === 'string' ? body.importId.trim() : '';
     if (!importIdIn) return err('Missing importId');
     return handleConversationalAction(supabase, userId, 'propose_import_suggestions', conversation, { subject: null, suggestions: { importId: importIdIn } });
+  }
+
+  // ── Owner safeguard 5: "move every X to Y" from a customer button, as a signed proposal ──
+  if (intent === 'propose_bulk_move') {
+    if (!conversation) return err('propose_bulk_move requires conversation');
+    const fromCategory = typeof body.fromCategory === 'string' ? body.fromCategory.trim().slice(0, 120) : '';
+    const toRaw = typeof body.toCategory === 'string' ? body.toCategory.trim().slice(0, 120) : '';
+    const toSub = typeof body.toSubcategory === 'string' ? body.toSubcategory.trim().slice(0, 120) : '';
+    if (!fromCategory || !toRaw) return err('Missing fromCategory / toCategory');
+    return handleConversationalAction(supabase, userId, 'propose_bulk_move', conversation, {
+      subject: null, bulkMove: { fromCategory, toCategory: toSub ? `${toRaw} > ${toSub}` : toRaw },
+    });
   }
 
   // ── T-ACT-SAFE: confirm a rule / bulk move / rename proposal (conversation required) ──

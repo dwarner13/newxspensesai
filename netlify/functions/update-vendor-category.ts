@@ -9,6 +9,8 @@ import { safeLog } from './_shared/safeLog.js';
 import { authenticateUser, claimedUserIdMatches } from './_shared/internalJobAuth.js';
 
 const MAX_TRANSACTION_IDS = 500;
+/** Owner safeguard 5 (2026-11-27): this endpoint is retired; see the handler. */
+export const UPDATE_VENDOR_CATEGORY_RETIRED = true as boolean;
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -31,6 +33,19 @@ export const handler: Handler = async (event) => {
     if (!claimedUserIdMatches(claimedHeaderUserId, userId) || !claimedUserIdMatches(body?.userId, userId)) {
       safeLog('updateVendorCategory.authDenied', { code: 'identity_mismatch' });
       return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
+    }
+
+    // Owner safeguard 5 (FINAL A-2, 2026-11-27): RETIRED. This legacy endpoint rewrote any listed
+    // transactions' category (customer-set ones included, no provenance recorded, no confirmation) and
+    // reported success even when nothing was saved. Its only callers are unrouted legacy screens.
+    // Category changes go through Tag's proposal → confirmation (tag-action) or the customer's own
+    // drawer edit (tx-update-category). Nothing is read or written here any more.
+    if (UPDATE_VENDOR_CATEGORY_RETIRED) {
+      safeLog('updateVendorCategory.retired', { userId });
+      return {
+        statusCode: 410,
+        body: JSON.stringify({ error: 'retired', message: "This way of changing categories is no longer available. Ask Tag on the Transactions page; it will show you the change and wait for your yes." }),
+      };
     }
     const { documentId, vendor, category, transactionIds } = body;
 

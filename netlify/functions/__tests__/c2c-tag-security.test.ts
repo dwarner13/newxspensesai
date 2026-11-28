@@ -258,40 +258,19 @@ describe('update-vendor-category', () => {
     expect(dbCalls).toHaveLength(0);
   });
 
+  // Owner safeguard 5 (FINAL A-2, 2026-11-27): retired. After authentication and the identity checks
+  // above, every request is refused with 410 and nothing is read or written.
   it.each([
-    ["another user's transaction", [TX_B]],
-    ['a mix of own and foreign transactions', [TX_A, TX_B]],
-    ['an unknown transaction', ['ffffffff-0000-4000-8000-000000000000']],
-  ])('%s → 403 before any update or rule write', async (_l, transactionIds) => {
-    const r = await invoke(vendorCat.handler, bearer(TOKEN_A), { ...vcBody, transactionIds });
-    expect(r.statusCode).toBe(403);
+    ['own transactions', { vendor: 'Starbucks', category: 'Coffee', transactionIds: [TX_A, TX_A2] }],
+    ["another user's transaction", { vendor: 'Starbucks', category: 'Coffee', transactionIds: [TX_B] }],
+    ['a rule-only call', { vendor: 'Starbucks', category: 'Coffee' }],
+    ['an invalid body', { vendor: 'Starbucks', category: 'Coffee', transactionIds: 'x' }],
+  ])('retired: %s → 410, nothing read or written', async (_l, body) => {
+    const r = await invoke(vendorCat.handler, bearer(TOKEN_A), body);
+    expect(r.statusCode).toBe(410);
+    expect(dbCalls).toHaveLength(0);
     nothingWritten();
     expect(db.transactions.find((t) => t.id === TX_A)?.category).toBe('Other');
-  });
-
-  it('invalid transactionIds → 400', async () => {
-    expect((await invoke(vendorCat.handler, bearer(TOKEN_A), { ...vcBody, transactionIds: 'x' })).statusCode).toBe(400);
-    expect((await invoke(vendorCat.handler, bearer(TOKEN_A), { ...vcBody, transactionIds: Array.from({ length: 501 }, () => TX_A) })).statusCode).toBe(400);
-    nothingWritten();
-  });
-
-  it("authorized: updates only the user's transactions and the user's own rule", async () => {
-    const r = await invoke(vendorCat.handler, bearer(TOKEN_A), vcBody);
-    expect(r.statusCode).toBe(200);
-    expect(db.transactions.filter((t) => t.user_id === USER_A).every((t) => t.category === 'Coffee')).toBe(true);
-    expect(db.transactions.find((t) => t.id === TX_B)?.category).toBe('Travel');
-    expect(db.categorization_rules.find((x) => x.user_id === USER_A)).toMatchObject({ keyword: 'starbucks', category: 'Coffee' });
-    expect(db.categorization_rules.find((x) => x.user_id === USER_B)?.category).toBe('Travel');
-    for (const c of writes()) {
-      if (c.op === 'update') expect(c.filters).toContainEqual(['user_id', USER_A]);
-      if (c.op === 'upsert') expect((c.payload as Row).user_id).toBe(USER_A);
-    }
-  });
-
-  it('a rule-only learning call (no transactionIds) writes only the user\'s rule', async () => {
-    const r = await invoke(vendorCat.handler, bearer(TOKEN_A), { vendor: 'Starbucks', category: 'Coffee' });
-    expect(r.statusCode).toBe(200);
-    expect(db.categorization_rules.find((x) => x.user_id === USER_B)?.category).toBe('Travel');
   });
 
   it('errors are not echoed', async () => {
