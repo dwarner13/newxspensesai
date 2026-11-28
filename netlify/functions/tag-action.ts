@@ -26,7 +26,7 @@ import {
 } from './_shared/conversation-platform.js';
 import { resolveCategoryRequest } from './_shared/tagCategories.js';
 import { TAG_SINGLE_ACTION, UUID_RE, loadOwnedTransaction, buildSingleProposal, catLabel } from './_shared/tagSingleTransaction.js';
-import { TAG_PROPOSAL_ACTIONS, TAG_RULE_ACTION, TAG_SUGGESTIONS_ACTION, sameProposalSubject, executeActionProposal, buildActionProposal, buildImportSuggestionsProposal, type ProposalSubject, type TagActivityEntry, type RowChange, toActivityRow, TAG_BULK_ACTION } from './_shared/tagProposals.js';
+import { TAG_PROPOSAL_ACTIONS, TAG_RULE_ACTION, TAG_SUGGESTIONS_ACTION, sameProposalSubject, executeActionProposal, buildActionProposal, buildImportSuggestionsProposal, type ProposalSubject, type TagActivityEntry, toActivityRow, TAG_BULK_ACTION } from './_shared/tagProposals.js';
 import { isAutoWritable, AUTO_UPDATE_CATEGORY_FILTER, AUTO_UPDATE_SOURCE_FILTER } from './_shared/categorySource.js';
 
 const CORS = {
@@ -340,7 +340,8 @@ async function handleConversationalAction(
       reply = "There's no pending change matching that confirmation, so I haven't changed anything. Tell me what you'd like to change and I'll check it first.";
     } else {
       const signedSubject = pending.receipt.subject as ProposalSubject;
-      const outcome = await executeActionProposal(supabase, userId, pending.receipt.action, signedSubject);
+      // History is written FIRST inside the executor (fail closed; AI Architecture HQ Part 2 §9).
+      const outcome = await executeActionProposal(supabase, userId, pending.receipt.action, signedSubject, { action: pending.receipt.action, receiptRef: pending.replyTo ?? null });
       executed = outcome.state === 'completed';
       reply = outcome.reply;
       legacy = { ok: executed, action: outcome.action, updatedCount: outcome.count, ...(executed ? {} : { error: outcome.reason }) };
@@ -351,12 +352,8 @@ async function handleConversationalAction(
       if (outcome.log) {
         await logTagActivity(supabase, userId, outcome.log);
       }
-      // Owner safeguard 5 (FINAL A-2): one record per changed transaction with its value BEFORE the
-      // change, tied to this receipt, so the change can be reversed exactly. change_source
-      // '<action>.row' keeps these out of the completed-action counts.
-      if (outcome.changes && outcome.changes.length > 0) {
-        await logTagRowChanges(supabase, userId, pending.receipt.action, outcome.changes, pending.replyTo ?? null);
-      }
+      // Owner safeguard 5 / Part 2 §9: the per-row history was written BEFORE each change inside
+      // executeActionProposal (history-first, fail closed; unapplied records voided).
       // Reliability round 2: the inbox / Prime briefing learn the SAVED result (the database-verified
       // count), never the suggestion count. Non-blocking: a failed notification never fails the change.
       if (executed && pending.receipt.action === TAG_SUGGESTIONS_ACTION && typeof signedSubject.importId === 'string') {
@@ -393,33 +390,46 @@ async function handleConversationalAction(
           receipt = { ...base, subject, state: 'failed', reason: 'not_found', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
           reply = "I can't find that transaction anymore, so nothing was changed.";
         } else {
-          // Exactly one row, owner-scoped. No rule, no merchant memory, no other transaction.
-          const { data: updated, error: upErr } = await supabase
-            .from('transactions')
-            .update({
-              category: subject.targetCategory, subcategory: subject.targetSubcategory,
-              category_source: 'tag_chat', updated_at: new Date().toISOString(),
-            })
-            .eq('id', tx.id)
-            .eq('user_id', userId)
-            .select('id');
-          if (upErr) throw new Error('update_failed');
-          const n = Array.isArray(updated) ? updated.length : 0;
-          executed = n === 1;
-          legacy = { ok: executed, transactionId: tx.id, targetCategory: subject.targetCategory, targetSubcategory: subject.targetSubcategory, updatedCount: n, ...(executed ? {} : { error: 'nothing_updated' }) };
-          if (executed) {
-            receipt = { ...base, subject, state: 'completed', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 1 } };
-            reply = `Done — this **${tx.merchant_name || ''}** transaction is now in **${catLabel(subject.targetCategory, subject.targetSubcategory)}**. No other transactions or rules were changed.`;
-            // Completed-action record for authorized employee collaboration (Prime's tag_status reads
-            // change_source). Stable change_source = the receipt action name.
-            await logTagActivity(supabase, userId, {
-              change_source: TAG_SINGLE_ACTION, merchant_name: null, transaction_id: tx.id,
-              previous_category: tx.category ?? null, new_category: subject.targetCategory, new_subcategory: subject.targetSubcategory ?? null,
-              change_note: 'Single transaction recategorized (customer confirmed)',
-            });
+          // Part 2 §9 (no change ships without its record): the record is written FIRST; no record →
+          // no change. If the update then does not apply, the record is voided.
+          const { data: rec, error: recErr } = await supabase.from('tag_activity_log').insert(toActivityRow(userId, {
+            change_source: TAG_SINGLE_ACTION, merchant_name: null, transaction_id: tx.id,
+            previous_category: tx.category ?? null, previous_subcategory: tx.subcategory ?? null,
+            new_category: subject.targetCategory, new_subcategory: subject.targetSubcategory ?? null,
+            change_note: `Single transaction recategorized (customer confirmed; receipt ${pending?.replyTo ?? 'unknown'}); reversible`,
+          })).select('id').maybeSingle();
+          const recId = !recErr && rec && typeof (rec as { id?: unknown }).id !== 'undefined' ? String((rec as { id: unknown }).id) : null;
+          if (!recId) {
+            legacy = { ok: false, error: 'history_not_saved' };
+            receipt = { ...base, subject, state: 'failed', reason: 'history_not_saved', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
+            reply = "I couldn't save the record of this change, so I didn't change anything. Please try again.";
           } else {
-            receipt = { ...base, subject, state: 'failed', reason: 'nothing_updated', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
-            reply = "I couldn't update that transaction, so nothing was changed. Please try again.";
+            // Exactly one row, owner-scoped. No rule, no merchant memory, no other transaction.
+            const { data: updated, error: upErr } = await supabase
+              .from('transactions')
+              .update({
+                category: subject.targetCategory, subcategory: subject.targetSubcategory,
+                category_source: 'tag_chat', updated_at: new Date().toISOString(),
+              })
+              .eq('id', tx.id)
+              .eq('user_id', userId)
+              .select('id');
+            const n = !upErr && Array.isArray(updated) ? updated.length : 0;
+            executed = n === 1;
+            if (!executed) {
+              const { error: voidErr } = await supabase.from('tag_activity_log')
+                .update({ change_source: `${TAG_SINGLE_ACTION}.void`, change_note: 'Not applied (row unchanged); kept for the record' })
+                .eq('id', recId).eq('user_id', userId);
+              if (voidErr) console.warn('[tag-action] could not void an unapplied change record');
+            }
+            legacy = { ok: executed, transactionId: tx.id, targetCategory: subject.targetCategory, targetSubcategory: subject.targetSubcategory, updatedCount: n, ...(executed ? {} : { error: 'nothing_updated' }) };
+            if (executed) {
+              receipt = { ...base, subject, state: 'completed', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 1 } };
+              reply = `Done — this **${tx.merchant_name || ''}** transaction is now in **${catLabel(subject.targetCategory, subject.targetSubcategory)}**. No other transactions or rules were changed.`;
+            } else {
+              receipt = { ...base, subject, state: 'failed', reason: upErr ? 'commit_error' : 'nothing_updated', proposalRef: pending?.replyTo ?? null, result: { affectedCount: 0 } };
+              reply = "I couldn't update that transaction, so nothing was changed. Please try again.";
+            }
           }
         }
       } catch {
@@ -521,24 +531,6 @@ async function handleConversationalAction(
 // succeeded, so fix_type / fix_type_bulk / bulk_normalize_subcategory returned 500 for completed
 // changes and never wrote the log. A failed log write must never fail the customer's action.
 /** Per-row change history (owner safeguard 5): live tag_activity_log columns, batched, never blocking. */
-async function logTagRowChanges(supabase: SupabaseClient, userId: string, action: string, changes: ReadonlyArray<RowChange>, receiptRef: string | null): Promise<void> {
-  const rows = changes.map(c => toActivityRow(userId, {
-    change_source: `${action}.row`, change_note: `Before this change (receipt ${receiptRef ?? 'unknown'}); reversible`,
-    merchant_name: null, transaction_id: c.transaction_id,
-    previous_category: c.previous_category, previous_subcategory: c.previous_subcategory,
-    new_category: c.new_category, new_subcategory: c.new_subcategory,
-  }));
-  for (let i = 0; i < rows.length; i += 500) {
-    try {
-      const { error } = await supabase.from('tag_activity_log').insert(rows.slice(i, i + 500));
-      if (error) { console.warn('[tag-action] row change history not fully written'); return; }
-    } catch {
-      console.warn('[tag-action] row change history not fully written');
-      return;
-    }
-  }
-}
-
 async function logTagActivity(supabase: SupabaseClient, userId: string, entry: TagActivityEntry): Promise<void> {
   try {
     const { error } = await supabase.from('tag_activity_log').insert(toActivityRow(userId, entry));

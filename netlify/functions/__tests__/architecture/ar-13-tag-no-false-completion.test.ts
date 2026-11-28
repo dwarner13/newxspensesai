@@ -25,10 +25,10 @@ function builder(table: string) {
   const matches = () => rows().filter(r => filters.every(f => f(r)));
   const run = () => {
     if (op === 'insert' && Array.isArray(payload)) {
-      // Batch insert (per-row change history, owner safeguard 5): one row per element.
+      // Batch insert (history-first change records): one row per element; returns the inserted rows.
       if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };
-      for (const one of payload as unknown as Row[]) rows().push({ id: `${table}-${rows().length + 1}`, ...one });
-      return { data: null, error: null };
+      const inserted = (payload as unknown as Row[]).map(one => ({ id: `${table}-${rows().length + 1}`, ...one })).map(r => { rows().push(r); return r; });
+      return { data: inserted, error: null };
     }
     if (op === 'insert') {
       if (table === 'tag_activity_log' && faults.activityLog) return { data: null, error: { message: 'log down' } };

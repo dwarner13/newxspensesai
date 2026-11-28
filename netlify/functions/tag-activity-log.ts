@@ -38,6 +38,8 @@ export const handler: Handler = async (event) => {
       .from('tag_activity_log')
       .select('*, transactions!left(date, amount)')
       .eq('user_id', userId)
+      // Part 2 §9: a voided record (written before a change that did not apply) is not a change.
+      .not('change_source', 'like', '%.void')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -70,7 +72,8 @@ export const handler: Handler = async (event) => {
     const { data: summaryRows } = await sb
       .from('tag_activity_log')
       .select('created_at, change_source, merchant_name')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .not('change_source', 'like', '%.void');
 
     const monthMap = new Map<string, { changes: number; merchants: Set<string>; sources: Record<string, number> }>();
     for (const row of summaryRows || []) {
@@ -94,7 +97,7 @@ export const handler: Handler = async (event) => {
       }));
 
     // Total count for pagination
-    let countQ = sb.from('tag_activity_log').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+    let countQ = sb.from('tag_activity_log').select('id', { count: 'exact', head: true }).eq('user_id', userId).not('change_source', 'like', '%.void');
     if (month) {
       const startDate = `${month}-01`;
       const [y, m] = month.split('-').map(Number);
